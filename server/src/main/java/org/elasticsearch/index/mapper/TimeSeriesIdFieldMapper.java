@@ -135,7 +135,7 @@ public class TimeSeriesIdFieldMapper extends MetadataFieldMapper {
 
         @Override
         public BlockLoader blockLoader(BlockLoaderContext blContext) {
-            return new BlockDocValuesReader.BytesRefsFromOrdsBlockLoader(name());
+            return new TSIDBlockLoader();
         }
     }
 

@@ -281,7 +281,7 @@ public class TestBlock implements BlockLoader.Block {
                     @Override
                     public SingletonOrdsBuilder appendOrd(int value) {
                         try {
-                            add(ordinals.lookupOrd(value));
+                            add(BytesRef.deepCopyOf(ordinals.lookupOrd(value)));
                             return this;
                         } catch (IOException e) {
                             throw new UncheckedIOException(e);

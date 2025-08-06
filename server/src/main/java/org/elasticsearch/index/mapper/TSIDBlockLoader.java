@@ -11,41 +11,33 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.index.NumericDocValues;
+import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
-import org.elasticsearch.index.codec.tsdb.es819.BlockAwareNumericDocValues;
+import org.elasticsearch.index.codec.tsdb.es819.BlockAwareSortedDocValues;
 import org.elasticsearch.index.codec.tsdb.es819.SingletonDocValuesBlockLoader;
 import org.elasticsearch.search.fetch.StoredFieldsSpec;
 
 import java.io.IOException;
 
-public final class TimestampBlockLoader implements BlockLoader {
+public final class TSIDBlockLoader implements BlockLoader {
 
-    private static final String FIELD_NAME = "@timestamp";
+    private static final String FIELD_NAME = TimeSeriesIdFieldMapper.NAME;
 
     @Override
     public Builder builder(BlockFactory factory, int expectedCount) {
-        return factory.longs(expectedCount);
+        return factory.bytesRefs(expectedCount);
     }
 
     @Override
     public ColumnAtATimeReader columnAtATimeReader(LeafReaderContext context) throws IOException {
-        var singleton = getNumericDocValues(context);
-        return new Timestamps((BlockAwareNumericDocValues) singleton);
-    }
-
-    private static NumericDocValues getNumericDocValues(LeafReaderContext context) throws IOException {
-        var singleton = context.reader().getNumericDocValues(FIELD_NAME);
-        if (singleton == null) {
-            var docValues = context.reader().getSortedNumericDocValues(FIELD_NAME);
-            singleton = DocValues.unwrapSingleton(docValues);
-        }
-        return singleton;
+        var singleton = context.reader().getSortedDocValues(FIELD_NAME);
+        return new TSIDs((BlockAwareSortedDocValues) singleton);
     }
 
     @Override
     public RowStrideReader rowStrideReader(LeafReaderContext context) throws IOException {
-        return new BlockDocValuesReader.SingletonLongs(getNumericDocValues(context));
+        var singleton = context.reader().getSortedDocValues(FIELD_NAME);
+        return new BlockDocValuesReader.SingletonOrdinals(singleton);
     }
 
     @Override
@@ -55,26 +47,28 @@ public final class TimestampBlockLoader implements BlockLoader {
 
     @Override
     public boolean supportsOrdinals() {
-        return false;
+        return true;
     }
 
     @Override
     public SortedSetDocValues ordinals(LeafReaderContext context) throws IOException {
-        throw new UnsupportedOperationException();
+        return DocValues.getSortedSet(context.reader(), FIELD_NAME);
     }
 
-    public static final class Timestamps implements ColumnAtATimeReader {
+    public static final class TSIDs implements ColumnAtATimeReader {
         private final Thread creationThread;
+        private final SortedDocValues sorted;
         private final SingletonDocValuesBlockLoader blockLoader;
 
-        Timestamps(BlockAwareNumericDocValues blockAware) {
+        TSIDs(BlockAwareSortedDocValues sorted) {
             this.creationThread = Thread.currentThread();
-            this.blockLoader = blockAware.getSingletonBlockLoader();
+            this.sorted = sorted;
+            this.blockLoader = sorted.getSingletonBlockLoader();
         }
 
         @Override
-        public BlockLoader.Block read(BlockFactory factory, Docs docs, int offset) throws IOException {
-            try (BlockLoader.SingletonLongBuilder builder = factory.singletonLongs(docs.count() - offset)) {
+        public Block read(BlockFactory factory, Docs docs, int offset) throws IOException {
+            try (SingletonOrdinalsBuilder builder = factory.singletonOrdinalsBuilder(sorted, docs.count() - offset)) {
                 blockLoader.loadBlock(builder, docs, offset);
                 return builder.build();
             }
@@ -87,7 +81,7 @@ public final class TimestampBlockLoader implements BlockLoader {
 
         @Override
         public String toString() {
-            return "TimestampBlockLoader.Timestamps";
+            return "TSIDBlockLoader.TSIDs";
         }
     }
 }

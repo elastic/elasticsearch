@@ -632,7 +632,7 @@ public abstract class BlockDocValuesReader implements BlockLoader.AllReader {
         }
     }
 
-    private static class SingletonOrdinals extends BlockDocValuesReader {
+    public static class SingletonOrdinals extends BlockDocValuesReader {
         private final SortedDocValues ordinals;
 
         SingletonOrdinals(SortedDocValues ordinals) {

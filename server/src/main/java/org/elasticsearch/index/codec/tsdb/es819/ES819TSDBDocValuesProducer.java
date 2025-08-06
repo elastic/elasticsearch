@@ -369,10 +369,19 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
             public long cost() {
                 return ords.cost();
             }
+
+            @Override
+            public SingletonDocValuesBlockLoader getSingletonBlockLoader() {
+                if (ords instanceof BlockAwareNumericDocValues b) {
+                    return b.getSingletonBlockLoader();
+                } else {
+                    return null;
+                }
+            }
         };
     }
 
-    abstract class BaseSortedDocValues extends SortedDocValues {
+    abstract class BaseSortedDocValues extends BlockAwareSortedDocValues {
 
         final SortedEntry entry;
         final TermsEnum termsEnum;
@@ -1203,17 +1212,17 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
                     return currentBlock[blockInIndex];
                 }
 
-                private SingletonLongDocValuesBlockLoader loader;
+                private SingletonDocValuesBlockLoader loader;
 
                 @Override
-                public SingletonLongDocValuesBlockLoader getSingletonBlockLoader() {
+                public SingletonDocValuesBlockLoader getSingletonBlockLoader() {
                     if (loader == null) {
-                        assert maxOrd == -1;
-                        loader = new SingletonLongDocValuesBlockLoader() {
+                        loader = new SingletonDocValuesBlockLoader() {
 
                             @Override
                             public void loadBlock(BlockLoader.SingletonLongBuilder builder, BlockLoader.Docs docs, int offset)
                                 throws IOException {
+                                assert maxOrd == -1;
                                 doc = docs.get(docs.count() - 1);
                                 boolean isDense = doc - docs.get(0) == docs.count() - 1;
                                 if (isDense) {
@@ -1312,6 +1321,27 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
                                         }
                                         builder.appendLong(currentBlock[blockInIndex]);
                                     }
+                                }
+                            }
+
+                            @Override
+                            public void loadBlock(BlockLoader.SingletonOrdinalsBuilder builder, BlockLoader.Docs docs, int offset)
+                                throws IOException {
+                                assert maxOrd >= 0;
+                                for (int i = offset; i < docs.count(); i++) {
+                                    int index = docs.get(i);
+                                    final int blockIndex = index >>> ES819TSDBDocValuesFormat.NUMERIC_BLOCK_SHIFT;
+                                    final int blockInIndex = index & ES819TSDBDocValuesFormat.NUMERIC_BLOCK_MASK;
+                                    if (blockIndex != currentBlockIndex) {
+                                        assert blockIndex > currentBlockIndex : blockIndex + " < " + currentBlockIndex;
+                                        // no need to seek if the loading block is the next block
+                                        if (currentBlockIndex + 1 != blockIndex) {
+                                            valuesData.seek(indexReader.get(blockIndex));
+                                        }
+                                        currentBlockIndex = blockIndex;
+                                        decoder.decodeOrdinals(valuesData, currentBlock, bitsPerOrd);
+                                    }
+                                    builder.appendOrd(Math.toIntExact(currentBlock[blockInIndex]));
                                 }
                             }
 

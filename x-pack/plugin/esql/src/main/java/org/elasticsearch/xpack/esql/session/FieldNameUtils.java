@@ -109,7 +109,7 @@ public class FieldNameUtils {
         var canRemoveAliases = new Holder<>(true);
 
         var forEachDownProcessor = new Holder<BiConsumer<LogicalPlan, Holder<Boolean>>>();
-        processingLambda.set((LogicalPlan p, Holder<Boolean> breakEarly) -> {// go over each plan top-down
+        forEachDownProcessor.set((LogicalPlan p, Holder<Boolean> breakEarly) -> {// go over each plan top-down
             if (p instanceof Fork fork) {
                 // Early return from forEachDown. We will iterate over the children manually and end the recursion via forEachDown early.
                 var forkRefsResult = AttributeSet.builder();
@@ -218,7 +218,7 @@ public class FieldNameUtils {
                 });
             }
         });
-        parsed.forEachDownMayReturnEarly(processingLambda.get());
+        parsed.forEachDownMayReturnEarly(forEachDownProcessor.get());
 
         if (projectAll.get()) {
             return new PreAnalysisResult(enrichResolution, IndexResolver.ALL_FIELDS, Set.of());

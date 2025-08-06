@@ -50,6 +50,10 @@ public class EvilThreadPoolTests extends ESTestCase {
 
     public void testExecutionErrorOnDefaultThreadPoolTypes() throws InterruptedException {
         for (String executor : ThreadPool.THREAD_POOL_TYPES.keySet()) {
+            // Won't work for virtual thread pools.
+            if (ThreadPool.THREAD_POOL_TYPES.get(executor) == ThreadPool.ThreadPoolType.VIRTUAL) {
+                continue;
+            }
             checkExecutionError(getExecuteRunner(threadPool.executor(executor)));
             checkExecutionError(getSubmitRunner(threadPool.executor(executor)));
             checkExecutionError(getScheduleRunner(threadPool.executor(executor)));

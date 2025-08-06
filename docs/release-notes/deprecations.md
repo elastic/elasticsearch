@@ -21,11 +21,11 @@ stack: coming 9.1.1
 ```
 ## 9.1.1 [elasticsearch-9.1.1-deprecations]
 
-No deprecations in this version.
+There are no deprecations associated with this release.
 
 ## 9.1.0 [elasticsearch-9.1.0-deprecations]
 
-No deprecations in this version.
+There are no deprecations associated with this release.
 
 ## 9.0.4 [elasticsearch-9.0.4-deprecations]
 

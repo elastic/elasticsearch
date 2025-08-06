@@ -637,9 +637,21 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
 
     @Override
     public String visitFunctionName(EsqlBaseParser.FunctionNameContext ctx) {
-        var name = visitIdentifierOrParameter(ctx.identifierOrParameter());
+        String name = functionName(ctx);
         context.telemetry().function(name);
         return name;
+    }
+
+    private String functionName(EsqlBaseParser.FunctionNameContext ctx) {
+        TerminalNode first = ctx.LAST();
+        if (first != null) {
+            return first.getText();
+        }
+        TerminalNode last = ctx.LAST();
+        if (last != null) {
+            return last.getText();
+        }
+        return visitIdentifierOrParameter(ctx.identifierOrParameter());
     }
 
     @Override

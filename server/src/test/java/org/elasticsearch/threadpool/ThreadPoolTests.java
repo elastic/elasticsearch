@@ -509,7 +509,9 @@ public class ThreadPoolTests extends ESTestCase {
 
             final long beforePreviousCollectNanos = System.nanoTime();
             meterRegistry.getRecorder().collect();
-            double allocationUtilization = executor.pollUtilization(EsExecutorService.ExecutionTimeTrackingEsExecutorService.UtilizationTrackingPurpose.ALLOCATION);
+            double allocationUtilization = executor.pollUtilization(
+                EsExecutorService.ExecutionTimeTrackingEsExecutorService.UtilizationTrackingPurpose.ALLOCATION
+            );
             final long afterPreviousCollectNanos = System.nanoTime();
 
             var metricValue = metricAsserter.assertLatestMetricValueMatches(
@@ -539,7 +541,9 @@ public class ThreadPoolTests extends ESTestCase {
 
             final long beforeMetricsCollectedNanos = System.nanoTime();
             meterRegistry.getRecorder().collect();
-            allocationUtilization = executor.pollUtilization(EsExecutorService.ExecutionTimeTrackingEsExecutorService.UtilizationTrackingPurpose.ALLOCATION);
+            allocationUtilization = executor.pollUtilization(
+                EsExecutorService.ExecutionTimeTrackingEsExecutorService.UtilizationTrackingPurpose.ALLOCATION
+            );
             final long afterMetricsCollectedNanos = System.nanoTime();
 
             // Calculate upper bound on utilisation metric

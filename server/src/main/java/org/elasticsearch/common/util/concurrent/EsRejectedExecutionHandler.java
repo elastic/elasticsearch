@@ -15,7 +15,6 @@ import org.elasticsearch.telemetry.metric.MeterRegistry;
 
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.RejectedExecutionHandler;
-import java.util.concurrent.ThreadPoolExecutor;
 
 public abstract class EsRejectedExecutionHandler implements RejectedExecutionHandler {
 
@@ -41,11 +40,7 @@ public abstract class EsRejectedExecutionHandler implements RejectedExecutionHan
         rejectionCounter.incrementBy(rejected());
     }
 
-    protected static EsRejectedExecutionException newRejectedException(
-        Runnable r,
-        ExecutorService executor,
-        boolean isExecutorShutdown
-    ) {
+    protected static EsRejectedExecutionException newRejectedException(Runnable r, ExecutorService executor, boolean isExecutorShutdown) {
         final StringBuilder builder = new StringBuilder("rejected execution of ").append(r).append(" on ").append(executor);
         if (isExecutorShutdown) {
             builder.append(" (shutdown)");

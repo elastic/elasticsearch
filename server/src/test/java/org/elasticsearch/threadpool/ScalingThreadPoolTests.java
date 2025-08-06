@@ -245,7 +245,10 @@ public class ScalingThreadPoolTests extends ESThreadPoolTestCase {
             for (int i = 0; i < queuedAfterShutdown; i++) {
                 execute(scalingExecutor, () -> {}, executed, rejected, failed);
             }
-            assertThat(scalingExecutor.getCurrentQueueSize(), rejectAfterShutdown ? equalTo(queued) : equalTo(queued + queuedAfterShutdown));
+            assertThat(
+                scalingExecutor.getCurrentQueueSize(),
+                rejectAfterShutdown ? equalTo(queued) : equalTo(queued + queuedAfterShutdown)
+            );
 
             block.countDown();
 

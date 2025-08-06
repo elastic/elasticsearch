@@ -9,14 +9,11 @@
 
 package org.elasticsearch.common.util.concurrent;
 
-import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.concurrent.EsExecutorService.ExecutionTimeTrackingEsExecutorService;
 import org.elasticsearch.common.util.concurrent.EsExecutors.TaskTrackingConfig;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.telemetry.metric.Instrument;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 
-import java.util.List;
 import java.util.Map;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.RejectedExecutionHandler;

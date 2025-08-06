@@ -103,8 +103,8 @@ public class UpdateThreadPoolSettingsTests extends ESThreadPoolTestCase {
 
             assertEquals(info(threadPool, threadPoolName).getThreadPoolType(), ThreadPool.ThreadPoolType.FIXED);
             // FIXME
-            //assertThat(((EsExecutorService) executor).getCorePoolSize(), equalTo(expectedSize));
-            //assertThat(((EsExecutorService) executor).getKeepAliveTime(TimeUnit.MINUTES), equalTo(0L));
+            // assertThat(((EsExecutorService) executor).getCorePoolSize(), equalTo(expectedSize));
+            // assertThat(((EsExecutorService) executor).getKeepAliveTime(TimeUnit.MINUTES), equalTo(0L));
             assertThat(((EsExecutorService) executor).getMaximumPoolSize(), equalTo(expectedSize));
             assertThat(info(threadPool, threadPoolName).getMin(), equalTo(expectedSize));
             assertThat(info(threadPool, threadPoolName).getMax(), equalTo(expectedSize));

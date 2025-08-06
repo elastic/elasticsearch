@@ -181,7 +181,7 @@ class TaskTracker {
         return trackMaxQueueLatency;
     }
 
-    void appendTaskExecutionDetails(StringBuilder sb){
+    void appendTaskExecutionDetails(StringBuilder sb) {
         sb.append("task execution EWMA = ")
             .append(TimeValue.timeValueNanos((long) getTaskExecutionEWMA()))
             .append(", ")

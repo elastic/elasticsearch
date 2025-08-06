@@ -28,10 +28,8 @@ public interface EsExecutorService extends ExecutorService {
 
     int getLargestPoolSize();
 
-
-
     // FIXME is this required?! Any usage outside of tests? Investigate InternalWatchExecutor?
-    default Stream<Runnable> getTasks(){
+    default Stream<Runnable> getTasks() {
         return Stream.empty();
     }
 

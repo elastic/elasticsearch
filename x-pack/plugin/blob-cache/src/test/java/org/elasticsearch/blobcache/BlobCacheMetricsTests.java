@@ -17,6 +17,7 @@ import org.junit.Before;
 
 import java.util.Arrays;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.IntStream;
 
 import static org.hamcrest.Matchers.is;
 
@@ -66,6 +67,36 @@ public class BlobCacheMetricsTests extends ESTestCase {
             .get(0);
         assertEquals(totalTimeMeasurement.getLong(), TimeUnit.SECONDS.toMillis(secondsTaken));
         assertExpectedAttributesPresent(totalTimeMeasurement, cachePopulationReason, cachePopulationSource, fileExtension);
+
+        // let us check for 0, avoid div by 0.
+        checkReadsAndMisses(0, 0, 1);
+        int reads = between(1, 100);
+        int writes = between(1, reads);
+        metrics.recordWrites(writes);
+        checkReadsAndMisses(0, writes, writes);
+        IntStream.range(0, reads).forEach(i -> metrics.recordRead());
+        checkReadsAndMisses(reads, writes, reads);
+        metrics.recordWrites(reads);
+        checkReadsAndMisses(reads, writes + reads, writes + reads);
+    }
+
+    private void checkReadsAndMisses(int reads, int writes, int readsForRatio) {
+        recordingMeterRegistry.getRecorder().collect();
+
+        Measurement totalReadsMeasurement = recordingMeterRegistry.getRecorder()
+            .getMeasurements(InstrumentType.LONG_GAUGE, "es.blob_cache.read.total")
+            .getLast();
+        assertEquals(reads, totalReadsMeasurement.getLong());
+
+        Measurement totalMissesMeasurement = recordingMeterRegistry.getRecorder()
+            .getMeasurements(InstrumentType.LONG_GAUGE, "es.blob_cache.miss.total")
+            .getLast();
+        assertEquals(writes, totalMissesMeasurement.getLong());
+
+        Measurement missRatio = recordingMeterRegistry.getRecorder()
+            .getMeasurements(InstrumentType.DOUBLE_GAUGE, "es.blob_cache.miss.ratio")
+            .getLast();
+        assertEquals((double) writes / readsForRatio, missRatio.getDouble(), 0.00000001d);
     }
 
     private static void assertExpectedAttributesPresent(

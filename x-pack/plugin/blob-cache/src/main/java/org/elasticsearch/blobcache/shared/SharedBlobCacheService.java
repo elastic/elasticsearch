@@ -325,10 +325,8 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
 
     private final ConcurrentHashMap<SharedBytes.IO, CacheFileRegion<KeyType>> regionOwners; // to assert exclusive access of regions
 
-    private final LongAdder writeCount = new LongAdder();
     private final LongAdder writeBytes = new LongAdder();
 
-    private final LongAdder readCount = new LongAdder();
     private final LongAdder readBytes = new LongAdder();
 
     private final LongAdder evictCount = new LongAdder();
@@ -739,9 +737,9 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
             cacheSize,
             regionSize,
             evictCount.sum(),
-            writeCount.sum(),
+            blobCacheMetrics.writeCount(),
             writeBytes.sum(),
-            readCount.sum(),
+            blobCacheMetrics.readCount(),
             readBytes.sum()
         );
     }
@@ -1113,7 +1111,7 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
                                     + '-'
                                     + rangeToRead.start()
                                     + ']';
-                            blobCacheService.readCount.increment();
+                            blobCacheService.blobCacheMetrics.recordRead();
                             l.onResponse(read);
                         })
                     );
@@ -1172,7 +1170,6 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
                     l.<Void>map(unused -> {
                         assert blobCacheService.regionOwners.get(ioRef) == CacheFileRegion.this;
                         assert CacheFileRegion.this.hasReferences() : CacheFileRegion.this;
-                        blobCacheService.writeCount.increment();
                         gap.onCompletion();
                         return null;
                     }).delegateResponse((delegate, e) -> failGapAndListener(gap, delegate, e))
@@ -1228,12 +1225,14 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
                 return false;
             }
             var fileRegion = lastAccessedRegion;
+            boolean incrementReads = false;
             if (fileRegion != null && fileRegion.chunk.regionKey.region == startRegion) {
                 // existing item, check if we need to promote item
                 fileRegion.touch();
 
             } else {
                 fileRegion = cache.get(cacheKey, length, startRegion);
+                incrementReads = true;
             }
             final var region = fileRegion.chunk;
             if (region.tracker.checkAvailable(end - getRegionStart(startRegion)) == false) {
@@ -1241,6 +1240,10 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
             }
             boolean res = region.tryRead(buf, offset);
             lastAccessedRegion = res ? fileRegion : null;
+            if (res && incrementReads) {
+                blobCacheMetrics.recordRead();
+                readBytes.add(end - offset);
+            }
             return res;
         }
 
@@ -1313,7 +1316,9 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
                 ioExecutor,
                 readFuture
             );
-            return readFuture.get();
+            int result = readFuture.get();
+            blobCacheMetrics.recordWrite();
+            return result;
         }
 
         private int readMultiRegions(
@@ -1352,6 +1357,7 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
                 }
             }
             readsComplete.get();
+            blobCacheMetrics.recordWrites(endRegion - startRegion + 1);
             return bytesRead.get();
         }
 

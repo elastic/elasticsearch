@@ -35,7 +35,7 @@ the embedding generation, indexing, and query to use.
 
 {applies_to}`stack: ga 9.1`  Newly created indices with `semantic_text` fields using dense embeddings will be
 [quantized](/reference/elasticsearch/mapping-reference/dense-vector.md#dense-vector-quantization)
-to `bbq_hnsw` automatically.
+to `bbq_hnsw` automatically as long as they have a minimum of 64 dimensions.
 
 ## Default and custom endpoints
 
@@ -156,9 +156,11 @@ to create the endpoint. If not specified, the {{infer}} endpoint defined by
 
 `index_options` {applies_to}`stack: ga 9.1`
 :   (Optional, object) Specifies the index options to override default values
-for the field. Currently, `dense_vector` index options are supported.
-For text embeddings, `index_options` may match any allowed
-[dense_vector index options](/reference/elasticsearch/mapping-reference/dense-vector.md#dense-vector-index-options).
+for the field. Currently, `dense_vector` and `sparse_vector` index options are supported.
+For text embeddings, `index_options` may match any allowed.
+
+* [dense_vector index options](/reference/elasticsearch/mapping-reference/dense-vector.md#dense-vector-index-options).
+* [sparse_vector index options](/reference/elasticsearch/mapping-reference/sparse-vector.md#sparse-vectors-params). {applies_to}`stack: ga 9.2`
 
 `chunking_settings` {applies_to}`stack: ga 9.1`
 :   (Optional, object) Settings for chunking text into smaller passages.
@@ -410,7 +412,7 @@ stack: ga 9.0
 In case you want to customize data indexing, use the
 [`sparse_vector`](/reference/elasticsearch/mapping-reference/sparse-vector.md)
 or [`dense_vector`](/reference/elasticsearch/mapping-reference/dense-vector.md)
-field types and create an ingest pipeline with an 
+field types and create an ingest pipeline with an
 [{{infer}} processor](/reference/enrich-processor/inference-processor.md) to
 generate the embeddings.
 [This tutorial](docs-content://solutions/search/semantic-search/semantic-search-inference.md)

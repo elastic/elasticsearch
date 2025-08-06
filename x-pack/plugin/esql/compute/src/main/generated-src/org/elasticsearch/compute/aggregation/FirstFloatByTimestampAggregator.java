@@ -25,18 +25,16 @@ import org.elasticsearch.core.Releasables;
 
 /**
  * A time-series aggregation function that collects the First occurrence value of a time series in a specified interval.
- * This class is generated. Edit `X-ValueOverTimeAggregator.java.st` instead.
+ * This class is generated. Edit `X-ValueByTimestampAggregator.java.st` instead.
  */
 @GroupingAggregator(
     { @IntermediateState(name = "timestamps", type = "LONG_BLOCK"), @IntermediateState(name = "values", type = "FLOAT_BLOCK") }
 )
-public class FirstOverTimeFloatAggregator {
+public class FirstFloatByTimestampAggregator {
     public static GroupingState initGrouping(DriverContext driverContext) {
         return new GroupingState(driverContext.bigArrays());
     }
 
-    // TODO: Since data in data_streams is sorted by `_tsid` and timestamp in descending order,
-    // we can read the first encountered value for each group of `_tsid` and time bucket.
     public static void combine(GroupingState current, int groupId, float value, long timestamp) {
         current.collectValue(groupId, timestamp, value);
     }

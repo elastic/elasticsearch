@@ -174,11 +174,17 @@ class KibanaOwnedReservedRoleDescriptors {
                     .privileges("write", "delete", "create_index")
                     .allowRestrictedIndices(true)
                     .build(),
+<<<<<<< HEAD
                 // Knowledge base. Fleet creates, manages, and uses this index to store knowledge base documents to be consumed by AI assistants.
                 RoleDescriptor.IndicesPrivileges.builder()
                     .indices(".integration_knowledge*")
                     .privileges("read", "write", "create_index")
                     .build(),
+=======
+                // Knowledge base. Fleet creates, manages, and uses this index to store knowledge base documents to be consumed by AI
+                // assistants.
+                RoleDescriptor.IndicesPrivileges.builder().indices(".integration_knowledge*").privileges("all").build(),
+>>>>>>> 774c20bab17bd45c93886bdda6c3eb38d348e99a
                 // Other Fleet indices. Kibana reads and writes to these indices to manage
                 // Elastic Agents.
                 RoleDescriptor.IndicesPrivileges.builder()
@@ -333,8 +339,6 @@ class KibanaOwnedReservedRoleDescriptors {
                         "indices:admin/data_stream/lifecycle/put"
                     )
                     .build(),
-                // Read datasets for auto install content packages feature in Fleet
-                RoleDescriptor.IndicesPrivileges.builder().indices("logs-*", "metrics-*", "traces-*").privileges("read").build(),
                 // Endpoint specific action responses. Kibana reads and writes (for third party
                 // agents) to the index to display action responses to the user.
                 // `create_index`: is necessary in order to ensure that the DOT datastream index is

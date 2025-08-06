@@ -10,9 +10,9 @@ import java.lang.String;
 import java.lang.StringBuilder;
 import java.util.List;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.DoubleBlock;
+import org.elasticsearch.compute.data.DoubleVector;
 import org.elasticsearch.compute.data.ElementType;
-import org.elasticsearch.compute.data.FloatBlock;
-import org.elasticsearch.compute.data.FloatVector;
 import org.elasticsearch.compute.data.IntArrayBlock;
 import org.elasticsearch.compute.data.IntBigArrayBlock;
 import org.elasticsearch.compute.data.IntVector;
@@ -22,30 +22,30 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 
 /**
- * {@link GroupingAggregatorFunction} implementation for {@link FirstOverTimeFloatAggregator}.
+ * {@link GroupingAggregatorFunction} implementation for {@link LastDoubleByTimestampAggregator}.
  * This class is generated. Edit {@code GroupingAggregatorImplementer} instead.
  */
-public final class FirstOverTimeFloatGroupingAggregatorFunction implements GroupingAggregatorFunction {
+public final class LastDoubleByTimestampGroupingAggregatorFunction implements GroupingAggregatorFunction {
   private static final List<IntermediateStateDesc> INTERMEDIATE_STATE_DESC = List.of(
       new IntermediateStateDesc("timestamps", ElementType.LONG),
-      new IntermediateStateDesc("values", ElementType.FLOAT)  );
+      new IntermediateStateDesc("values", ElementType.DOUBLE)  );
 
-  private final FirstOverTimeFloatAggregator.GroupingState state;
+  private final LastDoubleByTimestampAggregator.GroupingState state;
 
   private final List<Integer> channels;
 
   private final DriverContext driverContext;
 
-  public FirstOverTimeFloatGroupingAggregatorFunction(List<Integer> channels,
-      FirstOverTimeFloatAggregator.GroupingState state, DriverContext driverContext) {
+  public LastDoubleByTimestampGroupingAggregatorFunction(List<Integer> channels,
+      LastDoubleByTimestampAggregator.GroupingState state, DriverContext driverContext) {
     this.channels = channels;
     this.state = state;
     this.driverContext = driverContext;
   }
 
-  public static FirstOverTimeFloatGroupingAggregatorFunction create(List<Integer> channels,
+  public static LastDoubleByTimestampGroupingAggregatorFunction create(List<Integer> channels,
       DriverContext driverContext) {
-    return new FirstOverTimeFloatGroupingAggregatorFunction(channels, FirstOverTimeFloatAggregator.initGrouping(driverContext), driverContext);
+    return new LastDoubleByTimestampGroupingAggregatorFunction(channels, LastDoubleByTimestampAggregator.initGrouping(driverContext), driverContext);
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {
@@ -60,9 +60,9 @@ public final class FirstOverTimeFloatGroupingAggregatorFunction implements Group
   @Override
   public GroupingAggregatorFunction.AddInput prepareProcessRawInputPage(SeenGroupIds seenGroupIds,
       Page page) {
-    FloatBlock valueBlock = page.getBlock(channels.get(0));
+    DoubleBlock valueBlock = page.getBlock(channels.get(0));
     LongBlock timestampBlock = page.getBlock(channels.get(1));
-    FloatVector valueVector = valueBlock.asVector();
+    DoubleVector valueVector = valueBlock.asVector();
     if (valueVector == null) {
       if (valueBlock.mayHaveNulls()) {
         state.enableGroupIdTracking(seenGroupIds);
@@ -136,7 +136,7 @@ public final class FirstOverTimeFloatGroupingAggregatorFunction implements Group
     };
   }
 
-  private void addRawInput(int positionOffset, IntArrayBlock groups, FloatBlock valueBlock,
+  private void addRawInput(int positionOffset, IntArrayBlock groups, DoubleBlock valueBlock,
       LongBlock timestampBlock) {
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       if (groups.isNull(groupPosition)) {
@@ -156,19 +156,19 @@ public final class FirstOverTimeFloatGroupingAggregatorFunction implements Group
         int valueStart = valueBlock.getFirstValueIndex(valuesPosition);
         int valueEnd = valueStart + valueBlock.getValueCount(valuesPosition);
         for (int valueOffset = valueStart; valueOffset < valueEnd; valueOffset++) {
-          float valueValue = valueBlock.getFloat(valueOffset);
+          double valueValue = valueBlock.getDouble(valueOffset);
           int timestampStart = timestampBlock.getFirstValueIndex(valuesPosition);
           int timestampEnd = timestampStart + timestampBlock.getValueCount(valuesPosition);
           for (int timestampOffset = timestampStart; timestampOffset < timestampEnd; timestampOffset++) {
             long timestampValue = timestampBlock.getLong(timestampOffset);
-            FirstOverTimeFloatAggregator.combine(state, groupId, valueValue, timestampValue);
+            LastDoubleByTimestampAggregator.combine(state, groupId, valueValue, timestampValue);
           }
         }
       }
     }
   }
 
-  private void addRawInput(int positionOffset, IntArrayBlock groups, FloatVector valueVector,
+  private void addRawInput(int positionOffset, IntArrayBlock groups, DoubleVector valueVector,
       LongVector timestampVector) {
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       if (groups.isNull(groupPosition)) {
@@ -179,9 +179,9 @@ public final class FirstOverTimeFloatGroupingAggregatorFunction implements Group
       int groupEnd = groupStart + groups.getValueCount(groupPosition);
       for (int g = groupStart; g < groupEnd; g++) {
         int groupId = groups.getInt(g);
-        float valueValue = valueVector.getFloat(valuesPosition);
+        double valueValue = valueVector.getDouble(valuesPosition);
         long timestampValue = timestampVector.getLong(valuesPosition);
-        FirstOverTimeFloatAggregator.combine(state, groupId, valueValue, timestampValue);
+        LastDoubleByTimestampAggregator.combine(state, groupId, valueValue, timestampValue);
       }
     }
   }
@@ -199,7 +199,7 @@ public final class FirstOverTimeFloatGroupingAggregatorFunction implements Group
     if (valuesUncast.areAllValuesNull()) {
       return;
     }
-    FloatBlock values = (FloatBlock) valuesUncast;
+    DoubleBlock values = (DoubleBlock) valuesUncast;
     assert timestamps.getPositionCount() == values.getPositionCount();
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       if (groups.isNull(groupPosition)) {
@@ -210,12 +210,12 @@ public final class FirstOverTimeFloatGroupingAggregatorFunction implements Group
       for (int g = groupStart; g < groupEnd; g++) {
         int groupId = groups.getInt(g);
         int valuesPosition = groupPosition + positionOffset;
-        FirstOverTimeFloatAggregator.combineIntermediate(state, groupId, timestamps, values, valuesPosition);
+        LastDoubleByTimestampAggregator.combineIntermediate(state, groupId, timestamps, values, valuesPosition);
       }
     }
   }
 
-  private void addRawInput(int positionOffset, IntBigArrayBlock groups, FloatBlock valueBlock,
+  private void addRawInput(int positionOffset, IntBigArrayBlock groups, DoubleBlock valueBlock,
       LongBlock timestampBlock) {
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       if (groups.isNull(groupPosition)) {
@@ -235,19 +235,19 @@ public final class FirstOverTimeFloatGroupingAggregatorFunction implements Group
         int valueStart = valueBlock.getFirstValueIndex(valuesPosition);
         int valueEnd = valueStart + valueBlock.getValueCount(valuesPosition);
         for (int valueOffset = valueStart; valueOffset < valueEnd; valueOffset++) {
-          float valueValue = valueBlock.getFloat(valueOffset);
+          double valueValue = valueBlock.getDouble(valueOffset);
           int timestampStart = timestampBlock.getFirstValueIndex(valuesPosition);
           int timestampEnd = timestampStart + timestampBlock.getValueCount(valuesPosition);
           for (int timestampOffset = timestampStart; timestampOffset < timestampEnd; timestampOffset++) {
             long timestampValue = timestampBlock.getLong(timestampOffset);
-            FirstOverTimeFloatAggregator.combine(state, groupId, valueValue, timestampValue);
+            LastDoubleByTimestampAggregator.combine(state, groupId, valueValue, timestampValue);
           }
         }
       }
     }
   }
 
-  private void addRawInput(int positionOffset, IntBigArrayBlock groups, FloatVector valueVector,
+  private void addRawInput(int positionOffset, IntBigArrayBlock groups, DoubleVector valueVector,
       LongVector timestampVector) {
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       if (groups.isNull(groupPosition)) {
@@ -258,9 +258,9 @@ public final class FirstOverTimeFloatGroupingAggregatorFunction implements Group
       int groupEnd = groupStart + groups.getValueCount(groupPosition);
       for (int g = groupStart; g < groupEnd; g++) {
         int groupId = groups.getInt(g);
-        float valueValue = valueVector.getFloat(valuesPosition);
+        double valueValue = valueVector.getDouble(valuesPosition);
         long timestampValue = timestampVector.getLong(valuesPosition);
-        FirstOverTimeFloatAggregator.combine(state, groupId, valueValue, timestampValue);
+        LastDoubleByTimestampAggregator.combine(state, groupId, valueValue, timestampValue);
       }
     }
   }
@@ -278,7 +278,7 @@ public final class FirstOverTimeFloatGroupingAggregatorFunction implements Group
     if (valuesUncast.areAllValuesNull()) {
       return;
     }
-    FloatBlock values = (FloatBlock) valuesUncast;
+    DoubleBlock values = (DoubleBlock) valuesUncast;
     assert timestamps.getPositionCount() == values.getPositionCount();
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       if (groups.isNull(groupPosition)) {
@@ -289,12 +289,12 @@ public final class FirstOverTimeFloatGroupingAggregatorFunction implements Group
       for (int g = groupStart; g < groupEnd; g++) {
         int groupId = groups.getInt(g);
         int valuesPosition = groupPosition + positionOffset;
-        FirstOverTimeFloatAggregator.combineIntermediate(state, groupId, timestamps, values, valuesPosition);
+        LastDoubleByTimestampAggregator.combineIntermediate(state, groupId, timestamps, values, valuesPosition);
       }
     }
   }
 
-  private void addRawInput(int positionOffset, IntVector groups, FloatBlock valueBlock,
+  private void addRawInput(int positionOffset, IntVector groups, DoubleBlock valueBlock,
       LongBlock timestampBlock) {
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       int valuesPosition = groupPosition + positionOffset;
@@ -308,25 +308,25 @@ public final class FirstOverTimeFloatGroupingAggregatorFunction implements Group
       int valueStart = valueBlock.getFirstValueIndex(valuesPosition);
       int valueEnd = valueStart + valueBlock.getValueCount(valuesPosition);
       for (int valueOffset = valueStart; valueOffset < valueEnd; valueOffset++) {
-        float valueValue = valueBlock.getFloat(valueOffset);
+        double valueValue = valueBlock.getDouble(valueOffset);
         int timestampStart = timestampBlock.getFirstValueIndex(valuesPosition);
         int timestampEnd = timestampStart + timestampBlock.getValueCount(valuesPosition);
         for (int timestampOffset = timestampStart; timestampOffset < timestampEnd; timestampOffset++) {
           long timestampValue = timestampBlock.getLong(timestampOffset);
-          FirstOverTimeFloatAggregator.combine(state, groupId, valueValue, timestampValue);
+          LastDoubleByTimestampAggregator.combine(state, groupId, valueValue, timestampValue);
         }
       }
     }
   }
 
-  private void addRawInput(int positionOffset, IntVector groups, FloatVector valueVector,
+  private void addRawInput(int positionOffset, IntVector groups, DoubleVector valueVector,
       LongVector timestampVector) {
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       int valuesPosition = groupPosition + positionOffset;
       int groupId = groups.getInt(groupPosition);
-      float valueValue = valueVector.getFloat(valuesPosition);
+      double valueValue = valueVector.getDouble(valuesPosition);
       long timestampValue = timestampVector.getLong(valuesPosition);
-      FirstOverTimeFloatAggregator.combine(state, groupId, valueValue, timestampValue);
+      LastDoubleByTimestampAggregator.combine(state, groupId, valueValue, timestampValue);
     }
   }
 
@@ -343,12 +343,12 @@ public final class FirstOverTimeFloatGroupingAggregatorFunction implements Group
     if (valuesUncast.areAllValuesNull()) {
       return;
     }
-    FloatBlock values = (FloatBlock) valuesUncast;
+    DoubleBlock values = (DoubleBlock) valuesUncast;
     assert timestamps.getPositionCount() == values.getPositionCount();
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       int groupId = groups.getInt(groupPosition);
       int valuesPosition = groupPosition + positionOffset;
-      FirstOverTimeFloatAggregator.combineIntermediate(state, groupId, timestamps, values, valuesPosition);
+      LastDoubleByTimestampAggregator.combineIntermediate(state, groupId, timestamps, values, valuesPosition);
     }
   }
 
@@ -365,7 +365,7 @@ public final class FirstOverTimeFloatGroupingAggregatorFunction implements Group
   @Override
   public void evaluateFinal(Block[] blocks, int offset, IntVector selected,
       GroupingAggregatorEvaluationContext ctx) {
-    blocks[offset] = FirstOverTimeFloatAggregator.evaluateFinal(state, selected, ctx);
+    blocks[offset] = LastDoubleByTimestampAggregator.evaluateFinal(state, selected, ctx);
   }
 
   @Override

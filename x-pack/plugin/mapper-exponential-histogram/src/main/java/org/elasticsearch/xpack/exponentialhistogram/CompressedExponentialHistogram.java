@@ -169,8 +169,7 @@ public class CompressedExponentialHistogram implements ExponentialHistogram {
                     try {
                         currentIndex = bucketData.readZLong() - 1;
                     } catch (IOException e) {
-                        // TODO: is there a better wrapper exception? Or should we make it a declared exception?
-                        throw new RuntimeException(e);
+                        throw new IllegalStateException("Bad histogram bytes", e);
                     }
                     currentCount = 0;
                     advance();
@@ -243,8 +242,7 @@ public class CompressedExponentialHistogram implements ExponentialHistogram {
                         markEndReached();
                     }
                 } catch (IOException e) {
-                    // TODO: is there a better wrapper exception? Or should we make it a declared exception?
-                    throw new RuntimeException(e);
+                    throw new IllegalStateException("Bad histogram bytes", e);
                 }
             }
 

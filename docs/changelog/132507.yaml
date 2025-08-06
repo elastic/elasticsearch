@@ -1,0 +1,5 @@
+pr: 132507
+summary: Set `RemoteClusterPortSettings.PORT` default to 9400 in stateless
+area: Network
+type: enhancement
+issues: []

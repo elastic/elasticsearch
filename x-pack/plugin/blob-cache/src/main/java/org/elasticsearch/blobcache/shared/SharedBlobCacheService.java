@@ -1312,13 +1312,11 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
                 mapSubRangeToRegion(rangeToWrite, region),
                 mapSubRangeToRegion(rangeToRead, region),
                 readerWithOffset(reader, fileRegion, Math.toIntExact(rangeToRead.start() - regionStart)),
-                writerWithOffset(writer, fileRegion, Math.toIntExact(rangeToWrite.start() - regionStart)),
+                metricRecordingWriter(writerWithOffset(writer, fileRegion, Math.toIntExact(rangeToWrite.start() - regionStart))),
                 ioExecutor,
                 readFuture
             );
-            int result = readFuture.get();
-            blobCacheMetrics.recordWrite();
-            return result;
+            return readFuture.get();
         }
 
         private int readMultiRegions(
@@ -1346,7 +1344,9 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
                             mapSubRangeToRegion(rangeToWrite, region),
                             subRangeToRead,
                             readerWithOffset(reader, fileRegion, Math.toIntExact(rangeToRead.start() - regionStart)),
-                            writerWithOffset(writer, fileRegion, Math.toIntExact(rangeToWrite.start() - regionStart)),
+                            metricRecordingWriter(
+                                writerWithOffset(writer, fileRegion, Math.toIntExact(rangeToWrite.start() - regionStart))
+                            ),
                             ioExecutor,
                             listener
                         );
@@ -1357,7 +1357,6 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
                 }
             }
             readsComplete.get();
-            blobCacheMetrics.recordWrites(endRegion - startRegion + 1);
             return bytesRead.get();
         }
 
@@ -1420,6 +1419,16 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
 
             }
             return adjustedWriter;
+        }
+
+        private RangeMissingHandler metricRecordingWriter(RangeMissingHandler writer) {
+            return new DelegatingRangeMissingHandler(writer) {
+                @Override
+                public SourceInputStreamFactory sharedInputStreamFactory(List<SparseFileTracker.Gap> gaps) {
+                    blobCacheMetrics.recordWrite();
+                    return super.sharedInputStreamFactory(gaps);
+                }
+            };
         }
 
         private RangeAvailableHandler readerWithOffset(RangeAvailableHandler reader, CacheFileRegion<KeyType> fileRegion, int readOffset) {

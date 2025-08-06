@@ -21,6 +21,13 @@ import java.util.concurrent.Callable;
 
 public class UnifiedChatCompletionErrorResponseUtils {
 
+    /**
+     * Creates a {@link UnifiedChatCompletionErrorParserContract} that parses the error response as a string.
+     * This is useful for cases where the error response is too complicated to parse.
+     *
+     * @param type The type of the error, used for categorization.
+     * @return A {@link UnifiedChatCompletionErrorParserContract} instance.
+     */
     public static UnifiedChatCompletionErrorParserContract createErrorParserWithStringify(String type) {
         return new UnifiedChatCompletionErrorParserContract() {
             @Override
@@ -42,12 +49,27 @@ public class UnifiedChatCompletionErrorResponseUtils {
         };
     }
 
+    /**
+     * Creates a {@link UnifiedChatCompletionErrorParserContract} that uses a {@link ConstructingObjectParser} to parse the error response.
+     * This is useful for cases where the error response can be parsed into an object.
+     *
+     * @param objectParser The {@link ConstructingObjectParser} to use for parsing the error response.
+     * @return A {@link UnifiedChatCompletionErrorParserContract} instance.
+     */
     public static UnifiedChatCompletionErrorParserContract createErrorParserWithObjectParser(
         ConstructingObjectParser<Optional<UnifiedChatCompletionErrorResponse>, Void> objectParser
     ) {
         return new UnifiedChatCompletionErrorParser<>((parser) -> objectParser.apply(parser, null));
     }
 
+    /**
+     * Creates a {@link UnifiedChatCompletionErrorParserContract} that uses a generic parser function to parse the error response.
+     * This is useful for cases where the error response can be parsed using custom logic, typically when parsing from a map.
+     *
+     * @param genericParser The function that takes an {@link XContentParser} and returns an {@link Optional<UnifiedChatCompletionErrorResponse>}.
+     * @param <E> The type of exception that the parser can throw.
+     * @return A {@link UnifiedChatCompletionErrorParserContract} instance.
+     */
     public static <E extends Exception> UnifiedChatCompletionErrorParserContract createErrorParserWithGenericParser(
         CheckedFunction<XContentParser, Optional<UnifiedChatCompletionErrorResponse>, E> genericParser
     ) {
@@ -90,4 +112,6 @@ public class UnifiedChatCompletionErrorResponseUtils {
 
         return UnifiedChatCompletionErrorResponse.UNDEFINED_ERROR;
     }
+
+    private UnifiedChatCompletionErrorResponseUtils() {}
 }

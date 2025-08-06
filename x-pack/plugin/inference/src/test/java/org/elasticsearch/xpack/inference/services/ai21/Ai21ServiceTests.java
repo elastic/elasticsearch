@@ -359,7 +359,6 @@ public class Ai21ServiceTests extends AbstractInferenceServiceTests {
         testStreamError(XContentHelper.stripWhitespace("""
             {
                   "error": {
-                      "code": "stream_error",
                       "message": "Received an error response for request from inference entity id [id].\
              Error message: [{\\"error\\": {\\"message\\": \\"400: Invalid value: Model 'ai213.12:3b' not found\\"}}]",
                       "type": "ai21_error"

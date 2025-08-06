@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.inference.services.llama.completion;
 import org.elasticsearch.xpack.inference.external.http.retry.ResponseParser;
 import org.elasticsearch.xpack.inference.external.http.retry.UnifiedChatCompletionErrorParserContract;
 import org.elasticsearch.xpack.inference.external.http.retry.UnifiedChatCompletionErrorResponseUtils;
-import org.elasticsearch.xpack.inference.services.llama.response.LlamaErrorResponse;
 import org.elasticsearch.xpack.inference.services.openai.OpenAiUnifiedChatCompletionResponseHandler;
 
 /**
@@ -42,6 +41,6 @@ public class LlamaChatCompletionResponseHandler extends OpenAiUnifiedChatComplet
      * @param parseFunction the function to parse the response
      */
     public LlamaChatCompletionResponseHandler(String requestType, ResponseParser parseFunction) {
-        super(requestType, parseFunction, LlamaErrorResponse::fromResponse, LLAMA_STREAM_ERROR_PARSER);
+        super(requestType, parseFunction, LLAMA_STREAM_ERROR_PARSER::parse, LLAMA_STREAM_ERROR_PARSER);
     }
 }

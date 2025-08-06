@@ -71,13 +71,17 @@ public class BlobCacheMetricsTests extends ESTestCase {
         // let us check for 0, avoid div by 0.
         checkReadsAndMisses(0, 0, 1);
         int reads = between(1, 100);
-        int writes = between(1, reads);
-        metrics.recordWrites(writes);
-        checkReadsAndMisses(0, writes, writes);
+        int misses = between(1, reads);
+        recordMisses(metrics, misses);
+        checkReadsAndMisses(0, misses, misses);
         IntStream.range(0, reads).forEach(i -> metrics.recordRead());
-        checkReadsAndMisses(reads, writes, reads);
-        metrics.recordWrites(reads);
-        checkReadsAndMisses(reads, writes + reads, writes + reads);
+        checkReadsAndMisses(reads, misses, reads);
+        recordMisses(metrics, reads);
+        checkReadsAndMisses(reads, misses + reads, misses + reads);
+    }
+
+    private void recordMisses(BlobCacheMetrics metrics, int misses) {
+        IntStream.range(0, misses).forEach(i -> metrics.recordMiss());
     }
 
     private void checkReadsAndMisses(int reads, int writes, int readsForRatio) {

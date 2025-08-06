@@ -325,6 +325,7 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
 
     private final ConcurrentHashMap<SharedBytes.IO, CacheFileRegion<KeyType>> regionOwners; // to assert exclusive access of regions
 
+    private final LongAdder writeCount = new LongAdder();
     private final LongAdder writeBytes = new LongAdder();
 
     private final LongAdder readBytes = new LongAdder();
@@ -737,7 +738,7 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
             cacheSize,
             regionSize,
             evictCount.sum(),
-            blobCacheMetrics.writeCount(),
+            writeCount.sum(),
             writeBytes.sum(),
             blobCacheMetrics.readCount(),
             readBytes.sum()
@@ -1170,6 +1171,7 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
                     l.<Void>map(unused -> {
                         assert blobCacheService.regionOwners.get(ioRef) == CacheFileRegion.this;
                         assert CacheFileRegion.this.hasReferences() : CacheFileRegion.this;
+                        blobCacheService.writeCount.increment();
                         gap.onCompletion();
                         return null;
                     }).delegateResponse((delegate, e) -> failGapAndListener(gap, delegate, e))
@@ -1242,7 +1244,7 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
             lastAccessedRegion = res ? fileRegion : null;
             if (res && incrementReads) {
                 blobCacheMetrics.recordRead();
-                readBytes.add(end - offset);
+                // todo: should we add to readBytes? readBytes.add(end - offset);
             }
             return res;
         }
@@ -1425,7 +1427,7 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
             return new DelegatingRangeMissingHandler(writer) {
                 @Override
                 public SourceInputStreamFactory sharedInputStreamFactory(List<SparseFileTracker.Gap> gaps) {
-                    blobCacheMetrics.recordWrite();
+                    blobCacheMetrics.recordMiss();
                     return super.sharedInputStreamFactory(gaps);
                 }
             };

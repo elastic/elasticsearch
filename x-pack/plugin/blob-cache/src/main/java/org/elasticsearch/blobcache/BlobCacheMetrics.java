@@ -40,7 +40,7 @@ public class BlobCacheMetrics {
     private final LongCounter cachePopulationBytes;
     private final LongCounter cachePopulationTime;
 
-    private final LongAdder writeCount = new LongAdder();
+    private final LongAdder missCount = new LongAdder();
     private final LongAdder readCount = new LongAdder();
 
     public enum CachePopulationReason {
@@ -114,7 +114,7 @@ public class BlobCacheMetrics {
             "es.blob_cache.miss.total",
             "The number of cache misses (warming not included)",
             "count",
-            () -> new LongWithAttributes(writeCount.longValue())
+            () -> new LongWithAttributes(missCount.longValue())
         );
         // adding this helps search for high or low miss ratio. It will be since boot of the node though. More advanced queries can use
         // deltas of the totals to see miss ratio over time.
@@ -123,7 +123,7 @@ public class BlobCacheMetrics {
             "The fraction of cache reads that missed data (warming not included)",
             "fraction",
             // read misses before reads on purpose
-            () -> new DoubleWithAttributes(Math.min((double) writeCount.longValue() / Math.max(readCount.longValue(), 1L), 1.0d))
+            () -> new DoubleWithAttributes(Math.min((double) missCount.longValue() / Math.max(readCount.longValue(), 1L), 1.0d))
         );
     }
 
@@ -205,17 +205,8 @@ public class BlobCacheMetrics {
         readCount.increment();
     }
 
-    public void recordWrite() {
-        writeCount.increment();
-    }
-
-    public void recordWrites(long count) {
-        assert count > 0;
-        writeCount.add(count);
-    }
-
-    public long writeCount() {
-        return writeCount.sum();
+    public void recordMiss() {
+        missCount.increment();
     }
 
     public long readCount() {

@@ -88,18 +88,18 @@ public final class SampleBooleanAggregatorFunction implements AggregatorFunction
   }
 
   private void addRawVector(BooleanVector valueVector) {
-    for (int i = 0; i < valueVector.getPositionCount(); i++) {
-      boolean valueValue = valueVector.getBoolean(i);
+    for (int valuesPosition = 0; valuesPosition < valueVector.getPositionCount(); valuesPosition++) {
+      boolean valueValue = valueVector.getBoolean(valuesPosition);
       SampleBooleanAggregator.combine(state, valueValue);
     }
   }
 
   private void addRawVector(BooleanVector valueVector, BooleanVector mask) {
-    for (int i = 0; i < valueVector.getPositionCount(); i++) {
-      if (mask.getBoolean(i) == false) {
+    for (int valuesPosition = 0; valuesPosition < valueVector.getPositionCount(); valuesPosition++) {
+      if (mask.getBoolean(valuesPosition) == false) {
         continue;
       }
-      boolean valueValue = valueVector.getBoolean(i);
+      boolean valueValue = valueVector.getBoolean(valuesPosition);
       SampleBooleanAggregator.combine(state, valueValue);
     }
   }

@@ -296,7 +296,8 @@ public class DefaultIVFVectorsReader extends IVFVectorsReader {
     PostingVisitor getPostingVisitor(FieldInfo fieldInfo, IndexInput indexInput, float[] target, IntPredicate needsScoring)
         throws IOException {
         FieldEntry entry = fields.get(fieldInfo.number);
-        return new MemorySegmentPostingsVisitor(target, indexInput.clone(), entry, fieldInfo, needsScoring);
+        final int maxPostingListSize = indexInput.readVInt();
+        return new MemorySegmentPostingsVisitor(target, indexInput, entry, fieldInfo, maxPostingListSize, needsScoring);
     }
 
     @Override
@@ -317,8 +318,8 @@ public class DefaultIVFVectorsReader extends IVFVectorsReader {
         final float[] correctionsUpper = new float[BULK_SIZE];
         final int[] correctionsSum = new int[BULK_SIZE];
         final float[] correctionsAdd = new float[BULK_SIZE];
+        final int[] docIdsScratch;
 
-        int[] docIdsScratch = new int[0];
         int vectors;
         boolean quantized = false;
         float centroidDp;
@@ -339,6 +340,7 @@ public class DefaultIVFVectorsReader extends IVFVectorsReader {
             IndexInput indexInput,
             FieldEntry entry,
             FieldInfo fieldInfo,
+            int maxPostingListSize,
             IntPredicate needsScoring
         ) throws IOException {
             this.target = target;
@@ -355,6 +357,7 @@ public class DefaultIVFVectorsReader extends IVFVectorsReader {
             quantizedVectorByteSize = (discretizedDimensions / 8);
             quantizer = new OptimizedScalarQuantizer(fieldInfo.getVectorSimilarityFunction(), DEFAULT_LAMBDA, 1);
             osqVectorsScorer = ESVectorUtil.getES91OSQVectorsScorer(indexInput, fieldInfo.getVectorDimension());
+            this.docIdsScratch = new int[maxPostingListSize];
         }
 
         @Override
@@ -365,7 +368,7 @@ public class DefaultIVFVectorsReader extends IVFVectorsReader {
             centroidDp = Float.intBitsToFloat(indexInput.readInt());
             vectors = indexInput.readVInt();
             // read the doc ids
-            docIdsScratch = vectors > docIdsScratch.length ? new int[vectors] : docIdsScratch;
+            assert vectors <= docIdsScratch.length;
             docIdsWriter.readInts(indexInput, vectors, docIdsScratch);
             slicePos = indexInput.getFilePointer();
             return vectors;

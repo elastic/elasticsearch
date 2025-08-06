@@ -93,18 +93,18 @@ public final class SpatialExtentGeoPointDocValuesAggregatorFunction implements A
   }
 
   private void addRawVector(LongVector encodedVector) {
-    for (int i = 0; i < encodedVector.getPositionCount(); i++) {
-      long encodedValue = encodedVector.getLong(i);
+    for (int valuesPosition = 0; valuesPosition < encodedVector.getPositionCount(); valuesPosition++) {
+      long encodedValue = encodedVector.getLong(valuesPosition);
       SpatialExtentGeoPointDocValuesAggregator.combine(state, encodedValue);
     }
   }
 
   private void addRawVector(LongVector encodedVector, BooleanVector mask) {
-    for (int i = 0; i < encodedVector.getPositionCount(); i++) {
-      if (mask.getBoolean(i) == false) {
+    for (int valuesPosition = 0; valuesPosition < encodedVector.getPositionCount(); valuesPosition++) {
+      if (mask.getBoolean(valuesPosition) == false) {
         continue;
       }
-      long encodedValue = encodedVector.getLong(i);
+      long encodedValue = encodedVector.getLong(valuesPosition);
       SpatialExtentGeoPointDocValuesAggregator.combine(state, encodedValue);
     }
   }

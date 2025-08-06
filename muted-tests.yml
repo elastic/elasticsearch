@@ -449,9 +449,6 @@ tests:
 - class: org.elasticsearch.xpack.search.CrossClusterAsyncSearchIT
   method: testCancellationViaTimeoutWithAllowPartialResultsSetToFalse
   issue: https://github.com/elastic/elasticsearch/issues/131248
-- class: org.elasticsearch.action.admin.cluster.node.tasks.CancellableTasksIT
-  method: testRemoveBanParentsOnDisconnect
-  issue: https://github.com/elastic/elasticsearch/issues/131562
 - class: org.elasticsearch.xpack.esql.action.CrossClusterQueryWithPartialResultsIT
   method: testPartialResults
   issue: https://github.com/elastic/elasticsearch/issues/131481
@@ -512,15 +509,6 @@ tests:
 - class: org.elasticsearch.xpack.ml.integration.AutodetectMemoryLimitIT
   method: testTooManyByAndOverFields
   issue: https://github.com/elastic/elasticsearch/issues/132310
-- class: org.elasticsearch.xpack.logsdb.qa.LogsDbVersusLogsDbReindexedIntoStandardModeChallengeRestIT
-  method: testTermsQuery
-  issue: https://github.com/elastic/elasticsearch/issues/132335
-- class: org.elasticsearch.xpack.logsdb.qa.LogsDbVersusReindexedIntoStoredSourceChallengeRestIT
-  method: testTermsQuery
-  issue: https://github.com/elastic/elasticsearch/issues/132336
-- class: org.elasticsearch.xpack.logsdb.qa.LogsDbVersusReindexedLogsDbChallengeRestIT
-  method: testTermsQuery
-  issue: https://github.com/elastic/elasticsearch/issues/132337
 - class: org.elasticsearch.xpack.esql.action.CrossClusterAsyncQueryIT
   method: testBadAsyncId
   issue: https://github.com/elastic/elasticsearch/issues/132353

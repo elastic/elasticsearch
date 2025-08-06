@@ -35,7 +35,7 @@ ES|QL::
 [%collapsible]
 ===============
 Inconsistent equality checks caused `constantNullBlock.equals(anyDoubleBlock)` to return false, even when `doubleBlock.equals(constantNullBlock)` returned true.
-This asymmetry led to unreliable comparisons and mismatched hashcodes when a ConstantNullBlock was functionally equivalent to other standard blocks.
+This asymmetry led to unreliable comparisons and mismatched hashcodes when `ConstantNullBlock` was functionally equivalent to other standard blocks.
 {es-pull}131817[#131817] resolves the issue and ensures both equality and hashcode functions are symmetric for these block types.
 ===============
 +

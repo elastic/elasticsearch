@@ -29,7 +29,7 @@ import java.io.UncheckedIOException;
  */
 public class TSIDOrdinalsBuilder implements BlockLoader.TSIDOrdinalsBuilder, Releasable, Block.Builder {
 
-    private static final int TSID_SIZE_GUESS =  2 + 16 + 16 + 4 * 8;
+    private static final int TSID_SIZE_GUESS = 2 + 16 + 16 + 4 * 8;
 
     private final BlockFactory blockFactory;
     private final SortedDocValues docValues;

@@ -936,6 +936,11 @@ public class ReservedRolesStoreTests extends ESTestCase {
             ".fleet-fileds"
         ).forEach(index -> assertAllIndicesAccessAllowed(kibanaRole, index));
 
+        // Knowledge base. Fleet creates, manages, and uses this index to store knowledge base documents to be consumed by AI assistants.
+        Arrays.asList(".integration_knowledge" + randomAlphaOfLength(randomIntBetween(0, 13))).forEach(
+            index -> assertAllIndicesAccessAllowed(kibanaRole, index)
+        );
+
         final IndexAbstraction dotFleetSecretsIndex = mockIndexAbstraction(".fleet-secrets");
         assertThat(kibanaRole.indices().allowedIndicesMatcher("indices:foo").test(dotFleetSecretsIndex), is(false));
         assertThat(kibanaRole.indices().allowedIndicesMatcher("indices:bar").test(dotFleetSecretsIndex), is(false));

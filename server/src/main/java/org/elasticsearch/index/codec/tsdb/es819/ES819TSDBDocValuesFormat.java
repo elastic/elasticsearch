@@ -120,7 +120,11 @@ public class ES819TSDBDocValuesFormat extends org.apache.lucene.codecs.DocValues
     }
 
     /** Doc values fields format with specified skipIndexIntervalSize. */
-    public ES819TSDBDocValuesFormat(int skipIndexIntervalSize, boolean enableOptimizedMerge, BinaryDVCompressionMode binaryDVCompressionMode) {
+    public ES819TSDBDocValuesFormat(
+        int skipIndexIntervalSize,
+        boolean enableOptimizedMerge,
+        BinaryDVCompressionMode binaryDVCompressionMode
+    ) {
         super(CODEC_NAME);
         if (skipIndexIntervalSize < 2) {
             throw new IllegalArgumentException("skipIndexIntervalSize must be > 1, got [" + skipIndexIntervalSize + "]");

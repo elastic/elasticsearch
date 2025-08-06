@@ -104,7 +104,7 @@ public class BulkCompressBufferer implements Closeable {
 
         finalOutput.writeBytes(outBuf, 0, (int) fullOutLen);
         for (int i = 0; i < numLines; ++i) {
-            int len = outOffsets[i+1] - outOffsets[i];
+            int len = outOffsets[i + 1] - outOffsets[i];
             offsetWriter.addLen(len);
         }
 

@@ -48,6 +48,7 @@ public class FSSTCompressBenchmark {
     }
 
     private static final int MB_8 = 8 * 1024 * 1024;
+
     private byte[] concatenateTo8mb(byte[] contentBytes) {
         byte[] bytes = new byte[MB_8 + 8];
         int i = 0;
@@ -66,7 +67,7 @@ public class FSSTCompressBenchmark {
 
         byte[] contentBytes = FSST.toBytes(content);
         input = concatenateTo8mb(contentBytes);
-        offsets = new int[]{0, MB_8};
+        offsets = new int[] { 0, MB_8 };
         outBuf = new byte[MB_8];
         outOffsets = new int[2];
     }
@@ -100,19 +101,19 @@ public class FSSTCompressBenchmark {
         metrics.compressionRatio = compressedSize / (double) inputSize;
     }
 
-//    @Benchmark
-//    public void compressLZ4High(Blackhole bh, CompressionMetrics metrics) throws IOException {
-//        int inputSize = offsets[1];
-//
-//        var dataInput = new ByteBuffersDataInput(List.of(ByteBuffer.wrap(input)));
-//        var dataOutput = new ByteArrayDataOutput(outBuf);
-//
-//        Compressor compressor = CompressionMode.HIGH_COMPRESSION.newCompressor();
-//        compressor.compress(dataInput, dataOutput);
-//
-//        long compressedSize = dataOutput.getPosition();
-//        bh.consume(dataOutput);
-//
-//        metrics.compressionRatio = compressedSize / (double) inputSize;
-//    }
+    // @Benchmark
+    // public void compressLZ4High(Blackhole bh, CompressionMetrics metrics) throws IOException {
+    // int inputSize = offsets[1];
+    //
+    // var dataInput = new ByteBuffersDataInput(List.of(ByteBuffer.wrap(input)));
+    // var dataOutput = new ByteArrayDataOutput(outBuf);
+    //
+    // Compressor compressor = CompressionMode.HIGH_COMPRESSION.newCompressor();
+    // compressor.compress(dataInput, dataOutput);
+    //
+    // long compressedSize = dataOutput.getPosition();
+    // bh.consume(dataOutput);
+    //
+    // metrics.compressionRatio = compressedSize / (double) inputSize;
+    // }
 }

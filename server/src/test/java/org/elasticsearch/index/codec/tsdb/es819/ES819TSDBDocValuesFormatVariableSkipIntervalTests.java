@@ -19,7 +19,9 @@ public class ES819TSDBDocValuesFormatVariableSkipIntervalTests extends ES87TSDBD
     protected Codec getCodec() {
         var compressionMode = ES819TSDBDocValuesFormatTests.randomBinaryDVCompressionMode(random());
         // small interval size to test with many intervals
-        return TestUtil.alwaysDocValuesFormat(new ES819TSDBDocValuesFormat(random().nextInt(4, 16), random().nextBoolean(), compressionMode));
+        return TestUtil.alwaysDocValuesFormat(
+            new ES819TSDBDocValuesFormat(random().nextInt(4, 16), random().nextBoolean(), compressionMode)
+        );
     }
 
     public void testSkipIndexIntervalSize() {

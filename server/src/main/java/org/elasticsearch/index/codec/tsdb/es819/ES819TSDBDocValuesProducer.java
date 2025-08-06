@@ -177,7 +177,6 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
         return getNumeric(entry, -1);
     }
 
-
     @Override
     public BinaryDocValues getBinary(FieldInfo field) throws IOException {
         BinaryEntry entry = binaries.get(field.number);
@@ -280,6 +279,7 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
                 return new DenseBinaryDocValues(maxDoc) {
                     final BytesRef inBuf = new BytesRef(new byte[maxCompressedLength], 0, maxCompressedLength);
                     final BytesRef outBuf = new BytesRef(new byte[lengthToAllocate], 0, lengthToAllocate);
+
                     @Override
                     public BytesRef binaryValue() throws IOException {
                         bytesSlice.readBytes((long) doc * maxCompressedLength, inBuf.bytes, 0, maxCompressedLength);
@@ -335,6 +335,7 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
                 return new SparseBinaryDocValues(disi) {
                     final BytesRef inBuf = new BytesRef(new byte[maxCompressedLength], 0, 0);
                     final BytesRef outBuf = new BytesRef(new byte[lengthToAllocate], 0, lengthToAllocate);
+
                     @Override
                     public BytesRef binaryValue() throws IOException {
                         final int index = disi.index();
@@ -1583,7 +1584,6 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
         int minCompressedLength;
         int maxCompressedLength;
         FSST.Decoder decoder;
-
 
         private BinaryEntry(BinaryDVCompressionMode compression) {
             this.compression = compression;

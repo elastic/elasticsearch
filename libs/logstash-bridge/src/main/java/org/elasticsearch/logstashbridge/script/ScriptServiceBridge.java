@@ -8,9 +8,10 @@
  */
 package org.elasticsearch.logstashbridge.script;
 
-import org.elasticsearch.cluster.project.DefaultProjectResolver;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.ingest.common.ProcessorsWhitelistExtension;
 import org.elasticsearch.logstashbridge.StableBridgeAPI;
@@ -69,8 +70,8 @@ public class ScriptServiceBridge extends StableBridgeAPI.ProxyInternal<ScriptSer
             MustacheScriptEngine.NAME,
             new MustacheScriptEngine(settings)
         );
-        @FixForMultiProject // Should this be non-DefaultProjectResolver?
-        final ProjectResolver projectResolver = DefaultProjectResolver.INSTANCE;
+        @FixForMultiProject // Should this be non-BridgeProjectIdResolver?
+        final ProjectResolver projectResolver = new BridgeProjectIdResolver();
         return new ScriptService(settings, scriptEngines, ScriptModule.CORE_CONTEXTS, timeProvider, projectResolver);
     }
 
@@ -112,5 +113,22 @@ public class ScriptServiceBridge extends StableBridgeAPI.ProxyInternal<ScriptSer
     @Override
     public void close() throws IOException {
         this.internalDelegate.close();
+    }
+
+    static class BridgeProjectIdResolver implements ProjectResolver {
+
+        @Override
+        public ProjectId getProjectId() {
+            return ProjectId.DEFAULT;
+        }
+
+        @Override
+        public <E extends Exception> void executeOnProject(ProjectId projectId, CheckedRunnable<E> body) throws E {
+            if (projectId.equals(ProjectId.DEFAULT)) {
+                body.run();
+            } else {
+                throw new IllegalArgumentException("Cannot execute on a project other than [" + ProjectId.DEFAULT + "]");
+            }
+        }
     }
 }

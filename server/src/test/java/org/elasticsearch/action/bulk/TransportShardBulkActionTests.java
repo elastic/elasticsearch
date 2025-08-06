@@ -888,7 +888,6 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         closeShards(shard);
     }
 
-    @AwaitsFix(bugUrl = "")
     public void testRetries() throws Exception {
         IndexSettings indexSettings = new IndexSettings(indexMetadata(), Settings.EMPTY);
         UpdateRequest writeRequest = new UpdateRequest("index", "id").doc(Requests.INDEX_CONTENT_TYPE, "field", "value");
@@ -960,7 +959,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         latch.await();
     }
 
-    @AwaitsFix(bugUrl = "Hopefully a one-off")
+    @AwaitsFix(bugUrl = "Depends on there being a limited number of threads/queue")
     public void testForceExecutionOnRejectionAfterMappingUpdate() throws Exception {
         TestThreadPool rejectingThreadPool = new TestThreadPool(
             "TransportShardBulkActionTests#testForceExecutionOnRejectionAfterMappingUpdate",

@@ -26,7 +26,7 @@ import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier.casesCrossProduct;
 import static org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier.getCastEvaluator;
-import static org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier.getSuppliersForNumericType;
+import static org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier.unlimitedSuppliers;
 import static org.hamcrest.Matchers.equalTo;
 
 public class CopySignTests extends AbstractScalarFunctionTestCase {
@@ -78,8 +78,8 @@ public class CopySignTests extends AbstractScalarFunctionTestCase {
                 };
                 casesCrossProduct(
                     expected,
-                    getSuppliersForNumericType(lhsType),
-                    getSuppliersForNumericType(rhsType),
+                    unlimitedSuppliers(lhsType),
+                    unlimitedSuppliers(rhsType),
                     evaluatorToString,
                     (l, r) -> List.of(),
                     suppliers,

@@ -358,7 +358,11 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         throw new IllegalArgumentException("bogus numeric type [" + type + "]");
     }
 
-    public static List<TypedDataSupplier> getSuppliersForNumericType(DataType type) {
+    /**
+     * A {@link List} of the cases for the specified type without any limits.
+     * See {@link #getSuppliersForNumericType} for cases with limits on numbers.
+     */
+    public static List<TypedDataSupplier> unlimitedSuppliers(DataType type) {
         if (type == DataType.INTEGER) {
             return intCases(Integer.MIN_VALUE, Integer.MAX_VALUE, true);
         }

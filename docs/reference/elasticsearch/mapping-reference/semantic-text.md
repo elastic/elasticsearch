@@ -359,7 +359,9 @@ PUT test-index
 
 1. Ensures that highlighting is applied exclusively to semantic_text fields.
 
-## Updates and partial updates for `semantic_text` fields \[semantic-text-updates]
+## Updates and partial updates for `semantic_text` fields [semantic-text-updates]
+{applies_to}
+stack: ga 9.0
 
 When updating documents that contain `semantic_text` fields, it’s important to understand how inference is triggered:
 

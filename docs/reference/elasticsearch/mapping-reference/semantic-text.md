@@ -35,7 +35,7 @@ the embedding generation, indexing, and query to use.
 
 {applies_to}`stack: ga 9.1`  Newly created indices with `semantic_text` fields using dense embeddings will be
 [quantized](/reference/elasticsearch/mapping-reference/dense-vector.md#dense-vector-quantization)
-to `bbq_hnsw` automatically.
+to `bbq_hnsw` automatically as long as they have a minimum of 64 dimensions.
 
 If you use the preconfigured `.elser-2-elasticsearch` endpoint, you can set up
 `semantic_text` with the following API request:

@@ -13,6 +13,7 @@ import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.telemetry.metric.LongCounter;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.RejectedExecutionHandler;
 import java.util.concurrent.ThreadPoolExecutor;
 
@@ -42,7 +43,7 @@ public abstract class EsRejectedExecutionHandler implements RejectedExecutionHan
 
     protected static EsRejectedExecutionException newRejectedException(
         Runnable r,
-        ThreadPoolExecutor executor,
+        ExecutorService executor,
         boolean isExecutorShutdown
     ) {
         final StringBuilder builder = new StringBuilder("rejected execution of ").append(r).append(" on ").append(executor);

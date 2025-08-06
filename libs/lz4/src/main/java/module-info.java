@@ -9,6 +9,7 @@
 
 module org.elasticsearch.lz4 {
     requires org.lz4.java;
+    requires org.elasticsearch.base;
 
     exports org.elasticsearch.lz4;
 }

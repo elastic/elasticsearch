@@ -15,12 +15,11 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+import org.elasticsearch.common.util.concurrent.EsExecutorService;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
-import org.elasticsearch.common.util.concurrent.EsThreadPoolExecutor;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.common.util.concurrent.TaskExecutionTimeTrackingEsThreadPoolExecutor;
-import org.elasticsearch.common.util.concurrent.TaskExecutionTimeTrackingEsThreadPoolExecutor.UtilizationTrackingPurpose;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.telemetry.InstrumentType;
@@ -510,7 +509,7 @@ public class ThreadPoolTests extends ESTestCase {
 
             final long beforePreviousCollectNanos = System.nanoTime();
             meterRegistry.getRecorder().collect();
-            double allocationUtilization = executor.pollUtilization(UtilizationTrackingPurpose.ALLOCATION);
+            double allocationUtilization = executor.pollUtilization(EsExecutorService.ExecutionTimeTrackingEsExecutorService.UtilizationTrackingPurpose.ALLOCATION);
             final long afterPreviousCollectNanos = System.nanoTime();
 
             var metricValue = metricAsserter.assertLatestMetricValueMatches(
@@ -540,7 +539,7 @@ public class ThreadPoolTests extends ESTestCase {
 
             final long beforeMetricsCollectedNanos = System.nanoTime();
             meterRegistry.getRecorder().collect();
-            allocationUtilization = executor.pollUtilization(UtilizationTrackingPurpose.ALLOCATION);
+            allocationUtilization = executor.pollUtilization(EsExecutorService.ExecutionTimeTrackingEsExecutorService.UtilizationTrackingPurpose.ALLOCATION);
             final long afterMetricsCollectedNanos = System.nanoTime();
 
             // Calculate upper bound on utilisation metric
@@ -600,7 +599,7 @@ public class ThreadPoolTests extends ESTestCase {
             final int numThreads = randomIntBetween(1, Math.min(10, threadPoolInfo.getMax()));
             final CyclicBarrier barrier = new CyclicBarrier(numThreads + 1);
             final List<Future<?>> futures = new ArrayList<>();
-            final EsThreadPoolExecutor executor = asInstanceOf(EsThreadPoolExecutor.class, threadPool.executor(threadPoolName));
+            final EsExecutorService executor = asInstanceOf(EsExecutorService.class, threadPool.executor(threadPoolName));
             for (int i = 0; i < numThreads; i++) {
                 futures.add(executor.submit(() -> {
                     safeAwait(barrier);

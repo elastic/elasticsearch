@@ -9,55 +9,30 @@
 
 package org.elasticsearch.common.util.concurrent;
 
-import org.elasticsearch.common.ExponentiallyWeightedMovingAverage;
-import org.elasticsearch.common.metrics.ExponentialBucketHistogram;
+import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.common.util.concurrent.EsExecutorService.ExecutionTimeTrackingEsExecutorService;
 import org.elasticsearch.common.util.concurrent.EsExecutors.TaskTrackingConfig;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.telemetry.metric.DoubleWithAttributes;
 import org.elasticsearch.telemetry.metric.Instrument;
-import org.elasticsearch.telemetry.metric.LongWithAttributes;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
-import org.elasticsearch.threadpool.ThreadPool;
 
-import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.BlockingQueue;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.RejectedExecutionHandler;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.LongAccumulator;
-import java.util.concurrent.atomic.LongAdder;
 import java.util.function.Function;
-
-import static org.elasticsearch.threadpool.ThreadPool.THREAD_POOL_METRIC_NAME_QUEUE_TIME;
-import static org.elasticsearch.threadpool.ThreadPool.THREAD_POOL_METRIC_NAME_UTILIZATION;
+import java.util.stream.Stream;
 
 /**
  * An extension to thread pool executor, which tracks statistics for the task execution time.
  */
-public final class TaskExecutionTimeTrackingEsThreadPoolExecutor extends EsThreadPoolExecutor {
-    public static final int QUEUE_LATENCY_HISTOGRAM_BUCKETS = 18;
-    private static final int[] LATENCY_PERCENTILES_TO_REPORT = { 50, 90, 99 };
-
+public final class TaskExecutionTimeTrackingEsThreadPoolExecutor extends EsThreadPoolExecutor
+    implements
+        ExecutionTimeTrackingEsExecutorService {
     private final Function<Runnable, WrappedRunnable> runnableWrapper;
-    private final ExponentiallyWeightedMovingAverage executionEWMA;
-    private final LongAdder totalExecutionTime = new LongAdder();
-    private final boolean trackOngoingTasks;
-    // The set of currently running tasks and the timestamp of when they started execution in the Executor.
-    private final Map<Runnable, Long> ongoingTasks = new ConcurrentHashMap<>();
-    private final ExponentialBucketHistogram queueLatencyMillisHistogram = new ExponentialBucketHistogram(QUEUE_LATENCY_HISTOGRAM_BUCKETS);
-    private final boolean trackMaxQueueLatency;
-    private LongAccumulator maxQueueLatencyMillisSinceLastPoll = new LongAccumulator(Long::max, 0);
-
-    public enum UtilizationTrackingPurpose {
-        APM,
-        ALLOCATION,
-    }
-
-    private volatile UtilizationTracker apmUtilizationTracker = new UtilizationTracker();
-    private volatile UtilizationTracker allocationUtilizationTracker = new UtilizationTracker();
+    private final TaskTracker taskTracker;
 
     TaskExecutionTimeTrackingEsThreadPoolExecutor(
         String name,
@@ -75,39 +50,11 @@ public final class TaskExecutionTimeTrackingEsThreadPoolExecutor extends EsThrea
         super(name, corePoolSize, maximumPoolSize, keepAliveTime, unit, workQueue, threadFactory, handler, contextHolder);
 
         this.runnableWrapper = runnableWrapper;
-        this.executionEWMA = new ExponentiallyWeightedMovingAverage(trackingConfig.getExecutionTimeEwmaAlpha(), 0);
-        this.trackOngoingTasks = trackingConfig.trackOngoingTasks();
-        this.trackMaxQueueLatency = trackingConfig.trackMaxQueueLatency();
+        this.taskTracker = new TaskTracker(trackingConfig, maximumPoolSize);
     }
 
-    public List<Instrument> setupMetrics(MeterRegistry meterRegistry, String threadPoolName) {
-        return List.of(
-            meterRegistry.registerLongsGauge(
-                ThreadPool.THREAD_POOL_METRIC_PREFIX + threadPoolName + THREAD_POOL_METRIC_NAME_QUEUE_TIME,
-                "Time tasks spent in the queue for the " + threadPoolName + " thread pool",
-                "milliseconds",
-                () -> {
-                    long[] snapshot = queueLatencyMillisHistogram.getSnapshot();
-                    int[] bucketUpperBounds = queueLatencyMillisHistogram.calculateBucketUpperBounds();
-                    List<LongWithAttributes> metricValues = Arrays.stream(LATENCY_PERCENTILES_TO_REPORT)
-                        .mapToObj(
-                            percentile -> new LongWithAttributes(
-                                queueLatencyMillisHistogram.getPercentile(percentile / 100f, snapshot, bucketUpperBounds),
-                                Map.of("percentile", String.valueOf(percentile))
-                            )
-                        )
-                        .toList();
-                    queueLatencyMillisHistogram.clear();
-                    return metricValues;
-                }
-            ),
-            meterRegistry.registerDoubleGauge(
-                ThreadPool.THREAD_POOL_METRIC_PREFIX + threadPoolName + THREAD_POOL_METRIC_NAME_UTILIZATION,
-                "fraction of maximum thread time utilized for " + threadPoolName,
-                "fraction",
-                () -> new DoubleWithAttributes(pollUtilization(UtilizationTrackingPurpose.APM), Map.of())
-            )
-        );
+    public Stream<Instrument> setupMetrics(MeterRegistry meterRegistry, String threadPoolName) {
+        return Stream.concat(super.setupMetrics(meterRegistry, threadPoolName), taskTracker.setupMetrics(meterRegistry, threadPoolName));
     }
 
     @Override
@@ -129,28 +76,18 @@ public final class TaskExecutionTimeTrackingEsThreadPoolExecutor extends EsThrea
      * Returns the exponentially weighted moving average of the task execution time
      */
     public double getTaskExecutionEWMA() {
-        return executionEWMA.getAverage();
+        return taskTracker.getTaskExecutionEWMA();
     }
 
     /**
      * Returns the total time (in nanoseconds) spend executing tasks in this executor.
      */
     public long getTotalTaskExecutionTime() {
-        return totalExecutionTime.sum();
-    }
-
-    /**
-     * Returns the current queue size (operations that are queued)
-     */
-    public int getCurrentQueueSize() {
-        return getQueue().size();
+        return taskTracker.getTotalTaskExecutionTime();
     }
 
     public long getMaxQueueLatencyMillisSinceLastPollAndReset() {
-        if (trackMaxQueueLatency == false) {
-            return 0;
-        }
-        return maxQueueLatencyMillisSinceLastPoll.getThenReset();
+        return taskTracker.getMaxQueueLatencyMillisSinceLastPollAndReset();
     }
 
     /**
@@ -162,33 +99,16 @@ public final class TaskExecutionTimeTrackingEsThreadPoolExecutor extends EsThrea
      * earlier, contributing a larger execution time.
      */
     public double pollUtilization(UtilizationTrackingPurpose utilizationTrackingPurpose) {
-        switch (utilizationTrackingPurpose) {
-            case APM:
-                return apmUtilizationTracker.pollUtilization();
-            case ALLOCATION:
-                return allocationUtilizationTracker.pollUtilization();
-            default:
-                throw new IllegalStateException("No operation defined for [" + utilizationTrackingPurpose + "]");
-        }
+        return taskTracker.pollUtilization(utilizationTrackingPurpose);
     }
 
     @Override
     protected void beforeExecute(Thread t, Runnable r) {
-        if (trackOngoingTasks) {
-            ongoingTasks.put(r, System.nanoTime());
-        }
-
+        taskTracker.trackTask(r);
         assert super.unwrap(r) instanceof TimedRunnable : "expected only TimedRunnables in queue";
         final TimedRunnable timedRunnable = (TimedRunnable) super.unwrap(r);
         timedRunnable.beforeExecute();
-        final long taskQueueLatency = timedRunnable.getQueueTimeNanos();
-        assert taskQueueLatency >= 0;
-        var queueLatencyMillis = TimeUnit.NANOSECONDS.toMillis(taskQueueLatency);
-        queueLatencyMillisHistogram.addObservation(queueLatencyMillis);
-
-        if (trackMaxQueueLatency) {
-            maxQueueLatencyMillisSinceLastPoll.accumulate(queueLatencyMillis);
-        }
+        taskTracker.taskQueueLatency(timedRunnable.getQueueTimeNanos());
     }
 
     @Override
@@ -210,26 +130,16 @@ public final class TaskExecutionTimeTrackingEsThreadPoolExecutor extends EsThrea
                     + failedOrRejected;
             if (taskExecutionNanos != -1) {
                 // taskExecutionNanos may be -1 if the task threw an exception
-                executionEWMA.addValue(taskExecutionNanos);
-                totalExecutionTime.add(taskExecutionNanos);
+                taskTracker.taskExecutionTime(taskExecutionNanos);
             }
         } finally {
-            // if trackOngoingTasks is false -> ongoingTasks must be empty
-            assert trackOngoingTasks || ongoingTasks.isEmpty();
-            if (trackOngoingTasks) {
-                ongoingTasks.remove(r);
-            }
+            taskTracker.untrackTask(r);
         }
     }
 
     @Override
     protected void appendThreadPoolExecutorDetails(StringBuilder sb) {
-        sb.append("task execution EWMA = ")
-            .append(TimeValue.timeValueNanos((long) executionEWMA.getAverage()))
-            .append(", ")
-            .append("total task execution time = ")
-            .append(TimeValue.timeValueNanos(getTotalTaskExecutionTime()))
-            .append(", ");
+        taskTracker.appendTaskExecutionDetails(sb);
     }
 
     /**
@@ -240,43 +150,16 @@ public final class TaskExecutionTimeTrackingEsThreadPoolExecutor extends EsThrea
      * task is reflected in at least one of those two values.
      */
     public Map<Runnable, Long> getOngoingTasks() {
-        return trackOngoingTasks ? Map.copyOf(ongoingTasks) : Map.of();
+        return taskTracker.getOngoingTasks();
     }
 
     // Used for testing
     public double getExecutionEwmaAlpha() {
-        return executionEWMA.getAlpha();
+        return taskTracker.getExecutionEwmaAlpha();
     }
 
     // Used for testing
     public boolean trackingMaxQueueLatency() {
-        return trackMaxQueueLatency;
-    }
-
-    /**
-     * Supports periodic polling for thread pool utilization. Tracks state since the last polling request so that the average utilization
-     * since the last poll can be calculated for the next polling request.
-     *
-     * Uses the difference of {@link #totalExecutionTime} since the last polling request to determine how much activity has occurred.
-     */
-    private class UtilizationTracker {
-        long lastPollTime = System.nanoTime();
-        long lastTotalExecutionTime = 0;
-
-        public synchronized double pollUtilization() {
-            final long currentTotalExecutionTimeNanos = totalExecutionTime.sum();
-            final long currentPollTimeNanos = System.nanoTime();
-
-            final long totalExecutionTimeSinceLastPollNanos = currentTotalExecutionTimeNanos - lastTotalExecutionTime;
-            final long timeSinceLastPoll = currentPollTimeNanos - lastPollTime;
-
-            final long maximumExecutionTimeSinceLastPollNanos = timeSinceLastPoll * getMaximumPoolSize();
-            final double utilizationSinceLastPoll = (double) totalExecutionTimeSinceLastPollNanos / maximumExecutionTimeSinceLastPollNanos;
-
-            lastTotalExecutionTime = currentTotalExecutionTimeNanos;
-            lastPollTime = currentPollTimeNanos;
-
-            return utilizationSinceLastPoll;
-        }
+        return taskTracker.trackingMaxQueueLatency();
     }
 }

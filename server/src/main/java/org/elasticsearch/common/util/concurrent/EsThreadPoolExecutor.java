@@ -12,6 +12,8 @@ package org.elasticsearch.common.util.concurrent;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.telemetry.metric.Instrument;
+import org.elasticsearch.telemetry.metric.MeterRegistry;
 
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.RejectedExecutionHandler;
@@ -21,11 +23,13 @@ import java.util.concurrent.TimeUnit;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.core.Strings.format;
+import static org.elasticsearch.threadpool.ThreadPool.THREAD_POOL_METRIC_NAME_REJECTED;
+import static org.elasticsearch.threadpool.ThreadPool.THREAD_POOL_METRIC_PREFIX;
 
 /**
  * An extension to thread pool executor, allowing (in the future) to add specific additional stats to it.
  */
-public class EsThreadPoolExecutor extends ThreadPoolExecutor {
+public class EsThreadPoolExecutor extends ThreadPoolExecutor implements EsExecutorService {
 
     private static final Logger logger = LogManager.getLogger(EsThreadPoolExecutor.class);
 
@@ -73,6 +77,21 @@ public class EsThreadPoolExecutor extends ThreadPoolExecutor {
         super(corePoolSize, maximumPoolSize, keepAliveTime, unit, workQueue, threadFactory, handler);
         this.name = name;
         this.contextHolder = contextHolder;
+    }
+
+    @Override
+    public Stream<Instrument> setupMetrics(MeterRegistry meterRegistry, String threadPoolName) {
+        RejectedExecutionHandler rejectedExecutionHandler = getRejectedExecutionHandler();
+        if (rejectedExecutionHandler instanceof EsRejectedExecutionHandler handler) {
+            // FIXME bug or is below assumed reason true?
+            // registered, but intentionally not returned so it won't be closed prior to closing the executor
+            handler.registerCounter(
+                meterRegistry,
+                THREAD_POOL_METRIC_PREFIX + threadPoolName + THREAD_POOL_METRIC_NAME_REJECTED,
+                threadPoolName
+            );
+        }
+        return Stream.empty();
     }
 
     @Override
@@ -130,6 +149,14 @@ public class EsThreadPoolExecutor extends ThreadPoolExecutor {
                 + r
                 + "]";
         return true;
+    }
+
+    /**
+     * Returns the current queue size (operations that are queued)
+     */
+    @Override
+    public int getCurrentQueueSize() {
+        return getQueue().size();
     }
 
     /**

@@ -11,6 +11,7 @@ package org.elasticsearch.threadpool;
 
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsExecutorService;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.TimeValue;
@@ -137,8 +138,7 @@ public final class ScalingExecutorBuilder extends ExecutorBuilder<ScalingExecuto
         int max = settings.max;
         final ThreadPool.Info info = new ThreadPool.Info(name(), ThreadPool.ThreadPoolType.SCALING, core, max, keepAlive, null);
         final ThreadFactory threadFactory = EsExecutors.daemonThreadFactory(settings.nodeName, name());
-        ExecutorService executor;
-        executor = EsExecutors.newScaling(
+        EsExecutorService executor = EsExecutors.newScaling(
             settings.nodeName + "/" + name(),
             core,
             max,

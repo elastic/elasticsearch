@@ -20,11 +20,10 @@ import org.elasticsearch.common.time.TimeProvider;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.SizeValue;
+import org.elasticsearch.common.util.concurrent.EsExecutorService;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionHandler;
-import org.elasticsearch.common.util.concurrent.EsThreadPoolExecutor;
-import org.elasticsearch.common.util.concurrent.TaskExecutionTimeTrackingEsThreadPoolExecutor;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.concurrent.ThrottledTaskRunner;
 import org.elasticsearch.core.Nullable;
@@ -333,59 +332,50 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler, 
     }
 
     private static ArrayList<Instrument> setupMetrics(MeterRegistry meterRegistry, String name, ExecutorHolder holder) {
-        Map<String, Object> at = Map.of();
         ArrayList<Instrument> instruments = new ArrayList<>();
-        if (holder.executor() instanceof ThreadPoolExecutor threadPoolExecutor) {
-            String prefix = THREAD_POOL_METRIC_PREFIX + name;
-            instruments.add(
-                meterRegistry.registerLongGauge(
-                    prefix + THREAD_POOL_METRIC_NAME_CURRENT,
-                    "number of threads for " + name,
-                    "count",
-                    () -> new LongWithAttributes(threadPoolExecutor.getPoolSize(), at)
-                )
-            );
-            instruments.add(
-                meterRegistry.registerLongGauge(
-                    prefix + THREAD_POOL_METRIC_NAME_QUEUE,
-                    "number queue size for " + name,
-                    "count",
-                    () -> new LongWithAttributes(threadPoolExecutor.getQueue().size(), at)
-                )
-            );
-            instruments.add(
-                meterRegistry.registerLongGauge(
-                    prefix + THREAD_POOL_METRIC_NAME_ACTIVE,
-                    "number of active threads for " + name,
-                    "count",
-                    () -> new LongWithAttributes(threadPoolExecutor.getActiveCount(), at)
-                )
-            );
-            instruments.add(
-                meterRegistry.registerLongGauge(
-                    prefix + THREAD_POOL_METRIC_NAME_LARGEST,
-                    "largest pool size for " + name,
-                    "count",
-                    () -> new LongWithAttributes(threadPoolExecutor.getLargestPoolSize(), at)
-                )
-            );
-            instruments.add(
-                meterRegistry.registerLongAsyncCounter(
-                    prefix + THREAD_POOL_METRIC_NAME_COMPLETED,
-                    "number of completed threads for " + name,
-                    "count",
-                    () -> new LongWithAttributes(threadPoolExecutor.getCompletedTaskCount(), at)
-                )
-            );
-            RejectedExecutionHandler rejectedExecutionHandler = threadPoolExecutor.getRejectedExecutionHandler();
-            if (rejectedExecutionHandler instanceof EsRejectedExecutionHandler handler) {
-                handler.registerCounter(meterRegistry, prefix + THREAD_POOL_METRIC_NAME_REJECTED, name);
-            }
-
-            if (threadPoolExecutor instanceof TaskExecutionTimeTrackingEsThreadPoolExecutor timeTrackingExecutor) {
-                instruments.addAll(timeTrackingExecutor.setupMetrics(meterRegistry, name));
-            }
-        }
+        String prefix = THREAD_POOL_METRIC_PREFIX + name;
+        EsExecutorService executor = holder.executor;
+        instruments.add(
+            meterRegistry.registerLongGauge(
+                prefix + THREAD_POOL_METRIC_NAME_CURRENT,
+                "number of threads for " + name,
+                "count",
+                () -> new LongWithAttributes(executor.getPoolSize(), Collections.emptyMap())
+            )
+        );
+        instruments.add(
+            meterRegistry.registerLongGauge(
+                prefix + THREAD_POOL_METRIC_NAME_QUEUE,
+                "number queue size for " + name,
+                "count",
+                () -> new LongWithAttributes(executor.getCurrentQueueSize(), Collections.emptyMap())
+            )
+        );
+        instruments.add(
+            meterRegistry.registerLongGauge(
+                prefix + THREAD_POOL_METRIC_NAME_ACTIVE,
+                "number of active threads for " + name,
+                "count",
+                () -> new LongWithAttributes(executor.getActiveCount(), Collections.emptyMap())
+            )
+        );
+        instruments.add(
+            meterRegistry.registerLongGauge(
+                prefix + THREAD_POOL_METRIC_NAME_LARGEST,
+                "largest pool size for " + name,
+                "count",
+                () -> new LongWithAttributes(executor.getLargestPoolSize(), Collections.emptyMap())
+            )
+        );
+        instruments.add(
+            meterRegistry.registerLongAsyncCounter(
+                prefix + THREAD_POOL_METRIC_NAME_COMPLETED,
+                "number of completed threads for " + name,
+                "count",
+                () -> new LongWithAttributes(executor.getCompletedTaskCount(), Collections.emptyMap())
+            )
+        );
+        executor.setupMetrics(meterRegistry, name).forEach(instruments::add);
         return instruments;
     }
 
@@ -910,16 +900,15 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler, 
      * See {@link Names} for a list of thread pools, though there can be more dynamically added via plugins.
      */
     static class ExecutorHolder {
-        private final ExecutorService executor;
+        private final EsExecutorService executor;
         public final Info info;
 
-        ExecutorHolder(ExecutorService executor, Info info) {
-            assert executor instanceof EsThreadPoolExecutor || executor == EsExecutors.DIRECT_EXECUTOR_SERVICE;
+        ExecutorHolder(EsExecutorService executor, Info info) {
             this.executor = executor;
             this.info = info;
         }
 
-        ExecutorService executor() {
+        EsExecutorService executor() {
             return executor;
         }
     }

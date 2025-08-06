@@ -250,7 +250,7 @@ public class TaskExecutionTimeTrackingEsThreadPoolExecutorTests extends ESTestCa
         try {
             final var barrier = new CyclicBarrier(2);
             final ExponentialBucketHistogram expectedHistogram = new ExponentialBucketHistogram(
-                TaskExecutionTimeTrackingEsThreadPoolExecutor.QUEUE_LATENCY_HISTOGRAM_BUCKETS
+                TaskTracker.QUEUE_LATENCY_HISTOGRAM_BUCKETS
             );
 
             /*

@@ -109,7 +109,7 @@ public class EsExecutors {
      * a new worker if capacity remains, otherwise the task is rejected and then appended to the work queue via the {@link ForceQueuePolicy}
      * rejection handler.
      */
-    public static EsThreadPoolExecutor newScaling(
+    public static EsExecutorService newScaling(
         String name,
         int min,
         int max,
@@ -120,37 +120,42 @@ public class EsExecutors {
         ThreadContext contextHolder,
         TaskTrackingConfig config
     ) {
-        LinkedTransferQueue<Runnable> queue = newUnboundedScalingLTQueue(min, max);
-        // Force queued work via ForceQueuePolicy might starve if no worker is available (if core size is empty),
-        // probing the worker pool prevents this.
-        boolean probeWorkerPool = min == 0 && queue instanceof ExecutorScalingQueue;
         if (config.trackExecutionTime()) {
-            return new TaskExecutionTimeTrackingEsThreadPoolExecutor(
-                name,
-                min,
-                max,
-                keepAliveTime,
-                unit,
-                queue,
-                TimedRunnable::new,
-                threadFactory,
-                new ForceQueuePolicy(rejectAfterShutdown, probeWorkerPool),
-                contextHolder,
-                config
-            );
-        } else {
-            return new EsThreadPoolExecutor(
-                name,
-                min,
-                max,
-                keepAliveTime,
-                unit,
-                queue,
-                threadFactory,
-                new ForceQueuePolicy(rejectAfterShutdown, probeWorkerPool),
-                contextHolder
-            );
+            return new TaskExecutionTimeTrackingEsVirtualThreadExecutorService(name, max, -1, contextHolder, config);
         }
+        return new EsVirtualThreadExecutorService(name, max, -1, contextHolder);
+        //
+        // LinkedTransferQueue<Runnable> queue = newUnboundedScalingLTQueue(min, max);
+        // // Force queued work via ForceQueuePolicy might starve if no worker is available (if core size is empty),
+        // // probing the worker pool prevents this.
+        // boolean probeWorkerPool = min == 0 && queue instanceof ExecutorScalingQueue;
+        // if (config.trackExecutionTime()) {
+        // return new TaskExecutionTimeTrackingEsThreadPoolExecutor(
+        // name,
+        // min,
+        // max,
+        // keepAliveTime,
+        // unit,
+        // queue,
+        // TimedRunnable::new,
+        // threadFactory,
+        // new ForceQueuePolicy(rejectAfterShutdown, probeWorkerPool),
+        // contextHolder,
+        // config
+        // );
+        // } else {
+        // return new EsThreadPoolExecutor(
+        // name,
+        // min,
+        // max,
+        // keepAliveTime,
+        // unit,
+        // queue,
+        // threadFactory,
+        // new ForceQueuePolicy(rejectAfterShutdown, probeWorkerPool),
+        // contextHolder
+        // );
+        // }
     }
 
     /**
@@ -168,7 +173,7 @@ public class EsExecutors {
      * a new worker if capacity remains, otherwise the task is rejected and then appended to the work queue via the {@link ForceQueuePolicy}
      * rejection handler.
      */
-    public static EsThreadPoolExecutor newScaling(
+    public static EsExecutorService newScaling(
         String name,
         int min,
         int max,
@@ -191,7 +196,7 @@ public class EsExecutors {
         );
     }
 
-    public static EsThreadPoolExecutor newFixed(
+    public static EsExecutorService newFixed(
         String name,
         int size,
         int queueCapacity,
@@ -199,7 +204,12 @@ public class EsExecutors {
         ThreadContext contextHolder,
         TaskTrackingConfig config
     ) {
-        final BlockingQueue<Runnable> queue;
+        if (config.trackExecutionTime()) {
+            return new TaskExecutionTimeTrackingEsVirtualThreadExecutorService(name, size, queueCapacity, contextHolder, config);
+        }
+        return new EsVirtualThreadExecutorService(name, size, queueCapacity, contextHolder);
+
+        /*final BlockingQueue<Runnable> queue;
         final EsRejectedExecutionHandler rejectedExecutionHandler;
         if (queueCapacity < 0) {
             queue = ConcurrentCollections.newBlockingQueue();
@@ -234,7 +244,7 @@ public class EsExecutors {
                 rejectedExecutionHandler,
                 contextHolder
             );
-        }
+        }*/
     }
 
     /**

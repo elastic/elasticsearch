@@ -63,7 +63,7 @@ public class EsExecutorsTests extends ESTestCase {
     }
 
     public void testFixedForcedExecution() throws Exception {
-        EsThreadPoolExecutor executor = EsExecutors.newFixed(
+        EsExecutorService executor = EsExecutors.newFixed(
             getName(),
             1,
             1,
@@ -132,7 +132,7 @@ public class EsExecutorsTests extends ESTestCase {
     }
 
     public void testFixedRejected() throws Exception {
-        EsThreadPoolExecutor executor = EsExecutors.newFixed(
+        EsExecutorService executor = EsExecutors.newFixed(
             getName(),
             1,
             1,
@@ -277,7 +277,7 @@ public class EsExecutorsTests extends ESTestCase {
         int queue = between(0, 100);
         int actions = queue + pool;
         final CountDownLatch latch = new CountDownLatch(1);
-        EsThreadPoolExecutor executor = EsExecutors.newFixed(
+        EsExecutorService executor = EsExecutors.newFixed(
             getName(),
             pool,
             queue,
@@ -384,7 +384,7 @@ public class EsExecutorsTests extends ESTestCase {
         threadContext.putHeader("foo", "bar");
         final Integer one = Integer.valueOf(1);
         threadContext.putTransient("foo", one);
-        EsThreadPoolExecutor executor = EsExecutors.newFixed(
+        EsExecutorService executor = EsExecutors.newFixed(
             getName(),
             pool,
             queue,
@@ -421,7 +421,7 @@ public class EsExecutorsTests extends ESTestCase {
         int queue = between(0, 100);
         final CountDownLatch latch = new CountDownLatch(1);
         final CountDownLatch executed = new CountDownLatch(1);
-        EsThreadPoolExecutor executor = EsExecutors.newFixed(
+        EsExecutorService executor = EsExecutors.newFixed(
             getName(),
             pool,
             queue,
@@ -703,7 +703,7 @@ public class EsExecutorsTests extends ESTestCase {
                 EsExecutors.daemonThreadFactory("test"),
                 threadContext
             );
-            assertThat(pool, instanceOf(EsThreadPoolExecutor.class));
+            assertThat(pool, instanceOf(EsExecutorService.class));
         }
 
         {
@@ -718,7 +718,7 @@ public class EsExecutorsTests extends ESTestCase {
                 threadContext,
                 DO_NOT_TRACK
             );
-            assertThat(pool, instanceOf(EsThreadPoolExecutor.class));
+            assertThat(pool, instanceOf(EsExecutorService.class));
         }
     }
 
@@ -776,7 +776,8 @@ public class EsExecutorsTests extends ESTestCase {
                 true,
                 EsExecutors.daemonThreadFactory(getTestName()),
                 threadContext
-            )
+            ),
+            0
         );
     }
 
@@ -791,7 +792,8 @@ public class EsExecutorsTests extends ESTestCase {
                 true,
                 EsExecutors.daemonThreadFactory(getTestName()),
                 threadContext
-            )
+            ),
+            TimeUnit.MICROSECONDS.toNanos(1)
         );
     }
 
@@ -806,7 +808,8 @@ public class EsExecutorsTests extends ESTestCase {
                 true,
                 EsExecutors.daemonThreadFactory(getTestName()),
                 threadContext
-            )
+            ),
+            0
         );
     }
 
@@ -821,7 +824,8 @@ public class EsExecutorsTests extends ESTestCase {
                 true,
                 EsExecutors.daemonThreadFactory(getTestName()),
                 threadContext
-            )
+            ),
+            TimeUnit.MILLISECONDS.toNanos(1)
         );
     }
 
@@ -838,7 +842,8 @@ public class EsExecutorsTests extends ESTestCase {
                 EsExecutors.daemonThreadFactory(getTestName()),
                 new EsExecutors.ForceQueuePolicy(true, true),
                 threadContext
-            )
+            ),
+            0
         );
     }
 
@@ -855,14 +860,13 @@ public class EsExecutorsTests extends ESTestCase {
                 EsExecutors.daemonThreadFactory(getTestName()),
                 new EsExecutors.ForceQueuePolicy(true, true),
                 threadContext
-            )
+            ),
+            TimeUnit.MILLISECONDS.toNanos(1)
         );
     }
 
-    private void testScalingWithEmptyCoreAndMaxSingleThread(EsThreadPoolExecutor testSubject) {
+    private void testScalingWithEmptyCoreAndMaxSingleThread(EsExecutorService testSubject, long keepAliveNanos) {
         try {
-            final var keepAliveNanos = testSubject.getKeepAliveTime(TimeUnit.NANOSECONDS);
-
             class Task extends AbstractRunnable {
                 private final CountDownLatch doneLatch;
                 private int remaining;
@@ -902,8 +906,7 @@ public class EsExecutorsTests extends ESTestCase {
         }
     }
 
-    private void testScalingWithEmptyCoreAndMaxMultipleThreads(EsThreadPoolExecutor testSubject) {
-        final var keepAliveNanos = testSubject.getKeepAliveTime(TimeUnit.NANOSECONDS);
+    private void testScalingWithEmptyCoreAndMaxMultipleThreads(EsExecutorService testSubject, long keepAliveNanos) {
         // Use max pool size with one additional scheduler task if a keep alive time is set.
         final var schedulerTasks = testSubject.getMaximumPoolSize() + (keepAliveNanos > 0 ? 1 : 0);
 
@@ -948,7 +951,7 @@ public class EsExecutorsTests extends ESTestCase {
                                         "timed out waiting for [%s] of [%s] tasks to complete [queue size: %s, workers: %s] ",
                                         schedulerTasks - taskCompletions.availablePermits(),
                                         schedulerTasks,
-                                        testSubject.getQueue().size(),
+                                        testSubject.getCurrentQueueSize(),
                                         testSubject.getPoolSize()
                                     );
                                     result.onFailure(new TimeoutException(msg));

@@ -30,8 +30,8 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.version.CompatibilityVersions;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+import org.elasticsearch.common.util.concurrent.EsExecutorService;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
-import org.elasticsearch.common.util.concurrent.EsThreadPoolExecutor;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.env.BuildVersion;
 import org.elasticsearch.env.NodeMetadata;
@@ -393,7 +393,7 @@ public class GatewayMetaState implements Closeable {
 
         static final String THREAD_NAME = "AsyncLucenePersistedState#updateTask";
 
-        private final EsThreadPoolExecutor threadPoolExecutor;
+        private final EsExecutorService threadPoolExecutor;
         private final PersistedState persistedState;
 
         boolean newCurrentTermQueued = false;
@@ -449,7 +449,7 @@ public class GatewayMetaState implements Closeable {
 
         private void scheduleUpdate() {
             assert Thread.holdsLock(mutex);
-            assert threadPoolExecutor.getQueue().isEmpty() : "threadPoolExecutor queue not empty";
+            assert threadPoolExecutor.getCurrentQueueSize() == 0 : "threadPoolExecutor queue not empty";
             threadPoolExecutor.execute(new AbstractRunnable() {
 
                 @Override

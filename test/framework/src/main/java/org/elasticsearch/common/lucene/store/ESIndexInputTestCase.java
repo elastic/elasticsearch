@@ -14,8 +14,8 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+import org.elasticsearch.common.util.concurrent.EsExecutorService;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
-import org.elasticsearch.common.util.concurrent.EsThreadPoolExecutor;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.store.LuceneFilesExtensions;
 import org.elasticsearch.test.ESTestCase;
@@ -33,7 +33,7 @@ import java.util.concurrent.atomic.AtomicLong;
  */
 public class ESIndexInputTestCase extends ESTestCase {
 
-    private static EsThreadPoolExecutor executor;
+    private static EsExecutorService executor;
 
     private AtomicLong uniqueIdGenerator;
 

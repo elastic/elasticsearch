@@ -31,6 +31,7 @@ import io.netty.channel.RecvByteBufAllocator;
 import io.netty.channel.socket.nio.NioSocketChannel;
 
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.ObjectPool;
 import org.elasticsearch.core.SuppressForbidden;
 
 import java.io.IOException;
@@ -56,7 +57,7 @@ public class CopyBytesSocketChannel extends Netty4NioSocketChannel {
         ByteSizeValue.parseBytesSizeValue(System.getProperty("es.transport.buffer.size", "1m"), "es.transport.buffer.size").getBytes()
     );
 
-    private static final ThreadLocal<ByteBuffer> ioBuffer = ThreadLocal.withInitial(() -> ByteBuffer.allocateDirect(MAX_BYTES_PER_WRITE));
+    private static final ObjectPool<ByteBuffer> ioBuffer = ObjectPool.withInitial(() -> ByteBuffer.allocateDirect(MAX_BYTES_PER_WRITE));
     private final WriteConfig writeConfig = new WriteConfig();
 
     public CopyBytesSocketChannel() {
@@ -88,12 +89,16 @@ public class CopyBytesSocketChannel extends Netty4NioSocketChannel {
             } else {
                 // Zero length buffers are not added to nioBuffers by ChannelOutboundBuffer, so there is no need
                 // to check if the total size of all the buffers is non-zero.
-                ByteBuffer buffer = getIoBuffer();
-                copyBytes(nioBuffers, nioBufferCnt, buffer);
-                buffer.flip();
+                final int localWrittenBytes;
+                int attemptedBytes;
+                try (var pooledBuffer = ioBuffer.acquire()) {
+                    ByteBuffer buffer = pooledBuffer.get().clear();
+                    copyBytes(nioBuffers, nioBufferCnt, buffer);
+                    buffer.flip();
 
-                int attemptedBytes = buffer.remaining();
-                final int localWrittenBytes = writeToSocketChannel(javaChannel(), buffer);
+                    attemptedBytes = buffer.remaining();
+                    localWrittenBytes = writeToSocketChannel(javaChannel(), buffer);
+                }
                 if (localWrittenBytes <= 0) {
                     incompleteWrite(true);
                     return;
@@ -113,13 +118,15 @@ public class CopyBytesSocketChannel extends Netty4NioSocketChannel {
         final RecvByteBufAllocator.Handle allocHandle = unsafe().recvBufAllocHandle();
         int writeableBytes = Math.min(byteBuf.writableBytes(), MAX_BYTES_PER_WRITE);
         allocHandle.attemptedBytesRead(writeableBytes);
-        ByteBuffer limit = getIoBuffer().limit(writeableBytes);
-        int bytesRead = readFromSocketChannel(javaChannel(), limit);
-        limit.flip();
-        if (bytesRead > 0) {
-            byteBuf.writeBytes(limit);
+        try (var pooledBuffer = ioBuffer.acquire()) {
+            ByteBuffer limit = pooledBuffer.get().clear().limit(writeableBytes);
+            int bytesRead = readFromSocketChannel(javaChannel(), limit);
+            limit.flip();
+            if (bytesRead > 0) {
+                byteBuf.writeBytes(limit);
+            }
+            return bytesRead;
         }
-        return bytesRead;
     }
 
     // Protected so that tests can verify behavior and simulate partial writes
@@ -130,12 +137,6 @@ public class CopyBytesSocketChannel extends Netty4NioSocketChannel {
     // Protected so that tests can verify behavior
     protected int readFromSocketChannel(SocketChannel socketChannel, ByteBuffer buffer) throws IOException {
         return socketChannel.read(buffer);
-    }
-
-    private static ByteBuffer getIoBuffer() {
-        ByteBuffer buffer = CopyBytesSocketChannel.ioBuffer.get();
-        buffer.clear();
-        return buffer;
     }
 
     private void adjustMaxBytesPerGatheringWrite(int attempted, int written, int oldMaxBytesPerGatheringWrite) {

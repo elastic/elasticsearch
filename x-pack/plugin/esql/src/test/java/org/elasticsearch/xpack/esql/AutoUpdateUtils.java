@@ -23,6 +23,7 @@ public class AutoUpdateUtils {
     // TODO: CLI option.
     public static boolean isAutoUpdating = false;
 
+    // TODO: handle more than one update at a time.
     private static void handleAutoUpdate(String expected, String actual, String fileName, int lineNumber) throws IOException {
         var expLineCount = expected.chars().filter(ch -> ch == '\n').count() + 1;
 

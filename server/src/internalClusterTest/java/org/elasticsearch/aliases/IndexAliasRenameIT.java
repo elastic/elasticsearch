@@ -15,9 +15,8 @@ import org.elasticsearch.action.admin.indices.alias.TransportIndicesAliasesActio
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 import org.elasticsearch.xcontent.XContentType;
-
-import static org.hamcrest.Matchers.equalTo;
 
 public class IndexAliasRenameIT extends ESSingleNodeTestCase {
     private static final String ORIGINAL = "original";
@@ -32,11 +31,8 @@ public class IndexAliasRenameIT extends ESSingleNodeTestCase {
             }""", XContentType.JSON).setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
 
         // Ensure the document is searchable in the original index
-        assertThat(client().prepareSearch(ORIGINAL).get().getHits().getTotalHits().value(), equalTo(1L));
-        assertThat(
-            client().prepareSearch(NEW_INDEX).setIndicesOptions(IndicesOptions.lenientExpandOpen()).get().getHits().getTotalHits().value(),
-            equalTo(0L)
-        );
+        ElasticsearchAssertions.assertHitCount(client().prepareSearch(ORIGINAL), 1L);
+        ElasticsearchAssertions.assertHitCount(client().prepareSearch(NEW_INDEX).setIndicesOptions(IndicesOptions.lenientExpandOpen()), 0L);
 
         // Rename the index
         IndicesAliasesRequest request = new IndicesAliasesRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT);
@@ -48,10 +44,7 @@ public class IndexAliasRenameIT extends ESSingleNodeTestCase {
         ensureGreen(NEW_INDEX);
 
         // Ensure the document is searchable in the new index
-        assertThat(
-            client().prepareSearch(ORIGINAL).setIndicesOptions(IndicesOptions.lenientExpandOpen()).get().getHits().getTotalHits().value(),
-            equalTo(0L)
-        );
-        assertThat(client().prepareSearch(NEW_INDEX).get().getHits().getTotalHits().value(), equalTo(1L));
+        ElasticsearchAssertions.assertHitCount(client().prepareSearch(ORIGINAL).setIndicesOptions(IndicesOptions.lenientExpandOpen()), 0L);
+        ElasticsearchAssertions.assertHitCount(client().prepareSearch(NEW_INDEX), 1L);
     }
 }

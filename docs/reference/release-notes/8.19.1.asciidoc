@@ -61,7 +61,7 @@ This behavior was a result of an older implementation of these functions.
 ===============
 Sorting across multiple indices failed when one index contained an `aggregate_metric_double` field and another did not.
 In this case, the missing field was encoded as `NullBlock` but later incorrectly decoded as `AggregateMetricDoubleBlock`, which expects four values. This mismatch caused decoding errors.
-{es-pull}131658[#131658] resolves the issue and also improves mv_expand by returning the input block unchanged for unsupported AggregateMetricDoubleBlock values, avoiding unnecessary errors.
+{es-pull}131658[#131658] resolves the issue and also improves `mv_expand` by returning the input block unchanged for unsupported `AggregateMetricDoubleBlock` values, avoiding unnecessary errors.
 ===============
 +
 .Fixes incorrect `ingest_took` value when combining bulk responses

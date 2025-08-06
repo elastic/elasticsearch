@@ -68,7 +68,7 @@ public final class TSIDBlockLoader implements BlockLoader {
 
         @Override
         public Block read(BlockFactory factory, Docs docs, int offset) throws IOException {
-            try (SingletonOrdinalsBuilder builder = factory.singletonOrdinalsBuilder(sorted, docs.count() - offset)) {
+            try (TSIDOrdinalsBuilder builder = factory.tsidOrdinalsBuilder(sorted, docs.count() - offset)) {
                 blockLoader.loadBlock(builder, docs, offset);
                 return builder.build();
             }

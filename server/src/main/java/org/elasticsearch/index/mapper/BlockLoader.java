@@ -423,6 +423,8 @@ public interface BlockLoader {
          */
         SingletonOrdinalsBuilder singletonOrdinalsBuilder(SortedDocValues ordinals, int count);
 
+        TSIDOrdinalsBuilder tsidOrdinalsBuilder(SortedDocValues ordinals, int count);
+
         /**
          * Build a reader for reading {@link SortedSetDocValues}
          */
@@ -519,6 +521,14 @@ public interface BlockLoader {
          * Appends an ordinal to the builder.
          */
         SingletonOrdinalsBuilder appendOrd(int value);
+    }
+
+    interface TSIDOrdinalsBuilder extends Builder {
+
+        TSIDOrdinalsBuilder appendOrd(long value);
+
+        TSIDOrdinalsBuilder appendOrds(long[] values, int from, int length);
+
     }
 
     interface SortedSetOrdinalsBuilder extends Builder {

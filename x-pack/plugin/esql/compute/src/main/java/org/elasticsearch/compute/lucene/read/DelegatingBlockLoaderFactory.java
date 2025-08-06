@@ -87,6 +87,11 @@ public abstract class DelegatingBlockLoaderFactory implements BlockLoader.BlockF
     }
 
     @Override
+    public BlockLoader.TSIDOrdinalsBuilder tsidOrdinalsBuilder(SortedDocValues ordinals, int count) {
+        return new TSIDOrdinalsBuilder(factory, ordinals, count);
+    }
+
+    @Override
     public BlockLoader.SingletonOrdinalsBuilder singletonOrdinalsBuilder(SortedDocValues ordinals, int count) {
         return new SingletonOrdinalsBuilder(factory, ordinals, count);
     }

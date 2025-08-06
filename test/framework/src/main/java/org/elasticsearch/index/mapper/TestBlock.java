@@ -272,6 +272,61 @@ public class TestBlock implements BlockLoader.Block {
             }
 
             @Override
+            public BlockLoader.TSIDOrdinalsBuilder tsidOrdinalsBuilder(SortedDocValues ordinals, int expectedCount) {
+                final long[] ords = new long[expectedCount];
+                return new BlockLoader.TSIDOrdinalsBuilder() {
+
+                    int count;
+
+                    @Override
+                    public BlockLoader.TSIDOrdinalsBuilder appendOrd(long value) {
+                        ords[count++] = value;
+                        return this;
+                    }
+
+                    @Override
+                    public BlockLoader.TSIDOrdinalsBuilder appendOrds(long[] values, int from, int length) {
+                        try {
+                            System.arraycopy(values, from, ords, expectedCount, length);
+                        } catch (ArrayIndexOutOfBoundsException e) {
+                            throw e;
+                        }
+                        count += length;
+                        return this;
+                    }
+
+                    @Override
+                    public BlockLoader.Block build() {
+                        return new TestBlock(Arrays.stream(ords).mapToInt(Math::toIntExact).mapToObj(ord -> {
+                            try {
+                                return BytesRef.deepCopyOf(ordinals.lookupOrd(ord));
+                            } catch (IOException e) {
+                                throw new UncheckedIOException(e);
+                            }
+                        }).collect(Collectors.toUnmodifiableList()));
+                    }
+
+                    @Override
+                    public BlockLoader.Builder appendNull() {
+                        throw new UnsupportedOperationException();
+                    }
+
+                    @Override
+                    public BlockLoader.Builder beginPositionEntry() {
+                        throw new UnsupportedOperationException();
+                    }
+
+                    @Override
+                    public BlockLoader.Builder endPositionEntry() {
+                        throw new UnsupportedOperationException();
+                    }
+
+                    @Override
+                    public void close() {}
+                };
+            }
+
+            @Override
             public BlockLoader.SingletonOrdinalsBuilder singletonOrdinalsBuilder(SortedDocValues ordinals, int expectedCount) {
                 class SingletonOrdsBuilder extends TestBlock.Builder implements BlockLoader.SingletonOrdinalsBuilder {
                     private SingletonOrdsBuilder() {

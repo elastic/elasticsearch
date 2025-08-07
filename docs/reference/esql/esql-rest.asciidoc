@@ -58,9 +58,11 @@ POST /_query?format=txt
   """
 }
 ----
-
-Inside quotes, Console suggests possible commands and functions to autocomplete your query.
 // TEST[setup:library]
+
+Inside quotes, Console suggests possible commands and functions to autocomplete your query:
+
+image::images/esql/console-esql-autocomplete.png[align="center"]
 
 [discrete]
 [[esql-rest-format]]

@@ -22,6 +22,7 @@ import co.elastic.elasticsearch.stateless.cache.StatelessSharedBlobCacheService;
 import org.elasticsearch.blobcache.BlobCacheMetrics;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.threadpool.ThreadPool;
 
 public class TestUtils {
@@ -37,7 +38,7 @@ public class TestUtils {
             nodeEnvironment,
             settings,
             threadPool,
-            BlobCacheMetrics.NOOP
+            new BlobCacheMetrics(MeterRegistry.NOOP)
         );
         statelessSharedBlobCacheService.assertInvariants();
         return statelessSharedBlobCacheService;

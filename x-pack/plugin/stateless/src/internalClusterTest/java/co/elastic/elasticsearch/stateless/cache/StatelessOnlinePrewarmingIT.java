@@ -66,6 +66,7 @@ import java.util.concurrent.TimeUnit;
 import static co.elastic.elasticsearch.stateless.cache.StatelessOnlinePrewarmingService.SEGMENT_PREWARMING_EXECUTION_WAITING_TIME_HISTOGRAM_NAME;
 import static co.elastic.elasticsearch.stateless.cache.StatelessOnlinePrewarmingService.SHARD_TOOK_DURATION_HISTOGRAM_NAME;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
@@ -180,6 +181,10 @@ public class StatelessOnlinePrewarmingIT extends AbstractStatelessIntegTestCase 
         );
         assertThat(statsAfterFirstPrewarm.writeCount(), greaterThan(statsBeforePrewarming.writeCount()));
         assertThat(statsAfterFirstPrewarm.writeBytes() - statsBeforePrewarming.writeBytes(), greaterThan(0L));
+
+        // prewarming does not count as reads and misses
+        assertThat(statsAfterFirstPrewarm.missCount(), equalTo(statsBeforePrewarming.missCount()));
+        assertThat(statsAfterFirstPrewarm.readCount(), equalTo(statsBeforePrewarming.readCount()));
 
         assertThat(bytesWarmedAfterFirstPrewarming - bytesWarmedBeforePrewarming, is(greaterThan(0L)));
 

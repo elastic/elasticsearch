@@ -1193,6 +1193,7 @@ public class IndexingShardRelocationIT extends AbstractStatelessIntegTestCase {
 
         var cacheService = internalCluster().getInstance(Stateless.SharedBlobCacheServiceSupplier.class, indexNode2).get();
         assertThat(cacheService.getStats().writeCount(), equalTo(1L));
+        assertThat(cacheService.getStats().missCount(), equalTo(1L));
         assertThat(cacheService.getStats().numberOfRegions(), greaterThan(1));
     }
 

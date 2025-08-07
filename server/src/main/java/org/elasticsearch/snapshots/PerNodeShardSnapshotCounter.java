@@ -95,7 +95,25 @@ public class PerNodeShardSnapshotCounter {
         return enabled() == false || perNodeCounts.values().stream().anyMatch(count -> count < shardSnapshotPerNodeLimit);
     }
 
+    public boolean hasCapacityOnNode(String nodeId) {
+        if (enabled() == false) {
+            return true;
+        }
+        final Integer count = perNodeCounts.get(nodeId);
+        return count != null && count < shardSnapshotPerNodeLimit;
+    }
+
     private boolean enabled() {
         return shardSnapshotPerNodeLimit > 0;
+    }
+
+    @Override
+    public String toString() {
+        return "PerNodeShardSnapshotCounter{"
+            + "shardSnapshotPerNodeLimit="
+            + shardSnapshotPerNodeLimit
+            + ", perNodeCounts="
+            + perNodeCounts
+            + '}';
     }
 }

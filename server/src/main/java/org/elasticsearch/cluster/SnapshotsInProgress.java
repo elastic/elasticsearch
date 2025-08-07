@@ -913,6 +913,12 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
          */
         private final boolean hasShardsInInitState;
 
+        /**
+         * Flag set to true in case any of the shard snapshots in {@link #shards} are {@link ShardSnapshotStatus#isAssignedQueued}.
+         * This is used to avoid having to iterate the full {@link #shards} map.
+         */
+        private final boolean hasAssignedQueuedShards;
+
         // visible for testing, use #startedEntry and copy constructors in production code
         public static Entry snapshot(
             Snapshot snapshot,
@@ -932,6 +938,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             final Map<String, Index> res = Maps.newMapWithExpectedSize(indices.size());
             final Map<RepositoryShardId, ShardSnapshotStatus> byRepoShardIdBuilder = Maps.newHashMapWithExpectedSize(shards.size());
             boolean hasInitStateShards = false;
+            boolean hasAssignedQueuedShards = false;
             for (Map.Entry<ShardId, ShardSnapshotStatus> entry : shards.entrySet()) {
                 final ShardId shardId = entry.getKey();
                 final IndexId indexId = indices.get(shardId.getIndexName());
@@ -940,6 +947,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
                 assert existing == null || existing.equals(index) : "Conflicting indices [" + existing + "] and [" + index + "]";
                 final var shardSnapshotStatus = entry.getValue();
                 hasInitStateShards |= shardSnapshotStatus.state() == ShardState.INIT;
+                hasAssignedQueuedShards |= shardSnapshotStatus.isAssignedQueued();
                 byRepoShardIdBuilder.put(new RepositoryShardId(indexId, shardId.id()), shardSnapshotStatus);
             }
             return new Entry(
@@ -959,7 +967,8 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
                 null,
                 byRepoShardIdBuilder,
                 res,
-                hasInitStateShards
+                hasInitStateShards,
+                hasAssignedQueuedShards
             );
         }
 
@@ -991,6 +1000,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
                 source,
                 shardStatusByRepoShardId,
                 Map.of(),
+                false,
                 false
             );
         }
@@ -1012,7 +1022,8 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             @Nullable SnapshotId source,
             Map<RepositoryShardId, ShardSnapshotStatus> shardStatusByRepoShardId,
             Map<String, Index> snapshotIndices,
-            boolean hasShardsInInitState
+            boolean hasShardsInInitState,
+            boolean hasAssignedQueuedShards
         ) {
             this.state = state;
             this.snapshot = snapshot;
@@ -1031,13 +1042,15 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             this.shardStatusByRepoShardId = Map.copyOf(shardStatusByRepoShardId);
             this.snapshotIndices = snapshotIndices;
             this.hasShardsInInitState = hasShardsInInitState;
+            this.hasAssignedQueuedShards = hasAssignedQueuedShards;
             assert assertShardsConsistent(
                 this.source,
                 this.state,
                 this.indices,
                 this.shards,
                 this.shardStatusByRepoShardId,
-                this.hasShardsInInitState
+                this.hasShardsInInitState,
+                this.hasAssignedQueuedShards
             );
         }
 
@@ -1087,13 +1100,17 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             Map<String, IndexId> indices,
             Map<ShardId, ShardSnapshotStatus> shards,
             Map<RepositoryShardId, ShardSnapshotStatus> statusByRepoShardId,
-            boolean hasInitStateShards
+            boolean hasInitStateShards,
+            boolean hasAssignedQueuedShards
         ) {
             if ((state == State.INIT || state == State.ABORTED) && shards.isEmpty()) {
                 return true;
             }
             if (hasInitStateShards) {
                 assert state == State.STARTED : "shouldn't have INIT-state shards in state " + state;
+            }
+            if (hasAssignedQueuedShards) {
+                assert source == null : "clone entry must not have any shards in assigned-queued state";
             }
             final Set<String> indexNames = indices.keySet();
             final Set<String> indexNamesInShards = new HashSet<>();
@@ -1150,7 +1167,8 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
                 source,
                 shardStatusByRepoShardId,
                 snapshotIndices,
-                hasShardsInInitState
+                hasShardsInInitState,
+                hasAssignedQueuedShards
             );
         }
 
@@ -1401,6 +1419,15 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
          */
         public boolean hasShardsInInitState() {
             return hasShardsInInitState;
+        }
+
+        /**
+         * See {@link #hasAssignedQueuedShards}.
+         */
+        public boolean hasAssignedQueuedShards() {
+            assert hasAssignedQueuedShards == false || isClone() == false
+                : "a clone entry must not have assigned-queued shards, but saw " + this;
+            return hasAssignedQueuedShards;
         }
 
         public boolean partial() {
@@ -1784,7 +1811,8 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
                     null,
                     part.shardStatusByRepoShardId,
                     part.snapshotIndices,
-                    part.hasShardsInInitState
+                    part.hasShardsInInitState,
+                    part.hasAssignedQueuedShards
                 );
             }
             if (part.isClone()) {

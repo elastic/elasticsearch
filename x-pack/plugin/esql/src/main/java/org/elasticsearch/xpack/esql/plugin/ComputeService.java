@@ -207,7 +207,9 @@ public class ComputeService {
 
         // we have no sub plans, so we can just execute the given plan
         if (subplans == null || subplans.isEmpty()) {
-            responseStream.startResponse(physicalPlan.output());
+            if (responseStream != null) {
+                responseStream.startResponse(physicalPlan.output());
+            }
 
             executePlan(
                 sessionId,
@@ -228,10 +230,14 @@ public class ComputeService {
         final List<Page> collectedPages = Collections.synchronizedList(new ArrayList<>());
         PhysicalPlan mainPlan = new OutputExec(subplansAndMainPlan.v2(), page -> {
             collectedPages.add(page);
-            responseStream.sendPages(List.of(page));
+            if (responseStream != null) {
+                responseStream.sendPages(List.of(page));
+            }
         });
 
-        responseStream.startResponse(mainPlan.output());
+        if (responseStream != null) {
+            responseStream.startResponse(mainPlan.output());
+        }
 
         listener = listener.delegateResponse((l, e) -> {
             collectedPages.forEach(p -> Releasables.closeExpectNoException(p::releaseBlocks));
@@ -334,10 +340,11 @@ public class ComputeService {
         PhysicalPlan coordinatorPlan = coordinatorAndDataNodePlan.v1();
 
         if (exchangeSinkSupplier == null) {
-            assert responseStream != null : "responseStream must not be null when exchangeSinkSupplier is null";
             coordinatorPlan = new OutputExec(coordinatorAndDataNodePlan.v1(), page -> {
                 collectedPages.add(page);
-                responseStream.sendPages(List.of(page));
+                if (responseStream != null) {
+                    responseStream.sendPages(List.of(page));
+                }
             });
         }
 

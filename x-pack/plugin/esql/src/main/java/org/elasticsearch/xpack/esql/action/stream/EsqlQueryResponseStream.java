@@ -100,7 +100,7 @@ public abstract class EsqlQueryResponseStream implements Releasable {
      * Starts the response stream. This is the first method to be called
      */
     public final void startResponse(List<Attribute> schema) {
-        assert initialStreamChunkSent : "startResponse() called more than once";
+        assert initialStreamChunkSent == false : "startResponse() called more than once";
         assert finished == false : "sendPages() called on a finished stream";
 
         if (canBeStreamed() == false) {
@@ -135,12 +135,15 @@ public abstract class EsqlQueryResponseStream implements Releasable {
     public final void finishResponse(EsqlQueryResponse response) {
         assert finished == false : "finishResponse() called more than once";
 
-        if (initialStreamChunkSent) {
-            doFinishResponse(response);
-        } else {
-            doSendEverything(response);
+        try (response) {
+            if (initialStreamChunkSent) {
+                doFinishResponse(response);
+            } else {
+                doSendEverything(response);
+            }
+        } finally {
+            finished = true;
         }
-        finished = true;
     }
 
     public final void handleException(Exception e) {

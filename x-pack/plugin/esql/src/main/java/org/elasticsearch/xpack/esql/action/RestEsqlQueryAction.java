@@ -23,6 +23,8 @@ import java.util.List;
 import java.util.Set;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
+import static org.elasticsearch.xpack.esql.action.EsqlQueryResponse.ALLOW_PARTIAL_RESULTS_OPTION;
+import static org.elasticsearch.xpack.esql.action.EsqlQueryResponse.STREAM_OPTION;
 import static org.elasticsearch.xpack.esql.formatter.TextFormat.URL_PARAM_DELIMITER;
 
 @ServerlessScope(Scope.PUBLIC)
@@ -51,9 +53,9 @@ public class RestEsqlQueryAction extends BaseRestHandler {
         }
     }
 
-    protected static RestChannelConsumer restChannelConsumer(EsqlQueryRequest esqlRequest, RestRequest request, NodeClient client) {
-        final Boolean partialResults = request.paramAsBoolean("allow_partial_results", null);
-        final boolean shouldStream = request.paramAsBoolean("stream", false);
+    private static RestChannelConsumer restChannelConsumer(EsqlQueryRequest esqlRequest, RestRequest request, NodeClient client) {
+        final Boolean partialResults = request.paramAsBoolean(ALLOW_PARTIAL_RESULTS_OPTION, null);
+        final boolean shouldStream = request.paramAsBoolean(STREAM_OPTION, false);
         if (partialResults != null) {
             esqlRequest.allowPartialResults(partialResults);
         }

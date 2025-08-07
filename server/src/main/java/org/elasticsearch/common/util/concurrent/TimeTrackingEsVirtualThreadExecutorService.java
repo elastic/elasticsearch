@@ -9,26 +9,25 @@
 
 package org.elasticsearch.common.util.concurrent;
 
-import org.elasticsearch.common.util.concurrent.EsExecutorService.ExecutionTimeTrackingEsExecutorService;
+import org.elasticsearch.common.util.concurrent.EsExecutorService.TimeTrackingEsExecutorService;
 import org.elasticsearch.telemetry.metric.Instrument;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 
 import java.util.stream.Stream;
 
-public class TaskExecutionTimeTrackingEsVirtualThreadExecutorService extends EsVirtualThreadExecutorService
-    implements
-        ExecutionTimeTrackingEsExecutorService {
+public class TimeTrackingEsVirtualThreadExecutorService extends EsVirtualThreadExecutorService implements TimeTrackingEsExecutorService {
 
     private final TaskTracker taskTracker;
 
-    public TaskExecutionTimeTrackingEsVirtualThreadExecutorService(
+    public TimeTrackingEsVirtualThreadExecutorService(
         String name,
         int maximumPoolSize,
         int maximumQueueSize,
+        boolean rejectAfterShutdown,
         ThreadContext contextHolder,
         EsExecutors.TaskTrackingConfig trackingConfig
     ) {
-        super(name, maximumPoolSize, maximumQueueSize, contextHolder);
+        super(name, maximumPoolSize, maximumQueueSize, rejectAfterShutdown, contextHolder);
         this.taskTracker = new TaskTracker(trackingConfig, maximumPoolSize);
     }
 

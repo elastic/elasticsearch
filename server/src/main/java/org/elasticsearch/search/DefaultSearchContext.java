@@ -26,6 +26,7 @@ import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.cluster.routing.IndexRouting;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.lucene.search.Queries;
+import org.elasticsearch.common.util.concurrent.EsExecutorService;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
@@ -298,8 +299,8 @@ final class DefaultSearchContext extends SearchContext {
         boolean enableQueryPhaseParallelCollection,
         ToLongFunction<String> fieldCardinality
     ) {
-        return executor instanceof ThreadPoolExecutor tpe
-            && tpe.getQueue().size() <= tpe.getMaximumPoolSize()
+        return executor instanceof EsExecutorService tpe
+            && tpe.getCurrentQueueSize() <= tpe.getMaximumPoolSize()
             && isParallelCollectionSupportedForResults(resultsType, request.source(), fieldCardinality, enableQueryPhaseParallelCollection)
                 ? tpe.getMaximumPoolSize()
                 : 1;

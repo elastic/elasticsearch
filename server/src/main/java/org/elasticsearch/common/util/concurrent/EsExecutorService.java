@@ -18,6 +18,8 @@ import java.util.stream.Stream;
 public interface EsExecutorService extends ExecutorService {
     long getCompletedTaskCount();
 
+    long getRejectedTaskCount();
+
     int getActiveCount();
 
     int getCurrentQueueSize();
@@ -37,7 +39,7 @@ public interface EsExecutorService extends ExecutorService {
         return Stream.empty();
     };
 
-    interface ExecutionTimeTrackingEsExecutorService extends EsExecutorService {
+    interface TimeTrackingEsExecutorService extends EsExecutorService {
         /**
          * Returns the exponentially weighted moving average of the task execution time
          */
@@ -52,7 +54,7 @@ public interface EsExecutorService extends ExecutorService {
 
         /**
          * Returns the fraction of the maximum possible thread time that was actually used since the last time this method was called.
-         * There are two periodic pulling mechanisms that access utilization reporting: {@link TaskExecutionTimeTrackingEsThreadPoolExecutor.UtilizationTrackingPurpose} distinguishes the
+         * There are two periodic pulling mechanisms that access utilization reporting: {@link TaskTimeTrackingEsThreadPoolExecutor.UtilizationTrackingPurpose} distinguishes the
          * caller.
          *
          * @return the utilization as a fraction, in the range [0, 1]. This may return >1 if a task completed in the time range but started

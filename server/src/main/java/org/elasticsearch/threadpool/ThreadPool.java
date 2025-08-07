@@ -23,7 +23,6 @@ import org.elasticsearch.common.unit.SizeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutorService;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
-import org.elasticsearch.common.util.concurrent.EsRejectedExecutionHandler;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.concurrent.ThrottledTaskRunner;
 import org.elasticsearch.core.Nullable;
@@ -50,7 +49,6 @@ import java.util.Map;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.RejectedExecutionException;
-import java.util.concurrent.RejectedExecutionHandler;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.ThreadPoolExecutor;
@@ -434,25 +432,18 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler, 
     public ThreadPoolStats stats() {
         List<ThreadPoolStats.Stats> stats = new ArrayList<>();
         for (ExecutorHolder holder : executors.values()) {
-            final String name = holder.info.getName();
-            int threads = -1;
-            int queue = -1;
-            int active = -1;
-            long rejected = -1;
-            int largest = -1;
-            long completed = -1;
-            if (holder.executor() instanceof ThreadPoolExecutor threadPoolExecutor) {
-                threads = threadPoolExecutor.getPoolSize();
-                queue = threadPoolExecutor.getQueue().size();
-                active = threadPoolExecutor.getActiveCount();
-                largest = threadPoolExecutor.getLargestPoolSize();
-                completed = threadPoolExecutor.getCompletedTaskCount();
-                RejectedExecutionHandler rejectedExecutionHandler = threadPoolExecutor.getRejectedExecutionHandler();
-                if (rejectedExecutionHandler instanceof EsRejectedExecutionHandler handler) {
-                    rejected = handler.rejected();
-                }
-            }
-            stats.add(new ThreadPoolStats.Stats(name, threads, queue, active, rejected, largest, completed));
+            EsExecutorService executor = holder.executor();
+            stats.add(
+                new ThreadPoolStats.Stats(
+                    holder.info.getName(),
+                    executor.getPoolSize(),
+                    executor.getCurrentQueueSize(),
+                    executor.getActiveCount(),
+                    executor.getRejectedTaskCount(),
+                    executor.getLargestPoolSize(),
+                    executor.getCompletedTaskCount()
+                )
+            );
         }
         return new ThreadPoolStats(stats);
     }

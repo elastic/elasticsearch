@@ -19,7 +19,7 @@ import org.elasticsearch.common.util.concurrent.EsExecutorService;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
-import org.elasticsearch.common.util.concurrent.TaskExecutionTimeTrackingEsThreadPoolExecutor;
+import org.elasticsearch.common.util.concurrent.TaskTimeTrackingEsThreadPoolExecutor;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.telemetry.InstrumentType;
@@ -373,11 +373,11 @@ public class ThreadPoolTests extends ESTestCase {
     public void testWriteThreadPoolUsesTaskExecutionTimeTrackingEsThreadPoolExecutor() {
         final ThreadPool threadPool = new TestThreadPool("test", Settings.EMPTY);
         try {
-            assertThat(threadPool.executor(ThreadPool.Names.WRITE), instanceOf(TaskExecutionTimeTrackingEsThreadPoolExecutor.class));
-            assertThat(threadPool.executor(ThreadPool.Names.SYSTEM_WRITE), instanceOf(TaskExecutionTimeTrackingEsThreadPoolExecutor.class));
+            assertThat(threadPool.executor(ThreadPool.Names.WRITE), instanceOf(TaskTimeTrackingEsThreadPoolExecutor.class));
+            assertThat(threadPool.executor(ThreadPool.Names.SYSTEM_WRITE), instanceOf(TaskTimeTrackingEsThreadPoolExecutor.class));
             assertThat(
                 threadPool.executor(ThreadPool.Names.SYSTEM_CRITICAL_WRITE),
-                instanceOf(TaskExecutionTimeTrackingEsThreadPoolExecutor.class)
+                instanceOf(TaskTimeTrackingEsThreadPoolExecutor.class)
             );
         } finally {
             assertTrue(terminate(threadPool));
@@ -502,15 +502,15 @@ public class ThreadPoolTests extends ESTestCase {
             final String threadPoolName = ThreadPool.Names.WRITE;
             final MetricAsserter metricAsserter = new MetricAsserter(meterRegistry, threadPoolName);
             final ThreadPool.Info threadPoolInfo = threadPool.info(threadPoolName);
-            final TaskExecutionTimeTrackingEsThreadPoolExecutor executor = asInstanceOf(
-                TaskExecutionTimeTrackingEsThreadPoolExecutor.class,
+            final TaskTimeTrackingEsThreadPoolExecutor executor = asInstanceOf(
+                TaskTimeTrackingEsThreadPoolExecutor.class,
                 threadPool.executor(threadPoolName)
             );
 
             final long beforePreviousCollectNanos = System.nanoTime();
             meterRegistry.getRecorder().collect();
             double allocationUtilization = executor.pollUtilization(
-                EsExecutorService.ExecutionTimeTrackingEsExecutorService.UtilizationTrackingPurpose.ALLOCATION
+                EsExecutorService.TimeTrackingEsExecutorService.UtilizationTrackingPurpose.ALLOCATION
             );
             final long afterPreviousCollectNanos = System.nanoTime();
 
@@ -542,7 +542,7 @@ public class ThreadPoolTests extends ESTestCase {
             final long beforeMetricsCollectedNanos = System.nanoTime();
             meterRegistry.getRecorder().collect();
             allocationUtilization = executor.pollUtilization(
-                EsExecutorService.ExecutionTimeTrackingEsExecutorService.UtilizationTrackingPurpose.ALLOCATION
+                EsExecutorService.TimeTrackingEsExecutorService.UtilizationTrackingPurpose.ALLOCATION
             );
             final long afterMetricsCollectedNanos = System.nanoTime();
 

@@ -39,7 +39,7 @@ public class TaskExecutionTimeTrackingEsThreadPoolExecutorTests extends ESTestCa
     public void testExecutionEWMACalculation() throws Exception {
         ThreadContext context = new ThreadContext(Settings.EMPTY);
 
-        TaskExecutionTimeTrackingEsThreadPoolExecutor executor = new TaskExecutionTimeTrackingEsThreadPoolExecutor(
+        TaskTimeTrackingEsThreadPoolExecutor executor = new TaskTimeTrackingEsThreadPoolExecutor(
             "test-threadpool",
             1,
             1,
@@ -102,7 +102,7 @@ public class TaskExecutionTimeTrackingEsThreadPoolExecutorTests extends ESTestCa
             barrier,
             TimeUnit.NANOSECONDS.toNanos(1000000)
         );
-        TaskExecutionTimeTrackingEsThreadPoolExecutor executor = new TaskExecutionTimeTrackingEsThreadPoolExecutor(
+        TaskTimeTrackingEsThreadPoolExecutor executor = new TaskTimeTrackingEsThreadPoolExecutor(
             "test-threadpool",
             1,
             1,
@@ -154,7 +154,7 @@ public class TaskExecutionTimeTrackingEsThreadPoolExecutorTests extends ESTestCa
     /** Use a runnable wrapper that simulates a task with unknown failures. */
     public void testExceptionThrowingTask() throws Exception {
         ThreadContext context = new ThreadContext(Settings.EMPTY);
-        TaskExecutionTimeTrackingEsThreadPoolExecutor executor = new TaskExecutionTimeTrackingEsThreadPoolExecutor(
+        TaskTimeTrackingEsThreadPoolExecutor executor = new TaskTimeTrackingEsThreadPoolExecutor(
             "test-threadpool",
             1,
             1,
@@ -191,7 +191,7 @@ public class TaskExecutionTimeTrackingEsThreadPoolExecutorTests extends ESTestCa
     public void testGetOngoingTasks() throws Exception {
         var testStartTimeNanos = System.nanoTime();
         ThreadContext context = new ThreadContext(Settings.EMPTY);
-        var executor = new TaskExecutionTimeTrackingEsThreadPoolExecutor(
+        var executor = new TaskTimeTrackingEsThreadPoolExecutor(
             "test-threadpool",
             1,
             1,
@@ -229,7 +229,7 @@ public class TaskExecutionTimeTrackingEsThreadPoolExecutorTests extends ESTestCa
     public void testQueueLatencyHistogramMetrics() {
         RecordingMeterRegistry meterRegistry = new RecordingMeterRegistry();
         final var threadPoolName = randomIdentifier();
-        var executor = new TaskExecutionTimeTrackingEsThreadPoolExecutor(
+        var executor = new TaskTimeTrackingEsThreadPoolExecutor(
             threadPoolName,
             1,
             1,
@@ -326,7 +326,7 @@ public class TaskExecutionTimeTrackingEsThreadPoolExecutorTests extends ESTestCa
     }
 
     /** Execute a blank task {@code times} times for the executor */
-    private void executeTask(TaskExecutionTimeTrackingEsThreadPoolExecutor executor, int times) {
+    private void executeTask(TaskTimeTrackingEsThreadPoolExecutor executor, int times) {
         logger.info("--> executing a task [{}] times", times);
         for (int i = 0; i < times; i++) {
             executor.execute(() -> {});
@@ -363,7 +363,7 @@ public class TaskExecutionTimeTrackingEsThreadPoolExecutorTests extends ESTestCa
      * This allows dynamically manipulating the queue time with {@link #setQueuedTimeTakenNanos}, and provides a means of waiting for a task
      * to start by calling {@code safeAwait(barrier)} after submitting a task.
      * <p>
-     * Look at {@link TaskExecutionTimeTrackingEsThreadPoolExecutor#wrapRunnable} for how the ThreadPool uses this as a wrapper around all
+     * Look at {@link TaskTimeTrackingEsThreadPoolExecutor#wrapRunnable} for how the ThreadPool uses this as a wrapper around all
      * submitted tasks.
      */
     public class AdjustableQueueTimeWithExecutionBarrierTimedRunnable extends TimedRunnable {

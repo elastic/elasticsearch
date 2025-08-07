@@ -9,14 +9,13 @@
 
 package org.elasticsearch.common.util.concurrent;
 
-import org.elasticsearch.common.util.concurrent.EsExecutorService.ExecutionTimeTrackingEsExecutorService;
+import org.elasticsearch.common.util.concurrent.EsExecutorService.TimeTrackingEsExecutorService;
 import org.elasticsearch.common.util.concurrent.EsExecutors.TaskTrackingConfig;
 import org.elasticsearch.telemetry.metric.Instrument;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 
 import java.util.Map;
 import java.util.concurrent.BlockingQueue;
-import java.util.concurrent.RejectedExecutionHandler;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
@@ -25,13 +24,13 @@ import java.util.stream.Stream;
 /**
  * An extension to thread pool executor, which tracks statistics for the task execution time.
  */
-public final class TaskExecutionTimeTrackingEsThreadPoolExecutor extends EsThreadPoolExecutor
+public final class TaskTimeTrackingEsThreadPoolExecutor extends EsThreadPoolExecutor
     implements
-        ExecutionTimeTrackingEsExecutorService {
+    TimeTrackingEsExecutorService {
     private final Function<Runnable, WrappedRunnable> runnableWrapper;
     private final TaskTracker taskTracker;
 
-    TaskExecutionTimeTrackingEsThreadPoolExecutor(
+    TaskTimeTrackingEsThreadPoolExecutor(
         String name,
         int corePoolSize,
         int maximumPoolSize,
@@ -40,7 +39,7 @@ public final class TaskExecutionTimeTrackingEsThreadPoolExecutor extends EsThrea
         BlockingQueue<Runnable> workQueue,
         Function<Runnable, WrappedRunnable> runnableWrapper,
         ThreadFactory threadFactory,
-        RejectedExecutionHandler handler,
+        EsRejectedExecutionHandler handler,
         ThreadContext contextHolder,
         TaskTrackingConfig trackingConfig
     ) {

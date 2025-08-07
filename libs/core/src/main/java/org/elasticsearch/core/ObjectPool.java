@@ -18,7 +18,14 @@ import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 
+/**
+ * ObjectPool to avoid repeated allocations of expensive objects such as buffers.
+ *
+ * When using virtual threads, the use of {@link ThreadLocal}s is a bad option.
+ * Virtual threads are single-use and not meant to be pooled, so re-use via a {@link ThreadLocal} does not work.
+ */
 public interface ObjectPool<T> {
+
     static <T> ObjectPool<T> withInitial(Supplier<T> supplier, Duration timeout) {
         return new HybridPool<>(supplier, timeout.toNanos());
     }
@@ -27,6 +34,15 @@ public interface ObjectPool<T> {
         return withInitial(supplier, UnboundedObjectPool.DEFAULT_TIMEOUT);
     }
 
+    /**
+     * A pooled object that can be acquired from an {@link ObjectPool}.
+     *
+     * {@link PooledObject}s are returned to the pool when closed and are expected to be used in a try-with-resources block.
+     * Otherwise, special attention is needed to ensure the object is returned to the pool.
+     *
+     * This interface extends {@link AutoCloseable} to allow for automatic resource management.
+     * @param <T>
+     */
     interface PooledObject<T> extends AutoCloseable {
         T get();
 
@@ -35,6 +51,12 @@ public interface ObjectPool<T> {
 
     PooledObject<T> acquire();
 
+    /**
+     * Hybrid approach of an {@link ObjectPool}
+     *
+     * If the current thread is a virtual thread, this pool will acquire a {@link PooledObject} from an unbounded pool.
+     * Otherwise, a {@link ThreadLocal} will be used, assuming the {@link PooledObject} is acquired on a pooled thread.
+     */
     final class HybridPool<T> implements ObjectPool<T> {
         private static final class EsThreadLocal<T> extends ThreadLocal<T> implements PooledObject<T> {
             private final Supplier<T> supplier;

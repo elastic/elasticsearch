@@ -36,6 +36,7 @@ import java.util.concurrent.atomic.AtomicInteger;
  * A collection of static methods to help create different ES Executor types.
  */
 public class EsExecutors {
+    private static final boolean USE_VIRTUAL_THREADS = true;
 
     // although the available processors may technically change, for node sizing we use the number available at launch
     private static final int MAX_NUM_PROCESSORS = Runtime.getRuntime().availableProcessors();
@@ -120,42 +121,44 @@ public class EsExecutors {
         ThreadContext contextHolder,
         TaskTrackingConfig config
     ) {
-        if (config.trackExecutionTime()) {
-            return new TaskExecutionTimeTrackingEsVirtualThreadExecutorService(name, max, -1, contextHolder, config);
+        if (USE_VIRTUAL_THREADS) {
+            if (config.trackExecutionTime()) {
+                return new TimeTrackingEsVirtualThreadExecutorService(name, max, -1, rejectAfterShutdown, contextHolder, config);
+            }
+            return new EsVirtualThreadExecutorService(name, max, -1, rejectAfterShutdown, contextHolder);
         }
-        return new EsVirtualThreadExecutorService(name, max, -1, contextHolder);
-        //
-        // LinkedTransferQueue<Runnable> queue = newUnboundedScalingLTQueue(min, max);
-        // // Force queued work via ForceQueuePolicy might starve if no worker is available (if core size is empty),
-        // // probing the worker pool prevents this.
-        // boolean probeWorkerPool = min == 0 && queue instanceof ExecutorScalingQueue;
-        // if (config.trackExecutionTime()) {
-        // return new TaskExecutionTimeTrackingEsThreadPoolExecutor(
-        // name,
-        // min,
-        // max,
-        // keepAliveTime,
-        // unit,
-        // queue,
-        // TimedRunnable::new,
-        // threadFactory,
-        // new ForceQueuePolicy(rejectAfterShutdown, probeWorkerPool),
-        // contextHolder,
-        // config
-        // );
-        // } else {
-        // return new EsThreadPoolExecutor(
-        // name,
-        // min,
-        // max,
-        // keepAliveTime,
-        // unit,
-        // queue,
-        // threadFactory,
-        // new ForceQueuePolicy(rejectAfterShutdown, probeWorkerPool),
-        // contextHolder
-        // );
-        // }
+
+        LinkedTransferQueue<Runnable> queue = newUnboundedScalingLTQueue(min, max);
+        // Force queued work via ForceQueuePolicy might starve if no worker is available (if core size is empty),
+        // probing the worker pool prevents this.
+        boolean probeWorkerPool = min == 0 && queue instanceof ExecutorScalingQueue;
+        if (config.trackExecutionTime()) {
+            return new TaskTimeTrackingEsThreadPoolExecutor(
+                name,
+                min,
+                max,
+                keepAliveTime,
+                unit,
+                queue,
+                TimedRunnable::new,
+                threadFactory,
+                new ForceQueuePolicy(rejectAfterShutdown, probeWorkerPool),
+                contextHolder,
+                config
+            );
+        } else {
+            return new EsThreadPoolExecutor(
+                name,
+                min,
+                max,
+                keepAliveTime,
+                unit,
+                queue,
+                threadFactory,
+                new ForceQueuePolicy(rejectAfterShutdown, probeWorkerPool),
+                contextHolder
+            );
+        }
     }
 
     /**
@@ -204,12 +207,14 @@ public class EsExecutors {
         ThreadContext contextHolder,
         TaskTrackingConfig config
     ) {
-        if (config.trackExecutionTime()) {
-            return new TaskExecutionTimeTrackingEsVirtualThreadExecutorService(name, size, queueCapacity, contextHolder, config);
+        if (USE_VIRTUAL_THREADS) {
+            if (config.trackExecutionTime()) {
+                return new TimeTrackingEsVirtualThreadExecutorService(name, size, queueCapacity, true, contextHolder, config);
+            }
+            return new EsVirtualThreadExecutorService(name, size, queueCapacity, true, contextHolder);
         }
-        return new EsVirtualThreadExecutorService(name, size, queueCapacity, contextHolder);
 
-        /*final BlockingQueue<Runnable> queue;
+        final BlockingQueue<Runnable> queue;
         final EsRejectedExecutionHandler rejectedExecutionHandler;
         if (queueCapacity < 0) {
             queue = ConcurrentCollections.newBlockingQueue();
@@ -219,7 +224,7 @@ public class EsExecutors {
             rejectedExecutionHandler = new EsAbortPolicy();
         }
         if (config.trackExecutionTime()) {
-            return new TaskExecutionTimeTrackingEsThreadPoolExecutor(
+            return new TaskTimeTrackingEsThreadPoolExecutor(
                 name,
                 size,
                 size,
@@ -244,7 +249,7 @@ public class EsExecutors {
                 rejectedExecutionHandler,
                 contextHolder
             );
-        }*/
+        }
     }
 
     /**

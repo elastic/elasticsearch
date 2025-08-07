@@ -83,7 +83,7 @@ class TaskTracker {
                 "fraction of maximum thread time utilized for " + threadPoolName,
                 "fraction",
                 () -> new DoubleWithAttributes(
-                    pollUtilization(EsExecutorService.ExecutionTimeTrackingEsExecutorService.UtilizationTrackingPurpose.APM),
+                    pollUtilization(EsExecutorService.TimeTrackingEsExecutorService.UtilizationTrackingPurpose.APM),
                     Map.of()
                 )
             )
@@ -113,13 +113,13 @@ class TaskTracker {
 
     /**
      * Returns the fraction of the maximum possible thread time that was actually used since the last time this method was called.
-     * There are two periodic pulling mechanisms that access utilization reporting: {@link TaskExecutionTimeTrackingEsThreadPoolExecutor.UtilizationTrackingPurpose} distinguishes the
+     * There are two periodic pulling mechanisms that access utilization reporting: {@link TaskTimeTrackingEsThreadPoolExecutor.UtilizationTrackingPurpose} distinguishes the
      * caller.
      *
      * @return the utilization as a fraction, in the range [0, 1]. This may return >1 if a task completed in the time range but started
      * earlier, contributing a larger execution time.
      */
-    double pollUtilization(TaskExecutionTimeTrackingEsThreadPoolExecutor.UtilizationTrackingPurpose utilizationTrackingPurpose) {
+    double pollUtilization(TaskTimeTrackingEsThreadPoolExecutor.UtilizationTrackingPurpose utilizationTrackingPurpose) {
         switch (utilizationTrackingPurpose) {
             case APM:
                 return apmUtilizationTracker.pollUtilization();

@@ -23,8 +23,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.core.Strings.format;
-import static org.elasticsearch.threadpool.ThreadPool.THREAD_POOL_METRIC_NAME_REJECTED;
-import static org.elasticsearch.threadpool.ThreadPool.THREAD_POOL_METRIC_PREFIX;
 
 /**
  * An extension to thread pool executor, allowing (in the future) to add specific additional stats to it.
@@ -71,7 +69,7 @@ public class EsThreadPoolExecutor extends ThreadPoolExecutor implements EsExecut
         TimeUnit unit,
         BlockingQueue<Runnable> workQueue,
         ThreadFactory threadFactory,
-        RejectedExecutionHandler handler,
+        EsRejectedExecutionHandler handler,
         ThreadContext contextHolder
     ) {
         super(corePoolSize, maximumPoolSize, keepAliveTime, unit, workQueue, threadFactory, handler);
@@ -81,17 +79,25 @@ public class EsThreadPoolExecutor extends ThreadPoolExecutor implements EsExecut
 
     @Override
     public Stream<Instrument> setupMetrics(MeterRegistry meterRegistry, String threadPoolName) {
-        RejectedExecutionHandler rejectedExecutionHandler = getRejectedExecutionHandler();
-        if (rejectedExecutionHandler instanceof EsRejectedExecutionHandler handler) {
-            // FIXME bug or is below assumed reason true?
-            // registered, but intentionally not returned so it won't be closed prior to closing the executor
-            handler.registerCounter(
-                meterRegistry,
-                THREAD_POOL_METRIC_PREFIX + threadPoolName + THREAD_POOL_METRIC_NAME_REJECTED,
-                threadPoolName
-            );
-        }
+        var rejectedExecutionHandler = (EsRejectedExecutionHandler) getRejectedExecutionHandler();
+        // FIXME bug or is below assumed reason true?
+        // registered, but intentionally not returned so it won't be closed prior to closing the executor
+        rejectedExecutionHandler.registerCounter(meterRegistry, threadPoolName);
         return Stream.empty();
+    }
+
+    @Override
+    public void setRejectedExecutionHandler(RejectedExecutionHandler handler) {
+        if (handler instanceof EsRejectedExecutionHandler == false) {
+            throw new IllegalArgumentException(handler.getClass().getName() + " is not a EsRejectedExecutionHandler");
+        }
+        super.setRejectedExecutionHandler(handler);
+    }
+
+    @Override
+    public long getRejectedTaskCount() {
+        var rejectedExecutionHandler = (EsRejectedExecutionHandler) getRejectedExecutionHandler();
+        return rejectedExecutionHandler.getRejectedTaskCount();
     }
 
     @Override

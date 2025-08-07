@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.esql.expression.function.scalar.date;
 
 import com.carrotsearch.randomizedtesting.annotations.Name;
-
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.lucene.util.BytesRef;

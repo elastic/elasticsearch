@@ -120,27 +120,27 @@ public class InetAddresses {
         for (int i = offset; i < offset + length; i++) {
             byte c = ipUtf8[i];
             if (c == '.') {
-                bytes[octet++] = (byte) current;
-                current = 0;
-                if (octet > 3 /* too many octets */ || digits == 0 /* empty octet */) {
+                if (octet > 3 /* too many octets */ || digits == 0 /* empty octet */ || current > 255 /* octet is outside a byte range */) {
                     return null;
                 }
+                bytes[octet++] = (byte) current;
+                current = 0;
                 digits = 0;
             } else if (c >= '0' && c <= '9') {
-                digits++;
-                if (digits > 1 && current == 0 /* octet contains leading 0 */) {
+                if (digits != 0 && current == 0 /* octet contains leading 0 */) {
                     return null;
                 }
                 current = current * 10 + (c - '0');
-                if (current > 255 /* octet is outside a byte range */) {
-                    return null;
-                }
+                digits++;
             } else {
                 return null;
             }
         }
+        if (octet != 3 /* too many octets */ || digits == 0 /* empty octet */ || current > 255 /* octet is outside a byte range */) {
+            return null;
+        }
         bytes[octet] = (byte) current;
-        return octet != 3 ? null : bytes;
+        return bytes;
     }
 
     private static byte[] textToNumericFormatV6(byte[] ipUtf8, int offset, int length) {

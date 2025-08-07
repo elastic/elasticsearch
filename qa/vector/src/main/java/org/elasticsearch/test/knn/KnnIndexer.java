@@ -31,6 +31,7 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
+import org.apache.lucene.index.MergePolicy;
 import org.apache.lucene.index.VectorEncoding;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.store.FSDirectory;
@@ -69,6 +70,7 @@ class KnnIndexer {
     private final Codec codec;
     private final int numDocs;
     private final int numIndexThreads;
+    private final MergePolicy mergePolicy;
 
     KnnIndexer(
         List<Path> docsPath,
@@ -78,7 +80,8 @@ class KnnIndexer {
         VectorEncoding vectorEncoding,
         int dim,
         VectorSimilarityFunction similarityFunction,
-        int numDocs
+        int numDocs,
+        MergePolicy mergePolicy
     ) {
         this.docsPath = docsPath;
         this.indexPath = indexPath;
@@ -88,6 +91,7 @@ class KnnIndexer {
         this.dim = dim;
         this.similarityFunction = similarityFunction;
         this.numDocs = numDocs;
+        this.mergePolicy = mergePolicy;
     }
 
     void numSegments(KnnIndexTester.Results result) {
@@ -103,7 +107,9 @@ class KnnIndexer {
         iwc.setCodec(codec);
         iwc.setRAMBufferSizeMB(WRITER_BUFFER_MB);
         iwc.setUseCompoundFile(false);
-
+        if (mergePolicy != null) {
+            iwc.setMergePolicy(mergePolicy);
+        }
         iwc.setMaxFullFlushMergeWaitMillis(0);
 
         iwc.setInfoStream(new PrintStreamInfoStream(System.out) {
@@ -200,6 +206,9 @@ class KnnIndexer {
         long elapsed = System.nanoTime() - start;
         logger.debug("Indexing took {} ms for {} docs", TimeUnit.NANOSECONDS.toMillis(elapsed), numDocs);
         result.indexTimeMS = TimeUnit.NANOSECONDS.toMillis(elapsed);
+
+        // report numDocsIndexed here in case we have less than the total numDocs
+        result.numDocs = numDocsIndexed.get();
     }
 
     void forceMerge(KnnIndexTester.Results results) throws Exception {

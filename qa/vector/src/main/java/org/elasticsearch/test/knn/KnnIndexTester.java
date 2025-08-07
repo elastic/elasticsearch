@@ -15,6 +15,11 @@ import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.codecs.KnnVectorsFormat;
 import org.apache.lucene.codecs.lucene101.Lucene101Codec;
 import org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsFormat;
+import org.apache.lucene.index.LogByteSizeMergePolicy;
+import org.apache.lucene.index.LogDocMergePolicy;
+import org.apache.lucene.index.MergePolicy;
+import org.apache.lucene.index.NoMergePolicy;
+import org.apache.lucene.index.TieredMergePolicy;
 import org.elasticsearch.cli.ProcessInfo;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.LogConfigurator;
@@ -69,6 +74,13 @@ public class KnnIndexTester {
         IVF
     }
 
+    enum MergePolicyType {
+        TIERED,
+        LOG_BYTE,
+        NO,
+        LOG_DOC
+    }
+
     private static String formatIndexPath(CmdLineArgs args) {
         List<String> suffix = new ArrayList<>();
         if (args.indexType() == IndexType.FLAT) {
@@ -89,7 +101,7 @@ public class KnnIndexTester {
     static Codec createCodec(CmdLineArgs args) {
         final KnnVectorsFormat format;
         if (args.indexType() == IndexType.IVF) {
-            format = new IVFVectorsFormat(args.ivfClusterSize());
+            format = new IVFVectorsFormat(args.ivfClusterSize(), IVFVectorsFormat.DEFAULT_CENTROIDS_PER_PARENT_CLUSTER);
         } else {
             if (args.quantizeBits() == 1) {
                 if (args.indexType() == IndexType.FLAT) {
@@ -193,9 +205,11 @@ public class KnnIndexTester {
                     cmdLineArgs.filterSelectivity()
                 );
             }
+            logger.info("Running with Java: " + Runtime.version());
             logger.info("Running KNN index tester with arguments: " + cmdLineArgs);
             Codec codec = createCodec(cmdLineArgs);
             Path indexPath = PathUtils.get(formatIndexPath(cmdLineArgs));
+            MergePolicy mergePolicy = getMergePolicy(cmdLineArgs);
             if (cmdLineArgs.reindex() || cmdLineArgs.forceMerge()) {
                 KnnIndexer knnIndexer = new KnnIndexer(
                     cmdLineArgs.docVectors(),
@@ -205,7 +219,8 @@ public class KnnIndexTester {
                     cmdLineArgs.vectorEncoding(),
                     cmdLineArgs.dimensions(),
                     cmdLineArgs.vectorSpace(),
-                    cmdLineArgs.numDocs()
+                    cmdLineArgs.numDocs(),
+                    mergePolicy
                 );
                 if (cmdLineArgs.reindex() == false && Files.exists(indexPath) == false) {
                     throw new IllegalArgumentException("Index path does not exist: " + indexPath);
@@ -230,6 +245,24 @@ public class KnnIndexTester {
             formattedResults.indexResults.add(indexResults);
         }
         logger.info("Results: \n" + formattedResults);
+    }
+
+    private static MergePolicy getMergePolicy(CmdLineArgs args) {
+        MergePolicy mergePolicy = null;
+        if (args.mergePolicy() != null) {
+            if (args.mergePolicy() == MergePolicyType.TIERED) {
+                mergePolicy = new TieredMergePolicy();
+            } else if (args.mergePolicy() == MergePolicyType.LOG_BYTE) {
+                mergePolicy = new LogByteSizeMergePolicy();
+            } else if (args.mergePolicy() == MergePolicyType.NO) {
+                mergePolicy = NoMergePolicy.INSTANCE;
+            } else if (args.mergePolicy() == MergePolicyType.LOG_DOC) {
+                mergePolicy = new LogDocMergePolicy();
+            } else {
+                throw new IllegalArgumentException("Invalid merge policy: " + args.mergePolicy());
+            }
+        }
+        return mergePolicy;
     }
 
     static class FormattedResults {
@@ -350,7 +383,7 @@ public class KnnIndexTester {
 
     static class Results {
         final String indexType, indexName;
-        final int numDocs;
+        int numDocs;
         final float filterSelectivity;
         long indexTimeMS;
         long forceMergeTimeMS;

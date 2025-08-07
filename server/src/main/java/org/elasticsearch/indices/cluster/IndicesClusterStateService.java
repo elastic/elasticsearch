@@ -246,6 +246,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
      * other lenience to handle that. It'd be better to wait for the shard locks to be released and then delete the data. See #74149.
      */
     private volatile SubscribableListener<Void> lastClusterStateShardsClosedListener = SubscribableListener.nullSuccess();
+    private int shardsClosedListenerChainLength = 0;
 
     @Nullable // if not currently applying a cluster state
     private RefCountingListener currentClusterStateShardsClosedListeners;
@@ -274,8 +275,26 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         lastClusterStateShardsClosedListener = new SubscribableListener<>();
         currentClusterStateShardsClosedListeners = new RefCountingListener(lastClusterStateShardsClosedListener);
         try {
-            previousShardsClosedListener.addListener(currentClusterStateShardsClosedListeners.acquire());
             doApplyClusterState(event);
+            // HACK: chain listeners but avoid too deep of a stack
+            {
+                if (previousShardsClosedListener.isDone()) {
+                    shardsClosedListenerChainLength = 0;
+                }
+                previousShardsClosedListener.addListener(
+                    currentClusterStateShardsClosedListeners.acquire(),
+                    // Sometimes fork the listener on a different thread.
+                    // Chaining too many listeners might trigger a stackoverflow exception on the thread that eventually gets to
+                    // execute them all (because the last thread that decreases the ref count to 0 of a {@link RefCountingListener}
+                    // also executes its listeners, which in turn might decrease the ref count to 0 of another
+                    // {@link RefCountingListerner}, again executing its listeners, etc...).
+                    shardsClosedListenerChainLength++ < 10 ? EsExecutors.DIRECT_EXECUTOR_SERVICE : threadPool.generic(),
+                    null
+                );
+                if (shardsClosedListenerChainLength >= 10) {
+                    shardsClosedListenerChainLength = 0;
+                }
+            }
         } finally {
             currentClusterStateShardsClosedListeners.close();
             currentClusterStateShardsClosedListeners = null;

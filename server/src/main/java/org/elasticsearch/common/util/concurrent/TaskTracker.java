@@ -51,7 +51,7 @@ class TaskTracker {
 
     TaskTracker(EsExecutors.TaskTrackingConfig trackingConfig, int maximumPoolSize) {
         this.maximumPoolSize = maximumPoolSize;
-        this.executionEWMA = new ExponentiallyWeightedMovingAverage(trackingConfig.getExecutionTimeEwmaAlpha(), 0);
+        this.executionEWMA = new ExponentiallyWeightedMovingAverage(trackingConfig.executionTimeEwmaAlpha(), 0);
         this.trackMaxQueueLatency = trackingConfig.trackMaxQueueLatency();
         this.trackOngoingTasks = trackingConfig.trackOngoingTasks();
         this.ongoingTasks = trackOngoingTasks ? new ConcurrentHashMap<>() : Collections.emptyMap();
@@ -83,7 +83,7 @@ class TaskTracker {
                 "fraction of maximum thread time utilized for " + threadPoolName,
                 "fraction",
                 () -> new DoubleWithAttributes(
-                    pollUtilization(EsExecutorService.TimeTrackingEsExecutorService.UtilizationTrackingPurpose.APM),
+                    pollUtilization(EsExecutorService.TaskTrackingEsExecutorService.UtilizationTrackingPurpose.APM),
                     Map.of()
                 )
             )
@@ -196,7 +196,7 @@ class TaskTracker {
      *
      * Uses the difference of {@link #totalExecutionTime} since the last polling request to determine how much activity has occurred.
      */
-    class UtilizationTracker {
+    private class UtilizationTracker {
         long lastPollTime = System.nanoTime();
         long lastTotalExecutionTime = 0;
 

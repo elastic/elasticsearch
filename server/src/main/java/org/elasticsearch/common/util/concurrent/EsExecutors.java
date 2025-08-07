@@ -122,10 +122,7 @@ public class EsExecutors {
         TaskTrackingConfig config
     ) {
         if (USE_VIRTUAL_THREADS) {
-            if (config.trackExecutionTime()) {
-                return new TimeTrackingEsVirtualThreadExecutorService(name, max, -1, rejectAfterShutdown, contextHolder, config);
-            }
-            return new EsVirtualThreadExecutorService(name, max, -1, rejectAfterShutdown, contextHolder);
+            return EsVirtualThreadExecutorService.create(name, max, -1, rejectAfterShutdown, contextHolder, config);
         }
 
         LinkedTransferQueue<Runnable> queue = newUnboundedScalingLTQueue(min, max);
@@ -208,10 +205,7 @@ public class EsExecutors {
         TaskTrackingConfig config
     ) {
         if (USE_VIRTUAL_THREADS) {
-            if (config.trackExecutionTime()) {
-                return new TimeTrackingEsVirtualThreadExecutorService(name, size, queueCapacity, true, contextHolder, config);
-            }
-            return new EsVirtualThreadExecutorService(name, size, queueCapacity, true, contextHolder);
+            return EsVirtualThreadExecutorService.create(name, size, queueCapacity, true, contextHolder, config);
         }
 
         final BlockingQueue<Runnable> queue;
@@ -591,14 +585,21 @@ public class EsExecutors {
         }
     }
 
-    public static class TaskTrackingConfig {
+    /**
+     * @param trackExecutionTime Whether to track execution stats
+     * @param trackOngoingTasks Whether to track ongoing task execution time, not just finished tasks
+     * @param trackMaxQueueLatency Whether to track max queue latency.
+     * @param executionTimeEwmaAlpha The alpha seed for execution time EWMA (ExponentiallyWeightedMovingAverage).
+     */
+    public record TaskTrackingConfig(
+        boolean trackExecutionTime,
+        boolean trackOngoingTasks,
+        boolean trackMaxQueueLatency,
+        double executionTimeEwmaAlpha
+    ) {
+
         // This is a random starting point alpha.
         public static final double DEFAULT_EXECUTION_TIME_EWMA_ALPHA_FOR_TEST = 0.3;
-
-        private final boolean trackExecutionTime;
-        private final boolean trackOngoingTasks;
-        private final boolean trackMaxQueueLatency;
-        private final double executionTimeEwmaAlpha;
 
         public static final TaskTrackingConfig DO_NOT_TRACK = new TaskTrackingConfig(
             false,
@@ -613,40 +614,6 @@ public class EsExecutors {
             DEFAULT_EXECUTION_TIME_EWMA_ALPHA_FOR_TEST
         );
 
-        /**
-         * @param trackExecutionTime Whether to track execution stats
-         * @param trackOngoingTasks Whether to track ongoing task execution time, not just finished tasks
-         * @param trackMaxQueueLatency Whether to track max queue latency.
-         * @param executionTimeEWMAAlpha The alpha seed for execution time EWMA (ExponentiallyWeightedMovingAverage).
-         */
-        private TaskTrackingConfig(
-            boolean trackExecutionTime,
-            boolean trackOngoingTasks,
-            boolean trackMaxQueueLatency,
-            double executionTimeEWMAAlpha
-        ) {
-            this.trackExecutionTime = trackExecutionTime;
-            this.trackOngoingTasks = trackOngoingTasks;
-            this.trackMaxQueueLatency = trackMaxQueueLatency;
-            this.executionTimeEwmaAlpha = executionTimeEWMAAlpha;
-        }
-
-        public boolean trackExecutionTime() {
-            return trackExecutionTime;
-        }
-
-        public boolean trackOngoingTasks() {
-            return trackOngoingTasks;
-        }
-
-        public boolean trackMaxQueueLatency() {
-            return trackMaxQueueLatency;
-        }
-
-        public double getExecutionTimeEwmaAlpha() {
-            return executionTimeEwmaAlpha;
-        }
-
         public static Builder builder() {
             return new Builder();
         }
@@ -657,7 +624,7 @@ public class EsExecutors {
             private boolean trackMaxQueueLatency = false;
             private double ewmaAlpha = DEFAULT_EXECUTION_TIME_EWMA_ALPHA_FOR_TEST;
 
-            public Builder() {}
+            private Builder() {}
 
             public Builder trackExecutionTime(double alpha) {
                 trackExecutionTime = true;

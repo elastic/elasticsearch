@@ -9,7 +9,7 @@
 
 package org.elasticsearch.common.util.concurrent;
 
-import org.elasticsearch.common.util.concurrent.EsExecutorService.TimeTrackingEsExecutorService;
+import org.elasticsearch.common.util.concurrent.EsExecutorService.TaskTrackingEsExecutorService;
 import org.elasticsearch.common.util.concurrent.EsExecutors.TaskTrackingConfig;
 import org.elasticsearch.telemetry.metric.Instrument;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
@@ -24,9 +24,7 @@ import java.util.stream.Stream;
 /**
  * An extension to thread pool executor, which tracks statistics for the task execution time.
  */
-public final class TaskTimeTrackingEsThreadPoolExecutor extends EsThreadPoolExecutor
-    implements
-    TimeTrackingEsExecutorService {
+public final class TaskTimeTrackingEsThreadPoolExecutor extends EsThreadPoolExecutor implements TaskTrackingEsExecutorService {
     private final Function<Runnable, WrappedRunnable> runnableWrapper;
     private final TaskTracker taskTracker;
 

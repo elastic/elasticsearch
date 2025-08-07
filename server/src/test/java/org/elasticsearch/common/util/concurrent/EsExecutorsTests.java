@@ -16,6 +16,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.Processors;
+import org.elasticsearch.common.util.concurrent.EsExecutorService.TaskTrackingEsExecutorService;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.test.ESTestCase;
@@ -288,7 +289,9 @@ public class EsExecutorsTests extends ESTestCase {
             containsString("on TaskExecutionTimeTrackingEsThreadPoolExecutor[name = " + getName())
         )
             .or(containsString("on EsVirtualThreadExecutorService[name = " + getName()))
-            .or(containsString("on TaskExecutionTimeTrackingEsVirtualThreadExecutorService[name = " + getName()));
+            .or(containsString("on TaskTrackingEsVirtualThreadExecutorService[name = " + getName()))
+            .or(containsString("on DelayedShutdownEsVirtualThreadExecutorService[name = " + getName()))
+            .or(containsString("on TaskTrackingDelayedShutdownEsVirtualThreadExecutorService[name = " + getName()));
 
         try {
             for (int i = 0; i < actions; i++) {
@@ -684,7 +687,7 @@ public class EsExecutorsTests extends ESTestCase {
                     ? EsExecutors.TaskTrackingConfig.builder().trackOngoingTasks().trackExecutionTime(executionTimeEwma).build()
                     : EsExecutors.TaskTrackingConfig.builder().trackExecutionTime(executionTimeEwma).build()
             );
-            assertThat(pool, instanceOf(TaskTimeTrackingEsThreadPoolExecutor.class));
+            assertThat(pool, instanceOf(TaskTrackingEsExecutorService.class));
         }
 
         {

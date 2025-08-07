@@ -21,7 +21,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.util.concurrent.EsExecutorService;
-import org.elasticsearch.common.util.concurrent.EsExecutorService.TimeTrackingEsExecutorService.UtilizationTrackingPurpose;
+import org.elasticsearch.common.util.concurrent.EsExecutorService.TaskTrackingEsExecutorService.UtilizationTrackingPurpose;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -97,8 +97,8 @@ public class TransportNodeUsageStatsForThreadPoolsAction extends TransportNodesA
     ) {
         DiscoveryNode localNode = clusterService.localNode();
         var writeExecutor = threadPool.executor(ThreadPool.Names.WRITE);
-        assert writeExecutor instanceof EsExecutorService.TimeTrackingEsExecutorService;
-        var trackingForWriteExecutor = (EsExecutorService.TimeTrackingEsExecutorService) writeExecutor;
+        assert writeExecutor instanceof EsExecutorService.TaskTrackingEsExecutorService;
+        var trackingForWriteExecutor = (EsExecutorService.TaskTrackingEsExecutorService) writeExecutor;
 
         ThreadPoolUsageStats threadPoolUsageStats = new ThreadPoolUsageStats(
             trackingForWriteExecutor.getMaximumPoolSize(),

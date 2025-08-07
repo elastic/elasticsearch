@@ -39,7 +39,7 @@ public interface EsExecutorService extends ExecutorService {
         return Stream.empty();
     };
 
-    interface TimeTrackingEsExecutorService extends EsExecutorService {
+    interface TaskTrackingEsExecutorService extends EsExecutorService {
         /**
          * Returns the exponentially weighted moving average of the task execution time
          */

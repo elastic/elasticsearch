@@ -375,10 +375,7 @@ public class ThreadPoolTests extends ESTestCase {
         try {
             assertThat(threadPool.executor(ThreadPool.Names.WRITE), instanceOf(TaskTimeTrackingEsThreadPoolExecutor.class));
             assertThat(threadPool.executor(ThreadPool.Names.SYSTEM_WRITE), instanceOf(TaskTimeTrackingEsThreadPoolExecutor.class));
-            assertThat(
-                threadPool.executor(ThreadPool.Names.SYSTEM_CRITICAL_WRITE),
-                instanceOf(TaskTimeTrackingEsThreadPoolExecutor.class)
-            );
+            assertThat(threadPool.executor(ThreadPool.Names.SYSTEM_CRITICAL_WRITE), instanceOf(TaskTimeTrackingEsThreadPoolExecutor.class));
         } finally {
             assertTrue(terminate(threadPool));
         }
@@ -510,7 +507,7 @@ public class ThreadPoolTests extends ESTestCase {
             final long beforePreviousCollectNanos = System.nanoTime();
             meterRegistry.getRecorder().collect();
             double allocationUtilization = executor.pollUtilization(
-                EsExecutorService.TimeTrackingEsExecutorService.UtilizationTrackingPurpose.ALLOCATION
+                EsExecutorService.TaskTrackingEsExecutorService.UtilizationTrackingPurpose.ALLOCATION
             );
             final long afterPreviousCollectNanos = System.nanoTime();
 
@@ -542,7 +539,7 @@ public class ThreadPoolTests extends ESTestCase {
             final long beforeMetricsCollectedNanos = System.nanoTime();
             meterRegistry.getRecorder().collect();
             allocationUtilization = executor.pollUtilization(
-                EsExecutorService.TimeTrackingEsExecutorService.UtilizationTrackingPurpose.ALLOCATION
+                EsExecutorService.TaskTrackingEsExecutorService.UtilizationTrackingPurpose.ALLOCATION
             );
             final long afterMetricsCollectedNanos = System.nanoTime();
 

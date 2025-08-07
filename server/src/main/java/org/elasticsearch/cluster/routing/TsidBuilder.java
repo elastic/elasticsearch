@@ -19,6 +19,7 @@ import com.dynatrace.hash4j.hashing.Hashing;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.util.ByteUtils;
 import org.elasticsearch.index.mapper.RoutingPathFields;
+import org.elasticsearch.xcontent.XContentString;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -50,8 +51,24 @@ public class TsidBuilder {
     }
 
     public void addStringDimension(String path, String value) {
+        addStringDimension(path, new BytesRef(value));
+    }
+
+    private void addStringDimension(String path, BytesRef value) {
+        addStringDimension(path, value.bytes, value.offset, value.length);
+    }
+
+    public void addStringDimension(String path, XContentString.UTF8Bytes value) {
+        addStringDimension(path, value.bytes(), value.offset(), value.length());
+    }
+
+    public void addStringDimension(String path, byte[] value) {
+        addStringDimension(path, value, 0, value.length);
+    }
+
+    private void addStringDimension(String path, byte[] bytes, int offset, int length) {
         hashStream.reset();
-        hashStream.putString(value);
+        hashStream.putBytes(bytes, offset, length);
         HashValue128 valueHash = hashStream.get();
         addDimension(path, valueHash);
     }

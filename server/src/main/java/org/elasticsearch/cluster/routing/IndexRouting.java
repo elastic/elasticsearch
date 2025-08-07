@@ -638,7 +638,7 @@ public abstract class IndexRouting {
                             case LONG -> tsidBuilder.addLongDimension(path, source.longValue());
                             case FLOAT -> tsidBuilder.addDoubleDimension(path, source.floatValue());
                             case DOUBLE -> tsidBuilder.addDoubleDimension(path, source.doubleValue());
-                            case BIG_DECIMAL, BIG_INTEGER -> tsidBuilder.addStringDimension(path, source.text());
+                            case BIG_DECIMAL, BIG_INTEGER -> tsidBuilder.addStringDimension(path, source.optimizedText().bytes());
                         }
                         source.nextToken();
                         break;
@@ -647,7 +647,7 @@ public abstract class IndexRouting {
                         source.nextToken();
                         break;
                     case VALUE_STRING:
-                        tsidBuilder.addStringDimension(path, source.text());
+                        tsidBuilder.addStringDimension(path, source.optimizedText().bytes());
                         source.nextToken();
                         break;
                     case START_ARRAY:

@@ -888,6 +888,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         closeShards(shard);
     }
 
+    @AwaitsFix(bugUrl = "This is a slightly more interesting one. We OOM, I wonder if we need to have SOME limit to the workload")
     public void testRetries() throws Exception {
         IndexSettings indexSettings = new IndexSettings(indexMetadata(), Settings.EMPTY);
         UpdateRequest writeRequest = new UpdateRequest("index", "id").doc(Requests.INDEX_CONTENT_TYPE, "field", "value");

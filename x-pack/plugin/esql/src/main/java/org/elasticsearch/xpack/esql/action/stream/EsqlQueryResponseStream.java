@@ -235,11 +235,7 @@ public abstract class EsqlQueryResponseStream implements Releasable {
      */
     protected Iterator<? extends ToXContent> doSendEverything(EsqlQueryResponse response) {
         // TODO: Is this safe? Should this be abstract to ensure proper implementation? Add tests for both streamed and "everything" cases
-        return Iterators.concat(
-            doStartResponse(response.columns()),
-            doSendPages(response.pages()),
-            doFinishResponse(response)
-        );
+        return Iterators.concat(doStartResponse(response.columns()), doSendPages(response.pages()), doFinishResponse(response));
     }
 
     @SuppressWarnings("unchecked")

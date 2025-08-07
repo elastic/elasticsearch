@@ -10,6 +10,7 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.index.DocValuesType;
+import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.SortedNumericDocValues;
@@ -88,6 +89,33 @@ public class BooleanFieldMapperTests extends MapperTestCase {
             assertEquals(1, values.docValueCount());
             assertEquals(1, values.nextValue());
         });
+    }
+
+    public void testNotIndexed() throws Exception {
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> {
+            minimalMapping(b);
+            b.field("index", false);
+        }));
+        ParsedDocument doc = mapper.parse(source(this::writeField));
+
+        List<IndexableField> fields = doc.rootDoc().getFields("field");
+        assertEquals(1, fields.size());
+        IndexableField field = fields.get(0);
+        assertEquals(IndexOptions.NONE, fields.get(0).fieldType().indexOptions());
+        assertEquals(DocValuesType.SORTED_NUMERIC, field.fieldType().docValuesType());
+    }
+
+    public void testDisableDefaultIndex() throws IOException {
+        var settings = Settings.builder().put(IndexSettings.INDEX_DISABLED_BY_DEFAULT.getKey(), true).build();
+        var mapperService = createMapperService(settings, fieldMapping(this::minimalMapping));
+        var documentMapper = mapperService.documentMapper();
+        ParsedDocument doc = documentMapper.parse(source(this::writeField));
+
+        List<IndexableField> fields = doc.rootDoc().getFields("field");
+        assertEquals(1, fields.size());
+        IndexableField field = fields.get(0);
+        assertEquals(IndexOptions.NONE, fields.get(0).fieldType().indexOptions());
+        assertEquals(DocValuesType.SORTED_NUMERIC, field.fieldType().docValuesType());
     }
 
     public void testSerialization() throws IOException {

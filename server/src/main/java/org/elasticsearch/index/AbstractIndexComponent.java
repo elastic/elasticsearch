@@ -10,12 +10,14 @@
 package org.elasticsearch.index;
 
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.logging.Loggers;
 
 public abstract class AbstractIndexComponent {
 
     protected final Logger logger;
     protected final IndexSettings indexSettings;
+    private volatile Index renamedTo = null;
 
     /**
      * Constructs a new index component, with the index name and its settings.
@@ -31,5 +33,22 @@ public abstract class AbstractIndexComponent {
 
     public IndexSettings getIndexSettings() {
         return indexSettings;
+    }
+
+    /**
+     * Updates the renamed name of this IndexService
+     *
+     * @param newName
+     * @param newIndexMetadata
+     */
+    public void renameTo(String newName, IndexMetadata newIndexMetadata) {
+        renamedTo = new Index(newName, index().getUUID());
+    }
+
+    /**
+     * @return if this index service has been renamed
+     */
+    public boolean isRenamed() {
+        return renamedTo != null;
     }
 }

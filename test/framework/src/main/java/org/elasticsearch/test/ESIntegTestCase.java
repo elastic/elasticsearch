@@ -40,6 +40,7 @@ import org.elasticsearch.action.admin.cluster.tasks.PendingClusterTasksResponse;
 import org.elasticsearch.action.admin.cluster.tasks.TransportPendingClusterTasksAction;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
+import org.elasticsearch.action.admin.indices.rename.RenameIndexAction;
 import org.elasticsearch.action.admin.indices.segments.IndexSegments;
 import org.elasticsearch.action.admin.indices.segments.IndexShardSegments;
 import org.elasticsearch.action.admin.indices.segments.IndicesSegmentResponse;
@@ -85,6 +86,7 @@ import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
@@ -782,14 +784,25 @@ public abstract class ESIntegTestCase extends ESTestCase {
      * Creates one or more indices and asserts that the indices are acknowledged.
      */
     public final void createIndex(String... names) {
-        assertAcked(Arrays.stream(names).map(this::prepareCreate).toArray(CreateIndexRequestBuilder[]::new));
+        for (var name : names) {
+            createIndex(name, Settings.EMPTY);
+        }
     }
 
     /**
      * creates an index with the given setting
      */
     public final void createIndex(String name, Settings indexSettings) {
-        assertAcked(prepareCreate(name).setSettings(indexSettings));
+        // Create a temporary index
+        final var tempName = "temp_" + name.substring(0, Math.min(name.length(), MetadataCreateIndexService.MAX_INDEX_NAME_BYTES - 5));
+        assertAcked(prepareCreate(tempName).setSettings(indexSettings));
+        ensureGreen(tempName);
+
+        // Rename the temporary index to the desired name
+        client().execute(
+            RenameIndexAction.INSTANCE,
+            new RenameIndexAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, tempName, name)
+        ).actionGet();
     }
 
     /**
@@ -1147,8 +1160,9 @@ public abstract class ESIntegTestCase extends ESTestCase {
             }
 
             logger.info(
-                "{} timed out\nallocation explain:\n{}\ncluster state:\n{}\npending tasks:\n{}\nhot threads:\n{}\n",
+                "{} timed out\nAPI output:\n{}\nallocation explain:\n{}\ncluster state:\n{}\npending tasks:\n{}\nhot threads:\n{}\n",
                 method,
+                clusterHealthResponse,
                 safeFormat(allocationExplainRef.get(), r -> Strings.toString(r.getExplanation(), true, true)),
                 safeFormat(clusterStateRef.get(), r -> r.getState().toString()),
                 safeFormat(pendingTasksRef.get(), r -> Strings.toString(r, true, true)),

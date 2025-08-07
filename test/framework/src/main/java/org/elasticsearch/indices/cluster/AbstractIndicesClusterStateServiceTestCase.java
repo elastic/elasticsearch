@@ -220,6 +220,11 @@ public abstract class AbstractIndicesClusterStateServiceTestCase extends ESTestC
         }
 
         @Override
+        public void renameIndex(Index index, String newName, IndexMetadata newIndexMetadata) {
+            throw new UnsupportedOperationException("I don't support renaming!");
+        }
+
+        @Override
         public synchronized void removeIndex(
             Index index,
             IndexRemovalReason reason,
@@ -290,6 +295,16 @@ public abstract class AbstractIndicesClusterStateServiceTestCase extends ESTestC
         @Override
         public IndexSettings getIndexSettings() {
             return indexSettings;
+        }
+
+        @Override
+        public Index index() {
+            return indexSettings.getIndex();
+        }
+
+        @Override
+        public boolean isRenamed() {
+            return false;
         }
 
         @Override
@@ -370,7 +385,8 @@ public abstract class AbstractIndicesClusterStateServiceTestCase extends ESTestC
             BiConsumer<IndexShard, ActionListener<ResyncTask>> primaryReplicaSyncer,
             long applyingClusterStateVersion,
             Set<String> inSyncAllocationIds,
-            IndexShardRoutingTable routingTable
+            IndexShardRoutingTable routingTable,
+            boolean isRenamed
         ) throws IOException {
             failRandomly();
             assertThat(this.shardId(), equalTo(shardRouting.shardId()));

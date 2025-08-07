@@ -320,6 +320,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     // the translog keeps track of the GCP, but unpromotable shards have no translog so we need to track the GCP here instead
     private volatile long globalCheckPointIfUnpromotable;
 
+    private volatile Index renamedTo = null;
+
     @SuppressWarnings("this-escape")
     public IndexShard(
         final ShardRouting shardRouting,
@@ -536,14 +538,15 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         final BiConsumer<IndexShard, ActionListener<ResyncTask>> primaryReplicaSyncer,
         final long applyingClusterStateVersion,
         final Set<String> inSyncAllocationIds,
-        final IndexShardRoutingTable routingTable
+        final IndexShardRoutingTable routingTable,
+        final boolean isRenamed
     ) throws IOException {
         final ShardRouting currentRouting;
         synchronized (mutex) {
             currentRouting = this.shardRouting;
             assert currentRouting != null;
 
-            if (newRouting.shardId().equals(shardId()) == false) {
+            if (newRouting.shardId().equals(shardId()) == false && isRenamed == false) {
                 throw new IllegalArgumentException(
                     "Trying to set a routing entry with shardId " + newRouting.shardId() + " on a shard with shardId " + shardId()
                 );
@@ -3108,7 +3111,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     private void syncGlobalCheckpoints(String reason) {
         logger.trace("syncing global checkpoint for [{}]", reason);
-        globalCheckpointSyncer.syncGlobalCheckpoints(shardId);
+        globalCheckpointSyncer.syncGlobalCheckpoints(shardId());
     }
 
     // exposed for tests
@@ -4842,4 +4845,12 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 + "] to not hold the engine write lock (lock ordering should be: engineMutex -> engineResetLock -> mutex)";
         return true;
     }
+    //
+    // public void renameTo(Index newIndex) {
+    // this.renamedTo = newIndex;
+    // }
+    //
+    // public Index getIndex() {
+    // return renamedTo == null ? shardId.getIndex() : renamedTo;
+    // }
 }

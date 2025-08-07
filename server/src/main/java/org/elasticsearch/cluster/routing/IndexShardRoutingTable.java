@@ -363,6 +363,12 @@ public class IndexShardRoutingTable {
         return sortedShards;
     }
 
+    public Builder rename(Index newIndex) {
+        var renamedShardId = new ShardId(newIndex, shardId.id());
+        var renameShardRoutings = Arrays.stream(shards).map(shardRouting -> shardRouting.updateIndex(newIndex)).toList();
+        return new Builder(renamedShardId, renameShardRoutings);
+    }
+
     private static class NodeRankComparator implements Comparator<ShardRouting> {
         private final Map<String, Double> nodeRanks;
 
@@ -593,6 +599,11 @@ public class IndexShardRoutingTable {
             this.shardId = indexShard.shardId;
             this.shards = new ArrayList<>(indexShard.size());
             Collections.addAll(this.shards, indexShard.shards);
+        }
+
+        public Builder(ShardId shardId, List<ShardRouting> shards) {
+            this.shardId = shardId;
+            this.shards = new ArrayList<>(shards);
         }
 
         public ShardId shardId() {

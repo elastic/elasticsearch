@@ -159,7 +159,8 @@ public class RetentionLeasesReplicationTests extends ESIndexLevelReplicationTest
                     null,
                     1L,
                     group.getPrimary().getReplicationGroup().getInSyncAllocationIds(),
-                    group.getPrimary().getReplicationGroup().getRoutingTable()
+                    group.getPrimary().getReplicationGroup().getRoutingTable(),
+                    false
                 );
             }
             group.syncGlobalCheckpoint();

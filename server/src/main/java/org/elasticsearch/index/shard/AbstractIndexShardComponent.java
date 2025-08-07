@@ -11,13 +11,15 @@ package org.elasticsearch.index.shard;
 
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 
 public abstract class AbstractIndexShardComponent implements IndexShardComponent {
 
     protected final Logger logger;
-    protected final ShardId shardId;
+    protected volatile ShardId shardId;
     protected final IndexSettings indexSettings;
+    protected volatile ShardId renamedTo;
 
     protected AbstractIndexShardComponent(ShardId shardId, IndexSettings indexSettings) {
         this.shardId = shardId;
@@ -27,11 +29,21 @@ public abstract class AbstractIndexShardComponent implements IndexShardComponent
 
     @Override
     public ShardId shardId() {
+        // return this.renamedTo != null ? this.renamedTo : this.shardId;
         return this.shardId;
     }
 
     @Override
     public IndexSettings indexSettings() {
         return indexSettings;
+    }
+
+    public void renameTo(Index index) {
+        // this.renamedTo = new ShardId(index, this.shardId.getId());
+        synchronized (this) {
+            final var oldShardId = this.shardId;
+            this.shardId = new ShardId(index, this.shardId.getId());
+            logger.info("Renamed shard from [{}] to [{}]", oldShardId, index);
+        }
     }
 }

@@ -544,6 +544,7 @@ public class Constants {
         "indices:admin/resolve/cluster",
         "indices:admin/resolve/index",
         "indices:admin/rollover",
+        "indices:admin/rename",
         "indices:admin/seq_no/add_retention_lease",
         "indices:admin/seq_no/global_checkpoint_sync",
         "indices:admin/seq_no/remove_retention_lease",

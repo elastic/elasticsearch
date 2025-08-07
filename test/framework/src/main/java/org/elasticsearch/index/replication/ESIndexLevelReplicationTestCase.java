@@ -304,7 +304,8 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
                 null,
                 currentClusterStateVersion.incrementAndGet(),
                 activeIds,
-                routingTable
+                routingTable,
+                false
             );
             for (final IndexShard replica : replicas) {
                 recoverReplica(replica);
@@ -414,7 +415,8 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
                 primaryReplicaSyncerArg,
                 currentClusterStateVersion.incrementAndGet(),
                 activeIds(),
-                routingTable
+                routingTable,
+                false
             );
         }
 
@@ -569,7 +571,8 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
                 activeIds(),
                 primary.routingEntry().initializing()
                     ? IndexShardRoutingTable.builder(primary.shardId()).addShard(primary.routingEntry()).build()
-                    : routingTable(Function.identity())
+                    : routingTable(Function.identity()),
+                false
             );
         }
 

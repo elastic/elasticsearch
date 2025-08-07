@@ -185,14 +185,24 @@ public class ESONSource {
 
     public abstract static class KeyEntry {
 
+        public static final byte TYPE_OBJECT = 1;
+        public static final byte TYPE_ARRAY = 2;
+        public static final byte TYPE_FIELD = 3;
+
+        private final byte type;
         private final String key;
 
-        KeyEntry(String key) {
+        KeyEntry(byte type, String key) {
+            this.type = type;
             this.key = key;
         }
 
         public String key() {
             return key;
+        }
+
+        public byte type() {
+            return type;
         }
     }
 
@@ -202,7 +212,7 @@ public class ESONSource {
         private Map<String, Type> mutationMap = null;
 
         public ObjectEntry(String key) {
-            super(key);
+            super(TYPE_OBJECT, key);
         }
 
         public boolean hasMutations() {
@@ -221,7 +231,7 @@ public class ESONSource {
         private List<Type> mutationArray = null;
 
         public ArrayEntry(String key) {
-            super(key);
+            super(TYPE_ARRAY, key);
         }
 
         public boolean hasMutations() {
@@ -238,7 +248,7 @@ public class ESONSource {
         public final Type type;
 
         public FieldEntry(String key, Type type) {
-            super(key);
+            super(TYPE_FIELD, key);
             this.type = type;
         }
 

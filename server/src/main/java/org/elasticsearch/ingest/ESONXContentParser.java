@@ -112,7 +112,9 @@ public class ESONXContentParser extends AbstractXContentParser {
 
     @Override
     public Token nextToken() throws IOException {
-        if (closed) return null;
+        if (closed) {
+            return null;
+        }
 
         // Clear value state
         currentValue = null;
@@ -132,7 +134,8 @@ public class ESONXContentParser extends AbstractXContentParser {
 
             case OBJECT_FIELD_NAME:
                 if (currentContainer.fieldsRemaining == 0) {
-                    Token endToken = currentContainer.type == ContainerContext.Type.OBJECT ? Token.END_OBJECT : Token.END_ARRAY;
+                    assert currentContainer.type == ContainerContext.Type.OBJECT;
+                    Token endToken = Token.END_OBJECT;
                     containerStack.pop();
                     currentContainer = containerStack.isEmpty() ? null : containerStack.peek();
                     updateStateAfterEnd();
@@ -143,8 +146,18 @@ public class ESONXContentParser extends AbstractXContentParser {
                     return currentToken = Token.FIELD_NAME;
                 }
             case OBJECT_VALUE:
-            case ARRAY_VALUE:
                 return emitValue(keyArray.get(currentIndex++));
+            case ARRAY_VALUE:
+                if (currentContainer.fieldsRemaining == 0) {
+                    assert currentContainer.type == ContainerContext.Type.ARRAY;
+                    Token endToken = Token.END_ARRAY;
+                    containerStack.pop();
+                    currentContainer = containerStack.isEmpty() ? null : containerStack.peek();
+                    updateStateAfterEnd();
+                    return currentToken = endToken;
+                } else {
+                    return emitValue(keyArray.get(currentIndex++));
+                }
             case DONE:
                 return null;
         }
@@ -168,19 +181,21 @@ public class ESONXContentParser extends AbstractXContentParser {
             case ESONSource.KeyEntry.TYPE_OBJECT -> {
                 containerStack.push(new ContainerContext(ContainerContext.Type.OBJECT, ((ESONSource.ObjectEntry) entry).fieldCount));
                 currentToken = Token.START_OBJECT;
+                state = State.OBJECT_FIELD_NAME;
             }
             case ESONSource.KeyEntry.TYPE_ARRAY -> {
                 containerStack.push(new ContainerContext(ContainerContext.Type.ARRAY, ((ESONSource.ArrayEntry) entry).elementCount));
                 currentToken = Token.START_ARRAY;
+                state = State.ARRAY_VALUE;
             }
             case ESONSource.KeyEntry.TYPE_FIELD -> {
                 currentType = ((ESONSource.FieldEntry) entry).type;
                 currentToken = determineValueToken(currentType);
+                state = State.OBJECT_FIELD_NAME;
             }
             default -> throw new IllegalStateException("Unknown key entry type: " + entry.type());
         }
 
-        currentIndex++;
         if (currentContainer != null) {
             currentContainer.fieldsRemaining--;
         }

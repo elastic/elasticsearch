@@ -447,24 +447,6 @@ POST test-index/_search
 
 1. Returns the first 5 fragments. Increase this value to retrieve additional fragments.
 
-### Customizing using ingest pipelines [custom-by-pipelines]
-```{applies_to}
-stack: ga 9.0
-```
-
-In case you want to customize data indexing, use the
-[`sparse_vector`](/reference/elasticsearch/mapping-reference/sparse-vector.md)
-or [`dense_vector`](/reference/elasticsearch/mapping-reference/dense-vector.md)
-field types and create an ingest pipeline with an
-[{{infer}} processor](/reference/enrich-processor/inference-processor.md) to
-generate the embeddings.
-[This tutorial](docs-content://solutions/search/semantic-search/semantic-search-inference.md)
-walks you through the process. In these cases - when you use `sparse_vector` or
-`dense_vector` field types instead of the `semantic_text` field type to
-customize indexing - using the
-[`semantic_query`](/reference/query-languages/query-dsl/query-dsl-semantic-query.md)
-is not supported for querying the field data.
-
 ## Updates to `semantic_text` fields [update-script]
 
 For indices containing `semantic_text` fields, updates that use scripts have the

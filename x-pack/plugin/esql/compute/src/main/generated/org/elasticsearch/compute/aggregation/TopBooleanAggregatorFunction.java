@@ -89,18 +89,18 @@ public final class TopBooleanAggregatorFunction implements AggregatorFunction {
   }
 
   private void addRawVector(BooleanVector vVector) {
-    for (int i = 0; i < vVector.getPositionCount(); i++) {
-      boolean vValue = vVector.getBoolean(i);
+    for (int valuesPosition = 0; valuesPosition < vVector.getPositionCount(); valuesPosition++) {
+      boolean vValue = vVector.getBoolean(valuesPosition);
       TopBooleanAggregator.combine(state, vValue);
     }
   }
 
   private void addRawVector(BooleanVector vVector, BooleanVector mask) {
-    for (int i = 0; i < vVector.getPositionCount(); i++) {
-      if (mask.getBoolean(i) == false) {
+    for (int valuesPosition = 0; valuesPosition < vVector.getPositionCount(); valuesPosition++) {
+      if (mask.getBoolean(valuesPosition) == false) {
         continue;
       }
-      boolean vValue = vVector.getBoolean(i);
+      boolean vValue = vVector.getBoolean(valuesPosition);
       TopBooleanAggregator.combine(state, vValue);
     }
   }

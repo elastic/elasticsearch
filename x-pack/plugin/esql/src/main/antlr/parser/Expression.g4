@@ -54,10 +54,12 @@ functionExpression
 
 functionName
     : identifierOrParameter
+    | FIRST
+    | LAST
     ;
 
 mapExpression
-    : LEFT_BRACES entryExpression (COMMA entryExpression)* RIGHT_BRACES
+    : LEFT_BRACES (entryExpression (COMMA entryExpression)*)? RIGHT_BRACES
     ;
 
 entryExpression

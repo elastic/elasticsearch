@@ -1,4 +1,7 @@
 setup:
+  - requires:
+      cluster_features: "mapper.bbq_bfloat16"
+      reason: 'bfloat16 needs to be supported'
   - do:
       indices.create:
         index: bbq_flat

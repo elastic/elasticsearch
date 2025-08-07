@@ -27,6 +27,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.project.DefaultProjectResolver;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.SecureSetting;
 import org.elasticsearch.common.settings.SecureString;
@@ -48,6 +49,7 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executor;
@@ -98,7 +100,13 @@ public final class RemoteClusterService extends RemoteClusterAware
     public static final Setting.AffixSetting<Boolean> REMOTE_CLUSTER_SKIP_UNAVAILABLE = Setting.affixKeySetting(
         "cluster.remote.",
         "skip_unavailable",
-        (ns, key) -> boolSetting(key, true, new RemoteConnectionEnabled<>(ns, key), Setting.Property.Dynamic, Setting.Property.NodeScope)
+        (ns, key) -> boolSetting(
+            key,
+            true,
+            new FixedValueIfStatelessEnabledValidator<>(ns, key, true),
+            Setting.Property.Dynamic,
+            Setting.Property.NodeScope
+        )
     );
 
     public static final Setting.AffixSetting<TimeValue> REMOTE_CLUSTER_PING_SCHEDULE = Setting.affixKeySetting(
@@ -149,6 +157,7 @@ public final class RemoteClusterService extends RemoteClusterAware
 
     private final boolean enabled;
     private final boolean remoteClusterServerEnabled;
+    private final boolean isStateless;
 
     public boolean isEnabled() {
         return enabled;
@@ -167,6 +176,7 @@ public final class RemoteClusterService extends RemoteClusterAware
     RemoteClusterService(Settings settings, TransportService transportService) {
         super(settings);
         this.enabled = DiscoveryNode.isRemoteClusterClient(settings);
+        this.isStateless = DiscoveryNode.isStateless(settings);
         this.remoteClusterServerEnabled = REMOTE_CLUSTER_SERVER_ENABLED.get(settings);
         this.transportService = transportService;
         this.projectResolver = DefaultProjectResolver.INSTANCE;
@@ -294,7 +304,7 @@ public final class RemoteClusterService extends RemoteClusterAware
      * Returns whether the cluster identified by the provided alias is configured to be skipped when unavailable
      */
     public boolean isSkipUnavailable(String clusterAlias) {
-        return getRemoteClusterConnection(clusterAlias).isSkipUnavailable();
+        return isStateless || getRemoteClusterConnection(clusterAlias).isSkipUnavailable();
     }
 
     public Transport.Connection getConnection(String cluster) {
@@ -351,10 +361,13 @@ public final class RemoteClusterService extends RemoteClusterAware
     @Override
     public void listenForUpdates(ClusterSettings clusterSettings) {
         super.listenForUpdates(clusterSettings);
-        clusterSettings.addAffixUpdateConsumer(REMOTE_CLUSTER_SKIP_UNAVAILABLE, this::updateSkipUnavailable, (alias, value) -> {});
+        if (isStateless == false) {
+            clusterSettings.addAffixUpdateConsumer(REMOTE_CLUSTER_SKIP_UNAVAILABLE, this::updateSkipUnavailable, (alias, value) -> {});
+        }
     }
 
     private synchronized void updateSkipUnavailable(String clusterAlias, Boolean skipUnavailable) {
+        assert isStateless == false : "Cannot configure setting [" + REMOTE_CLUSTER_SKIP_UNAVAILABLE + "] in stateless environments.";
         RemoteClusterConnection remote = getConnectionsMapForCurrentProject().get(clusterAlias);
         if (remote != null) {
             remote.setSkipUnavailable(skipUnavailable);
@@ -667,6 +680,13 @@ public final class RemoteClusterService extends RemoteClusterAware
                 "this node does not have the " + DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE.roleName() + " role"
             );
         }
+        if (isStateless && disconnectedStrategy == DisconnectedStrategy.RECONNECT_UNLESS_SKIP_UNAVAILABLE) {
+            throw new IllegalArgumentException(
+                "DisconnectedStrategy ["
+                    + DisconnectedStrategy.RECONNECT_UNLESS_SKIP_UNAVAILABLE
+                    + "] is not supported in stateless environments"
+            );
+        }
         if (transportService.getRemoteClusterService().getRegisteredRemoteClusterNames().contains(clusterAlias) == false) {
             throw new NoSuchRemoteClusterException(clusterAlias);
         }
@@ -736,6 +756,10 @@ public final class RemoteClusterService extends RemoteClusterAware
             this.key = key;
         }
 
+        protected String getKey() {
+            return key;
+        }
+
         @Override
         public void validate(T value) {}
 
@@ -760,4 +784,29 @@ public final class RemoteClusterService extends RemoteClusterAware
                 .map(as -> as.getConcreteSettingForNamespace(clusterAlias));
         }
     };
+
+    private static class FixedValueIfStatelessEnabledValidator<T> extends RemoteConnectionEnabled<T> {
+        private final Setting<Boolean> statelessSetting = Setting.boolSetting(DiscoveryNode.STATELESS_ENABLED_SETTING_NAME, false);
+        private final T requiredValue;
+
+        private FixedValueIfStatelessEnabledValidator(String clusterAlias, String key, T requiredValue) {
+            super(clusterAlias, key);
+            this.requiredValue = Objects.requireNonNull(requiredValue);
+        }
+
+        @Override
+        public void validate(T value, Map<Setting<?>, Object> settings, boolean isPresent) {
+            if (isPresent && ((Boolean) settings.get(statelessSetting)) && requiredValue.equals(value) == false) {
+                throw new IllegalArgumentException(
+                    "setting [" + getKey() + "] must be set to [" + requiredValue + "] when stateless is enabled"
+                );
+            }
+            super.validate(value, settings, isPresent);
+        }
+
+        @Override
+        public Iterator<Setting<?>> settings() {
+            return Iterators.concat(super.settings(), List.of(statelessSetting).iterator());
+        }
+    }
 }

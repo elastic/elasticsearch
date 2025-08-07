@@ -95,4 +95,50 @@ public class RemoteClusterSettingsTests extends ESTestCase {
         final String alias = randomAlphaOfLength(8);
         assertThat(REMOTE_CLUSTERS_PROXY.getConcreteSettingForNamespace(alias).get(Settings.EMPTY), equalTo(""));
     }
+
+    public void testSkipUnavailableAlwaysTrueIfStatelessEnabled() {
+        final String alias = randomAlphaOfLength(8);
+        final var skipUnavailableSetting = REMOTE_CLUSTER_SKIP_UNAVAILABLE.getConcreteSettingForNamespace(alias);
+        final var modeSetting = RemoteConnectionStrategy.REMOTE_CONNECTION_MODE.getConcreteSettingForNamespace(alias);
+        final var proxyAddressSetting = ProxyConnectionStrategy.PROXY_ADDRESS.getConcreteSettingForNamespace(alias);
+
+        final var statelessEnabledSettings = Settings.builder().put(DiscoveryNode.STATELESS_ENABLED_SETTING_NAME, true).build();
+        assertTrue(skipUnavailableSetting.get(statelessEnabledSettings));
+        final var proxyEnabledSettings = Settings.builder()
+            .put(modeSetting.getKey(), RemoteConnectionStrategy.ConnectionStrategy.PROXY.toString())
+            .put(proxyAddressSetting.getKey(), "localhost:9400")
+            .build();
+
+        // Ensure the validator still throws if a connection mode is not set.
+        expectThrows(
+            IllegalArgumentException.class,
+            "should not be able to set skip_unavailable if connection mode is not set",
+            () -> skipUnavailableSetting.get(
+                Settings.builder().put(statelessEnabledSettings).put(skipUnavailableSetting.getKey(), true).build()
+            )
+        );
+
+        // Check the validator requires skip_unavailable to always be true if stateless is enabled.
+        assertThat(
+            skipUnavailableSetting.get(
+                Settings.builder()
+                    .put(statelessEnabledSettings)
+                    .put(proxyEnabledSettings)
+                    .put(skipUnavailableSetting.getKey(), true)
+                    .build()
+            ),
+            equalTo(true)
+        );
+        expectThrows(
+            IllegalArgumentException.class,
+            "should not be able to set skip_unavailable to false if stateless is enabled",
+            () -> skipUnavailableSetting.get(
+                Settings.builder()
+                    .put(statelessEnabledSettings)
+                    .put(proxyEnabledSettings)
+                    .put(skipUnavailableSetting.getKey(), false)
+                    .build()
+            )
+        );
+    }
 }

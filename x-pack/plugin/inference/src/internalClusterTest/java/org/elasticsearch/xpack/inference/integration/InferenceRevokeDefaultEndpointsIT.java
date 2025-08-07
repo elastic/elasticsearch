@@ -249,11 +249,7 @@ public class InferenceRevokeDefaultEndpointsIT extends ESSingleNodeTestCase {
                 assertThat(
                     service.defaultConfigIds(),
                     containsInAnyOrder(
-                        new InferenceService.DefaultConfigId(
-                            ".elser-2-elastic",
-                            MinimalServiceSettings.sparseEmbedding(),
-                            service
-                        )
+                        new InferenceService.DefaultConfigId(".elser-2-elastic", MinimalServiceSettings.sparseEmbedding(), service)
                     )
                 );
                 assertThat(service.supportedTaskTypes(), is(EnumSet.of(TaskType.SPARSE_EMBEDDING)));

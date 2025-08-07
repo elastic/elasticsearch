@@ -518,6 +518,9 @@ tests:
 - class: org.elasticsearch.xpack.logsdb.qa.LogsDbVersusReindexedIntoStoredSourceChallengeRestIT
   method: testRandomQueries
   issue: https://github.com/elastic/elasticsearch/issues/132378
+- class: org.elasticsearch.xpack.esql.inference.completion.CompletionOperatorTests
+  method: testSimpleCircuitBreaking
+  issue: https://github.com/elastic/elasticsearch/issues/132382
 
 # Examples:
 #

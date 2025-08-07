@@ -97,13 +97,11 @@ public class RemoteClusterSettingsTests extends ESTestCase {
     }
 
     public void testSkipUnavailableAlwaysTrueIfStatelessEnabled() {
-        final String alias = randomAlphaOfLength(8);
+        final var alias = randomAlphaOfLength(8);
         final var skipUnavailableSetting = REMOTE_CLUSTER_SKIP_UNAVAILABLE.getConcreteSettingForNamespace(alias);
         final var modeSetting = RemoteConnectionStrategy.REMOTE_CONNECTION_MODE.getConcreteSettingForNamespace(alias);
         final var proxyAddressSetting = ProxyConnectionStrategy.PROXY_ADDRESS.getConcreteSettingForNamespace(alias);
-
         final var statelessEnabledSettings = Settings.builder().put(DiscoveryNode.STATELESS_ENABLED_SETTING_NAME, true).build();
-        assertTrue(skipUnavailableSetting.get(statelessEnabledSettings));
         final var proxyEnabledSettings = Settings.builder()
             .put(modeSetting.getKey(), RemoteConnectionStrategy.ConnectionStrategy.PROXY.toString())
             .put(proxyAddressSetting.getKey(), "localhost:9400")

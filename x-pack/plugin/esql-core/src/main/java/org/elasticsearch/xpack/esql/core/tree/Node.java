@@ -67,6 +67,25 @@ public abstract class Node<T extends Node<T>> implements NamedWriteable {
     }
 
     @SuppressWarnings("unchecked")
+    public void forEachDown(Consumer<? super T> action) {
+        action.accept((T) this);
+        // please do not refactor it to a for-each loop to avoid
+        // allocating iterator that performs concurrent modification checks and extra stack frames
+        for (int c = 0, size = children.size(); c < size; c++) {
+            children.get(c).forEachDown(action);
+        }
+    }
+
+    /**
+     * Same as forEachDown, but can end the traverse early, by setting the boolean argument in the action.
+     */
+    public boolean forEachDownMayReturnEarly(BiConsumer<? super T, Holder<Boolean>> action) {
+        var breakEarly = new Holder<>(false);
+        forEachDownMayReturnEarly(action, breakEarly);
+        return breakEarly.get();
+    }
+
+    @SuppressWarnings("unchecked")
     void forEachDownMayReturnEarly(BiConsumer<? super T, Holder<Boolean>> action, Holder<Boolean> breakEarly) {
         action.accept((T) this, breakEarly);
         if (breakEarly.get()) {
@@ -82,18 +101,6 @@ public abstract class Node<T extends Node<T>> implements NamedWriteable {
                 return;
             }
         }
-    }
-
-    public boolean forEachDownMayReturnEarly(BiConsumer<? super T, Holder<Boolean>> action) {
-        var breakEarly = new Holder<>(false);
-        forEachDownMayReturnEarly(action, breakEarly);
-        return breakEarly.get();
-    }
-
-    public void forEachDown(Consumer<? super T> action) {
-        boolean result = forEachDownMayReturnEarly((p, breakFlag) -> { action.accept(p); });
-        // We should not be breaking early here...
-        assert result == false;
     }
 
     @SuppressWarnings("unchecked")

@@ -86,6 +86,8 @@ public class SingletonOrdinalsBuilder implements BlockLoader.SingletonOrdinalsBu
         try {
             bytes = blockFactory.newConstantBytesRefVector(v, 1);
             ordinals = blockFactory.newConstantIntVector(0, ords.length);
+            // Ideally, we would return a ConstantBytesRefVector, but we return an ordinal constant block instead
+            // to ensure ordinal optimizations are applied when constant optimization is not available.
             final var result = new OrdinalBytesRefBlock(ordinals.asBlock(), bytes);
             success = true;
             return result;

@@ -18,3 +18,6 @@
 
 :::{include} ../types/day_name.md
 :::
+
+:::{include} ../examples/day_name.md
+:::

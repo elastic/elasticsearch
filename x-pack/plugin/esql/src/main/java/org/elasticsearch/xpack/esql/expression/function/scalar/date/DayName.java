@@ -42,7 +42,7 @@ public class DayName extends EsqlConfigurationFunction {
 
     private final Expression field;
 
-    @FunctionInfo(returnType = "keyword", description = "Returns the name of the weekday for date.",
+    @FunctionInfo(returnType = "keyword", description = "Returns the name of the weekday for date based on the configured Locale.",
      examples = @Example(file = "date", tag = "docsDayName")
     )
     public DayName(

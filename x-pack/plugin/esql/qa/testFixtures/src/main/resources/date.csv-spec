@@ -1837,6 +1837,17 @@ y:date                   | c:long
 1987-08-01T00:00:00.000Z | 2
 ;
 
+dayNameRowTest
+required_capability: day_name_function
+// tag::docsDayName[]
+ROW dt = to_datetime("1953-09-02T00:00:00.000Z")
+| EVAL weekday = DAY_NAME(dt);
+// end::docsDayName[]
+
+dt:date   | weekday:keyword
+1953-09-02T00:00:00.000Z | Wednesday
+;
+
 dayNameSimple
 required_capability: day_name_function
 from employees 

@@ -164,10 +164,13 @@ public class ElasticInferenceServiceAuthorizationModel {
 
     @Override
     public String toString() {
-        return "{" +
-            "taskTypeToModels=" + taskTypeToModels +
-            ", authorizedTaskTypes=" + authorizedTaskTypes +
-            ", authorizedModelIds=" + authorizedModelIds +
-            '}';
+        return "{"
+            + "taskTypeToModels="
+            + taskTypeToModels
+            + ", authorizedTaskTypes="
+            + authorizedTaskTypes
+            + ", authorizedModelIds="
+            + authorizedModelIds
+            + '}';
     }
 }

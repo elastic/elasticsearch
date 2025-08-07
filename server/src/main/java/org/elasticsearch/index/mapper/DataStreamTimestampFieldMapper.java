@@ -139,11 +139,11 @@ public class DataStreamTimestampFieldMapper extends MetadataFieldMapper {
         }
 
         DateFieldMapper dateFieldMapper = (DateFieldMapper) mapper;
-        if (dateFieldMapper.fieldType().isIndexed() == false && dateFieldMapper.fieldType().hasDocValuesSkipper() == false) {
-            throw new IllegalArgumentException("data stream timestamp field [" + DEFAULT_PATH + "] is not indexed");
+        if (dateFieldMapper.fieldType().isSearchable() == false) {
+            throw new IllegalArgumentException("data stream timestamp field [" + DEFAULT_PATH + "] is not searchable");
         }
-        if (dateFieldMapper.fieldType().hasDocValues() == false) {
-            throw new IllegalArgumentException("data stream timestamp field [" + DEFAULT_PATH + "] doesn't have doc values");
+        if (dateFieldMapper.fieldType().isAggregatable() == false) {
+            throw new IllegalArgumentException("data stream timestamp field [" + DEFAULT_PATH + "] is not aggregatable");
         }
         if (dateFieldMapper.getNullValue() != null) {
             throw new IllegalArgumentException(

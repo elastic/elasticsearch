@@ -2462,7 +2462,7 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
         DenseVectorFieldType vectorFieldType = (DenseVectorFieldType) ft;
         return switch (vectorFieldType.getElementType()) {
             case BYTE -> randomByteArrayOfLength(vectorFieldType.getVectorDimensions());
-            case FLOAT -> {
+            case FLOAT, BFLOAT16 -> {
                 float[] floats = new float[vectorFieldType.getVectorDimensions()];
                 float magnitude = 0;
                 for (int i = 0; i < floats.length; i++) {
@@ -3063,7 +3063,7 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
             Object value = switch (elementType) {
                 case BYTE, BIT:
                     yield randomList(dims, dims, ESTestCase::randomByte);
-                case FLOAT:
+                case FLOAT, BFLOAT16:
                     yield randomList(dims, dims, ESTestCase::randomFloat);
             };
             return new SyntheticSourceExample(value, value, this::mapping);

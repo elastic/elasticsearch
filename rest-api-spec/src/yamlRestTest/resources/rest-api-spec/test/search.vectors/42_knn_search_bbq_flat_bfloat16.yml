@@ -13,12 +13,12 @@ setup:
             properties:
               vector:
                 type: dense_vector
+                element_type: bfloat16
                 dims: 64
                 index: true
                 similarity: max_inner_product
                 index_options:
                   type: bbq_flat
-                  raw_vector_size: 16
 
   - do:
       index:
@@ -187,28 +187,12 @@ setup:
             properties:
               vector:
                 type: dense_vector
+                element_type: bfloat16
                 dims: 64
                 index: true
                 index_options:
                   type: bbq_flat
-                  raw_vector_size: 16
                   m: 42
-
-  - do:
-      catch: bad_request
-      indices.create:
-        index: bad_bbq_flat
-        body:
-          mappings:
-            properties:
-              vector:
-                type: dense_vector
-                dims: 64
-                element_type: byte
-                index: true
-                index_options:
-                  type: bbq_flat
-                  raw_vector_size: 16
 ---
 "Test bad raw vector size":
   - do:
@@ -237,12 +221,12 @@ setup:
             properties:
               vector:
                 type: dense_vector
+                element_type: bfloat16
                 dims: 42
                 index: true
                 similarity: l2_norm
                 index_options:
                   type: bbq_flat
-                  raw_vector_size: 16
 
   # verify dynamic dimension fails
   - do:
@@ -253,11 +237,11 @@ setup:
             properties:
               vector:
                 type: dense_vector
+                element_type: bfloat16
                 index: true
                 similarity: l2_norm
                 index_options:
                   type: bbq_flat
-                  raw_vector_size: 16
 
   # verify index fails for odd dim vector
   - do:
@@ -291,12 +275,12 @@ setup:
             properties:
               vector:
                 type: dense_vector
+                element_type: bfloat16
                 dims: 64
                 index: true
                 similarity: max_inner_product
                 index_options:
                   type: bbq_flat
-                  raw_vector_size: 16
                   rescore_vector:
                     oversample: 1.5
 
@@ -395,12 +379,12 @@ setup:
                     type: keyword
                   vector:
                     type: dense_vector
+                    element_type: bfloat16
                     dims: 64
                     index: true
                     similarity: max_inner_product
                     index_options:
                       type: bbq_flat
-                      raw_vector_size: 16
 
   - do:
       index:

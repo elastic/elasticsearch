@@ -214,10 +214,10 @@ public class SnapshotsServiceUtils {
                 } else if (value.isActive()) {
                     assert reposWithRunningDelete.contains(new ProjectRepo(entry.projectId(), entry.repository())) == false
                         : "Found shard snapshot actively executing in ["
-                        + entry
-                        + "] when it should be blocked by a running delete ["
-                        + Strings.toString(snapshotDeletionsInProgress)
-                        + "]";
+                            + entry
+                            + "] when it should be blocked by a running delete ["
+                            + Strings.toString(snapshotDeletionsInProgress)
+                            + "]";
                 }
             }
         }

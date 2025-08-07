@@ -35,7 +35,6 @@ import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.AbstractList;
 import java.util.Arrays;
-import java.util.function.IntPredicate;
 
 /**
  * Default implementation of {@link IVFVectorsWriter}. It uses {@link HierarchicalKMeans} algorithm to
@@ -44,10 +43,6 @@ import java.util.function.IntPredicate;
  */
 public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
     private static final Logger logger = LogManager.getLogger(DefaultIVFVectorsWriter.class);
-    // posting lists bigger than that will be split in two or more blocks
-    private static final int MAX_POSTING_LIST_BLOCK_SIZE = 16 * 100;
-    public static final byte SINGLE_BLOCK_POSTING_LIST = 0;
-    public static final byte MULTI_BLOCK_POSTING_LIST = 1;
 
     private final int vectorPerCluster;
     private final int centroidsPerParentCluster;
@@ -103,7 +98,7 @@ public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
             }
         }
         // write the max posting list size
-        postingsOutput.writeVInt(Math.min(MAX_POSTING_LIST_BLOCK_SIZE, maxPostingListSize));
+        postingsOutput.writeVInt(maxPostingListSize);
         // write the posting lists
         final PackedLongValues.Builder offsets = PackedLongValues.monotonicBuilder(PackedInts.COMPACT);
         DocIdsWriter docIdsWriter = new DocIdsWriter();
@@ -126,31 +121,13 @@ public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
             int size = cluster.length;
             // write docIds
             postingsOutput.writeVInt(size);
-            if (size > MAX_POSTING_LIST_BLOCK_SIZE) {
-                postingsOutput.writeByte(MULTI_BLOCK_POSTING_LIST);
-                writeOnHeapMultiBlockPostingList(
-                    postingsOutput,
-                    floatVectorValues,
-                    onHeapQuantizedVectors,
-                    centroid,
-                    cluster,
-                    size,
-                    docIdsWriter,
-                    bulkWriter
-                );
-            } else {
-                postingsOutput.writeByte(SINGLE_BLOCK_POSTING_LIST);
-                writeOnHeapSingleBlockPostingList(
-                    postingsOutput,
-                    floatVectorValues,
-                    onHeapQuantizedVectors,
-                    centroid,
-                    k -> cluster[k],
-                    size,
-                    docIdsWriter,
-                    bulkWriter
-                );
-            }
+            onHeapQuantizedVectors.reset(centroid, size, ord -> cluster[ord]);
+            // TODO we might want to consider putting the docIds in a separate file
+            // to aid with only having to fetch vectors from slower storage when they are required
+            // keeping them in the same file indicates we pull the entire file into cache
+            docIdsWriter.writeDocIds(j -> floatVectorValues.ordToDoc(cluster[j]), size, postingsOutput);
+            // write vectors
+            bulkWriter.writeVectors(onHeapQuantizedVectors);
         }
 
         if (logger.isDebugEnabled()) {
@@ -158,69 +135,6 @@ public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
         }
 
         return offsets.build();
-    }
-
-    private void writeOnHeapMultiBlockPostingList(
-        IndexOutput postingsOutput,
-        FloatVectorValues floatVectorValues,
-        OnHeapQuantizedVectors onHeapQuantizedVectors,
-        float[] centroid,
-        int[] cluster,
-        int size,
-        DocIdsWriter docIdsWriter,
-        DiskBBQBulkWriter bulkWriter
-    ) throws IOException {
-        int numBlocks = (int) Math.ceil((double) size / MAX_POSTING_LIST_BLOCK_SIZE);
-        postingsOutput.writeVInt(numBlocks);
-        for (int i = 0; i < numBlocks - 1; i++) {
-            int offset = MAX_POSTING_LIST_BLOCK_SIZE * i;
-            postingsOutput.writeVInt(MAX_POSTING_LIST_BLOCK_SIZE);
-            writeOnHeapSingleBlockPostingList(
-                postingsOutput,
-                floatVectorValues,
-                onHeapQuantizedVectors,
-                centroid,
-                k -> cluster[offset + k],
-                MAX_POSTING_LIST_BLOCK_SIZE,
-                docIdsWriter,
-                bulkWriter
-            );
-        }
-        int lastBlock = size - (numBlocks - 1) * MAX_POSTING_LIST_BLOCK_SIZE;
-        assert lastBlock >= 0;
-        if (lastBlock > 0) {
-            postingsOutput.writeVInt(lastBlock);
-            writeOnHeapSingleBlockPostingList(
-                postingsOutput,
-                floatVectorValues,
-                onHeapQuantizedVectors,
-                centroid,
-                k -> cluster[(numBlocks - 1) * MAX_POSTING_LIST_BLOCK_SIZE + k],
-                lastBlock,
-                docIdsWriter,
-                bulkWriter
-            );
-        }
-    }
-
-    private void writeOnHeapSingleBlockPostingList(
-        IndexOutput postingsOutput,
-        FloatVectorValues floatVectorValues,
-        OnHeapQuantizedVectors onHeapQuantizedVectors,
-        float[] centroid,
-        IntToIntFunction cluster,
-        int size,
-        DocIdsWriter docIdsWriter,
-        DiskBBQBulkWriter bulkWriter
-    ) throws IOException {
-
-        onHeapQuantizedVectors.reset(centroid, size, cluster);
-        // TODO we might want to consider putting the docIds in a separate file
-        // to aid with only having to fetch vectors from slower storage when they are required
-        // keeping them in the same file indicates we pull the entire file into cache
-        docIdsWriter.writeDocIds(j -> floatVectorValues.ordToDoc(cluster.apply(j)), size, postingsOutput);
-        // write vectors
-        bulkWriter.writeVectors(onHeapQuantizedVectors);
     }
 
     @Override
@@ -323,7 +237,7 @@ public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
             DiskBBQBulkWriter bulkWriter = new DiskBBQBulkWriter.OneBitDiskBBQBulkWriter(ES91OSQVectorsScorer.BULK_SIZE, postingsOutput);
             final ByteBuffer buffer = ByteBuffer.allocate(fieldInfo.getVectorDimension() * Float.BYTES).order(ByteOrder.LITTLE_ENDIAN);
             // write the max posting list size
-            postingsOutput.writeVInt(Math.min(MAX_POSTING_LIST_BLOCK_SIZE, maxPostingListSize));
+            postingsOutput.writeVInt(maxPostingListSize);
             // write the posting lists
             for (int c = 0; c < centroidSupplier.size(); c++) {
                 float[] centroid = centroidSupplier.centroid(c);
@@ -338,31 +252,13 @@ public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
                 // write docIds
                 int size = cluster.length;
                 postingsOutput.writeVInt(size);
-                if (size > MAX_POSTING_LIST_BLOCK_SIZE) {
-                    postingsOutput.writeByte(MULTI_BLOCK_POSTING_LIST);
-                    writeOffHeapMultiBlockPostingList(
-                        postingsOutput,
-                        floatVectorValues,
-                        offHeapQuantizedVectors,
-                        cluster,
-                        size,
-                        isOverspill,
-                        docIdsWriter,
-                        bulkWriter
-                    );
-                } else {
-                    postingsOutput.writeByte(SINGLE_BLOCK_POSTING_LIST);
-                    writeOffHeapBlockPostingList(
-                        postingsOutput,
-                        floatVectorValues,
-                        offHeapQuantizedVectors,
-                        k -> cluster[k],
-                        size,
-                        b -> isOverspill[b],
-                        docIdsWriter,
-                        bulkWriter
-                    );
-                }
+                offHeapQuantizedVectors.reset(size, ord -> isOverspill[ord], ord -> cluster[ord]);
+                // TODO we might want to consider putting the docIds in a separate file
+                // to aid with only having to fetch vectors from slower storage when they are required
+                // keeping them in the same file indicates we pull the entire file into cache
+                docIdsWriter.writeDocIds(j -> floatVectorValues.ordToDoc(cluster[j]), size, postingsOutput);
+                // write vectors
+                bulkWriter.writeVectors(offHeapQuantizedVectors);
             }
 
             if (logger.isDebugEnabled()) {
@@ -370,69 +266,6 @@ public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
             }
             return offsets.build();
         }
-    }
-
-    private void writeOffHeapMultiBlockPostingList(
-        IndexOutput postingsOutput,
-        FloatVectorValues floatVectorValues,
-        OffHeapQuantizedVectors offHeapQuantizedVectors,
-        int[] cluster,
-        int size,
-        boolean[] isOverspill,
-        DocIdsWriter docIdsWriter,
-        DiskBBQBulkWriter bulkWriter
-    ) throws IOException {
-        int numBlocks = (int) Math.ceil((double) size / MAX_POSTING_LIST_BLOCK_SIZE);
-        postingsOutput.writeVInt(numBlocks);
-        for (int i = 0; i < numBlocks - 1; i++) {
-            int offset = MAX_POSTING_LIST_BLOCK_SIZE * i;
-            postingsOutput.writeVInt(MAX_POSTING_LIST_BLOCK_SIZE);
-            writeOffHeapBlockPostingList(
-                postingsOutput,
-                floatVectorValues,
-                offHeapQuantizedVectors,
-                k -> cluster[offset + k],
-                MAX_POSTING_LIST_BLOCK_SIZE,
-                b -> isOverspill[offset + b],
-                docIdsWriter,
-                bulkWriter
-            );
-        }
-        int lastBlock = size - (numBlocks - 1) * MAX_POSTING_LIST_BLOCK_SIZE;
-        assert lastBlock >= 0;
-        if (lastBlock > 0) {
-            postingsOutput.writeVInt(lastBlock);
-            writeOffHeapBlockPostingList(
-                postingsOutput,
-                floatVectorValues,
-                offHeapQuantizedVectors,
-                k -> cluster[(numBlocks - 1) * MAX_POSTING_LIST_BLOCK_SIZE + k],
-                lastBlock,
-                b -> isOverspill[(numBlocks - 1) * MAX_POSTING_LIST_BLOCK_SIZE + b],
-                docIdsWriter,
-                bulkWriter
-            );
-        }
-    }
-
-    private void writeOffHeapBlockPostingList(
-        IndexOutput postingsOutput,
-        FloatVectorValues floatVectorValues,
-        OffHeapQuantizedVectors offHeapQuantizedVectors,
-        IntToIntFunction cluster,
-        int size,
-        IntPredicate isOverspill,
-        DocIdsWriter docIdsWriter,
-        DiskBBQBulkWriter bulkWriter
-    ) throws IOException {
-
-        offHeapQuantizedVectors.reset(size, isOverspill::test, cluster);
-        // TODO we might want to consider putting the docIds in a separate file
-        // to aid with only having to fetch vectors from slower storage when they are required
-        // keeping them in the same file indicates we pull the entire file into cache
-        docIdsWriter.writeDocIds(j -> floatVectorValues.ordToDoc(cluster.apply(j)), size, postingsOutput);
-        // write vectors
-        bulkWriter.writeVectors(offHeapQuantizedVectors);
     }
 
     private static void printClusterQualityStatistics(int[][] clusters) {

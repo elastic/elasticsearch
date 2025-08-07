@@ -11,12 +11,15 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xpack.esql.action.ColumnInfoImpl;
 import org.elasticsearch.xpack.esql.action.EsqlQueryRequest;
 import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
 import org.elasticsearch.xpack.esql.action.EsqlResponseListener;
 
 import java.io.IOException;
+import java.util.Collections;
+import java.util.Iterator;
 import java.util.List;
 
 /**
@@ -44,32 +47,34 @@ public class NonStreamingEsqlQueryResponseStream extends EsqlQueryResponseStream
     }
 
     @Override
-    protected void doStartResponse(List<ColumnInfoImpl> columns) {
+    protected Iterator<? extends ToXContent> doStartResponse(List<ColumnInfoImpl> columns) {
         throw new UnsupportedOperationException("This class does not support streaming");
     }
 
     @Override
-    protected void doSendPages(Iterable<Page> pages) {
+    protected Iterator<? extends ToXContent> doSendPages(Iterable<Page> pages) {
         throw new UnsupportedOperationException("This class does not support streaming");
     }
 
     @Override
-    protected void doFinishResponse(EsqlQueryResponse response) {
+    protected Iterator<? extends ToXContent> doFinishResponse(EsqlQueryResponse response) {
         throw new UnsupportedOperationException("This class does not support streaming");
     }
 
     @Override
-    protected void doHandleException(Exception e) {
+    protected Iterator<? extends ToXContent> doHandleException(Exception e) {
         listener.onFailure(e);
+        return Collections.emptyIterator();
     }
 
     @Override
-    protected void doSendEverything(EsqlQueryResponse response) {
+    protected Iterator<? extends ToXContent> doSendEverything(EsqlQueryResponse response) {
         // The base class will close the response, and the listener will do so too.
         // So we need to increment the reference count here
         // TODO: Check this
         response.incRef();
         listener.onResponse(response);
+        return Collections.emptyIterator();
     }
 
     @Override

@@ -120,7 +120,8 @@ public abstract class EsqlQueryResponseStream implements Releasable {
             return new ColumnInfoImpl(c.name(), c.dataType().outputType(), originalTypes);
         }).toList();
 
-        doStartResponse(columns);
+        sendChunks(doStartResponse(columns));
+
         initialStreamChunkSent = true;
     }
 
@@ -128,20 +129,26 @@ public abstract class EsqlQueryResponseStream implements Releasable {
         assert finished == false : "sendPages() called on a finished stream";
 
         if (initialStreamChunkSent) {
-            doSendPages(pages);
+            sendChunks(doSendPages(pages));
         }
     }
 
     public final void finishResponse(EsqlQueryResponse response) {
         assert finished == false : "finishResponse() called more than once";
 
-        try (response) {
+        // TODO: Also, is this closing right? EsqlResponseListener uses releasableFromResponse(), which increments the ref first
+        boolean success = false;
+        try {
             if (initialStreamChunkSent) {
-                doFinishResponse(response);
+                sendChunks(doFinishResponse(response), response);
             } else {
-                doSendEverything(response);
+                sendChunks(doSendEverything(response), response);
             }
+            success = true;
         } finally {
+            if (success == false) {
+                response.close();
+            }
             finished = true;
         }
     }
@@ -151,6 +158,8 @@ public abstract class EsqlQueryResponseStream implements Releasable {
 
         // TODO: To be overridden by subclasses. This should append the error to the stream, if possible
         LOGGER.error("Error while streaming response", e);
+
+        sendChunks(doHandleException(e));
 
         finished = true;
     }
@@ -185,25 +194,65 @@ public abstract class EsqlQueryResponseStream implements Releasable {
      */
     protected abstract boolean canBeStreamed();
 
-    protected abstract void doStartResponse(List<ColumnInfoImpl> columns);
+    /**
+     * Returns the chunks to be sent at the beginning of the response. Called once, at the start.
+     * <p>
+     *     Only called if {@link #canBeStreamed()} returns {@code true}.
+     * </p>
+     */
+    protected abstract Iterator<? extends ToXContent> doStartResponse(List<ColumnInfoImpl> columns);
 
-    protected abstract void doSendPages(Iterable<Page> pages);
+    /**
+     * Returns the chunks for the given page. Called 0 to N times, after {@link #doStartResponse} and before {@link #doFinishResponse}.
+     * <p>
+     *     Only called if {@link #canBeStreamed()} returns {@code true}.
+     * </p>
+     */
+    protected abstract Iterator<? extends ToXContent> doSendPages(Iterable<Page> pages);
 
-    protected abstract void doFinishResponse(EsqlQueryResponse response);
+    /**
+     * Returns the remaining chunks of the response. Called once, at the end of the response.
+     * <p>
+     *     Only called if {@link #canBeStreamed()} returns {@code true}.
+     * </p>
+     */
+    protected abstract Iterator<? extends ToXContent> doFinishResponse(EsqlQueryResponse response);
 
-    protected abstract void doHandleException(Exception e);
+    /**
+     * Returns the chunks to be sent for the given exception.
+     * <p>
+     *     This may be called at any time, so the code should track what was sent already
+     *     and how to send a meaningful response given the chunks sent in previous calls.
+     * </p>
+     */
+    protected abstract Iterator<? extends ToXContent> doHandleException(Exception e);
 
-    protected void doSendEverything(EsqlQueryResponse response) {
-        // TODO: Is this safe? Should this be abstract to ensure proper implementation? Add tests for both cases
-        doStartResponse(response.columns());
-        doSendPages(response.pages());
-        doFinishResponse(response);
+    /**
+     * Returns the chunks of the full response. Called once for the full response.
+     * <p>
+     *     Only called if {@link #canBeStreamed()} returns {@code false}.
+     * </p>
+     */
+    protected Iterator<? extends ToXContent> doSendEverything(EsqlQueryResponse response) {
+        // TODO: Is this safe? Should this be abstract to ensure proper implementation? Add tests for both streamed and "everything" cases
+        return Iterators.concat(
+            doStartResponse(response.columns()),
+            doSendPages(response.pages()),
+            doFinishResponse(response)
+        );
     }
 
     @SuppressWarnings("unchecked")
-    protected final void sendChunks(List<Iterator<? extends ToXContent>> chunkedContent) {
-        // TODO: Maybe accept a single chunk here, and do a flush() inside of each method?
-        streamingXContentResponse.writeFragment(p0 -> Iterators.concat(chunkedContent.toArray(Iterator[]::new)), () -> {});
+    protected static Iterator<? extends ToXContent> asIterator(List<Iterator<? extends ToXContent>> chunks) {
+        return Iterators.concat(chunks.toArray(Iterator[]::new));
+    }
+
+    private void sendChunks(Iterator<? extends ToXContent> chunks) {
+        sendChunks(chunks, () -> {});
+    }
+
+    private void sendChunks(Iterator<? extends ToXContent> chunks, Releasable releasable) {
+        streamingXContentResponse.writeFragment(p0 -> chunks, releasable);
     }
 
     @Override

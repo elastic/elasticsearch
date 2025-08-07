@@ -36,7 +36,7 @@ public class DefaultEsqlQueryResponseStream extends EsqlQueryResponseStream {
     @Nullable
     private List<ColumnInfoImpl> columns;
 
-    private boolean dropNullColumns;
+    private final boolean dropNullColumns;
 
     DefaultEsqlQueryResponseStream(RestChannel restChannel, RestRequest restRequest, EsqlQueryRequest esqlRequest) throws IOException {
         super(restChannel, restRequest, esqlRequest);
@@ -50,7 +50,7 @@ public class DefaultEsqlQueryResponseStream extends EsqlQueryResponseStream {
     }
 
     @Override
-    protected void doStartResponse(List<ColumnInfoImpl> columns) {
+    protected Iterator<? extends ToXContent> doStartResponse(List<ColumnInfoImpl> columns) {
         assert dropNullColumns == false : "this method doesn't support dropping null columns";
 
         this.columns = columns;
@@ -63,18 +63,18 @@ public class DefaultEsqlQueryResponseStream extends EsqlQueryResponseStream {
         // Start the values array, to be filled in
         content.add(ChunkedToXContentHelper.startArray("values"));
 
-        sendChunks(content);
+        return asIterator(content);
     }
 
     @Override
-    protected void doSendPages(Iterable<Page> pages) {
+    protected Iterator<? extends ToXContent> doSendPages(Iterable<Page> pages) {
         assert columns != null : "columns must be set before sending pages";
 
-        sendChunks(List.of(ResponseXContentUtils.rowValues(columns, pages, null)));
+        return ResponseXContentUtils.rowValues(columns, pages, null);
     }
 
     @Override
-    protected void doFinishResponse(EsqlQueryResponse response) {
+    protected Iterator<? extends ToXContent> doFinishResponse(EsqlQueryResponse response) {
         var content = new ArrayList<Iterator<? extends ToXContent>>(10);
 
         // End the values array
@@ -120,35 +120,36 @@ public class DefaultEsqlQueryResponseStream extends EsqlQueryResponseStream {
 
         content.add(ChunkedToXContentHelper.endObject());
 
-        sendChunks(content);
+        return asIterator(content);
     }
 
     @Override
-    protected void doSendEverything(EsqlQueryResponse response) {
-        // TODO: Close the response
+    protected Iterator<? extends ToXContent> doSendEverything(EsqlQueryResponse response) {
         // final Releasable releasable = releasableFromResponse(esqlResponse);
 
         // TODO: Instead of sendChunks, implement a flush() to attach the response to it? Or pass the response to the methods
         // TODO: Or make "doX" methods return an Iterator<? extends ToXContent> and then concat them all together
 
+        var content = new ArrayList<Iterator<? extends ToXContent>>(3);
         boolean[] nullColumns = null;
         if (dropNullColumns) {
             nullColumns = nullColumns(response.columns(), response.pages());
-            sendStartResponseDroppingNullColumns(response.columns(), nullColumns);
+            content.add(sendStartResponseDroppingNullColumns(response.columns(), nullColumns));
         } else {
-            doStartResponse(response.columns());
+            content.add(doStartResponse(response.columns()));
         }
         // doSendPages doesn't work with nullColumns or columnar, so we generate them here directly
-        sendChunks(List.of(ResponseXContentUtils.columnValues(response.columns(), response.pages(), esqlRequest.columnar(), nullColumns)));
-        doFinishResponse(response);
+        content.add(ResponseXContentUtils.columnValues(response.columns(), response.pages(), esqlRequest.columnar(), nullColumns));
+        content.add(doFinishResponse(response));
+        return asIterator(content);
     }
 
     @Override
-    protected void doHandleException(Exception e) {
-        // TODO: Implement this
+    protected Iterator<? extends ToXContent> doHandleException(Exception e) {
+        throw new UnsupportedOperationException("Not implemented yet");
     }
 
-    private void sendStartResponseDroppingNullColumns(List<ColumnInfoImpl> columns, boolean[] nullColumns) {
+    private Iterator<? extends ToXContent> sendStartResponseDroppingNullColumns(List<ColumnInfoImpl> columns, boolean[] nullColumns) {
         assert dropNullColumns : "this method should only be called when dropping null columns";
 
         var content = new ArrayList<Iterator<? extends ToXContent>>(3);
@@ -157,7 +158,7 @@ public class DefaultEsqlQueryResponseStream extends EsqlQueryResponseStream {
         content.add(ResponseXContentUtils.allColumns(columns, "all_columns"));
         content.add(ResponseXContentUtils.nonNullColumns(columns, nullColumns, "columns"));
 
-        sendChunks(content);
+        return asIterator(content);
     }
 
     private boolean[] nullColumns(List<ColumnInfoImpl> columns, List<Page> pages) {

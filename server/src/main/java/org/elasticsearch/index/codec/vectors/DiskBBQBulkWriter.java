@@ -10,6 +10,7 @@
 package org.elasticsearch.index.codec.vectors;
 
 import org.apache.lucene.store.IndexOutput;
+import org.apache.lucene.util.hnsw.IntToIntFunction;
 
 import java.io.IOException;
 
@@ -27,10 +28,11 @@ abstract class DiskBBQBulkWriter {
         this.out = out;
     }
 
-    abstract void writeVectors(DefaultIVFVectorsWriter.QuantizedVectorValues qvv) throws IOException;
+    abstract void writeVectors(DefaultIVFVectorsWriter.QuantizedVectorValues qvv, IntToIntFunction docIds) throws IOException;
 
     static class OneBitDiskBBQBulkWriter extends DiskBBQBulkWriter {
         private final OptimizedScalarQuantizer.QuantizationResult[] corrections;
+        protected DocIdsWriter docIdsWriter = new DocIdsWriter();
 
         OneBitDiskBBQBulkWriter(int bulkSize, IndexOutput out) {
             super(bulkSize, out);
@@ -38,10 +40,12 @@ abstract class DiskBBQBulkWriter {
         }
 
         @Override
-        void writeVectors(DefaultIVFVectorsWriter.QuantizedVectorValues qvv) throws IOException {
+        void writeVectors(DefaultIVFVectorsWriter.QuantizedVectorValues qvv, IntToIntFunction docIds) throws IOException {
             int limit = qvv.count() - bulkSize + 1;
             int i = 0;
             for (; i < limit; i += bulkSize) {
+                int offset = i;
+                docIdsWriter.writeDocIds(idx -> docIds.apply(offset + idx), bulkSize, out);
                 for (int j = 0; j < bulkSize; j++) {
                     byte[] qv = qvv.next();
                     corrections[j] = qvv.getCorrections();
@@ -50,6 +54,8 @@ abstract class DiskBBQBulkWriter {
                 writeCorrections(corrections);
             }
             // write tail
+            int offset = i;
+            docIdsWriter.writeDocIds(idx -> docIds.apply(offset + idx), qvv.count() - i, out);
             for (; i < qvv.count(); ++i) {
                 byte[] qv = qvv.next();
                 OptimizedScalarQuantizer.QuantizationResult correction = qvv.getCorrections();
@@ -94,7 +100,8 @@ abstract class DiskBBQBulkWriter {
         }
 
         @Override
-        void writeVectors(DefaultIVFVectorsWriter.QuantizedVectorValues qvv) throws IOException {
+        void writeVectors(DefaultIVFVectorsWriter.QuantizedVectorValues qvv, IntToIntFunction docIds) throws IOException {
+            assert docIds == null;
             int limit = qvv.count() - bulkSize + 1;
             int i = 0;
             for (; i < limit; i += bulkSize) {

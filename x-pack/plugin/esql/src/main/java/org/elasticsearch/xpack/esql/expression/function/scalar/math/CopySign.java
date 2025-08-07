@@ -19,6 +19,8 @@ import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
@@ -61,10 +63,14 @@ public class CopySign extends EsqlScalarFunction {
 
     private DataType dataType;
 
-    @FunctionInfo(description = """
-        Returns a value with the magnitude of the first argument and the sign of the second argument.
-        This function is similar to Java's Math.copySign(double magnitude, double sign) which is
-        similar to `copysign` from [IEEE 754](https://en.wikipedia.org/wiki/IEEE_754).""", returnType = { "double", "integer", "long" })
+    @FunctionInfo(
+        description = """
+            Returns a value with the magnitude of the first argument and the sign of the second argument.
+            This function is similar to Java's Math.copySign(double magnitude, double sign) which is
+            similar to `copysign` from [IEEE 754](https://en.wikipedia.org/wiki/IEEE_754).""",
+        returnType = { "double", "integer", "long" },
+        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA, version = "9.1.0") }
+    )
     public CopySign(
         Source source,
         @Param(

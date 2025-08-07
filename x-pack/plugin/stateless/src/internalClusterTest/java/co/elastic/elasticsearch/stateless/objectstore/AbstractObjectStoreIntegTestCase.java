@@ -51,7 +51,7 @@ import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.snapshots.SnapshotRestoreException;
 import org.elasticsearch.snapshots.SnapshotState;
-import org.elasticsearch.snapshots.SnapshotsService;
+import org.elasticsearch.snapshots.TransportUpdateSnapshotStatusAction;
 import org.elasticsearch.snapshots.UpdateIndexShardSnapshotStatusRequest;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.transport.MockTransportService;
@@ -363,7 +363,7 @@ public abstract class AbstractObjectStoreIntegTestCase extends AbstractStateless
         final AtomicReference<CheckedRunnable<Exception>> updateShardRunnableRef = new AtomicReference<>();
         // Delay one snapshot so that it can be observed as in-progress
         MockTransportService.getInstance(internalCluster().getMasterName())
-            .addRequestHandlingBehavior(SnapshotsService.UPDATE_SNAPSHOT_STATUS_ACTION_NAME, (handler, request, channel, task) -> {
+            .addRequestHandlingBehavior(TransportUpdateSnapshotStatusAction.NAME, (handler, request, channel, task) -> {
                 final var updateRequest = asInstanceOf(UpdateIndexShardSnapshotStatusRequest.class, request);
                 final var updateShardLatch = updateShardLatchRef.get();
                 if (updateShardLatch != null && projectToDelaySnapshot.equals(updateRequest.snapshot().getProjectId())) {

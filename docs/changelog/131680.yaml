@@ -1,0 +1,5 @@
+pr: 131680
+summary: Grant server module read/write entitlements for deprecated path setting "path.shared_data"
+area: Infra/Core
+type: bug
+issues: []

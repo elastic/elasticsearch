@@ -96,12 +96,12 @@ public class VotingOnlyNodePluginTests extends ESIntegTestCase {
         internalCluster().setBootstrapMasterNodeIndex(0);
         internalCluster().startNodes(2);
         internalCluster().startNode(addRoles(Set.of(DiscoveryNodeRole.VOTING_ONLY_NODE_ROLE)));
-        internalCluster().startDataOnlyNodes(randomInt(2));
-        assertBusy(
-            () -> assertThat(
-                clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState().getLastCommittedConfiguration().getNodeIds().size(),
-                equalTo(3)
-            )
+        final int numDataNodes = randomInt(2);
+        internalCluster().startDataOnlyNodes(numDataNodes);
+        internalCluster().validateClusterFormed();
+
+        awaitClusterState(
+            state -> state.getLastCommittedConfiguration().getNodeIds().size() == 3 && state.nodes().size() == 3 + numDataNodes
         );
         final String originalMaster = internalCluster().getMasterName();
 
@@ -157,15 +157,14 @@ public class VotingOnlyNodePluginTests extends ESIntegTestCase {
         internalCluster().setBootstrapMasterNodeIndex(0);
         internalCluster().startNode();
         internalCluster().startNodes(2, addRoles(Set.of(DiscoveryNodeRole.VOTING_ONLY_NODE_ROLE)));
-        internalCluster().startDataOnlyNodes(randomInt(2));
-        assertBusy(
-            () -> assertThat(
-                clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState().getLastCommittedConfiguration().getNodeIds().size(),
-                equalTo(3)
-            )
+        final int numDataNodes = randomInt(2);
+        internalCluster().startDataOnlyNodes(numDataNodes);
+        internalCluster().validateClusterFormed();
+
+        awaitClusterState(
+            state -> state.getLastCommittedConfiguration().getNodeIds().size() == 3 && state.nodes().size() == 3 + numDataNodes
         );
-        awaitMasterNode();
-        final String oldMasterId = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState().nodes().getMasterNodeId();
+        final String oldMasterId = internalCluster().getMasterName();
 
         internalCluster().stopCurrentMasterNode();
         awaitMasterNotFound();

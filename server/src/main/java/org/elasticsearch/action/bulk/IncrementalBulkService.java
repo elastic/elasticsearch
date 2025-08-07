@@ -210,7 +210,7 @@ public class IncrementalBulkService {
                         @Override
                         public void onResponse(BulkResponse bulkResponse) {
                             handleBulkSuccess(bulkResponse);
-                            listener.onResponse(combineResponses());
+                            listener.onResponse(BulkResponse.combine(responses));
                         }
 
                         @Override
@@ -252,7 +252,7 @@ public class IncrementalBulkService {
             if (globalFailure) {
                 listener.onFailure(bulkActionLevelFailure);
             } else {
-                listener.onResponse(combineResponses());
+                listener.onResponse(BulkResponse.combine(responses));
             }
         }
 
@@ -310,26 +310,6 @@ public class IncrementalBulkService {
             if (refresh != null) {
                 bulkRequest.setRefreshPolicy(refresh);
             }
-        }
-
-        private BulkResponse combineResponses() {
-            long tookInMillis = 0;
-            long ingestTookInMillis = 0;
-            int itemResponseCount = 0;
-            for (BulkResponse response : responses) {
-                tookInMillis += response.getTookInMillis();
-                ingestTookInMillis += response.getIngestTookInMillis();
-                itemResponseCount += response.getItems().length;
-            }
-            BulkItemResponse[] bulkItemResponses = new BulkItemResponse[itemResponseCount];
-            int i = 0;
-            for (BulkResponse response : responses) {
-                for (BulkItemResponse itemResponse : response.getItems()) {
-                    bulkItemResponses[i++] = itemResponse;
-                }
-            }
-
-            return new BulkResponse(bulkItemResponses, tookInMillis, ingestTookInMillis);
         }
     }
 }

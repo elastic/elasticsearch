@@ -10,8 +10,11 @@
 package org.elasticsearch.repositories;
 
 import org.apache.lucene.index.IndexCommit;
+import org.apache.lucene.store.IndexInput;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DelegatingActionListener;
+import org.elasticsearch.common.lucene.store.InputStreamIndexInput;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.index.IndexVersion;
@@ -115,4 +118,29 @@ public abstract class SnapshotShardContext extends DelegatingActionListener<Shar
         void verify() throws IOException;
     }
 
+    public static class IndexInputFileReader implements FileReader {
+
+        private final Releasable commitRefReleasable;
+        private final IndexInput indexInput;
+
+        public IndexInputFileReader(Releasable commitRefReleasable, IndexInput indexInput) {
+            this.commitRefReleasable = commitRefReleasable;
+            this.indexInput = indexInput;
+        }
+
+        @Override
+        public InputStream openInput(long limit) throws IOException {
+            return new InputStreamIndexInput(indexInput, limit);
+        }
+
+        @Override
+        public void close() throws IOException {
+            IOUtils.close(indexInput, commitRefReleasable);
+        }
+
+        @Override
+        public void verify() throws IOException {
+            Store.verify(indexInput);
+        }
+    }
 }

@@ -15,7 +15,6 @@ import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.lucene.Lucene;
-import org.elasticsearch.common.lucene.store.InputStreamIndexInput;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
@@ -34,7 +33,6 @@ import org.elasticsearch.snapshots.AbortedSnapshotException;
 import org.elasticsearch.snapshots.SnapshotId;
 
 import java.io.IOException;
-import java.io.InputStream;
 import java.util.Collection;
 
 /**
@@ -191,37 +189,10 @@ public final class LocalPrimarySnapshotShardContext extends SnapshotShardContext
         try {
             commitRefReleasable = withCommitRef();
             indexInput = store.openVerifyingInput(file, IOContext.DEFAULT, metadata);
-            return new FileReader(commitRefReleasable, indexInput);
+            return new IndexInputFileReader(commitRefReleasable, indexInput);
         } catch (Exception e) {
             IOUtils.close(e, indexInput, commitRefReleasable);
             throw e;
         }
     }
-
-    static class FileReader implements SnapshotShardContext.FileReader {
-
-        private final Releasable commitRefReleasable;
-        private final IndexInput indexInput;
-
-        FileReader(Releasable commitRefReleasable, IndexInput indexInput) {
-            this.commitRefReleasable = commitRefReleasable;
-            this.indexInput = indexInput;
-        }
-
-        @Override
-        public InputStream openInput(long limit) throws IOException {
-            return new InputStreamIndexInput(indexInput, limit);
-        }
-
-        @Override
-        public void close() throws IOException {
-            IOUtils.close(indexInput, commitRefReleasable);
-        }
-
-        @Override
-        public void verify() throws IOException {
-            Store.verify(indexInput);
-        }
-    }
-
 }

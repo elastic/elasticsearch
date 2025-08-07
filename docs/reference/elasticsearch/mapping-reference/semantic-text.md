@@ -339,27 +339,6 @@ POST test-index/_search
 2. Sorts the most relevant highlighted fragments by score when set to `score`. By default,
    fragments will be output in the order they appear in the field (order: none).
 
-To use the `semantic` highlighter to view chunks in the order which they were indexed with no scoring,
-use the `match_all` query to retrieve them in the order they appear in the document:
-
-```console
-POST test-index/_search
-{
-    "query": {
-        "match_all": {}
-    },
-    "highlight": {
-        "fields": {
-            "my_semantic_field": {
-                "number_of_fragments": 5  <1>
-            }
-        }
-    }
-}
-```
-
-1. This will return the first 5 chunks, set this number higher to retrieve more chunks.
-
 Highlighting is supported on fields other than semantic_text. However, if you
 want to restrict highlighting to the semantic highlighter and return no
 fragments when the field is not of type semantic_text, you can explicitly
@@ -386,6 +365,31 @@ PUT test-index
 ```
 
 1. Ensures that highlighting is applied exclusively to semantic_text fields.
+
+To retrieve all fragments from the `semantic` highlighter in their original indexing order
+without scoring, use a `match_all` query as the `highlight_query`.
+This ensures fragments are returned in the order they appear in the document:
+
+```console
+POST test-index/_search
+{
+  "query": {
+    "ids": {
+      "values": ["1"]
+    }
+  },
+  "highlight": {
+    "fields": {
+      "my_semantic_field": {
+        "number_of_fragments": 5,        <1>
+        "highlight_query": { "match_all": {} }
+      }
+    }
+  }
+}
+```
+
+1. Returns the first 5 fragments. Increase this value to retrieve additional fragments.
 
 ## Updates and partial updates for `semantic_text` fields [semantic-text-updates]
 
@@ -449,31 +453,6 @@ PUT my-index-000004
   }
 }
 ```
-
-To retrieve all fragments from the `semantic` highlighter in their original indexing order
-without scoring, use a `match_all` query as the `highlight_query`.
-This ensures fragments are returned in the order they appear in the document:
-
-```console
-POST test-index/_search
-{
-  "query": {
-    "ids": {
-      "values": ["1"]
-    }
-  },
-  "highlight": {
-    "fields": {
-      "my_semantic_field": {
-        "number_of_fragments": 5,        <1>
-        "highlight_query": { "match_all": {} }
-      }
-    }
-  }
-}
-```
-
-1. Returns the first 5 fragments. Increase this value to retrieve additional fragments.
 
 ## Updates to `semantic_text` fields [update-script]
 

@@ -32,7 +32,7 @@ public final class TransportUpdateSnapshotStatusAction extends TransportMasterNo
     private final SnapshotsService snapshotsService;
 
     @Inject
-    TransportUpdateSnapshotStatusAction(
+    public TransportUpdateSnapshotStatusAction(
         TransportService transportService,
         ClusterService clusterService,
         ThreadPool threadPool,

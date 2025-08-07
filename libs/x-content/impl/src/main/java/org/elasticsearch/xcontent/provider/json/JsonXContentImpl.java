@@ -56,7 +56,6 @@ public class JsonXContentImpl implements XContent {
         jsonFactory.configure(JsonGenerator.Feature.AUTO_CLOSE_JSON_CONTENT, false);
         jsonFactory.configure(JsonParser.Feature.STRICT_DUPLICATE_DETECTION, true);
         jsonFactory.configure(JsonParser.Feature.USE_FAST_DOUBLE_PARSER, true);
-        jsonFactory.configure(JsonFactory.Feature.INTERN_FIELD_NAMES, false);
         // keeping existing behavior of including source, for now
         jsonFactory.configure(JsonParser.Feature.INCLUDE_SOURCE_IN_LOCATION, true);
         jsonXContent = new JsonXContentImpl();

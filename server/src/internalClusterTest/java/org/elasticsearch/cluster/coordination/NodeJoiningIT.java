@@ -10,16 +10,12 @@
 package org.elasticsearch.cluster.coordination;
 
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.transport.MockTransportService;
 
 import java.util.Collection;
-import java.util.List;
-import java.util.Set;
-import java.util.stream.Collectors;
 
 @ESIntegTestCase.ClusterScope(
     scope = ESIntegTestCase.Scope.TEST,
@@ -52,13 +48,9 @@ public class NodeJoiningIT extends MasterElectionTestCase {
         assertEquals(2, state.nodes().getDataNodes().size());
         assertEquals(1, state.nodes().getMasterNodes().size());
 
-        assertEquals(masterNodeName, state.nodes().getMasterNode().getName());
-        Set<String> allDataNodeNames = state.nodes().getDataNodes().values()
-            .stream()
-            .map(DiscoveryNode::getName)
-            .collect(Collectors.toSet());
-        assertTrue(allDataNodeNames.contains(dataNodeName));
-        assertTrue(allDataNodeNames.contains(newNodeName));
+        assertEquals(masterNodeName, internalCluster().getMasterName());
+        assertTrue(state.nodes().nodeExistsWithName(dataNodeName));
+        assertTrue(state.nodes().nodeExistsWithName(newNodeName));
     }
 
     public void testNodeFailsToJoinClusterWhenMasterNodeCannotPublishState() {
@@ -83,13 +75,9 @@ public class NodeJoiningIT extends MasterElectionTestCase {
         assertEquals(1, state.nodes().getMasterNodes().size());
 
         // Assert the only nodes in the cluster are the original ones
-        assertEquals(masterNodeName, state.nodes().getMasterNode().getName());
-        List<String> allDataNodeNames = state.nodes().getDataNodes().values()
-            .stream()
-            .map(DiscoveryNode::getName)
-            .toList();
-        assertTrue(allDataNodeNames.contains(dataNodeName));
-        assertFalse(allDataNodeNames.contains(newNodeName));
+        assertEquals(masterNodeName, internalCluster().getMasterName());
+        assertTrue(state.nodes().nodeExistsWithName(dataNodeName));
+        assertFalse(state.nodes().nodeExistsWithName(newNodeName));
 
         masterNodeTransportService.clearAllRules();
     }
@@ -117,13 +105,9 @@ public class NodeJoiningIT extends MasterElectionTestCase {
         assertEquals(1, state.nodes().getMasterNodes().size());
 
         // Assert the only nodes in the cluster are the original ones
-        assertEquals(masterNodeName, state.nodes().getMasterNode().getName());
-        List<String> allDataNodeNames = state.nodes().getDataNodes().values()
-            .stream()
-            .map(DiscoveryNode::getName)
-            .toList();
-        assertTrue(allDataNodeNames.contains(dataNodeName));
-        assertFalse(allDataNodeNames.contains(newNodeName));
+        assertEquals(masterNodeName, internalCluster().getMasterName());
+        assertTrue(state.nodes().nodeExistsWithName(dataNodeName));
+        assertFalse(state.nodes().nodeExistsWithName(newNodeName));
 
         dataNodeTransportService.clearAllRules();
     }

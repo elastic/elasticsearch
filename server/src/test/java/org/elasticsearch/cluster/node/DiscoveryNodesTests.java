@@ -18,6 +18,7 @@ import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -522,5 +523,41 @@ public class DiscoveryNodesTests extends ESTestCase {
         final var node7 = nodeFactory.apply(7);
         testHarness.accept(builder -> builder.add(node5).add(node6).add(node7), 1L);
         testHarness.accept(builder -> builder.remove(node5).remove(node6).remove(node7), 2L);
+    }
+
+    private final DiscoveryNode node1 = DiscoveryNodeUtils.create("node-1", "NodeOne");
+    private final DiscoveryNode node2 = DiscoveryNodeUtils.create("node-2", "NodeTwo");
+    private final DiscoveryNodes discoveryNodes = DiscoveryNodes.builder()
+        .add(node1)
+        .add(node2)
+        .build();
+
+    public void testNodeExistsById() {
+        assertTrue(discoveryNodes.nodeExists("NodeOne"));
+        assertTrue(discoveryNodes.nodeExists("NodeTwo"));
+        assertFalse(discoveryNodes.nodeExists("NodeThree"));
+    }
+
+    public void testNodeExistsByNode() {
+        // Exact node object
+        assertTrue(discoveryNodes.nodeExists(node1));
+
+        // A different node but with same id and name
+        DiscoveryNode node1Copy = DiscoveryNodeUtils.create("node-1", "NodeOne");
+        assertFalse(discoveryNodes.nodeExists(node1Copy));
+
+        // Node with same id but different name
+        DiscoveryNode node1Different = DiscoveryNodeUtils.create("node-1", "DifferentName");
+        assertFalse(discoveryNodes.nodeExists(node1Different));
+
+        // Node with id not in map
+        DiscoveryNode node3 = DiscoveryNodeUtils.create("node-3", "NodeThree");
+        assertFalse(discoveryNodes.nodeExists(node3));
+    }
+
+    public void testNodeExistsWithName() {
+        assertTrue(discoveryNodes.nodeExistsWithName("node-1"));
+        assertTrue(discoveryNodes.nodeExistsWithName("node-2"));
+        assertFalse(discoveryNodes.nodeExistsWithName("node-3"));
     }
 }

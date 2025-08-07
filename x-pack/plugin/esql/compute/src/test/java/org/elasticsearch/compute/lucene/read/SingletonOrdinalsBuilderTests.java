@@ -43,13 +43,13 @@ import static org.hamcrest.Matchers.hasSize;
 public class SingletonOrdinalsBuilderTests extends ComputeTestCase {
 
     public void testReader() throws IOException {
-        testRead(blockFactory(), randomBoolean());
+        testRead(blockFactory(), between(10, 1000), randomBoolean());
     }
 
     public void testReadWithCranky() throws IOException {
         var factory = crankyBlockFactory();
         try {
-            testRead(factory, randomBoolean());
+            testRead(factory, between(10, 1000), randomBoolean());
             // If we made it this far cranky didn't fail us!
         } catch (CircuitBreakingException e) {
             logger.info("cranky", e);
@@ -58,14 +58,13 @@ public class SingletonOrdinalsBuilderTests extends ComputeTestCase {
         assertThat(factory.breaker().getUsed(), equalTo(0L));
     }
 
-    private void testRead(BlockFactory factory, boolean withIndexSorts) throws IOException {
-        int count = 1000;
+    private void testRead(BlockFactory factory, int docCount, boolean withIndexSorts) throws IOException {
         var config = new IndexWriterConfig();
         if (withIndexSorts) {
             config.setIndexSort(new Sort(new SortField("f", SortField.Type.STRING)));
         }
         try (Directory directory = newDirectory(); RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory, config)) {
-            for (int i = 0; i < count; i++) {
+            for (int i = 0; i < docCount; i++) {
                 for (BytesRef v : new BytesRef[] { new BytesRef("a"), new BytesRef("b"), new BytesRef("c"), new BytesRef("d") }) {
                     indexWriter.addDocument(List.of(new SortedDocValuesField("f", v)));
                 }
@@ -114,7 +113,7 @@ public class SingletonOrdinalsBuilderTests extends ComputeTestCase {
                     }
                 }
             }
-            assertMap(counts, matchesMap().entry("a", count).entry("b", count).entry("c", count).entry("d", count));
+            assertMap(counts, matchesMap().entry("a", docCount).entry("b", docCount).entry("c", docCount).entry("d", docCount));
         }
     }
 
@@ -197,6 +196,62 @@ public class SingletonOrdinalsBuilderTests extends ComputeTestCase {
                             assertThat(block1, equalTo(block2));
                             assertNotNull(block1.asOrdinals());
                         }
+                    }
+                }
+            }
+        }
+    }
+
+    public void testEmitConstantBlocks() throws IOException {
+        var config = new IndexWriterConfig();
+        config.setIndexSort(new Sort(new SortField("f", SortField.Type.STRING)));
+        int totalDocs = between(100, 1000);
+        var values = new BytesRef[] { new BytesRef("a"), new BytesRef("b"), new BytesRef("c"), new BytesRef("d") };
+        int[] counts = new int[4];
+        try (var directory = newDirectory(); var indexWriter = new IndexWriter(directory, config)) {
+            for (int i = 0; i < totalDocs; i++) {
+                int valueIndex = randomIntBetween(0, values.length - 1);
+                counts[valueIndex]++;
+                indexWriter.addDocument(List.of(new SortedDocValuesField("f", values[valueIndex])));
+            }
+            final int[] starts = new int[values.length + 1];
+            for (int i = 0; i < values.length; i++) {
+                starts[i + 1] = starts[i] + counts[i];
+            }
+            var keywordField = new KeywordFieldMapper.KeywordFieldType("f");
+            var blockLoader = keywordField.blockLoader(ValuesSourceReaderOperatorTests.blContext());
+            var blockFactory = new ComputeBlockLoaderFactory(blockFactory());
+            try (IndexReader reader = DirectoryReader.open(indexWriter)) {
+                for (LeafReaderContext ctx : reader.leaves()) {
+                    int start = 0;
+                    int numDocs = ctx.reader().numDocs();
+                    while (start < numDocs) {
+                        int end = start + randomIntBetween(1, numDocs - start);
+                        BlockLoader.Docs docs = new BlockLoader.Docs() {
+                            @Override
+                            public int count() {
+                                return end;
+                            }
+
+                            @Override
+                            public int get(int i) {
+                                return i;
+                            }
+                        };
+                        var columnAtATimeReader = blockLoader.columnAtATimeReader(ctx);
+                        try (BlockLoader.Block block = columnAtATimeReader.read(blockFactory, docs, start)) {
+                            BytesRefBlock result = (BytesRefBlock) block;
+                            assertNotNull(result.asVector());
+                            boolean enclosedInSingleRange = false;
+                            for (int i = 0; i < starts.length - 1; i++) {
+                                if (starts[i] <= start && end <= starts[i + 1]) {
+                                    enclosedInSingleRange = true;
+                                    break;
+                                }
+                            }
+                            assertThat(result.asVector().isConstant(), equalTo(enclosedInSingleRange));
+                        }
+                        start = end;
                     }
                 }
             }

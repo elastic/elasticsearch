@@ -100,6 +100,7 @@ public class BulkByScrollUsesAllScrollDocumentsAfterConflictsIntegTests extends 
         ensureStableCluster(3);
     }
 
+    @AwaitsFix(bugUrl = "Depends on being able to block the write pool")
     public void testUpdateByQuery() throws Exception {
         final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         final boolean scriptEnabled = randomBoolean();
@@ -115,6 +116,7 @@ public class BulkByScrollUsesAllScrollDocumentsAfterConflictsIntegTests extends 
         );
     }
 
+    @AwaitsFix(bugUrl = "Depends on being able to block the write pool")
     public void testReindex() throws Exception {
         final String sourceIndex = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         final String targetIndex = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
@@ -139,6 +141,7 @@ public class BulkByScrollUsesAllScrollDocumentsAfterConflictsIntegTests extends 
         );
     }
 
+    @AwaitsFix(bugUrl = "Depends on being able to block the write pool")
     public void testDeleteByQuery() throws Exception {
         final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         executeConcurrentUpdatesOnSubsetOfDocs(

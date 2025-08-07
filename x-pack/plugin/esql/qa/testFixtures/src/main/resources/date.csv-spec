@@ -1838,6 +1838,7 @@ y:date                   | c:long
 ;
 
 dayNameSimple
+required_capability: day_name_function
 from employees 
 | sort emp_no 
 | keep emp_no, hire_date
@@ -1849,6 +1850,7 @@ emp_no:integer | hire_date:date             | day:keyword
 ;
 
 dayNameTruncate
+required_capability: day_name_function
 FROM employees
 | EVAL a = hire_date
 | RENAME hire_date as b
@@ -1869,6 +1871,7 @@ y:date                   | c:long   | week_day:keyword
 ;
 
 dayNameNestedCall
+required_capability: day_name_function
 from employees 
 | sort emp_no 
 | eval first_day_of_month = day_name(date_trunc(1 month, hire_date))
@@ -1889,10 +1892,11 @@ emp_no:integer | hire_date:datetime       | first_day_of_month:keyword
 ;
 
 dayNameNestedCall
+required_capability: day_name_function
 from employees 
 | sort emp_no desc
 | eval first_day_of_month = to_upper(day_name(date_trunc(1 month, hire_date)))
-| keep emp_no, hire_date, first_day_of_monthf
+| keep emp_no, hire_date, first_day_of_month
 | limit 10;
 
 emp_no:integer | hire_date:datetime       | first_day_of_month:keyword
@@ -1909,6 +1913,7 @@ emp_no:integer | hire_date:datetime       | first_day_of_month:keyword
 ;
 
 dayNameNull
+required_capability: day_name_function
 from employees | where emp_no == 10040 | eval x = day_name(birth_date) | keep emp_no, birth_date, hire_date, x;
 
 emp_no:integer | birth_date:date                     | hire_date:date             | x:keyword

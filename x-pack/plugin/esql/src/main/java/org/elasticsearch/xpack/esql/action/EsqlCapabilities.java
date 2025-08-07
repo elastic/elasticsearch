@@ -1335,7 +1335,12 @@ public class EsqlCapabilities {
         /**
          * Support correct counting of skipped shards.
          */
-        CORRECT_SKIPPED_SHARDS_COUNT;
+        CORRECT_SKIPPED_SHARDS_COUNT,
+
+        /**
+         * Supports DAY_NAME function
+         */
+        DAY_NAME_FUNCTION;
 
         private final boolean enabled;
 

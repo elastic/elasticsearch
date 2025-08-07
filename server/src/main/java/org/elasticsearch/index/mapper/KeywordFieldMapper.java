@@ -794,7 +794,11 @@ public final class KeywordFieldMapper extends FieldMapper {
         @Override
         public BlockLoader blockLoader(BlockLoaderContext blContext) {
             if (hasDocValues() && (blContext.fieldExtractPreference() != FieldExtractPreference.STORED || isSyntheticSource)) {
-                return new BlockDocValuesReader.BytesRefsFromOrdsBlockLoader(name());
+                if (isDimension) {
+                    return new TSDimensionBlockLoader(name());
+                } else {
+                    return new BlockDocValuesReader.BytesRefsFromOrdsBlockLoader(name());
+                }
             }
             if (isStored()) {
                 return new BlockStoredFieldsReader.BytesFromBytesRefsBlockLoader(name());

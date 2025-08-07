@@ -25,6 +25,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormat;
 
+import java.io.IOException;
 import java.util.Locale;
 import java.util.stream.IntStream;
 
@@ -32,9 +33,17 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.mockito.Mockito.mock;
 
-public class TSIDBulkBlockLoadingTests extends MapperServiceTestCase {
+public class TSBulkBlockLoadingTests extends MapperServiceTestCase {
 
-    public void testManyValues() throws Exception {
+    public void testManyTSIDs() throws IOException {
+        doTestManyValues(TimeSeriesIdFieldMapper.NAME, TSIDBlockLoader.TSIDs.class);
+    }
+
+    public void testManyDimensions() throws IOException {
+        doTestManyValues("host_name", TSDimensionBlockLoader.TSDimensions.class);
+    }
+
+    public void doTestManyValues(String fieldName, Class<?> expectedColumnReader) throws IOException {
         final String mappings = """
                 {
                     "_doc" : {
@@ -61,25 +70,25 @@ public class TSIDBulkBlockLoadingTests extends MapperServiceTestCase {
             int uniqueTsidEvery = 200;
             IndexWriterConfig iwc = new IndexWriterConfig(new MockAnalyzer(random()));
             iwc.setLeafSorter(DataStream.TIMESERIES_LEAF_READERS_SORTER);
-            iwc.setIndexSort(new Sort(new SortField(TimeSeriesIdFieldMapper.NAME, SortField.Type.STRING, false)));
+            iwc.setIndexSort(new Sort(new SortField(fieldName, SortField.Type.STRING, false)));
             iwc.setCodec(TestUtil.alwaysDocValuesFormat(new ES819TSDBDocValuesFormat()));
             try (IndexWriter iw = new IndexWriter(directory, iwc)) {
                 for (int i = from; i < to; i++) {
                     LuceneDocument doc = new LuceneDocument();
                     int tsid = i / uniqueTsidEvery;
-                    doc.add(new SortedDocValuesField(TimeSeriesIdFieldMapper.NAME, new BytesRef(String.format(Locale.ROOT, "%04d", tsid))));
+                    doc.add(new SortedDocValuesField(fieldName, new BytesRef(String.format(Locale.ROOT, "%04d", tsid))));
                     iw.addDocument(doc);
                 }
                 iw.forceMerge(1);
             }
             var mockBlockContext = mock(MappedFieldType.BlockLoaderContext.class);
-            var blockLoader = mapperService.fieldType(TimeSeriesIdFieldMapper.NAME).blockLoader(mockBlockContext);
+            var blockLoader = mapperService.fieldType(fieldName).blockLoader(mockBlockContext);
             try (DirectoryReader reader = DirectoryReader.open(directory)) {
                 LeafReaderContext context = reader.leaves().get(0);
                 {
                     // One big doc block
                     var columnReader = blockLoader.columnAtATimeReader(context);
-                    assertThat(columnReader, instanceOf(TSIDBlockLoader.TSIDs.class));
+                    assertThat(columnReader, instanceOf(expectedColumnReader));
                     var docBlock = TestBlock.docs(IntStream.range(from, to).toArray());
                     var block = (TestBlock) columnReader.read(TestBlock.factory(), docBlock, 0);
                     assertThat(block.size(), equalTo(to - from));
@@ -93,7 +102,7 @@ public class TSIDBulkBlockLoadingTests extends MapperServiceTestCase {
                     // Smaller doc blocks
                     int docBlockSize = 1000;
                     var columnReader = blockLoader.columnAtATimeReader(context);
-                    assertThat(columnReader, instanceOf(TSIDBlockLoader.TSIDs.class));
+                    assertThat(columnReader, instanceOf(expectedColumnReader));
                     for (int i = from; i < to; i += docBlockSize) {
                         var docBlock = TestBlock.docs(IntStream.range(i, i + docBlockSize).toArray());
                         var block = (TestBlock) columnReader.read(TestBlock.factory(), docBlock, 0);
@@ -108,7 +117,7 @@ public class TSIDBulkBlockLoadingTests extends MapperServiceTestCase {
                 {
                     // One smaller doc block:
                     var columnReader = blockLoader.columnAtATimeReader(context);
-                    assertThat(columnReader, instanceOf(TSIDBlockLoader.TSIDs.class));
+                    assertThat(columnReader, instanceOf(expectedColumnReader));
                     var docBlock = TestBlock.docs(IntStream.range(1010, 2020).toArray());
                     var block = (TestBlock) columnReader.read(TestBlock.factory(), docBlock, 0);
                     assertThat(block.size(), equalTo(1010));
@@ -121,7 +130,7 @@ public class TSIDBulkBlockLoadingTests extends MapperServiceTestCase {
                 {
                     // Read two tiny blocks:
                     var columnReader = blockLoader.columnAtATimeReader(context);
-                    assertThat(columnReader, instanceOf(TSIDBlockLoader.TSIDs.class));
+                    assertThat(columnReader, instanceOf(expectedColumnReader));
                     var docBlock = TestBlock.docs(IntStream.range(32, 64).toArray());
                     var block = (TestBlock) columnReader.read(TestBlock.factory(), docBlock, 0);
                     assertThat(block.size(), equalTo(32));

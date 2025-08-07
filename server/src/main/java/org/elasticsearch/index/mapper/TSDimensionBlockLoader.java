@@ -19,9 +19,15 @@ import org.elasticsearch.search.fetch.StoredFieldsSpec;
 
 import java.io.IOException;
 
-public final class TSIDBlockLoader implements BlockLoader {
+public class TSDimensionBlockLoader implements BlockLoader {
 
-    private static final String FIELD_NAME = TimeSeriesIdFieldMapper.NAME;
+    private final String fieldName;
+    private final BlockLoader fallback;
+
+    public TSDimensionBlockLoader(String fieldName) {
+        this.fieldName = fieldName;
+        this.fallback = new BlockDocValuesReader.BytesRefsFromOrdsBlockLoader(fieldName);
+    }
 
     @Override
     public Builder builder(BlockFactory factory, int expectedCount) {
@@ -30,14 +36,16 @@ public final class TSIDBlockLoader implements BlockLoader {
 
     @Override
     public ColumnAtATimeReader columnAtATimeReader(LeafReaderContext context) throws IOException {
-        var singleton = context.reader().getSortedDocValues(FIELD_NAME);
-        return new TSIDs((BlockAwareSortedDocValues) singleton);
+        var singleton = DocValues.unwrapSingleton(context.reader().getSortedSetDocValues(fieldName));
+        if (singleton instanceof BlockAwareSortedDocValues b) {
+            return new TSDimensions(b);
+        }
+        return fallback.columnAtATimeReader(context);
     }
 
     @Override
     public RowStrideReader rowStrideReader(LeafReaderContext context) throws IOException {
-        var singleton = context.reader().getSortedDocValues(FIELD_NAME);
-        return new BlockDocValuesReader.SingletonOrdinals(singleton);
+        return fallback.rowStrideReader(context);
     }
 
     @Override
@@ -52,15 +60,19 @@ public final class TSIDBlockLoader implements BlockLoader {
 
     @Override
     public SortedSetDocValues ordinals(LeafReaderContext context) throws IOException {
-        return DocValues.getSortedSet(context.reader(), FIELD_NAME);
+        return DocValues.getSortedSet(context.reader(), fieldName);
     }
 
-    public static final class TSIDs implements ColumnAtATimeReader {
+    public String toString() {
+        return "TSIDBlockLoader[" + fieldName + "]";
+    }
+
+    public static final class TSDimensions implements ColumnAtATimeReader {
         private final Thread creationThread;
         private final SortedDocValues sorted;
         private final SingletonDocValuesBlockLoader blockLoader;
 
-        TSIDs(BlockAwareSortedDocValues sorted) {
+        TSDimensions(BlockAwareSortedDocValues sorted) {
             this.creationThread = Thread.currentThread();
             this.sorted = sorted;
             this.blockLoader = sorted.getSingletonBlockLoader();
@@ -68,7 +80,7 @@ public final class TSIDBlockLoader implements BlockLoader {
 
         @Override
         public Block read(BlockFactory factory, Docs docs, int offset) throws IOException {
-            try (TSSingletonOrdinalsBuilder builder = factory.tsSingletonOrdinalsBuilder(true, sorted, docs.count() - offset)) {
+            try (var builder = factory.tsSingletonOrdinalsBuilder(false, sorted, docs.count() - offset)) {
                 blockLoader.loadBlock(builder, docs, offset);
                 return builder.build();
             }
@@ -81,7 +93,7 @@ public final class TSIDBlockLoader implements BlockLoader {
 
         @Override
         public String toString() {
-            return "TSIDBlockLoader.TSIDs";
+            return "TSDimensionBlockLoader.TSDimensions";
         }
     }
 }

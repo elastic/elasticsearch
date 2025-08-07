@@ -17,7 +17,7 @@ public interface SingletonDocValuesBlockLoader {
 
     void loadBlock(BlockLoader.SingletonLongBuilder builder, BlockLoader.Docs docs, int offset) throws IOException;
 
-    void loadBlock(BlockLoader.TSIDOrdinalsBuilder builder, BlockLoader.Docs docs, int offset) throws IOException;
+    void loadBlock(BlockLoader.TSSingletonOrdinalsBuilder builder, BlockLoader.Docs docs, int offset) throws IOException;
 
     int docID();
 

@@ -1325,7 +1325,7 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
                             }
 
                             @Override
-                            public void loadBlock(BlockLoader.TSIDOrdinalsBuilder builder, BlockLoader.Docs docs, int offset)
+                            public void loadBlock(BlockLoader.TSSingletonOrdinalsBuilder builder, BlockLoader.Docs docs, int offset)
                                 throws IOException {
                                 assert maxOrd >= 0;
                                 doc = docs.get(docs.count() - 1);

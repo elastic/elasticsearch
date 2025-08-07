@@ -40,7 +40,7 @@ import static org.elasticsearch.test.MapMatcher.assertMap;
 import static org.elasticsearch.test.MapMatcher.matchesMap;
 import static org.hamcrest.Matchers.equalTo;
 
-public class TSIDOrdinalsBuilderTests extends ComputeTestCase {
+public class TSSingletonOrdinalsBuilderTests extends ComputeTestCase {
 
     public void testReader() throws IOException {
         testRead(blockFactory());
@@ -61,6 +61,7 @@ public class TSIDOrdinalsBuilderTests extends ComputeTestCase {
     private void testRead(BlockFactory factory) throws IOException {
         BytesRef[] values = new BytesRef[] { new BytesRef("a"), new BytesRef("b"), new BytesRef("c"), new BytesRef("d") };
 
+        boolean isPrimaryIndexSortField = randomBoolean();
         int count = 1000;
         try (Directory directory = newDirectory()) {
             try (IndexWriter indexWriter = createIndexWriter(directory)) {
@@ -73,7 +74,14 @@ public class TSIDOrdinalsBuilderTests extends ComputeTestCase {
             try (IndexReader reader = DirectoryReader.open(directory)) {
                 for (LeafReaderContext ctx : reader.leaves()) {
                     SortedDocValues docValues = ctx.reader().getSortedDocValues("_tsid");
-                    try (TSIDOrdinalsBuilder builder = new TSIDOrdinalsBuilder(factory, docValues, ctx.reader().numDocs())) {
+                    try (
+                        TSSingletonOrdinalsBuilder builder = new TSSingletonOrdinalsBuilder(
+                            isPrimaryIndexSortField,
+                            factory,
+                            docValues,
+                            ctx.reader().numDocs()
+                        )
+                    ) {
                         for (int i = 0; i < ctx.reader().maxDoc(); i++) {
                             assertThat(docValues.advanceExact(i), equalTo(true));
                             int ord = docValues.ordValue();
@@ -98,6 +106,7 @@ public class TSIDOrdinalsBuilderTests extends ComputeTestCase {
 
     public void testHighCardinality() throws IOException {
         int count = 1_000;
+        boolean isPrimaryIndexSortField = randomBoolean();
         try (Directory directory = newDirectory()) {
             try (IndexWriter indexWriter = createIndexWriter(directory)) {
                 for (int i = 0; i < count; i++) {
@@ -111,7 +120,14 @@ public class TSIDOrdinalsBuilderTests extends ComputeTestCase {
                 LeafReader leafReader = reader.leaves().get(0).reader();
                 SortedDocValues docValues = leafReader.getSortedDocValues("_tsid");
                 int offset = 850;
-                try (TSIDOrdinalsBuilder builder = new TSIDOrdinalsBuilder(blockFactory(), docValues, count - offset)) {
+                try (
+                    TSSingletonOrdinalsBuilder builder = new TSSingletonOrdinalsBuilder(
+                        isPrimaryIndexSortField,
+                        blockFactory(),
+                        docValues,
+                        count - offset
+                    )
+                ) {
                     for (int i = offset; i < leafReader.maxDoc(); i++) {
                         assertThat(docValues.advanceExact(i), equalTo(true));
                         int ord = docValues.ordValue();

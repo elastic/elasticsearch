@@ -423,7 +423,7 @@ public interface BlockLoader {
          */
         SingletonOrdinalsBuilder singletonOrdinalsBuilder(SortedDocValues ordinals, int count);
 
-        TSIDOrdinalsBuilder tsidOrdinalsBuilder(SortedDocValues ordinals, int count);
+        TSSingletonOrdinalsBuilder tsSingletonOrdinalsBuilder(boolean isPrimaryIndexSortField, SortedDocValues ordinals, int count);
 
         /**
          * Build a reader for reading {@link SortedSetDocValues}
@@ -523,11 +523,11 @@ public interface BlockLoader {
         SingletonOrdinalsBuilder appendOrd(int value);
     }
 
-    interface TSIDOrdinalsBuilder extends Builder {
+    interface TSSingletonOrdinalsBuilder extends Builder {
 
-        TSIDOrdinalsBuilder appendOrd(long value);
+        TSSingletonOrdinalsBuilder appendOrd(long value);
 
-        TSIDOrdinalsBuilder appendOrds(long[] values, int from, int length);
+        TSSingletonOrdinalsBuilder appendOrds(long[] values, int from, int length);
 
     }
 

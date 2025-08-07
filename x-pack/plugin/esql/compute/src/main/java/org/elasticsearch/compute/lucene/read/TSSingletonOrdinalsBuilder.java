@@ -8,6 +8,8 @@
 package org.elasticsearch.compute.lucene.read;
 
 import org.apache.lucene.index.SortedDocValues;
+import org.apache.lucene.index.TermsEnum;
+import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
@@ -23,20 +25,27 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 
 /**
- * Fork of {@link SingletonOrdinalsBuilder} but specialized for _tsid field.
+ * Fork of {@link SingletonOrdinalsBuilder} but specialized for mainly _tsid field, but also time series dimension fields.
  * The _tsid field is dense and used as primary sort field, and therefore we optimize a little more.
  * Additionally, this implementation can collect complete value blocks.
  */
-public class TSIDOrdinalsBuilder implements BlockLoader.TSIDOrdinalsBuilder, Releasable, Block.Builder {
+public final class TSSingletonOrdinalsBuilder implements BlockLoader.TSSingletonOrdinalsBuilder, Releasable, Block.Builder {
 
     private static final int TSID_SIZE_GUESS = 2 + 16 + 16 + 4 * 8;
 
+    private final boolean isPrimaryIndexSortField;
     private final BlockFactory blockFactory;
     private final SortedDocValues docValues;
     private final long[] ords;
     private int count;
 
-    public TSIDOrdinalsBuilder(BlockFactory blockFactory, SortedDocValues docValues, int initialSize) {
+    public TSSingletonOrdinalsBuilder(
+        boolean isPrimaryIndexSortField,
+        BlockFactory blockFactory,
+        SortedDocValues docValues,
+        int initialSize
+    ) {
+        this.isPrimaryIndexSortField = isPrimaryIndexSortField;
         this.blockFactory = blockFactory;
         this.docValues = docValues;
         blockFactory.adjustBreaker(nativeOrdsSize(initialSize));
@@ -45,13 +54,13 @@ public class TSIDOrdinalsBuilder implements BlockLoader.TSIDOrdinalsBuilder, Rel
     }
 
     @Override
-    public TSIDOrdinalsBuilder appendOrd(long ord) {
+    public TSSingletonOrdinalsBuilder appendOrd(long ord) {
         ords[count++] = ord;
         return this;
     }
 
     @Override
-    public BlockLoader.TSIDOrdinalsBuilder appendOrds(long[] values, int from, int length) {
+    public BlockLoader.TSSingletonOrdinalsBuilder appendOrds(long[] values, int from, int length) {
         System.arraycopy(values, from, ords, count, length);
         count += length;
         return this;
@@ -71,8 +80,28 @@ public class TSIDOrdinalsBuilder implements BlockLoader.TSIDOrdinalsBuilder, Rel
     BytesRefBlock buildOrdinal() {
         assert ords.length == count;
 
-        int minOrd = Math.toIntExact(ords[0]);
-        int maxOrd = Math.toIntExact(ords[count - 1]);
+        int minOrd;
+        int maxOrd;
+        boolean isDense = true;
+        if (isPrimaryIndexSortField) {
+            minOrd = Math.toIntExact(ords[0]);
+            maxOrd = Math.toIntExact(ords[count - 1]);
+            // I think we're always ordinals dense in this case?
+        } else {
+            long tmpMinOrd = Long.MAX_VALUE;
+            long tmpMaxOrd = Long.MIN_VALUE;
+            long prevOrd = ords[0] - 1;
+            for (int i = 0; i < count; i++) {
+                long ord = ords[i];
+                tmpMinOrd = Math.min(tmpMinOrd, ord);
+                tmpMaxOrd = Math.max(tmpMaxOrd, ord);
+                if (ord - prevOrd != 1) {
+                    isDense = false;
+                }
+            }
+            minOrd = Math.toIntExact(tmpMinOrd);
+            maxOrd = Math.toIntExact(tmpMaxOrd);
+        }
         int valueCount = maxOrd - minOrd + 1;
 
         long breakerSize = ordsSize(count);
@@ -87,8 +116,16 @@ public class TSIDOrdinalsBuilder implements BlockLoader.TSIDOrdinalsBuilder, Rel
                 newOrds[i] = Math.toIntExact(ords[i]) - minOrd;
             }
             try (BytesRefVector.Builder bytesBuilder = blockFactory.newBytesRefVectorBuilder(valueCount * TSID_SIZE_GUESS)) {
-                for (int ord = minOrd; ord <= maxOrd; ord++) {
-                    bytesBuilder.appendBytesRef(docValues.lookupOrd(ord));
+                if (isDense) {
+                    TermsEnum tenum = docValues.termsEnum();
+                    tenum.seekExact(minOrd);
+                    for (BytesRef term = tenum.term(); term != null && tenum.ord() <= maxOrd; term = tenum.next()) {
+                        bytesBuilder.appendBytesRef(term);
+                    }
+                } else {
+                    for (int ord = minOrd; ord <= maxOrd; ord++) {
+                        bytesBuilder.appendBytesRef(docValues.lookupOrd(ord));
+                    }
                 }
                 bytesVector = bytesBuilder.build();
             } catch (IOException e) {
@@ -112,17 +149,17 @@ public class TSIDOrdinalsBuilder implements BlockLoader.TSIDOrdinalsBuilder, Rel
     }
 
     @Override
-    public TSIDOrdinalsBuilder appendNull() {
+    public TSSingletonOrdinalsBuilder appendNull() {
         throw new UnsupportedOperationException();
     }
 
     @Override
-    public TSIDOrdinalsBuilder beginPositionEntry() {
+    public TSSingletonOrdinalsBuilder beginPositionEntry() {
         throw new UnsupportedOperationException("should only have one value per doc");
     }
 
     @Override
-    public TSIDOrdinalsBuilder endPositionEntry() {
+    public TSSingletonOrdinalsBuilder endPositionEntry() {
         throw new UnsupportedOperationException("should only have one value per doc");
     }
 

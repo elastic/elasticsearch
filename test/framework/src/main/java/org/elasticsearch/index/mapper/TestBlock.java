@@ -272,20 +272,24 @@ public class TestBlock implements BlockLoader.Block {
             }
 
             @Override
-            public BlockLoader.TSIDOrdinalsBuilder tsidOrdinalsBuilder(SortedDocValues ordinals, int expectedCount) {
+            public BlockLoader.TSSingletonOrdinalsBuilder tsSingletonOrdinalsBuilder(
+                boolean isPrimaryIndexSortField,
+                SortedDocValues ordinals,
+                int expectedCount
+            ) {
                 final long[] ords = new long[expectedCount];
-                return new BlockLoader.TSIDOrdinalsBuilder() {
+                return new BlockLoader.TSSingletonOrdinalsBuilder() {
 
                     int count;
 
                     @Override
-                    public BlockLoader.TSIDOrdinalsBuilder appendOrd(long value) {
+                    public BlockLoader.TSSingletonOrdinalsBuilder appendOrd(long value) {
                         ords[count++] = value;
                         return this;
                     }
 
                     @Override
-                    public BlockLoader.TSIDOrdinalsBuilder appendOrds(long[] values, int from, int length) {
+                    public BlockLoader.TSSingletonOrdinalsBuilder appendOrds(long[] values, int from, int length) {
                         try {
                             System.arraycopy(values, from, ords, count, length);
                         } catch (ArrayIndexOutOfBoundsException e) {

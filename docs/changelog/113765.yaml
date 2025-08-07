@@ -1,0 +1,6 @@
+pr: 113765
+summary: Fix URI path and query parsing in `uri_parts` processor
+area: Ingest Node
+type: bug
+issues:
+ - 112904

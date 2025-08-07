@@ -125,11 +125,29 @@ public class LinearRetrieverBuilderParsingTests extends AbstractXContentTestCase
     public void testTopLevelNormalizer() throws IOException {
         String json = """
             {
-              "retrievers": [
-                { "test_retriever": {} },
-                { "test_retriever": {} }
-              ],
-              "normalizer": "min_max"
+              "linear": {
+                "retrievers": [
+                  {
+                    "retriever": {
+                      "test": {
+                        "value": "test1"
+                      }
+                    },
+                    "weight": 1.0,
+                    "normalizer": "none"
+                  },
+                  {
+                    "retriever": {
+                      "test": {
+                        "value": "test2"
+                      }
+                    },
+                    "weight": 1.0,
+                    "normalizer": "none"
+                  }
+                ],
+                "normalizer": "minmax"
+              }
             }""";
 
         try (XContentParser parser = createParser(XContentType.JSON.xContent(), json)) {

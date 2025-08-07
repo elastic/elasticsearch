@@ -414,15 +414,10 @@ public final class LinearRetrieverBuilder extends CompoundRetrieverBuilder<Linea
                 builder.field(LinearRetrieverComponent.RETRIEVER_FIELD.getPreferredName(), entry.retriever());
                 builder.field(LinearRetrieverComponent.WEIGHT_FIELD.getPreferredName(), weights[index]);
 
-                // Only serialize normalizer if it's different from what would be the default
-                // If there's a top-level normalizer and this is identity, don't serialize
-                // (it was likely defaulted and will be replaced by top-level on parse)
-                // If there's no top-level normalizer and this is identity, don't serialize
-                // (it's the default)
-                ScoreNormalizer expectedDefault = normalizer != null ? normalizer : DEFAULT_NORMALIZER;
-                if (!normalizers[index].equals(expectedDefault)) {
-                    builder.field(LinearRetrieverComponent.NORMALIZER_FIELD.getPreferredName(), normalizers[index].getName());
-                }
+                // Always serialize the normalizer name - this ensures consistent behavior during parsing
+                // The parser will handle applying the top-level normalizer if needed
+                builder.field(LinearRetrieverComponent.NORMALIZER_FIELD.getPreferredName(), normalizers[index].getName());
+
                 builder.endObject();
                 index++;
             }
@@ -439,7 +434,7 @@ public final class LinearRetrieverBuilder extends CompoundRetrieverBuilder<Linea
         if (query != null) {
             builder.field(QUERY_FIELD.getPreferredName(), query);
         }
-        if (normalizer != null && normalizer.equals(DEFAULT_NORMALIZER) == false) {
+        if (normalizer != null) {
             builder.field(NORMALIZER_FIELD.getPreferredName(), normalizer.getName());
         }
 
@@ -448,9 +443,12 @@ public final class LinearRetrieverBuilder extends CompoundRetrieverBuilder<Linea
 
     @Override
     public boolean doEquals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        if (super.doEquals(o) == false) return false;
+
         LinearRetrieverBuilder that = (LinearRetrieverBuilder) o;
-        return super.doEquals(o)
-            && Arrays.equals(weights, that.weights)
+        return Arrays.equals(weights, that.weights)
             && Arrays.equals(normalizers, that.normalizers)
             && Objects.equals(fields, that.fields)
             && Objects.equals(query, that.query)

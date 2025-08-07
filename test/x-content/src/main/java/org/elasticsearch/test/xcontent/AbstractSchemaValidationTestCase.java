@@ -31,7 +31,7 @@ import org.elasticsearch.xcontent.XContentType;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.Collection;
+import java.util.List;
 import java.util.Map.Entry;
 import java.util.Set;
 
@@ -55,9 +55,12 @@ public abstract class AbstractSchemaValidationTestCase<T extends ToXContent> ext
         JsonSchema jsonSchema = factory.getSchema(mapper.readTree(Files.newInputStream(p)), config);
 
         // ensure the schema meets certain criteria like not empty, strictness
-        assertTrue("found empty schema", jsonSchema.getValidators().size() > 0);
-        assertTrue("schema lacks at least 1 required field", jsonSchema.hasRequiredValidator());
-        assertSchemaStrictness(jsonSchema.getValidators().values(), jsonSchema.getSchemaPath());
+        assertFalse("found empty schema", jsonSchema.getValidators().isEmpty());
+        assertTrue(
+            "schema lacks at least 1 required field",
+            jsonSchema.getValidators().stream().anyMatch(v -> v.getKeyword().equals("required"))
+        );
+        assertSchemaStrictness(jsonSchema.getValidators(), jsonSchema.getSchemaLocation().toString());
 
         for (int runs = 0; runs < NUMBER_OF_TEST_RUNS; runs++) {
             BytesReference xContent = XContentHelper.toXContent(createTestInstance(), XContentType.JSON, getToXContentParams(), false);
@@ -107,14 +110,7 @@ public abstract class AbstractSchemaValidationTestCase<T extends ToXContent> ext
      * Uses the ootb factory but replaces the loader for sub schema's stored on the file system.
      */
     private JsonSchemaFactory initializeSchemaFactory() {
-        JsonSchemaFactory factory = JsonSchemaFactory.builder(JsonSchemaFactory.getInstance(getSchemaVersion())).uriFetcher(uri -> {
-            String fileName = uri.toString().substring(uri.getScheme().length() + 1);
-            Path path = getDataPath(getSchemaLocation() + fileName);
-            logger.debug("loading sub-schema [{}] from: [{}]", uri, path);
-            return Files.newInputStream(path);
-        }, "file").build();
-
-        return factory;
+        return JsonSchemaFactory.builder(JsonSchemaFactory.getInstance(getSchemaVersion())).build();
     }
 
     /**
@@ -130,7 +126,7 @@ public abstract class AbstractSchemaValidationTestCase<T extends ToXContent> ext
      * Note: we might not catch all places, but at least it works for nested objects and
      * array items.
      */
-    private static void assertSchemaStrictness(Collection<JsonValidator> validatorSet, String path) {
+    private static void assertSchemaStrictness(List<JsonValidator> validatorSet, String path) {
         boolean additionalPropertiesValidatorFound = false;
         boolean subSchemaFound = false;
 
@@ -138,15 +134,15 @@ public abstract class AbstractSchemaValidationTestCase<T extends ToXContent> ext
             if (validator instanceof PropertiesValidator propertiesValidator) {
                 subSchemaFound = true;
                 for (Entry<String, JsonSchema> subSchema : propertiesValidator.getSchemas().entrySet()) {
-                    assertSchemaStrictness(subSchema.getValue().getValidators().values(), propertiesValidator.getSchemaPath());
+                    assertSchemaStrictness(subSchema.getValue().getValidators(), propertiesValidator.getSchemaLocation().toString());
                 }
             } else if (validator instanceof ItemsValidator itemValidator) {
                 if (itemValidator.getSchema() != null) {
-                    assertSchemaStrictness(itemValidator.getSchema().getValidators().values(), itemValidator.getSchemaPath());
+                    assertSchemaStrictness(itemValidator.getSchema().getValidators(), itemValidator.getSchemaLocation().toString());
                 }
                 if (itemValidator.getTupleSchema() != null) {
                     for (JsonSchema subSchema : itemValidator.getTupleSchema()) {
-                        assertSchemaStrictness(subSchema.getValidators().values(), itemValidator.getSchemaPath());
+                        assertSchemaStrictness(subSchema.getValidators(), itemValidator.getSchemaLocation().toString());
                     }
                 }
             } else if (validator instanceof AdditionalPropertiesValidator) {

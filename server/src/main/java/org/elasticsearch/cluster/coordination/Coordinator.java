@@ -555,10 +555,9 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
 
     private void startElection() {
         synchronized (mutex) {
+            logger.info("starting election");
             // The preVoteCollector is only active while we are candidate, but it does not call this method with synchronisation, so we have
             // to check our mode again here.
-            ClusterState s = clusterService.state();
-            DiscoveryNode currentNode = getLocalNode();
             if (mode == Mode.CANDIDATE) {
                 final var nodeEligibility = localNodeMayWinElection(getLastAcceptedState(), electionStrategy);
                 if (nodeEligibility.mayWin() == false) {
@@ -677,7 +676,6 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
                         .runBefore(
                             joinListener,
                             () -> Releasables.close(response)
-                            // TODO - Uncomment this out
 //                            () -> {
 //                                /*
 //                                    This prevents a corner case, explained in #ES-11449, occurring as follows:
@@ -698,9 +696,11 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
 //                                        3.1 (T+1, V+2) is accepted -> By waiting, we did not close the connection to N unnecessarily
 //                                        3.2 (T+1, V+2) is rejected -> A new cluster state is published without N in it. Closing is correct here.
 //                                 */
+//                                logger.info("inside callback, node is is {}", clusterService.state().nodes().getLocalNode().getName());
 //                                ClusterStateListener listener = new ClusterStateListener() {
 //                                    @Override
 //                                    public void clusterChanged(ClusterChangedEvent event) {
+//                                        logger.info("inside cluster change event, added nodes are {}", event.nodesDelta().addedNodes());
 //                                        // Now it's safe to close the connection
 //                                        Releasables.close(response);
 //                                        // Remove this listener to avoid memory leaks

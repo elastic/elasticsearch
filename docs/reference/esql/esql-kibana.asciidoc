@@ -57,8 +57,7 @@ in-product reference documentation for all commands and functions or to get
 recommended queries that will help you get started.
 
 // tag::autocomplete[]
-To make it easier to write queries, auto-complete offers suggestions with
-possible commands and functions:
+Discover suggests possible commands and functions to autocomplete your query:
 
 image::images/esql/esql-kibana-auto-complete.png[align="center"]
 // end::autocomplete[]

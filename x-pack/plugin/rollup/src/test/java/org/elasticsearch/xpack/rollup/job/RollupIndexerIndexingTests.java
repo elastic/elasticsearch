@@ -722,7 +722,8 @@ public class RollupIndexerIndexingTests extends AggregatorTestCase {
                     IndexVersion.current(),
                     null,
                     null,
-                        indexDisabledByDefault).build(MapperBuilderContext.root(false, false)).fieldType();
+                    indexDisabledByDefault
+                ).build(MapperBuilderContext.root(false, false)).fieldType();
                 fieldTypes.put(ft.name(), ft);
             }
         }
@@ -747,7 +748,8 @@ public class RollupIndexerIndexingTests extends AggregatorTestCase {
                     IndexVersion.current(),
                     null,
                     null,
-                        indexDisabledByDefault).build(MapperBuilderContext.root(false, false)).fieldType();
+                    indexDisabledByDefault
+                ).build(MapperBuilderContext.root(false, false)).fieldType();
                 fieldTypes.put(ft.name(), ft);
             }
         }

@@ -10,7 +10,7 @@ Known issues are significant defects or limitations that may impact your impleme
 
 ## 9.1.0 [elasticsearch-9.1.0-known-issues]
 
-* If the `-Dvector.rescoring.directio` JVM option is set to `true` – as recommended [in this guide](https://www.elastic.co/docs/deploy-manage/production-guidance/optimize-performance/approximate-knn-search#use-direct-io-when-the-vector-data-does-not-fit-in-ram) – and used with `bbq_hnsw` type vector indices, it may cause significant search performance degradation in 9.1.0. In some cases, kNN search latency can increase by as much as 10x. To mitigate this, set the JVM option `-Dvector.rescoring.directio=false` on all search nodes and restart them. This option can be removed in 9.1.1.
+* The `-Dvector.rescoring.directio` JVM option is enabled (set to `true`) by default. When used with `bbq_hnsw` type vector indices, this can cause significant search performance degradation; particularly when enough memory is available to hold all vector data. In some cases, kNN search latency can increase by as much as 10x. To mitigate this, set the JVM option `-Dvector.rescoring.directio=false` on all search nodes and restart them. This option can be removed in 9.1.1.
 
 **How do I know if my index vector type is `bbq_hnsw`?**
 

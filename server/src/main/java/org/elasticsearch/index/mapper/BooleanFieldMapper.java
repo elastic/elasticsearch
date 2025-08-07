@@ -78,7 +78,7 @@ public class BooleanFieldMapper extends FieldMapper {
     public static final class Builder extends FieldMapper.DimensionBuilder {
 
         private final Parameter<Boolean> docValues = Parameter.docValuesParam(m -> toType(m).hasDocValues, true);
-        private final Parameter<Boolean> indexed = Parameter.indexParam(m -> toType(m).indexed, true);
+        private final Parameter<Boolean> indexed;
         private final Parameter<Boolean> stored = Parameter.storeParam(m -> toType(m).stored, false);
         private final Parameter<Explicit<Boolean>> ignoreMalformed;
         private final Parameter<Boolean> nullValue = new Parameter<>(
@@ -106,15 +106,18 @@ public class BooleanFieldMapper extends FieldMapper {
         private final SourceKeepMode indexSourceKeepMode;
 
         private final Parameter<Boolean> dimension;
+        private final boolean indexDisabledByDefault;
 
         public Builder(
             String name,
             ScriptCompiler scriptCompiler,
             boolean ignoreMalformedByDefault,
             IndexVersion indexCreatedVersion,
-            SourceKeepMode indexSourceKeepMode
+            SourceKeepMode indexSourceKeepMode,
+            boolean indexDisabledByDefault
         ) {
             super(name);
+            indexed = Parameter.indexParam(m -> toType(m).indexed, indexDisabledByDefault == false);
             this.scriptCompiler = Objects.requireNonNull(scriptCompiler);
             this.indexCreatedVersion = Objects.requireNonNull(indexCreatedVersion);
             this.ignoreMalformed = Parameter.explicitBoolParam(
@@ -140,6 +143,7 @@ public class BooleanFieldMapper extends FieldMapper {
             });
 
             this.indexSourceKeepMode = indexSourceKeepMode;
+            this.indexDisabledByDefault = indexDisabledByDefault;
         }
 
         public Builder dimension(boolean dimension) {
@@ -217,7 +221,8 @@ public class BooleanFieldMapper extends FieldMapper {
             c.scriptCompiler(),
             IGNORE_MALFORMED_SETTING.get(c.getSettings()),
             c.indexVersionCreated(),
-            c.getIndexSettings().sourceKeepMode()
+            c.getIndexSettings().sourceKeepMode(),
+            c.getIndexSettings().isIndexDisabledByDefault()
         )
     );
 
@@ -523,6 +528,7 @@ public class BooleanFieldMapper extends FieldMapper {
 
     private final String offsetsFieldName;
     private final SourceKeepMode indexSourceKeepMode;
+    private final boolean indexDisabledByDefault;
 
     protected BooleanFieldMapper(
         String simpleName,
@@ -546,6 +552,7 @@ public class BooleanFieldMapper extends FieldMapper {
         this.storeMalformedFields = storeMalformedFields;
         this.offsetsFieldName = offsetsFieldName;
         this.indexSourceKeepMode = builder.indexSourceKeepMode;
+        this.indexDisabledByDefault = builder.indexDisabledByDefault;
     }
 
     @Override
@@ -634,9 +641,14 @@ public class BooleanFieldMapper extends FieldMapper {
 
     @Override
     public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(leafName(), scriptCompiler, ignoreMalformedByDefault, indexCreatedVersion, indexSourceKeepMode).dimension(
-            fieldType().isDimension()
-        ).init(this);
+        return new Builder(
+            leafName(),
+            scriptCompiler,
+            ignoreMalformedByDefault,
+            indexCreatedVersion,
+            indexSourceKeepMode,
+            indexDisabledByDefault
+        ).dimension(fieldType().isDimension()).init(this);
     }
 
     @Override

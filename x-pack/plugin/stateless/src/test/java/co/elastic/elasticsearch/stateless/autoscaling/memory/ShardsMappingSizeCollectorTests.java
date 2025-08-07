@@ -149,7 +149,7 @@ public class ShardsMappingSizeCollectorTests extends ESTestCase {
             .put(RETRY_INITIAL_DELAY_SETTING.getKey(), TimeValue.timeValueMillis(50))
             .build();
         var collector = new ShardsMappingSizeCollector(IS_INDEX_NODE, indicesService, publisher, testThreadPool, setting, clusterService);
-        var shards = Map.of(new ShardId(TEST_INDEX, 0), new ShardMappingSize(randomNonNegativeInt(), 0, 0, 0L, "newTestShardNodeId"));
+        var shards = Map.of(new ShardId(TEST_INDEX, 0), new ShardMappingSize(randomNonNegativeInt(), 0, 0, 0L, 0, "newTestShardNodeId"));
         var heapUsage = new HeapMemoryUsage(randomNonNegativeLong(), shards);
         collector.publishHeapUsage(heapUsage);
         safeAwait(published);
@@ -177,7 +177,7 @@ public class ShardsMappingSizeCollectorTests extends ESTestCase {
             TEST_SETTINGS,
             clusterService
         );
-        var shards = Map.of(new ShardId(TEST_INDEX, 0), new ShardMappingSize(randomNonNegativeInt(), 0, 0, 0L, "newTestShardNodeId"));
+        var shards = Map.of(new ShardId(TEST_INDEX, 0), new ShardMappingSize(randomNonNegativeInt(), 0, 0, 0L, 0L, "newTestShardNodeId"));
         var heapUsage = new HeapMemoryUsage(randomNonNegativeLong(), shards);
         collector.publishHeapUsage(heapUsage, TimeValue.timeValueMillis(500), new ActionListener<ActionResponse.Empty>() {
             @Override

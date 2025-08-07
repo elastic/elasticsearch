@@ -25,15 +25,20 @@ import org.elasticsearch.common.io.stream.Writeable;
 
 import java.io.IOException;
 
-public record ShardMappingSize(long mappingSizeInBytes, int numSegments, int totalFields, long postingsInMemoryBytes, String nodeId)
-    implements
-        Writeable {
+public record ShardMappingSize(
+    long mappingSizeInBytes,
+    int numSegments,
+    int totalFields,
+    long postingsInMemoryBytes,
+    long liveDocsBytes,
+    String nodeId
+) implements Writeable {
 
     public static ShardMappingSize from(StreamInput in) throws IOException {
-        if (in.getTransportVersion().onOrAfter(ServerlessTransportVersions.TRACK_POSTINGS_IN_MEMORY_BYTES)) {
-            return new ShardMappingSize(in.readVLong(), in.readVInt(), in.readVInt(), in.readVLong(), in.readString());
+        if (in.getTransportVersion().onOrAfter(ServerlessTransportVersions.TRACK_LIVE_DOCS_IN_MEMORY_BYTES)) {
+            return new ShardMappingSize(in.readVLong(), in.readVInt(), in.readVInt(), in.readVLong(), in.readVLong(), in.readString());
         } else {
-            return new ShardMappingSize(in.readVLong(), in.readVInt(), in.readVInt(), 0, in.readString());
+            return new ShardMappingSize(in.readVLong(), in.readVInt(), in.readVInt(), in.readVLong(), 0L, in.readString());
         }
     }
 
@@ -42,8 +47,9 @@ public record ShardMappingSize(long mappingSizeInBytes, int numSegments, int tot
         out.writeVLong(mappingSizeInBytes);
         out.writeVInt(numSegments);
         out.writeVInt(totalFields);
-        if (out.getTransportVersion().onOrAfter(ServerlessTransportVersions.TRACK_POSTINGS_IN_MEMORY_BYTES)) {
-            out.writeVLong(postingsInMemoryBytes);
+        out.writeVLong(postingsInMemoryBytes);
+        if (out.getTransportVersion().onOrAfter(ServerlessTransportVersions.TRACK_LIVE_DOCS_IN_MEMORY_BYTES)) {
+            out.writeVLong(liveDocsBytes);
         }
         out.writeString(nodeId);
     }

@@ -49,6 +49,10 @@ import static org.elasticsearch.blobcache.shared.SharedBlobCacheService.SHARED_C
 import static org.elasticsearch.blobcache.shared.SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.lessThan;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public class BlobCacheMetricsIT extends AbstractStatelessIntegTestCase {
 
@@ -120,6 +124,9 @@ public class BlobCacheMetricsIT extends AbstractStatelessIntegTestCase {
         // assert appropriate cache-miss metrics are published when searching
         executeSearchAndAssertCacheMissMetrics(searchNode, notFlushedIndex, CachePopulationSource.Peer);
         executeSearchAndAssertCacheMissMetrics(searchNode, flushedIndex, CachePopulationSource.BlobStore);
+
+        executeNoMissSearch(searchNode, notFlushedIndex);
+        executeNoMissSearch(searchNode, flushedIndex);
     }
 
     private void clearShardCache(IndexShard indexShard) {
@@ -132,11 +139,52 @@ public class BlobCacheMetricsIT extends AbstractStatelessIntegTestCase {
         String indexName,
         CachePopulationSource expectedPopulationSource
     ) {
-        // Execute a match-all query against the index (should trigger cache-misses)
-        safeGet(prepareSearch(indexName).setQuery(matchAllQuery()).setSize(10_000).execute()).decRef();
+        TestTelemetryPlugin testTelemetryPlugin = getTestTelemetryPlugin(searchNode);
+        testTelemetryPlugin.collect();
+        long reads = testTelemetryPlugin.getLongGaugeMeasurement("es.blob_cache.read.total").getLast().getLong();
+        long misses = testTelemetryPlugin.getLongGaugeMeasurement("es.blob_cache.miss.total").getLast().getLong();
+        assertThat(misses, lessThanOrEqualTo(reads));
+
+        executeSearch(indexName);
 
         // Confirm we see cache-miss metrics on the search node
         assertMetricsArePresent(searchNode, BlobCacheMetrics.CachePopulationReason.CacheMiss, expectedPopulationSource);
+
+        testTelemetryPlugin.collect();
+
+        long newReads = testTelemetryPlugin.getLongGaugeMeasurement("es.blob_cache.read.total").getLast().getLong();
+        long newMisses = testTelemetryPlugin.getLongGaugeMeasurement("es.blob_cache.miss.total").getLast().getLong();
+        double newRatio = testTelemetryPlugin.getDoubleGaugeMeasurement("es.blob_cache.miss.ratio").getLast().getDouble();
+
+        assertThat(newReads, greaterThan(reads));
+        assertThat(newMisses, greaterThan(misses));
+        assertThat(newMisses, lessThanOrEqualTo(reads));
+        assertThat(newRatio, greaterThan(0d));
+    }
+
+    private static void executeNoMissSearch(String searchNode, String indexName) {
+        TestTelemetryPlugin testTelemetryPlugin = getTestTelemetryPlugin(searchNode);
+        testTelemetryPlugin.collect();
+        long reads = testTelemetryPlugin.getLongGaugeMeasurement("es.blob_cache.read.total").getLast().getLong();
+        long misses = testTelemetryPlugin.getLongGaugeMeasurement("es.blob_cache.miss.total").getLast().getLong();
+        double ratio = testTelemetryPlugin.getDoubleGaugeMeasurement("es.blob_cache.miss.ratio").getLast().getDouble();
+        assertThat(misses, lessThanOrEqualTo(reads));
+
+        executeSearch(indexName);
+
+        testTelemetryPlugin.collect();
+        long newReads = testTelemetryPlugin.getLongGaugeMeasurement("es.blob_cache.read.total").getLast().getLong();
+        long newMisses = testTelemetryPlugin.getLongGaugeMeasurement("es.blob_cache.miss.total").getLast().getLong();
+        double newRatio = testTelemetryPlugin.getDoubleGaugeMeasurement("es.blob_cache.miss.ratio").getLast().getDouble();
+
+        assertThat(newReads, greaterThan(reads));
+        assertThat(newMisses, equalTo(misses));
+        assertThat(newRatio, lessThan(ratio));
+    }
+
+    private static void executeSearch(String indexName) {
+        // Execute a match-all query against the index (should trigger cache-misses)
+        safeGet(prepareSearch(indexName).setQuery(matchAllQuery()).setSize(10_000).execute()).decRef();
     }
 
     public void testWarmingMetricsArePublishedOnIndexNode() {

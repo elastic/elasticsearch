@@ -423,7 +423,9 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
             );
             safeGet(future);
 
-            assertThat(node.sharedCacheService.getStats().writeCount(), equalTo(0L));
+            SharedBlobCacheService.Stats stats = node.sharedCacheService.getStats();
+            assertThat(stats.writeCount(), equalTo(0L));
+            assertThat(stats.missCount(), equalTo(0L));
         }
     }
 

@@ -523,6 +523,7 @@ public class ObjectStoreServiceTests extends ESTestCase {
             var cacheStats = testHarness.sharedCacheService.getStats();
             assertThat(cacheStats.writeBytes(), equalTo(writeCount * regionSize.getBytes()));
             assertThat(cacheStats.writeCount(), equalTo(writeCount));
+            assertThat(cacheStats.missCount(), equalTo(writeCount));
             assertThat(cacheStats.evictCount(), equalTo(0L));
 
             if (0L < latestBccLength) {

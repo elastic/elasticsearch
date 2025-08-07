@@ -12,8 +12,11 @@ package org.elasticsearch.datageneration.datasource;
 import org.elasticsearch.datageneration.FieldType;
 import org.elasticsearch.test.ESTestCase;
 
+import java.util.Arrays;
+import java.util.List;
 import java.util.Optional;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.test.ESTestCase.randomAlphaOfLengthBetween;
 import static org.elasticsearch.test.ESTestCase.randomDouble;
@@ -56,12 +59,19 @@ public class DefaultObjectGenerationHandler implements DataSourceHandler {
 
     // UNSIGNED_LONG is excluded because it is mapped as long
     // and values larger than long fail to parse.
-    private static final Set<FieldType> EXCLUDED_FROM_DYNAMIC_MAPPING = Set.of(FieldType.UNSIGNED_LONG);
+    private static final Set<FieldType> EXCLUDED_FROM_DYNAMIC_MAPPING = Set.of(FieldType.UNSIGNED_LONG, FieldType.PASSTHROUGH);
 
     @Override
     public DataSourceResponse.FieldTypeGenerator handle(DataSourceRequest.FieldTypeGenerator request) {
         return new DataSourceResponse.FieldTypeGenerator(
-            () -> new DataSourceResponse.FieldTypeGenerator.FieldTypeInfo(ESTestCase.randomFrom(FieldType.values()).toString())
+            () -> {
+                // All field types minus the excluded ones.
+                var fieldTypes = Arrays.stream(FieldType.values())
+                        .filter(fieldType -> EXCLUDED_FROM_DYNAMIC_MAPPING.contains(fieldType) == false)
+                        .collect(Collectors.toSet());
+                var fieldType = ESTestCase.randomFrom(fieldTypes);
+                return new DataSourceResponse.FieldTypeGenerator.FieldTypeInfo(fieldType.toString());
+            }
         );
     }
 

@@ -50,6 +50,7 @@ public enum FieldType {
     TEXT("text"),
     IP("ip"),
     CONSTANT_KEYWORD("constant_keyword"),
+    PASSTHROUGH("passthrough"), // For now this field type does not have default generators.
     WILDCARD("wildcard");
 
     private final String name;
@@ -78,6 +79,7 @@ public enum FieldType {
             case IP -> new IpFieldDataGenerator(dataSource);
             case CONSTANT_KEYWORD -> new ConstantKeywordFieldDataGenerator();
             case WILDCARD -> new WildcardFieldDataGenerator(dataSource);
+            default -> null;
         };
     }
 

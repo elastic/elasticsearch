@@ -79,6 +79,9 @@ import static org.elasticsearch.snapshots.SnapshotsService.OLD_SNAPSHOT_FORMAT;
 import static org.elasticsearch.snapshots.SnapshotsService.SHARD_GEN_IN_REPO_DATA_VERSION;
 import static org.elasticsearch.snapshots.SnapshotsService.UUIDS_IN_REPO_DATA_VERSION;
 
+/**
+ * A utility class for static snapshotting methods.
+ */
 public class SnapshotsServiceUtils {
     private static final Logger logger = LogManager.getLogger(SnapshotsServiceUtils.class);
 

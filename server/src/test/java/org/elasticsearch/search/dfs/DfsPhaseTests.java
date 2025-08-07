@@ -147,25 +147,26 @@ public class DfsPhaseTests extends IndexShardTestCase {
             );
 
             Query query = new KnnFloatVectorQuery("float_vector", new float[] { 0, 0, 0 }, numDocs, null);
-            TestSearchContext context = new TestSearchContext(searchExecutionContext, indexShard, searcher) {
+            try (TestSearchContext context = new TestSearchContext(searchExecutionContext, indexShard, searcher) {
                 @Override
                 public DfsSearchResult dfsResult() {
                     return new DfsSearchResult(null, null, null);
                 }
-            };
-            context.request()
-                .source(
-                    new SearchSourceBuilder().knnSearch(
-                        List.of(new KnnSearchBuilder("float_vector", new float[] { 0, 0, 0 }, numDocs, numDocs, null, null))
-                    )
-                );
-            context.setTask(new SearchShardTask(123L, "", "", "", null, Collections.emptyMap()));
-            context.parsedQuery(new ParsedQuery(query));
-            executeKnnVectorQuery(context);
-            assertTrue(queryCount.get() > 0);
-            assertTrue(queryTime.get() > 0);
-            reader.close();
-            closeShards(indexShard);
+            }) {
+                context.request()
+                    .source(
+                        new SearchSourceBuilder().knnSearch(
+                            List.of(new KnnSearchBuilder("float_vector", new float[] { 0, 0, 0 }, numDocs, numDocs, null, null))
+                        )
+                    );
+                context.setTask(new SearchShardTask(123L, "", "", "", null, Collections.emptyMap()));
+                context.parsedQuery(new ParsedQuery(query));
+                executeKnnVectorQuery(context);
+                assertTrue(queryCount.get() > 0);
+                assertTrue(queryTime.get() > 0);
+                reader.close();
+                closeShards(indexShard);
+            }
         }
     }
 

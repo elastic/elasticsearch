@@ -3245,8 +3245,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
 
     @Override
     protected void doStart() {
-        // NOMERGE: remove this
-        assert transportService.getRequestHandler(TransportUpdateSnapshotStatusAction.NAME) != null;
+
     }
 
     @Override

@@ -213,6 +213,9 @@ public class BlobCacheMetrics {
         return readCount.sum();
     }
 
+    public long missCount() {
+        return missCount.sum();
+    }
     /**
      * Calculate throughput as MiB/second
      *

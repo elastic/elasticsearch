@@ -741,7 +741,8 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
             writeCount.sum(),
             writeBytes.sum(),
             blobCacheMetrics.readCount(),
-            readBytes.sum()
+            readBytes.sum(),
+            blobCacheMetrics.missCount()
         );
     }
 
@@ -1575,9 +1576,11 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
         long writeCount,
         long writeBytes,
         long readCount,
-        long readBytes
+        long readBytes,
+        // miss-count not exposed in REST API for now
+        long missCount
     ) {
-        public static final Stats EMPTY = new Stats(0, 0L, 0L, 0L, 0L, 0L, 0L, 0L);
+        public static final Stats EMPTY = new Stats(0, 0L, 0L, 0L, 0L, 0L, 0L, 0L, 0L);
     }
 
     private class LFUCache implements Cache<KeyType, CacheFileRegion<KeyType>> {

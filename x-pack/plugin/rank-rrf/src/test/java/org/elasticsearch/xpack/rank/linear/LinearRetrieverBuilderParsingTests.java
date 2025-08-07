@@ -151,11 +151,10 @@ public class LinearRetrieverBuilderParsingTests extends AbstractXContentTestCase
             }""";
 
         try (XContentParser parser = createParser(XContentType.JSON.xContent(), json)) {
-
             LinearRetrieverBuilder builder = doParseInstance(parser);
             assertThat(builder.getNormalizer(), instanceOf(MinMaxScoreNormalizer.class));
             for (ScoreNormalizer normalizer : builder.getNormalizers()) {
-                assertThat(normalizer, instanceOf(MinMaxScoreNormalizer.class));
+                assertThat(normalizer, instanceOf(IdentityScoreNormalizer.class));
             }
         }
     }

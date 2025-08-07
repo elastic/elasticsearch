@@ -75,6 +75,17 @@ public final class LinearRetrieverBuilder extends CompoundRetrieverBuilder<Linea
     private final String query;
     private final ScoreNormalizer normalizer;
 
+    private static ScoreNormalizer resolveNormalizer(ScoreNormalizer componentNormalizer, ScoreNormalizer topLevelNormalizer) {
+        // Priority: retriever-specific override (if specified) > top-level normalizer (if specified) > default (none)
+        if (componentNormalizer != null) {
+            return componentNormalizer;
+        }
+        if (topLevelNormalizer != null) {
+            return topLevelNormalizer;
+        }
+        return DEFAULT_NORMALIZER;
+    }
+
     @SuppressWarnings("unchecked")
     static final ConstructingObjectParser<LinearRetrieverBuilder, RetrieverParserContext> PARSER = new ConstructingObjectParser<>(
         NAME,
@@ -93,7 +104,7 @@ public final class LinearRetrieverBuilder extends CompoundRetrieverBuilder<Linea
             for (LinearRetrieverComponent component : retrieverComponents) {
                 innerRetrievers.add(RetrieverSource.from(component.retriever));
                 weights[index] = component.weight;
-                normalizers[index] = component.normalizer;
+                normalizers[index] = resolveNormalizer(component.normalizer, normalizer);
                 index++;
             }
             return new LinearRetrieverBuilder(innerRetrievers, fields, query, normalizer, rankWindowSize, weights, normalizers);
@@ -168,25 +179,11 @@ public final class LinearRetrieverBuilder extends CompoundRetrieverBuilder<Linea
         this.query = query;
         this.normalizer = normalizer;
         this.weights = weights;
-        // Apply normalizer precedence logic:
-        // 1. If per-retriever normalizer is explicitly set (not identity when top-level exists), use it
-        // 2. Otherwise, use top-level normalizer if available
-        // 3. Otherwise, use default (identity)
-        // Note: LinearRetrieverComponent defaults null to identity, so we treat identity
-        // as "not explicitly set" when there's a top-level normalizer
+
+        // Initialize normalizers array
         this.normalizers = new ScoreNormalizer[normalizers.length];
         for (int i = 0; i < normalizers.length; i++) {
-            if (normalizers[i] == null) {
-                // This shouldn't happen with current LinearRetrieverComponent, but handle it anyway
-                this.normalizers[i] = normalizer != null ? normalizer : DEFAULT_NORMALIZER;
-            } else if (normalizers[i].equals(DEFAULT_NORMALIZER) && normalizer != null) {
-                // Identity normalizer with top-level set - use top-level
-                // (identity was likely defaulted by LinearRetrieverComponent)
-                this.normalizers[i] = normalizer;
-            } else {
-                // Explicitly set normalizer - use as-is
-                this.normalizers[i] = normalizers[i];
-            }
+            this.normalizers[i] = resolveNormalizer(normalizers[i], normalizer);
         }
     }
 
@@ -347,7 +344,7 @@ public final class LinearRetrieverBuilder extends CompoundRetrieverBuilder<Linea
                     for (var weightedRetriever : r) {
                         retrievers.add(weightedRetriever.retrieverSource());
                         weights[index] = weightedRetriever.weight();
-                        normalizers[index] = normalizer;
+                        normalizers[index] = resolveNormalizer(null, normalizer);
                         index++;
                     }
 
@@ -365,7 +362,7 @@ public final class LinearRetrieverBuilder extends CompoundRetrieverBuilder<Linea
                 Arrays.fill(weights, DEFAULT_WEIGHT);
 
                 ScoreNormalizer[] normalizers = new ScoreNormalizer[fieldsInnerRetrievers.size()];
-                Arrays.fill(normalizers, normalizer);
+                Arrays.fill(normalizers, resolveNormalizer(null, normalizer));
 
                 // TODO: This is a incomplete solution as it does not address other incomplete copy issues
                 // (such as dropping the retriever name and min score)
@@ -414,9 +411,11 @@ public final class LinearRetrieverBuilder extends CompoundRetrieverBuilder<Linea
                 builder.field(LinearRetrieverComponent.RETRIEVER_FIELD.getPreferredName(), entry.retriever());
                 builder.field(LinearRetrieverComponent.WEIGHT_FIELD.getPreferredName(), weights[index]);
 
-                // Always serialize the normalizer name - this ensures consistent behavior during parsing
-                // The parser will handle applying the top-level normalizer if needed
-                builder.field(LinearRetrieverComponent.NORMALIZER_FIELD.getPreferredName(), normalizers[index].getName());
+                ScoreNormalizer normalizerToUse = normalizers[index];
+                if (normalizer != null && normalizerToUse.equals(IdentityScoreNormalizer.INSTANCE)) {
+                    normalizerToUse = normalizer;
+                }
+                builder.field(LinearRetrieverComponent.NORMALIZER_FIELD.getPreferredName(), normalizerToUse.getName());
 
                 builder.endObject();
                 index++;

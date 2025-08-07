@@ -275,6 +275,17 @@ public class KeywordFieldMapperTests extends MapperTestCase {
         assertEquals(DocValuesType.SORTED_SET, fields.get(0).fieldType().docValuesType());
     }
 
+    public void testDisableDefaultIndex() throws IOException {
+        var settings = Settings.builder().put(IndexSettings.INDEX_DISABLED_BY_DEFAULT.getKey(), true).build();
+        var mapperService = createMapperService(settings, fieldMapping(b -> b.field("type", "keyword")));
+        var documentMapper = mapperService.documentMapper();
+        ParsedDocument doc = documentMapper.parse(source(b -> b.field("field", "1234")));
+        List<IndexableField> fields = doc.rootDoc().getFields("field");
+        assertEquals(1, fields.size());
+        assertEquals(IndexOptions.NONE, fields.get(0).fieldType().indexOptions());
+        assertEquals(DocValuesType.SORTED_SET, fields.get(0).fieldType().docValuesType());
+    }
+
     public void testDisableDocValues() throws IOException {
         DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b.field("type", "keyword").field("doc_values", false)));
         ParsedDocument doc = mapper.parse(source(b -> b.field("field", "1234")));

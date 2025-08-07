@@ -15,6 +15,7 @@ import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
+import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -60,21 +61,20 @@ public class CopySign extends EsqlScalarFunction {
 
     private DataType dataType;
 
-    @FunctionInfo(
-        description = "Returns a value with the magnitude of the first argument and the sign of the second argument. "
-            + "This function is similar to Java's Math.copySign(double magnitude, double sign).",
-        returnType = { "double", "float" }
-    )
+    @FunctionInfo(description = """
+        Returns a value with the magnitude of the first argument and the sign of the second argument.
+        This function is similar to Java's Math.copySign(double magnitude, double sign) which is
+        similar to `copysign` from [IEEE 754](https://en.wikipedia.org/wiki/IEEE_754).""", returnType = { "double", "integer", "long" })
     public CopySign(
         Source source,
         @Param(
             name = "magnitude",
-            type = { "double", "float", "integer", "long" },
+            type = { "double", "integer", "long" },
             description = "The expression providing the magnitude of the result. Must be a numeric type."
         ) Expression magnitude,
         @Param(
             name = "sign",
-            type = { "double", "float", "integer", "long" },
+            type = { "double", "integer", "long" },
             description = "The expression providing the sign of the result. Must be a numeric type."
         ) Expression sign
     ) {
@@ -125,11 +125,25 @@ public class CopySign extends EsqlScalarFunction {
         }
         var magnitude = children().get(0);
         var sign = children().get(1);
-        if (magnitude.dataType().isNumeric() == false) {
-            return new TypeResolution("Magnitude must be a numeric type");
+        TypeResolution resolution = TypeResolutions.isType(
+            magnitude,
+            t -> t.isNumeric() && t != DataType.UNSIGNED_LONG,
+            sourceText(),
+            TypeResolutions.ParamOrdinal.FIRST,
+            "numeric"
+        );
+        if (resolution.unresolved()) {
+            return resolution;
         }
-        if (sign.dataType().isNumeric() == false) {
-            return new TypeResolution("Sign must be a numeric type");
+        resolution = TypeResolutions.isType(
+            sign,
+            t -> t.isNumeric() && t != DataType.UNSIGNED_LONG,
+            sourceText(),
+            TypeResolutions.ParamOrdinal.SECOND,
+            "numeric"
+        );
+        if (resolution.unresolved()) {
+            return resolution;
         }
         // The return type is the same as the magnitude type, so we can use it directly.
         dataType = magnitude.dataType();

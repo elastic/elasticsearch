@@ -7,12 +7,12 @@
 
 package org.elasticsearch.compute.aggregation;
 
+import org.elasticsearch.compute.aggregation.FirstLongByTimestampGroupingAggregatorFunctionTests.ExpectedWork;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockUtils;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.compute.aggregation.FirstLongByTimestampGroupingAggregatorFunctionTests.ExpectedWork;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.compute.operator.TupleLongLongBlockSourceOperator;
 import org.elasticsearch.core.Tuple;
@@ -46,8 +46,7 @@ public class FirstLongByTimestampAggregatorFunctionTests extends AggregatorFunct
 
     @Override
     public void assertSimpleOutput(List<Page> input, Block result) {
-        ExpectedWork work =
-            new ExpectedWork(true);
+        ExpectedWork work = new ExpectedWork(true);
         for (Page page : input) {
             LongBlock values = page.getBlock(0);
             LongBlock timestamps = page.getBlock(1);

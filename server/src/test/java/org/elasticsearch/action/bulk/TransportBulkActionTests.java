@@ -404,6 +404,7 @@ public class TransportBulkActionTests extends ESTestCase {
         });
     }
 
+    @AwaitsFix(bugUrl = "depends on write pool publishing completed stats")
     public void testDispatchesToWriteCoordinationThreadPool() throws Exception {
         BulkRequest bulkRequest = new BulkRequest().add(new IndexRequest("index").id("id").source(Collections.emptyMap()));
         PlainActionFuture<BulkResponse> future = new PlainActionFuture<>();

@@ -8,7 +8,6 @@
  */
 package org.elasticsearch.test;
 
-import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.core.util.Throwables;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
@@ -239,8 +238,7 @@ public class ClusterServiceUtils {
         clusterStatePublicationEvent.setMasterApplyElapsedMillis(0L);
     }
 
-    public static void awaitClusterState(Logger logger, Predicate<ClusterState> statePredicate, ClusterService clusterService)
-        throws Exception {
+    public static void awaitClusterState(Predicate<ClusterState> statePredicate, ClusterService clusterService) {
         final var listener = addTemporaryStateListener(clusterService, statePredicate, ESTestCase.TEST_REQUEST_TIMEOUT);
         ESTestCase.safeAwait(listener, ESTestCase.TEST_REQUEST_TIMEOUT);
     }

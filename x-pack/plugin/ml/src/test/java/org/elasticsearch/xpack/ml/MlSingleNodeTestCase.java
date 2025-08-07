@@ -121,11 +121,7 @@ public abstract class MlSingleNodeTestCase extends ESSingleNodeTestCase {
 
     protected void waitForMlTemplates() throws Exception {
         // block until the templates are installed
-        ClusterServiceUtils.awaitClusterState(
-            logger,
-            MachineLearning::criticalTemplatesInstalled,
-            getInstanceFromNode(ClusterService.class)
-        );
+        ClusterServiceUtils.awaitClusterState(MachineLearning::criticalTemplatesInstalled, getInstanceFromNode(ClusterService.class));
     }
 
     protected <T> void blockingCall(Consumer<ActionListener<T>> function, AtomicReference<T> response, AtomicReference<Exception> error)

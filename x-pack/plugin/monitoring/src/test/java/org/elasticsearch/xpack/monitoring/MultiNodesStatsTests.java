@@ -99,7 +99,7 @@ public class MultiNodesStatsTests extends MonitoringIntegTestCase {
         });
     }
 
-    private void waitForMonitoringIndices() throws Exception {
+    private void waitForMonitoringIndices() {
         final var indexNameExpressionResolver = internalCluster().getCurrentMasterNodeInstance(IndexNameExpressionResolver.class);
         final var indicesOptions = IndicesOptions.builder()
             .wildcardOptions(IndicesOptions.WildcardOptions.builder().allowEmptyExpressions(true))

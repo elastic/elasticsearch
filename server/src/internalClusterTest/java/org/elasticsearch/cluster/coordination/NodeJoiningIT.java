@@ -39,10 +39,7 @@ public class NodeJoiningIT extends MasterElectionTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return CollectionUtils.appendToCopyNoNullElements(
-            super.nodePlugins(),
-            MockTransportService.TestPlugin.class
-        );
+        return CollectionUtils.appendToCopyNoNullElements(super.nodePlugins(), MockTransportService.TestPlugin.class);
     }
 
     @Override
@@ -110,11 +107,10 @@ public class NodeJoiningIT extends MasterElectionTestCase {
                 if (mockTransportService.getLocalNode().getName().equals(newMaster) == false) {
                     mockTransportService.addSendBehavior((connection, requestId, action, request, options) -> {
                         if (
-                            // This disables pre-voting on all nodes except the new master, forcing it to win the election
-                            action.equals(StatefulPreVoteCollector.REQUEST_PRE_VOTE_ACTION_NAME)
+                        // This disables pre-voting on all nodes except the new master, forcing it to win the election
+                        action.equals(StatefulPreVoteCollector.REQUEST_PRE_VOTE_ACTION_NAME)
                             // This forces the current master node to fail
-                            || action.equals(PublicationTransportHandler.PUBLISH_STATE_ACTION_NAME)
-                        ) {
+                            || action.equals(PublicationTransportHandler.PUBLISH_STATE_ACTION_NAME)) {
                             throw new ElasticsearchException("[{}] for [{}] denied", action, connection.getNode());
                         } else {
                             connection.sendRequest(requestId, action, request, options);
@@ -161,8 +157,8 @@ public class NodeJoiningIT extends MasterElectionTestCase {
 
     // Tests whether a WARN log is thrown when a node attempts to join a cluster, and then the same master node is re-elected (#126192)
     @TestLogging(
-            reason = "test includes assertions about logging",
-            value = "org.elasticsearch.cluster.coordination.NodeJoinExecutor:WARN,org.elasticsearch.cluster.coordination.NodeJoinExecutor:INFO"
+        reason = "test includes assertions about logging",
+        value = "org.elasticsearch.cluster.coordination.NodeJoinExecutor:WARN,org.elasticsearch.cluster.coordination.NodeJoinExecutor:INFO"
     )
     public void testNodeTriesToJoinClusterAndThenSameMasterIsElected() {
         final var cleanupTasks = new ArrayList<Releasable>();
@@ -177,9 +173,14 @@ public class NodeJoiningIT extends MasterElectionTestCase {
             List<String> namesOfDataNodesInOriginalCluster = getListOfDataNodeNamesFromCluster();
 
             // A CountDownLatch that only gets decremented when the first master node is re-elected
-            final var masterKnowsItHasBeenReElectedLatch = configureElectionLatchForReElectedMaster(originalMasterName, originalTerm, cleanupTasks);
+            final var masterKnowsItHasBeenReElectedLatch = configureElectionLatchForReElectedMaster(
+                originalMasterName,
+                originalTerm,
+                cleanupTasks
+            );
 
-            // A list of CountDownLatches, one for each node, that only gets decremented when it recieves a cluster state update containing the new node N
+            // A list of CountDownLatches, one for each node, that only gets decremented when it recieves a cluster state update containing
+            // the new node N
             List<CountDownLatch> newNodeIsPresentInClusterStateLatchList = new ArrayList<>();
 
             for (final var transportService : internalCluster().getInstances(TransportService.class)) {
@@ -187,7 +188,9 @@ public class NodeJoiningIT extends MasterElectionTestCase {
                 cleanupTasks.add(mockTransportService::clearAllRules);
 
                 String nodeName = mockTransportService.getLocalNode().getName();
-                newNodeIsPresentInClusterStateLatchList.add(waitUntilNewNodeIsPresentInClusterStateUpdate(nodeName, numberOfNodesOriginallyInCluster, cleanupTasks));
+                newNodeIsPresentInClusterStateLatchList.add(
+                    waitUntilNewNodeIsPresentInClusterStateUpdate(nodeName, numberOfNodesOriginallyInCluster, cleanupTasks)
+                );
 
                 if (nodeName.equals(originalMasterName)) {
                     mockTransportService.addSendBehavior((connection, requestId, action, request, options) -> {
@@ -199,15 +202,20 @@ public class NodeJoiningIT extends MasterElectionTestCase {
                         }
                     });
 
-                    // This removes the PUBLISH_STATE_ACTION_NAME mocking set above once we have triggered an election to allow the master node to be re-elected
-                    removeMockTransportServicePublishBanWhenMasterHasSteppedDown(originalMasterName, originalTerm, mockTransportService, cleanupTasks);
+                    // This removes the PUBLISH_STATE_ACTION_NAME mocking set above once we have triggered an election to allow the master
+                    // node to be re-elected
+                    removeMockTransportServicePublishBanWhenMasterHasSteppedDown(
+                        originalMasterName,
+                        originalTerm,
+                        mockTransportService,
+                        cleanupTasks
+                    );
                 } else {
                     mockTransportService.addSendBehavior((connection, requestId, action, request, options) -> {
                         if (
-                            // This disables pre-voting on all nodes except the master, forcing it to win the election
-                            action.equals(StatefulPreVoteCollector.REQUEST_PRE_VOTE_ACTION_NAME)
-                                || action.equals(PublicationTransportHandler.PUBLISH_STATE_ACTION_NAME)
-                        ) {
+                        // This disables pre-voting on all nodes except the master, forcing it to win the election
+                        action.equals(StatefulPreVoteCollector.REQUEST_PRE_VOTE_ACTION_NAME)
+                            || action.equals(PublicationTransportHandler.PUBLISH_STATE_ACTION_NAME)) {
                             throw new ElasticsearchException("[{}] for [{}] denied", action, connection.getNode());
                         } else {
                             connection.sendRequest(requestId, action, request, options);
@@ -220,7 +228,7 @@ public class NodeJoiningIT extends MasterElectionTestCase {
             try (var mockLog = MockLog.capture(NodeJoinExecutor.class)) {
 
                 // We expect to see a node join message from the new node
-//                setNodeJoinMockLog(mockLog, numberOfNodesOriginallyInCluster, masterNode);
+                // setNodeJoinMockLog(mockLog, numberOfNodesOriginallyInCluster, masterNode);
 
                 // We expect to see a WARN log emitted when a node attempts to rejoin a cluster without restarting
                 mockLog.addExpectation(new MockLog.LoggingExpectation() {
@@ -272,7 +280,8 @@ public class NodeJoiningIT extends MasterElectionTestCase {
 
                 logger.info("Master has been re-elected");
 
-                // Wait for the cluster state update containing the new node N to propagate to all nodes. This gives times for the WARN log to be emitted
+                // Wait for the cluster state update containing the new node N to propagate to all nodes. This gives times for the WARN log
+                // to be emitted
                 for (CountDownLatch countDownLatch : newNodeIsPresentInClusterStateLatchList) {
                     safeAwait(countDownLatch);
                 }
@@ -296,16 +305,8 @@ public class NodeJoiningIT extends MasterElectionTestCase {
         }
     }
 
-    private List<String> getListOfDataNodeNamesFromCluster(){
-        return internalCluster()
-            .clusterService()
-            .state()
-            .getNodes()
-            .getDataNodes()
-            .values()
-            .stream()
-            .map(DiscoveryNode::getName)
-            .toList();
+    private List<String> getListOfDataNodeNamesFromCluster() {
+        return internalCluster().clusterService().state().getNodes().getDataNodes().values().stream().map(DiscoveryNode::getName).toList();
     }
 
     private void setNodeJoinMockLog(MockLog mockLog, int numberOfNodesOriginallyInCluster, DiscoveryNode masterNode) {
@@ -325,10 +326,10 @@ public class NodeJoiningIT extends MasterElectionTestCase {
                 // Since we declare this log message before we add a node, we need to predict what the node description will be
                 assert masterNode != null;
                 Pattern pattern = Pattern.compile(
-                        "node-join: \\["
-                                + generateNodeDescriptionForNewNode(numberOfNodesOriginallyInCluster, masterNode)
-                                + "] "
-                                + "with reason \\[joining]"
+                    "node-join: \\["
+                        + generateNodeDescriptionForNewNode(numberOfNodesOriginallyInCluster, masterNode)
+                        + "] "
+                        + "with reason \\[joining]"
                 );
                 Matcher matcher = pattern.matcher(event.getMessage().getFormattedMessage());
 
@@ -350,15 +351,31 @@ public class NodeJoiningIT extends MasterElectionTestCase {
         String newNodeName = "node_s" + numberOfNodesOriginallyInCluster;
         String regexToMatchAnyCharacterExceptClosingBrace = "([^}]+)";
 
-        return "\\{" + newNodeName + "}"
-            + "\\{" + regexToMatchAnyCharacterExceptClosingBrace + "}"
-            + "\\{" + regexToMatchAnyCharacterExceptClosingBrace + "}"
-            + "\\{" + newNodeName + "}"
-            + "\\{" + masterNode.getHostAddress() + "}"
-            + "\\{" + masterNode.getHostAddress() + ":\\d+}"
+        return "\\{"
+            + newNodeName
+            + "}"
+            + "\\{"
+            + regexToMatchAnyCharacterExceptClosingBrace
+            + "}"
+            + "\\{"
+            + regexToMatchAnyCharacterExceptClosingBrace
+            + "}"
+            + "\\{"
+            + newNodeName
+            + "}"
+            + "\\{"
+            + masterNode.getHostAddress()
+            + "}"
+            + "\\{"
+            + masterNode.getHostAddress()
+            + ":\\d+}"
             + "\\{d}"
-            + "\\{" + masterNode.getVersion() + "}"
-            + "\\{" + regexToMatchAnyCharacterExceptClosingBrace + "}";
+            + "\\{"
+            + masterNode.getVersion()
+            + "}"
+            + "\\{"
+            + regexToMatchAnyCharacterExceptClosingBrace
+            + "}";
     }
 
     /**
@@ -368,7 +385,12 @@ public class NodeJoiningIT extends MasterElectionTestCase {
      * @param originalTerm The term the current master node was first elected
      * @param cleanupTasks The list of cleanup tasks
      */
-    protected void removeMockTransportServicePublishBanWhenMasterHasSteppedDown(String masterNodeName, long originalTerm, MockTransportService mockTransportService, List<Releasable> cleanupTasks) {
+    protected void removeMockTransportServicePublishBanWhenMasterHasSteppedDown(
+        String masterNodeName,
+        long originalTerm,
+        MockTransportService mockTransportService,
+        List<Releasable> cleanupTasks
+    ) {
         ClusterStateApplier newMasterMonitor = event -> {
             DiscoveryNode masterNode = event.state().nodes().getMasterNode();
             long currentTerm = event.state().coordinationMetadata().term();
@@ -399,7 +421,11 @@ public class NodeJoiningIT extends MasterElectionTestCase {
      * @param originalNumberOfNodes The number of nodes the cluster had before we attempted to add node N
      * @param cleanupTasks The list of cleanup tasks
      */
-    protected CountDownLatch waitUntilNewNodeIsPresentInClusterStateUpdate(String nodeName, int originalNumberOfNodes, List<Releasable> cleanupTasks) {
+    protected CountDownLatch waitUntilNewNodeIsPresentInClusterStateUpdate(
+        String nodeName,
+        int originalNumberOfNodes,
+        List<Releasable> cleanupTasks
+    ) {
         final AtomicBoolean nodeHasBeenAddedFirstTime = new AtomicBoolean(false);
         final AtomicBoolean addedNodeHasBeenRemoved = new AtomicBoolean(false);
         final var nodeHasBeenAddedLatch = new CountDownLatch(1);

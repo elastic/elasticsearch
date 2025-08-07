@@ -1720,7 +1720,8 @@ class NodeConstruction {
             compatibilityVersions,
             featureService,
             // TODO - Is passing the entire cluster service a good idea? seems redundant with clusterService.(..) above
-            // Can we pass a function instead? like () -> clusterService.addListener(...) so that we can call this from within the coodinator
+            // Can we pass a function instead? like () -> clusterService.addListener(...) so that we can call this from within the
+            // coodinator
             clusterService
         );
 

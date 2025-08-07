@@ -77,7 +77,11 @@ public abstract class MasterElectionTestCase extends ESIntegTestCase {
      * @param cleanupTasks The list of cleanup tasks
      * @return A latch that will be released when the master acknowledges it's re-election
      */
-    protected CountDownLatch configureElectionLatchForReElectedMaster(String masterNodeName, long originalTerm, List<Releasable> cleanupTasks) {
+    protected CountDownLatch configureElectionLatchForReElectedMaster(
+        String masterNodeName,
+        long originalTerm,
+        List<Releasable> cleanupTasks
+    ) {
         final var masterKnowsItIsReElectedLatch = new CountDownLatch(1);
         ClusterStateApplier newMasterMonitor = event -> {
             DiscoveryNode masterNode = event.state().nodes().getMasterNode();

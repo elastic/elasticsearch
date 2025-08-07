@@ -10,11 +10,11 @@ Known issues are significant defects or limitations that may impact your impleme
 
 ## 9.1.0 [elasticsearch-9.1.0-known-issues]
 
-* If `-Dvector.rescoring.directio` set to `true` per this [recommendation](https://www.elastic.co/docs/deploy-manage/production-guidance/optimize-performance/approximate-knn-search#use-direct-io-when-the-vector-data-does-not-fit-in-ram) in the configuration of vector indices with type `bbq_hnsw`, then it may lead to significant search performance degradation on 9.1.0.  In some cases, kNN search latency can increase by as much as 10x. To mitigate this, set the `-Dvector.rescoring.directio=false` JVM option on all search nodes, then restart the nodes. This option can be removed in 9.1.1.
+* If the `-Dvector.rescoring.directio` JVM option is set to `true` – as recommended [in this guide](https://www.elastic.co/docs/deploy-manage/production-guidance/optimize-performance/approximate-knn-search#use-direct-io-when-the-vector-data-does-not-fit-in-ram) – and used with `bbq_hnsw` type vector indices, it may cause significant search performance degradation in 9.1.0. In some cases, kNN search latency can increase by as much as 10x. To mitigate this, set the JVM option `-Dvector.rescoring.directio=false` on all search nodes and restart them. This option can be removed in 9.1.1.
 
 **How do I know if my index vector type is `bbq_hnsw`?**
 
-* Prior to 9.1, the vector type must be explicitely set to `bbq_hnsw`. Starting with 9.1, however, `bbq_hnsw` is the default vector type for all new indices unless another type is specified.
+* Prior to 9.1, the vector type had to be explicitely set to `bbq_hnsw`. Starting with 9.1, `bbq_hnsw` is the default vector type for all new indices, unless another type is specified.
 
 ## 9.0.3 [elasticsearch-9.0.3-known-issues]
 

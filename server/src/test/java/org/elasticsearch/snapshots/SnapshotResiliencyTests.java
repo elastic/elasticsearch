@@ -2511,6 +2511,10 @@ public class SnapshotResiliencyTests extends ESTestCase {
                 final ActionFilters actionFilters = new ActionFilters(emptySet());
                 Map<ActionType<?>, TransportAction<?, ?>> actions = new HashMap<>();
                 actions.put(
+                    TransportUpdateSnapshotStatusAction.TYPE,
+                    new TransportUpdateSnapshotStatusAction(transportService, clusterService, threadPool, snapshotsService, actionFilters)
+                );
+                actions.put(
                     GlobalCheckpointSyncAction.TYPE,
                     new GlobalCheckpointSyncAction(
                         settings,

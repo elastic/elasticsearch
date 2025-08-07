@@ -23,6 +23,7 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.index.TransportIndexAction;
 import org.elasticsearch.action.support.broadcast.BroadcastResponse;
+import org.elasticsearch.client.internal.ProjectClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -702,12 +703,14 @@ public class GeoIpDownloaderTests extends ESTestCase {
         return new GeoIpTaskState.Metadata(0, 0, 0, randomAlphaOfLength(20), lastChecked.toEpochMilli());
     }
 
-    private static class MockClient extends NoOpClient {
+    private static class MockClient extends NoOpClient implements ProjectClient {
 
         private final Map<ActionType<?>, BiConsumer<? extends ActionRequest, ? extends ActionListener<?>>> handlers = new HashMap<>();
+        private final ProjectId projectId;
 
         private MockClient(ThreadPool threadPool, ProjectId projectId) {
             super(threadPool, TestProjectResolvers.singleProject(projectId));
+            this.projectId = projectId;
         }
 
         public <Response extends ActionResponse, Request extends ActionRequest> void addHandler(
@@ -715,6 +718,11 @@ public class GeoIpDownloaderTests extends ESTestCase {
             BiConsumer<Request, ActionListener<Response>> listener
         ) {
             handlers.put(action, listener);
+        }
+
+        @Override
+        public ProjectId projectId() {
+            return projectId;
         }
 
         @SuppressWarnings("unchecked")

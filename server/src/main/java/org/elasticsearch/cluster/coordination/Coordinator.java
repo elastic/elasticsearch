@@ -19,8 +19,10 @@ import org.elasticsearch.action.support.RefCountingListener;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.action.support.ThreadedActionListener;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.ClusterStatePublicationEvent;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.LocalMasterServiceTask;
@@ -39,6 +41,7 @@ import org.elasticsearch.cluster.routing.RerouteService;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterApplier;
 import org.elasticsearch.cluster.service.ClusterApplierService;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
 import org.elasticsearch.cluster.version.CompatibilityVersions;
@@ -92,6 +95,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Random;
 import java.util.Set;
@@ -191,6 +195,7 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
     private final NodeHealthService nodeHealthService;
     private final List<PeerFinderListener> peerFinderListeners;
     private final LeaderHeartbeatService leaderHeartbeatService;
+    private final ClusterService clusterService;
 
     /**
      * @param nodeName The name of the node, used to name the {@link java.util.concurrent.ExecutorService} of the {@link SeedHostsResolver}.
@@ -219,7 +224,8 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
         LeaderHeartbeatService leaderHeartbeatService,
         PreVoteCollector.Factory preVoteCollectorFactory,
         CompatibilityVersions compatibilityVersions,
-        FeatureService featureService
+        FeatureService featureService,
+        ClusterService clusterService
     ) {
         this.settings = settings;
         this.transportService = transportService;
@@ -329,6 +335,7 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
         this.peerFinderListeners.add(clusterBootstrapService);
         this.leaderHeartbeatService = leaderHeartbeatService;
         this.compatibilityVersions = compatibilityVersions;
+        this.clusterService = clusterService;
     }
 
     /**
@@ -551,6 +558,8 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
         synchronized (mutex) {
             // The preVoteCollector is only active while we are candidate, but it does not call this method with synchronisation, so we have
             // to check our mode again here.
+            ClusterState s = clusterService.state();
+            DiscoveryNode currentNode = getLocalNode();
             if (mode == Mode.CANDIDATE) {
                 final var nodeEligibility = localNodeMayWinElection(getLastAcceptedState(), electionStrategy);
                 if (nodeEligibility.mayWin() == false) {
@@ -665,39 +674,72 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
             public void onResponse(Releasable response) {
                 validateJoinRequest(
                     joinRequest,
-                    ActionListener.runBefore(joinListener, () -> Releasables.close(response))
+                    ActionListener
+                        .runBefore(
+                            joinListener,
+                            () -> Releasables.close(response)
+                            // TODO - Uncomment this out
+//                            () -> {
+//                                /*
+//                                    This prevents a corner case, explained in #ES-11449, occurring as follows:
+//                                    - Master M is in term T and has cluster state (T, V).
+//                                    - Node N tries to join the cluster.
+//                                    - M proposes cluster state (T, V+1) with N in the cluster.
+//                                    - M accepts its own proposal and commits it to disk.
+//                                    - M receives no responses. M doesn't know whether the state was accepted by a majority of nodes, rejected, or did not reach any nodes.
+//                                    - There is a re-election and M wins. M publishes cluster state (T+1, V+2).
+//                                      Since it's built from the cluster state on disk, N is still in the cluster.
+//                                    - Since (T, V+1) failed, N's connection is dropped, even though its inclusion in the cluster may have been committed on a majority of master nodes.
+//                                    - It can rejoin, but this throws a WARN log since it did not restart.
+//
+//                                    To mitigate this, we listen for any cluster state update:
+//                                    1. (T, V+1) is accepted -> NodeConnectionsService now stores an open connection to N. It can be closed.
+//                                    2. (T, V+1) is rejected -> A new cluster state is published without N in it. It is right to close the connection and retry.
+//                                    3. The above scenario occurs. We do not close the connection after (T, V+1) fails and keep it open:
+//                                        3.1 (T+1, V+2) is accepted -> By waiting, we did not close the connection to N unnecessarily
+//                                        3.2 (T+1, V+2) is rejected -> A new cluster state is published without N in it. Closing is correct here.
+//                                 */
+//                                ClusterStateListener listener = new ClusterStateListener() {
+//                                    @Override
+//                                    public void clusterChanged(ClusterChangedEvent event) {
+//                                        // Now it's safe to close the connection
+//                                        Releasables.close(response);
+//                                        // Remove this listener to avoid memory leaks
+//                                        clusterService.removeListener(this);
+//                                    }
+//                                };
+//
+//                                clusterService.addListener(listener);
+//                            }
+                        )
                         .delegateFailure((l, ignored) -> processJoinRequest(joinRequest, l))
                 );
             }
 
             @Override
             public void onFailure(Exception e) {
-                // The failure of the first node-join publication does not imply that the join failed,
-                // because it may be retried and eventually succeed
-                if (applierState.nodes().nodeExists(joinRequest.getSourceNode()) == false) {
-                    logger.warn(
-                        () -> format(
-                            "received join request from [%s] but could not connect back to the joining node",
-                            joinRequest.getSourceNode()
-                        ),
-                        e
-                    );
+                logger.warn(
+                    () -> format(
+                        "received join request from [%s] but could not connect back to the joining node",
+                        joinRequest.getSourceNode()
+                    ),
+                    e
+                );
 
-                    joinListener.onFailure(
-                        // NodeDisconnectedException mainly to suppress uninteresting stack trace
-                        new NodeDisconnectedException(
-                            joinRequest.getSourceNode(),
-                            String.format(
-                                Locale.ROOT,
-                                "failure when opening connection back from [%s] to [%s]",
-                                getLocalNode().descriptionWithoutAttributes(),
-                                joinRequest.getSourceNode().descriptionWithoutAttributes()
-                            ),
-                            JoinHelper.JOIN_ACTION_NAME,
-                            e
-                        )
-                    );
-                }
+                joinListener.onFailure(
+                    // NodeDisconnectedException mainly to suppress uninteresting stack trace
+                    new NodeDisconnectedException(
+                        joinRequest.getSourceNode(),
+                        String.format(
+                            Locale.ROOT,
+                            "failure when opening connection back from [%s] to [%s]",
+                            getLocalNode().descriptionWithoutAttributes(),
+                            joinRequest.getSourceNode().descriptionWithoutAttributes()
+                        ),
+                        JoinHelper.JOIN_ACTION_NAME,
+                        e
+                    )
+                );
             }
         });
     }

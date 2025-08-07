@@ -276,6 +276,8 @@ public class DiscoveryNodes implements Iterable<DiscoveryNode>, SimpleDiffable<D
         return existing != null && existing.equals(discoveryNode) && existing.getRoles().equals(discoveryNode.getRoles());
     }
 
+    // TODO - Add function nodeExistsWithName? Removes util from NodeJoiningIT?
+
     /**
      * Get the id of the master node
      *

@@ -1381,6 +1381,35 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
         }
     }
 
+    private boolean isNodeDisconnectedException(LogEvent event, ClusterNode leader, ClusterNode partitionedNode) {
+        if (event.getLevel() != Level.INFO) {
+            return false;
+        }
+        if (event.getLoggerName().equals(JoinHelper.class.getCanonicalName()) == false) {
+            return false;
+        }
+
+        var cause = event.getThrown();
+        if (cause == null) {
+            return false;
+        }
+        cause = cause.getCause();
+        if (cause == null) {
+            return false;
+        }
+        if (Regex.simpleMatch(
+            "* failure when opening connection back from ["
+                + leader.getLocalNode().descriptionWithoutAttributes()
+                + "] to ["
+                + partitionedNode.getLocalNode().descriptionWithoutAttributes()
+                + "]",
+            cause.getMessage()
+        ) == false) {
+            return false;
+        }
+        return cause.getStackTrace() == null || cause.getStackTrace().length == 0;
+    }
+
     @TestLogging(
         reason = "test includes assertions about logging",
         value = "org.elasticsearch.cluster.coordination.Coordinator:WARN,org.elasticsearch.cluster.coordination.JoinHelper:INFO"
@@ -1415,35 +1444,9 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
 
                     @Override
                     public void match(LogEvent event) {
-                        if (event.getLevel() != Level.INFO) {
-                            return;
+                        if (isNodeDisconnectedException(event, leader, partitionedNode)) {
+                            matched = true;
                         }
-                        if (event.getLoggerName().equals(JoinHelper.class.getCanonicalName()) == false) {
-                            return;
-                        }
-
-                        var cause = event.getThrown();
-                        if (cause == null) {
-                            return;
-                        }
-                        cause = cause.getCause();
-                        if (cause == null) {
-                            return;
-                        }
-                        if (Regex.simpleMatch(
-                            "* failure when opening connection back from ["
-                                + leader.getLocalNode().descriptionWithoutAttributes()
-                                + "] to ["
-                                + partitionedNode.getLocalNode().descriptionWithoutAttributes()
-                                + "]",
-                            cause.getMessage()
-                        ) == false) {
-                            return;
-                        }
-                        if (cause.getStackTrace() != null && cause.getStackTrace().length != 0) {
-                            return;
-                        }
-                        matched = true;
                     }
 
                     @Override
@@ -1474,14 +1477,11 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
         }
     }
 
-    // TODO:
-    // 1: Refactor this test and above
-    // 2: Add a test where it fails to begin with, then the handshake block is removed and it succeeds
     @TestLogging(
         reason = "test includes assertions about logging",
         value = "org.elasticsearch.cluster.coordination.Coordinator:WARN,org.elasticsearch.cluster.coordination.JoinHelper:INFO"
     )
-    public void testDoesNotReportConnectBackProblemsDuringJoiningIfNodeIsInClusterState() throws Exception {
+    public void testDoesNotReportConnectBackProblemsDuringJoining() {
         try (var cluster = new Cluster(3)) {
             cluster.runRandomly();
             cluster.stabilise();
@@ -1490,23 +1490,11 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
             partitionedNode.disconnect();
             cluster.stabilise();
 
-            logger.info("--> removed [{}] but adding to master's cluster state", partitionedNode);
-            final ClusterNode leader = cluster.getAnyLeader();
-            leader.submitUpdateTask("updating cluster state", cs -> {
-                ClusterState cs2 = ClusterState.builder(cs)
-                    .nodes(DiscoveryNodes.builder(cs.nodes()).add(partitionedNode.getLocalNode()).build())
-                    .build();
-                // Insert breakpoint here
-                return cs2;
-            }, (e) -> {});
-
-            logger.info("--> healing [{}] but blocking handshakes", partitionedNode);
+            logger.info("--> healing [{}]", partitionedNode);
             partitionedNode.heal();
-            leader.addActionBlock(TransportService.HANDSHAKE_ACTION_NAME);
+            final var leader = cluster.getAnyLeader();
 
             try (var mockLog = MockLog.capture(Coordinator.class, JoinHelper.class)) {
-
-                // Since the node is in the cluster state, we do not expect this log
                 mockLog.addExpectation(
                     new MockLog.UnseenEventExpectation(
                         "connect-back failure",
@@ -1517,42 +1505,14 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
                             + "] but could not connect back to the joining node"
                     )
                 );
-
-                // We do not expect an info log from JoinHelper about the handshake failure
                 mockLog.addExpectation(new MockLog.LoggingExpectation() {
                     boolean matched = false;
 
                     @Override
                     public void match(LogEvent event) {
-                        if (event.getLevel() != Level.INFO) {
-                            return;
+                        if (isNodeDisconnectedException(event, leader, partitionedNode)) {
+                            matched = true;
                         }
-                        if (event.getLoggerName().equals(JoinHelper.class.getCanonicalName()) == false) {
-                            return;
-                        }
-
-                        var cause = event.getThrown();
-                        if (cause == null) {
-                            return;
-                        }
-                        cause = cause.getCause();
-                        if (cause == null) {
-                            return;
-                        }
-                        if (Regex.simpleMatch(
-                            "* failure when opening connection back from ["
-                                + leader.getLocalNode().descriptionWithoutAttributes()
-                                + "] to ["
-                                + partitionedNode.getLocalNode().descriptionWithoutAttributes()
-                                + "]",
-                            cause.getMessage()
-                        ) == false) {
-                            return;
-                        }
-                        if (cause.getStackTrace() != null && cause.getStackTrace().length != 0) {
-                            return;
-                        }
-                        matched = true;
                     }
 
                     @Override
@@ -1578,8 +1538,6 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
                 );
                 mockLog.assertAllExpectationsMatched();
             }
-
-            leader.clearActionBlocks();
         }
     }
 

@@ -411,11 +411,7 @@ public final class LinearRetrieverBuilder extends CompoundRetrieverBuilder<Linea
                 builder.field(LinearRetrieverComponent.RETRIEVER_FIELD.getPreferredName(), entry.retriever());
                 builder.field(LinearRetrieverComponent.WEIGHT_FIELD.getPreferredName(), weights[index]);
 
-                ScoreNormalizer normalizerToUse = normalizers[index];
-                if (normalizer != null && normalizerToUse.equals(IdentityScoreNormalizer.INSTANCE)) {
-                    normalizerToUse = normalizer;
-                }
-                builder.field(LinearRetrieverComponent.NORMALIZER_FIELD.getPreferredName(), normalizerToUse.getName());
+                builder.field(LinearRetrieverComponent.NORMALIZER_FIELD.getPreferredName(), normalizers[index].getName());
 
                 builder.endObject();
                 index++;

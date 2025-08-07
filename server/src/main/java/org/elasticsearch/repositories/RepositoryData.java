@@ -909,7 +909,7 @@ public final class RepositoryData {
                                 this snapshot repository format requires Elasticsearch version [%s] or later""", versionString));
                     };
 
-                    assert SnapshotsService.useShardGenerations(version);
+                    assert SnapshotsServiceUtils.useShardGenerations(version);
                 }
                 case UUID -> {
                     XContentParserUtils.ensureExpectedToken(XContentParser.Token.VALUE_STRING, parser.nextToken(), parser);

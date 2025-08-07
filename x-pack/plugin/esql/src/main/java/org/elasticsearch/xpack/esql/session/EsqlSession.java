@@ -364,6 +364,7 @@ public class EsqlSession {
         QueryBuilder requestFilter,
         ActionListener<LogicalPlan> logicalPlanListener
     ) {
+        assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.SEARCH);
         if (parsed.analyzed()) {
             logicalPlanListener.onResponse(parsed);
             return;
@@ -440,6 +441,11 @@ public class EsqlSession {
         String localPattern = lookupIndexPattern.indexPattern();
         assert RemoteClusterAware.isRemoteIndexName(localPattern) == false
             : "Lookup index name should not include remote, but got: " + localPattern;
+        assert ThreadPool.assertCurrentThreadPool(
+            ThreadPool.Names.SEARCH,
+            ThreadPool.Names.SEARCH_COORDINATION,
+            ThreadPool.Names.SYSTEM_READ
+        );
         Set<String> fieldNames = result.wildcardJoinIndices().contains(localPattern) ? IndexResolver.ALL_FIELDS : result.fieldNames;
 
         String patternWithRemotes;
@@ -491,6 +497,11 @@ public class EsqlSession {
         }
         if (executionInfo.getClusters().isEmpty() || executionInfo.isCrossClusterSearch() == false) {
             // Local only case, still do some checks, since we moved analysis checks here
+            if (lookupIndexResolution.get().indexNameWithModes().isEmpty()) {
+                // This is not OK, but we proceed with it as we do with invalid resolution, and it will fail on the verification
+                // because lookup field will be missing.
+                return result.addLookupIndexResolution(index, lookupIndexResolution);
+            }
             if (lookupIndexResolution.get().indexNameWithModes().size() > 1) {
                 throw new VerificationException(
                     "Lookup Join requires a single lookup mode index; [" + index + "] resolves to multiple indices"
@@ -510,6 +521,16 @@ public class EsqlSession {
             }
             return result.addLookupIndexResolution(index, lookupIndexResolution);
         }
+
+        if (lookupIndexResolution.get().indexNameWithModes().isEmpty() && lookupIndexResolution.resolvedIndices().isEmpty() == false) {
+            // This is a weird situation - we have empty index list but non-empty resolution. This is likely because IndexResolver
+            // got an empty map and pretends to have an empty resolution. This means this query will fail, since lookup fields will not
+            // match, but here we can pretend it's ok to pass it on to the verifier and generate a correct error message.
+            // Note this only happens if the map is completely empty, which means it's going to error out anyway, since we should have
+            // at least the key field there.
+            return result.addLookupIndexResolution(index, lookupIndexResolution);
+        }
+
         // Collect resolved clusters from the index resolution, verify that each cluster has a single resolution for the lookup index
         Map<String, String> clustersWithResolvedIndices = new HashMap<>(lookupIndexResolution.resolvedIndices().size());
         lookupIndexResolution.get().indexNameWithModes().forEach((indexName, indexMode) -> {
@@ -625,6 +646,11 @@ public class EsqlSession {
         QueryBuilder requestFilter,
         ActionListener<PreAnalysisResult> listener
     ) {
+        assert ThreadPool.assertCurrentThreadPool(
+            ThreadPool.Names.SEARCH,
+            ThreadPool.Names.SEARCH_COORDINATION,
+            ThreadPool.Names.SYSTEM_READ
+        );
         // TODO we plan to support joins in the future when possible, but for now we'll just fail early if we see one
         List<IndexPattern> indices = preAnalysis.indices;
         if (indices.size() > 1) {

@@ -15,7 +15,6 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.admin.cluster.snapshots.clone.CloneSnapshotRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotRequest;
@@ -25,7 +24,6 @@ import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.action.support.GroupedActionListener;
 import org.elasticsearch.action.support.RefCountingRunnable;
 import org.elasticsearch.action.support.SubscribableListener;
-import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateApplier;
@@ -40,7 +38,6 @@ import org.elasticsearch.cluster.SnapshotDeletionsInProgress;
 import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.cluster.SnapshotsInProgress.ShardSnapshotStatus;
 import org.elasticsearch.cluster.SnapshotsInProgress.ShardState;
-import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.coordination.FailedToCommitClusterStateException;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.DataStreamAlias;
@@ -101,7 +98,6 @@ import org.elasticsearch.repositories.RepositoryShardId;
 import org.elasticsearch.repositories.ShardGeneration;
 import org.elasticsearch.repositories.ShardGenerations;
 import org.elasticsearch.repositories.ShardSnapshotResult;
-import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -160,8 +156,6 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
 
     private static final Logger logger = LogManager.getLogger(SnapshotsService.class);
 
-    public static final String UPDATE_SNAPSHOT_STATUS_ACTION_NAME = "internal:cluster/snapshot/update_snapshot_status";
-
     public static final String NO_FEATURE_STATES_VALUE = "none";
 
     private final ClusterService clusterService;
@@ -189,8 +183,6 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
 
     /** Set of currently initializing clone operations */
     private final Set<Snapshot> initializingClones = Collections.synchronizedSet(new HashSet<>());
-
-    private final UpdateSnapshotStatusAction updateSnapshotStatusHandler;
 
     private final TransportService transportService;
 
@@ -237,8 +229,6 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
         this.threadPool = transportService.getThreadPool();
         this.transportService = transportService;
 
-        // The constructor of UpdateSnapshotStatusAction will register itself to the TransportService.
-        this.updateSnapshotStatusHandler = new UpdateSnapshotStatusAction(transportService, clusterService, threadPool, actionFilters);
         if (DiscoveryNode.isMasterNode(settings)) {
             // addLowPriorityApplier to make sure that Repository will be created before snapshot
             clusterService.addLowPriorityApplier(this);
@@ -655,7 +645,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                 repoShardId,
                 shardStatusBefore.generation(),
                 ActionListener.wrap(
-                    shardSnapshotResult -> innerUpdateSnapshotState(
+                    shardSnapshotResult -> createAndSubmitRequestToUpdateSnapshotState(
                         target,
                         null,
                         repoShardId,
@@ -676,7 +666,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                             () -> currentlyCloning.remove(repoShardId)
                         )
                     ),
-                    e -> innerUpdateSnapshotState(
+                    e -> createAndSubmitRequestToUpdateSnapshotState(
                         target,
                         null,
                         repoShardId,
@@ -3255,8 +3245,8 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
 
     @Override
     protected void doStart() {
-        assert this.updateSnapshotStatusHandler != null;
-        assert transportService.getRequestHandler(UPDATE_SNAPSHOT_STATUS_ACTION_NAME) != null;
+        // NOMERGE: remove this
+        assert transportService.getRequestHandler(TransportUpdateSnapshotStatusAction.NAME) != null;
     }
 
     @Override
@@ -3831,7 +3821,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
         }
     }
 
-    private void innerUpdateSnapshotState(
+    public void createAndSubmitRequestToUpdateSnapshotState(
         Snapshot snapshot,
         ShardId shardId,
         RepositoryShardId repoShardId,
@@ -3890,50 +3880,6 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                     }
                 }
             }
-        }
-    }
-
-    private class UpdateSnapshotStatusAction extends TransportMasterNodeAction<
-        UpdateIndexShardSnapshotStatusRequest,
-        ActionResponse.Empty> {
-        UpdateSnapshotStatusAction(
-            TransportService transportService,
-            ClusterService clusterService,
-            ThreadPool threadPool,
-            ActionFilters actionFilters
-        ) {
-            super(
-                UPDATE_SNAPSHOT_STATUS_ACTION_NAME,
-                false,
-                transportService,
-                clusterService,
-                threadPool,
-                actionFilters,
-                UpdateIndexShardSnapshotStatusRequest::new,
-                in -> ActionResponse.Empty.INSTANCE,
-                EsExecutors.DIRECT_EXECUTOR_SERVICE
-            );
-        }
-
-        @Override
-        protected void masterOperation(
-            Task task,
-            UpdateIndexShardSnapshotStatusRequest request,
-            ClusterState state,
-            ActionListener<ActionResponse.Empty> listener
-        ) {
-            innerUpdateSnapshotState(
-                request.snapshot(),
-                request.shardId(),
-                null,
-                request.status(),
-                listener.map(v -> ActionResponse.Empty.INSTANCE)
-            );
-        }
-
-        @Override
-        protected ClusterBlockException checkBlock(UpdateIndexShardSnapshotStatusRequest request, ClusterState state) {
-            return null;
         }
     }
 

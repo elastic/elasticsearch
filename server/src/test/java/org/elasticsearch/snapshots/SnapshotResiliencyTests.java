@@ -1287,7 +1287,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
         // A transport interceptor that throttles the shard snapshot status updates to run one at a time, for more interesting interleavings
         final TransportInterceptor throttlingInterceptor = new TransportInterceptor() {
             private final ThrottledTaskRunner runner = new ThrottledTaskRunner(
-                SnapshotsService.UPDATE_SNAPSHOT_STATUS_ACTION_NAME + "-throttle",
+                TransportUpdateSnapshotStatusAction.NAME + "-throttle",
                 1,
                 SnapshotResiliencyTests.this::scheduleNow
             );
@@ -1299,7 +1299,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                 boolean forceExecution,
                 TransportRequestHandler<T> actualHandler
             ) {
-                if (action.equals(SnapshotsService.UPDATE_SNAPSHOT_STATUS_ACTION_NAME)) {
+                if (action.equals(TransportUpdateSnapshotStatusAction.NAME)) {
                     return (request, channel, task) -> ActionListener.run(
                         new ChannelActionListener<>(channel),
                         l -> runner.enqueueTask(
@@ -1456,7 +1456,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                     boolean forceExecution,
                     TransportRequestHandler<T> actualHandler
                 ) {
-                    if (action.equals(SnapshotsService.UPDATE_SNAPSHOT_STATUS_ACTION_NAME)) {
+                    if (action.equals(TransportUpdateSnapshotStatusAction.NAME)) {
                         return (request, channel, task) -> ActionListener.run(
                             ActionTestUtils.<TransportResponse>assertNoFailureListener(new ChannelActionListener<>(channel)::onResponse),
                             l -> {

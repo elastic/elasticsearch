@@ -72,7 +72,7 @@ public final class ZeroBucket {
         this.count = count;
     }
 
-    ZeroBucket(long index, int scale, long count) {
+    private ZeroBucket(long index, int scale, long count) {
         assert index >= MIN_INDEX && index <= MAX_INDEX : "index must be in range [" + MIN_INDEX + ", " + MAX_INDEX + "]";
         assert scale >= MIN_SCALE && scale <= MAX_SCALE : "scale must be in range [" + MIN_SCALE + ", " + MAX_SCALE + "]";
         this.index = index;
@@ -82,9 +82,9 @@ public final class ZeroBucket {
     }
 
     private ZeroBucket(double realThreshold, long index, int scale, long count) {
+        this.realThreshold = realThreshold;
         this.index = index;
         this.scale = scale;
-        this.realThreshold = realThreshold; // compute lazily when needed
         this.count = count;
     }
 

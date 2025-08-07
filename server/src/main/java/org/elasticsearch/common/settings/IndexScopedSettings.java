@@ -243,6 +243,9 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
         if (IndexSettings.DOC_VALUES_SKIPPER) {
             settings.add(IndexSettings.USE_DOC_VALUES_SKIPPER);
         }
+        if (IndexSettings.INDEX_DISABLED_BY_DEFAULT_FEATURE_FLAG.isEnabled()) {
+            settings.add(IndexSettings.INDEX_DISABLED_BY_DEFAULT);
+        }
         if (SYNTHETIC_VECTORS) {
             settings.add(IndexSettings.INDEX_MAPPING_SOURCE_SYNTHETIC_VECTORS_SETTING);
         }

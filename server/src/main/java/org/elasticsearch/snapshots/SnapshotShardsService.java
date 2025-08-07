@@ -905,7 +905,7 @@ public final class SnapshotShardsService extends AbstractLifecycleComponent impl
             updateResultListener,
             (req, reqListener) -> transportService.sendRequest(
                 transportService.getLocalNode(),
-                SnapshotsService.UPDATE_SNAPSHOT_STATUS_ACTION_NAME,
+                TransportUpdateSnapshotStatusAction.NAME,
                 req,
                 new ActionListenerResponseHandler<>(
                     reqListener.map(res -> null),

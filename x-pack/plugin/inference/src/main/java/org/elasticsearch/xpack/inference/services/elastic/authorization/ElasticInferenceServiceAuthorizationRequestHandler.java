@@ -91,7 +91,8 @@ public class ElasticInferenceServiceAuthorizationRequestHandler {
                     listener.onResponse(ElasticInferenceServiceAuthorizationModel.of(authResponseEntity));
                 } else {
                     var errorMessage = Strings.format(
-                        "Received an invalid response type from the Elastic Inference Service: %s",
+                        "%s Received an invalid response type from the Elastic Inference Service: %s",
+                        FAILED_TO_RETRIEVE_MESSAGE,
                         results.getClass().getSimpleName()
                     );
 

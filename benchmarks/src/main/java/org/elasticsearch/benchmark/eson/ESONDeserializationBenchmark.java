@@ -130,7 +130,7 @@ public class ESONDeserializationBenchmark {
     @Benchmark
     public void writeJSONFromESONFlatten(Blackhole bh) throws IOException {
         XContentBuilder builder = XContentFactory.contentBuilder(JsonXContent.jsonXContent.type());
-        ESONXContentSerializer.flattenedToXContent(esonObject, builder, ToXContent.EMPTY_PARAMS);
+        ESONXContentSerializer.flattenToXContent(esonObject, builder, ToXContent.EMPTY_PARAMS);
         BytesReference bytes = BytesReference.bytes(builder);
         bh.consume(bytes);
     }

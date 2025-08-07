@@ -108,7 +108,7 @@ public class ES818BinaryFlatVectorsScorer implements FlatVectorsScorer {
         return nonQuantizedDelegate.getRandomVectorScorer(similarityFunction, vectorValues, target);
     }
 
-    RandomVectorScorerSupplier getRandomVectorScorerSupplier(
+    public RandomVectorScorerSupplier getRandomVectorScorerSupplier(
         VectorSimilarityFunction similarityFunction,
         ES818BinaryQuantizedVectorsWriter.OffHeapBinarizedQueryVectorValues scoringVectors,
         BinarizedByteVectorValues targetVectors
@@ -122,7 +122,7 @@ public class ES818BinaryFlatVectorsScorer implements FlatVectorsScorer {
     }
 
     /** Vector scorer supplier over binarized vector values */
-    static class BinarizedRandomVectorScorerSupplier implements RandomVectorScorerSupplier {
+    public static class BinarizedRandomVectorScorerSupplier implements RandomVectorScorerSupplier {
         private final ES818BinaryQuantizedVectorsWriter.OffHeapBinarizedQueryVectorValues queryVectors;
         private final BinarizedByteVectorValues targetVectors;
         private final VectorSimilarityFunction similarityFunction;

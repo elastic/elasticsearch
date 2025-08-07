@@ -58,6 +58,8 @@ import org.elasticsearch.index.codec.vectors.ES815HnswBitVectorsFormat;
 import org.elasticsearch.index.codec.vectors.IVFVectorsFormat;
 import org.elasticsearch.index.codec.vectors.es818.ES818BinaryQuantizedVectorsFormat;
 import org.elasticsearch.index.codec.vectors.es818.ES818HnswBinaryQuantizedVectorsFormat;
+import org.elasticsearch.index.codec.vectors.es92.ES92BinaryQuantizedBFloat16VectorsFormat;
+import org.elasticsearch.index.codec.vectors.es92.ES92HnswBinaryQuantizedBFloat16VectorsFormat;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.mapper.ArraySourceValueFetcher;
@@ -386,6 +388,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
             if (defaultBBQHnsw && dimIsConfigured && dims.getValue() >= BBQ_DIMS_DEFAULT_THRESHOLD) {
                 return new BBQHnswIndexOptions(
+                    32,
                     Lucene99HnswVectorsFormat.DEFAULT_MAX_CONN,
                     Lucene99HnswVectorsFormat.DEFAULT_BEAM_WIDTH,
                     new RescoreVector(DEFAULT_OVERSAMPLE)
@@ -1620,6 +1623,11 @@ public class DenseVectorFieldMapper extends FieldMapper {
         BBQ_HNSW("bbq_hnsw", true) {
             @Override
             public DenseVectorIndexOptions parseIndexOptions(String fieldName, Map<String, ?> indexOptionsMap, IndexVersion indexVersion) {
+                int rawVecSize = XContentMapValues.nodeIntegerValue(indexOptionsMap.remove("raw_vector_size"), 32);
+                if (rawVecSize != 32 && rawVecSize != 16) {
+                    throw new IllegalArgumentException("Invalid raw vector size " + rawVecSize);
+                }
+
                 Object mNode = indexOptionsMap.remove("m");
                 Object efConstructionNode = indexOptionsMap.remove("ef_construction");
                 if (mNode == null) {
@@ -1638,7 +1646,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     }
                 }
                 MappingParser.checkNoRemainingFields(fieldName, indexOptionsMap);
-                return new BBQHnswIndexOptions(m, efConstruction, rescoreVector);
+                return new BBQHnswIndexOptions(rawVecSize, m, efConstruction, rescoreVector);
             }
 
             @Override
@@ -1654,6 +1662,11 @@ public class DenseVectorFieldMapper extends FieldMapper {
         BBQ_FLAT("bbq_flat", true) {
             @Override
             public DenseVectorIndexOptions parseIndexOptions(String fieldName, Map<String, ?> indexOptionsMap, IndexVersion indexVersion) {
+                int rawVecSize = XContentMapValues.nodeIntegerValue(indexOptionsMap.remove("raw_vector_size"), 32);
+                if (rawVecSize != 32 && rawVecSize != 16) {
+                    throw new IllegalArgumentException("Invalid raw vector size " + rawVecSize);
+                }
+
                 RescoreVector rescoreVector = null;
                 if (hasRescoreIndexVersion(indexVersion)) {
                     rescoreVector = RescoreVector.fromIndexOptions(indexOptionsMap, indexVersion);
@@ -1662,7 +1675,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     }
                 }
                 MappingParser.checkNoRemainingFields(fieldName, indexOptionsMap);
-                return new BBQFlatIndexOptions(rescoreVector);
+                return new BBQFlatIndexOptions(rawVecSize, rescoreVector);
             }
 
             @Override
@@ -2178,11 +2191,13 @@ public class DenseVectorFieldMapper extends FieldMapper {
     }
 
     public static class BBQHnswIndexOptions extends QuantizedIndexOptions {
+        private final int rawVectorSize;
         private final int m;
         private final int efConstruction;
 
-        public BBQHnswIndexOptions(int m, int efConstruction, RescoreVector rescoreVector) {
+        public BBQHnswIndexOptions(int rawVectorSize, int m, int efConstruction, RescoreVector rescoreVector) {
             super(VectorIndexType.BBQ_HNSW, rescoreVector);
+            this.rawVectorSize = rawVectorSize;
             this.m = m;
             this.efConstruction = efConstruction;
         }
@@ -2190,7 +2205,11 @@ public class DenseVectorFieldMapper extends FieldMapper {
         @Override
         KnnVectorsFormat getVectorsFormat(ElementType elementType) {
             assert elementType == ElementType.FLOAT;
-            return new ES818HnswBinaryQuantizedVectorsFormat(m, efConstruction);
+            return switch (rawVectorSize) {
+                case 32 -> new ES818HnswBinaryQuantizedVectorsFormat(m, efConstruction);
+                case 16 -> new ES92HnswBinaryQuantizedBFloat16VectorsFormat(m, efConstruction);
+                default -> throw new AssertionError();
+            };
         }
 
         @Override
@@ -2202,12 +2221,15 @@ public class DenseVectorFieldMapper extends FieldMapper {
         @Override
         boolean doEquals(DenseVectorIndexOptions other) {
             BBQHnswIndexOptions that = (BBQHnswIndexOptions) other;
-            return m == that.m && efConstruction == that.efConstruction && Objects.equals(rescoreVector, that.rescoreVector);
+            return rawVectorSize == that.rawVectorSize
+                && m == that.m
+                && efConstruction == that.efConstruction
+                && Objects.equals(rescoreVector, that.rescoreVector);
         }
 
         @Override
         int doHashCode() {
-            return Objects.hash(m, efConstruction, rescoreVector);
+            return Objects.hash(rawVectorSize, m, efConstruction, rescoreVector);
         }
 
         @Override
@@ -2219,6 +2241,9 @@ public class DenseVectorFieldMapper extends FieldMapper {
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
             builder.field("type", type);
+            if (rawVectorSize != 32) {
+                builder.field("raw_vector_size", rawVectorSize);
+            }
             builder.field("m", m);
             builder.field("ef_construction", efConstruction);
             if (rescoreVector != null) {
@@ -2243,14 +2268,21 @@ public class DenseVectorFieldMapper extends FieldMapper {
     static class BBQFlatIndexOptions extends QuantizedIndexOptions {
         private final int CLASS_NAME_HASH = this.getClass().getName().hashCode();
 
-        BBQFlatIndexOptions(RescoreVector rescoreVector) {
+        private final int rawVectorSize;
+
+        BBQFlatIndexOptions(int rawVectorSize, RescoreVector rescoreVector) {
             super(VectorIndexType.BBQ_FLAT, rescoreVector);
+            this.rawVectorSize = rawVectorSize;
         }
 
         @Override
         KnnVectorsFormat getVectorsFormat(ElementType elementType) {
             assert elementType == ElementType.FLOAT;
-            return new ES818BinaryQuantizedVectorsFormat();
+            return switch (rawVectorSize) {
+                case 32 -> new ES818BinaryQuantizedVectorsFormat();
+                case 16 -> new ES92BinaryQuantizedBFloat16VectorsFormat();
+                default -> throw new AssertionError();
+            };
         }
 
         @Override
@@ -2279,6 +2311,9 @@ public class DenseVectorFieldMapper extends FieldMapper {
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
             builder.field("type", type);
+            if (rawVectorSize != 32) {
+                builder.field("raw_vector_size", rawVectorSize);
+            }
             if (rescoreVector != null) {
                 rescoreVector.toXContent(builder, params);
             }

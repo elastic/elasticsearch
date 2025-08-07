@@ -23,12 +23,12 @@ import java.io.IOException;
 import java.util.Collection;
 import java.util.Map;
 
-class MergeReaderWrapper extends FlatVectorsReader {
+public class MergeReaderWrapper extends FlatVectorsReader {
 
     private final FlatVectorsReader mainReader;
     private final FlatVectorsReader mergeReader;
 
-    protected MergeReaderWrapper(FlatVectorsReader mainReader, FlatVectorsReader mergeReader) {
+    public MergeReaderWrapper(FlatVectorsReader mainReader, FlatVectorsReader mergeReader) {
         super(mainReader.getFlatVectorScorer());
         this.mainReader = mainReader;
         this.mergeReader = mergeReader;

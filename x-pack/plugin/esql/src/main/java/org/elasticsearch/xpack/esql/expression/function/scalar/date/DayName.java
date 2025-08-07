@@ -36,14 +36,15 @@ import java.util.Locale;
 
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
 
-
 public class DayName extends EsqlConfigurationFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "DayName", DayName::new);
 
     private final Expression field;
 
-    @FunctionInfo(returnType = "keyword", description = "Returns the name of the weekday for date based on the configured Locale.",
-     examples = @Example(file = "date", tag = "docsDayName")
+    @FunctionInfo(
+        returnType = "keyword",
+        description = "Returns the name of the weekday for date based on the configured Locale.",
+        examples = @Example(file = "date", tag = "docsDayName")
     )
     public DayName(
         Source source,
@@ -59,11 +60,7 @@ public class DayName extends EsqlConfigurationFunction {
     }
 
     private DayName(StreamInput in) throws IOException {
-        this(
-            Source.readFrom((PlanStreamInput) in),
-            in.readNamedWriteable(Expression.class),
-            ((PlanStreamInput) in).configuration()
-        );
+        this(Source.readFrom((PlanStreamInput) in), in.readNamedWriteable(Expression.class), ((PlanStreamInput) in).configuration());
     }
 
     @Override
@@ -86,13 +83,11 @@ public class DayName extends EsqlConfigurationFunction {
         return DataType.KEYWORD;
     }
 
-
     @Override
     protected TypeResolution resolveType() {
         if (childrenResolved() == false) {
             return new TypeResolution("Unresolved children");
         }
-
 
         String operationName = sourceText();
         TypeResolution resolution = TypeResolutions.isType(field, DataType::isDate, operationName, FIRST, "datetime or date_nanos");

@@ -13,6 +13,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.util.concurrent.EsExecutors.TaskTrackingConfig;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionHandler.RejectionMetrics;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.telemetry.metric.Instrument;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 
@@ -89,6 +90,7 @@ public class EsVirtualThreadExecutorService extends AbstractExecutorService impl
         }
     }
 
+    @SuppressForbidden(reason = "internal implementation for EsExecutors")
     private EsVirtualThreadExecutorService(String name, int threads, int queueSize, ThreadContext contextHolder) {
         this.name = name;
         this.virtualExecutor = Executors.newThreadPerTaskExecutor(virtualThreadFactory(name));

@@ -2413,7 +2413,6 @@ public class SnapshotResiliencyTests extends ESTestCase {
                     client,
                     List.of()
                 );
-                final ActionFilters actionFilters = new ActionFilters(emptySet());
                 snapshotsService = new SnapshotsService(
                     settings,
                     clusterService,
@@ -2421,7 +2420,6 @@ public class SnapshotResiliencyTests extends ESTestCase {
                     indexNameExpressionResolver,
                     repositoriesService,
                     transportService,
-                    actionFilters,
                     EmptySystemIndices.INSTANCE,
                     false
                 );
@@ -2510,6 +2508,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                     threadPool
                 );
                 nodeConnectionsService = new NodeConnectionsService(clusterService.getSettings(), threadPool, transportService);
+                final ActionFilters actionFilters = new ActionFilters(emptySet());
                 Map<ActionType<?>, TransportAction<?, ?>> actions = new HashMap<>();
                 actions.put(
                     GlobalCheckpointSyncAction.TYPE,

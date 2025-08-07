@@ -35,6 +35,8 @@ Combining `query` and `retrievers` is not supported.
     See [normalizers](#linear-retriever-normalizers) for supported values.
     Required when `query` is specified.
 
+    When used with `retrievers`, the top-level `normalizer` serves as a default for any sub-retriever that doesn't specify its own normalizer. Per-retriever normalizers always take precedence over the top-level normalizer when both are specified.
+
     ::::{warning}
     Avoid using `none` as that will disable normalization and may bias the result set towards lexical matches.
     See [field grouping](../retrievers.md#multi-field-field-grouping) for more information.
@@ -94,7 +96,6 @@ The `linear` retriever supports the following normalizers:
 
 ## Examples [linear-retriever-examples]
 
-### Top-level normalizer example
 
 This example shows how to use a top-level normalizer that applies to all sub-retrievers:
 

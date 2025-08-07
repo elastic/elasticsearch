@@ -19,21 +19,23 @@ import org.elasticsearch.usage.SearchUsage;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
-import static java.util.Collections.emptyList;
+import static org.hamcrest.Matchers.instanceOf;
 
 public class LinearRetrieverBuilderParsingTests extends AbstractXContentTestCase<LinearRetrieverBuilder> {
     private static List<NamedXContentRegistry.Entry> xContentRegistryEntries;
 
     @BeforeClass
     public static void init() {
-        xContentRegistryEntries = new SearchModule(Settings.EMPTY, emptyList()).getNamedXContents();
+        xContentRegistryEntries = new SearchModule(Settings.EMPTY, Collections.emptyList()).getNamedXContents();
     }
 
     @AfterClass
@@ -67,10 +69,10 @@ public class LinearRetrieverBuilderParsingTests extends AbstractXContentTestCase
                 new CompoundRetrieverBuilder.RetrieverSource(TestRetrieverBuilder.createRandomTestRetrieverBuilder(), null)
             );
             weights[i] = randomFloat();
-            if (normalizer != null && randomBoolean()) {
-                normalizers[i] = normalizer;
-            } else {
+            if (randomBoolean()) {
                 normalizers[i] = randomScoreNormalizer();
+            } else {
+                normalizers[i] = null;
             }
         }
 
@@ -112,10 +114,31 @@ public class LinearRetrieverBuilderParsingTests extends AbstractXContentTestCase
     }
 
     private static ScoreNormalizer randomScoreNormalizer() {
-        if (randomBoolean()) {
-            return MinMaxScoreNormalizer.INSTANCE;
-        } else {
-            return IdentityScoreNormalizer.INSTANCE;
+        int random = randomInt(2);
+        return switch (random) {
+            case 0 -> MinMaxScoreNormalizer.INSTANCE;
+            case 1 -> L2ScoreNormalizer.INSTANCE;
+            default -> IdentityScoreNormalizer.INSTANCE;
+        };
+    }
+
+    public void testTopLevelNormalizer() throws IOException {
+        String json = """
+            {
+              "retrievers": [
+                { "test_retriever": {} },
+                { "test_retriever": {} }
+              ],
+              "normalizer": "min_max"
+            }""";
+
+        try (XContentParser parser = createParser(XContentType.JSON.xContent(), json)) {
+
+            LinearRetrieverBuilder builder = doParseInstance(parser);
+            assertThat(builder.getNormalizer(), instanceOf(MinMaxScoreNormalizer.class));
+            for (ScoreNormalizer normalizer : builder.getNormalizers()) {
+                assertThat(normalizer, instanceOf(MinMaxScoreNormalizer.class));
+            }
         }
     }
 }

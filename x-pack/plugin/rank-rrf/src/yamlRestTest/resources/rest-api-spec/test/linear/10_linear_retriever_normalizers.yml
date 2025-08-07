@@ -212,36 +212,56 @@ setup:
   - close_to: { hits.hits.1._score: { value: 0.385, error: 0.01} }
 
 ---
-"Linear retriever with mismatched normalizers (should fail)":
+"Linear retriever with per-retriever normalizer override":
   - do:
-      catch: bad_request
       search:
         index: test
         body:
           retriever:
             linear:
-              normalizer: l2_norm
+              normalizer: minmax
               retrievers: [
                 {
                   retriever: {
                     standard: {
                       query: {
-                        match_all: {}
+                        constant_score: {
+                          filter: {
+                            term: {
+                              keyword: {
+                                value: "one"
+                              }
+                            }
+                          },
+                          boost: 5.0
+                        }
                       }
                     }
-                  }
+                  },
+                  weight: 1.0,
+                  normalizer: l2_norm
                 },
                 {
                   retriever: {
                     standard: {
                       query: {
-                        match_all: {}
+                        constant_score: {
+                          filter: {
+                            term: {
+                              keyword: {
+                                value: "four"
+                              }
+                            }
+                          },
+                          boost: 12.0
+                        }
                       }
                     }
                   },
-                  normalizer: minmax
+                  weight: 1.0
                 }
               ]
 
-  - match: { error.root_cause.0.type: "illegal_argument_exception" }
-  - match: { error.root_cause.0.reason: /.*All per-retriever normalizers must match the top-level normalizer.*/ }
+  - match: { hits.total.value: 2 }
+  # First retriever uses l2_norm override, second uses minmax from top-level
+  # The scores will reflect this mixed normalization approach

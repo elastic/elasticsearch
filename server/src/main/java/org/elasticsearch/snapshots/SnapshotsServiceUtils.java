@@ -193,6 +193,99 @@ public class SnapshotsServiceUtils {
         }
     }
 
+    /**
+     * Assert that there are no snapshots that have a shard that is waiting to be assigned even though the cluster state would allow for it
+     * to be assigned
+     */
+    public static boolean assertNoDanglingSnapshots(ClusterState state) {
+        final SnapshotsInProgress snapshotsInProgress = SnapshotsInProgress.get(state);
+        final SnapshotDeletionsInProgress snapshotDeletionsInProgress = SnapshotDeletionsInProgress.get(state);
+        final Set<ProjectRepo> reposWithRunningDelete = snapshotDeletionsInProgress.getEntries()
+            .stream()
+            .filter(entry -> entry.state() == SnapshotDeletionsInProgress.State.STARTED)
+            .map(entry -> new ProjectRepo(entry.projectId(), entry.repository()))
+            .collect(Collectors.toSet());
+        for (List<SnapshotsInProgress.Entry> repoEntry : snapshotsInProgress.entriesByRepo()) {
+            final SnapshotsInProgress.Entry entry = repoEntry.get(0);
+            for (SnapshotsInProgress.ShardSnapshotStatus value : entry.shardSnapshotStatusByRepoShardId().values()) {
+                if (value.equals(SnapshotsInProgress.ShardSnapshotStatus.UNASSIGNED_QUEUED)) {
+                    assert reposWithRunningDelete.contains(new ProjectRepo(entry.projectId(), entry.repository()))
+                        : "Found shard snapshot waiting to be assigned in [" + entry + "] but it is not blocked by any running delete";
+                } else if (value.isActive()) {
+                    assert reposWithRunningDelete.contains(new ProjectRepo(entry.projectId(), entry.repository())) == false
+                        : "Found shard snapshot actively executing in ["
+                        + entry
+                        + "] when it should be blocked by a running delete ["
+                        + Strings.toString(snapshotDeletionsInProgress)
+                        + "]";
+                }
+            }
+        }
+        return true;
+    }
+
+    /**
+     * Checks whether the metadata version supports writing {@link ShardGenerations} to the repository.
+     *
+     * @param repositoryMetaVersion version to check
+     * @return true if version supports {@link ShardGenerations}
+     */
+    public static boolean useShardGenerations(IndexVersion repositoryMetaVersion) {
+        return repositoryMetaVersion.onOrAfter(SHARD_GEN_IN_REPO_DATA_VERSION);
+    }
+
+    /**
+     * Checks whether the metadata version supports writing {@link ShardGenerations} to the repository.
+     *
+     * @param repositoryMetaVersion version to check
+     * @return true if version supports {@link ShardGenerations}
+     */
+    public static boolean useIndexGenerations(IndexVersion repositoryMetaVersion) {
+        return repositoryMetaVersion.onOrAfter(INDEX_GEN_IN_REPO_DATA_VERSION);
+    }
+
+    /**
+     * Checks whether the metadata version supports writing the cluster- and repository-uuid to the repository.
+     *
+     * @param repositoryMetaVersion version to check
+     * @return true if version supports writing cluster- and repository-uuid to the repository
+     */
+    public static boolean includesUUIDs(IndexVersion repositoryMetaVersion) {
+        return repositoryMetaVersion.onOrAfter(UUIDS_IN_REPO_DATA_VERSION);
+    }
+
+    public static boolean includeFileInfoWriterUUID(IndexVersion repositoryMetaVersion) {
+        return repositoryMetaVersion.onOrAfter(FILE_INFO_WRITER_UUIDS_IN_SHARD_DATA_VERSION);
+    }
+
+    public static boolean supportsNodeRemovalTracking(ClusterState clusterState) {
+        return clusterState.getMinTransportVersion().onOrAfter(TransportVersions.V_8_13_0);
+    }
+
+    /**
+     * Checks if the given {@link SnapshotsInProgress.Entry} is currently writing to the repository.
+     *
+     * @param entry snapshot entry
+     * @return true if entry is currently writing to the repository
+     */
+    public static boolean isWritingToRepository(SnapshotsInProgress.Entry entry) {
+        if (entry.state().completed()) {
+            // Entry is writing to the repo because it's finalizing on master
+            return true;
+        }
+        for (SnapshotsInProgress.ShardSnapshotStatus value : entry.shardSnapshotStatusByRepoShardId().values()) {
+            if (value.isActive()) {
+                // Entry is writing to the repo because it's writing to a shard on a data node or waiting to do so for a concrete shard
+                return true;
+            }
+        }
+        return false;
+    }
+
+    public static boolean isQueued(@Nullable SnapshotsInProgress.ShardSnapshotStatus status) {
+        return status != null && status.state() == SnapshotsInProgress.ShardState.QUEUED;
+    }
+
     public static FinalizeSnapshotContext.UpdatedShardGenerations buildGenerations(SnapshotsInProgress.Entry snapshot, Metadata metadata) {
         ShardGenerations.Builder builder = ShardGenerations.builder();
         ShardGenerations.Builder deletedBuilder = null;
@@ -293,37 +386,6 @@ public class SnapshotsServiceUtils {
             }
         }
         return unmodifiableList(builder);
-    }
-
-    /**
-     * Assert that there are no snapshots that have a shard that is waiting to be assigned even though the cluster state would allow for it
-     * to be assigned
-     */
-    public static boolean assertNoDanglingSnapshots(ClusterState state) {
-        final SnapshotsInProgress snapshotsInProgress = SnapshotsInProgress.get(state);
-        final SnapshotDeletionsInProgress snapshotDeletionsInProgress = SnapshotDeletionsInProgress.get(state);
-        final Set<ProjectRepo> reposWithRunningDelete = snapshotDeletionsInProgress.getEntries()
-            .stream()
-            .filter(entry -> entry.state() == SnapshotDeletionsInProgress.State.STARTED)
-            .map(entry -> new ProjectRepo(entry.projectId(), entry.repository()))
-            .collect(Collectors.toSet());
-        for (List<SnapshotsInProgress.Entry> repoEntry : snapshotsInProgress.entriesByRepo()) {
-            final SnapshotsInProgress.Entry entry = repoEntry.get(0);
-            for (SnapshotsInProgress.ShardSnapshotStatus value : entry.shardSnapshotStatusByRepoShardId().values()) {
-                if (value.equals(SnapshotsInProgress.ShardSnapshotStatus.UNASSIGNED_QUEUED)) {
-                    assert reposWithRunningDelete.contains(new ProjectRepo(entry.projectId(), entry.repository()))
-                        : "Found shard snapshot waiting to be assigned in [" + entry + "] but it is not blocked by any running delete";
-                } else if (value.isActive()) {
-                    assert reposWithRunningDelete.contains(new ProjectRepo(entry.projectId(), entry.repository())) == false
-                        : "Found shard snapshot actively executing in ["
-                            + entry
-                            + "] when it should be blocked by a running delete ["
-                            + Strings.toString(snapshotDeletionsInProgress)
-                            + "]";
-                }
-            }
-        }
-        return true;
     }
 
     /**
@@ -802,26 +864,6 @@ public class SnapshotsServiceUtils {
     }
 
     /**
-     * Checks if the given {@link SnapshotsInProgress.Entry} is currently writing to the repository.
-     *
-     * @param entry snapshot entry
-     * @return true if entry is currently writing to the repository
-     */
-    public static boolean isWritingToRepository(SnapshotsInProgress.Entry entry) {
-        if (entry.state().completed()) {
-            // Entry is writing to the repo because it's finalizing on master
-            return true;
-        }
-        for (SnapshotsInProgress.ShardSnapshotStatus value : entry.shardSnapshotStatusByRepoShardId().values()) {
-            if (value.isActive()) {
-                // Entry is writing to the repo because it's writing to a shard on a data node or waiting to do so for a concrete shard
-                return true;
-            }
-        }
-        return false;
-    }
-
-    /**
      * Determines the minimum {@link IndexVersion} that the snapshot repository must be compatible with
      * from the current nodes in the cluster and the contents of the repository.
      * The minimum version is determined as the lowest version found across all snapshots in the
@@ -858,40 +900,6 @@ public class SnapshotsServiceUtils {
             }
         }
         return minCompatVersion;
-    }
-
-    /**
-     * Checks whether the metadata version supports writing {@link ShardGenerations} to the repository.
-     *
-     * @param repositoryMetaVersion version to check
-     * @return true if version supports {@link ShardGenerations}
-     */
-    public static boolean useShardGenerations(IndexVersion repositoryMetaVersion) {
-        return repositoryMetaVersion.onOrAfter(SHARD_GEN_IN_REPO_DATA_VERSION);
-    }
-
-    /**
-     * Checks whether the metadata version supports writing {@link ShardGenerations} to the repository.
-     *
-     * @param repositoryMetaVersion version to check
-     * @return true if version supports {@link ShardGenerations}
-     */
-    public static boolean useIndexGenerations(IndexVersion repositoryMetaVersion) {
-        return repositoryMetaVersion.onOrAfter(INDEX_GEN_IN_REPO_DATA_VERSION);
-    }
-
-    /**
-     * Checks whether the metadata version supports writing the cluster- and repository-uuid to the repository.
-     *
-     * @param repositoryMetaVersion version to check
-     * @return true if version supports writing cluster- and repository-uuid to the repository
-     */
-    public static boolean includesUUIDs(IndexVersion repositoryMetaVersion) {
-        return repositoryMetaVersion.onOrAfter(UUIDS_IN_REPO_DATA_VERSION);
-    }
-
-    public static boolean includeFileInfoWriterUUID(IndexVersion repositoryMetaVersion) {
-        return repositoryMetaVersion.onOrAfter(FILE_INFO_WRITER_UUIDS_IN_SHARD_DATA_VERSION);
     }
 
     /**
@@ -1117,10 +1125,6 @@ public class SnapshotsServiceUtils {
             .collect(Collectors.toMap(DataStreamAlias::getName, Function.identity()));
     }
 
-    public static boolean isQueued(@Nullable SnapshotsInProgress.ShardSnapshotStatus status) {
-        return status != null && status.state() == SnapshotsInProgress.ShardState.QUEUED;
-    }
-
     public static void logSnapshotFailure(String operation, Snapshot snapshot, Exception e) {
         final var logLevel = snapshotFailureLogLevel(e);
         if (logLevel == Level.INFO && logger.isDebugEnabled() == false) {
@@ -1164,9 +1168,5 @@ public class SnapshotsServiceUtils {
             return Level.INFO;
         }
         return Level.WARN;
-    }
-
-    public static boolean supportsNodeRemovalTracking(ClusterState clusterState) {
-        return clusterState.getMinTransportVersion().onOrAfter(TransportVersions.V_8_13_0);
     }
 }

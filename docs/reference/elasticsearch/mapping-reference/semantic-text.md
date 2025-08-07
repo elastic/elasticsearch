@@ -359,6 +359,24 @@ PUT test-index
 
 1. Ensures that highlighting is applied exclusively to semantic_text fields.
 
+## Updates and partial updates for `semantic_text` fields [semantic-text-updates]
+
+When updating documents that contain `semantic_text` fields, it’s important to understand how inference is triggered:
+
+* **Full document updates**
+  When you perform a full document update, **all `semantic_text` fields will re-run inference** even if their values did not change. This ensures that the embeddings are always consistent with the current document state but can increase ingestion costs.
+
+* **Partial updates using the Bulk API**
+  Partial updates that **omit `semantic_text` fields** and are submitted through the [Bulk API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-bulk) will **reuse the existing embeddings** stored in the index. In this case, inference is **not triggered** for fields that were not updated, which can significantly reduce processing time and cost.
+
+* **Partial updates using the Update API**
+  When using the [Update API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-update) with a `doc` object that **omits `semantic_text` fields**, inference **will still run** on all `semantic_text` fields. This means that even if the field values are not changed, embeddings will be re-generated.
+
+If you want to avoid unnecessary inference and keep existing embeddings:
+
+    * Use **partial updates through the Bulk API**.
+    * Omit any `semantic_text` fields that did not change from the `doc` object in your request.
+
 ## Customizing `semantic_text` indexing [custom-indexing]
 
 `semantic_text` uses defaults for indexing data based on the {{infer}} endpoint
@@ -403,24 +421,6 @@ PUT my-index-000004
   }
 }
 ```
-
-### Customizing using ingest pipelines [custom-by-pipelines]
-```{applies_to}
-stack: ga 9.0
-```
-
-In case you want to customize data indexing, use the
-[`sparse_vector`](/reference/elasticsearch/mapping-reference/sparse-vector.md)
-or [`dense_vector`](/reference/elasticsearch/mapping-reference/dense-vector.md)
-field types and create an ingest pipeline with an
-[{{infer}} processor](/reference/enrich-processor/inference-processor.md) to
-generate the embeddings.
-[This tutorial](docs-content://solutions/search/semantic-search/semantic-search-inference.md)
-walks you through the process. In these cases - when you use `sparse_vector` or
-`dense_vector` field types instead of the `semantic_text` field type to
-customize indexing - using the
-[`semantic_query`](/reference/query-languages/query-dsl/query-dsl-semantic-query.md)
-is not supported for querying the field data.
 
 ## Updates to `semantic_text` fields [update-script]
 

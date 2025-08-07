@@ -87,19 +87,19 @@ public final class SumLongAggregatorFunction implements AggregatorFunction {
 
   private void addRawVector(LongVector vVector) {
     state.seen(true);
-    for (int i = 0; i < vVector.getPositionCount(); i++) {
-      long vValue = vVector.getLong(i);
+    for (int valuesPosition = 0; valuesPosition < vVector.getPositionCount(); valuesPosition++) {
+      long vValue = vVector.getLong(valuesPosition);
       state.longValue(SumLongAggregator.combine(state.longValue(), vValue));
     }
   }
 
   private void addRawVector(LongVector vVector, BooleanVector mask) {
     state.seen(true);
-    for (int i = 0; i < vVector.getPositionCount(); i++) {
-      if (mask.getBoolean(i) == false) {
+    for (int valuesPosition = 0; valuesPosition < vVector.getPositionCount(); valuesPosition++) {
+      if (mask.getBoolean(valuesPosition) == false) {
         continue;
       }
-      long vValue = vVector.getLong(i);
+      long vValue = vVector.getLong(valuesPosition);
       state.longValue(SumLongAggregator.combine(state.longValue(), vValue));
     }
   }

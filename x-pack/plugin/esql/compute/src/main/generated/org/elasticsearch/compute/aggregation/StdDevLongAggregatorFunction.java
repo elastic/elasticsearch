@@ -88,18 +88,18 @@ public final class StdDevLongAggregatorFunction implements AggregatorFunction {
   }
 
   private void addRawVector(LongVector valueVector) {
-    for (int i = 0; i < valueVector.getPositionCount(); i++) {
-      long valueValue = valueVector.getLong(i);
+    for (int valuesPosition = 0; valuesPosition < valueVector.getPositionCount(); valuesPosition++) {
+      long valueValue = valueVector.getLong(valuesPosition);
       StdDevLongAggregator.combine(state, valueValue);
     }
   }
 
   private void addRawVector(LongVector valueVector, BooleanVector mask) {
-    for (int i = 0; i < valueVector.getPositionCount(); i++) {
-      if (mask.getBoolean(i) == false) {
+    for (int valuesPosition = 0; valuesPosition < valueVector.getPositionCount(); valuesPosition++) {
+      if (mask.getBoolean(valuesPosition) == false) {
         continue;
       }
-      long valueValue = valueVector.getLong(i);
+      long valueValue = valueVector.getLong(valuesPosition);
       StdDevLongAggregator.combine(state, valueValue);
     }
   }

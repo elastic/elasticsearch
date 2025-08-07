@@ -90,18 +90,18 @@ public final class StdDevFloatAggregatorFunction implements AggregatorFunction {
   }
 
   private void addRawVector(FloatVector valueVector) {
-    for (int i = 0; i < valueVector.getPositionCount(); i++) {
-      float valueValue = valueVector.getFloat(i);
+    for (int valuesPosition = 0; valuesPosition < valueVector.getPositionCount(); valuesPosition++) {
+      float valueValue = valueVector.getFloat(valuesPosition);
       StdDevFloatAggregator.combine(state, valueValue);
     }
   }
 
   private void addRawVector(FloatVector valueVector, BooleanVector mask) {
-    for (int i = 0; i < valueVector.getPositionCount(); i++) {
-      if (mask.getBoolean(i) == false) {
+    for (int valuesPosition = 0; valuesPosition < valueVector.getPositionCount(); valuesPosition++) {
+      if (mask.getBoolean(valuesPosition) == false) {
         continue;
       }
-      float valueValue = valueVector.getFloat(i);
+      float valueValue = valueVector.getFloat(valuesPosition);
       StdDevFloatAggregator.combine(state, valueValue);
     }
   }

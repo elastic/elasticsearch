@@ -27,14 +27,35 @@ import org.apache.lucene.codecs.perfield.PerFieldKnnVectorsFormat;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.KnnFloatVectorField;
-import org.apache.lucene.index.*;
+import org.apache.lucene.index.CodecReader;
+import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.FloatVectorValues;
+import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.IndexWriter;
+import org.apache.lucene.index.IndexWriterConfig;
+import org.apache.lucene.index.KnnVectorValues;
+import org.apache.lucene.index.LeafReader;
+import org.apache.lucene.index.SoftDeletesRetentionMergePolicy;
+import org.apache.lucene.index.Term;
+import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.misc.store.DirectIODirectory;
-import org.apache.lucene.search.*;
+import org.apache.lucene.search.FieldExistsQuery;
+import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.KnnFloatVectorQuery;
+import org.apache.lucene.search.MatchAllDocsQuery;
+import org.apache.lucene.search.Query;
+import org.apache.lucene.search.TermQuery;
+import org.apache.lucene.search.TopDocs;
+import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.search.join.BitSetProducer;
 import org.apache.lucene.search.join.CheckJoinIndex;
 import org.apache.lucene.search.join.DiversifyingChildrenFloatKnnVectorQuery;
 import org.apache.lucene.search.join.QueryBitSetProducer;
-import org.apache.lucene.store.*;
+import org.apache.lucene.store.Directory;
+import org.apache.lucene.store.FSDirectory;
+import org.apache.lucene.store.IOContext;
+import org.apache.lucene.store.IndexOutput;
+import org.apache.lucene.store.MMapDirectory;
 import org.apache.lucene.tests.index.BaseKnnVectorsFormatTestCase;
 import org.apache.lucene.tests.store.MockDirectoryWrapper;
 import org.apache.lucene.tests.util.TestUtil;
@@ -52,12 +73,15 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardPath;
 import org.elasticsearch.index.store.FsDirectoryFactory;
 import org.elasticsearch.test.IndexSettingsModule;
-import org.junit.Ignore;
 
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
+import java.util.Locale;
+import java.util.OptionalLong;
 
 import static java.lang.String.format;
 import static org.apache.lucene.index.VectorSimilarityFunction.DOT_PRODUCT;
@@ -187,20 +211,17 @@ public class ES92BinaryQuantizedBFloat16VectorsFormatTests extends BaseKnnVector
         // visited limit is not respected, as it is brute force search
     }
 
+    // bfloat16 makes the results of these tests slightly out of bounds
     @Override
-    @Ignore // bfloat16 makes the results slightly out of bounds
     public void testWriterRamEstimate() throws Exception {}
 
     @Override
-    @Ignore // bfloat16 makes the results slightly out of bounds
     public void testRandom() throws Exception {}
 
     @Override
-    @Ignore // bfloat16 makes the results slightly out of bounds
     public void testVectorValuesReportCorrectDocs() throws Exception {}
 
     @Override
-    @Ignore // bfloat16 makes the results slightly out of bounds
     public void testSparseVectors() throws Exception {}
 
     public void testQuantizedVectorsWriteAndRead() throws IOException {

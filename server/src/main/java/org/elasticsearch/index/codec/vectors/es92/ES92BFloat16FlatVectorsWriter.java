@@ -43,11 +43,11 @@ import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.util.ArrayUtil;
-import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.apache.lucene.util.hnsw.CloseableRandomVectorScorerSupplier;
 import org.apache.lucene.util.hnsw.RandomVectorScorerSupplier;
 import org.apache.lucene.util.hnsw.UpdateableRandomVectorScorer;
+import org.elasticsearch.core.IOUtils;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -292,7 +292,11 @@ public final class ES92BFloat16FlatVectorsWriter extends FlatVectorsWriter {
         } finally {
             if (success == false) {
                 IOUtils.closeWhileHandlingException(vectorDataInput, tempVectorData);
-                IOUtils.deleteFilesIgnoringExceptions(segmentWriteState.directory, tempVectorData.getName());
+                try {
+                    segmentWriteState.directory.deleteFile(tempVectorData.getName());
+                } catch (Exception e) {
+                    // ignore
+                }
             }
         }
     }

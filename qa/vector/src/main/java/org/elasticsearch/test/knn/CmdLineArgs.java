@@ -49,6 +49,7 @@ record CmdLineArgs(
     float filterSelectivity,
     long seed,
     VectorSimilarityFunction vectorSpace,
+    int rawVectorSize,
     int quantizeBits,
     VectorEncoding vectorEncoding,
     int dimensions,
@@ -75,6 +76,7 @@ record CmdLineArgs(
     static final ParseField FORCE_MERGE_FIELD = new ParseField("force_merge");
     static final ParseField VECTOR_SPACE_FIELD = new ParseField("vector_space");
     static final ParseField QUANTIZE_BITS_FIELD = new ParseField("quantize_bits");
+    static final ParseField RAW_VECTOR_SIZE_FIELD = new ParseField("raw_vector_size");
     static final ParseField VECTOR_ENCODING_FIELD = new ParseField("vector_encoding");
     static final ParseField DIMENSIONS_FIELD = new ParseField("dimensions");
     static final ParseField EARLY_TERMINATION_FIELD = new ParseField("early_termination");
@@ -108,6 +110,7 @@ record CmdLineArgs(
         PARSER.declareBoolean(Builder::setReindex, REINDEX_FIELD);
         PARSER.declareBoolean(Builder::setForceMerge, FORCE_MERGE_FIELD);
         PARSER.declareString(Builder::setVectorSpace, VECTOR_SPACE_FIELD);
+        PARSER.declareInt(Builder::setRawVectorSize, RAW_VECTOR_SIZE_FIELD);
         PARSER.declareInt(Builder::setQuantizeBits, QUANTIZE_BITS_FIELD);
         PARSER.declareString(Builder::setVectorEncoding, VECTOR_ENCODING_FIELD);
         PARSER.declareInt(Builder::setDimensions, DIMENSIONS_FIELD);
@@ -143,6 +146,7 @@ record CmdLineArgs(
         builder.field(REINDEX_FIELD.getPreferredName(), reindex);
         builder.field(FORCE_MERGE_FIELD.getPreferredName(), forceMerge);
         builder.field(VECTOR_SPACE_FIELD.getPreferredName(), vectorSpace.name().toLowerCase(Locale.ROOT));
+        builder.field(RAW_VECTOR_SIZE_FIELD.getPreferredName(), rawVectorSize);
         builder.field(QUANTIZE_BITS_FIELD.getPreferredName(), quantizeBits);
         builder.field(VECTOR_ENCODING_FIELD.getPreferredName(), vectorEncoding.name().toLowerCase(Locale.ROOT));
         builder.field(DIMENSIONS_FIELD.getPreferredName(), dimensions);
@@ -176,6 +180,7 @@ record CmdLineArgs(
         private boolean reindex = false;
         private boolean forceMerge = false;
         private VectorSimilarityFunction vectorSpace = VectorSimilarityFunction.EUCLIDEAN;
+        private int rawVectorSize = 32;
         private int quantizeBits = 8;
         private VectorEncoding vectorEncoding = VectorEncoding.FLOAT32;
         private int dimensions;
@@ -278,6 +283,11 @@ record CmdLineArgs(
             return this;
         }
 
+        public Builder setRawVectorSize(int rawVectorSize) {
+            this.rawVectorSize = rawVectorSize;
+            return this;
+        }
+
         public Builder setQuantizeBits(int quantizeBits) {
             this.quantizeBits = quantizeBits;
             return this;
@@ -343,6 +353,7 @@ record CmdLineArgs(
                 filterSelectivity,
                 seed,
                 vectorSpace,
+                rawVectorSize,
                 quantizeBits,
                 vectorEncoding,
                 dimensions,

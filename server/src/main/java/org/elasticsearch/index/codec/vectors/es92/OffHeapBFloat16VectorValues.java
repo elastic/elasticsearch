@@ -93,7 +93,7 @@ abstract class OffHeapBFloat16VectorValues extends FloatVectorValues implements 
         return value;
     }
 
-    public static OffHeapBFloat16VectorValues load(
+    static OffHeapBFloat16VectorValues load(
         VectorSimilarityFunction vectorSimilarityFunction,
         FlatVectorsScorer flatVectorsScorer,
         OrdToDocDISIReaderConfiguration configuration,
@@ -129,9 +129,9 @@ abstract class OffHeapBFloat16VectorValues extends FloatVectorValues implements 
      * Dense vector values that are stored off-heap. This is the most common case when every doc has a
      * vector.
      */
-    public static class DenseOffHeapVectorValues extends OffHeapBFloat16VectorValues {
+    static class DenseOffHeapVectorValues extends OffHeapBFloat16VectorValues {
 
-        public DenseOffHeapVectorValues(
+        DenseOffHeapVectorValues(
             int dimension,
             int size,
             IndexInput slice,
@@ -188,7 +188,7 @@ abstract class OffHeapBFloat16VectorValues extends FloatVectorValues implements 
         private final IndexInput dataIn;
         private final OrdToDocDISIReaderConfiguration configuration;
 
-        public SparseOffHeapVectorValues(
+        SparseOffHeapVectorValues(
             OrdToDocDISIReaderConfiguration configuration,
             IndexInput dataIn,
             IndexInput slice,
@@ -269,7 +269,7 @@ abstract class OffHeapBFloat16VectorValues extends FloatVectorValues implements 
 
     private static class EmptyOffHeapVectorValues extends OffHeapBFloat16VectorValues {
 
-        public EmptyOffHeapVectorValues(int dimension, FlatVectorsScorer flatVectorsScorer, VectorSimilarityFunction similarityFunction) {
+        EmptyOffHeapVectorValues(int dimension, FlatVectorsScorer flatVectorsScorer, VectorSimilarityFunction similarityFunction) {
             super(dimension, 0, null, 0, flatVectorsScorer, similarityFunction);
         }
 

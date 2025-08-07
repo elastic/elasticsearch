@@ -27,10 +27,22 @@ import org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsReader;
 import org.apache.lucene.codecs.perfield.PerFieldKnnVectorsFormat;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.KnnFloatVectorField;
-import org.apache.lucene.index.*;
+import org.apache.lucene.index.CodecReader;
+import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.FloatVectorValues;
+import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.IndexWriter;
+import org.apache.lucene.index.IndexWriterConfig;
+import org.apache.lucene.index.KnnVectorValues;
+import org.apache.lucene.index.LeafReader;
+import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.misc.store.DirectIODirectory;
 import org.apache.lucene.search.TopDocs;
-import org.apache.lucene.store.*;
+import org.apache.lucene.store.Directory;
+import org.apache.lucene.store.FSDirectory;
+import org.apache.lucene.store.IOContext;
+import org.apache.lucene.store.IndexOutput;
+import org.apache.lucene.store.MMapDirectory;
 import org.apache.lucene.tests.index.BaseKnnVectorsFormatTestCase;
 import org.apache.lucene.tests.store.MockDirectoryWrapper;
 import org.apache.lucene.tests.util.TestUtil;
@@ -45,7 +57,6 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardPath;
 import org.elasticsearch.index.store.FsDirectoryFactory;
 import org.elasticsearch.test.IndexSettingsModule;
-import org.junit.Ignore;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -140,24 +151,20 @@ public class ES92HnswBinaryQuantizedBFloat16VectorsFormatTests extends BaseKnnVe
         assertEquals(Lucene99HnswVectorsReader.SIMILARITY_FUNCTIONS, expectedValues);
     }
 
+    // bfloat16 makes the results of these tests slightly out of bounds
     @Override
-    @Ignore // bfloat16 makes the results slightly out of bounds
     public void testWriterRamEstimate() throws Exception {}
 
     @Override
-    @Ignore // bfloat16 makes the results slightly out of bounds
     public void testRandom() throws Exception {}
 
     @Override
-    @Ignore // bfloat16 makes the results slightly out of bounds
     public void testRandomWithUpdatesAndGraph() throws Exception {}
 
     @Override
-    @Ignore // bfloat16 makes the results slightly out of bounds
     public void testVectorValuesReportCorrectDocs() throws Exception {}
 
     @Override
-    @Ignore // bfloat16 makes the results slightly out of bounds
     public void testSparseVectors() throws Exception {}
 
     public void testSimpleOffHeapSize() throws IOException {

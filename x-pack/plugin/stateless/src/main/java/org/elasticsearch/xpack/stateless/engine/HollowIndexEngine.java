@@ -294,6 +294,13 @@ public class HollowIndexEngine extends Engine {
         // Acquire the engine reset write lock to avoid shard engine resets to run concurrently while calling the refresh listeners.
         // We could use the engine reset read lock instead, but since we need refresh listeners to be called by a single thread at a time
         // using the write lock avoids maintaining a second exclusive lock just for this.
+        //
+        // In some cases, the engine reset write lock is already held when this refresh method is called:
+        // - when the HollowIndexEngine is created upon a reset during the relocation action
+        // - when the post_recovery refresh is executed during shard recovery
+        //
+        // In other cases, during normal run of the shard, sometimes the will be a no-op and the refresh listeners won't be called if the
+        // engine reset read lock is held by something else (e.g., concurrent getEngine usages). We think it is OK.
         final var engineWriteLock = engineConfig.getEngineResetLock().writeLock();
         if (engineWriteLock.tryLock()) {
             try {

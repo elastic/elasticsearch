@@ -358,6 +358,7 @@ public class HollowShardsService extends AbstractLifecycleComponent {
                     indexShardCacheWarmer.preWarmIndexShardCache(indexShard, false);
                     indexShard.resetEngine(engine -> {
                         assert assertIndexEngineLastCommitHollow(shardId, engine, true);
+                        assert engine.getEngineConfig().getEngineResetLock().isWriteLockedByCurrentThread() : shardId;
                         engine.refresh("unhollowing"); // warms up reader managers
                         engine.skipTranslogRecovery(); // allows new flushes
                     });

@@ -256,7 +256,7 @@ public class ShardsMappingSizeCollector implements ClusterStateListener, IndexEv
             final var shardFieldStats = shard.getShardFieldStats();
             if (shardFieldStats == null) {
                 assert shardState != IndexShardState.POST_RECOVERY && shardState != IndexShardState.STARTED
-                    : "started or post_recovery shard must have shard_field_stats ready";
+                    : shard.shardId() + ": started or post_recovery shard must have shard_field_stats ready";
                 continue;
             }
             final String nodeId = shard.routingEntry().currentNodeId();

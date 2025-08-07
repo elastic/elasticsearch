@@ -12,7 +12,6 @@ package org.elasticsearch.ingest;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.transport.BytesRefRecycler;
 import org.elasticsearch.xcontent.ToXContent;
@@ -184,29 +183,26 @@ public class ESONSource {
         BINARY
     }
 
-    public interface KeyEntry {
-
-        String key();
-
-        default void writeTo(StreamOutput out) throws IOException {
-
-        }
-
-    }
-
-    public static class ObjectEntry implements KeyEntry {
+    public abstract static class KeyEntry {
 
         private final String key;
+
+        KeyEntry(String key) {
+            this.key = key;
+        }
+
+        public String key() {
+            return key;
+        }
+    }
+
+    public static class ObjectEntry extends KeyEntry {
+
         public int fieldCount = 0;
         private Map<String, Type> mutationMap = null;
 
         public ObjectEntry(String key) {
-            this.key = key;
-        }
-
-        @Override
-        public String key() {
-            return key;
+            super(key);
         }
 
         public boolean hasMutations() {
@@ -215,23 +211,17 @@ public class ESONSource {
 
         @Override
         public String toString() {
-            return "ObjectEntry{" + "key='" + key + '\'' + ", fieldCount=" + fieldCount + ", hasMutations=" + hasMutations() + '}';
+            return "ObjectEntry{" + "key='" + key() + '\'' + ", fieldCount=" + fieldCount + ", hasMutations=" + hasMutations() + '}';
         }
     }
 
-    public static class ArrayEntry implements KeyEntry {
+    public static class ArrayEntry extends KeyEntry {
 
-        private final String key;
         public int elementCount = 0;
         private List<Type> mutationArray = null;
 
         public ArrayEntry(String key) {
-            this.key = key;
-        }
-
-        @Override
-        public String key() {
-            return key;
+            super(key);
         }
 
         public boolean hasMutations() {
@@ -240,27 +230,21 @@ public class ESONSource {
 
         @Override
         public String toString() {
-            return "ArrayEntry{" + "key='" + key + '\'' + ", elementCount=" + elementCount + ", hasMutations=" + hasMutations() + '}';
+            return "ArrayEntry{" + "key='" + key() + '\'' + ", elementCount=" + elementCount + ", hasMutations=" + hasMutations() + '}';
         }
     }
 
-    public static class FieldEntry implements KeyEntry {
-        public final String key;
+    public static class FieldEntry extends KeyEntry {
         public final Type type;
 
         public FieldEntry(String key, Type type) {
-            this.key = key;
+            super(key);
             this.type = type;
         }
 
         @Override
-        public String key() {
-            return key;
-        }
-
-        @Override
         public String toString() {
-            return "FieldEntry{" + "key='" + key + '\'' + ", type=" + type + '}';
+            return "FieldEntry{" + "key='" + key() + '\'' + ", type=" + type + '}';
         }
     }
 
@@ -397,7 +381,7 @@ public class ESONSource {
                 for (int i = 0; i < objEntry.fieldCount; i++) {
                     KeyEntry entry = keyArray.get(currentIndex);
                     if (entry instanceof FieldEntry fieldEntry) {
-                        materializedMap.put(fieldEntry.key, fieldEntry.type);
+                        materializedMap.put(fieldEntry.key(), fieldEntry.type);
                         currentIndex++;
                     } else {
                         if (entry instanceof ObjectEntry) {
@@ -1054,25 +1038,6 @@ public class ESONSource {
             }
 
             newArrEntry.elementCount = elementCount;
-        }
-    }
-
-    public void writeToStream(ESONObject object, StreamOutput out) throws IOException {
-        out.writeByte((byte) 'E');
-        out.writeByte((byte) 'S');
-        out.writeByte((byte) 'O');
-        out.writeByte((byte) 'N');
-        // TODO: How to write size
-        // TODO: Assert flattened or support transition to flattened
-        for (KeyEntry entry : object.getKeyArray()) {
-            if (entry instanceof ObjectEntry) {
-
-            } else if (entry instanceof ArrayEntry) {
-
-            } else {
-
-            }
-            entry.writeTo(out);
         }
     }
 }

@@ -86,8 +86,8 @@ public class ESONXContentSerializer {
             // Process the current entry
             if (entry instanceof ESONSource.FieldEntry fieldEntry) {
                 // Simple field with a value
-                if (currentContainer.isArray == false && fieldEntry.key != null) {
-                    builder.field(fieldEntry.key);
+                if (currentContainer.isArray == false && fieldEntry.key() != null) {
+                    builder.field(fieldEntry.key());
                 }
 
                 writeValue(values, builder, fieldEntry.type, params);

@@ -65,39 +65,35 @@ public class SingletonOrdinalsBuilder implements BlockLoader.SingletonOrdinalsBu
         throw new UnsupportedOperationException("should only have one value per doc");
     }
 
-    BytesRefBlock tryBuildConstantBlock() {
-        if (minOrd == maxOrd) {
-            boolean seenNulls = false;
-            for (int ord : ords) {
-                if (ord == -1) {
-                    seenNulls = true;
-                    break;
-                }
-            }
-            if (seenNulls == false) {
-                final BytesRef v;
-                try {
-                    v = BytesRef.deepCopyOf(docValues.lookupOrd(minOrd));
-                } catch (IOException e) {
-                    throw new UncheckedIOException("failed to lookup ordinals", e);
-                }
-                BytesRefVector bytes = null;
-                IntVector ordinals = null;
-                boolean success = false;
-                try {
-                    bytes = blockFactory.newConstantBytesRefVector(v, 1);
-                    ordinals = blockFactory.newConstantIntVector(0, ords.length);
-                    final var result = new OrdinalBytesRefBlock(ordinals.asBlock(), bytes);
-                    success = true;
-                    return result;
-                } finally {
-                    if (success == false) {
-                        Releasables.close(bytes, ordinals);
-                    }
-                }
+    private BytesRefBlock tryBuildConstantBlock() {
+        if (minOrd != maxOrd) {
+            return null;
+        }
+        for (int ord : ords) {
+            if (ord == -1) {
+                return null;
             }
         }
-        return null;
+        final BytesRef v;
+        try {
+            v = BytesRef.deepCopyOf(docValues.lookupOrd(minOrd));
+        } catch (IOException e) {
+            throw new UncheckedIOException("failed to lookup ordinals", e);
+        }
+        BytesRefVector bytes = null;
+        IntVector ordinals = null;
+        boolean success = false;
+        try {
+            bytes = blockFactory.newConstantBytesRefVector(v, 1);
+            ordinals = blockFactory.newConstantIntVector(0, ords.length);
+            final var result = new OrdinalBytesRefBlock(ordinals.asBlock(), bytes);
+            success = true;
+            return result;
+        } finally {
+            if (success == false) {
+                Releasables.close(bytes, ordinals);
+            }
+        }
     }
 
     BytesRefBlock buildOrdinal() {

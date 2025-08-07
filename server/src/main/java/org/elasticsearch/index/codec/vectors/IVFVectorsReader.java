@@ -153,8 +153,12 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
         final long centroidOffset = input.readLong();
         final long centroidLength = input.readLong();
         final float[] globalCentroid = new float[info.getVectorDimension()];
+        long postingListOffset = -1;
+        long postingListLength = -1;
         float globalCentroidDp = 0;
         if (centroidLength > 0) {
+            postingListOffset = input.readLong();
+            postingListLength = input.readLong();
             input.readFloats(globalCentroid, 0, globalCentroid.length);
             globalCentroidDp = Float.intBitsToFloat(input.readInt());
         }
@@ -164,6 +168,8 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
             numCentroids,
             centroidOffset,
             centroidLength,
+            postingListOffset,
+            postingListLength,
             globalCentroid,
             globalCentroidDp
         );
@@ -245,7 +251,7 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
             nProbe = Math.max(Math.min(nProbe, entry.numCentroids), 1);
         }
         CentroidIterator centroidIterator = getCentroidIterator(fieldInfo, entry.numCentroids, entry.centroidSlice(ivfCentroids), target);
-        PostingVisitor scorer = getPostingVisitor(fieldInfo, ivfClusters, target, needsScoring);
+        PostingVisitor scorer = getPostingVisitor(fieldInfo, entry.postingListSlice(ivfClusters), target, needsScoring);
         int centroidsVisited = 0;
         long expectedDocs = 0;
         long actualDocs = 0;
@@ -298,11 +304,17 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
         int numCentroids,
         long centroidOffset,
         long centroidLength,
+        long postingListOffset,
+        long postingListLength,
         float[] globalCentroid,
         float globalCentroidDp
     ) {
         IndexInput centroidSlice(IndexInput centroidFile) throws IOException {
             return centroidFile.slice("centroids", centroidOffset, centroidLength);
+        }
+
+        IndexInput postingListSlice(IndexInput postingListFile) throws IOException {
+            return postingListFile.slice("postingLists", postingListOffset, postingListLength);
         }
     }
 

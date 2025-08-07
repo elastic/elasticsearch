@@ -12,10 +12,13 @@ package org.elasticsearch.index.mapper.vectors;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.search.vectors.KnnVectorQueryBuilder;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -25,6 +28,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ExecutionException;
 
 import static org.elasticsearch.index.IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING;
 import static org.elasticsearch.index.mapper.SourceFieldMapper.Mode.SYNTHETIC;
@@ -48,7 +52,7 @@ public class DenseVectorFieldIndexTypeUpdateIT extends ESIntegTestCase {
     @ParametersFactory
     public static Collection<Object[]> params() {
         List<String> types = new ArrayList<>(
-            List.of("flat", "int8_flat", "int4_flat", "bbq_flat", "hnsw", "int8_hnsw", "int4_hnsw", "bbq_hnsw", "bbq_disk")
+            List.of("flat", "int8_flat", "int4_flat", "bbq_flat", "hnsw", "int8_hnsw", "int4_hnsw", "bbq_hnsw")
         );
         if (DenseVectorFieldMapper.IVF_FORMAT.isEnabled()) {
             types.add("bbq_disk");
@@ -75,7 +79,7 @@ public class DenseVectorFieldIndexTypeUpdateIT extends ESIntegTestCase {
     @SuppressWarnings("unchecked")
     public void testDenseVectorMappingUpdate() throws Exception {
         dimensions = randomIntBetween(1, 10) * 64;
-        var client = client().admin().indices();
+        var indicesClient = client().admin().indices();
 
         Settings.Builder settingsBuilder = Settings.builder()
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
@@ -85,7 +89,7 @@ public class DenseVectorFieldIndexTypeUpdateIT extends ESIntegTestCase {
         }
 
         // Create index with initial mapping
-        var createRequest = client.prepareCreate(INDEX_NAME)
+        var createRequest = indicesClient.prepareCreate(INDEX_NAME)
             .setSettings(Settings.builder().put("index.number_of_shards", randomIntBetween(1, 5)))
             .setMapping(updateMapping(dimensions, initialType))
             .setSettings(settingsBuilder.build());
@@ -97,16 +101,16 @@ public class DenseVectorFieldIndexTypeUpdateIT extends ESIntegTestCase {
             indexDoc(i);
         }
 
-        client.prepareFlush(INDEX_NAME).get();
-        client.prepareRefresh(INDEX_NAME).get();
+        indicesClient.prepareFlush(INDEX_NAME).get();
+        indicesClient.prepareRefresh(INDEX_NAME).get();
 
         // Update mapping to new type
-        var putMappingRequest = client.preparePutMapping(INDEX_NAME).setSource(updateMapping(dimensions, updateType)).request();
-        assertAcked(client.putMapping(putMappingRequest));
+        var putMappingRequest = indicesClient.preparePutMapping(INDEX_NAME).setSource(updateMapping(dimensions, updateType)).request();
+        assertAcked(indicesClient.putMapping(putMappingRequest));
 
         // Validate mapping
-        GetFieldMappingsResponse fieldMapping = client.getFieldMappings(
-            client.prepareGetFieldMappings(INDEX_NAME).setFields(VECTOR_FIELD).request()
+        GetFieldMappingsResponse fieldMapping = indicesClient.getFieldMappings(
+            indicesClient.prepareGetFieldMappings(INDEX_NAME).setFields(VECTOR_FIELD).request()
         ).get();
         var fieldMappingMetadata = fieldMapping.fieldMappings(INDEX_NAME, VECTOR_FIELD);
         var fieldMap = (Map<String, Object>) fieldMappingMetadata.sourceAsMap().get(VECTOR_FIELD);
@@ -119,28 +123,32 @@ public class DenseVectorFieldIndexTypeUpdateIT extends ESIntegTestCase {
             indexDoc(i);
         }
 
-        client.prepareFlush(INDEX_NAME).get();
-        client.prepareRefresh(INDEX_NAME).get();
+        indicesClient.prepareFlush(INDEX_NAME).get();
+        indicesClient.prepareRefresh(INDEX_NAME).get();
 
         // Search to ensure all documents are present
         int expectedDocs = docsBefore + docsAfter;
-        assertNoFailuresAndResponse(client().prepareSearch(INDEX_NAME).setSize(expectedDocs + 10), response -> {
-            assertHitCount(response, expectedDocs);
-        });
-    }
 
-    private XContentBuilder initialMapping(int dimensions, String type) throws IOException {
-        XContentBuilder builder = XContentFactory.jsonBuilder();
-        builder.startObject();
-        {
-            builder.startObject("mappings");
-            {
-                createFieldMapping(dimensions, type, builder);
+        // Count query
+        assertNoFailuresAndResponse(
+            client().prepareSearch(INDEX_NAME).setSize(0).setTrackTotalHits(true).setSize(expectedDocs),
+            response -> {
+                assertHitCount(response, expectedDocs);
             }
-            builder.endObject();
+        );
+
+        // KNN query
+        float[] queryVector = new float[dimensions];
+        for (int i = 0; i < queryVector.length; i++) {
+            queryVector[i] = randomFloatBetween(-1, 1, true);
         }
-        builder.endObject();
-        return builder;
+        KnnVectorQueryBuilder queryBuilder = new KnnVectorQueryBuilder(VECTOR_FIELD, queryVector, null, null, null, null);
+        assertNoFailuresAndResponse(
+            client().prepareSearch(INDEX_NAME).setQuery(queryBuilder).setTrackTotalHits(true).setSize(expectedDocs),
+            response -> {
+                assertHitCount(response, expectedDocs);
+            }
+        );
     }
 
     private XContentBuilder updateMapping(int dimensions, String type) throws IOException {
@@ -168,9 +176,10 @@ public class DenseVectorFieldIndexTypeUpdateIT extends ESIntegTestCase {
         builder.endObject();
     }
 
-    private void indexDoc(int id) throws IOException {
+    private void indexDoc(int id) throws ExecutionException, InterruptedException {
         Float[] vector = randomArray(dimensions, dimensions, Float[]::new, () -> randomFloatBetween(-1, 1, true));
-        IndexRequest req = prepareIndex(INDEX_NAME).setSource(VECTOR_FIELD, vector).setId(Integer.toString(id)).request();
-        client().index(req);
+        IndexRequest indexRequest = prepareIndex(INDEX_NAME).setSource(VECTOR_FIELD, vector).setId(Integer.toString(id)).request();
+        DocWriteResponse indexResponse = client().index(indexRequest).get();
+        assertEquals(RestStatus.CREATED, indexResponse.status());
     }
 }

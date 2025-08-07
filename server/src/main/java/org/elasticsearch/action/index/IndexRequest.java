@@ -426,7 +426,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
         this.useStructuredSource = true;
         this.structuredSource = esonSource;
         try (XContentBuilder builder = XContentFactory.contentBuilder(contentType)) {
-            ESONXContentSerializer.flattedToXContent(esonSource, builder, ToXContent.EMPTY_PARAMS);
+            ESONXContentSerializer.flattenToXContent(esonSource, builder, ToXContent.EMPTY_PARAMS);
             source = BytesReference.bytes(builder);
         } catch (IOException e) {
             throw new UncheckedIOException(e);

@@ -12,6 +12,7 @@ package org.elasticsearch.ingest;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.transport.BytesRefRecycler;
 import org.elasticsearch.xcontent.ToXContent;
@@ -186,6 +187,10 @@ public class ESONSource {
     public interface KeyEntry {
 
         String key();
+
+        default void writeTo(StreamOutput out) throws IOException {
+
+        }
 
     }
 
@@ -1024,26 +1029,50 @@ public class ESONSource {
         } else {
             int elementCount = 0;
             for (Type type : arr.arrEntry.mutationArray) {
-                if (type instanceof Mutation mutation) {
-                    // This is a mutated element - create new FieldEntry with mutation
-                    flatKeyArray.add(new FieldEntry(null, mutation));
-                    elementCount++;
-                } else if (type instanceof ESONObject nestedObj) {
-                    // Nested object - flatten recursively
-                    flattenObject(nestedObj, null, flatKeyArray);
-                    elementCount++;
-                } else if (type instanceof ESONArray nestedArr) {
-                    // Nested array - flatten recursively
-                    flattenArray(nestedArr, null, flatKeyArray);
-                    elementCount++;
-                } else {
-                    // Regular type (FixedValue, VariableValue, NullValue) - create field entry
-                    flatKeyArray.add(new FieldEntry(null, type));
-                    elementCount++;
+                switch (type) {
+                    case Mutation mutation -> {
+                        // This is a mutated element - create new FieldEntry with mutation
+                        flatKeyArray.add(new FieldEntry(null, mutation));
+                        elementCount++;
+                    }
+                    case ESONObject nestedObj -> {
+                        // Nested object - flatten recursively
+                        flattenObject(nestedObj, null, flatKeyArray);
+                        elementCount++;
+                    }
+                    case ESONArray nestedArr -> {
+                        // Nested array - flatten recursively
+                        flattenArray(nestedArr, null, flatKeyArray);
+                        elementCount++;
+                    }
+                    case null, default -> {
+                        // Regular type (FixedValue, VariableValue, NullValue) - create field entry
+                        flatKeyArray.add(new FieldEntry(null, type));
+                        elementCount++;
+                    }
                 }
             }
 
             newArrEntry.elementCount = elementCount;
+        }
+    }
+
+    public void writeToStream(ESONObject object, StreamOutput out) throws IOException {
+        out.writeByte((byte) 'E');
+        out.writeByte((byte) 'S');
+        out.writeByte((byte) 'O');
+        out.writeByte((byte) 'N');
+        // TODO: How to write size
+        // TODO: Assert flattened or support transition to flattened
+        for (KeyEntry entry : object.getKeyArray()) {
+            if (entry instanceof ObjectEntry) {
+
+            } else if (entry instanceof ArrayEntry) {
+
+            } else {
+
+            }
+            entry.writeTo(out);
         }
     }
 }

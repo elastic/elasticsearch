@@ -1,0 +1,5 @@
+pr: 130857
+summary: First attempt at improving `statsByShard` performance
+area: Stats
+type: bug
+issues: []

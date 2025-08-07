@@ -267,8 +267,7 @@ public abstract class LuceneQueryEvaluator<T extends Vector.Builder> implements 
                     scoreBuilder,
                     ctx,
                     LuceneQueryEvaluator.this::appendNoMatch,
-                    (builder, scorer1, docId, ctc, query) ->
-                        LuceneQueryEvaluator.this.appendMatch(builder, scorer1, docId, ctx, query),
+                    (builder, scorer1, docId, ctc, query) -> LuceneQueryEvaluator.this.appendMatch(builder, scorer1, docId, ctx, query),
                     weight.getQuery()
                 )
             ) {
@@ -350,7 +349,8 @@ public abstract class LuceneQueryEvaluator<T extends Vector.Builder> implements 
             U scoreBuilder,
             LeafReaderContext leafReaderContext,
             Consumer<U> appendNoMatch,
-            MatchAppender<U, Scorable, IOException> appendMatch, Query query
+            MatchAppender<U, Scorable, IOException> appendMatch,
+            Query query
         ) {
             this.scoreBuilder = scoreBuilder;
             this.max = max;
@@ -409,7 +409,8 @@ public abstract class LuceneQueryEvaluator<T extends Vector.Builder> implements 
     /**
      * Appends a matching result to a builder created by @link createVectorBuilder}
      */
-    protected abstract void appendMatch(T builder, Scorable scorer, int docId, LeafReaderContext leafReaderContext, Query query) throws IOException;
+    protected abstract void appendMatch(T builder, Scorable scorer, int docId, LeafReaderContext leafReaderContext, Query query)
+        throws IOException;
 
     /**
      * Appends a non matching result to a builder created by @link createVectorBuilder}

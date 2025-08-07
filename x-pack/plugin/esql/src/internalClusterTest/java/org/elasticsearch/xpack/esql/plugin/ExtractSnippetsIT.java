@@ -41,8 +41,6 @@ public class ExtractSnippetsIT extends AbstractEsqlIntegTestCase {
         }
     }
 
-
-
     static void createAndPopulateIndex(Consumer<String[]> ensureYellow) {
         var indexName = "test";
         var client = client().admin().indices();

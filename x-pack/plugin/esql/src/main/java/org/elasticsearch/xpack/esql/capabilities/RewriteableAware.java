@@ -9,10 +9,6 @@ package org.elasticsearch.xpack.esql.capabilities;
 
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
-import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdownPredicates;
-import org.elasticsearch.xpack.esql.planner.TranslatorHandler;
-import org.elasticsearch.xpack.esql.querydsl.query.TranslationAwareExpressionQuery;
 
 public interface RewriteableAware {
 

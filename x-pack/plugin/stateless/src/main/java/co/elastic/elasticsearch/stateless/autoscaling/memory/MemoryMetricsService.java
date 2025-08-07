@@ -325,6 +325,7 @@ public class MemoryMetricsService implements ClusterStateListener {
         long totalSegments = 0;
         long totalFields = 0;
         long totalPostingsInMemoryBytes = 0;
+        long totalLiveDocsBytes = 0;
         for (var entry : shardMemoryMetrics.entrySet()) {
             var metric = entry.getValue();
             // once per index
@@ -334,6 +335,7 @@ public class MemoryMetricsService implements ClusterStateListener {
             totalSegments += metric.getNumSegments();
             totalFields += metric.getTotalFields();
             totalPostingsInMemoryBytes += metric.getPostingsInMemoryBytes();
+            totalLiveDocsBytes += metric.getLiveDocsBytes();
             metricQuality = metric.getMetricQuality() == MetricQuality.EXACT ? metricQuality : metric.getMetricQuality();
             if (checkStaleMetrics
                 && metric.getMetricQuality() != MetricQuality.EXACT
@@ -345,18 +347,25 @@ public class MemoryMetricsService implements ClusterStateListener {
             shardMemoryMetrics.size(),
             totalSegments,
             totalFields,
-            totalPostingsInMemoryBytes
+            totalPostingsInMemoryBytes,
+            totalLiveDocsBytes
         );
         return new TierEstimateMemoryUsage(mappingSizeInBytes + shardMemoryInBytes, metricQuality);
     }
 
-    long estimateShardMemoryUsageInBytes(int numShards, long numSegments, long numFields, long postingsInMemoryBytes) {
+    long estimateShardMemoryUsageInBytes(
+        int numShards,
+        long numSegments,
+        long numFields,
+        long postingsInMemoryBytes,
+        long totalLiveDocsBytes
+    ) {
         final var fixedShardOverhead = this.fixedShardMemoryOverhead;
         if (fixedShardOverhead.getBytes() > 0) {
             return fixedShardOverhead.getBytes() * numShards;
         }
         long estimateBytes = numShards * ADAPTIVE_SHARD_MEMORY_OVERHEAD.getBytes() + numSegments * ADAPTIVE_SEGMENT_MEMORY_OVERHEAD
-            .getBytes() + numFields * ADAPTIVE_FIELD_MEMORY_OVERHEAD.getBytes() + postingsInMemoryBytes;
+            .getBytes() + numFields * ADAPTIVE_FIELD_MEMORY_OVERHEAD.getBytes() + postingsInMemoryBytes + totalLiveDocsBytes;
         long extraBytes = (long) (estimateBytes * adaptiveExtraOverheadRatio);
         return estimateBytes + extraBytes;
     }
@@ -397,6 +406,7 @@ public class MemoryMetricsService implements ClusterStateListener {
                     shardMappingSize.numSegments(),
                     shardMappingSize.totalFields(),
                     shardMappingSize.postingsInMemoryBytes(),
+                    shardMappingSize.liveDocsBytes(),
                     heapMemoryUsage.publicationSeqNo(),
                     shardMappingSize.nodeId(),
                     relativeTimeInNanos()
@@ -485,6 +495,7 @@ public class MemoryMetricsService implements ClusterStateListener {
                         0,
                         0L,
                         0L,
+                        0L,
                         MetricQuality.MISSING,
                         null,
                         relativeTimeInNanosSupplier.getAsLong()
@@ -519,7 +530,7 @@ public class MemoryMetricsService implements ClusterStateListener {
                     // index created use case, EXACT values will be sent by index node
                     shardMemoryMetrics.putIfAbsent(
                         new ShardId(index, id),
-                        new ShardMemoryMetrics(0L, 0, 0, 0L, 0L, MetricQuality.MISSING, null, relativeTimeInNanosSupplier.getAsLong())
+                        new ShardMemoryMetrics(0L, 0, 0, 0L, 0L, 0L, MetricQuality.MISSING, null, relativeTimeInNanosSupplier.getAsLong())
                     );
                 }
                 // index mapping update use case
@@ -598,6 +609,7 @@ public class MemoryMetricsService implements ClusterStateListener {
         private int numSegments = 0;
         private int totalFields = 0;
         private long postingsInMemoryBytes = 0;
+        private long liveDocsBytes = 0;
         private long seqNo;
         private MetricQuality metricQuality;
         private String metricShardNodeId;   // node id which hosts sending primary 0-shard
@@ -608,6 +620,7 @@ public class MemoryMetricsService implements ClusterStateListener {
             int numSegments,
             int totalFields,
             long postingsInMemoryBytes,
+            long liveDocsBytes,
             long seqNo,
             MetricQuality metricQuality,
             String metricShardNodeId,
@@ -617,6 +630,7 @@ public class MemoryMetricsService implements ClusterStateListener {
             this.numSegments = numSegments;
             this.totalFields = totalFields;
             this.postingsInMemoryBytes = postingsInMemoryBytes;
+            this.liveDocsBytes = liveDocsBytes;
             this.seqNo = seqNo;
             this.metricQuality = metricQuality;
             this.metricShardNodeId = metricShardNodeId;
@@ -628,6 +642,7 @@ public class MemoryMetricsService implements ClusterStateListener {
             int numSegments,
             int totalFields,
             long postingsInMemoryBytes,
+            long liveDocsBytes,
             long seqNo,
             String metricShardNodeId,
             long updateTime
@@ -642,6 +657,7 @@ public class MemoryMetricsService implements ClusterStateListener {
                     this.numSegments = numSegments;
                     this.totalFields = totalFields;
                     this.postingsInMemoryBytes = postingsInMemoryBytes;
+                    this.liveDocsBytes = liveDocsBytes;
                     this.metricQuality = MetricQuality.EXACT;
                     this.metricShardNodeId = metricShardNodeId;
                     this.updateTimestampNanos = updateTime;
@@ -692,6 +708,10 @@ public class MemoryMetricsService implements ClusterStateListener {
 
         synchronized long getPostingsInMemoryBytes() {
             return postingsInMemoryBytes;
+        }
+
+        synchronized long getLiveDocsBytes() {
+            return liveDocsBytes;
         }
 
         synchronized long getUpdateTimestampNanos() {
@@ -758,6 +778,7 @@ public class MemoryMetricsService implements ClusterStateListener {
         private long totalSegments;
         private long totalFields;
         private long totalPostingsInMemoryBytes;
+        private long totalLiveDocsBytes;
         private int totalShards;
 
         EstimatedHeapUsageBuilder(
@@ -779,6 +800,7 @@ public class MemoryMetricsService implements ClusterStateListener {
             totalSegments += shardMemoryMetrics.getNumSegments();
             totalFields += shardMemoryMetrics.getTotalFields();
             totalPostingsInMemoryBytes += shardMemoryMetrics.getPostingsInMemoryBytes();
+            totalLiveDocsBytes += shardMemoryMetrics.getLiveDocsBytes();
             totalShards++;
         }
 
@@ -787,7 +809,8 @@ public class MemoryMetricsService implements ClusterStateListener {
                 totalShards,
                 totalSegments,
                 totalFields,
-                totalPostingsInMemoryBytes
+                totalPostingsInMemoryBytes,
+                totalLiveDocsBytes
             );
             return shardMemoryUsageInBytes + mappingSizeInBytes + shardMergeMemoryEstimate + nodeBaseHeapEstimateInBytes
                 + minimumRequiredHeapForAcceptingLargeIndexingOps;

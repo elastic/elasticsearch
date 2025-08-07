@@ -48,6 +48,7 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.index.codec.TrackingPostingsInMemoryBytesCodec;
 import org.elasticsearch.index.engine.ThreadPoolMergeScheduler;
+import org.elasticsearch.index.shard.ShardFieldStats;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.AutoscalingMissedIndicesUpdateException;
 import org.elasticsearch.logging.LogManager;
@@ -952,6 +953,10 @@ public class AutoscalingMemoryMetricsIT extends AbstractStatelessIntegTestCase {
                     equalTo(finalTotalPostingsInMemoryBytes)
                 );
             }
+            if (ShardFieldStats.TRACK_LIVE_DOCS_IN_MEMORY_BYTES.isEnabled()) {
+                long actualTotalLiveDocsBytes = metrics.values().stream().mapToLong(s -> s.getLiveDocsBytes()).sum();
+                assertThat(actualTotalLiveDocsBytes, equalTo(0L));
+            }
         });
         // We use a fixed estimate 1024 bytes per index mapping field
         final long mappingSizeInBytes = totalMappingFields * 1024L;
@@ -1011,6 +1016,37 @@ public class AutoscalingMemoryMetricsIT extends AbstractStatelessIntegTestCase {
             var totalMemoryInBytes = memoryMetricService.getSearchTierMemoryMetrics().totalMemoryInBytes();
             assertThat(totalMemoryInBytes, equalTo(HeapToSystemMemory.tier(fixedEstimate, projectType)));
         }
+
+        // Perform a deleted and check if live docs bytes have increased:
+        client().prepareDelete("index-0", String.format(Locale.ROOT, "?id-%06d", 0))
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+            .execute()
+            .actionGet();
+        // The delete-op that marks has been stored in a new segment and therefor num segments increases:
+        totalSegments++;
+        // The delete op in the new segment has an id, which means number of bytes for postings increases by 11:
+        totalPostingsInMemoryBytes += 11;
+        final int finalNumSegments2 = totalSegments;
+        final long finalTotalPostingsInMemoryBytes2 = totalPostingsInMemoryBytes;
+        assertBusy(() -> {
+            var metrics = memoryMetricService.getShardMemoryMetrics();
+            assertThat(metrics.size(), equalTo(totalShards));
+            assertThat(metrics.values().stream().mapToInt(s -> s.getNumSegments()).sum(), equalTo(finalNumSegments2));
+            if (TrackingPostingsInMemoryBytesCodec.TRACK_POSTINGS_IN_MEMORY_BYTES.isEnabled()) {
+                assertThat(
+                    metrics.values().stream().mapToLong(s -> s.getPostingsInMemoryBytes()).sum(),
+                    equalTo(finalTotalPostingsInMemoryBytes2)
+                );
+            }
+            if (ShardFieldStats.TRACK_LIVE_DOCS_IN_MEMORY_BYTES.isEnabled()) {
+                long actualTotalLiveDocsBytes = metrics.values().stream().mapToLong(s -> s.getLiveDocsBytes()).sum();
+                // Two segments have live docs. The initial segment for index-0 and
+                // then the new segment of that index that contains the delete operation.
+                // However, assertion live docs here is tricky given that there is no guarantee that there was one segment for index-0
+                // before performing the delete operation. So instead asserting the live docs has increased:
+                assertThat(actualTotalLiveDocsBytes, greaterThan(0L));
+            }
+        });
     }
 
     public void testUpdateMetricsOnRefresh() throws Exception {
@@ -1497,6 +1533,7 @@ public class AutoscalingMemoryMetricsIT extends AbstractStatelessIntegTestCase {
                     m.getNumSegments(),
                     m.getTotalFields(),
                     m.getPostingsInMemoryBytes(),
+                    0L,
                     m.getSeqNo(),
                     m.getMetricQuality(),
                     m.getMetricShardNodeId(),

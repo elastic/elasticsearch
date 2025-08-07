@@ -239,8 +239,7 @@ public class ClusterServiceUtils {
     }
 
     public static void awaitClusterState(Predicate<ClusterState> statePredicate, ClusterService clusterService) {
-        final var listener = addTemporaryStateListener(clusterService, statePredicate, ESTestCase.TEST_REQUEST_TIMEOUT);
-        ESTestCase.safeAwait(listener, ESTestCase.TEST_REQUEST_TIMEOUT);
+        ESTestCase.safeAwait(addTemporaryStateListener(clusterService, statePredicate, TimeValue.THIRTY_SECONDS), TimeValue.THIRTY_SECONDS);
     }
 
     public static void awaitNoPendingTasks(ClusterService clusterService) {

@@ -22,6 +22,7 @@ import org.elasticsearch.xcontent.provider.OptimizedTextCapable;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.Locale;
 
 public class ESCborParser extends CBORParser implements OptimizedTextCapable {
     public ESCborParser(
@@ -126,6 +127,7 @@ public class ESCborParser extends CBORParser implements OptimizedTextCapable {
         }
         throw _constructError(
             String.format(
+                Locale.ROOT,
                 "Invalid 5-bit length indicator for `JsonToken.%s`: 0x%02X; only 0x00-0x17, 0x1F allowed",
                 currentToken(),
                 lowBits

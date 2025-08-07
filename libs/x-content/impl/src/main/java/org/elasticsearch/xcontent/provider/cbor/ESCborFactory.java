@@ -16,6 +16,10 @@ import com.fasterxml.jackson.dataformat.cbor.CBORParser;
 
 public class ESCborFactory extends CBORFactory {
 
+    public static ESCborFactoryBuilder builder() {
+        return new ESCborFactoryBuilder();
+    }
+
     @Override
     protected CBORParser _createParser(byte[] data, int offset, int len, IOContext ctxt) {
         ByteQuadsCanonicalizer can = _byteSymbolCanonicalizer.makeChildOrPlaceholder(_factoryFeatures);

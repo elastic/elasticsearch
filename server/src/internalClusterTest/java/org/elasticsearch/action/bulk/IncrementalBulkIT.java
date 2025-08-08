@@ -561,7 +561,6 @@ public class IncrementalBulkIT extends ESIntegTestCase {
     }
 
     private static void fillWriteCoordinationQueue(ThreadPool threadPool) {
-        assumeTrue("Can't fill the queue", false);
         final var queueSize = Math.toIntExact(threadPool.info(ThreadPool.Names.WRITE_COORDINATION).getQueueSize().singles());
         final var queueFilled = new AtomicBoolean(false);
         final var queueFillingTask = new AbstractRunnable() {

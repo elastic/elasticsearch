@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.optimizer.rules.physical.local;
 
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.index.query.BoolQueryBuilder;
+import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
@@ -42,7 +43,9 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.compute.aggregation.AggregatorMode.FINAL;
 import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
 import static org.elasticsearch.index.query.QueryBuilders.existsQuery;
+import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
 import static org.elasticsearch.index.query.QueryBuilders.rangeQuery;
+import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.hamcrest.Matchers.is;
 
@@ -82,6 +85,13 @@ public class ReplaceRoundToWithQueryAndTagsTests extends LocalPhysicalPlanOptimi
         )
     );
 
+    private static final Map<String, QueryBuilder> otherPushDownFunctions = new HashMap<>(
+        Map.ofEntries(
+            Map.entry("keyword == \"keyword\"", termQuery("keyword", "keyword").boost(0)),
+            Map.entry("keyword : \"keyword\"", matchQuery("keyword", "keyword").lenient(true))
+        )
+    );
+
     // The date range of SearchStats is from 2023-10-20 to 2023-10-23.
     private static final SearchStats searchStats = searchStats();
 
@@ -116,8 +126,9 @@ public class ReplaceRoundToWithQueryAndTagsTests extends LocalPhysicalPlanOptimi
             List<EsQueryExec.QueryBuilderAndTags> expectedQueryBuilderAndTags = expectedQueryBuilderAndTags(
                 query,
                 "date",
-                dateHistogram,
-                List.of()
+                List.of(),
+                new Source(2, 24, dateHistogram),
+                null
             );
             verifyQueryAndTags(expectedQueryBuilderAndTags, queryBuilderAndTags);
         }
@@ -191,10 +202,59 @@ public class ReplaceRoundToWithQueryAndTagsTests extends LocalPhysicalPlanOptimi
             List<EsQueryExec.QueryBuilderAndTags> expectedQueryBuilderAndTags = expectedQueryBuilderAndTags(
                 query,
                 fieldName,
-                expression,
-                roundingPoints
+                roundingPoints,
+                new Source(2, 24, expression),
+                null
             );
             verifyQueryAndTags(expectedQueryBuilderAndTags, queryBuilderAndTags);
+        }
+    }
+
+    // test if the combine query is generated correctly when there are other functions that can be pushed down
+    public void testDateTruncBucketTransformToQueryAndTagsWithOtherPushdownFunctions() {
+        for (String dateHistogram : dateHistograms) {
+            for (Map.Entry<String, QueryBuilder> otherPushDownFunction : otherPushDownFunctions.entrySet()) {
+                String predicate = otherPushDownFunction.getKey();
+                QueryBuilder qb = otherPushDownFunction.getValue();
+                String query = LoggerMessageFormat.format(null, """
+                    from test
+                    | where {}
+                    | stats count(*) by x = {}
+                    """, predicate, dateHistogram);
+                QueryBuilder mainQueryBuilder = qb instanceof MatchQueryBuilder
+                    ? qb
+                    : wrapWithSingleQuery(query, qb, "keyword", new Source(2, 8, predicate));
+
+                PhysicalPlan plan = plannerOptimizer.plan(query, searchStats, makeAnalyzer("mapping-all-types.json"));
+
+                LimitExec limit = as(plan, LimitExec.class);
+                AggregateExec agg = as(limit.child(), AggregateExec.class);
+                assertThat(agg.getMode(), is(FINAL));
+                List<? extends Expression> groupings = agg.groupings();
+                NamedExpression grouping = as(groupings.get(0), NamedExpression.class);
+                assertEquals("x", grouping.name());
+                assertEquals(DataType.DATETIME, grouping.dataType());
+                assertEquals(List.of("count(*)", "x"), Expressions.names(agg.aggregates()));
+                ExchangeExec exchange = as(agg.child(), ExchangeExec.class);
+                assertThat(exchange.inBetweenAggs(), is(true));
+                agg = as(exchange.child(), AggregateExec.class);
+                EvalExec eval = as(agg.child(), EvalExec.class);
+                List<Alias> aliases = eval.fields();
+                assertEquals(1, aliases.size());
+                FieldAttribute roundToTag = as(aliases.get(0).child(), FieldAttribute.class);
+                assertEquals("$$date$round_to$datetime", roundToTag.name());
+                EsQueryExec esQueryExec = as(eval.child(), EsQueryExec.class);
+                List<EsQueryExec.QueryBuilderAndTags> queryBuilderAndTags = esQueryExec.queryBuilderAndTags();
+                assertEquals(5, queryBuilderAndTags.size());
+                List<EsQueryExec.QueryBuilderAndTags> expectedQueryBuilderAndTags = expectedQueryBuilderAndTags(
+                    query,
+                    "date",
+                    List.of(),
+                    new Source(3, 24, dateHistogram),
+                    mainQueryBuilder
+                );
+                verifyQueryAndTags(expectedQueryBuilderAndTags, queryBuilderAndTags);
+            }
         }
     }
 
@@ -211,10 +271,10 @@ public class ReplaceRoundToWithQueryAndTagsTests extends LocalPhysicalPlanOptimi
     private static List<EsQueryExec.QueryBuilderAndTags> expectedQueryBuilderAndTags(
         String query,
         String fieldName,
-        String expression,
-        List<Object> roundingPoints
+        List<Object> roundingPoints,
+        Source source,
+        QueryBuilder mainQueryBuilder
     ) {
-        Source source = new Source(2, 24, expression);
         List<EsQueryExec.QueryBuilderAndTags> expected = new ArrayList<>(5);
         boolean isDateField = fieldName.equals("date");
         boolean isDateNanosField = fieldName.equals("date_nanos");
@@ -238,13 +298,20 @@ public class ReplaceRoundToWithQueryAndTagsTests extends LocalPhysicalPlanOptimi
             if (lower != null) {
                 rangeQueryBuilder = rangeQueryBuilder.gte(lower);
             }
+
             QueryBuilder qb = wrapWithSingleQuery(query, rangeQueryBuilder, fieldName, source);
+            if (mainQueryBuilder != null) {
+                qb = boolQuery().filter(mainQueryBuilder).filter(qb);
+            }
             expected.add(new EsQueryExec.QueryBuilderAndTags(qb, List.of(tag)));
         }
         // add null bucket
         BoolQueryBuilder isNullQueryBuilder = boolQuery().mustNot(existsQuery(fieldName).boost(0));
         List<Object> nullTags = new ArrayList<>(1);
         nullTags.add(null);
+        if (mainQueryBuilder != null) {
+            isNullQueryBuilder = boolQuery().filter(mainQueryBuilder).filter(isNullQueryBuilder.boost(0));
+        }
         expected.add(new EsQueryExec.QueryBuilderAndTags(isNullQueryBuilder, nullTags));
         return expected;
     }

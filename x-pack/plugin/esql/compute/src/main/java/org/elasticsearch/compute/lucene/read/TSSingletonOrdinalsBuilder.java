@@ -61,7 +61,11 @@ public final class TSSingletonOrdinalsBuilder implements BlockLoader.TSSingleton
 
     @Override
     public BlockLoader.TSSingletonOrdinalsBuilder appendOrds(long[] values, int from, int length) {
-        System.arraycopy(values, from, ords, count, length);
+        try {
+            System.arraycopy(values, from, ords, count, length);
+        } catch (ArrayIndexOutOfBoundsException e) {
+            throw e;
+        }
         count += length;
         return this;
     }

@@ -1253,13 +1253,14 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
                                         }
                                     } else {
                                         // consume remaining
-                                        int length = ES819TSDBDocValuesFormat.NUMERIC_BLOCK_SIZE - firstBlockInIndex;
-                                        if (docs.count() < length) {
-                                            builder.appendLongs(currentBlock, firstBlockInIndex, docs.count());
+                                        int docsLength = docs.count() - offset;
+                                        int blockLength = ES819TSDBDocValuesFormat.NUMERIC_BLOCK_SIZE - firstBlockInIndex;
+                                        if (docsLength< blockLength) {
+                                            builder.appendLongs(currentBlock, firstBlockInIndex, docsLength);
                                             return;
                                         } else {
-                                            builder.appendLongs(currentBlock, firstBlockInIndex, length);
-                                            start = offset + length;
+                                            builder.appendLongs(currentBlock, firstBlockInIndex, blockLength);
+                                            start = offset + blockLength;
                                         }
                                     }
 
@@ -1358,13 +1359,14 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
                                         }
                                     } else {
                                         // consume remaining
-                                        int length = ES819TSDBDocValuesFormat.NUMERIC_BLOCK_SIZE - firstBlockInIndex;
-                                        if (docs.count() < length) {
-                                            builder.appendOrds(currentBlock, firstBlockInIndex, docs.count());
+                                        int blockLength = ES819TSDBDocValuesFormat.NUMERIC_BLOCK_SIZE - firstBlockInIndex;
+                                        int docsLength = docs.count() - offset;
+                                        if (docsLength < blockLength) {
+                                            builder.appendOrds(currentBlock, firstBlockInIndex, docsLength);
                                             return;
                                         } else {
-                                            builder.appendOrds(currentBlock, firstBlockInIndex, length);
-                                            start = offset + length;
+                                            builder.appendOrds(currentBlock, firstBlockInIndex, blockLength);
+                                            start = offset + blockLength;
                                         }
                                     }
 

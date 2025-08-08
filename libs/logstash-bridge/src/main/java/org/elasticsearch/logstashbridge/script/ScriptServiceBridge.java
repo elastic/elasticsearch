@@ -117,7 +117,7 @@ public class ScriptServiceBridge extends StableBridgeAPI.ProxyInternal<ScriptSer
     @FixForMultiProject
     // Logstash resolves and runs ingest pipelines based on the datastream.
     // How should ProjectIdResolverBridge behave in this case?
-    //  In other words, it looks we need to find a way to figure out which ingest pipeline belongs to which project.
+    // In other words, it looks we need to find a way to figure out which ingest pipeline belongs to which project.
     static class ProjectIdResolverBridge implements ProjectResolver {
 
         public static final ProjectIdResolverBridge INSTANCE = new ProjectIdResolverBridge();

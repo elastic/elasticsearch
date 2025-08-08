@@ -1613,6 +1613,10 @@ public final class TextFieldMapper extends TextFamilyFieldMapper {
             });
         }
 
+        if (fieldType.indexOptions() != IndexOptions.NONE) {
+            return super.syntheticSourceSupport();
+        }
+
         return new SyntheticSourceSupport.Native(() -> syntheticFieldLoader(fullPath(), leafName()));
     }
 

@@ -124,12 +124,12 @@ public abstract class SemanticQueryRewriteInterceptor implements QueryRewriteInt
             }
 
             // Store inference fields if any exist
-            if (!indexInferenceFields.isEmpty()) {
+            if (indexInferenceFields.isEmpty() == false) {
                 inferenceFieldsPerIndex.put(indexName, indexInferenceFields);
             }
 
             // Store non-inference fields if any exist
-            if (!indexNonInferenceFields.isEmpty()) {
+            if (indexNonInferenceFields.isEmpty() == false) {
                 nonInferenceFieldsPerIndex.put(indexName, indexNonInferenceFields);
             }
         }
@@ -211,11 +211,11 @@ public abstract class SemanticQueryRewriteInterceptor implements QueryRewriteInt
         }
 
         public boolean hasInferenceFields() {
-            return !inferenceFieldsPerIndex.isEmpty();
+            return inferenceFieldsPerIndex.isEmpty() == false;
         }
 
         public boolean hasNonInferenceFields() {
-            return !nonInferenceFieldsPerIndex.isEmpty();
+            return nonInferenceFieldsPerIndex.isEmpty() == false;
         }
 
         // Backward compatibility methods

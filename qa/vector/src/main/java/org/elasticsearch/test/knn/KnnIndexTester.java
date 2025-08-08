@@ -230,9 +230,8 @@ public class KnnIndexTester {
                 }
                 if (cmdLineArgs.forceMerge()) {
                     knnIndexer.forceMerge(indexResults);
-                } else {
-                    knnIndexer.numSegments(indexResults);
                 }
+                knnIndexer.numSegments(indexResults);                
             }
             if (cmdLineArgs.queryVectors() != null && cmdLineArgs.numQueries() > 0) {
                 for (int i = 0; i < results.length; i++) {

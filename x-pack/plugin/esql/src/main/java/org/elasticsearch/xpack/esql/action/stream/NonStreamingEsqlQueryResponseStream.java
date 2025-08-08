@@ -11,74 +11,56 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.xcontent.ToXContent;
-import org.elasticsearch.xpack.esql.action.ColumnInfoImpl;
 import org.elasticsearch.xpack.esql.action.EsqlQueryRequest;
 import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
 import org.elasticsearch.xpack.esql.action.EsqlResponseListener;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
 
-import java.io.IOException;
-import java.util.Collections;
-import java.util.Iterator;
 import java.util.List;
 
 /**
  * Custom response stream that sends everything at once.
  * <p>
- *     Used for backwards compatibility, as errors would lead to sending an actual response.
+ *     Used for backwards compatibility until the other classes are fully backwards-compatible.
+ *     That means returning the correct error on an exception, and the expected body.
  * </p>
  * <p>
  *     This class currently delegates its functionality to {@link EsqlResponseListener}.
  * </p>
  */
-public class NonStreamingEsqlQueryResponseStream extends EsqlQueryResponseStream {
+class NonStreamingEsqlQueryResponseStream implements EsqlQueryResponseStream {
 
     private final ActionListener<EsqlQueryResponse> listener;
 
-    NonStreamingEsqlQueryResponseStream(RestChannel restChannel, RestRequest restRequest, EsqlQueryRequest esqlRequest) throws IOException {
-        super(restChannel, restRequest, esqlRequest);
-
+    NonStreamingEsqlQueryResponseStream(RestChannel restChannel, RestRequest restRequest, EsqlQueryRequest esqlRequest) {
         this.listener = new EsqlResponseListener(restChannel, restRequest, esqlRequest).wrapWithLogging();
     }
 
     @Override
-    protected boolean canBeStreamed() {
-        return false;
+    public void startResponse(List<Attribute> schema) {
+        // No-op, all done in the listener
     }
 
     @Override
-    protected Iterator<? extends ToXContent> doStartResponse(List<ColumnInfoImpl> columns) {
-        throw new UnsupportedOperationException("This class does not support streaming");
+    public void sendPages(Iterable<Page> pages) {
+        // No-op, all done in the listener
     }
 
     @Override
-    protected Iterator<? extends ToXContent> doSendPages(Iterable<Page> pages) {
-        throw new UnsupportedOperationException("This class does not support streaming");
+    public void finishResponse(EsqlQueryResponse response) {
+        // No-op, all done in the listener
     }
 
     @Override
-    protected Iterator<? extends ToXContent> doFinishResponse(EsqlQueryResponse response) {
-        throw new UnsupportedOperationException("This class does not support streaming");
+    public void handleException(Exception e) {
+        // No-op, all done in the listener
     }
 
     @Override
-    protected Iterator<? extends ToXContent> doHandleException(Exception e) {
-        listener.onFailure(e);
-        return Collections.emptyIterator();
+    public ActionListener<EsqlQueryResponse> completionListener() {
+        return listener;
     }
 
     @Override
-    protected Iterator<? extends ToXContent> doSendEverything(EsqlQueryResponse response) {
-        // The base class will close the response, and the listener will do so too.
-        // So we need to increment the reference count here
-        // TODO: Check this
-        response.incRef();
-        listener.onResponse(response);
-        return Collections.emptyIterator();
-    }
-
-    @Override
-    public void close() {
-        // TODO: Temporary to avoid closing the stream and sending an empty response. Remove this class later
-    }
+    public void close() {}
 }

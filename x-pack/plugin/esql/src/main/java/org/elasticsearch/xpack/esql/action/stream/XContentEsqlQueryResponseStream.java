@@ -10,8 +10,10 @@ package org.elasticsearch.xpack.esql.action.stream;
 import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.StreamingXContentResponse;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xpack.esql.action.ColumnInfoImpl;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
@@ -27,9 +29,13 @@ import java.util.List;
 import static org.elasticsearch.xpack.esql.action.EsqlQueryResponse.DROP_NULL_COLUMNS_OPTION;
 
 /**
- * Default, XContent response stream.
+ * XContent response stream.
  */
-public class DefaultEsqlQueryResponseStream extends EsqlQueryResponseStream {
+class XContentEsqlQueryResponseStream extends AbstractEsqlQueryResponseStream {
+
+    // TODO: Maybe create this on startResponse()? Does creating this do something with the response? Can we still safely set headers?
+    private final StreamingXContentResponse streamingXContentResponse;
+
     /**
      * Columns, stored on {@link #doStartResponse}, and used later when sending pages.
      */
@@ -38,10 +44,11 @@ public class DefaultEsqlQueryResponseStream extends EsqlQueryResponseStream {
 
     private final boolean dropNullColumns;
 
-    DefaultEsqlQueryResponseStream(RestChannel restChannel, RestRequest restRequest, EsqlQueryRequest esqlRequest) throws IOException {
+    XContentEsqlQueryResponseStream(RestChannel restChannel, RestRequest restRequest, EsqlQueryRequest esqlRequest) throws IOException {
         super(restChannel, restRequest, esqlRequest);
 
         this.dropNullColumns = restRequest.paramAsBoolean(DROP_NULL_COLUMNS_OPTION, false);
+        this.streamingXContentResponse = new StreamingXContentResponse(restChannel, restChannel.request(), () -> {});
     }
 
     @Override
@@ -176,5 +183,15 @@ public class DefaultEsqlQueryResponseStream extends EsqlQueryResponseStream {
             }
         }
         return true;
+    }
+
+    @Override
+    protected void doSendChunks(Iterator<? extends ToXContent> chunks, Releasable releasable) {
+        streamingXContentResponse.writeFragment(p0 -> chunks, releasable);
+    }
+
+    @Override
+    protected void doClose() {
+        streamingXContentResponse.close();
     }
 }

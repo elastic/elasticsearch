@@ -141,8 +141,7 @@ final class ES819TSDBDocValuesConsumer extends XDocValuesConsumer {
 
         assert actualNumDocsWithValue == numDocsWithValueFromStats
             : "expected[" + numDocsWithValueFromStats + ", but got [" + actualNumDocsWithValue + "]";
-        assert actualNumValues == numValuesFromStats
-            : "expected[" + numValuesFromStats + ", but got [" + actualNumValues + "]";
+        assert actualNumValues == numValuesFromStats : "expected[" + numValuesFromStats + ", but got [" + actualNumValues + "]";
 
         return true;
     }

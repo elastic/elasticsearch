@@ -90,18 +90,18 @@ public final class StdDevIntAggregatorFunction implements AggregatorFunction {
   }
 
   private void addRawVector(IntVector valueVector) {
-    for (int i = 0; i < valueVector.getPositionCount(); i++) {
-      int valueValue = valueVector.getInt(i);
+    for (int valuesPosition = 0; valuesPosition < valueVector.getPositionCount(); valuesPosition++) {
+      int valueValue = valueVector.getInt(valuesPosition);
       StdDevIntAggregator.combine(state, valueValue);
     }
   }
 
   private void addRawVector(IntVector valueVector, BooleanVector mask) {
-    for (int i = 0; i < valueVector.getPositionCount(); i++) {
-      if (mask.getBoolean(i) == false) {
+    for (int valuesPosition = 0; valuesPosition < valueVector.getPositionCount(); valuesPosition++) {
+      if (mask.getBoolean(valuesPosition) == false) {
         continue;
       }
-      int valueValue = valueVector.getInt(i);
+      int valueValue = valueVector.getInt(valuesPosition);
       StdDevIntAggregator.combine(state, valueValue);
     }
   }

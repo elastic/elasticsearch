@@ -375,7 +375,7 @@ public class DefaultIVFVectorsReader extends IVFVectorsReader implements OffHeap
             return vectors;
         }
 
-        float scoreIndividually(int offset) throws IOException {
+        private float scoreIndividually(int offset) throws IOException {
             float maxScore = Float.NEGATIVE_INFINITY;
             // score individually, first the quantized byte chunk
             for (int j = 0; j < BULK_SIZE; j++) {
@@ -419,27 +419,25 @@ public class DefaultIVFVectorsReader extends IVFVectorsReader implements OffHeap
             return maxScore;
         }
 
-        private static int filterDocs(int[] docIds, int offset, IntPredicate needsScoring) {
-            int filtered = 0;
+        private static int docToBulkScore(int[] docIds, int offset, IntPredicate needsScoring) {
+            int docToScore = ES91OSQVectorsScorer.BULK_SIZE;
             for (int i = 0; i < ES91OSQVectorsScorer.BULK_SIZE; i++) {
-                if (needsScoring.test(docIds[offset + i]) == false) {
-                    docIds[offset + i] = -1;
-                    filtered++;
+                final int idx = offset + i;
+                if (needsScoring.test(docIds[idx]) == false) {
+                    docIds[idx] = -1;
+                    docToScore--;
                 }
             }
-            return filtered;
+            return docToScore;
         }
 
-        private static int collect(int[] docIds, int offset, KnnCollector knnCollector, float[] scores) {
-            int scoredDocs = 0;
+        private static void collectBulk(int[] docIds, int offset, KnnCollector knnCollector, float[] scores) {
             for (int i = 0; i < ES91OSQVectorsScorer.BULK_SIZE; i++) {
-                int doc = docIds[offset + i];
+                final int doc = docIds[offset + i];
                 if (doc != -1) {
-                    scoredDocs++;
                     knnCollector.collect(doc, scores[i]);
                 }
             }
-            return scoredDocs;
         }
 
         @Override
@@ -449,14 +447,14 @@ public class DefaultIVFVectorsReader extends IVFVectorsReader implements OffHeap
             int limit = vectors - BULK_SIZE + 1;
             int i = 0;
             for (; i < limit; i += BULK_SIZE) {
-                int docsToScore = BULK_SIZE - filterDocs(docIdsScratch, i, needsScoring);
-                if (docsToScore == 0) {
+                final int docsToBulkScore = docToBulkScore(docIdsScratch, i, needsScoring);
+                if (docsToBulkScore == 0) {
                     continue;
                 }
                 quantizeQueryIfNecessary();
                 indexInput.seek(slicePos + i * quantizedByteLength);
-                float maxScore = Float.NEGATIVE_INFINITY;
-                if (docsToScore < BULK_SIZE / 2) {
+                final float maxScore;
+                if (docsToBulkScore < BULK_SIZE / 2) {
                     maxScore = scoreIndividually(i);
                 } else {
                     maxScore = osqVectorsScorer.scoreBulk(
@@ -471,8 +469,9 @@ public class DefaultIVFVectorsReader extends IVFVectorsReader implements OffHeap
                     );
                 }
                 if (knnCollector.minCompetitiveSimilarity() < maxScore) {
-                    scoredDocs += collect(docIdsScratch, i, knnCollector, scores);
+                    collectBulk(docIdsScratch, i, knnCollector, scores);
                 }
+                scoredDocs += docsToBulkScore;
             }
             // process tail
             for (; i < vectors; i++) {

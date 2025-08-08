@@ -146,7 +146,6 @@ public class ExponentialHistogramMerger implements Accountable, Releasable {
         ZeroBucket zeroBucket = a.zeroBucket().merge(b.zeroBucket());
         zeroBucket = zeroBucket.collapseOverlappingBucketsForAll(posBucketsA, negBucketsA, posBucketsB, negBucketsB);
 
-
         if (buffer == null) {
             buffer = FixedCapacityExponentialHistogram.create(bucketLimit, circuitBreaker);
         }

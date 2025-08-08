@@ -60,7 +60,6 @@ public class ExponentialHistogramMergeBench {
         ExponentialHistogramCircuitBreaker breaker = ExponentialHistogramCircuitBreaker.noop();
         histoMerger = ExponentialHistogramMerger.create(bucketCount, breaker);
 
-
         ExponentialHistogramGenerator initialGenerator = ExponentialHistogramGenerator.create(bucketCount, breaker);
         for (int j = 0; j < bucketCount; j++) {
             initialGenerator.add(Math.pow(1.001, j));

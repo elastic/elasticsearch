@@ -19,6 +19,7 @@ import org.elasticsearch.telemetry.metric.LongWithAttributes;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.threadpool.ThreadPool;
 
+import java.time.Duration;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
@@ -27,9 +28,13 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.RejectedExecutionHandler;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.atomic.LongAccumulator;
 import java.util.concurrent.atomic.LongAdder;
 import java.util.function.Function;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.threadpool.ThreadPool.THREAD_POOL_METRIC_NAME_QUEUE_TIME;
 import static org.elasticsearch.threadpool.ThreadPool.THREAD_POOL_METRIC_NAME_UTILIZATION;
@@ -44,22 +49,14 @@ public final class TaskExecutionTimeTrackingEsThreadPoolExecutor extends EsThrea
     private final Function<Runnable, WrappedRunnable> runnableWrapper;
     private final ExponentiallyWeightedMovingAverage executionEWMA;
     private final LongAdder totalExecutionTime = new LongAdder();
-    private final boolean trackOngoingTasks;
     // The set of currently running tasks and the timestamp of when they started execution in the Executor.
     private final Map<Runnable, Long> ongoingTasks = new ConcurrentHashMap<>();
     private final ExponentialBucketHistogram queueLatencyMillisHistogram = new ExponentialBucketHistogram(QUEUE_LATENCY_HISTOGRAM_BUCKETS);
-    private final boolean trackMaxQueueLatency;
+    private final TaskTrackingConfig trackingConfig;
+    private final FramedTimeTracker framedTimeTracker;
     private LongAccumulator maxQueueLatencyMillisSinceLastPoll = new LongAccumulator(Long::max, 0);
 
-    public enum UtilizationTrackingPurpose {
-        APM,
-        ALLOCATION,
-    }
-
-    private volatile UtilizationTracker apmUtilizationTracker = new UtilizationTracker();
-    private volatile UtilizationTracker allocationUtilizationTracker = new UtilizationTracker();
-
-    TaskExecutionTimeTrackingEsThreadPoolExecutor(
+    public TaskExecutionTimeTrackingEsThreadPoolExecutor(
         String name,
         int corePoolSize,
         int maximumPoolSize,
@@ -75,9 +72,12 @@ public final class TaskExecutionTimeTrackingEsThreadPoolExecutor extends EsThrea
         super(name, corePoolSize, maximumPoolSize, keepAliveTime, unit, workQueue, threadFactory, handler, contextHolder);
 
         this.runnableWrapper = runnableWrapper;
-        this.executionEWMA = new ExponentiallyWeightedMovingAverage(trackingConfig.getExecutionTimeEwmaAlpha(), 0);
-        this.trackOngoingTasks = trackingConfig.trackOngoingTasks();
-        this.trackMaxQueueLatency = trackingConfig.trackMaxQueueLatency();
+        this.executionEWMA = new ExponentiallyWeightedMovingAverage(trackingConfig.executionTimeEwmaAlpha(), 0);
+        this.trackingConfig = trackingConfig;
+        this.framedTimeTracker = new FramedTimeTracker(
+            trackingConfig.utilizationReportingInterval(),
+            trackingConfig.utilizationSamplingInterval()
+        );
     }
 
     public List<Instrument> setupMetrics(MeterRegistry meterRegistry, String threadPoolName) {
@@ -105,7 +105,7 @@ public final class TaskExecutionTimeTrackingEsThreadPoolExecutor extends EsThrea
                 ThreadPool.THREAD_POOL_METRIC_PREFIX + threadPoolName + THREAD_POOL_METRIC_NAME_UTILIZATION,
                 "fraction of maximum thread time utilized for " + threadPoolName,
                 "fraction",
-                () -> new DoubleWithAttributes(pollUtilization(UtilizationTrackingPurpose.APM), Map.of())
+                () -> new DoubleWithAttributes(utilization(), Map.of())
             )
         );
     }
@@ -147,34 +147,33 @@ public final class TaskExecutionTimeTrackingEsThreadPoolExecutor extends EsThrea
     }
 
     public long getMaxQueueLatencyMillisSinceLastPollAndReset() {
-        if (trackMaxQueueLatency == false) {
+        if (trackingConfig.trackMaxQueueLatency() == false) {
             return 0;
         }
         return maxQueueLatencyMillisSinceLastPoll.getThenReset();
     }
 
+    public TaskTrackingConfig trackingConfig() {
+        return trackingConfig;
+    }
+
     /**
-     * Returns the fraction of the maximum possible thread time that was actually used since the last time this method was called.
-     * There are two periodic pulling mechanisms that access utilization reporting: {@link UtilizationTrackingPurpose} distinguishes the
-     * caller.
+     * Returns thread-pool utilization from last completed time interval(frame) {@link TaskTrackingConfig#utilizationReportingInterval()}.
+     * Utilization is measured as {@code all-threads-total-execution-time / (total-thread-count * interval)}.
+     * This metric is updated once per interval, and returns last completed measurement. For example:
+     * if interval is 30 seconds, at clock time 00:30-01:00 it will return utilization from 00:00-00:30.
+     * There is no synchronization with clocks and system time.
      *
-     * @return the utilization as a fraction, in the range [0, 1]. This may return >1 if a task completed in the time range but started
-     * earlier, contributing a larger execution time.
+     * If caller needs longer intervals it should poll on every tracker-interval and aggregate on it's own. Another option is to extend
+     * framedTimeTracker to remember multiple past frames, and return aggregated view from here.
      */
-    public double pollUtilization(UtilizationTrackingPurpose utilizationTrackingPurpose) {
-        switch (utilizationTrackingPurpose) {
-            case APM:
-                return apmUtilizationTracker.pollUtilization();
-            case ALLOCATION:
-                return allocationUtilizationTracker.pollUtilization();
-            default:
-                throw new IllegalStateException("No operation defined for [" + utilizationTrackingPurpose + "]");
-        }
+    public double utilization() {
+        return (double) framedTimeTracker.totalTime() / (double) getMaximumPoolSize() / (double) framedTimeTracker.reportingInterval();
     }
 
     @Override
     protected void beforeExecute(Thread t, Runnable r) {
-        if (trackOngoingTasks) {
+        if (trackingConfig.trackOngoingTasks()) {
             ongoingTasks.put(r, System.nanoTime());
         }
 
@@ -186,8 +185,11 @@ public final class TaskExecutionTimeTrackingEsThreadPoolExecutor extends EsThrea
         var queueLatencyMillis = TimeUnit.NANOSECONDS.toMillis(taskQueueLatency);
         queueLatencyMillisHistogram.addObservation(queueLatencyMillis);
 
-        if (trackMaxQueueLatency) {
+        if (trackingConfig.trackMaxQueueLatency()) {
             maxQueueLatencyMillisSinceLastPoll.accumulate(queueLatencyMillis);
+        }
+        if (trackingConfig.trackUtilization()) {
+            framedTimeTracker.startTask();
         }
     }
 
@@ -213,10 +215,13 @@ public final class TaskExecutionTimeTrackingEsThreadPoolExecutor extends EsThrea
                 executionEWMA.addValue(taskExecutionNanos);
                 totalExecutionTime.add(taskExecutionNanos);
             }
+            if (trackingConfig.trackUtilization()) {
+                framedTimeTracker.endTask();
+            }
         } finally {
             // if trackOngoingTasks is false -> ongoingTasks must be empty
-            assert trackOngoingTasks || ongoingTasks.isEmpty();
-            if (trackOngoingTasks) {
+            assert trackingConfig.trackOngoingTasks() || ongoingTasks.isEmpty();
+            if (trackingConfig.trackOngoingTasks()) {
                 ongoingTasks.remove(r);
             }
         }
@@ -240,7 +245,7 @@ public final class TaskExecutionTimeTrackingEsThreadPoolExecutor extends EsThrea
      * task is reflected in at least one of those two values.
      */
     public Map<Runnable, Long> getOngoingTasks() {
-        return trackOngoingTasks ? Map.copyOf(ongoingTasks) : Map.of();
+        return trackingConfig.trackOngoingTasks() ? Map.copyOf(ongoingTasks) : Map.of();
     }
 
     // Used for testing
@@ -250,33 +255,164 @@ public final class TaskExecutionTimeTrackingEsThreadPoolExecutor extends EsThrea
 
     // Used for testing
     public boolean trackingMaxQueueLatency() {
-        return trackMaxQueueLatency;
+        return trackingConfig.trackMaxQueueLatency();
     }
 
     /**
-     * Supports periodic polling for thread pool utilization. Tracks state since the last polling request so that the average utilization
-     * since the last poll can be calculated for the next polling request.
-     *
-     * Uses the difference of {@link #totalExecutionTime} since the last polling request to determine how much activity has occurred.
+     * Tracks threads execution in continuous, non-overlapping, and even time frames.
      */
-    private class UtilizationTracker {
-        long lastPollTime = System.nanoTime();
-        long lastTotalExecutionTime = 0;
+    public static class FramedTimeTracker {
+        private final long reportingInterval;
+        private final long frameDuration;
+        private final Supplier<Long> timeNow;
+        private final AtomicReference<FrameWindow> frameWindowRef;
+        private final AtomicBoolean updatingFrame = new AtomicBoolean();
+        private final AtomicLong currentFrameNum = new AtomicLong();
 
-        public synchronized double pollUtilization() {
-            final long currentTotalExecutionTimeNanos = totalExecutionTime.sum();
-            final long currentPollTimeNanos = System.nanoTime();
+        // for testing
+        public FramedTimeTracker(long reportingInterval, long frameDuration, Supplier<Long> timeNow) {
+            assert reportingInterval / frameDuration > 0;
+            this.reportingInterval = reportingInterval;
+            this.frameDuration = frameDuration;
+            this.timeNow = timeNow;
+            this.frameWindowRef = new AtomicReference<>(FrameWindow.empty((int) (reportingInterval / frameDuration)));
+        }
 
-            final long totalExecutionTimeSinceLastPollNanos = currentTotalExecutionTimeNanos - lastTotalExecutionTime;
-            final long timeSinceLastPoll = currentPollTimeNanos - lastPollTime;
+        FramedTimeTracker(Duration reportingInterval, Duration frameInterval) {
+            this(reportingInterval.toNanos(), frameInterval.toNanos(), System::nanoTime);
+        }
 
-            final long maximumExecutionTimeSinceLastPollNanos = timeSinceLastPoll * getMaximumPoolSize();
-            final double utilizationSinceLastPoll = (double) totalExecutionTimeSinceLastPollNanos / maximumExecutionTimeSinceLastPollNanos;
+        public long reportingInterval() {
+            return reportingInterval;
+        }
 
-            lastTotalExecutionTime = currentTotalExecutionTimeNanos;
-            lastPollTime = currentPollTimeNanos;
+        /**
+         * Returns current FrameWindow. If window is stale, it will slide to current time.
+         * @param now - current frame
+         */
+        private FrameWindow getWindow(long now) {
+            var current = currentFrameNum.get();
+            // first time in new frame
+            if (current < now) {
+                // only one thread will perform frame update, others spinWait
+                if (updatingFrame.compareAndSet(false, true)) {
+                    final var moveOffset = now - current;
+                    final var newWindow = frameWindowRef.get().moveBy(moveOffset);
+                    frameWindowRef.set(newWindow);
+                    currentFrameNum.set(now);
+                    updatingFrame.set(false);
+                } else {
+                    while (updatingFrame.get()) {
+                        Thread.onSpinWait();
+                    }
+                    // an edge case when all the following happen:
+                    // 1. window was stale, at least 1 frame
+                    // 2. two or more threads try to update window
+                    // 3. it's happening at the end of the frame, beginning new frame
+                    // for example, lets say interval is 10
+                    // and there are two concurrent calls getWindow(9)->frame0 and getWindow(10)->frame1
+                    // both need to update window, but those are different windows,
+                    // two things might happen:
+                    // 1. getWindow(9) updates window and uses it, but getWindow(10) need to update window again
+                    // 2. getWindow(10) updates window, then getWindow(9) will see a newer window, so we record task in a newer frame,
+                    // basically rounding-up frame when it's happening.
+                    if (currentFrameNum.get() < now) {
+                        return getWindow(now);
+                    }
+                }
+            }
+            return frameWindowRef.get();
+        }
 
-            return utilizationSinceLastPoll;
+        /**
+         * Start tracking new task, assume that task runs indefinitely, or at least till end of frame.
+         * If task finishes sooner than end of interval {@link FramedTimeTracker#endTask()} will deduct remaining time.
+         */
+        public void startTask() {
+            final var nowTime = timeNow.get();
+            final var now = nowTime / frameDuration;
+            final var frameWindow = getWindow(now);
+            frameWindow.frames[0].ongoingTasks.increment();
+            frameWindow.frames[0].startEndDiff.add((now + 1) * frameDuration - nowTime);
+        }
+
+        /**
+         * Stop task tracking. We already assumed that task runs till end of frame, here we deduct not used time.
+         */
+        public void endTask() {
+            final var nowTime = timeNow.get();
+            final var now = nowTime / frameDuration;
+            final var frameWindow = getWindow(now);
+            frameWindow.frames[0].ongoingTasks.decrement();
+            frameWindow.frames[0].startEndDiff.add(-((now + 1) * frameDuration - nowTime));
+        }
+
+        /**
+         * Returns total execution time from last interval.
+         */
+        public long totalTime() {
+            final var now = timeNow.get() / frameDuration;
+            final var frameWindow = getWindow(now);
+            // total time is sum of ongoing tasks in frame N-1 and all starts and ends in N frame
+            // so for the previous frame (now-1), it would be (now-2) ongoing tasks + (now -1) start/end tasks
+            var totalTime = 0L;
+            for (var i = 1; i < frameWindow.frames.length - 1; i++) { // first and last frames are not used, see FrameWindow description
+                final var ongoingTasks = frameWindow.frames[i + 1].ongoingTasks.sum();
+                final var startEndDiff = frameWindow.frames[i].startEndDiff.sum();
+                totalTime += ongoingTasks * frameDuration + startEndDiff;
+            }
+            return totalTime;
+        }
+
+        /**
+         * A single frame that tracks how many tasks are still running at the end of frame
+         * and diffs from task start and end.
+         */
+        record Frame(LongAdder ongoingTasks, LongAdder startEndDiff) {
+            Frame() {
+                this(new LongAdder(), new LongAdder());
+            }
+        }
+
+        /**
+         * A frame window of consecutive frames. frames[0] is now, frames[1] is now-1.
+         * To calculate frame time usage we need to know ongoing-tasks from previous frame and all starts and ends in current frame.
+         * That means we cannot calculate time for first and last frames in the array. First one is in-progress, last one has no information
+         * about previous ongoing tasks. So completed frames are between 1..length-2.
+         */
+        record FrameWindow(Frame[] frames) {
+
+            static FrameWindow empty(int size) {
+                // first and last frames are incomplete, adding two more frames
+                final var frames = new Frame[size + 2];
+                for (var i = 0; i < frames.length; i++) {
+                    frames[i] = new Frame();
+                }
+                return new FrameWindow(frames);
+            }
+
+            /**
+             * Creates a new window by sliding current by moveFrames. If new window overlaps with current window Frames are reused.
+             * So there is no risk of losing data when start/endTask updates counters in the past window frame.
+             */
+            FrameWindow moveBy(long moveFrames) {
+                if (moveFrames == 0) {
+                    return this;
+                }
+                final var newFramesNum = (int) Math.min(frames.length, moveFrames); // non-overlapping frames with current window
+                final var newFrames = new Frame[frames.length];
+                // copy overlapping frames to the end of array
+                System.arraycopy(frames, 0, newFrames, newFramesNum, frames.length - newFramesNum);
+                // initialize new frames in the beginning of array
+                // a new frame always starts with last known ongoing tasks
+                final var ongoingTasks = frames[0].ongoingTasks.sum();
+                for (var i = 0; i < newFramesNum; i++) {
+                    final var frame = new Frame();
+                    frame.ongoingTasks.add(ongoingTasks);
+                    newFrames[i] = frame;
+                }
+                return new FrameWindow(newFrames);
+            }
         }
     }
 }

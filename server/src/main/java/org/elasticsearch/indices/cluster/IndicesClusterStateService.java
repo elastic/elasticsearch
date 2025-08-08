@@ -307,6 +307,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
             if (closingMoreShards == false) {
                 // avoids chaining when no shard has been closed after applying this cluster state
                 lastClusterStateShardsClosedListener = previousShardsClosedListener;
+                shardsClosedListenerChainLength--;
             }
         }
     }

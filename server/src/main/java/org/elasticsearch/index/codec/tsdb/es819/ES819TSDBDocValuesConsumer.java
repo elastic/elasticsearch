@@ -124,6 +124,29 @@ final class ES819TSDBDocValuesConsumer extends XDocValuesConsumer {
         writeField(field, producer, -1, null);
     }
 
+    private static boolean assertNumDocsWithValueAndNumValues(
+        long numValuesFromStats,
+        int numDocsWithValueFromStats,
+        FieldInfo field,
+        TsdbDocValuesProducer valuesProducer
+    ) throws IOException {
+        long actualNumValues = 0;
+        int actualNumDocsWithValue = 0;
+        var values = valuesProducer.getSortedNumeric(field);
+        for (int doc = values.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = values.nextDoc()) {
+            actualNumDocsWithValue++;
+            final int count = values.docValueCount();
+            actualNumValues += count;
+        }
+
+        assert actualNumDocsWithValue == numDocsWithValueFromStats
+            : "expected[" + numDocsWithValueFromStats + ", but got [" + actualNumDocsWithValue + "]";
+        assert actualNumValues == numValuesFromStats
+            : "expected[" + numValuesFromStats + ", but got [" + actualNumValues + "]";
+
+        return true;
+    }
+
     private long[] writeField(FieldInfo field, TsdbDocValuesProducer valuesProducer, long maxOrd, OffsetsAccumulator offsetsAccumulator)
         throws IOException {
         int numDocsWithValue = 0;
@@ -133,6 +156,7 @@ final class ES819TSDBDocValuesConsumer extends XDocValuesConsumer {
         if (valuesProducer.mergeStats.supported()) {
             numDocsWithValue = valuesProducer.mergeStats.sumNumDocsWithField();
             numValues = valuesProducer.mergeStats.sumNumValues();
+            assert assertNumDocsWithValueAndNumValues(numValues, numDocsWithValue, field, valuesProducer);
         } else {
             values = valuesProducer.getSortedNumeric(field);
             for (int doc = values.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = values.nextDoc()) {

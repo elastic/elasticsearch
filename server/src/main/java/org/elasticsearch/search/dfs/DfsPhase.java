@@ -199,14 +199,21 @@ public class DfsPhase {
         final long beforeQueryTime = System.nanoTime();
         var opsListener = context.indexShard().getSearchOperationListener();
         opsListener.onPreQueryPhase(context);
-        for (int i = 0; i < knnSearch.size(); i++) {
-            String knnField = knnVectorQueryBuilders.get(i).getFieldName();
-            String knnNestedPath = searchExecutionContext.nestedLookup().getNestedParent(knnField);
-            Query knnQuery = searchExecutionContext.toQuery(knnVectorQueryBuilders.get(i)).query();
-            knnResults.add(singleKnnSearch(knnQuery, knnSearch.get(i).k(), context.getProfilers(), context.searcher(), knnNestedPath));
+        try {
+            for (int i = 0; i < knnSearch.size(); i++) {
+                String knnField = knnVectorQueryBuilders.get(i).getFieldName();
+                String knnNestedPath = searchExecutionContext.nestedLookup().getNestedParent(knnField);
+                Query knnQuery = searchExecutionContext.toQuery(knnVectorQueryBuilders.get(i)).query();
+                knnResults.add(singleKnnSearch(knnQuery, knnSearch.get(i).k(), context.getProfilers(), context.searcher(), knnNestedPath));
+            }
+            afterQueryTime = System.nanoTime();
+            opsListener.onQueryPhase(context, afterQueryTime - beforeQueryTime);
+            opsListener = null;
+        } finally {
+            if (opsListener != null) {
+                opsListener.onFailedQueryPhase(context);
+            }
         }
-        afterQueryTime = System.nanoTime();
-        opsListener.onQueryPhase(context, afterQueryTime - beforeQueryTime);
         context.dfsResult().knnResults(knnResults);
     }
 

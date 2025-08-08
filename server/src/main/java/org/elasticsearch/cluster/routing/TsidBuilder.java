@@ -163,7 +163,6 @@ public class TsidBuilder {
         return new BytesRef(hash, 0, index);
     }
 
-
     private static int writeHash128(HashValue128 hash128, byte[] buffer, int index) {
         ByteUtils.writeLongLE(hash128.getLeastSignificantBits(), buffer, index);
         index += 8;

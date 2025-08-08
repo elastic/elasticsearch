@@ -128,7 +128,7 @@ public class DataStreamIndexSettingsProvider implements IndexSettingProvider {
                         );
                         if (dimensions.isEmpty() == false) {
                             // TODO handle the case when adding a dimension field to the mappings of an existing index
-                            //  at the moment, the index.dimensions setting is only set when an index is created
+                            // at the moment, the index.dimensions setting is only set when an index is created
                             builder.putList(INDEX_DIMENSIONS.getKey(), dimensions);
                         }
                     }
@@ -197,7 +197,7 @@ public class DataStreamIndexSettingsProvider implements IndexSettingProvider {
                 }
 
                 MappingParserContext parserContext = mapperService.parserContext();
-                for (Iterator<String> iterator = template.pathMatch().iterator(); iterator.hasNext(); ) {
+                for (Iterator<String> iterator = template.pathMatch().iterator(); iterator.hasNext();) {
                     var mapper = parserContext.typeParser(mappingSnippetType)
                         .parse(iterator.next(), mappingSnippet, parserContext)
                         .build(MapperBuilderContext.root(false, false));

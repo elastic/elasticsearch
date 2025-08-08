@@ -561,12 +561,7 @@ public class IndexRoutingTests extends ESTestCase {
     public void testRoutingPathOneSub() throws IOException {
         int shards = between(2, 1000);
         IndexRouting routing = indexRoutingForPath(shards, "foo.*");
-        assertIndexShard(
-            routing,
-            Map.of("foo", Map.of("bar", "cat"), "baz", "dog"),
-            List.of("foo.bar", "cat"),
-            shards
-        );
+        assertIndexShard(routing, Map.of("foo", Map.of("bar", "cat"), "baz", "dog"), List.of("foo.bar", "cat"), shards);
     }
 
     public void testRoutingPathManySubs() throws IOException {
@@ -788,7 +783,7 @@ public class IndexRoutingTests extends ESTestCase {
                 b.addMatching(e.getKey(), new BytesRef(e.getValue().toString()));
             }
         }
-        String idFromBuilder = b.createId(suffix, () -> {throw new AssertionError();});
+        String idFromBuilder = b.createId(suffix, () -> { throw new AssertionError(); });
         assertThat(idFromBuilder, equalTo(idFromSource));
     }
 

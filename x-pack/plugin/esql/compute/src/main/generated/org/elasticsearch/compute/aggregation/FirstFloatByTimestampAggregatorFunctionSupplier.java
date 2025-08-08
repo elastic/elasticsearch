@@ -20,7 +20,7 @@ public final class FirstFloatByTimestampAggregatorFunctionSupplier implements Ag
 
   @Override
   public List<IntermediateStateDesc> nonGroupingIntermediateStateDesc() {
-    throw new UnsupportedOperationException("non-grouping aggregator is not supported");
+    return FirstFloatByTimestampAggregatorFunction.intermediateStateDesc();
   }
 
   @Override
@@ -29,8 +29,9 @@ public final class FirstFloatByTimestampAggregatorFunctionSupplier implements Ag
   }
 
   @Override
-  public AggregatorFunction aggregator(DriverContext driverContext, List<Integer> channels) {
-    throw new UnsupportedOperationException("non-grouping aggregator is not supported");
+  public FirstFloatByTimestampAggregatorFunction aggregator(DriverContext driverContext,
+      List<Integer> channels) {
+    return FirstFloatByTimestampAggregatorFunction.create(driverContext, channels);
   }
 
   @Override
@@ -41,6 +42,6 @@ public final class FirstFloatByTimestampAggregatorFunctionSupplier implements Ag
 
   @Override
   public String describe() {
-    return "first_float_by of timestamps";
+    return FirstFloatByTimestampAggregator.describe();
   }
 }

@@ -894,14 +894,12 @@ public class SparseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase
 
     private void assertPruningScenario(IndexPruningScenario indexPruningScenario, QueryPruningScenario queryPruningScenario)
         throws IOException {
-        logger.debug("Running test with indexPruningScenario: {}, queryPruningScenario: {}", indexPruningScenario, queryPruningScenario);
         IndexVersion indexVersion = IndexVersionUtils.randomVersionBetween(
             random(),
             SPARSE_VECTOR_PRUNING_INDEX_OPTIONS_SUPPORT,
             IndexVersion.current()
         );
         MapperService mapperService = createMapperService(indexVersion, getIndexMapping(indexPruningScenario));
-        logger.debug("Index mapping: {}", mapperService.documentMapper().mappingSource().toString());
         Tuple<Boolean, TokenPruningConfig> queryPruneConfig = getQueryPruneConfig(queryPruningScenario);
         PruningScenario effectivePruningScenario = getEffectivePruningScenario(indexPruningScenario, queryPruningScenario);
         withSearchExecutionContext(mapperService, (context) -> {

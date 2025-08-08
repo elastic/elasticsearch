@@ -23,10 +23,8 @@ import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.codecs.hnsw.FlatFieldVectorsWriter;
 import org.apache.lucene.codecs.hnsw.FlatVectorsScorer;
 import org.apache.lucene.codecs.hnsw.FlatVectorsWriter;
-import org.apache.lucene.codecs.lucene95.OffHeapByteVectorValues;
 import org.apache.lucene.codecs.lucene95.OffHeapFloatVectorValues;
 import org.apache.lucene.codecs.lucene95.OrdToDocDISIReaderConfiguration;
-import org.apache.lucene.index.ByteVectorValues;
 import org.apache.lucene.index.DocsWithFieldSet;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FloatVectorValues;
@@ -157,10 +155,12 @@ public final class ES92BFloat16FlatVectorsWriter extends FlatVectorsWriter {
 
     private void writeField(FieldWriter<?> fieldData, int maxDoc) throws IOException {
         // write vector values
-        long vectorDataOffset = vectorData.alignFilePointer(Float.BYTES);
+        long vectorDataOffset = vectorData.alignFilePointer(BFloat16.BYTES);
         switch (fieldData.fieldInfo.getVectorEncoding()) {
-            case BYTE -> writeByteVectors(fieldData);
             case FLOAT32 -> writeBFloat16Vectors(fieldData);
+            case BYTE -> throw new IllegalStateException(
+                "Incorrect encoding for field " + fieldData.fieldInfo.name + ": " + VectorEncoding.BYTE
+            );
         }
         long vectorDataLength = vectorData.getFilePointer() - vectorDataOffset;
 
@@ -175,13 +175,6 @@ public final class ES92BFloat16FlatVectorsWriter extends FlatVectorsWriter {
         }
     }
 
-    private void writeByteVectors(FieldWriter<?> fieldData) throws IOException {
-        for (Object v : fieldData.vectors) {
-            byte[] vector = (byte[]) v;
-            vectorData.writeBytes(vector, vector.length);
-        }
-    }
-
     private void writeSortingField(FieldWriter<?> fieldData, int maxDoc, Sorter.DocMap sortMap) throws IOException {
         final int[] ordMap = new int[fieldData.docsWithField.cardinality()]; // new ord to old ord
 
@@ -190,8 +183,10 @@ public final class ES92BFloat16FlatVectorsWriter extends FlatVectorsWriter {
 
         // write vector values
         long vectorDataOffset = switch (fieldData.fieldInfo.getVectorEncoding()) {
-            case BYTE -> writeSortedByteVectors(fieldData, ordMap);
             case FLOAT32 -> writeSortedBFloat16Vectors(fieldData, ordMap);
+            case BYTE -> throw new IllegalStateException(
+                "Incorrect encoding for field " + fieldData.fieldInfo.name + ": " + VectorEncoding.BYTE
+            );
         };
         long vectorDataLength = vectorData.getFilePointer() - vectorDataOffset;
 
@@ -199,7 +194,7 @@ public final class ES92BFloat16FlatVectorsWriter extends FlatVectorsWriter {
     }
 
     private long writeSortedBFloat16Vectors(FieldWriter<?> fieldData, int[] ordMap) throws IOException {
-        long vectorDataOffset = vectorData.alignFilePointer(Float.BYTES);
+        long vectorDataOffset = vectorData.alignFilePointer(BFloat16.BYTES);
         final ByteBuffer buffer = ByteBuffer.allocate(fieldData.dim * BFloat16.BYTES).order(ByteOrder.LITTLE_ENDIAN);
         for (int ordinal : ordMap) {
             float[] vector = (float[]) fieldData.vectors.get(ordinal);
@@ -209,24 +204,15 @@ public final class ES92BFloat16FlatVectorsWriter extends FlatVectorsWriter {
         return vectorDataOffset;
     }
 
-    private long writeSortedByteVectors(FieldWriter<?> fieldData, int[] ordMap) throws IOException {
-        long vectorDataOffset = vectorData.alignFilePointer(Float.BYTES);
-        for (int ordinal : ordMap) {
-            byte[] vector = (byte[]) fieldData.vectors.get(ordinal);
-            vectorData.writeBytes(vector, vector.length);
-        }
-        return vectorDataOffset;
-    }
-
     @Override
     public void mergeOneField(FieldInfo fieldInfo, MergeState mergeState) throws IOException {
         // Since we know we will not be searching for additional indexing, we can just write the
         // the vectors directly to the new segment.
-        long vectorDataOffset = vectorData.alignFilePointer(Float.BYTES);
+        long vectorDataOffset = vectorData.alignFilePointer(BFloat16.BYTES);
         // No need to use temporary file as we don't have to re-open for reading
         DocsWithFieldSet docsWithField = switch (fieldInfo.getVectorEncoding()) {
-            case BYTE -> writeByteVectorData(vectorData, MergedVectorValues.mergeByteVectorValues(fieldInfo, mergeState));
             case FLOAT32 -> writeVectorData(vectorData, MergedVectorValues.mergeFloatVectorValues(fieldInfo, mergeState));
+            case BYTE -> throw new IllegalStateException("Incorrect encoding for field " + fieldInfo.name + ": " + VectorEncoding.BYTE);
         };
         long vectorDataLength = vectorData.getFilePointer() - vectorDataOffset;
         writeMeta(fieldInfo, segmentWriteState.segmentInfo.maxDoc(), vectorDataOffset, vectorDataLength, docsWithField);
@@ -234,15 +220,15 @@ public final class ES92BFloat16FlatVectorsWriter extends FlatVectorsWriter {
 
     @Override
     public CloseableRandomVectorScorerSupplier mergeOneFieldToIndex(FieldInfo fieldInfo, MergeState mergeState) throws IOException {
-        long vectorDataOffset = vectorData.alignFilePointer(Float.BYTES);
+        long vectorDataOffset = vectorData.alignFilePointer(BFloat16.BYTES);
         IndexOutput tempVectorData = segmentWriteState.directory.createTempOutput(vectorData.getName(), "temp", segmentWriteState.context);
         IndexInput vectorDataInput = null;
         boolean success = false;
         try {
             // write the vector data to a temporary file
             DocsWithFieldSet docsWithField = switch (fieldInfo.getVectorEncoding()) {
-                case BYTE -> writeByteVectorData(tempVectorData, MergedVectorValues.mergeByteVectorValues(fieldInfo, mergeState));
                 case FLOAT32 -> writeVectorData(tempVectorData, MergedVectorValues.mergeFloatVectorValues(fieldInfo, mergeState));
+                case BYTE -> throw new UnsupportedOperationException("ES92BFloat16FlatVectorsWriter only supports float vectors");
             };
             CodecUtil.writeFooter(tempVectorData);
             IOUtils.close(tempVectorData);
@@ -261,30 +247,17 @@ public final class ES92BFloat16FlatVectorsWriter extends FlatVectorsWriter {
             writeMeta(fieldInfo, segmentWriteState.segmentInfo.maxDoc(), vectorDataOffset, vectorDataLength, docsWithField);
             success = true;
             final IndexInput finalVectorDataInput = vectorDataInput;
-            final RandomVectorScorerSupplier randomVectorScorerSupplier = switch (fieldInfo.getVectorEncoding()) {
-                case BYTE -> vectorsScorer.getRandomVectorScorerSupplier(
-                    fieldInfo.getVectorSimilarityFunction(),
-                    new OffHeapByteVectorValues.DenseOffHeapVectorValues(
-                        fieldInfo.getVectorDimension(),
-                        docsWithField.cardinality(),
-                        finalVectorDataInput,
-                        fieldInfo.getVectorDimension() * Byte.BYTES,
-                        vectorsScorer,
-                        fieldInfo.getVectorSimilarityFunction()
-                    )
-                );
-                case FLOAT32 -> vectorsScorer.getRandomVectorScorerSupplier(
-                    fieldInfo.getVectorSimilarityFunction(),
-                    new OffHeapFloatVectorValues.DenseOffHeapVectorValues(
-                        fieldInfo.getVectorDimension(),
-                        docsWithField.cardinality(),
-                        finalVectorDataInput,
-                        fieldInfo.getVectorDimension() * Float.BYTES,
-                        vectorsScorer,
-                        fieldInfo.getVectorSimilarityFunction()
-                    )
-                );
-            };
+            final RandomVectorScorerSupplier randomVectorScorerSupplier = vectorsScorer.getRandomVectorScorerSupplier(
+                fieldInfo.getVectorSimilarityFunction(),
+                new OffHeapFloatVectorValues.DenseOffHeapVectorValues(
+                    fieldInfo.getVectorDimension(),
+                    docsWithField.cardinality(),
+                    finalVectorDataInput,
+                    fieldInfo.getVectorDimension() * BFloat16.BYTES,
+                    vectorsScorer,
+                    fieldInfo.getVectorSimilarityFunction()
+                )
+            );
             return new FlatCloseableRandomVectorScorerSupplier(() -> {
                 IOUtils.close(finalVectorDataInput);
                 segmentWriteState.directory.deleteFile(tempVectorData.getName());
@@ -314,23 +287,6 @@ public final class ES92BFloat16FlatVectorsWriter extends FlatVectorsWriter {
         int count = docsWithField.cardinality();
         meta.writeInt(count);
         OrdToDocDISIReaderConfiguration.writeStoredMeta(DIRECT_MONOTONIC_BLOCK_SHIFT, meta, vectorData, count, maxDoc, docsWithField);
-    }
-
-    /**
-     * Writes the byte vector values to the output and returns a set of documents that contains
-     * vectors.
-     */
-    private static DocsWithFieldSet writeByteVectorData(IndexOutput output, ByteVectorValues byteVectorValues) throws IOException {
-        DocsWithFieldSet docsWithField = new DocsWithFieldSet();
-        KnnVectorValues.DocIndexIterator iter = byteVectorValues.iterator();
-        for (int docV = iter.nextDoc(); docV != NO_MORE_DOCS; docV = iter.nextDoc()) {
-            // write vector
-            byte[] binaryValue = byteVectorValues.vectorValue(iter.index());
-            assert binaryValue.length == byteVectorValues.dimension() * VectorEncoding.BYTE.byteSize;
-            output.writeBytes(binaryValue, binaryValue.length);
-            docsWithField.add(docV);
-        }
-        return docsWithField;
     }
 
     /**
@@ -368,18 +324,13 @@ public final class ES92BFloat16FlatVectorsWriter extends FlatVectorsWriter {
         static FieldWriter<?> create(FieldInfo fieldInfo) {
             int dim = fieldInfo.getVectorDimension();
             return switch (fieldInfo.getVectorEncoding()) {
-                case BYTE -> new ES92BFloat16FlatVectorsWriter.FieldWriter<byte[]>(fieldInfo) {
-                    @Override
-                    public byte[] copyValue(byte[] value) {
-                        return ArrayUtil.copyOfSubArray(value, 0, dim);
-                    }
-                };
                 case FLOAT32 -> new ES92BFloat16FlatVectorsWriter.FieldWriter<float[]>(fieldInfo) {
                     @Override
                     public float[] copyValue(float[] value) {
                         return ArrayUtil.copyOfSubArray(value, 0, dim);
                     }
                 };
+                case BYTE -> throw new IllegalStateException("Incorrect encoding for field " + fieldInfo.name + ": " + VectorEncoding.BYTE);
             };
         }
 

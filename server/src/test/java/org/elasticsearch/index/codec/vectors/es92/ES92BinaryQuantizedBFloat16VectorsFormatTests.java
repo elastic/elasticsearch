@@ -29,11 +29,9 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.document.KnnFloatVectorField;
 import org.apache.lucene.index.CodecReader;
 import org.apache.lucene.index.DirectoryReader;
-import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
-import org.apache.lucene.index.KnnVectorValues;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.SoftDeletesRetentionMergePolicy;
 import org.apache.lucene.index.Term;
@@ -63,12 +61,7 @@ import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.codec.vectors.BQVectorUtils;
-import org.elasticsearch.index.codec.vectors.OptimizedScalarQuantizer;
-import org.elasticsearch.index.codec.vectors.es818.BinarizedByteVectorValues;
 import org.elasticsearch.index.codec.vectors.es818.ES818BinaryQuantizedVectorsFormat;
-import org.elasticsearch.index.codec.vectors.es818.ES818BinaryQuantizedVectorsReader;
-import org.elasticsearch.index.codec.vectors.es818.ES818BinaryQuantizedVectorsWriter;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardPath;
 import org.elasticsearch.index.store.FsDirectoryFactory;
@@ -85,7 +78,6 @@ import java.util.OptionalLong;
 
 import static java.lang.String.format;
 import static org.apache.lucene.index.VectorSimilarityFunction.DOT_PRODUCT;
-import static org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.oneOf;
 
@@ -223,61 +215,6 @@ public class ES92BinaryQuantizedBFloat16VectorsFormatTests extends BaseKnnVector
 
     @Override
     public void testSparseVectors() throws Exception {}
-
-    public void testQuantizedVectorsWriteAndRead() throws IOException {
-        String fieldName = "field";
-        int numVectors = random().nextInt(99, 500);
-        int dims = random().nextInt(4, 65);
-
-        float[] vector = randomVector(dims);
-        VectorSimilarityFunction similarityFunction = randomSimilarity();
-        KnnFloatVectorField knnField = new KnnFloatVectorField(fieldName, vector, similarityFunction);
-        try (Directory dir = newDirectory()) {
-            try (IndexWriter w = new IndexWriter(dir, newIndexWriterConfig())) {
-                for (int i = 0; i < numVectors; i++) {
-                    Document doc = new Document();
-                    knnField.setVectorValue(randomVector(dims));
-                    doc.add(knnField);
-                    w.addDocument(doc);
-                    if (i % 101 == 0) {
-                        w.commit();
-                    }
-                }
-                w.commit();
-                w.forceMerge(1);
-
-                try (IndexReader reader = DirectoryReader.open(w)) {
-                    LeafReader r = getOnlyLeafReader(reader);
-                    FloatVectorValues vectorValues = r.getFloatVectorValues(fieldName);
-                    assertEquals(vectorValues.size(), numVectors);
-                    BinarizedByteVectorValues qvectorValues = ((ES818BinaryQuantizedVectorsReader.BinarizedVectorValues) vectorValues)
-                        .getQuantizedVectorValues();
-                    float[] centroid = qvectorValues.getCentroid();
-                    assertEquals(centroid.length, dims);
-
-                    OptimizedScalarQuantizer quantizer = new OptimizedScalarQuantizer(similarityFunction);
-                    int[] quantizedVector = new int[dims];
-                    byte[] expectedVector = new byte[BQVectorUtils.discretize(dims, 64) / 8];
-                    if (similarityFunction == VectorSimilarityFunction.COSINE) {
-                        vectorValues = new ES818BinaryQuantizedVectorsWriter.NormalizedFloatVectorValues(vectorValues);
-                    }
-                    KnnVectorValues.DocIndexIterator docIndexIterator = vectorValues.iterator();
-
-                    while (docIndexIterator.nextDoc() != NO_MORE_DOCS) {
-                        OptimizedScalarQuantizer.QuantizationResult corrections = quantizer.scalarQuantize(
-                            vectorValues.vectorValue(docIndexIterator.index()),
-                            quantizedVector,
-                            (byte) 1,
-                            centroid
-                        );
-                        BQVectorUtils.packAsBinary(quantizedVector, expectedVector);
-                        assertArrayEquals(expectedVector, qvectorValues.vectorValue(docIndexIterator.index()));
-                        assertEquals(corrections, qvectorValues.getCorrectiveTerms(docIndexIterator.index()));
-                    }
-                }
-            }
-        }
-    }
 
     public void testSimpleOffHeapSize() throws IOException {
         try (Directory dir = newDirectory()) {

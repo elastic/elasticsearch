@@ -22,7 +22,6 @@ package org.elasticsearch.index.codec.vectors.es92;
 import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.codecs.hnsw.FlatVectorsReader;
 import org.apache.lucene.codecs.hnsw.FlatVectorsScorer;
-import org.apache.lucene.codecs.lucene95.OffHeapByteVectorValues;
 import org.apache.lucene.codecs.lucene95.OrdToDocDISIReaderConfiguration;
 import org.apache.lucene.index.ByteVectorValues;
 import org.apache.lucene.index.CorruptIndexException;
@@ -221,17 +220,7 @@ public final class ES92BFloat16FlatVectorsReader extends FlatVectorsReader {
 
     @Override
     public ByteVectorValues getByteVectorValues(String field) throws IOException {
-        final FieldEntry fieldEntry = getFieldEntry(field, VectorEncoding.BYTE);
-        return OffHeapByteVectorValues.load(
-            fieldEntry.similarityFunction,
-            vectorScorer,
-            fieldEntry.ordToDoc,
-            fieldEntry.vectorEncoding,
-            fieldEntry.dimension,
-            fieldEntry.vectorDataOffset,
-            fieldEntry.vectorDataLength,
-            vectorData
-        );
+        throw new IllegalStateException(field + " only supports float vectors");
     }
 
     @Override
@@ -256,21 +245,7 @@ public final class ES92BFloat16FlatVectorsReader extends FlatVectorsReader {
 
     @Override
     public RandomVectorScorer getRandomVectorScorer(String field, byte[] target) throws IOException {
-        final FieldEntry fieldEntry = getFieldEntry(field, VectorEncoding.BYTE);
-        return vectorScorer.getRandomVectorScorer(
-            fieldEntry.similarityFunction,
-            OffHeapByteVectorValues.load(
-                fieldEntry.similarityFunction,
-                vectorScorer,
-                fieldEntry.ordToDoc,
-                fieldEntry.vectorEncoding,
-                fieldEntry.dimension,
-                fieldEntry.vectorDataOffset,
-                fieldEntry.vectorDataLength,
-                vectorData
-            ),
-            target
-        );
+        throw new UnsupportedOperationException(field + " only supports float vectors");
     }
 
     @Override
@@ -297,6 +272,12 @@ public final class ES92BFloat16FlatVectorsReader extends FlatVectorsReader {
     ) {
 
         FieldEntry {
+            if (vectorEncoding == VectorEncoding.BYTE) {
+                throw new IllegalStateException(
+                    "Incorrect vector encoding for field=\"" + info.name + "\"; " + vectorEncoding + " not supported"
+                );
+            }
+
             if (similarityFunction != info.getVectorSimilarityFunction()) {
                 throw new IllegalStateException(
                     "Inconsistent vector similarity function for field=\""
@@ -314,10 +295,7 @@ public final class ES92BFloat16FlatVectorsReader extends FlatVectorsReader {
                 );
             }
 
-            int byteSize = switch (info.getVectorEncoding()) {
-                case BYTE -> Byte.BYTES;
-                case FLOAT32 -> BFloat16.BYTES;
-            };
+            int byteSize = BFloat16.BYTES;
             long vectorBytes = Math.multiplyExact((long) infoVectorDimension, byteSize);
             long numBytes = Math.multiplyExact(vectorBytes, size);
             if (numBytes != vectorDataLength) {

@@ -154,7 +154,7 @@ setup:
         scale: -7
 
 ---
-"Empty Zero Bucket but with count":
+"Empty Zero Bucket but with custom threshold":
   - do:
       index:
         index: test_exponential_histogram

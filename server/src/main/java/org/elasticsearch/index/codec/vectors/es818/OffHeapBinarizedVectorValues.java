@@ -36,7 +36,7 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 
 /** Binarized vector values loaded from off-heap */
-public abstract class OffHeapBinarizedVectorValues extends BinarizedByteVectorValues {
+abstract class OffHeapBinarizedVectorValues extends BinarizedByteVectorValues {
 
     final int dimension;
     final int size;
@@ -151,7 +151,7 @@ public abstract class OffHeapBinarizedVectorValues extends BinarizedByteVectorVa
         return numBytes;
     }
 
-    public static OffHeapBinarizedVectorValues load(
+    static OffHeapBinarizedVectorValues load(
         OrdToDocDISIReaderConfiguration configuration,
         int dimension,
         int size,
@@ -197,8 +197,8 @@ public abstract class OffHeapBinarizedVectorValues extends BinarizedByteVectorVa
     }
 
     /** Dense off-heap binarized vector values */
-    public static class DenseOffHeapVectorValues extends OffHeapBinarizedVectorValues {
-        public DenseOffHeapVectorValues(
+    static class DenseOffHeapVectorValues extends OffHeapBinarizedVectorValues {
+        DenseOffHeapVectorValues(
             int dimension,
             int size,
             float[] centroid,

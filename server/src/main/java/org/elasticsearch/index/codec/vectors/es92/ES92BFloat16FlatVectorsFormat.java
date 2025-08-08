@@ -31,7 +31,7 @@ import org.apache.lucene.store.MergeInfo;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.codec.vectors.es818.DirectIOHint;
 import org.elasticsearch.index.codec.vectors.es818.ES818BinaryQuantizedVectorsFormat;
-import org.elasticsearch.index.codec.vectors.es818.MergeReaderWrapper;
+import org.elasticsearch.index.codec.vectors.MergeReaderWrapper;
 import org.elasticsearch.index.store.FsDirectoryFactory;
 
 import java.io.IOException;

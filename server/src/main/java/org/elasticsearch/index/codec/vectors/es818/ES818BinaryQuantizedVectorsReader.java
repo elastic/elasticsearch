@@ -71,7 +71,7 @@ public class ES818BinaryQuantizedVectorsReader extends FlatVectorsReader {
     private final ES818BinaryFlatVectorsScorer vectorScorer;
 
     @SuppressWarnings("this-escape")
-    ES818BinaryQuantizedVectorsReader(
+    public ES818BinaryQuantizedVectorsReader(
         SegmentReadState state,
         FlatVectorsReader rawVectorsReader,
         ES818BinaryFlatVectorsScorer vectorsScorer
@@ -388,11 +388,11 @@ public class ES818BinaryQuantizedVectorsReader extends FlatVectorsReader {
     }
 
     /** Binarized vector values holding row and quantized vector values */
-    public static final class BinarizedVectorValues extends FloatVectorValues {
+    protected static final class BinarizedVectorValues extends FloatVectorValues {
         private final FloatVectorValues rawVectorValues;
         private final BinarizedByteVectorValues quantizedVectorValues;
 
-        public BinarizedVectorValues(FloatVectorValues rawVectorValues, BinarizedByteVectorValues quantizedVectorValues) {
+        BinarizedVectorValues(FloatVectorValues rawVectorValues, BinarizedByteVectorValues quantizedVectorValues) {
             this.rawVectorValues = rawVectorValues;
             this.quantizedVectorValues = quantizedVectorValues;
         }
@@ -437,7 +437,7 @@ public class ES818BinaryQuantizedVectorsReader extends FlatVectorsReader {
             return quantizedVectorValues.scorer(query);
         }
 
-        public BinarizedByteVectorValues getQuantizedVectorValues() throws IOException {
+        BinarizedByteVectorValues getQuantizedVectorValues() throws IOException {
             return quantizedVectorValues;
         }
     }

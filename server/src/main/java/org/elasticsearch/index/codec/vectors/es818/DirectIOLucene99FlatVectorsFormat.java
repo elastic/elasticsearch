@@ -31,6 +31,7 @@ import org.apache.lucene.store.FlushInfo;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.MergeInfo;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.index.codec.vectors.MergeReaderWrapper;
 import org.elasticsearch.index.store.FsDirectoryFactory;
 
 import java.io.IOException;

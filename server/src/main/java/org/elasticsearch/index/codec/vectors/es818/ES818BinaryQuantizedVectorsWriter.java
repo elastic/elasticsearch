@@ -85,7 +85,7 @@ public class ES818BinaryQuantizedVectorsWriter extends FlatVectorsWriter {
      * @param vectorsScorer the scorer to use for scoring vectors
      */
     @SuppressWarnings("this-escape")
-    protected ES818BinaryQuantizedVectorsWriter(
+    public ES818BinaryQuantizedVectorsWriter(
         ES818BinaryFlatVectorsScorer vectorsScorer,
         FlatVectorsWriter rawVectorDelegate,
         SegmentWriteState state
@@ -723,7 +723,7 @@ public class ES818BinaryQuantizedVectorsWriter extends FlatVectorsWriter {
     }
 
     // When accessing vectorValue method, targerOrd here means a row ordinal.
-    public static class OffHeapBinarizedQueryVectorValues {
+    static class OffHeapBinarizedQueryVectorValues {
         private final IndexInput slice;
         private final int dimension;
         private final int size;
@@ -734,7 +734,7 @@ public class ES818BinaryQuantizedVectorsWriter extends FlatVectorsWriter {
         private int lastOrd = -1;
         private int quantizedComponentSum;
 
-        public OffHeapBinarizedQueryVectorValues(IndexInput data, int dimension, int size) {
+        OffHeapBinarizedQueryVectorValues(IndexInput data, int dimension, int size) {
             this.slice = data;
             this.dimension = dimension;
             this.size = size;
@@ -798,7 +798,7 @@ public class ES818BinaryQuantizedVectorsWriter extends FlatVectorsWriter {
         }
     }
 
-    public static class BinarizedFloatVectorValues extends BinarizedByteVectorValues {
+    static class BinarizedFloatVectorValues extends BinarizedByteVectorValues {
         private OptimizedScalarQuantizer.QuantizationResult corrections;
         private final byte[] binarized;
         private final int[] initQuantized;
@@ -808,7 +808,7 @@ public class ES818BinaryQuantizedVectorsWriter extends FlatVectorsWriter {
 
         private int lastOrd = -1;
 
-        public BinarizedFloatVectorValues(FloatVectorValues delegate, OptimizedScalarQuantizer quantizer, float[] centroid) {
+        BinarizedFloatVectorValues(FloatVectorValues delegate, OptimizedScalarQuantizer quantizer, float[] centroid) {
             this.values = delegate;
             this.quantizer = quantizer;
             this.binarized = new byte[BQVectorUtils.discretize(delegate.dimension(), 64) / 8];
@@ -881,16 +881,12 @@ public class ES818BinaryQuantizedVectorsWriter extends FlatVectorsWriter {
         }
     }
 
-    public static class BinarizedCloseableRandomVectorScorerSupplier implements CloseableRandomVectorScorerSupplier {
+    static class BinarizedCloseableRandomVectorScorerSupplier implements CloseableRandomVectorScorerSupplier {
         private final RandomVectorScorerSupplier supplier;
         private final KnnVectorValues vectorValues;
         private final Closeable onClose;
 
-        public BinarizedCloseableRandomVectorScorerSupplier(
-            RandomVectorScorerSupplier supplier,
-            KnnVectorValues vectorValues,
-            Closeable onClose
-        ) {
+        BinarizedCloseableRandomVectorScorerSupplier(RandomVectorScorerSupplier supplier, KnnVectorValues vectorValues, Closeable onClose) {
             this.supplier = supplier;
             this.onClose = onClose;
             this.vectorValues = vectorValues;
@@ -917,11 +913,11 @@ public class ES818BinaryQuantizedVectorsWriter extends FlatVectorsWriter {
         }
     }
 
-    public static final class NormalizedFloatVectorValues extends FloatVectorValues {
+    static final class NormalizedFloatVectorValues extends FloatVectorValues {
         private final FloatVectorValues values;
         private final float[] normalizedVector;
 
-        public NormalizedFloatVectorValues(FloatVectorValues values) {
+        NormalizedFloatVectorValues(FloatVectorValues values) {
             this.values = values;
             this.normalizedVector = new float[values.dimension()];
         }

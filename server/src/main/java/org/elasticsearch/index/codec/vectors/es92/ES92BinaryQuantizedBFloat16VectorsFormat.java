@@ -27,6 +27,8 @@ import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.index.SegmentWriteState;
 import org.elasticsearch.index.codec.vectors.OptimizedScalarQuantizer;
 import org.elasticsearch.index.codec.vectors.es818.ES818BinaryFlatVectorsScorer;
+import org.elasticsearch.index.codec.vectors.es818.ES818BinaryQuantizedVectorsReader;
+import org.elasticsearch.index.codec.vectors.es818.ES818BinaryQuantizedVectorsWriter;
 
 import java.io.IOException;
 
@@ -113,12 +115,12 @@ public class ES92BinaryQuantizedBFloat16VectorsFormat extends FlatVectorsFormat 
 
     @Override
     public FlatVectorsWriter fieldsWriter(SegmentWriteState state) throws IOException {
-        return new ES92BinaryQuantizedBFloat16VectorsWriter(scorer, rawVectorFormat.fieldsWriter(state), state);
+        return new ES818BinaryQuantizedVectorsWriter(scorer, rawVectorFormat.fieldsWriter(state), state);
     }
 
     @Override
     public FlatVectorsReader fieldsReader(SegmentReadState state) throws IOException {
-        return new ES92BinaryQuantizedBFloat16VectorsReader(state, rawVectorFormat.fieldsReader(state), scorer);
+        return new ES818BinaryQuantizedVectorsReader(state, rawVectorFormat.fieldsReader(state), scorer);
     }
 
     @Override

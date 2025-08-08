@@ -30,7 +30,7 @@ import java.io.IOException;
 /**
  * Copied from Lucene, replace with Lucene's implementation sometime after Lucene 10
  */
-public abstract class BinarizedByteVectorValues extends ByteVectorValues {
+abstract class BinarizedByteVectorValues extends ByteVectorValues {
 
     /**
      * Retrieve the corrective terms for the given vector ordinal. For the dot-product family of

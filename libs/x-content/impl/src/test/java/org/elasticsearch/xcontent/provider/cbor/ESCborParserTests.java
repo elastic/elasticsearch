@@ -32,17 +32,18 @@ public class ESCborParserTests extends ESTestCase {
         testStringValue("foo");
         testStringValue("føø");
         testStringValue("f\u00F8\u00F8");
-        testStringValue("🐔");
+        testStringValue("ツ"); // 3 bytes in UTF-8, counts as 1 character
+        testStringValue("🐔"); // 4 bytes in UTF-8, counts as 2 characters
         testStringValue(randomUnicodeOfLengthBetween(1, 1_000));
     }
 
-    private void testStringValue(String value) throws IOException {
+    private void testStringValue(String expected) throws IOException {
         CBORFactory factory = new ESCborFactoryBuilder().build();
         assertThat(factory, Matchers.instanceOf(ESCborFactory.class));
 
         ByteArrayOutputStream outputStream;
         try (XContentBuilder builder = CborXContent.contentBuilder()) {
-            builder.map(Map.of("text", value));
+            builder.map(Map.of("text", expected));
             outputStream = (ByteArrayOutputStream) builder.getOutputStream();
         }
         ESCborParser parser = (ESCborParser) factory.createParser(outputStream.toByteArray());
@@ -51,9 +52,10 @@ public class ESCborParserTests extends ESTestCase {
         assertThat(parser.nextToken(), equalTo(JsonToken.START_OBJECT));
         assertThat(parser.nextFieldName(), equalTo("text"));
         assertThat(parser.nextToken(), equalTo(JsonToken.VALUE_STRING));
-        Text valueAsText = parser.getValueAsText();
-        assertThat(valueAsText.string(), equalTo(value));
-        assertThat(valueAsText.hasBytes(), equalTo(true));
+        Text text = parser.getValueAsText();
+        assertThat(text.hasBytes(), equalTo(true));
+        assertThat(text.stringLength(), equalTo(expected.length()));
+        assertThat(text.string(), equalTo(expected));
         assertThat(parser.nextToken(), equalTo(JsonToken.END_OBJECT));
     }
 }

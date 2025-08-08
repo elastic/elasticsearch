@@ -39,14 +39,6 @@ import java.util.List;
  */
 public class ESONXContentParser extends AbstractXContentParser {
 
-    private enum State {
-        INITIAL,
-        OBJECT_FIELD_NAME,
-        OBJECT_VALUE,
-        ARRAY_VALUE,
-        DONE
-    }
-
     private final ESONSource.ESONObject root;
     private final ESONSource.Values values;
     private final XContentType xContentType;
@@ -55,15 +47,15 @@ public class ESONXContentParser extends AbstractXContentParser {
     private final List<ESONSource.KeyEntry> keyArray;
     private int currentIndex = 0;
 
-    private State state = State.INITIAL;
+    // Current token state
     private Token currentToken = null;
     private String currentFieldName = null;
     private ESONSource.Type currentType = null;
     private Object currentValue = null;
     private boolean valueComputed = false;
-    private ContainerContext currentContainer = null;
 
-    private final Deque<ContainerContext> containerStack = new ArrayDeque<>(4);
+    // Container tracking
+    private final Deque<ContainerContext> containerStack = new ArrayDeque<>();
 
     private boolean closed = false;
 
@@ -96,7 +88,6 @@ public class ESONXContentParser extends AbstractXContentParser {
         this.values = root.objectValues();
         this.xContentType = xContentType;
 
-        // Convert to array for efficient indexed access
         this.keyArray = root.getKeyArray();
     }
 
@@ -116,93 +107,91 @@ public class ESONXContentParser extends AbstractXContentParser {
             return null;
         }
 
-        // Clear value state
+        // Clear value state from previous token
         currentValue = null;
         valueComputed = false;
 
-        switch (state) {
-            case INITIAL:
-                if (currentIndex >= keyArray.size()) {
-                    state = State.DONE;
-                    return null;
-                }
-                ESONSource.ObjectEntry rootEntry = (ESONSource.ObjectEntry) keyArray.get(currentIndex++);
-                currentContainer = new ContainerContext(ContainerContext.Type.OBJECT, rootEntry.fieldCount);
-                containerStack.push(currentContainer);
-                state = State.OBJECT_FIELD_NAME;
-                return currentToken = Token.START_OBJECT;
+        int size = keyArray.size();
 
-            case OBJECT_FIELD_NAME:
-                if (currentContainer.fieldsRemaining == 0) {
-                    assert currentContainer.type == ContainerContext.Type.OBJECT;
-                    Token endToken = Token.END_OBJECT;
-                    containerStack.pop();
-                    currentContainer = containerStack.isEmpty() ? null : containerStack.peek();
-                    updateStateAfterEnd();
-                    return currentToken = endToken;
-                } else {
-                    currentFieldName = keyArray.get(currentIndex).key();
-                    state = State.OBJECT_VALUE;
-                    return currentToken = Token.FIELD_NAME;
-                }
-            case OBJECT_VALUE:
-                return emitValue(keyArray.get(currentIndex++));
-            case ARRAY_VALUE:
-                if (currentContainer.fieldsRemaining == 0) {
-                    assert currentContainer.type == ContainerContext.Type.ARRAY;
-                    Token endToken = Token.END_ARRAY;
-                    containerStack.pop();
-                    currentContainer = containerStack.isEmpty() ? null : containerStack.peek();
-                    updateStateAfterEnd();
-                    return currentToken = endToken;
-                } else {
-                    return emitValue(keyArray.get(currentIndex++));
-                }
-            case DONE:
-                return null;
+        // First token - start root object
+        if (currentToken == null) {
+            assert size >= currentIndex;
+            ESONSource.ObjectEntry rootEntry = (ESONSource.ObjectEntry) keyArray.get(currentIndex);
+            containerStack.push(new ContainerContext(ContainerContext.Type.OBJECT, rootEntry.fieldCount));
+            currentIndex++;
+            currentToken = Token.START_OBJECT;
+            return currentToken;
         }
-        return null;
-    }
 
-    private void updateStateAfterEnd() {
-        if (currentContainer == null) {
-            state = State.DONE;
-        } else if (currentContainer.type == ContainerContext.Type.OBJECT) {
-            state = State.OBJECT_FIELD_NAME;
+        // Check if we've finished parsing
+        if (containerStack.isEmpty()) {
+            return null;
+        }
+
+        if (containerStack.peek().fieldsRemaining == 0) {
+            ContainerContext ctx = containerStack.pop();
+            currentToken = ctx.type == ContainerContext.Type.OBJECT ? Token.END_OBJECT : Token.END_ARRAY;
+            return currentToken;
+        }
+
+        assert size > currentIndex;
+
+        // Process next entry
+        ESONSource.KeyEntry entry = keyArray.get(currentIndex);
+        ContainerContext currentContainer = containerStack.peek();
+        assert currentContainer != null;
+
+        // Handle based on container type
+        if (currentContainer.type == ContainerContext.Type.OBJECT && currentToken != Token.FIELD_NAME) {
+            currentFieldName = entry.key();
+            currentToken = Token.FIELD_NAME;
+            return currentToken;
         } else {
-            state = State.ARRAY_VALUE;
+            // In array or object value
+            return emitValue(entry);
         }
     }
 
-    private Token emitValue(ESONSource.KeyEntry entry) {
+    private Token emitValue(ESONSource.KeyEntry entry) throws IOException {
         ContainerContext currentContainer = containerStack.peek();
 
         switch (entry.type()) {
             case ESONSource.KeyEntry.TYPE_OBJECT -> {
+                // Starting a nested object
                 containerStack.push(new ContainerContext(ContainerContext.Type.OBJECT, ((ESONSource.ObjectEntry) entry).fieldCount));
+                currentIndex++;
+                if (currentContainer != null) {
+                    currentContainer.fieldsRemaining--;
+                }
                 currentToken = Token.START_OBJECT;
-                state = State.OBJECT_FIELD_NAME;
+                return currentToken;
+
             }
             case ESONSource.KeyEntry.TYPE_ARRAY -> {
+                // Starting a nested array
                 containerStack.push(new ContainerContext(ContainerContext.Type.ARRAY, ((ESONSource.ArrayEntry) entry).elementCount));
+                currentIndex++;
+                if (currentContainer != null) {
+                    currentContainer.fieldsRemaining--;
+                }
                 currentToken = Token.START_ARRAY;
-                state = State.ARRAY_VALUE;
+                return currentToken;
             }
             case ESONSource.KeyEntry.TYPE_FIELD -> {
+                // Simple value
                 currentType = ((ESONSource.FieldEntry) entry).type;
+                currentIndex++;
+                if (currentContainer != null) {
+                    currentContainer.fieldsRemaining--;
+                }
                 currentToken = determineValueToken(currentType);
-                state = State.OBJECT_FIELD_NAME;
+                return currentToken;
             }
             default -> throw new IllegalStateException("Unknown key entry type: " + entry.type());
         }
-
-        if (currentContainer != null) {
-            currentContainer.fieldsRemaining--;
-        }
-        return currentToken;
     }
 
-    private static Token determineValueToken(ESONSource.Type type) {
+    private Token determineValueToken(ESONSource.Type type) {
         if (type == null || type == ESONSource.NullValue.INSTANCE) {
             return Token.VALUE_NULL;
         } else if (type instanceof ESONSource.Mutation mutation) {

@@ -17,6 +17,7 @@ import org.elasticsearch.telemetry.RecordingMeterRegistry;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 
+import java.time.Duration;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
@@ -462,8 +463,8 @@ public class TaskExecutionTimeTrackingEsThreadPoolExecutorTests extends ESTestCa
      */
     private static void waitForTimeToElapse() throws InterruptedException {
         final var startNanoTime = System.nanoTime();
-        while (TimeUnit.MILLISECONDS.convert(System.nanoTime() - startNanoTime, TimeUnit.NANOSECONDS) <= 100) {
-            Thread.sleep(100);
+        while ((System.nanoTime() - startNanoTime) < 1) {
+            Thread.sleep(Duration.ofNanos(1));
         }
     }
 }

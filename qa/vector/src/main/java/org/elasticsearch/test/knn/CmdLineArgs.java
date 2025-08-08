@@ -87,7 +87,7 @@ record CmdLineArgs(
         return builder.build();
     }
 
-    static final ObjectParser<CmdLineArgs.Builder, Void> PARSER = new ObjectParser<>("cmd_line_args", true, Builder::new);
+    static final ObjectParser<CmdLineArgs.Builder, Void> PARSER = new ObjectParser<>("cmd_line_args", false, Builder::new);
 
     static {
         PARSER.declareStringArray(Builder::setDocVectors, DOC_VECTORS_FIELD);

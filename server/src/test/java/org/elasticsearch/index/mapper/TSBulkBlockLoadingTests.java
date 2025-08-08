@@ -10,6 +10,7 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.document.SortedDocValuesField;
+import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
@@ -70,13 +71,19 @@ public class TSBulkBlockLoadingTests extends MapperServiceTestCase {
             int uniqueTsidEvery = 200;
             IndexWriterConfig iwc = new IndexWriterConfig(new MockAnalyzer(random()));
             iwc.setLeafSorter(DataStream.TIMESERIES_LEAF_READERS_SORTER);
-            iwc.setIndexSort(new Sort(new SortField(fieldName, SortField.Type.STRING, false)));
+            if (fieldName.equals(TimeSeriesIdFieldMapper.NAME)) {
+                iwc.setIndexSort(new Sort(new SortField(fieldName, SortField.Type.STRING, false)));
+            }
             iwc.setCodec(TestUtil.alwaysDocValuesFormat(new ES819TSDBDocValuesFormat()));
             try (IndexWriter iw = new IndexWriter(directory, iwc)) {
                 for (int i = from; i < to; i++) {
                     LuceneDocument doc = new LuceneDocument();
                     int tsid = i / uniqueTsidEvery;
-                    doc.add(new SortedDocValuesField(fieldName, new BytesRef(String.format(Locale.ROOT, "%04d", tsid))));
+                    if (fieldName.equals(TimeSeriesIdFieldMapper.NAME)) {
+                        doc.add(new SortedDocValuesField(fieldName, new BytesRef(String.format(Locale.ROOT, "%04d", tsid))));
+                    } else {
+                        doc.add(new SortedSetDocValuesField(fieldName, new BytesRef(String.format(Locale.ROOT, "%04d", tsid))));
+                    }
                     iw.addDocument(doc);
                 }
                 iw.forceMerge(1);

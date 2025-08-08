@@ -2177,8 +2177,6 @@ public class EsqlBaseParser extends ParserConfig {
   public static class IdentifierContext extends ParserRuleContext {
     public TerminalNode UNQUOTED_IDENTIFIER() { return getToken(EsqlBaseParser.UNQUOTED_IDENTIFIER, 0); }
     public TerminalNode QUOTED_IDENTIFIER() { return getToken(EsqlBaseParser.QUOTED_IDENTIFIER, 0); }
-    public TerminalNode FIRST() { return getToken(EsqlBaseParser.FIRST, 0); }
-    public TerminalNode LAST() { return getToken(EsqlBaseParser.LAST, 0); }
     @SuppressWarnings("this-escape")
     public IdentifierContext(ParserRuleContext parent, int invokingState) {
       super(parent, invokingState);
@@ -2208,7 +2206,7 @@ public class EsqlBaseParser extends ParserConfig {
       {
       setState(350);
       _la = _input.LA(1);
-      if ( !(((((_la - 66)) & ~0x3f) == 0 && ((1L << (_la - 66)) & 103079215113L) != 0)) ) {
+      if ( !(_la==UNQUOTED_IDENTIFIER || _la==QUOTED_IDENTIFIER) ) {
       _errHandler.recoverInline(this);
       }
       else {
@@ -2523,8 +2521,6 @@ public class EsqlBaseParser extends ParserConfig {
       setState(368);
       _errHandler.sync(this);
       switch (_input.LA(1)) {
-      case FIRST:
-      case LAST:
       case UNQUOTED_IDENTIFIER:
       case QUOTED_IDENTIFIER:
         enterOuterAlt(_localctx, 1);
@@ -6060,28 +6056,35 @@ public class EsqlBaseParser extends ParserConfig {
     try {
       setState(719);
       _errHandler.sync(this);
-      switch ( getInterpreter().adaptivePredict(_input,64,_ctx) ) {
-      case 1:
+      switch (_input.LA(1)) {
+      case PARAM:
+      case DOUBLE_PARAMS:
+      case NAMED_OR_POSITIONAL_PARAM:
+      case NAMED_OR_POSITIONAL_DOUBLE_PARAMS:
+      case UNQUOTED_IDENTIFIER:
+      case QUOTED_IDENTIFIER:
         enterOuterAlt(_localctx, 1);
         {
         setState(716);
         identifierOrParameter();
         }
         break;
-      case 2:
+      case FIRST:
         enterOuterAlt(_localctx, 2);
         {
         setState(717);
         match(FIRST);
         }
         break;
-      case 3:
+      case LAST:
         enterOuterAlt(_localctx, 3);
         {
         setState(718);
         match(LAST);
         }
         break;
+      default:
+        throw new NoViableAltException(this);
       }
     }
     catch (RecognitionException re) {
@@ -7418,8 +7421,8 @@ public class EsqlBaseParser extends ParserConfig {
     "\u0018\u001a\u001c\u001e \"$&(*,.02468:<>@BDFHJLNPRTVXZ\\^`bdfhjlnprt"+
     "vxz|~\u0080\u0082\u0084\u0086\u0088\u008a\u008c\u008e\u0090\u0092\u0094"+
     "\u0096\u0098\u009a\u009c\u009e\u00a0\u00a2\u00a4\u00a6\u00a8\u0000\n\u0002"+
-    "\u000055kk\u0003\u0000BBEEef\u0002\u000099??\u0002\u0000BBEE\u0002\u0000"+
-    "&&55\u0001\u0000WX\u0001\u0000Y[\u0002\u0000AANN\u0002\u0000PPRV\u0002"+
+    "\u000055kk\u0001\u0000ef\u0002\u000099??\u0002\u0000BBEE\u0002\u0000&"+
+    "&55\u0001\u0000WX\u0001\u0000Y[\u0002\u0000AANN\u0002\u0000PPRV\u0002"+
     "\u0000\u0017\u0017\u0019\u001a\u0356\u0000\u00aa\u0001\u0000\u0000\u0000"+
     "\u0002\u00ad\u0001\u0000\u0000\u0000\u0004\u00bf\u0001\u0000\u0000\u0000"+
     "\u0006\u00db\u0001\u0000\u0000\u0000\b\u00dd\u0001\u0000\u0000\u0000\n"+

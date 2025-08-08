@@ -11,6 +11,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.rest.RestChannel;
@@ -137,17 +138,19 @@ public abstract class EsqlQueryResponseStream implements Releasable {
         assert finished == false : "finishResponse() called more than once";
 
         // TODO: Also, is this closing right? EsqlResponseListener uses releasableFromResponse(), which increments the ref first
+        response.mustIncRef();
+        Releasable releasable = Releasables.assertOnce(response::decRef);
         boolean success = false;
         try {
             if (initialStreamChunkSent) {
-                sendChunks(doFinishResponse(response), response);
+                sendChunks(doFinishResponse(response), releasable);
             } else {
-                sendChunks(doSendEverything(response), response);
+                sendChunks(doSendEverything(response), releasable);
             }
             success = true;
         } finally {
             if (success == false) {
-                response.close();
+                releasable.close();
             }
             finished = true;
         }
@@ -248,7 +251,9 @@ public abstract class EsqlQueryResponseStream implements Releasable {
     }
 
     private void sendChunks(Iterator<? extends ToXContent> chunks, Releasable releasable) {
-        streamingXContentResponse.writeFragment(p0 -> chunks, releasable);
+        if (chunks.hasNext()) {
+            streamingXContentResponse.writeFragment(p0 -> chunks, releasable);
+        }
     }
 
     @Override

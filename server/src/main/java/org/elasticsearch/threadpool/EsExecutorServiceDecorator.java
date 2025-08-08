@@ -170,7 +170,7 @@ public class EsExecutorServiceDecorator implements ExecutorService {
     }
 
     /**
-     * Execute the runnable if the delegate is still running
+     * Execute the runnable if there are still outstanding tasks
      *
      * @param wrappedRunnable The wrapped runnable to run
      */

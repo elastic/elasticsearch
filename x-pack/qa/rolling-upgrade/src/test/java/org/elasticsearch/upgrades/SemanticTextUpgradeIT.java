@@ -96,9 +96,11 @@ public class SemanticTextUpgradeIT extends AbstractUpgradeTestCase {
     }
 
     private static void checkSupportsBFloat16() {
-        assumeTrue("The old cluster needs to support bfloat16 if it is used",
+        assumeTrue(
+            "The old cluster needs to support bfloat16 if it is used",
             DENSE_MODEL.getServiceSettings().elementType() != DenseVectorFieldMapper.ElementType.BFLOAT16
-                || clusterHasFeature(MapperFeatures.BBQ_BFLOAT16));
+                || clusterHasFeature(MapperFeatures.BBQ_BFLOAT16)
+        );
     }
 
     private void createAndPopulateIndex() throws IOException {

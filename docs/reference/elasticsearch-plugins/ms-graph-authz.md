@@ -7,9 +7,11 @@ applies_to:
 
 # Microsoft Graph Authz [ms-graph-authz]
 
-The Microsoft Graph Authz plugin uses [Microsoft Graph](https://learn.microsoft.com/en-us/graph/api/user-list-memberof) to look up group membership information from Microsoft Entra ID.
+The Microsoft Graph Authz plugin uses [Microsoft Graph](https://learn.microsoft.com/en-us/graph/api/user-list-memberof)
+to look up group membership information from Microsoft Entra ID.
 
-This is primarily intended to work around the Microsoft Entra ID maximum group size limit (see [Group overages](https://learn.microsoft.com/en-us/security/zero-trust/develop/configure-tokens-group-claims-app-roles#group-overages)).
+This is primarily intended to work around the Microsoft Entra ID maximum group
+size limit (see [Group overages](https://learn.microsoft.com/en-us/security/zero-trust/develop/configure-tokens-group-claims-app-roles#group-overages)).
 
 ## Installation [ms-graph-authz-install]
 
@@ -19,10 +21,15 @@ This plugin can be installed using the plugin manager:
 sudo bin/elasticsearch-plugin install microsoft-graph-authz
 ```
 
-The plugin must be installed on every node in the cluster, and each node must be restarted after installation.
+The plugin must be installed on every node in the cluster, and each node must be
+restarted after installation.
 
-You can download this plugin for [offline install](/reference/elasticsearch-plugins/plugin-management-custom-url.md) from [https://artifacts.elastic.co/downloads/elasticsearch-plugins/microsoft-graph-authz/microsoft-graph-authz-{{version}}.zip](https://artifacts.elastic.co/downloads/elasticsearch-plugins/microsoft-graph-authz/microsoft-graph-authz-{{version}}.zip). To verify the `.zip` file, use the [SHA hash](https://artifacts.elastic.co/downloads/elasticsearch-plugins/microsoft-graph-authz/microsoft-graph-authz-{{version}}.zip.sha512) or [ASC key](https://artifacts.elastic.co/downloads/elasticsearch-plugins/microsoft-graph-authz/microsoft-graph-authz-{{version}}.zip.asc).
-
+You can download this plugin
+for [offline install](/reference/elasticsearch-plugins/plugin-management-custom-url.md)
+from [https://artifacts.elastic.co/downloads/elasticsearch-plugins/microsoft-graph-authz/microsoft-graph-authz-{{version.stack}}.zip](https://artifacts.elastic.co/downloads/elasticsearch-plugins/microsoft-graph-authz/microsoft-graph-authz-{{version.stack}}.zip).
+To verify the `.zip` file, use
+the [SHA hash](https://artifacts.elastic.co/downloads/elasticsearch-plugins/microsoft-graph-authz/microsoft-graph-authz-{{version.stack}}.zip.sha512)
+or [ASC key](https://artifacts.elastic.co/downloads/elasticsearch-plugins/microsoft-graph-authz/microsoft-graph-authz-{{version.stack}}.zip.asc).
 
 ## Removal [ms-graph-authz-remove]
 

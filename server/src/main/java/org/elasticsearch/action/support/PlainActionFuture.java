@@ -66,7 +66,7 @@ public class PlainActionFuture<T> implements ActionFuture<T>, ActionListener<T> 
      *
      * @throws InterruptedException  if the current thread was interrupted before
      *                               or during the call (optional but recommended).
-     * @throws CancellationException if the computation was canceled
+     * @throws CancellationException {@inheritDoc}
      */
     @Override
     public T get(long timeout, TimeUnit unit) throws InterruptedException, TimeoutException, ExecutionException {
@@ -88,7 +88,7 @@ public class PlainActionFuture<T> implements ActionFuture<T>, ActionListener<T> 
      *
      * @throws InterruptedException  if the current thread was interrupted before
      *                               or during the call (optional but recommended).
-     * @throws CancellationException if the computation was canceled
+     * @throws CancellationException {@inheritDoc}
      */
     @Override
     public T get() throws InterruptedException, ExecutionException {

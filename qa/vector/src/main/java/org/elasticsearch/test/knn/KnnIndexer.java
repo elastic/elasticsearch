@@ -280,9 +280,11 @@ class KnnIndexer {
 
         private void _run() throws IOException {
             while (true) {
-                int id = numDocsIndexed.getAndIncrement();
-                if (id >= numDocsToIndex) {
+                int id = numDocsIndexed.get();
+                if (id == numDocsToIndex) {
                     break;
+                } else if (numDocsIndexed.compareAndSet(id, id + 1) == false) {
+                    continue;
                 }
 
                 Document doc = new Document();

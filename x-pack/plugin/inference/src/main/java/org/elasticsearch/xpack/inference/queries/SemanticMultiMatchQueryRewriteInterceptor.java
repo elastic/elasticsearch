@@ -201,7 +201,9 @@ public class SemanticMultiMatchQueryRewriteInterceptor extends SemanticQueryRewr
         for (String fieldName : inferenceFields) {
             boolQuery.should(createSemanticQuery(fieldName, queryValue, fieldsBoosts, false));
         }
-        boolQuery.minimumShouldMatch("1");
+        // Apply minimumShouldMatch - use original query's value or default to "1"
+        String minimumShouldMatch = originalQuery.minimumShouldMatch();
+        boolQuery.minimumShouldMatch(minimumShouldMatch != null ? minimumShouldMatch : "1");
         boolQuery.boost(originalQuery.boost());
         boolQuery.queryName(originalQuery.queryName());
         return boolQuery;
@@ -277,7 +279,9 @@ public class SemanticMultiMatchQueryRewriteInterceptor extends SemanticQueryRewr
             boolQuery.should(createSubQueryForIndices(inferenceInfo.nonInferenceIndices(), nonInferenceQuery));
         }
 
-        boolQuery.minimumShouldMatch("1");
+        // Apply minimumShouldMatch - use original query's value or default to "1"
+        String minimumShouldMatch = originalQuery.minimumShouldMatch();
+        boolQuery.minimumShouldMatch(minimumShouldMatch != null ? minimumShouldMatch : "1");
         boolQuery.boost(originalQuery.boost());
         boolQuery.queryName(originalQuery.queryName());
         return boolQuery;

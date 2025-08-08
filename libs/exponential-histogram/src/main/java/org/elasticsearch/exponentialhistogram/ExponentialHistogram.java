@@ -143,7 +143,8 @@ public interface ExponentialHistogram extends Accountable {
      * Merges the provided exponential histograms to a new, single histogram with at most the given amount of buckets.
      *
      * @param maxBucketCount the maximum number of buckets the result histogram is allowed to have
-     * @param histograms teh histograms to merge
+     * @param breaker the circuit breaker to use to limit memory allocations
+     * @param histograms the histograms to merge
      * @return the merged histogram
      */
     static ReleasableExponentialHistogram merge(
@@ -163,7 +164,8 @@ public interface ExponentialHistogram extends Accountable {
      * Merges the provided exponential histograms to a new, single histogram with at most the given amount of buckets.
      *
      * @param maxBucketCount the maximum number of buckets the result histogram is allowed to have
-     * @param histograms teh histograms to merge
+     * @param breaker the circuit breaker to use to limit memory allocations
+     * @param histograms the histograms to merge
      * @return the merged histogram
      */
     static ReleasableExponentialHistogram merge(

@@ -159,7 +159,7 @@ final class FixedCapacityExponentialHistogram implements ReleasableExponentialHi
     @Override
     public void close() {
         if (closed) {
-            assert false : "ExponentialHistogramMerger closed multiple times";
+            assert false : "FixedCapacityExponentialHistogram closed multiple times";
         } else {
             closed = true;
             circuitBreaker.adjustBreaker(-ramBytesUsed());

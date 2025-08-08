@@ -50,7 +50,7 @@ public class ESONXContentParser extends AbstractXContentParser {
     // Current token state
     private Token currentToken = null;
     private String currentFieldName = null;
-    private ESONSource.Type currentType = null;
+    private ESONSource.Value currentType = null;
     private Object currentValue = null;
     private boolean valueComputed = false;
 
@@ -154,64 +154,48 @@ public class ESONXContentParser extends AbstractXContentParser {
 
     private Token emitValue(ESONSource.KeyEntry entry) throws IOException {
         ContainerContext currentContainer = containerStack.peek();
+        assert currentContainer != null;
+        currentContainer.fieldsRemaining--;
+        currentIndex++;
 
-        switch (entry.type()) {
+        currentToken = switch (entry.type()) {
             case ESONSource.KeyEntry.TYPE_OBJECT -> {
                 // Starting a nested object
                 containerStack.push(new ContainerContext(ContainerContext.Type.OBJECT, ((ESONSource.ObjectEntry) entry).fieldCount));
-                currentIndex++;
-                if (currentContainer != null) {
-                    currentContainer.fieldsRemaining--;
-                }
-                currentToken = Token.START_OBJECT;
-                return currentToken;
-
+                yield Token.START_OBJECT;
             }
             case ESONSource.KeyEntry.TYPE_ARRAY -> {
                 // Starting a nested array
                 containerStack.push(new ContainerContext(ContainerContext.Type.ARRAY, ((ESONSource.ArrayEntry) entry).elementCount));
-                currentIndex++;
-                if (currentContainer != null) {
-                    currentContainer.fieldsRemaining--;
-                }
-                currentToken = Token.START_ARRAY;
-                return currentToken;
+                yield Token.START_ARRAY;
             }
-            case ESONSource.KeyEntry.TYPE_FIELD -> {
-                // Simple value
-                currentType = ((ESONSource.FieldEntry) entry).type;
-                currentIndex++;
-                if (currentContainer != null) {
-                    currentContainer.fieldsRemaining--;
-                }
-                currentToken = determineValueToken(currentType);
-                return currentToken;
+            case ESONSource.KeyEntry.TYPE_NULL -> {
+                currentType = ((ESONSource.FieldEntry) entry).value;
+                yield Token.VALUE_NULL;
             }
-            default -> throw new IllegalStateException("Unknown key entry type: " + entry.type());
-        }
-    }
-
-    private Token determineValueToken(ESONSource.Type type) {
-        if (type == null || type == ESONSource.NullValue.INSTANCE) {
-            return Token.VALUE_NULL;
-        } else if (type instanceof ESONSource.Mutation mutation) {
-            return determineTokenFromObject(mutation.object());
-        } else if (type instanceof ESONSource.FixedValue fixed) {
-            return switch (fixed.valueType()) {
-                case INT, LONG, FLOAT, DOUBLE -> Token.VALUE_NUMBER;
-                case BOOLEAN -> Token.VALUE_BOOLEAN;
-                default -> throw new IllegalStateException("Unknown fixed value type: " + fixed.valueType());
-            };
-        } else if (type instanceof ESONSource.VariableValue var) {
-            return switch (var.valueType()) {
-                case STRING -> Token.VALUE_STRING;
-                case BINARY -> Token.VALUE_EMBEDDED_OBJECT;
-                case BIG_INTEGER, BIG_DECIMAL -> Token.VALUE_NUMBER;
-                default -> throw new IllegalStateException("Unknown variable value type: " + var.valueType());
-            };
-        }
-
-        throw new IllegalStateException("Unknown type: " + type.getClass());
+            case ESONSource.KeyEntry.TYPE_TRUE, ESONSource.KeyEntry.TYPE_FALSE -> {
+                currentType = ((ESONSource.FieldEntry) entry).value;
+                yield Token.VALUE_BOOLEAN;
+            }
+            case ESONSource.KeyEntry.TYPE_INT, ESONSource.KeyEntry.TYPE_LONG, ESONSource.KeyEntry.TYPE_FLOAT,
+                ESONSource.KeyEntry.TYPE_DOUBLE, ESONSource.KeyEntry.BIG_INTEGER, ESONSource.KeyEntry.BIG_DECIMAL -> {
+                currentType = ((ESONSource.FieldEntry) entry).value;
+                yield Token.VALUE_NUMBER;
+            }
+            case ESONSource.KeyEntry.STRING -> {
+                currentType = ((ESONSource.FieldEntry) entry).value;
+                yield Token.VALUE_STRING;
+            }
+            case ESONSource.KeyEntry.BINARY -> {
+                currentType = ((ESONSource.FieldEntry) entry).value;
+                yield Token.VALUE_EMBEDDED_OBJECT;
+            }
+            default -> {
+                currentType = ((ESONSource.FieldEntry) entry).value;
+                yield determineTokenFromObject(((ESONSource.Mutation) currentType).object());
+            }
+        };
+        return currentToken;
     }
 
     private static Token determineTokenFromObject(Object obj) {
@@ -242,9 +226,11 @@ public class ESONXContentParser extends AbstractXContentParser {
     }
 
     private Object materializeValue() {
-        ESONSource.Type type = this.currentType;
-        if (type == null || type == ESONSource.NullValue.INSTANCE) {
+        ESONSource.Value type = this.currentType;
+        if (type == null || type == ESONSource.ConstantValue.NULL) {
             return null;
+        } else if (type == ESONSource.ConstantValue.FALSE || type == ESONSource.ConstantValue.TRUE) {
+            return type == ESONSource.ConstantValue.TRUE;
         } else if (type instanceof ESONSource.Mutation mutation) {
             return mutation.object();
         } else if (type instanceof ESONSource.FixedValue fixed) {
@@ -305,7 +291,7 @@ public class ESONXContentParser extends AbstractXContentParser {
     @Override
     public XContentString optimizedText() throws IOException {
         // For strings, try to access raw bytes directly without materializing the string
-        if (currentType instanceof ESONSource.VariableValue varValue && varValue.valueType() == ESONSource.ValueType.STRING) {
+        if (currentType instanceof ESONSource.VariableValue varValue && varValue.type() == ESONSource.KeyEntry.STRING) {
             // Return XContentString with direct byte access (lazy string conversion)
             byte[] rawBytes;
             int offset;
@@ -333,7 +319,7 @@ public class ESONXContentParser extends AbstractXContentParser {
     @Override
     public boolean optimizedTextToStream(OutputStream out) throws IOException {
         // For strings, try to write raw bytes directly without materializing the string
-        if (currentType instanceof ESONSource.VariableValue varValue && varValue.valueType() == ESONSource.ValueType.STRING) {
+        if (currentType instanceof ESONSource.VariableValue varValue && varValue.type() == ESONSource.KeyEntry.STRING) {
             try {
                 // TODO: Can optimize more. Just not sure if this method needs to stay.
                 if (values.data().hasArray()) {

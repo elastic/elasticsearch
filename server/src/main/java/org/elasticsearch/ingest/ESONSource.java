@@ -93,7 +93,7 @@ public class ESONSource {
                     case START_OBJECT -> parseObject(parser, bytes, keyArray, null);
                     case START_ARRAY -> parseArray(parser, bytes, keyArray, null);
                     default -> {
-                        Type type = parseSimpleValue(parser, bytes, token);
+                        Value type = parseSimpleValue(parser, bytes, token);
                         keyArray.add(new FieldEntry(null, type));
                     }
                 }
@@ -111,13 +111,13 @@ public class ESONSource {
                 case START_OBJECT -> parseObject(parser, bytes, keyArray, fieldName);
                 case START_ARRAY -> parseArray(parser, bytes, keyArray, fieldName);
                 default -> {
-                    Type type = parseSimpleValue(parser, bytes, token);
+                    Value type = parseSimpleValue(parser, bytes, token);
                     keyArray.add(new FieldEntry(fieldName, type));
                 }
             }
         }
 
-        private static Type parseSimpleValue(XContentParser parser, BytesStreamOutput bytes, XContentParser.Token token)
+        private static Value parseSimpleValue(XContentParser parser, BytesStreamOutput bytes, XContentParser.Token token)
             throws IOException {
             long position = bytes.position();
 
@@ -125,69 +125,65 @@ public class ESONSource {
                 case VALUE_STRING -> {
                     XContentString.UTF8Bytes stringBytes = parser.optimizedText().bytes();
                     bytes.write(stringBytes.bytes(), stringBytes.offset(), stringBytes.length());
-                    yield new VariableValue((int) position, stringBytes.length(), ValueType.STRING);
+                    yield new VariableValue((int) position, stringBytes.length(), KeyEntry.STRING);
                 }
                 case VALUE_NUMBER -> {
                     XContentParser.NumberType numberType = parser.numberType();
                     yield switch (numberType) {
                         case INT -> {
                             bytes.writeInt(parser.intValue());
-                            yield new FixedValue((int) position, ValueType.INT);
+                            yield new FixedValue((int) position, KeyEntry.TYPE_INT);
                         }
                         case LONG -> {
                             bytes.writeLong(parser.longValue());
-                            yield new FixedValue((int) position, ValueType.LONG);
+                            yield new FixedValue((int) position, KeyEntry.TYPE_LONG);
                         }
                         case FLOAT -> {
                             bytes.writeFloat(parser.floatValue());
-                            yield new FixedValue((int) position, ValueType.FLOAT);
+                            yield new FixedValue((int) position, KeyEntry.TYPE_FLOAT);
                         }
                         case DOUBLE -> {
                             bytes.writeDouble(parser.doubleValue());
-                            yield new FixedValue((int) position, ValueType.DOUBLE);
+                            yield new FixedValue((int) position, KeyEntry.TYPE_DOUBLE);
                         }
                         case BIG_INTEGER, BIG_DECIMAL -> {
-                            ValueType valueType = numberType == XContentParser.NumberType.BIG_INTEGER
-                                ? ValueType.BIG_INTEGER
-                                : ValueType.BIG_DECIMAL;
+                            byte type = numberType == XContentParser.NumberType.BIG_INTEGER ? KeyEntry.BIG_INTEGER : KeyEntry.BIG_DECIMAL;
                             byte[] numberBytes = parser.text().getBytes(StandardCharsets.UTF_8);
                             bytes.write(numberBytes);
-                            yield new VariableValue((int) position, numberBytes.length, valueType);
+                            yield new VariableValue((int) position, numberBytes.length, type);
                         }
                     };
                 }
-                case VALUE_BOOLEAN -> {
-                    bytes.writeBoolean(parser.booleanValue());
-                    yield new FixedValue((int) position, ValueType.BOOLEAN);
-                }
-                case VALUE_NULL -> NullValue.INSTANCE;
+                case VALUE_BOOLEAN -> parser.booleanValue() ? ConstantValue.TRUE : ConstantValue.FALSE;
+                case VALUE_NULL -> ConstantValue.NULL;
                 case VALUE_EMBEDDED_OBJECT -> {
                     byte[] binaryValue = parser.binaryValue();
                     bytes.write(binaryValue);
-                    yield new VariableValue((int) position, binaryValue.length, ValueType.BINARY);
+                    yield new VariableValue((int) position, binaryValue.length, KeyEntry.BINARY);
                 }
                 default -> throw new IllegalArgumentException("Unexpected token: " + token);
             };
         }
     }
 
-    public enum ValueType {
-        INT,
-        LONG,
-        FLOAT,
-        DOUBLE,
-        BOOLEAN,
-        BIG_INTEGER,
-        BIG_DECIMAL,
-        STRING,
-        BINARY
-    }
-
     public abstract static class KeyEntry {
 
-        public static final byte TYPE_OBJECT = 1;
-        public static final byte TYPE_ARRAY = 2;
-        public static final byte TYPE_FIELD = 3;
+        public static final byte TYPE_NULL = 0x00;
+        public static final byte TYPE_FALSE = 0x01;
+        public static final byte TYPE_TRUE = 0x02;
+        public static final byte TYPE_INT = 0x03;
+        public static final byte TYPE_LONG = 0x04;
+        public static final byte TYPE_FLOAT = 0x05;
+        public static final byte TYPE_DOUBLE = 0x06;
+        public static final byte STRING = 0x07;
+        public static final byte BINARY = 0x08;
+        public static final byte TYPE_OBJECT = 0x09;
+        // TODO: Maybe add fixed width arrays
+        public static final byte TYPE_ARRAY = 0x0A;
+        public static final byte BIG_INTEGER = 0x0B;
+        public static final byte BIG_DECIMAL = 0x0C;
+        // TODO: Fix
+        public static final byte MUTATION = 0x64;
 
         private final byte type;
         private final String key;
@@ -209,7 +205,7 @@ public class ESONSource {
     public static class ObjectEntry extends KeyEntry {
 
         public int fieldCount = 0;
-        private Map<String, Type> mutationMap = null;
+        private Map<String, Value> mutationMap = null;
 
         public ObjectEntry(String key) {
             super(TYPE_OBJECT, key);
@@ -228,7 +224,7 @@ public class ESONSource {
     public static class ArrayEntry extends KeyEntry {
 
         public int elementCount = 0;
-        private List<Type> mutationArray = null;
+        private List<Value> mutationArray = null;
 
         public ArrayEntry(String key) {
             super(TYPE_ARRAY, key);
@@ -245,61 +241,87 @@ public class ESONSource {
     }
 
     public static class FieldEntry extends KeyEntry {
-        public final Type type;
 
-        public FieldEntry(String key, Type type) {
-            super(TYPE_FIELD, key);
-            this.type = type;
+        public final Value value;
+
+        public FieldEntry(String key, Value value) {
+            super(value.type(), key);
+            this.value = value;
         }
 
         @Override
         public String toString() {
-            return "FieldEntry{" + "key='" + key() + '\'' + ", type=" + type + '}';
+            return "FieldEntry{" + "value=" + value + '}';
         }
     }
 
-    public interface Type {}
-
-    public record Mutation(Object object) implements Type {}
-
-    public record ContainerType(int keyArrayIndex) implements Type {}
-
-    public enum NullValue implements Type {
-        INSTANCE
+    public interface Value {
+        byte type();
     }
 
-    public record FixedValue(int position, ValueType valueType) implements Type {
+    public record Mutation(Object object) implements Value {
+
+        @Override
+        public byte type() {
+            return KeyEntry.MUTATION;
+        }
+    }
+
+    public enum ConstantValue implements Value {
+        NULL(KeyEntry.TYPE_NULL),
+        TRUE(KeyEntry.TYPE_TRUE),
+        FALSE(KeyEntry.TYPE_FALSE);
+
+        private final byte type;
+
+        ConstantValue(byte type) {
+            this.type = type;
+        }
+
+        @Override
+        public byte type() {
+            return type;
+        }
+
+        Object getValue() {
+            return switch (this) {
+                case NULL -> null;
+                case TRUE -> true;
+                case FALSE -> false;
+            };
+        }
+    }
+
+    public record FixedValue(int position, byte type) implements Value {
         public Object getValue(Values source) {
-            return switch (valueType) {
-                case INT -> source.readInt(position);
-                case LONG -> source.readLong(position);
-                case FLOAT -> source.readFloat(position);
-                case DOUBLE -> source.readDouble(position);
-                case BOOLEAN -> source.readBoolean(position);
-                default -> throw new IllegalArgumentException("Invalid value type: " + valueType);
+            return switch (type) {
+                case KeyEntry.TYPE_INT -> source.readInt(position);
+                case KeyEntry.TYPE_LONG -> source.readLong(position);
+                case KeyEntry.TYPE_FLOAT -> source.readFloat(position);
+                case KeyEntry.TYPE_DOUBLE -> source.readDouble(position);
+                default -> throw new IllegalArgumentException("Invalid value type: " + type);
             };
         }
 
         public void writeToXContent(XContentBuilder builder, Values values) throws IOException {
-            switch (valueType) {
-                case INT -> builder.value(values.readInt(position));
-                case LONG -> builder.value(values.readLong(position));
-                case FLOAT -> builder.value(values.readFloat(position));
-                case DOUBLE -> builder.value(values.readDouble(position));
-                case BOOLEAN -> builder.value(values.readBoolean(position));
-                default -> throw new IllegalArgumentException("Invalid value type: " + valueType);
+            switch (type) {
+                case KeyEntry.TYPE_INT -> builder.value(values.readInt(position));
+                case KeyEntry.TYPE_LONG -> builder.value(values.readLong(position));
+                case KeyEntry.TYPE_FLOAT -> builder.value(values.readFloat(position));
+                case KeyEntry.TYPE_DOUBLE -> builder.value(values.readDouble(position));
+                default -> throw new IllegalArgumentException("Invalid value type: " + type);
             }
         }
     }
 
-    public record VariableValue(int position, int length, ValueType valueType) implements Type {
+    public record VariableValue(int position, int length, byte type) implements Value {
         public Object getValue(Values source) {
-            return switch (valueType) {
-                case STRING -> source.readString(position, length);
-                case BINARY -> source.readByteArray(position, length);
-                case BIG_INTEGER -> new BigInteger(source.readString(position, length));
-                case BIG_DECIMAL -> new BigDecimal(source.readString(position, length));
-                default -> throw new IllegalArgumentException("Invalid value type: " + valueType);
+            return switch (type) {
+                case KeyEntry.STRING -> source.readString(position, length);
+                case KeyEntry.BINARY -> source.readByteArray(position, length);
+                case KeyEntry.BIG_INTEGER -> new BigInteger(source.readString(position, length));
+                case KeyEntry.BIG_DECIMAL -> new BigDecimal(source.readString(position, length));
+                default -> throw new IllegalArgumentException("Invalid value type: " + type);
             };
         }
 
@@ -314,13 +336,13 @@ public class ESONSource {
                 bytes = values.readByteArray(position, length);
                 offset = 0;
             }
-            switch (valueType) {
-                case STRING -> builder.utf8Value(bytes, offset, length);
-                case BINARY -> builder.value(bytes, offset, length);
+            switch (type) {
+                case KeyEntry.STRING -> builder.utf8Value(bytes, offset, length);
+                case KeyEntry.BINARY -> builder.value(bytes, offset, length);
                 // TODO: Improve?
-                case BIG_INTEGER -> builder.value(new BigInteger(new String(bytes, offset, length, StandardCharsets.UTF_8)));
-                case BIG_DECIMAL -> builder.value(new BigDecimal(new String(bytes, offset, length, StandardCharsets.UTF_8)));
-                default -> throw new IllegalArgumentException("Invalid value type: " + valueType);
+                case KeyEntry.BIG_INTEGER -> builder.value(new BigInteger(new String(bytes, offset, length, StandardCharsets.UTF_8)));
+                case KeyEntry.BIG_DECIMAL -> builder.value(new BigDecimal(new String(bytes, offset, length, StandardCharsets.UTF_8)));
+                default -> throw new IllegalArgumentException("Invalid value type: " + type);
             }
         }
     }
@@ -361,12 +383,12 @@ public class ESONSource {
         }
     }
 
-    public static class ESONObject implements Type, Map<String, Object>, ToXContent {
+    public static class ESONObject implements Value, Map<String, Object>, ToXContent {
         private final int keyArrayIndex;
         private final ObjectEntry objEntry;
         private final List<KeyEntry> keyArray;
         private final Values values;
-        private Map<String, Type> materializedMap;
+        private Map<String, Value> materializedMap;
 
         public ESONObject(int keyArrayIndex, List<KeyEntry> keyArray, Values values) {
             this.keyArrayIndex = keyArrayIndex;
@@ -391,7 +413,7 @@ public class ESONSource {
                 for (int i = 0; i < objEntry.fieldCount; i++) {
                     KeyEntry entry = keyArray.get(currentIndex);
                     if (entry instanceof FieldEntry fieldEntry) {
-                        materializedMap.put(fieldEntry.key(), fieldEntry.type);
+                        materializedMap.put(fieldEntry.key(), fieldEntry.value);
                         currentIndex++;
                     } else {
                         if (entry instanceof ObjectEntry) {
@@ -433,7 +455,7 @@ public class ESONSource {
         @Override
         public Object get(Object key) {
             ensureMaterializedMap();
-            Type type = materializedMap.get(key);
+            Value type = materializedMap.get(key);
             if (type == null) {
                 return null;
             } else if (type instanceof Mutation mutation) {
@@ -454,7 +476,7 @@ public class ESONSource {
         @Override
         public Object remove(Object key) {
             ensureMaterializedMap();
-            Type type = materializedMap.remove(key);
+            Value type = materializedMap.remove(key);
             objEntry.mutationMap = materializedMap;
             if (type == null) {
                 return null;
@@ -532,7 +554,7 @@ public class ESONSource {
                 @Override
                 public Iterator<Entry<String, Object>> iterator() {
                     return new Iterator<>() {
-                        private final Iterator<Map.Entry<String, Type>> mapIterator = materializedMap.entrySet().iterator();
+                        private final Iterator<Map.Entry<String, Value>> mapIterator = materializedMap.entrySet().iterator();
 
                         @Override
                         public boolean hasNext() {
@@ -541,7 +563,7 @@ public class ESONSource {
 
                         @Override
                         public Entry<String, Object> next() {
-                            Map.Entry<String, Type> mapEntry = mapIterator.next();
+                            Map.Entry<String, Value> mapEntry = mapIterator.next();
                             return new LazyEntry(mapEntry.getKey(), mapEntry.getValue(), nullForRawValues);
                         }
 
@@ -597,14 +619,19 @@ public class ESONSource {
             };
         }
 
+        @Override
+        public byte type() {
+            return KeyEntry.TYPE_OBJECT;
+        }
+
         private class LazyEntry implements Entry<String, Object> {
             private final String key;
-            private final Type type;
+            private final Value type;
             private final boolean nullForRawValues;
             private Object cachedValue;
             private boolean valueComputed = false;
 
-            LazyEntry(String key, Type type, boolean nullForRawValues) {
+            LazyEntry(String key, Value type, boolean nullForRawValues) {
                 this.key = key;
                 this.type = type;
                 this.nullForRawValues = nullForRawValues;
@@ -676,13 +703,13 @@ public class ESONSource {
 
     }
 
-    public static class ESONArray extends AbstractList<Object> implements Type, List<Object>, ToXContent {
+    public static class ESONArray extends AbstractList<Object> implements Value, List<Object>, ToXContent {
 
         private final int keyArrayIndex;
         private final ArrayEntry arrEntry;
         private final List<KeyEntry> keyArray;
         private final Values values;
-        private List<Type> materializedList;
+        private List<Value> materializedList;
 
         public ESONArray(int keyArrayIndex, List<KeyEntry> keyArray, Values values) {
             this.keyArrayIndex = keyArrayIndex;
@@ -699,7 +726,7 @@ public class ESONSource {
                 for (int i = 0; i < arrEntry.elementCount; i++) {
                     KeyEntry entry = keyArray.get(currentIndex);
                     if (entry instanceof FieldEntry fieldEntry) {
-                        materializedList.add(fieldEntry.type);
+                        materializedList.add(fieldEntry.value);
                         currentIndex++;
                     } else {
                         if (entry instanceof ObjectEntry) {
@@ -717,7 +744,7 @@ public class ESONSource {
         public Object get(int index) {
             // TODO: Can implement this without materializing
             ensureMaterializedList();
-            Type type = materializedList.get(index);
+            Value type = materializedList.get(index);
             if (type == null) {
                 return null;
             } else if (type instanceof Mutation mutation) {
@@ -804,7 +831,7 @@ public class ESONSource {
                     }
                 };
             } else {
-                Iterator<Type> typeIterator = materializedList.iterator();
+                Iterator<Value> typeIterator = materializedList.iterator();
                 return new Iterator<>() {
                     @Override
                     public boolean hasNext() {
@@ -813,7 +840,7 @@ public class ESONSource {
 
                     @Override
                     public Object next() {
-                        Type next = typeIterator.next();
+                        Value next = typeIterator.next();
                         if (next instanceof VariableValue || next instanceof FixedValue) {
                             return null;
                         } else {
@@ -823,9 +850,14 @@ public class ESONSource {
                 };
             }
         }
+
+        @Override
+        public byte type() {
+            return KeyEntry.TYPE_ARRAY;
+        }
     }
 
-    private static Object convertTypeToValue(Type type, Values values) {
+    private static Object convertTypeToValue(Value type, Values values) {
         if (type == null) {
             return null;
         }
@@ -834,7 +866,7 @@ public class ESONSource {
             case ESONArray arr -> arr;
             case FixedValue val -> val.getValue(values);
             case VariableValue val -> val.getValue(values);
-            case NullValue nullVal -> null;
+            case ConstantValue constantValue -> constantValue.getValue();
             case Mutation mutation -> mutation.object();
             default -> throw new IllegalStateException("Unknown type: " + type);
         };
@@ -918,9 +950,9 @@ public class ESONSource {
             obj.ensureMaterializedMap();
 
             int fieldCount = 0;
-            for (Map.Entry<String, Type> entry : obj.objEntry.mutationMap.entrySet()) {
+            for (Map.Entry<String, Value> entry : obj.objEntry.mutationMap.entrySet()) {
                 String key = entry.getKey();
-                Type type = entry.getValue();
+                Value type = entry.getValue();
 
                 switch (type) {
                     case Mutation mutation -> {
@@ -1022,7 +1054,7 @@ public class ESONSource {
             newArrEntry.elementCount = elementCount;
         } else {
             int elementCount = 0;
-            for (Type type : arr.arrEntry.mutationArray) {
+            for (Value type : arr.arrEntry.mutationArray) {
                 switch (type) {
                     case Mutation mutation -> {
                         // This is a mutated element - create new FieldEntry with mutation

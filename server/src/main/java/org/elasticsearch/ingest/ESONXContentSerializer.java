@@ -90,7 +90,7 @@ public class ESONXContentSerializer {
                     builder.field(fieldEntry.key());
                 }
 
-                writeValue(values, builder, fieldEntry.type, params);
+                writeValue(values, builder, fieldEntry.value, params);
                 currentContainer.remainingFields--;
                 index++;
 
@@ -132,10 +132,12 @@ public class ESONXContentSerializer {
     /**
      * Helper method to write a value to the XContentBuilder
      */
-    private static void writeValue(ESONSource.Values values, XContentBuilder builder, ESONSource.Type type, ToXContent.Params params)
+    private static void writeValue(ESONSource.Values values, XContentBuilder builder, ESONSource.Value type, ToXContent.Params params)
         throws IOException {
-        if (type == null || type == ESONSource.NullValue.INSTANCE) {
+        if (type == null || type == ESONSource.ConstantValue.NULL) {
             builder.nullValue();
+        } else if (type == ESONSource.ConstantValue.TRUE || type == ESONSource.ConstantValue.FALSE) {
+            builder.value(type == ESONSource.ConstantValue.TRUE);
         } else if (type instanceof ESONSource.Mutation mutation) {
             writeObject(builder, mutation.object(), params);
         } else if (type instanceof ESONSource.FixedValue fixed) {

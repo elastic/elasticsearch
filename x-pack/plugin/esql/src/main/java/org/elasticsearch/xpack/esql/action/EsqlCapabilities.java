@@ -236,6 +236,11 @@ public class EsqlCapabilities {
         FN_SCALB,
 
         /**
+         * Support for function DAY_NAME
+         */
+        FN_DAY_NAME,
+
+        /**
          * Fixes for multiple functions not serializing their source, and emitting warnings with wrong line number and text.
          */
         FUNCTIONS_SOURCE_SERIALIZATION_WARNINGS,
@@ -1335,12 +1340,7 @@ public class EsqlCapabilities {
         /**
          * Support correct counting of skipped shards.
          */
-        CORRECT_SKIPPED_SHARDS_COUNT,
-
-        /**
-         * Supports DAY_NAME function
-         */
-        DAY_NAME_FUNCTION;
+        CORRECT_SKIPPED_SHARDS_COUNT;
 
         private final boolean enabled;
 

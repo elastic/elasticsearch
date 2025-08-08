@@ -18,6 +18,7 @@ import org.elasticsearch.index.codec.tsdb.es819.SingletonDocValuesBlockLoader;
 import org.elasticsearch.search.fetch.StoredFieldsSpec;
 
 import java.io.IOException;
+import java.util.Objects;
 
 public class TSDimensionBlockLoader implements BlockLoader {
 
@@ -38,7 +39,10 @@ public class TSDimensionBlockLoader implements BlockLoader {
     public ColumnAtATimeReader columnAtATimeReader(LeafReaderContext context) throws IOException {
         var singleton = DocValues.unwrapSingleton(context.reader().getSortedSetDocValues(fieldName));
         if (singleton instanceof BlockAwareSortedDocValues b) {
-            return new TSDimensions(b);
+            var loader = b.getSingletonBlockLoader();
+            if (loader != null) {
+                return new TSDimensions(b, loader);
+            }
         }
         return fallback.columnAtATimeReader(context);
     }
@@ -72,10 +76,10 @@ public class TSDimensionBlockLoader implements BlockLoader {
         private final SortedDocValues sorted;
         private final SingletonDocValuesBlockLoader blockLoader;
 
-        TSDimensions(BlockAwareSortedDocValues sorted) {
+        TSDimensions(BlockAwareSortedDocValues sorted,  SingletonDocValuesBlockLoader blockLoader) {
             this.creationThread = Thread.currentThread();
-            this.sorted = sorted;
-            this.blockLoader = sorted.getSingletonBlockLoader();
+            this.sorted = Objects.requireNonNull(sorted);
+            this.blockLoader = Objects.requireNonNull(blockLoader);
         }
 
         @Override

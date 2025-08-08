@@ -61,9 +61,7 @@ public final class MinBooleanGroupingAggregatorFunction implements GroupingAggre
     BooleanBlock vBlock = page.getBlock(channels.get(0));
     BooleanVector vVector = vBlock.asVector();
     if (vVector == null) {
-      if (vBlock.mayHaveNulls()) {
-        state.enableGroupIdTracking(seenGroupIds);
-      }
+      maybeEnableGroupIdTracking(seenGroupIds, vBlock);
       return new GroupingAggregatorFunction.AddInput() {
         @Override
         public void add(int positionOffset, IntArrayBlock groupIds) {
@@ -293,6 +291,12 @@ public final class MinBooleanGroupingAggregatorFunction implements GroupingAggre
       if (seen.getBoolean(valuesPosition)) {
         state.set(groupId, MinBooleanAggregator.combine(state.getOrDefault(groupId), min.getBoolean(valuesPosition)));
       }
+    }
+  }
+
+  private void maybeEnableGroupIdTracking(SeenGroupIds seenGroupIds, BooleanBlock vBlock) {
+    if (vBlock.mayHaveNulls()) {
+      state.enableGroupIdTracking(seenGroupIds);
     }
   }
 

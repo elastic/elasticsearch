@@ -20,8 +20,10 @@ import org.elasticsearch.plugins.internal.rewriter.QueryRewriteInterceptor;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
@@ -33,7 +35,6 @@ public abstract class SemanticQueryRewriteInterceptor implements QueryRewriteInt
 
     @Override
     public QueryBuilder interceptAndRewrite(QueryRewriteContext context, QueryBuilder queryBuilder) {
-        String fieldName = getFieldName(queryBuilder);
         ResolvedIndices resolvedIndices = context.getResolvedIndices();
 
         if (resolvedIndices == null) {
@@ -41,18 +42,15 @@ public abstract class SemanticQueryRewriteInterceptor implements QueryRewriteInt
             return queryBuilder;
         }
 
-        InferenceIndexInformationForField indexInformation = resolveIndicesForField(fieldName, resolvedIndices);
-        if (indexInformation.getInferenceIndices().isEmpty()) {
+        InferenceIndexInformationForField indexInformation = resolveIndicesForFields(queryBuilder, resolvedIndices);
+        if (!indexInformation.hasInferenceFields()) {
             // No inference fields were identified, so return the original query.
             return queryBuilder;
-        } else if (indexInformation.nonInferenceIndices().isEmpty() == false) {
-            // Combined case where the field name requested by this query contains both
-            // semantic_text and non-inference fields, so we have to combine queries per index
-            // containing each field type.
+        } else if (indexInformation.hasNonInferenceFields()) {
+            // Combined case where some fields are semantic_text and others are not
             return buildCombinedInferenceAndNonInferenceQuery(queryBuilder, indexInformation);
         } else {
-            // The only fields we've identified are inference fields (e.g. semantic_text),
-            // so rewrite the entire query to work on a semantic_text field.
+            // All specified fields are inference fields (semantic_text)
             return buildInferenceQuery(queryBuilder, indexInformation);
         }
     }
@@ -62,6 +60,16 @@ public abstract class SemanticQueryRewriteInterceptor implements QueryRewriteInt
      * @return The singular field name requested by the provided query builder.
      */
     protected abstract String getFieldName(QueryBuilder queryBuilder);
+
+    /**
+     * @param queryBuilder {@link QueryBuilder}
+     * @return The field names with their weights requested by the provided query builder.
+     */
+    protected Map<String, Float> getFieldsWithWeights(QueryBuilder queryBuilder) {
+        // Default implementation for single-field queries
+        String fieldName = getFieldName(queryBuilder);
+        return Map.of(fieldName, 1.0f);
+    }
 
     /**
      * @param queryBuilder {@link QueryBuilder}
@@ -89,6 +97,42 @@ public abstract class SemanticQueryRewriteInterceptor implements QueryRewriteInt
         QueryBuilder queryBuilder,
         InferenceIndexInformationForField indexInformation
     );
+
+    private InferenceIndexInformationForField resolveIndicesForFields(QueryBuilder queryBuilder, ResolvedIndices resolvedIndices) {
+        Map<String, Float> fieldsWithWeights = getFieldsWithWeights(queryBuilder);
+        Set<String> fieldNames = fieldsWithWeights.keySet();
+        Collection<IndexMetadata> indexMetadataCollection = resolvedIndices.getConcreteLocalIndicesMetadata().values();
+        
+        Map<String, Map<String, InferenceFieldMetadata>> inferenceFieldsPerIndex = new HashMap<>();
+        Map<String, Set<String>> nonInferenceFieldsPerIndex = new HashMap<>();
+
+        for (IndexMetadata indexMetadata : indexMetadataCollection) {
+            String indexName = indexMetadata.getIndex().getName();
+            Map<String, InferenceFieldMetadata> indexInferenceFields = new HashMap<>();
+            Set<String> indexNonInferenceFields = new HashSet<>();
+
+            // Classify each field as inference or non-inference
+            for (String fieldName : fieldNames) {
+                if (indexMetadata.getInferenceFields().containsKey(fieldName)) {
+                    indexInferenceFields.put(fieldName, indexMetadata.getInferenceFields().get(fieldName));
+                } else {
+                    indexNonInferenceFields.add(fieldName);
+                }
+            }
+
+            // Store inference fields if any exist
+            if (!indexInferenceFields.isEmpty()) {
+                inferenceFieldsPerIndex.put(indexName, indexInferenceFields);
+            }
+
+            // Store non-inference fields if any exist
+            if (!indexNonInferenceFields.isEmpty()) {
+                nonInferenceFieldsPerIndex.put(indexName, indexNonInferenceFields);
+            }
+        }
+
+        return new InferenceIndexInformationForField(inferenceFieldsPerIndex, nonInferenceFieldsPerIndex);
+    }
 
     private InferenceIndexInformationForField resolveIndicesForField(String fieldName, ResolvedIndices resolvedIndices) {
         Collection<IndexMetadata> indexMetadataCollection = resolvedIndices.getConcreteLocalIndicesMetadata().values();
@@ -122,27 +166,74 @@ public abstract class SemanticQueryRewriteInterceptor implements QueryRewriteInt
     }
 
     /**
-     * Represents the indices and associated inference information for a field.
+     * Represents the indices and associated inference information for fields.
      */
     public record InferenceIndexInformationForField(
-        String fieldName,
-        Map<String, InferenceFieldMetadata> inferenceIndicesMetadata,
-        List<String> nonInferenceIndices
+        // Map: IndexName -> (FieldName -> InferenceFieldMetadata)
+        Map<String, Map<String, InferenceFieldMetadata>> inferenceFieldsPerIndex,
+        // Map: IndexName -> Set of non-inference field names
+        Map<String, Set<String>> nonInferenceFieldsPerIndex
     ) {
 
+        // Backward compatibility for single-field queries
+        public InferenceIndexInformationForField(String fieldName, Map<String, InferenceFieldMetadata> inferenceIndicesMetadata, List<String> nonInferenceIndices) {
+            this(
+                // Convert single field metadata to multi-field structure
+                inferenceIndicesMetadata.entrySet().stream()
+                    .collect(Collectors.toMap(
+                        Map.Entry::getKey,
+                        entry -> Map.of(fieldName, entry.getValue())
+                    )),
+                // Convert non-inference indices to multi-field structure
+                nonInferenceIndices.stream()
+                    .collect(Collectors.toMap(
+                        indexName -> indexName,
+                        indexName -> Set.of(fieldName)
+                    ))
+            );
+        }
+
+        public Set<String> getAllInferenceFields() {
+            return inferenceFieldsPerIndex.values()
+                .stream()
+                .flatMap(fields -> fields.keySet().stream())
+                .collect(Collectors.toSet());
+        }
+        
+        public Set<String> getAllNonInferenceFields() {
+            return nonInferenceFieldsPerIndex.values()
+                .stream()
+                .flatMap(Set::stream)
+                .collect(Collectors.toSet());
+        }
+        
+        public boolean hasInferenceFields() {
+            return !inferenceFieldsPerIndex.isEmpty();
+        }
+        
+        public boolean hasNonInferenceFields() {
+            return !nonInferenceFieldsPerIndex.isEmpty();
+        }
+        
+        // Backward compatibility methods
         public Collection<String> getInferenceIndices() {
-            return inferenceIndicesMetadata.keySet();
+            return inferenceFieldsPerIndex.keySet();
+        }
+        
+        public List<String> nonInferenceIndices() {
+            return new ArrayList<>(nonInferenceFieldsPerIndex.keySet());
         }
 
         public Map<String, List<String>> getInferenceIdsIndices() {
-            return inferenceIndicesMetadata.entrySet()
-                .stream()
-                .collect(
-                    Collectors.groupingBy(
-                        entry -> entry.getValue().getSearchInferenceId(),
-                        Collectors.mapping(Map.Entry::getKey, Collectors.toList())
-                    )
-                );
+            Map<String, List<String>> result = new HashMap<>();
+            for (Map.Entry<String, Map<String, InferenceFieldMetadata>> indexEntry : inferenceFieldsPerIndex.entrySet()) {
+                String indexName = indexEntry.getKey();
+                for (InferenceFieldMetadata metadata : indexEntry.getValue().values()) {
+                    String inferenceId = metadata.getSearchInferenceId();
+                    result.computeIfAbsent(inferenceId, k -> new ArrayList<>()).add(indexName);
+                }
+            }
+            return result;
         }
     }
 }

@@ -9,6 +9,8 @@
 
 package org.elasticsearch.search.vectors;
 
+import com.carrotsearch.hppc.IntHashSet;
+
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
@@ -35,7 +37,6 @@ import org.apache.lucene.search.knn.KnnSearchStrategy;
 import org.apache.lucene.util.BitSet;
 import org.apache.lucene.util.BitSetIterator;
 import org.apache.lucene.util.Bits;
-import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.search.profile.query.QueryProfiler;
 
 import java.io.IOException;
@@ -116,8 +117,8 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
             filterWeight = null;
         }
         // we request numCands as we are using it as an approximation measure
-        // also ask for a little bit more to account for duplicates due to SOAR
-        KnnCollectorManager knnCollectorManager = getKnnCollectorManager(Math.round(numCands * 1.5f), indexSearcher);
+        // we need to ensure we are getting at least 2*k results to ensure we cover overspill duplicates
+        KnnCollectorManager knnCollectorManager = getKnnCollectorManager(Math.min(Math.round(2f * k), numCands), indexSearcher);
         TaskExecutor taskExecutor = indexSearcher.getTaskExecutor();
         List<LeafReaderContext> leafReaderContexts = reader.leaves();
         List<Callable<TopDocs>> tasks = new ArrayList<>(leafReaderContexts.size());
@@ -137,22 +138,21 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
 
     private TopDocs searchLeaf(LeafReaderContext ctx, Weight filterWeight, KnnCollectorManager knnCollectorManager) throws IOException {
         TopDocs results = getLeafResults(ctx, filterWeight, knnCollectorManager);
-        FixedBitSet fixedBitSet = new FixedBitSet(ctx.reader().maxDoc() + 1);
+        IntHashSet dedup = new IntHashSet(results.scoreDocs.length * 4 / 3);
         int deduplicateCount = 0;
         for (ScoreDoc scoreDoc : results.scoreDocs) {
-            if (fixedBitSet.getAndSet(scoreDoc.doc) == false) {
+            if (dedup.add(scoreDoc.doc)) {
                 deduplicateCount++;
             }
-            scoreDoc.doc += ctx.docBase;
         }
         ScoreDoc[] deduplicatedScoreDocs = new ScoreDoc[deduplicateCount];
-        fixedBitSet.clear();
+        dedup.clear();
         int index = 0;
         for (ScoreDoc scoreDoc : results.scoreDocs) {
-            if (fixedBitSet.getAndSet(scoreDoc.doc)) {
-                continue; // Skip duplicates
+            if (dedup.add(scoreDoc.doc)) {
+                scoreDoc.doc += ctx.docBase;
+                deduplicatedScoreDocs[index++] = scoreDoc;
             }
-            deduplicatedScoreDocs[index++] = scoreDoc;
         }
         return new TopDocs(results.totalHits, deduplicatedScoreDocs);
     }

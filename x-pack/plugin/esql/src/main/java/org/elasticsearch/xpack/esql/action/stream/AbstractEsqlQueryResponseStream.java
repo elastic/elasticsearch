@@ -16,7 +16,6 @@ import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xpack.esql.action.ColumnInfoImpl;
 import org.elasticsearch.xpack.esql.action.EsqlQueryRequest;
 import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
@@ -35,10 +34,10 @@ import java.util.List;
  * TODO: Add something to complete with an error on error. Is this BWC?
  * TODO: Took header wouldn't be available on streaming
  */
-abstract class AbstractEsqlQueryResponseStream implements EsqlQueryResponseStream {
+abstract class AbstractEsqlQueryResponseStream<T> implements EsqlQueryResponseStream {
     private static final Logger LOGGER = LogManager.getLogger(AbstractEsqlQueryResponseStream.class);
 
-    private final RestChannel restChannel;
+    protected final RestChannel restChannel;
     protected final RestRequest restRequest;
     protected final EsqlQueryRequest esqlRequest;
 
@@ -171,7 +170,7 @@ abstract class AbstractEsqlQueryResponseStream implements EsqlQueryResponseStrea
      *     Only called if {@link #canBeStreamed()} returns {@code true}.
      * </p>
      */
-    protected abstract Iterator<? extends ToXContent> doStartResponse(List<ColumnInfoImpl> columns);
+    protected abstract Iterator<T> doStartResponse(List<ColumnInfoImpl> columns);
 
     /**
      * Returns the chunks for the given page. Called 0 to N times, after {@link #doStartResponse} and before {@link #doFinishResponse}.
@@ -179,7 +178,7 @@ abstract class AbstractEsqlQueryResponseStream implements EsqlQueryResponseStrea
      *     Only called if {@link #canBeStreamed()} returns {@code true}.
      * </p>
      */
-    protected abstract Iterator<? extends ToXContent> doSendPages(Iterable<Page> pages);
+    protected abstract Iterator<T> doSendPages(Iterable<Page> pages);
 
     /**
      * Returns the remaining chunks of the response. Called once, at the end of the response.
@@ -187,7 +186,7 @@ abstract class AbstractEsqlQueryResponseStream implements EsqlQueryResponseStrea
      *     Only called if {@link #canBeStreamed()} returns {@code true}.
      * </p>
      */
-    protected abstract Iterator<? extends ToXContent> doFinishResponse(EsqlQueryResponse response);
+    protected abstract Iterator<T> doFinishResponse(EsqlQueryResponse response);
 
     /**
      * Returns the chunks to be sent for the given exception.
@@ -196,7 +195,7 @@ abstract class AbstractEsqlQueryResponseStream implements EsqlQueryResponseStrea
      *     and how to send a meaningful response given the chunks sent in previous calls.
      * </p>
      */
-    protected abstract Iterator<? extends ToXContent> doHandleException(Exception e);
+    protected abstract Iterator<T> doHandleException(Exception e);
 
     /**
      * Returns the chunks of the full response. Called once for the full response.
@@ -204,28 +203,26 @@ abstract class AbstractEsqlQueryResponseStream implements EsqlQueryResponseStrea
      *     Only called if {@link #canBeStreamed()} returns {@code false}.
      * </p>
      */
-    protected Iterator<? extends ToXContent> doSendEverything(EsqlQueryResponse response) {
+    protected Iterator<T> doSendEverything(EsqlQueryResponse response) {
         // TODO: Is this safe? Should this be abstract to ensure proper implementation? Add tests for both streamed and "everything" cases
         return Iterators.concat(doStartResponse(response.columns()), doSendPages(response.pages()), doFinishResponse(response));
     }
 
-    protected abstract void doSendChunks(Iterator<? extends ToXContent> chunks, Releasable releasable);
+    protected abstract void doSendChunks(Iterator<T> chunks, Releasable releasable);
 
     protected void doClose() {}
 
     @SuppressWarnings("unchecked")
-    protected static Iterator<? extends ToXContent> asIterator(List<Iterator<? extends ToXContent>> chunks) {
+    protected static <T> Iterator<T> asIterator(List<Iterator<T>> chunks) {
         return Iterators.concat(chunks.toArray(Iterator[]::new));
     }
 
-    private void sendChunks(Iterator<? extends ToXContent> chunks) {
+    private void sendChunks(Iterator<T> chunks) {
         sendChunks(chunks, () -> {});
     }
 
-    protected void sendChunks(Iterator<? extends ToXContent> chunks, Releasable releasable) {
-        if (chunks.hasNext()) {
-            doSendChunks(chunks, releasable);
-        }
+    protected void sendChunks(Iterator<T> chunks, Releasable releasable) {
+        doSendChunks(chunks, releasable);
     }
 
     @Override

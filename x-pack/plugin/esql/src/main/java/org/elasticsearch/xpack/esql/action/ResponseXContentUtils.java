@@ -28,7 +28,7 @@ public final class ResponseXContentUtils {
     /**
      * Returns the column headings for the given columns.
      */
-    public static Iterator<? extends ToXContent> allColumns(List<ColumnInfoImpl> columns, String name) {
+    public static Iterator<ToXContent> allColumns(List<ColumnInfoImpl> columns, String name) {
         return ChunkedToXContentHelper.chunk((builder, params) -> {
             builder.startArray(name);
             for (ColumnInfo col : columns) {
@@ -42,7 +42,7 @@ public final class ResponseXContentUtils {
      * Returns the column headings for the given columns, moving the heading
      * for always-null columns to a {@code null_columns} section.
      */
-    public static Iterator<? extends ToXContent> nonNullColumns(List<ColumnInfoImpl> columns, boolean[] nullColumns, String name) {
+    public static Iterator<ToXContent> nonNullColumns(List<ColumnInfoImpl> columns, boolean[] nullColumns, String name) {
         return ChunkedToXContentHelper.chunk((builder, params) -> {
             builder.startArray(name);
             for (int c = 0; c < columns.size(); c++) {
@@ -55,7 +55,7 @@ public final class ResponseXContentUtils {
     }
 
     /** Returns the column values for the given pages (described by the column infos). */
-    public static Iterator<? extends ToXContent> columnValues(
+    public static Iterator<ToXContent> columnValues(
         List<ColumnInfoImpl> columns,
         List<Page> pages,
         boolean columnar,
@@ -71,7 +71,7 @@ public final class ResponseXContentUtils {
     }
 
     /** Returns a columnar based representation of the values in the given pages (described by the column infos). */
-    public static Iterator<? extends ToXContent> columnarValues(List<ColumnInfoImpl> columns, List<Page> pages, boolean[] nullColumns) {
+    public static Iterator<ToXContent> columnarValues(List<ColumnInfoImpl> columns, List<Page> pages, boolean[] nullColumns) {
         final BytesRef scratch = new BytesRef();
         return Iterators.flatMap(Iterators.forRange(0, columns.size(), column -> {
             if (nullColumns != null && nullColumns[column]) {
@@ -97,7 +97,7 @@ public final class ResponseXContentUtils {
     }
 
     /** Returns a row based representation of the values in the given pages (described by the column infos). */
-    public static Iterator<? extends ToXContent> rowValues(List<ColumnInfoImpl> columns, Iterable<Page> pages, boolean[] nullColumns) {
+    public static Iterator<ToXContent> rowValues(List<ColumnInfoImpl> columns, Iterable<Page> pages, boolean[] nullColumns) {
         final BytesRef scratch = new BytesRef();
         return Iterators.flatMap(pages.iterator(), page -> {
             final int columnCount = columns.size();

@@ -31,7 +31,7 @@ import static org.elasticsearch.xpack.esql.action.EsqlQueryResponse.DROP_NULL_CO
 /**
  * XContent response stream.
  */
-class XContentEsqlQueryResponseStream extends AbstractEsqlQueryResponseStream {
+class XContentEsqlQueryResponseStream extends AbstractEsqlQueryResponseStream<ToXContent> {
 
     // TODO: Maybe create this on startResponse()? Does creating this do something with the response? Can we still safely set headers?
     private final StreamingXContentResponse streamingXContentResponse;
@@ -57,12 +57,12 @@ class XContentEsqlQueryResponseStream extends AbstractEsqlQueryResponseStream {
     }
 
     @Override
-    protected Iterator<? extends ToXContent> doStartResponse(List<ColumnInfoImpl> columns) {
+    protected Iterator<ToXContent> doStartResponse(List<ColumnInfoImpl> columns) {
         assert dropNullColumns == false : "this method doesn't support dropping null columns";
 
         this.columns = columns;
 
-        var content = new ArrayList<Iterator<? extends ToXContent>>(3);
+        var content = new ArrayList<Iterator<ToXContent>>(3);
 
         content.add(ChunkedToXContentHelper.startObject());
         content.add(ResponseXContentUtils.allColumns(columns, "columns"));
@@ -74,15 +74,15 @@ class XContentEsqlQueryResponseStream extends AbstractEsqlQueryResponseStream {
     }
 
     @Override
-    protected Iterator<? extends ToXContent> doSendPages(Iterable<Page> pages) {
+    protected Iterator<ToXContent> doSendPages(Iterable<Page> pages) {
         assert columns != null : "columns must be set before sending pages";
 
         return ResponseXContentUtils.rowValues(columns, pages, null);
     }
 
     @Override
-    protected Iterator<? extends ToXContent> doFinishResponse(EsqlQueryResponse response) {
-        var content = new ArrayList<Iterator<? extends ToXContent>>(10);
+    protected Iterator<ToXContent> doFinishResponse(EsqlQueryResponse response) {
+        var content = new ArrayList<Iterator<ToXContent>>(10);
 
         // End the values array
         content.add(ChunkedToXContentHelper.endArray());
@@ -131,13 +131,13 @@ class XContentEsqlQueryResponseStream extends AbstractEsqlQueryResponseStream {
     }
 
     @Override
-    protected Iterator<? extends ToXContent> doSendEverything(EsqlQueryResponse response) {
+    protected Iterator<ToXContent> doSendEverything(EsqlQueryResponse response) {
         // final Releasable releasable = releasableFromResponse(esqlResponse);
 
         // TODO: Instead of sendChunks, implement a flush() to attach the response to it? Or pass the response to the methods
         // TODO: Or make "doX" methods return an Iterator<? extends ToXContent> and then concat them all together
 
-        var content = new ArrayList<Iterator<? extends ToXContent>>(3);
+        var content = new ArrayList<Iterator<ToXContent>>(3);
         boolean[] nullColumns = null;
         if (dropNullColumns) {
             nullColumns = nullColumns(response.columns(), response.pages());
@@ -152,14 +152,14 @@ class XContentEsqlQueryResponseStream extends AbstractEsqlQueryResponseStream {
     }
 
     @Override
-    protected Iterator<? extends ToXContent> doHandleException(Exception e) {
+    protected Iterator<ToXContent> doHandleException(Exception e) {
         throw new UnsupportedOperationException("Not implemented yet");
     }
 
-    private Iterator<? extends ToXContent> sendStartResponseDroppingNullColumns(List<ColumnInfoImpl> columns, boolean[] nullColumns) {
+    private Iterator<ToXContent> sendStartResponseDroppingNullColumns(List<ColumnInfoImpl> columns, boolean[] nullColumns) {
         assert dropNullColumns : "this method should only be called when dropping null columns";
 
-        var content = new ArrayList<Iterator<? extends ToXContent>>(3);
+        var content = new ArrayList<Iterator<ToXContent>>(3);
 
         content.add(ChunkedToXContentHelper.startObject());
         content.add(ResponseXContentUtils.allColumns(columns, "all_columns"));
@@ -186,8 +186,10 @@ class XContentEsqlQueryResponseStream extends AbstractEsqlQueryResponseStream {
     }
 
     @Override
-    protected void doSendChunks(Iterator<? extends ToXContent> chunks, Releasable releasable) {
-        streamingXContentResponse.writeFragment(p0 -> chunks, releasable);
+    protected void doSendChunks(Iterator<ToXContent> chunks, Releasable releasable) {
+        if (chunks.hasNext()) {
+            streamingXContentResponse.writeFragment(p0 -> chunks, releasable);
+        }
     }
 
     @Override

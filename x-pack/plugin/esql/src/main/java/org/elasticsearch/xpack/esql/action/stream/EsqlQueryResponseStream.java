@@ -43,9 +43,8 @@ public interface EsqlQueryResponseStream extends Releasable {
 
         MediaType mediaType = EsqlMediaTypeParser.getResponseMediaType(restRequest, esqlRequest);
 
-        if (mediaType instanceof TextFormat) {
-            // TODO: Add support
-            throw new UnsupportedOperationException("Text formats are not yet supported for streaming");
+        if (mediaType instanceof TextFormat format) {
+            return new TextEsqlQueryResponseStream(restChannel, restRequest, esqlRequest, format);
         } else if (mediaType == ArrowFormat.INSTANCE) {
             // TODO: Add support
             throw new UnsupportedOperationException("Arrow format is not yet supported for streaming");

@@ -146,21 +146,20 @@
  *         Actually, running the tests in the example above should have done it for you.
  *         The generated files are
  *         <ul>
- *              <li>{@code docs/reference/esql/functions/description/myfunction.asciidoc}</li>
- *              <li>{@code docs/reference/esql/functions/examples/myfunction.asciidoc}</li>
- *              <li>{@code docs/reference/esql/functions/layout/myfunction.asciidoc}</li>
- *              <li>{@code docs/reference/esql/functions/parameters/myfunction.asciidoc}</li>
- *              <li>{@code docs/reference/esql/functions/signature/myfunction.svg}</li>
- *              <li>{@code docs/reference/esql/functions/types/myfunction.asciidoc}</li>
- *              <li>{@code docs/reference/esql/functions/kibana/definition/myfunction.json}</li>
- *              <li>{@code docs/reference/esql/functions/kibana/docs/myfunction.asciidoc}</li>
+ *              <li>{@code docs/reference/query-languages/esql/_snippets/functions/description/myfunction.md}</li>
+ *              <li>{@code docs/reference/query-languages/esql/_snippets/functions/examples/myfunction.md}</li>
+ *              <li>{@code docs/reference/query-languages/esql/_snippets/functions/layout/myfunction.md}</li>
+ *              <li>{@code docs/reference/query-languages/esql/_snippets/functions/parameters/myfunction.md}</li>
+ *              <li>{@code docs/reference/query-languages/esql/_snippets/functions/types/myfunction.md}</li>
+ *              <li>{@code docs/reference/query-languages/esql/kibana/definition/functions/myfunction.json}</li>
+ *              <li>{@code docs/reference/query-languages/esql/kibana/docs/functions/myfunction.md}</li>
  *         </ul>
  *
  *         Make sure to commit them. Add a reference to the
- *         {@code docs/reference/esql/functions/layout/myfunction.asciidoc} in the function list
+ *         {@code docs/reference/query-languages/esql/_snippets/functions/layout/myfunction.md} in the function list
  *         docs. There are plenty of examples on how
  *         to reference those files e.g. if you are writing a Math function, you will want to
- *         list it in {@code docs/reference/esql/functions/math-functions.asciidoc}.
+ *         list it in {@code docs/reference/query-languages/esql/functions-operators/math-functions.md}.
  *         <p>
  *             You can generate the docs for just your function by running
  *             {@code ./gradlew :x-pack:plugin:esql:test -Dtests.class='*SinTests'}. It’s just
@@ -168,14 +167,14 @@
  *         </p>
  *         <pre>{@code
  *              > Task :x-pack:plugin:esql:test
- *              ESQL Docs: Only files related to [sin.asciidoc], patching them into place
+ *              ESQL Docs: Only files related to [sin.md], patching them into place
  *         }</pre>
  *     </li>
  *     <li>
  *          Build the docs by cloning the <a href="https://github.com/elastic/docs">docs repo</a>
  *          and running:
  *          <pre>{@code
- * ../docs/build_docs --doc docs/reference/index.asciidoc --open --chunk 1
+ * ../docs/build_docs --doc docs/reference/index.md --open --chunk 1
  *          }</pre>
  *          from the elasticsearch directory. The first time you run the docs build it does a bunch
  *          of things with docker to get itself ready. Hopefully you can sit back and watch the show.

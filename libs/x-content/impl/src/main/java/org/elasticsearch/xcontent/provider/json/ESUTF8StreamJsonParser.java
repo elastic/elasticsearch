@@ -71,16 +71,17 @@ public class ESUTF8StreamJsonParser extends UTF8StreamJsonParser {
         final int startPtr = ptr;
         final byte[] inputBuffer = _inputBuffer;
         final int max = _inputEnd;
+        int codePointCount = 0;
 
-        // Fast path: scan for quote or backslash first
+        // Fast path: scan for quote or backslash first, counting code points as we go
         while (ptr < max) {
             byte b = inputBuffer[ptr];
             if (b == INT_QUOTE) {
                 // Found end quote - string has no escapes
-                int length = ptr - startPtr;
-                stringLength = length;
+                int byteLength = ptr - startPtr;
+                stringLength = codePointCount;
                 stringEnd = ptr + 1;
-                return new Text(new XContentString.UTF8Bytes(inputBuffer, startPtr, length), length);
+                return new Text(new XContentString.UTF8Bytes(inputBuffer, startPtr, byteLength), codePointCount);
             }
             if (b == INT_BACKSLASH) {
                 // Found escape - switch to escape handling
@@ -88,17 +89,20 @@ public class ESUTF8StreamJsonParser extends UTF8StreamJsonParser {
             }
             // For bytes < 128 (ASCII), we can skip the codes table lookup
             if (b >= 0) {
+                codePointCount++;
                 ptr++;
             } else {
                 // Non-ASCII handling...
                 int c = b & 0xFF;
                 int codeType = INPUT_CODES_UTF8[c];
                 if (codeType == 0) {
+                    codePointCount++;
                     ptr++;
                 } else if (codeType >= 2 && codeType <= 4) {
                     if (ptr + codeType > max) {
                         return null;
                     }
+                    codePointCount++;
                     ptr += codeType;
                 } else {
                     return null;
@@ -106,7 +110,7 @@ public class ESUTF8StreamJsonParser extends UTF8StreamJsonParser {
             }
         }
 
-        // Escape handling path - optimized for many escapes
+        // Escape handling path - continue counting code points during the scan
         if (ptr >= max) {
             return null;
         }
@@ -116,7 +120,7 @@ public class ESUTF8StreamJsonParser extends UTF8StreamJsonParser {
         int escapeCount = 0;
         int scanPtr = ptr;
 
-        // Scan to find escapes and end quote
+        // Scan to find escapes and end quote, continuing to count code points
         while (scanPtr < max) {
             byte b = inputBuffer[scanPtr];
             if (b == INT_QUOTE) {
@@ -138,22 +142,26 @@ public class ESUTF8StreamJsonParser extends UTF8StreamJsonParser {
                 }
                 b = inputBuffer[scanPtr];
                 if (b == '"' || b == '/' || b == '\\') {
+                    codePointCount++; // The escaped character counts as 1 code point
                     scanPtr++;
                 } else {
                     return null; // Unsupported escape
                 }
             } else if (b >= 0) {
+                codePointCount++;
                 scanPtr++;
             } else {
                 // Non-ASCII
                 int c = b & 0xFF;
                 int codeType = INPUT_CODES_UTF8[c];
                 if (codeType == 0) {
+                    codePointCount++;
                     scanPtr++;
                 } else if (codeType >= 2 && codeType <= 4) {
                     if (scanPtr + codeType > max) {
                         return null;
                     }
+                    codePointCount++;
                     scanPtr += codeType;
                 } else {
                     return null;
@@ -176,11 +184,10 @@ public class ESUTF8StreamJsonParser extends UTF8StreamJsonParser {
 
         // Copy everything before the first backslash
         int beforeEscapeLength = ptr - startPtr;
-        int resultCharCount = beforeEscapeLength;
         System.arraycopy(inputBuffer, startPtr, resultBuffer, 0, beforeEscapeLength);
         writePos = beforeEscapeLength;
 
-        // Second pass: process escapes
+        // Second pass: process escapes (we already have the correct code point count)
         while (ptr < scanPtr) {
             byte b = inputBuffer[ptr];
 
@@ -188,12 +195,10 @@ public class ESUTF8StreamJsonParser extends UTF8StreamJsonParser {
                 ptr++; // Skip backslash
                 b = inputBuffer[ptr]; // Get escaped character
                 resultBuffer[writePos++] = b;
-                resultCharCount++;
                 ptr++;
             } else if (b >= 0) {
                 // ASCII
                 resultBuffer[writePos++] = b;
-                resultCharCount++;
                 ptr++;
             } else {
                 // Non-ASCII - copy multi-byte sequence
@@ -201,19 +206,17 @@ public class ESUTF8StreamJsonParser extends UTF8StreamJsonParser {
                 int codeType = INPUT_CODES_UTF8[c];
                 if (codeType == 0) {
                     resultBuffer[writePos++] = b;
-                    resultCharCount++;
                     ptr++;
                 } else if (codeType >= 2 && codeType <= 4) {
                     System.arraycopy(inputBuffer, ptr, resultBuffer, writePos, codeType);
                     writePos += codeType;
-                    resultCharCount++;
                     ptr += codeType;
                 }
             }
         }
 
-        stringLength = resultCharCount;
-        return new Text(new XContentString.UTF8Bytes(resultBuffer), stringLength);
+        stringLength = codePointCount;
+        return new Text(new XContentString.UTF8Bytes(resultBuffer), codePointCount);
     }
 
     public boolean writeUTF8TextToStream(OutputStream out) throws IOException {

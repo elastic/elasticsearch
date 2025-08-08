@@ -66,9 +66,9 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.common.util.concurrent.EsExecutorService;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
-import org.elasticsearch.common.util.concurrent.EsThreadPoolExecutor;
 import org.elasticsearch.common.util.iterable.Iterables;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -271,7 +271,7 @@ public class IndicesService extends AbstractLifecycleComponent
     private final Function<IndexMode, IdFieldMapper> idFieldMappers;
 
     @Nullable
-    private final EsThreadPoolExecutor danglingIndicesThreadPoolExecutor;
+    private final EsExecutorService danglingIndicesThreadPoolExecutor;
     private final Set<Index> danglingIndicesToWrite = ConcurrentCollections.newConcurrentSet();
     private final boolean nodeWriteDanglingIndicesInfo;
     private final ValuesSourceRegistry valuesSourceRegistry;

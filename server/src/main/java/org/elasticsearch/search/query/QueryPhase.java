@@ -26,8 +26,8 @@ import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.Weight;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
-import org.elasticsearch.common.util.concurrent.EsThreadPoolExecutor;
-import org.elasticsearch.common.util.concurrent.TaskExecutionTimeTrackingEsThreadPoolExecutor;
+import org.elasticsearch.common.util.concurrent.EsExecutorService;
+import org.elasticsearch.common.util.concurrent.EsExecutorService.TaskTrackingEsExecutorService;
 import org.elasticsearch.lucene.queries.SearchAfterSortedDocQuery;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.SearchContextSourcePrinter;
@@ -226,10 +226,10 @@ public class QueryPhase {
                 queryResult.terminatedEarly(queryPhaseResult.terminatedAfter());
             }
             ExecutorService executor = searchContext.indexShard().getThreadPool().executor(ThreadPool.Names.SEARCH);
-            assert executor instanceof TaskExecutionTimeTrackingEsThreadPoolExecutor
-                || (executor instanceof EsThreadPoolExecutor == false /* in case thread pool is mocked out in tests */)
+            assert executor instanceof TaskTrackingEsExecutorService
+                || (executor instanceof EsExecutorService == false /* in case thread pool is mocked out in tests */)
                 : "SEARCH threadpool should have an executor that exposes EWMA metrics, but is of type " + executor.getClass();
-            if (executor instanceof TaskExecutionTimeTrackingEsThreadPoolExecutor rExecutor) {
+            if (executor instanceof TaskTrackingEsExecutorService rExecutor) {
                 queryResult.nodeQueueSize(rExecutor.getCurrentQueueSize());
                 queryResult.serviceTimeEWMA((long) rExecutor.getTaskExecutionEWMA());
             }

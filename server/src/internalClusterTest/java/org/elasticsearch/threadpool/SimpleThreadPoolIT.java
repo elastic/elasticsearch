@@ -12,7 +12,7 @@ package org.elasticsearch.threadpool;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
-import org.elasticsearch.common.util.concurrent.TaskExecutionTimeTrackingEsThreadPoolExecutor;
+import org.elasticsearch.common.util.concurrent.TaskTimeTrackingEsThreadPoolExecutor;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
@@ -176,7 +176,7 @@ public class SimpleThreadPoolIT extends ESIntegTestCase {
             );
 
             // TaskExecutionTimeTrackingEsThreadPoolExecutor also publishes a utilization metric
-            if (tp.executor(stats.name()) instanceof TaskExecutionTimeTrackingEsThreadPoolExecutor) {
+            if (tp.executor(stats.name()) instanceof TaskTimeTrackingEsThreadPoolExecutor) {
                 metricDefinitions = Maps.copyMapWithAddedEntry(
                     metricDefinitions,
                     ThreadPool.THREAD_POOL_METRIC_NAME_UTILIZATION,
@@ -246,8 +246,8 @@ public class SimpleThreadPoolIT extends ESIntegTestCase {
 
         // Verify that the write thread pools all use the tracking executor.
         for (var name : List.of(ThreadPool.Names.WRITE, ThreadPool.Names.SYSTEM_WRITE, ThreadPool.Names.SYSTEM_CRITICAL_WRITE)) {
-            assertThat(threadPool.executor(name), instanceOf(TaskExecutionTimeTrackingEsThreadPoolExecutor.class));
-            final var executor = (TaskExecutionTimeTrackingEsThreadPoolExecutor) threadPool.executor(name);
+            assertThat(threadPool.executor(name), instanceOf(TaskTimeTrackingEsThreadPoolExecutor.class));
+            final var executor = (TaskTimeTrackingEsThreadPoolExecutor) threadPool.executor(name);
             assertThat(Double.compare(executor.getExecutionEwmaAlpha(), executionEwmaAlpha), CoreMatchers.equalTo(0));
 
             // Only the WRITE thread pool should enable further tracking.

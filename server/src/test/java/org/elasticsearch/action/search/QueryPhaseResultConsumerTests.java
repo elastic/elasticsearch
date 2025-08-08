@@ -16,9 +16,9 @@ import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.concurrent.EsExecutorService;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsExecutors.TaskTrackingConfig;
-import org.elasticsearch.common.util.concurrent.EsThreadPoolExecutor;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.SearchShardTarget;
@@ -47,7 +47,7 @@ public class QueryPhaseResultConsumerTests extends ESTestCase {
 
     private SearchPhaseController searchPhaseController;
     private ThreadPool threadPool;
-    private EsThreadPoolExecutor executor;
+    private EsExecutorService executor;
 
     @Before
     public void setup() {

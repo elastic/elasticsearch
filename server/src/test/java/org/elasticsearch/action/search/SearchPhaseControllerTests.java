@@ -32,9 +32,9 @@ import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
+import org.elasticsearch.common.util.concurrent.EsExecutorService;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsExecutors.TaskTrackingConfig;
-import org.elasticsearch.common.util.concurrent.EsThreadPoolExecutor;
 import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.lucene.grouping.TopFieldGroups;
@@ -104,7 +104,7 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public class SearchPhaseControllerTests extends ESTestCase {
     private ThreadPool threadPool;
-    private EsThreadPoolExecutor fixedExecutor;
+    private EsExecutorService fixedExecutor;
     private SearchPhaseController searchPhaseController;
     private List<Boolean> reductions;
 

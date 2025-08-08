@@ -153,7 +153,7 @@ public class ListenableFutureTests extends ESTestCase {
 
     public void testRejection() {
         final CyclicBarrier barrier = new CyclicBarrier(2);
-        final EsThreadPoolExecutor executorService = EsExecutors.newFixed(
+        final EsExecutorService executorService = EsExecutors.newFixed(
             "testRejection",
             1,
             1,

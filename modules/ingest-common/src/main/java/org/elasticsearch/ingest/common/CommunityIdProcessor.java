@@ -11,6 +11,7 @@ package org.elasticsearch.ingest.common;
 
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.common.network.InetAddresses;
+import org.elasticsearch.core.ObjectPool;
 import org.elasticsearch.ingest.AbstractProcessor;
 import org.elasticsearch.ingest.ConfigurationUtils;
 import org.elasticsearch.ingest.IngestDocument;
@@ -36,7 +37,7 @@ public final class CommunityIdProcessor extends AbstractProcessor {
 
     public static final String TYPE = "community_id";
 
-    private static final ThreadLocal<MessageDigest> MESSAGE_DIGEST = ThreadLocal.withInitial(() -> {
+    private static final ObjectPool<MessageDigest> MESSAGE_DIGEST = ObjectPool.withInitial(() -> {
         try {
             return MessageDigest.getInstance("SHA-1");
         } catch (NoSuchAlgorithmException e) {
@@ -397,10 +398,13 @@ public final class CommunityIdProcessor extends AbstractProcessor {
         }
 
         String toCommunityId(byte[] seed) {
-            MessageDigest md = MESSAGE_DIGEST.get();
-            md.reset();
-            md.update(seed);
-            byte[] encodedBytes = Base64.getEncoder().encode(md.digest(toBytes()));
+            byte[] encodedBytes;
+            try (var pooledMessageDigest = MESSAGE_DIGEST.acquire()) {
+                MessageDigest md = pooledMessageDigest.get();
+                md.reset();
+                md.update(seed);
+                encodedBytes = Base64.getEncoder().encode(md.digest(toBytes()));
+            }
             return "1:" + new String(encodedBytes, StandardCharsets.UTF_8);
         }
     }

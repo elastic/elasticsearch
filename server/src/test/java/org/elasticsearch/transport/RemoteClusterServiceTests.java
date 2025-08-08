@@ -1424,7 +1424,8 @@ public class RemoteClusterServiceTests extends ESTestCase {
             .put(removeRoles(Set.of(DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE)))
             .build();
         try (RemoteClusterService service = new RemoteClusterService(settingsWithoutRemoteClusterClientRole, null)) {
-            expectThrows(IllegalArgumentException.class, service::ensureClientIsEnabled);
+            final var exception = expectThrows(IllegalArgumentException.class, service::ensureClientIsEnabled);
+            assertThat(exception.getMessage(), equalTo("node [node-1] does not have the [remote_cluster_client] role"));
         }
 
         // Expect throws when missing search node role when stateless is enabled.
@@ -1434,7 +1435,11 @@ public class RemoteClusterServiceTests extends ESTestCase {
             .put(DiscoveryNode.STATELESS_ENABLED_SETTING_NAME, true)
             .build();
         try (RemoteClusterService service = new RemoteClusterService(statelessEnabledSettingsOnNonSearchNode, null)) {
-            expectThrows(IllegalArgumentException.class, service::ensureClientIsEnabled);
+            final var exception = expectThrows(IllegalArgumentException.class, service::ensureClientIsEnabled);
+            assertThat(
+                exception.getMessage(),
+                equalTo("node [node-1] must have the [search] role in stateless environments to use linked project client features")
+            );
         }
 
         // Shouldn't throw when stateless is enabled on a search node.

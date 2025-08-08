@@ -7,4 +7,9 @@
 
 package org.elasticsearch.xpack.exponentialhistogram;
 
-record IndexWithCount(long index, long count) {}
+/**
+ * An exponential histogram bucket represented by its index and associated bucket count.
+ * @param index the index of the bucket
+ * @param count the number of values in that bucket.
+ */
+public record IndexWithCount(long index, long count) {}

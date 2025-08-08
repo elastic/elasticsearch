@@ -49,7 +49,7 @@ public class ExponentialHistogramMergeBench {
     @Param({ "1000", "2000", "5000" })
     int bucketCount;
 
-    @Param({ "1.0" })
+    @Param({ "0.01", "0.1", "0.25", "0.5", "1.0", "2.0" })
     double mergedHistoSizeFactor;
 
     @Param({ "array-backed", "compressed" })

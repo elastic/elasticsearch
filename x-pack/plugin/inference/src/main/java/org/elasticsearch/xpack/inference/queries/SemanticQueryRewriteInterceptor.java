@@ -238,5 +238,31 @@ public abstract class SemanticQueryRewriteInterceptor implements QueryRewriteInt
             }
             return result;
         }
+        
+        /**
+         * Returns the set of indices where the given field is a semantic field (has inference metadata).
+         */
+        public Set<String> getInferenceIndicesForField(String fieldName) {
+            Set<String> indices = new HashSet<>();
+            for (Map.Entry<String, Map<String, InferenceFieldMetadata>> entry : inferenceFieldsPerIndex.entrySet()) {
+                if (entry.getValue().containsKey(fieldName)) {
+                    indices.add(entry.getKey());
+                }
+            }
+            return indices;
+        }
+        
+        /**
+         * Returns the set of indices where the given field is a non-semantic field.
+         */
+        public Set<String> getNonInferenceIndicesForField(String fieldName) {
+            Set<String> indices = new HashSet<>();
+            for (Map.Entry<String, Set<String>> entry : nonInferenceFieldsPerIndex.entrySet()) {
+                if (entry.getValue().contains(fieldName)) {
+                    indices.add(entry.getKey());
+                }
+            }
+            return indices;
+        }
     }
 }

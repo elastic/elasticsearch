@@ -19,7 +19,6 @@ import org.elasticsearch.inference.MinimalServiceSettings;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.inference.registry.ModelRegistry;
 
-import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -218,25 +217,31 @@ public class SemanticMultiMatchQueryRewriteInterceptor extends SemanticQueryRewr
     ) {
         DisMaxQueryBuilder disMaxQuery = QueryBuilders.disMaxQuery();
 
-        // Add semantic queries for each inference field across different indices
+        // Add semantic queries for each inference field, but only in indices where that field is semantic
         for (String fieldName : inferenceInfo.getAllInferenceFields()) {
-            disMaxQuery.add(
-                createSemanticSubQuery(
-                    inferenceInfo.getInferenceIndices(),
-                    fieldName,
-                    queryValue
-                ).boost(fieldsBoosts.getOrDefault(fieldName, AbstractQueryBuilder.DEFAULT_BOOST))
-            );
+            Set<String> semanticIndices = inferenceInfo.getInferenceIndicesForField(fieldName);
+            if (semanticIndices.isEmpty() == false) {
+                disMaxQuery.add(
+                    createSemanticSubQuery(
+                        semanticIndices,
+                        fieldName,
+                        queryValue
+                    ).boost(fieldsBoosts.getOrDefault(fieldName, AbstractQueryBuilder.DEFAULT_BOOST))
+                );
+            }
         }
 
-        // Add non-inference query for non-inference fields
-        if (inferenceInfo.hasNonInferenceFields()) {
-            MultiMatchQueryBuilder nonInferenceQuery = createNonInferenceQueryForIndex(
-                originalQuery,
-                inferenceInfo.getAllNonInferenceFields(),
-                fieldsBoosts
-            );
-            disMaxQuery.add(createSubQueryForIndices(inferenceInfo.nonInferenceIndices(), nonInferenceQuery));
+        // Add separate queries for non-inference fields, but only in indices where they are non-inference
+        for (String fieldName : inferenceInfo.getAllNonInferenceFields()) {
+            Set<String> nonInferenceIndices = inferenceInfo.getNonInferenceIndicesForField(fieldName);
+            if (nonInferenceIndices.isEmpty() == false) {
+                // Create a single-field multi_match query for this field
+                MultiMatchQueryBuilder singleFieldQuery = new MultiMatchQueryBuilder(originalQuery.value());
+                singleFieldQuery.field(fieldName, fieldsBoosts.getOrDefault(fieldName, AbstractQueryBuilder.DEFAULT_BOOST));
+                copyQueryProperties(originalQuery, singleFieldQuery);
+
+                disMaxQuery.add(createSubQueryForIndices(nonInferenceIndices, singleFieldQuery));
+            }
         }
 
         // Apply tie_breaker - use explicit value or fall back to type's default
@@ -255,25 +260,31 @@ public class SemanticMultiMatchQueryRewriteInterceptor extends SemanticQueryRewr
     ) {
         BoolQueryBuilder boolQuery = new BoolQueryBuilder();
 
-        // Add semantic queries for each inference field
+        // Add semantic queries for each inference field, but only in indices where that field is semantic
         for (String fieldName : inferenceInfo.getAllInferenceFields()) {
-            boolQuery.should(
-                createSemanticSubQuery(
-                    inferenceInfo.getInferenceIndices(),
-                    fieldName,
-                    queryValue
-                ).boost(fieldsBoosts.getOrDefault(fieldName, AbstractQueryBuilder.DEFAULT_BOOST))
-            );
+            Set<String> semanticIndices = inferenceInfo.getInferenceIndicesForField(fieldName);
+            if (semanticIndices.isEmpty() == false) {
+                boolQuery.should(
+                    createSemanticSubQuery(
+                        semanticIndices,
+                        fieldName,
+                        queryValue
+                    ).boost(fieldsBoosts.getOrDefault(fieldName, AbstractQueryBuilder.DEFAULT_BOOST))
+                );
+            }
         }
 
-        // Add non-inference query for non-inference fields
-        if (inferenceInfo.hasNonInferenceFields()) {
-            MultiMatchQueryBuilder nonInferenceQuery = createNonInferenceQueryForIndex(
-                originalQuery,
-                inferenceInfo.getAllNonInferenceFields(),
-                fieldsBoosts
-            );
-            boolQuery.should(createSubQueryForIndices(inferenceInfo.nonInferenceIndices(), nonInferenceQuery));
+        // Add separate queries for non-inference fields, but only in indices where they are non-inference
+        for (String fieldName : inferenceInfo.getAllNonInferenceFields()) {
+            Set<String> nonInferenceIndices = inferenceInfo.getNonInferenceIndicesForField(fieldName);
+            if (nonInferenceIndices.isEmpty() == false) {
+                // Create a single-field multi_match query for this field
+                MultiMatchQueryBuilder singleFieldQuery = new MultiMatchQueryBuilder(originalQuery.value());
+                singleFieldQuery.field(fieldName, fieldsBoosts.getOrDefault(fieldName, AbstractQueryBuilder.DEFAULT_BOOST));
+                copyQueryProperties(originalQuery, singleFieldQuery);
+
+                boolQuery.should(createSubQueryForIndices(nonInferenceIndices, singleFieldQuery));
+            }
         }
 
         // Apply minimumShouldMatch - use original query's value or default to "1"
@@ -307,28 +318,6 @@ public class SemanticMultiMatchQueryRewriteInterceptor extends SemanticQueryRewr
         }
     }
 
-    /**
-     * Creates a non-inference MultiMatchQuery for a specific index with only the specified fields.
-     */
-    private MultiMatchQueryBuilder createNonInferenceQueryForIndex(
-        MultiMatchQueryBuilder originalQuery,
-        Set<String> nonInferenceFields,
-        Map<String, Float> fieldsBoosts
-    ) {
-        MultiMatchQueryBuilder query = new MultiMatchQueryBuilder(originalQuery.value());
-
-        // Set only the non-inference fields with their boosts
-        Map<String, Float> filteredFields = new HashMap<>();
-        for (String fieldName : nonInferenceFields) {
-            float boost = fieldsBoosts.getOrDefault(fieldName, AbstractQueryBuilder.DEFAULT_BOOST);
-            filteredFields.put(fieldName, boost);
-        }
-        query.fields(filteredFields);
-
-        copyQueryProperties(originalQuery, query);
-
-        return query;
-    }
 
     /**
      * Detects and warns about score range mismatches when a multi_match query has at least one dense vector model (TEXT_EMBEDDING)

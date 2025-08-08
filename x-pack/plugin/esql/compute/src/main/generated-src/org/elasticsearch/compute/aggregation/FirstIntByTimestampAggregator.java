@@ -73,8 +73,8 @@ public class FirstIntByTimestampAggregator {
 
     public static void combineIntermediate(
         GroupingState current,
-        int groupId, // Formatter
-        LongBlock timestamps,
+        int groupId,
+        LongBlock timestamps, // stylecheck
         IntBlock values,
         int otherPosition
     ) {

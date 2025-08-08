@@ -73,8 +73,8 @@ public class $Occurrence$$Type$ByTimestampAggregator {
 
     public static void combineIntermediate(
         GroupingState current,
-        int groupId, // Formatter
-        LongBlock timestamps,
+        int groupId,
+        LongBlock timestamps, // stylecheck
         $Type$Block values,
         int otherPosition
     ) {

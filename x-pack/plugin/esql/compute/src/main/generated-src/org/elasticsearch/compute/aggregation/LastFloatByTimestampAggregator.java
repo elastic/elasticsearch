@@ -73,8 +73,8 @@ public class LastFloatByTimestampAggregator {
 
     public static void combineIntermediate(
         GroupingState current,
-        int groupId, // Formatter
-        LongBlock timestamps,
+        int groupId,
+        LongBlock timestamps, // stylecheck
         FloatBlock values,
         int otherPosition
     ) {

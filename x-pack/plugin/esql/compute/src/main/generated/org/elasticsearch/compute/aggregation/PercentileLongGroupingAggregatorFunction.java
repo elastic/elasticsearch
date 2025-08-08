@@ -66,9 +66,7 @@ public final class PercentileLongGroupingAggregatorFunction implements GroupingA
     LongBlock vBlock = page.getBlock(channels.get(0));
     LongVector vVector = vBlock.asVector();
     if (vVector == null) {
-      if (vBlock.mayHaveNulls()) {
-        state.enableGroupIdTracking(seenGroupIds);
-      }
+      maybeEnableGroupIdTracking(seenGroupIds, vBlock);
       return new GroupingAggregatorFunction.AddInput() {
         @Override
         public void add(int positionOffset, IntArrayBlock groupIds) {
@@ -277,6 +275,12 @@ public final class PercentileLongGroupingAggregatorFunction implements GroupingA
       int groupId = groups.getInt(groupPosition);
       int valuesPosition = groupPosition + positionOffset;
       PercentileLongAggregator.combineIntermediate(state, groupId, quart.getBytesRef(valuesPosition, scratch));
+    }
+  }
+
+  private void maybeEnableGroupIdTracking(SeenGroupIds seenGroupIds, LongBlock vBlock) {
+    if (vBlock.mayHaveNulls()) {
+      state.enableGroupIdTracking(seenGroupIds);
     }
   }
 

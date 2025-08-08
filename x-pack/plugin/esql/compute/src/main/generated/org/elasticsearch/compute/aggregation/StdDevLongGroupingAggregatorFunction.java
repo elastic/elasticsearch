@@ -64,9 +64,7 @@ public final class StdDevLongGroupingAggregatorFunction implements GroupingAggre
     LongBlock valueBlock = page.getBlock(channels.get(0));
     LongVector valueVector = valueBlock.asVector();
     if (valueVector == null) {
-      if (valueBlock.mayHaveNulls()) {
-        state.enableGroupIdTracking(seenGroupIds);
-      }
+      maybeEnableGroupIdTracking(seenGroupIds, valueBlock);
       return new GroupingAggregatorFunction.AddInput() {
         @Override
         public void add(int positionOffset, IntArrayBlock groupIds) {
@@ -305,6 +303,12 @@ public final class StdDevLongGroupingAggregatorFunction implements GroupingAggre
       int groupId = groups.getInt(groupPosition);
       int valuesPosition = groupPosition + positionOffset;
       StdDevLongAggregator.combineIntermediate(state, groupId, mean.getDouble(valuesPosition), m2.getDouble(valuesPosition), count.getLong(valuesPosition));
+    }
+  }
+
+  private void maybeEnableGroupIdTracking(SeenGroupIds seenGroupIds, LongBlock valueBlock) {
+    if (valueBlock.mayHaveNulls()) {
+      state.enableGroupIdTracking(seenGroupIds);
     }
   }
 

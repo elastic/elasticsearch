@@ -938,7 +938,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
 
         // Knowledge base. Fleet creates, manages, and uses this index to store knowledge base documents to be consumed by AI assistants.
         Arrays.asList(".integration_knowledge" + randomAlphaOfLength(randomIntBetween(0, 13))).forEach((index) -> {
-            final IndexAbstraction indexAbstraction = mockIndexAbstraction(index);
+            final IndexAbstraction indexAbstraction = mockIndexAbstraction(index, IndexAbstraction.Type.CONCRETE_INDEX);
             assertThat(kibanaRole.indices().allowedIndicesMatcher("indices:foo").test(indexAbstraction), is(false));
             assertThat(kibanaRole.indices().allowedIndicesMatcher("indices:bar").test(indexAbstraction), is(false));
             assertThat(
@@ -4253,6 +4253,13 @@ public class ReservedRolesStoreTests extends ESTestCase {
         when(mock.getType()).thenReturn(
             randomFrom(IndexAbstraction.Type.CONCRETE_INDEX, IndexAbstraction.Type.ALIAS, IndexAbstraction.Type.DATA_STREAM)
         );
+        return mock;
+    }
+
+    private IndexAbstraction mockIndexAbstraction(String name, IndexAbstraction.Type type) {
+        IndexAbstraction mock = mock(IndexAbstraction.class);
+        when(mock.getName()).thenReturn(name);
+        when(mock.getType()).thenReturn(type);
         return mock;
     }
 }

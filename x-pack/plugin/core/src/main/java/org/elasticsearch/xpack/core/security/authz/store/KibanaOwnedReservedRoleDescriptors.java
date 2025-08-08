@@ -179,6 +179,7 @@ class KibanaOwnedReservedRoleDescriptors {
                 RoleDescriptor.IndicesPrivileges.builder()
                     .indices(".integration_knowledge*")
                     .privileges("read", "write", "create_index")
+                    .allowRestrictedIndices(true)
                     .build(),
                 // Other Fleet indices. Kibana reads and writes to these indices to manage
                 // Elastic Agents.

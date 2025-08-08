@@ -15,18 +15,34 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.internal.VersionExtension;
 import org.elasticsearch.plugins.ExtensionLoader;
 
+import java.io.BufferedReader;
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.io.UncheckedIOException;
+import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.ServiceLoader;
 import java.util.function.Function;
+import java.util.function.IntFunction;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 /**
  * Represents the version of the wire protocol used to communicate between a pair of ES nodes.
+ * <p>
+ * Note: We are currently transitioning to a file-based system to load and maintain transport versions. These file-based transport
+ * versions are named and are referred to as named transport versions. Named transport versions also maintain a linked list of their
+ * own patch versions to simplify transport version compatibility checks. Transport versions that continue to be loaded through
+ * {@link TransportVersions} are referred to as unnamed transport versions. Unnamed transport versions will continue being used
+ * over the wire as we only need the id for compatibility checks even against named transport versions. There are changes
+ * throughout {@link TransportVersion} that are for this transition. For now, continue to use the existing system of adding unnamed
+ * transport versions to {@link TransportVersions}.
  * <p>
  * Prior to 8.8.0, the release {@link Version} was used everywhere. This class separates the wire protocol version from the release version.
  * <p>
@@ -57,7 +73,55 @@ import java.util.stream.Stream;
  * different version value. If you need to know whether the cluster as a whole speaks a new enough {@link TransportVersion} to understand a
  * newly-added feature, use {@link org.elasticsearch.cluster.ClusterState#getMinTransportVersion}.
  */
-public record TransportVersion(int id) implements VersionId<TransportVersion> {
+public record TransportVersion(String name, int id, TransportVersion nextPatchVersion) implements VersionId<TransportVersion> {
+
+    /**
+     * Constructs an unnamed transport version.
+     */
+    public TransportVersion(int id) {
+        this(null, id, null);
+    }
+
+    /**
+     * Constructs a named transport version along with its set of compatible patch versions from x-content.
+     * This method takes in the parameter {@code latest} which is the highest valid transport version id
+     * supported by this node. Versions newer than the current transport version id for this node are discarded.
+     */
+    public static TransportVersion fromInputStream(String path, boolean nameInFile, InputStream stream, Integer latest) {
+        try (BufferedReader reader = new BufferedReader(new InputStreamReader(stream, StandardCharsets.UTF_8))) {
+            String line = reader.readLine();
+            String[] parts = line.replaceAll("\\s+", "").split(",");
+            String check;
+            while ((check = reader.readLine()) != null) {
+                if (check.replaceAll("\\s+", "").isEmpty() == false) {
+                    throw new IllegalArgumentException("invalid transport version file format [" + path + "]");
+                }
+            }
+            if (parts.length < (nameInFile ? 2 : 1)) {
+                throw new IllegalStateException("invalid transport version file format [" + path + "]");
+            }
+            String name = nameInFile ? parts[0] : path.substring(path.lastIndexOf('/') + 1, path.length() - 4);
+            List<Integer> ids = new ArrayList<>();
+            for (int i = nameInFile ? 1 : 0; i < parts.length; ++i) {
+                try {
+                    ids.add(Integer.parseInt(parts[i]));
+                } catch (NumberFormatException nfe) {
+                    throw new IllegalStateException("invalid transport version file format [" + path + "]", nfe);
+                }
+            }
+            ids.sort(Integer::compareTo);
+            TransportVersion transportVersion = null;
+            for (int idIndex = 0; idIndex < ids.size(); ++idIndex) {
+                if (ids.get(idIndex) > latest) {
+                    break;
+                }
+                transportVersion = new TransportVersion(name, ids.get(idIndex), transportVersion);
+            }
+            return transportVersion;
+        } catch (IOException ioe) {
+            throw new UncheckedIOException("cannot parse transport version [" + path + "]", ioe);
+        }
+    }
 
     public static TransportVersion readVersion(StreamInput in) throws IOException {
         return fromId(in.readVInt());
@@ -70,12 +134,29 @@ public record TransportVersion(int id) implements VersionId<TransportVersion> {
      * The new instance is not registered in {@code TransportVersion.getAllVersions}.
      */
     public static TransportVersion fromId(int id) {
-        TransportVersion known = VersionsHolder.ALL_VERSIONS_MAP.get(id);
+        TransportVersion known = VersionsHolder.ALL_VERSIONS_BY_ID.get(id);
         if (known != null) {
             return known;
         }
         // this is a version we don't otherwise know about - just create a placeholder
         return new TransportVersion(id);
+    }
+
+    /**
+     * Finds a {@link TransportVersion} by its name. The parameter {@code name} must be a {@link String}
+     * direct value or validation checks will fail. {@code TransportVersion.fromName("direct_value")}.
+     * <p>
+     * This will only return the latest known named transport version for a given name and not its
+     * patch versions. Patch versions are constructed as a linked list internally and may be found by
+     * cycling through them in a loop using {@link TransportVersion#nextPatchVersion()}.
+     *
+     */
+    public static TransportVersion fromName(String name) {
+        TransportVersion known = VersionsHolder.ALL_VERSIONS_BY_NAME.get(name);
+        if (known == null) {
+            throw new IllegalStateException("unknown transport version [" + name + "]");
+        }
+        return known;
     }
 
     public static void writeVersion(TransportVersion version, StreamOutput out) throws IOException {
@@ -123,7 +204,7 @@ public record TransportVersion(int id) implements VersionId<TransportVersion> {
      *         in the wild (they're sent over the wire by numeric ID) but we don't know how to communicate using such versions.
      */
     public boolean isKnown() {
-        return VersionsHolder.ALL_VERSIONS_MAP.containsKey(id);
+        return VersionsHolder.ALL_VERSIONS_BY_ID.containsKey(id);
     }
 
     /**
@@ -135,7 +216,7 @@ public record TransportVersion(int id) implements VersionId<TransportVersion> {
             return this;
         }
         TransportVersion bestSoFar = TransportVersions.ZERO;
-        for (final var knownVersion : VersionsHolder.ALL_VERSIONS_MAP.values()) {
+        for (final var knownVersion : VersionsHolder.ALL_VERSIONS_BY_ID.values()) {
             if (knownVersion.after(bestSoFar) && knownVersion.before(this)) {
                 bestSoFar = knownVersion;
             }
@@ -172,11 +253,74 @@ public record TransportVersion(int id) implements VersionId<TransportVersion> {
     }
 
     /**
+     * Supports is used to determine if a named transport version is supported
+     * by a caller transport version. This will check both the latest id
+     * and all of its patch ids for compatibility. This replaces the pattern
+     * of {@code wireTV.onOrAfter(TV_FEATURE) || wireTV.isPatchFrom(TV_FEATURE_BACKPORT) || ...}
+     * for unnamed transport versions with {@code wireTV.supports(TV_FEATURE)} for named
+     * transport versions (since named versions know about their own patch versions).
+     * <p>
+     * The recommended use of this method is to declare a static final {@link TransportVersion}
+     * as part of the file that it's used in. This constant is then used in conjunction with
+     * this method to check transport version compatability.
+     * <p>
+     * An example:
+     * {@code
+     * public class ExampleClass {
+     * ...
+     *     TransportVersion TV_FEATURE = TransportVersion.fromName("tv_feature");
+     *     ...
+     *     public static ExampleClass readFrom(InputStream in) {
+     *         ...
+     *         if (in.getTransportVersion().supports(TV_FEATURE) {
+     *             // read newer values
+     *         }
+     *         ...
+     *     }
+     *     ...
+     *     public void writeTo(OutputStream out) {
+     *         ...
+     *         if (out.getTransportVersion().supports(TV_FEATURE) {
+     *             // write newer values
+     *         }
+     *         ...
+     *     }
+     *     ...
+     * }
+     * }
+     */
+    public boolean supports(TransportVersion version) {
+        if (onOrAfter(version)) {
+            return true;
+        }
+        TransportVersion nextPatchVersion = version.nextPatchVersion;
+        while (nextPatchVersion != null) {
+            if (isPatchFrom(nextPatchVersion)) {
+                return true;
+            }
+            nextPatchVersion = nextPatchVersion.nextPatchVersion;
+        }
+        return false;
+    }
+
+    /**
      * Returns a string representing the Elasticsearch release version of this transport version,
      * if applicable for this deployment, otherwise the raw version number.
      */
     public String toReleaseVersion() {
-        return TransportVersions.VERSION_LOOKUP.apply(id);
+        return VersionsHolder.VERSION_LOOKUP_BY_RELEASE.apply(id);
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (o == null || getClass() != o.getClass()) return false;
+        TransportVersion that = (TransportVersion) o;
+        return id == that.id;
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hashCode(id);
     }
 
     @Override
@@ -184,25 +328,120 @@ public record TransportVersion(int id) implements VersionId<TransportVersion> {
         return Integer.toString(id);
     }
 
+    /**
+     * This class holds various data structures for looking up known transport versions both
+     * named and unnamed. While we transition to named transport versions, this class will
+     * load and merge unnamed transport versions from {@link TransportVersions} along with
+     * named transport versions specified in a manifest file in resources.
+     */
     private static class VersionsHolder {
+
         private static final List<TransportVersion> ALL_VERSIONS;
-        private static final Map<Integer, TransportVersion> ALL_VERSIONS_MAP;
+        private static final Map<Integer, TransportVersion> ALL_VERSIONS_BY_ID;
+        private static final Map<String, TransportVersion> ALL_VERSIONS_BY_NAME;
+        private static final IntFunction<String> VERSION_LOOKUP_BY_RELEASE;
         private static final TransportVersion CURRENT;
 
         static {
+            // collect all the transport versions from server and es modules/plugins (defined in server)
+            List<TransportVersion> allVersions = new ArrayList<>(TransportVersions.DEFINED_VERSIONS);
+            Map<String, TransportVersion> allVersionsByName = loadTransportVersionsByName();
+            addTransportVersions(allVersionsByName.values(), allVersions).sort(TransportVersion::compareTo);
+
+            // set version lookup by release before adding serverless versions
+            // serverless versions should not affect release version
+            VERSION_LOOKUP_BY_RELEASE = ReleaseVersions.generateVersionsLookup(
+                TransportVersions.class,
+                allVersions.get(allVersions.size() - 1).id()
+            );
+
+            // collect all the transport versions from serverless
             Collection<TransportVersion> extendedVersions = ExtensionLoader.loadSingleton(ServiceLoader.load(VersionExtension.class))
                 .map(VersionExtension::getTransportVersions)
                 .orElse(Collections.emptyList());
-
-            if (extendedVersions.isEmpty()) {
-                ALL_VERSIONS = TransportVersions.DEFINED_VERSIONS;
-            } else {
-                ALL_VERSIONS = Stream.concat(TransportVersions.DEFINED_VERSIONS.stream(), extendedVersions.stream()).sorted().toList();
+            addTransportVersions(extendedVersions, allVersions).sort(TransportVersion::compareTo);
+            for (TransportVersion version : extendedVersions) {
+                if (version.name() != null) {
+                    allVersionsByName.put(version.name(), version);
+                }
             }
 
-            ALL_VERSIONS_MAP = ALL_VERSIONS.stream().collect(Collectors.toUnmodifiableMap(TransportVersion::id, Function.identity()));
-
+            // set the transport version lookups
+            ALL_VERSIONS = Collections.unmodifiableList(allVersions);
+            ALL_VERSIONS_BY_ID = ALL_VERSIONS.stream().collect(Collectors.toUnmodifiableMap(TransportVersion::id, Function.identity()));
+            ALL_VERSIONS_BY_NAME = Collections.unmodifiableMap(allVersionsByName);
             CURRENT = ALL_VERSIONS.getLast();
+        }
+
+        private static Map<String, TransportVersion> loadTransportVersionsByName() {
+            Map<String, TransportVersion> transportVersions = new HashMap<>();
+
+            String latestLocation = "/transport/latest/" + Version.CURRENT.major + "." + Version.CURRENT.minor + ".csv";
+            int latestId = -1;
+            try (InputStream inputStream = TransportVersion.class.getResourceAsStream(latestLocation)) {
+                // this check is required until bootstrapping for the new transport versions format is completed;
+                // when load is false, we will only use the transport versions in the legacy format;
+                // load becomes false if we don't find the latest or manifest files required for the new format
+                if (inputStream != null) {
+                    TransportVersion latest = fromInputStream(latestLocation, true, inputStream, Integer.MAX_VALUE);
+                    if (latest == null) {
+                        throw new IllegalStateException(
+                            "invalid latest transport version for minor version ["
+                                + Version.CURRENT.major
+                                + "."
+                                + Version.CURRENT.minor
+                                + "]"
+                        );
+                    }
+                    latestId = latest.id();
+                }
+            } catch (IOException ioe) {
+                throw new UncheckedIOException("latest transport version file not found at [" + latestLocation + "]", ioe);
+            }
+
+            String manifestLocation = "/transport/defined/manifest.txt";
+            List<String> versionFileNames = null;
+            if (latestId > -1) {
+                try (InputStream inputStream = TransportVersion.class.getResourceAsStream(manifestLocation)) {
+                    if (inputStream != null) {
+                        BufferedReader reader = new BufferedReader(new InputStreamReader(inputStream, StandardCharsets.UTF_8));
+                        versionFileNames = reader.lines().filter(line -> line.isBlank() == false).toList();
+                    }
+                } catch (IOException ioe) {
+                    throw new UncheckedIOException("transport version manifest file not found at [" + manifestLocation + "]", ioe);
+                }
+            }
+
+            if (versionFileNames != null) {
+                for (String name : versionFileNames) {
+                    String versionLocation = "/transport/defined/" + name;
+                    try (InputStream inputStream = TransportVersion.class.getResourceAsStream(versionLocation)) {
+                        if (inputStream == null) {
+                            throw new IllegalStateException("transport version file not found at [" + versionLocation + "]");
+                        }
+                        TransportVersion transportVersion = TransportVersion.fromInputStream(versionLocation, false, inputStream, latestId);
+                        if (transportVersion != null) {
+                            transportVersions.put(transportVersion.name(), transportVersion);
+                        }
+                    } catch (IOException ioe) {
+                        throw new UncheckedIOException("transport version file not found at [ " + versionLocation + "]", ioe);
+                    }
+                }
+            }
+
+            return transportVersions;
+        }
+
+        private static List<TransportVersion> addTransportVersions(Collection<TransportVersion> addFrom, List<TransportVersion> addTo) {
+            for (TransportVersion transportVersion : addFrom) {
+                addTo.add(transportVersion);
+                TransportVersion patchVersion = transportVersion.nextPatchVersion();
+                while (patchVersion != null) {
+                    addTo.add(patchVersion);
+                    patchVersion = patchVersion.nextPatchVersion();
+                }
+            }
+            return addTo;
         }
     }
 }

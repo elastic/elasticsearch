@@ -37,7 +37,7 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.snapshots.SnapshotInProgressException;
-import org.elasticsearch.snapshots.SnapshotsService;
+import org.elasticsearch.snapshots.SnapshotsServiceUtils;
 
 import java.io.IOException;
 import java.util.HashSet;
@@ -499,7 +499,7 @@ public class MetadataDataStreamsService {
         Settings mergedEffectiveSettings = templateSettings.merge(mergedDataStreamSettings);
         MetadataIndexTemplateService.validateTemplate(
             mergedEffectiveSettings,
-            dataStream.getEffectiveMappings(projectMetadata),
+            dataStream.getEffectiveMappings(projectMetadata, indicesService),
             indicesService
         );
 
@@ -517,12 +517,14 @@ public class MetadataDataStreamsService {
         DataStream dataStream = dataStreamMap.get(dataStreamName);
 
         final ComposableIndexTemplate template = lookupTemplateForDataStream(dataStreamName, projectMetadata);
-        ComposableIndexTemplate mergedTemplate = template.mergeMappings(mappingsOverrides);
-        MetadataIndexTemplateService.validateTemplate(
-            dataStream.getEffectiveSettings(projectMetadata),
-            mergedTemplate.template().mappings(),
+        CompressedXContent effectiveMappings = DataStream.getEffectiveMappings(
+            projectMetadata,
+            template,
+            mappingsOverrides,
+            dataStream.getWriteIndex(),
             indicesService
         );
+        MetadataIndexTemplateService.validateTemplate(dataStream.getEffectiveSettings(projectMetadata), effectiveMappings, indicesService);
         return dataStream.copy().setMappings(mappingsOverrides).build();
     }
 
@@ -662,7 +664,7 @@ public class MetadataDataStreamsService {
         }
 
         Set<String> dataStreamNames = dataStreams.stream().map(DataStream::getName).collect(Collectors.toSet());
-        Set<String> snapshottingDataStreams = SnapshotsService.snapshottingDataStreams(projectState, dataStreamNames);
+        Set<String> snapshottingDataStreams = SnapshotsServiceUtils.snapshottingDataStreams(projectState, dataStreamNames);
         if (snapshottingDataStreams.isEmpty() == false) {
             throw new SnapshotInProgressException(
                 "Cannot delete data streams that are being snapshotted: ["

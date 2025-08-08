@@ -3,6 +3,7 @@ import org.elasticsearch.gradle.internal.util.SourceDirectoryCommandLineArgument
 apply plugin: 'elasticsearch.build'
 apply plugin: 'elasticsearch.string-templates'
 apply plugin: 'elasticsearch.publish'
+apply plugin: 'elasticsearch.transport-version-management'
 
 base {
   archivesName = 'x-pack-esql-compute'
@@ -899,28 +900,28 @@ tasks.named('stringTemplates').configure {
   }
 
   // TODO: add {value}_over_time for other types: boolean, bytes_refs
-  File valueOverTimeAggregatorInputFile = file("src/main/java/org/elasticsearch/compute/aggregation/X-ValueOverTimeAggregator.java.st")
+  File valueByTimestampAggregatorInputFile = file("src/main/java/org/elasticsearch/compute/aggregation/X-ValueByTimestampAggregator.java.st")
   ["First", "Last"].forEach { Occurrence ->
     {
       template {
         it.properties = addOccurrence(intProperties, Occurrence)
-        it.inputFile = valueOverTimeAggregatorInputFile
-        it.outputFile = "org/elasticsearch/compute/aggregation/${Occurrence}OverTimeIntAggregator.java"
+        it.inputFile = valueByTimestampAggregatorInputFile
+        it.outputFile = "org/elasticsearch/compute/aggregation/${Occurrence}IntByTimestampAggregator.java"
       }
       template {
         it.properties = addOccurrence(longProperties, Occurrence)
-        it.inputFile = valueOverTimeAggregatorInputFile
-        it.outputFile = "org/elasticsearch/compute/aggregation/${Occurrence}OverTimeLongAggregator.java"
+        it.inputFile = valueByTimestampAggregatorInputFile
+        it.outputFile = "org/elasticsearch/compute/aggregation/${Occurrence}LongByTimestampAggregator.java"
       }
       template {
         it.properties = addOccurrence(floatProperties, Occurrence)
-        it.inputFile = valueOverTimeAggregatorInputFile
-        it.outputFile = "org/elasticsearch/compute/aggregation/${Occurrence}OverTimeFloatAggregator.java"
+        it.inputFile = valueByTimestampAggregatorInputFile
+        it.outputFile = "org/elasticsearch/compute/aggregation/${Occurrence}FloatByTimestampAggregator.java"
       }
       template {
         it.properties = addOccurrence(doubleProperties, Occurrence)
-        it.inputFile = valueOverTimeAggregatorInputFile
-        it.outputFile = "org/elasticsearch/compute/aggregation/${Occurrence}OverTimeDoubleAggregator.java"
+        it.inputFile = valueByTimestampAggregatorInputFile
+        it.outputFile = "org/elasticsearch/compute/aggregation/${Occurrence}DoubleByTimestampAggregator.java"
       }
     }
   }

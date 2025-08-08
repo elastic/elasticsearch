@@ -88,8 +88,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
                 .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate(false, false))
                 .build();
             project = service.addIndexTemplateV2(project, false, "1", indexTemplate);
-            var actualTemplate = project.templatesV2().get("1");
-            assertTemplateActualIsExpected(actualTemplate, indexTemplate);
+            assertThat(project.templatesV2().get("1"), equalTo(indexTemplate));
         }
         {
             // Routing path defined in component template
@@ -107,8 +106,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
                 .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate(false, false))
                 .build();
             project = service.addIndexTemplateV2(project, false, "1", indexTemplate);
-            var actualTemplate = project.templatesV2().get("1");
-            assertTemplateActualIsExpected(actualTemplate, indexTemplate);
+            assertThat(project.templatesV2().get("1"), equalTo(indexTemplate));
         }
         {
             // Routing path defined in index template
@@ -120,8 +118,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
                 .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate(false, false))
                 .build();
             var project = service.addIndexTemplateV2(initialProject, false, "1", indexTemplate);
-            var actualTemplate = project.templatesV2().get("1");
-            assertTemplateActualIsExpected(actualTemplate, indexTemplate);
+            assertThat(project.templatesV2().get("1"), equalTo(indexTemplate));
         }
         {
             // Routing fetched from mapping in index template
@@ -135,8 +132,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
                 .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate(false, false))
                 .build();
             var project = service.addIndexTemplateV2(initialProject, false, "1", indexTemplate);
-            var actualTemplate = project.templatesV2().get("1");
-            assertTemplateActualIsExpected(actualTemplate, indexTemplate);
+            assertThat(project.templatesV2().get("1"), equalTo(indexTemplate));
         }
     }
 
@@ -192,21 +188,6 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             assertThat(result.dataRetention(), equalTo(lifecycle2.dataRetention().get()));
             assertThat(result.downsampling(), equalTo(lifecycle2.downsampling().get()));
         }
-    }
-
-    private void assertTemplateActualIsExpected(final ComposableIndexTemplate actual, final ComposableIndexTemplate expected) {
-        // make sure arguments passed in right order
-        assertTrue(actual.createdDateMillis().isPresent());
-        assertTrue(actual.modifiedDateMillis().isPresent());
-        assertTrue(expected.createdDateMillis().isEmpty());
-        assertTrue(expected.modifiedDateMillis().isEmpty());
-
-        var expectedWithDates = expected.toBuilder()
-            // can't inject timing into creation so carrying over the dates from created template
-            .createdDate(actual.createdDateMillis().orElse(null))
-            .modifiedDate(actual.modifiedDateMillis().orElse(null))
-            .build();
-        assertThat(actual, equalTo(expectedWithDates));
     }
 
     private MetadataIndexTemplateService getMetadataIndexTemplateService() {

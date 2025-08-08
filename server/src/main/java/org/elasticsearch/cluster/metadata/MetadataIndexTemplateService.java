@@ -605,12 +605,6 @@ public class MetadataIndexTemplateService {
     }
 
     public static void validateV2TemplateRequest(ProjectMetadata metadata, String name, ComposableIndexTemplate template) {
-        if (template.createdDateMillis().isPresent()) {
-            throw new InvalidIndexTemplateException(name, "provided a template property which is managed by the system: created_date");
-        }
-        if (template.modifiedDateMillis().isPresent()) {
-            throw new InvalidIndexTemplateException(name, "provided a template property which is managed by the system: modified_date");
-        }
         if (template.indexPatterns().stream().anyMatch(Regex::isMatchAllPattern)) {
             Settings mergedSettings = resolveSettings(template, metadata.componentTemplates());
             if (IndexMetadata.INDEX_HIDDEN_SETTING.exists(mergedSettings)) {
@@ -691,9 +685,11 @@ public class MetadataIndexTemplateService {
             HeaderWarning.addWarning(warning);
         }
 
-        final ComposableIndexTemplate.Builder finalIndexTemplateBuilder = template.toBuilder();
-        final Template innerTemplate = template.template();
-        if (innerTemplate != null) {
+        final ComposableIndexTemplate finalIndexTemplate;
+        Template innerTemplate = template.template();
+        if (innerTemplate == null) {
+            finalIndexTemplate = template;
+        } else {
             // We may need to normalize index settings, so do that also
             Settings finalSettings = innerTemplate.settings();
             if (finalSettings != null) {
@@ -701,25 +697,14 @@ public class MetadataIndexTemplateService {
             }
             // If an inner template was specified, its mappings may need to be
             // adjusted (to add _doc) and it should be validated
-            final CompressedXContent mappings = innerTemplate.mappings();
-            final CompressedXContent wrappedMappings = wrapMappingsIfNecessary(mappings, xContentRegistry);
+            CompressedXContent mappings = innerTemplate.mappings();
+            CompressedXContent wrappedMappings = wrapMappingsIfNecessary(mappings, xContentRegistry);
             final Template finalTemplate = Template.builder(innerTemplate).settings(finalSettings).mappings(wrappedMappings).build();
-            finalIndexTemplateBuilder.template(finalTemplate);
+            finalIndexTemplate = template.toBuilder().template(finalTemplate).build();
         }
 
-        final long now = instantSource.millis();
-        final ComposableIndexTemplate finalIndexTemplate;
-        if (existing == null) {
-            finalIndexTemplate = finalIndexTemplateBuilder.createdDate(now).modifiedDate(now).build();
-        } else {
-            final ComposableIndexTemplate templateToCompareToExisting = finalIndexTemplateBuilder.createdDate(
-                existing.createdDateMillis().orElse(null)
-            ).modifiedDate(existing.modifiedDateMillis().orElse(null)).build();
-
-            if (templateToCompareToExisting.equals(existing)) {
-                return project;
-            }
-            finalIndexTemplate = finalIndexTemplateBuilder.modifiedDate(now).build();
+        if (finalIndexTemplate.equals(existing)) {
+            return project;
         }
 
         validateIndexTemplateV2(project, name, finalIndexTemplate);

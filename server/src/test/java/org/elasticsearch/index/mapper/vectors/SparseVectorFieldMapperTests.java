@@ -40,7 +40,6 @@ import org.elasticsearch.inference.WeightedToken;
 import org.elasticsearch.search.lookup.Source;
 import org.elasticsearch.search.vectors.SparseVectorQueryWrapper;
 import org.elasticsearch.test.index.IndexVersionUtils;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParseException;
@@ -50,7 +49,6 @@ import org.hamcrest.Matchers;
 import org.junit.AssumptionViolatedException;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.EnumSet;
@@ -79,20 +77,17 @@ public class SparseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase
     public static final float STRICT_TOKENS_FREQ_RATIO_THRESHOLD = 1;
 
     private static final Map<String, Float> COMMON_TOKENS = Map.of(
-        "common1_drop_default", 0.1f,
-        "common2_drop_default", 0.1f,
-        "common3_drop_default", 0.1f
+        "common1_drop_default",
+        0.1f,
+        "common2_drop_default",
+        0.1f,
+        "common3_drop_default",
+        0.1f
     );
 
-    private static final Map<String, Float> MEDIUM_TOKENS = Map.of(
-        "medium1_keep_strict", 0.5f,
-        "medium2_keep_default", 0.25f
-    );
+    private static final Map<String, Float> MEDIUM_TOKENS = Map.of("medium1_keep_strict", 0.5f, "medium2_keep_default", 0.25f);
 
-    private static final Map<String, Float> RARE_TOKENS = Map.of(
-        "rare1_keep_strict", 0.9f,
-        "rare2_keep_strict", 0.85f
-    );
+    private static final Map<String, Float> RARE_TOKENS = Map.of("rare1_keep_strict", 0.9f, "rare2_keep_strict", 0.85f);
 
     @Override
     protected Object getSampleValueForDocument() {
@@ -877,13 +872,17 @@ public class SparseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase
         };
     }
 
-    private List<Query> getExpectedQueryClauses(SparseVectorFieldMapper.SparseVectorFieldType ft, PruningScenario pruningScenario, SearchExecutionContext searchExecutionContext) {
+    private List<Query> getExpectedQueryClauses(
+        SparseVectorFieldMapper.SparseVectorFieldType ft,
+        PruningScenario pruningScenario,
+        SearchExecutionContext searchExecutionContext
+    ) {
         List<WeightedToken> tokens = switch (pruningScenario) {
             case NO_PRUNING -> QUERY_VECTORS;
             case DEFAULT_PRUNING -> QUERY_VECTORS.stream()
-                .filter(t -> t.token().startsWith("rare") || t.token().startsWith("medium")).toList();
-            case STRICT_PRUNING -> QUERY_VECTORS.stream()
-                .filter(t -> t.token().endsWith("keep_strict")).toList();
+                .filter(t -> t.token().startsWith("rare") || t.token().startsWith("medium"))
+                .toList();
+            case STRICT_PRUNING -> QUERY_VECTORS.stream().filter(t -> t.token().endsWith("keep_strict")).toList();
         };
 
         return tokens.stream().map(t -> {

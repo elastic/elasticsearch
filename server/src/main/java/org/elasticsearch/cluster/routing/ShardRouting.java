@@ -176,7 +176,6 @@ public final class ShardRouting implements Writeable, ToXContentObject {
             }
             case Initializing initializing -> {
                 assert initializing.currentNodeId != null : "shard must be assigned to a node " + this;
-                ;
                 assert primary || initializing.recoverySource() == PeerRecoverySource.INSTANCE
                     : "replica shards always recover from primary" + this;
             }
@@ -496,12 +495,26 @@ public final class ShardRouting implements Writeable, ToXContentObject {
     }
 
     public ShardRouting updateUnassigned(UnassignedInfo unassignedInfo, RecoverySource recoverySource) {
-        assert unassigned();
-        final var stateUnassigned = (Unassigned) state;
-        assert stateUnassigned.unassignedInfo != null : "can only update unassigned info if it is already set";
-        assert stateUnassigned.unassignedInfo.delayed() || (unassignedInfo.delayed() == false)
+        assert state instanceof RecoveryState;
+        final var recoveryState = (RecoveryState) state;
+        assert recoveryState.unassignedInfo() != null : "can only update unassigned info if it is already set";
+        assert recoveryState.unassignedInfo().delayed() || (unassignedInfo.delayed() == false)
             : "cannot transition from non-delayed to delayed";
-        return new ShardRouting(shardId, primary, role, relocationFailureInfo, new Unassigned(unassignedInfo, recoverySource));
+        return new ShardRouting(shardId, primary, role, relocationFailureInfo, switch (state) {
+            case Unassigned u -> new Unassigned(unassignedInfo, recoverySource);
+            case Initializing i -> new Initializing(
+                i.currentNodeId,
+                i.relocatingNodeId,
+                unassignedInfo,
+                recoverySource,
+                i.allocationId,
+                i.expectedShardSize
+            );
+            default -> {
+                assert false;
+                yield null;
+            }
+        });
     }
 
     public ShardRouting updateRelocationFailure(RelocationFailureInfo relocationFailureInfo) {

@@ -238,7 +238,7 @@ public class RestBulkAction extends BaseRestHandler {
                 }
             }
 
-            Releasables.close(accountParsing(bytesConsumed));
+            final ArrayList<Releasable> releasables = accountParsing(bytesConsumed);
             if (isLast) {
                 assert unParsedChunks.isEmpty();
                 if (handler.getIncrementalOperation().totalParsedBytes() == 0) {
@@ -248,19 +248,19 @@ public class RestBulkAction extends BaseRestHandler {
                     assert channel != null;
                     ArrayList<DocWriteRequest<?>> toPass = new ArrayList<>(items);
                     items.clear();
-                    handler.lastItems(toPass, () -> {}, new RestRefCountedChunkedToXContentListener<>(channel));
+                    handler.lastItems(toPass, () -> Releasables.close(releasables), new RestRefCountedChunkedToXContentListener<>(channel));
                 }
                 handler.updateWaitForChunkMetrics(TimeUnit.NANOSECONDS.toMillis(totalChunkWaitTimeInNanos));
                 totalChunkWaitTimeInNanos = 0L;
             } else if (items.isEmpty() == false) {
                 ArrayList<DocWriteRequest<?>> toPass = new ArrayList<>(items);
                 items.clear();
-                handler.addItems(toPass, () -> {}, () -> {
+                handler.addItems(toPass, () -> Releasables.close(releasables), () -> {
                     requestNextChunkTime = System.nanoTime();
                     request.contentStream().next();
                 });
             } else {
-//                Releasables.close(releasables);
+                Releasables.close(releasables);
                 requestNextChunkTime = System.nanoTime();
                 request.contentStream().next();
             }

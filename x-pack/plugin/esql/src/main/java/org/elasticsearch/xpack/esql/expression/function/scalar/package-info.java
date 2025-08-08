@@ -141,6 +141,13 @@
  *         Now you can run all of the ESQL tests like CI:
  *         {@code ./gradlew -p x-pack/plugin/esql/ test}
  *     </li>
+ *     </li>
+ *        We need to tag to what release the function applies to so we can generate docs in the next step!
+ *        On the constructor of your function class you very likely have an annotation {@code @FunctionInfo}.
+ *        Add the attribute {@code appliesTo} with availability information. For example a GA function
+ *        available in 9.2.0 would be tagged as
+ *        {@code { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA, version = "9.2.0") }}
+ *     </li>
  *     <li>
  *         Now it’s time to generate some docs!
  *         Actually, running the tests in the example above should have done it for you.

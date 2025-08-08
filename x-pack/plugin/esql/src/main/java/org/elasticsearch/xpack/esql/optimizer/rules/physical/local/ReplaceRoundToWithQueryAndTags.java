@@ -38,6 +38,218 @@ import java.util.Map;
 import static org.elasticsearch.xpack.esql.core.type.DataTypeConverter.safeToLong;
 import static org.elasticsearch.xpack.esql.planner.TranslatorHandler.TRANSLATOR_HANDLER;
 
+/**
+ * {@code ReplaceRoundToWithQueryAndTags} builds a list of ranges and associated tags base on the rounding points defined in a
+ * {@code RoundTo} function. It then rewrites the {@code EsQueryExec.query()} into a corresponding list of {@code QueryBuilder}s and tags,
+ * each mapped to its respective range.
+ *
+ * Here are some examples:
+ *
+ * 1. Aggregation with date_histogram.
+ *    The {@code DATE_TRUNC} function in the query below can be rewritten to {@code RoundTo} by {@code ReplaceDateTruncBucketWithRoundTo}.
+ *    This rule pushes down the {@code RoundTo} function by creating a list of {@code QueryBuilderAndTags}, so that
+ *    {@code EsPhysicalOperationProviders} can build {@code LuceneSliceQueue} with the corresponding list of {@code QueryAndTags} to process
+ *    further.
+ *    | STATS COUNT(*) BY d = DATE_TRUNC(1 day, date)
+ *    becomes, the rounding points are calculated according to SearchStats and predicates from the query.
+ *    | EVAL d = ROUND_TO(hire_date, 1697760000000, 1697846400000, 1697932800000)
+ *    | STATS COUNT(*) BY d
+ *    becomes
+ *    [QueryBuilderAndTags[query={
+ *     "esql_single_value" : {
+ *      "field" : "date",
+ *      "next" : {
+ *       "range" : {
+ *         "date" : {
+ *           "lt" : "2023-10-21T00:00:00.000Z",
+ *           "time_zone" : "Z",
+ *           "format" : "strict_date_optional_time",
+ *           "boost" : 0.0
+ *         }
+ *       }
+ *      },
+ *      "source" : "date_trunc(1 day, date)@2:25"
+ *     }
+ *    }, tags=[1697760000000]], QueryBuilderAndTags[query={
+ *    "esql_single_value" : {
+ *     "field" : "date",
+ *     "next" : {
+ *       "range" : {
+ *         "date" : {
+ *           "gte" : "2023-10-21T00:00:00.000Z",
+ *           "lt" : "2023-10-22T00:00:00.000Z",
+ *           "time_zone" : "Z",
+ *           "format" : "strict_date_optional_time",
+ *           "boost" : 0.0
+ *         }
+ *       }
+ *      },
+ *      "source" : "date_trunc(1 day, date)@2:25"
+ *     }
+ *    }, tags=[1697846400000]], QueryBuilderAndTags[query={
+ *    "esql_single_value" : {
+ *     "field" : "date",
+ *     "next" : {
+ *       "range" : {
+ *         "date" : {
+ *           "gte" : "2023-10-22T00:00:00.000Z",
+ *           "time_zone" : "Z",
+ *           "format" : "strict_date_optional_time",
+ *           "boost" : 0.0
+ *         }
+ *       }
+ *      },
+ *      "source" : "date_trunc(1 day, date)@2:25"
+ *     }
+ *    }, tags=[1697932800000]], QueryBuilderAndTags[query={
+ *    "bool" : {
+ *     "must_not" : [
+ *       {
+ *         "exists" : {
+ *           "field" : "date",
+ *           "boost" : 0.0
+ *         }
+ *       }
+ *     ],
+ *     "boost" : 1.0
+ *    }
+ *   }, tags=[null]]]
+ *
+ * 2. Aggregation with date_histogram and the other pushdown functions
+ *    When there are other functions that can also be pushed down to Lucene, this rule combines the main query with the {@code RoundTo}
+ *    ranges to create a list of {@code QueryBuilderAndTags}. The main query is then applied to each query leg.
+ *    | WHERE keyword : "keyword"
+ *    | STATS COUNT(*) BY d = DATE_TRUNC(1 day, date)
+ *    becomes
+ *    | EVAL d = ROUND_TO(hire_date, 1697760000000, 1697846400000, 1697932800000)
+ *    | STATS COUNT(*) BY d
+ *    becomes
+ *    [QueryBuilderAndTags[query={
+ *    "bool" : {
+ *     "filter" : [
+ *       {
+ *         "match" : {
+ *           "keyword" : {
+ *             "query" : "keyword",
+ *             "lenient" : true
+ *           }
+ *         }
+ *       },
+ *       {
+ *         "esql_single_value" : {
+ *           "field" : "date",
+ *           "next" : {
+ *             "range" : {
+ *               "date" : {
+ *                 "lt" : "2023-10-21T00:00:00.000Z",
+ *                 "time_zone" : "Z",
+ *                 "format" : "strict_date_optional_time",
+ *                 "boost" : 0.0
+ *               }
+ *             }
+ *           },
+ *           "source" : "date_trunc(1 day, date)@3:25"
+ *         }
+ *       }
+ *     ],
+ *     "boost" : 1.0
+ *     }
+ *    }, tags=[1697760000000]], QueryBuilderAndTags[query={
+ *    "bool" : {
+ *     "filter" : [
+ *       {
+ *         "match" : {
+ *           "keyword" : {
+ *             "query" : "keyword",
+ *             "lenient" : true
+ *           }
+ *         }
+ *       },
+ *       {
+ *         "esql_single_value" : {
+ *           "field" : "date",
+ *           "next" : {
+ *             "range" : {
+ *               "date" : {
+ *                 "gte" : "2023-10-21T00:00:00.000Z",
+ *                 "lt" : "2023-10-22T00:00:00.000Z",
+ *                 "time_zone" : "Z",
+ *                 "format" : "strict_date_optional_time",
+ *                 "boost" : 0.0
+ *               }
+ *             }
+ *           },
+ *           "source" : "date_trunc(1 day, date)@3:25"
+ *         }
+ *       }
+ *     ],
+ *     "boost" : 1.0
+ *     }
+ *    }, tags=[1697846400000]], QueryBuilderAndTags[query={
+ *   "bool" : {
+ *     "filter" : [
+ *       {
+ *         "match" : {
+ *           "keyword" : {
+ *             "query" : "keyword",
+ *             "lenient" : true
+ *           }
+ *         }
+ *       },
+ *       {
+ *         "esql_single_value" : {
+ *           "field" : "date",
+ *           "next" : {
+ *             "range" : {
+ *               "date" : {
+ *                 "gte" : "2023-10-22T00:00:00.000Z",
+ *                 "time_zone" : "Z",
+ *                 "format" : "strict_date_optional_time",
+ *                 "boost" : 0.0
+ *               }
+ *             }
+ *           },
+ *           "source" : "date_trunc(1 day, date)@3:25"
+ *         }
+ *       }
+ *     ],
+ *     "boost" : 1.0
+ *     }
+ *    }, tags=[1697932800000]], QueryBuilderAndTags[query={
+ *   "bool" : {
+ *     "filter" : [
+ *       {
+ *         "match" : {
+ *           "keyword" : {
+ *             "query" : "keyword",
+ *             "lenient" : true
+ *           }
+ *         }
+ *       },
+ *       {
+ *         "bool" : {
+ *           "must_not" : [
+ *             {
+ *               "exists" : {
+ *                 "field" : "date",
+ *                 "boost" : 0.0
+ *               }
+ *             }
+ *           ],
+ *           "boost" : 0.0
+ *         }
+ *       }
+ *     ],
+ *     "boost" : 1.0
+ *     }
+ *    }, tags=[null]]]
+ *
+ * There are some restrictions:
+ * 1. Tags are not supported by {@code LuceneTopNSourceOperator}, if the sort is pushed down to Lucene, this rewrite does not apply.
+ * 2. Tags are not supported by {@code TimeSeriesSourceOperator}, this rewrite does not apply to timeseries indices.
+ * 3. Tags are not supported by {@code LuceneCountOperator}, this rewrite does not apply to {@code EsStatsQueryExec}, count with grouping
+ *    is not supported by {@code EsStatsQueryExec} today.
+ */
 public class ReplaceRoundToWithQueryAndTags extends PhysicalOptimizerRules.ParameterizedOptimizerRule<
     EvalExec,
     LocalPhysicalOptimizerContext> {
@@ -45,21 +257,16 @@ public class ReplaceRoundToWithQueryAndTags extends PhysicalOptimizerRules.Param
     @Override
     protected PhysicalPlan rule(EvalExec evalExec, LocalPhysicalOptimizerContext ctx) {
         PhysicalPlan plan = evalExec;
-        // Skip TIME_SERIES indices, as it is not quite clear how to deal with TimeSeriesAggregations
+        // TimeSeriesSourceOperator and LuceneTopNSourceOperator do not support QueryAndTags, skip them
         if (evalExec.child() instanceof EsQueryExec queryExec && queryExec.canSubstituteRoundToWithQueryBuilderAndTags()) {
-            // LuceneTopNSourceOperator does not support QueryAndTags, if the sort is pushed down to EsQueryExec, skip this rule.
-            List<EsQueryExec.Sort> sorts = queryExec.sorts();
-            if (sorts != null && sorts.isEmpty() == false) {
-                return plan;
-            }
             // Look for RoundTo and plan the push down for it.
-            // It is not clear how to push down multiple RoundTos, push down only one RoundTo for now.
             List<RoundTo> roundTos = evalExec.fields()
                 .stream()
                 .map(Alias::child)
                 .filter(RoundTo.class::isInstance)
                 .map(RoundTo.class::cast)
                 .toList();
+            // It is not clear how to push down multiple RoundTos, dealing with multiple RoundTos is out of the scope of this PR.
             if (roundTos.size() == 1) {
                 plan = planRoundTo(roundTos.get(0), evalExec, queryExec, ctx);
             }
@@ -68,11 +275,11 @@ public class ReplaceRoundToWithQueryAndTags extends PhysicalOptimizerRules.Param
     }
 
     /**
-     * TODO add an example for the RoundTo pushdown
+     * Rewrite the {@code RoundTo} to a list of {@code QueryBuilderAndTags} as input to {@code EsPhysicalOperationProviders}.
      */
     private static PhysicalPlan planRoundTo(RoundTo roundTo, EvalExec evalExec, EsQueryExec queryExec, LocalPhysicalOptimizerContext ctx) {
         // Usually EsQueryExec has only one QueryBuilder, one Lucene query, without RoundTo push down.
-        // If the RoundTo can be pushed down, EsQueryExec will have a list of QueryBuilders with tags that will be sent to
+        // If the RoundTo can be pushed down, a list of QueryBuilders with tags will be added into EsQueryExec, and it will be sent to
         // EsPhysicalOperationProviders.sourcePhysicalOperation to create a list of LuceneSliceQueue.QueryAndTags
         List<EsQueryExec.QueryBuilderAndTags> queryBuilderAndTags = queryBuilderAndTags(roundTo, queryExec, ctx);
         if (queryBuilderAndTags == null || queryBuilderAndTags.isEmpty()) {
@@ -81,6 +288,7 @@ public class ReplaceRoundToWithQueryAndTags extends PhysicalOptimizerRules.Param
 
         FieldAttribute fieldAttribute = (FieldAttribute) roundTo.field();
         String tagFieldName = Attribute.rawTemporaryName(
+            // $$fieldName$round_to$dateType
             fieldAttribute.fieldName().string(),
             "round_to",
             roundTo.field().dataType().typeName()
@@ -138,7 +346,7 @@ public class ReplaceRoundToWithQueryAndTags extends PhysicalOptimizerRules.Param
         List<EsQueryExec.QueryBuilderAndTags> queries = new ArrayList<>(count);
 
         Number tag = points.get(0);
-        if (points.size() == 1) {
+        if (points.size() == 1) { // if there is only one rounding point, just tag the main query
             EsQueryExec.QueryBuilderAndTags queryBuilderAndTags = tagOnlyBucket(queryExec, tag);
             queries.add(queryBuilderAndTags);
         } else {

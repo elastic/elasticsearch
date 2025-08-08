@@ -379,7 +379,8 @@ public class EsQueryExec extends LeafExec implements EstimatesRowSize {
     }
 
     public boolean canSubstituteRoundToWithQueryBuilderAndTags() {
-        return indexMode != IndexMode.TIME_SERIES;
+        // TimeSeriesSourceOperator and LuceneTopNSourceOperator do not support QueryAndTags
+        return indexMode != IndexMode.TIME_SERIES && (sorts == null || sorts.isEmpty());
     }
 
     @Override

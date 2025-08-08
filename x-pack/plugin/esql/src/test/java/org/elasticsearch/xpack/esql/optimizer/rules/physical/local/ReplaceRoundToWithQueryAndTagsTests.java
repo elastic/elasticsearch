@@ -47,6 +47,8 @@ import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
 import static org.elasticsearch.index.query.QueryBuilders.rangeQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.dateNanosToLong;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.dateTimeToLong;
 import static org.hamcrest.Matchers.is;
 
 //@TestLogging(value = "org.elasticsearch.xpack.esql:TRACE", reason = "debug")
@@ -122,7 +124,6 @@ public class ReplaceRoundToWithQueryAndTagsTests extends LocalPhysicalPlanOptimi
             assertEquals("$$date$round_to$datetime", roundToTag.name());
             EsQueryExec esQueryExec = as(eval.child(), EsQueryExec.class);
             List<EsQueryExec.QueryBuilderAndTags> queryBuilderAndTags = esQueryExec.queryBuilderAndTags();
-            assertEquals(5, queryBuilderAndTags.size());
             List<EsQueryExec.QueryBuilderAndTags> expectedQueryBuilderAndTags = expectedQueryBuilderAndTags(
                 query,
                 "date",
@@ -245,7 +246,6 @@ public class ReplaceRoundToWithQueryAndTagsTests extends LocalPhysicalPlanOptimi
                 assertEquals("$$date$round_to$datetime", roundToTag.name());
                 EsQueryExec esQueryExec = as(eval.child(), EsQueryExec.class);
                 List<EsQueryExec.QueryBuilderAndTags> queryBuilderAndTags = esQueryExec.queryBuilderAndTags();
-                assertEquals(5, queryBuilderAndTags.size());
                 List<EsQueryExec.QueryBuilderAndTags> expectedQueryBuilderAndTags = expectedQueryBuilderAndTags(
                     query,
                     "date",
@@ -317,30 +317,25 @@ public class ReplaceRoundToWithQueryAndTagsTests extends LocalPhysicalPlanOptimi
     }
 
     private static List<List<Object>> dateBuckets(boolean isDate) {
-        // Multiplier for nanos vs. millis
-        long multiplier = isDate ? 1 : 1_000_000;
-
-        // Date boundaries
-        String D_2023_10_21 = "2023-10-21T00:00:00.000Z";
-        String D_2023_10_22 = "2023-10-22T00:00:00.000Z";
-        String D_2023_10_23 = "2023-10-23T00:00:00.000Z";
+        // Date rounding points
+        String[] dates = { "2023-10-20T00:00:00.000Z", "2023-10-21T00:00:00.000Z", "2023-10-22T00:00:00.000Z", "2023-10-23T00:00:00.000Z" };
 
         // first bucket has no lower bound
         List<Object> firstBucket = new ArrayList<>(3);
         firstBucket.add(null);
-        firstBucket.add(D_2023_10_21);
-        firstBucket.add(1697760000000L * multiplier);
+        firstBucket.add(dates[1]);
+        firstBucket.add(isDate ? dateTimeToLong(dates[0]) : dateNanosToLong(dates[0]));
 
         // last bucket has no upper bound
         List<Object> lastBucket = new ArrayList<>(3);
-        lastBucket.add(D_2023_10_23);
+        lastBucket.add(dates[3]);
         lastBucket.add(null);
-        lastBucket.add(1698019200000L * multiplier);
+        lastBucket.add(isDate ? dateTimeToLong(dates[3]) : dateNanosToLong(dates[3]));
 
         return List.of(
             firstBucket,
-            List.of(D_2023_10_21, D_2023_10_22, 1697846400000L * multiplier),
-            List.of(D_2023_10_22, D_2023_10_23, 1697932800000L * multiplier),
+            List.of(dates[1], dates[2], isDate ? dateTimeToLong(dates[1]) : dateNanosToLong(dates[1])),
+            List.of(dates[2], dates[3], isDate ? dateTimeToLong(dates[2]) : dateNanosToLong(dates[2])),
             lastBucket
         );
     }

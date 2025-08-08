@@ -247,14 +247,15 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
      */
     private volatile SubscribableListener<Void> lastClusterStateShardsClosedListener = SubscribableListener.nullSuccess();
 
-    // used to avoid chaining too many ref counting listeners, hence avoiding stack overflow exceptions
+    // HACK used to avoid chaining too many ref counting listeners, hence avoiding stack overflow exceptions
     private int shardsClosedListenerChainLength = 0;
     private boolean closingMoreShards;
 
     @Nullable // if not currently applying a cluster state
     private RefCountingListener currentClusterStateShardsClosedListeners;
 
-    private ActionListener<Void> getShardsClosedListener() {
+    // protected for tests
+    protected ActionListener<Void> getShardsClosedListener() {
         assert ThreadPool.assertCurrentThreadPool(ClusterApplierService.CLUSTER_UPDATE_THREAD_NAME);
         if (currentClusterStateShardsClosedListeners == null) {
             assert false : "not currently applying cluster state";
@@ -291,10 +292,10 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                     // execute them all (because the last thread that decreases the ref count to 0 of a {@link RefCountingListener}
                     // also executes its listeners, which in turn might decrease the ref count to 0 of another
                     // {@link RefCountingListerner}, again executing its listeners, etc...).
-                    shardsClosedListenerChainLength++ < 10 ? EsExecutors.DIRECT_EXECUTOR_SERVICE : threadPool.generic(),
+                    shardsClosedListenerChainLength++ < 8 ? EsExecutors.DIRECT_EXECUTOR_SERVICE : threadPool.generic(),
                     null
                 );
-                if (shardsClosedListenerChainLength >= 10) {
+                if (shardsClosedListenerChainLength >= 8) {
                     shardsClosedListenerChainLength = 0;
                 }
                 // reset the variable before applying the cluster state
@@ -304,15 +305,19 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         } finally {
             currentClusterStateShardsClosedListeners.close();
             currentClusterStateShardsClosedListeners = null;
+            // HACK
             if (closingMoreShards == false) {
                 // avoids chaining when no shard has been closed after applying this cluster state
                 lastClusterStateShardsClosedListener = previousShardsClosedListener;
-                shardsClosedListenerChainLength--;
+                if (shardsClosedListenerChainLength > 0) {
+                    shardsClosedListenerChainLength--;
+                }
             }
         }
     }
 
-    private void doApplyClusterState(final ClusterChangedEvent event) {
+    // protected for tests
+    protected void doApplyClusterState(final ClusterChangedEvent event) {
         if (lifecycle.started() == false) {
             return;
         }

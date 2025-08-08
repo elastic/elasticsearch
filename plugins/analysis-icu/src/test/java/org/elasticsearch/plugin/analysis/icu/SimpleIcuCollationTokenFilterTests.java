@@ -17,6 +17,7 @@ import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.analysis.core.KeywordTokenizer;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.analysis.TokenFilterFactory;
@@ -37,7 +38,7 @@ public class SimpleIcuCollationTokenFilterTests extends ESTestCase {
             .put("index.analysis.filter.myCollator.type", "icu_collation")
             .put("index.analysis.filter.myCollator.strength", "primary")
             .build();
-        TestAnalysis analysis = createTestAnalysis(new Index("test", "_na_"), settings, new AnalysisICUPlugin());
+        TestAnalysis analysis = createTestAnalysis(new Index("test", IndexMetadata.INDEX_UUID_NA_VALUE), settings, new AnalysisICUPlugin());
 
         TokenFilterFactory filterFactory = analysis.tokenFilter.get("myCollator");
         assertCollatesToSame(filterFactory, "FOO", "foo");
@@ -55,7 +56,7 @@ public class SimpleIcuCollationTokenFilterTests extends ESTestCase {
             .put("index.analysis.filter.myCollator.language", "tr")
             .put("index.analysis.filter.myCollator.strength", "primary")
             .build();
-        TestAnalysis analysis = createTestAnalysis(new Index("test", "_na_"), settings, new AnalysisICUPlugin());
+        TestAnalysis analysis = createTestAnalysis(new Index("test", IndexMetadata.INDEX_UUID_NA_VALUE), settings, new AnalysisICUPlugin());
 
         TokenFilterFactory filterFactory = analysis.tokenFilter.get("myCollator");
         assertCollatesToSame(filterFactory, "I WİLL USE TURKİSH CASING", "ı will use turkish casıng");
@@ -71,7 +72,7 @@ public class SimpleIcuCollationTokenFilterTests extends ESTestCase {
             .put("index.analysis.filter.myCollator.strength", "primary")
             .put("index.analysis.filter.myCollator.decomposition", "canonical")
             .build();
-        TestAnalysis analysis = createTestAnalysis(new Index("test", "_na_"), settings, new AnalysisICUPlugin());
+        TestAnalysis analysis = createTestAnalysis(new Index("test", IndexMetadata.INDEX_UUID_NA_VALUE), settings, new AnalysisICUPlugin());
 
         TokenFilterFactory filterFactory = analysis.tokenFilter.get("myCollator");
         assertCollatesToSame(filterFactory, "I W\u0049\u0307LL USE TURKİSH CASING", "ı will use turkish casıng");
@@ -87,7 +88,7 @@ public class SimpleIcuCollationTokenFilterTests extends ESTestCase {
             .put("index.analysis.filter.myCollator.strength", "secondary")
             .put("index.analysis.filter.myCollator.decomposition", "no")
             .build();
-        TestAnalysis analysis = createTestAnalysis(new Index("test", "_na_"), settings, new AnalysisICUPlugin());
+        TestAnalysis analysis = createTestAnalysis(new Index("test", IndexMetadata.INDEX_UUID_NA_VALUE), settings, new AnalysisICUPlugin());
 
         TokenFilterFactory filterFactory = analysis.tokenFilter.get("myCollator");
         assertCollatesToSame(filterFactory, "TESTING", "testing");
@@ -104,7 +105,7 @@ public class SimpleIcuCollationTokenFilterTests extends ESTestCase {
             .put("index.analysis.filter.myCollator.strength", "primary")
             .put("index.analysis.filter.myCollator.alternate", "shifted")
             .build();
-        TestAnalysis analysis = createTestAnalysis(new Index("test", "_na_"), settings, new AnalysisICUPlugin());
+        TestAnalysis analysis = createTestAnalysis(new Index("test", IndexMetadata.INDEX_UUID_NA_VALUE), settings, new AnalysisICUPlugin());
 
         TokenFilterFactory filterFactory = analysis.tokenFilter.get("myCollator");
         assertCollatesToSame(filterFactory, "foo-bar", "foo bar");
@@ -122,7 +123,7 @@ public class SimpleIcuCollationTokenFilterTests extends ESTestCase {
             .put("index.analysis.filter.myCollator.alternate", "shifted")
             .put("index.analysis.filter.myCollator.variableTop", " ")
             .build();
-        TestAnalysis analysis = createTestAnalysis(new Index("test", "_na_"), settings, new AnalysisICUPlugin());
+        TestAnalysis analysis = createTestAnalysis(new Index("test", IndexMetadata.INDEX_UUID_NA_VALUE), settings, new AnalysisICUPlugin());
 
         TokenFilterFactory filterFactory = analysis.tokenFilter.get("myCollator");
         assertCollatesToSame(filterFactory, "foo bar", "foobar");
@@ -140,7 +141,7 @@ public class SimpleIcuCollationTokenFilterTests extends ESTestCase {
             .put("index.analysis.filter.myCollator.language", "en")
             .put("index.analysis.filter.myCollator.numeric", "true")
             .build();
-        TestAnalysis analysis = createTestAnalysis(new Index("test", "_na_"), settings, new AnalysisICUPlugin());
+        TestAnalysis analysis = createTestAnalysis(new Index("test", IndexMetadata.INDEX_UUID_NA_VALUE), settings, new AnalysisICUPlugin());
 
         TokenFilterFactory filterFactory = analysis.tokenFilter.get("myCollator");
         assertCollation(filterFactory, "foobar-9", "foobar-10", -1);
@@ -157,7 +158,7 @@ public class SimpleIcuCollationTokenFilterTests extends ESTestCase {
             .put("index.analysis.filter.myCollator.strength", "primary")
             .put("index.analysis.filter.myCollator.caseLevel", "true")
             .build();
-        TestAnalysis analysis = createTestAnalysis(new Index("test", "_na_"), settings, new AnalysisICUPlugin());
+        TestAnalysis analysis = createTestAnalysis(new Index("test", IndexMetadata.INDEX_UUID_NA_VALUE), settings, new AnalysisICUPlugin());
 
         TokenFilterFactory filterFactory = analysis.tokenFilter.get("myCollator");
         assertCollatesToSame(filterFactory, "résumé", "resume");
@@ -177,7 +178,7 @@ public class SimpleIcuCollationTokenFilterTests extends ESTestCase {
             .put("index.analysis.filter.myCollator.strength", "tertiary")
             .put("index.analysis.filter.myCollator.caseFirst", "upper")
             .build();
-        TestAnalysis analysis = createTestAnalysis(new Index("test", "_na_"), settings, new AnalysisICUPlugin());
+        TestAnalysis analysis = createTestAnalysis(new Index("test", IndexMetadata.INDEX_UUID_NA_VALUE), settings, new AnalysisICUPlugin());
 
         TokenFilterFactory filterFactory = analysis.tokenFilter.get("myCollator");
         assertCollation(filterFactory, "Resume", "resume", -1);
@@ -202,7 +203,7 @@ public class SimpleIcuCollationTokenFilterTests extends ESTestCase {
             .put("index.analysis.filter.myCollator.rules", tailoredRules)
             .put("index.analysis.filter.myCollator.strength", "primary")
             .build();
-        TestAnalysis analysis = createTestAnalysis(new Index("test", "_na_"), settings, new AnalysisICUPlugin());
+        TestAnalysis analysis = createTestAnalysis(new Index("test", IndexMetadata.INDEX_UUID_NA_VALUE), settings, new AnalysisICUPlugin());
 
         TokenFilterFactory filterFactory = analysis.tokenFilter.get("myCollator");
         assertCollatesToSame(filterFactory, "Töne", "Toene");
@@ -218,7 +219,7 @@ public class SimpleIcuCollationTokenFilterTests extends ESTestCase {
             .put("index.analysis.filter.myCollator.type", "icu_collation")
             .put("index.analysis.filter.myCollator.rules", "&a < g")
             .build();
-        TestAnalysis analysis = createTestAnalysis(new Index("test", "_na_"), settings, new AnalysisICUPlugin());
+        TestAnalysis analysis = createTestAnalysis(new Index("test", IndexMetadata.INDEX_UUID_NA_VALUE), settings, new AnalysisICUPlugin());
 
         TokenFilterFactory filterFactory = analysis.tokenFilter.get("myCollator");
         assertCollation(filterFactory, "green", "bird", -1);

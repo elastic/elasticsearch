@@ -994,7 +994,7 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
     }
 
     private static IndexMetadata createIndex(String name) {
-        return IndexMetadata.builder(name).settings(indexSettings(IndexVersion.current(), 1, 0)).build();
+        return IndexMetadata.builder(name).settings(indexSettings(IndexVersion.current(), randomUUID(), 1, 0)).build();
     }
 
     private static AllocationService createAllocationService(

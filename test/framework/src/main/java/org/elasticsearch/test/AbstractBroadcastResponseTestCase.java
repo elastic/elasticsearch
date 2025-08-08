@@ -13,6 +13,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.broadcast.BaseBroadcastResponse;
 import org.elasticsearch.action.support.broadcast.BroadcastResponse;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.index.Index;
@@ -71,8 +72,8 @@ public abstract class AbstractBroadcastResponseTestCase<T extends BroadcastRespo
             for (int i = 0; i < failedShards; i++) {
                 ElasticsearchException exception = new ElasticsearchException("exception message " + i);
                 String index = randomAlphaOfLengthBetween(3, 10);
-                exception.setIndex(new Index(index, "_na_"));
-                exception.setShard(new ShardId(index, "_na_", i));
+                exception.setIndex(new Index(index, IndexMetadata.INDEX_UUID_NA_VALUE));
+                exception.setShard(new ShardId(index, IndexMetadata.INDEX_UUID_NA_VALUE, i));
                 if (randomBoolean()) {
                     failures.add(new DefaultShardOperationFailedException(exception));
                 } else {
@@ -118,7 +119,7 @@ public abstract class AbstractBroadcastResponseTestCase<T extends BroadcastRespo
 
     public void testFailuresDeduplication() throws IOException {
         List<DefaultShardOperationFailedException> failures = new ArrayList<>();
-        Index index = new Index("test", "_na_");
+        Index index = new Index("test", IndexMetadata.INDEX_UUID_NA_VALUE);
         ElasticsearchException exception1 = new ElasticsearchException("foo", new IllegalArgumentException("bar"));
         exception1.setIndex(index);
         exception1.setShard(new ShardId(index, 0));

@@ -34,6 +34,7 @@ import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.engine.Engine;
@@ -258,8 +259,8 @@ public class TransportVerifyShardBeforeCloseActionTests extends ESTestCase {
     }
 
     public void testUnavailableShardsMarkedAsStale() throws Exception {
-        final String index = "test";
-        final ShardId shardId = new ShardId(index, "_na_", 0);
+        final Index index = new Index("test", randomUUID());
+        final ShardId shardId = new ShardId(index, 0);
 
         final int nbReplicas = randomIntBetween(1, 10);
         final ShardRoutingState[] replicaStates = new ShardRoutingState[nbReplicas];

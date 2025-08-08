@@ -55,6 +55,7 @@ import org.junit.Before;
 
 import java.time.Clock;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -77,7 +78,7 @@ public class TransformGetCheckpointTests extends ESSingleNodeTestCase {
     private Client client;
     private Task transformTask;
     private final String indexNamePattern = "test_index-";
-    private String[] testIndices;
+    private Index[] testIndices;
     private int numberOfNodes;
     private int numberOfIndices;
     private int numberOfShards;
@@ -126,11 +127,11 @@ public class TransformGetCheckpointTests extends ESSingleNodeTestCase {
         transportService.start();
         transportService.acceptIncomingRequests();
 
-        List<String> testIndicesList = new ArrayList<>();
+        List<Index> testIndicesList = new ArrayList<>();
         for (int i = 0; i < numberOfIndices; ++i) {
-            testIndicesList.add(indexNamePattern + i);
+            testIndicesList.add(new Index(indexNamePattern + i, randomUUID()));
         }
-        testIndices = testIndicesList.toArray(new String[0]);
+        testIndices = testIndicesList.toArray(new Index[0]);
 
         clusterStateWithIndex = ClusterState.builder(ClusterStateCreationUtils.state(numberOfNodes, testIndices, numberOfShards))
             .putCompatibilityVersions("node01", TransportVersions.V_8_5_0, Map.of())
@@ -196,7 +197,7 @@ public class TransformGetCheckpointTests extends ESSingleNodeTestCase {
 
     public void testMultiIndexRequest() throws InterruptedException {
         GetCheckpointAction.Request request = new GetCheckpointAction.Request(
-            testIndices,
+            Arrays.stream(testIndices).map(Index::getName).toArray(String[]::new),
             IndicesOptions.LENIENT_EXPAND_OPEN,
             null,
             null,

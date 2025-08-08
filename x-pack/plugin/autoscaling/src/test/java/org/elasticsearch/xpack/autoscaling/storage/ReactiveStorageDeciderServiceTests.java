@@ -592,7 +592,7 @@ public class ReactiveStorageDeciderServiceTests extends AutoscalingTestCase {
         ClusterState clusterState = stateBuilder.build();
 
         ShardRouting shardRouting = TestShardRouting.newShardRouting(
-            indexMetadata.getIndex().getName(),
+            indexMetadata.getIndex(),
             randomInt(10),
             clusterState.nodes().iterator().next().getId(),
             randomBoolean(),
@@ -668,7 +668,7 @@ public class ReactiveStorageDeciderServiceTests extends AutoscalingTestCase {
         ClusterState clusterState = stateBuilder.build();
 
         ShardRouting shardRouting = TestShardRouting.newShardRouting(
-            indexMetadata.getIndex().getName(),
+            indexMetadata.getIndex(),
             randomInt(10),
             clusterState.nodes().iterator().next().getId(),
             randomBoolean(),
@@ -701,7 +701,7 @@ public class ReactiveStorageDeciderServiceTests extends AutoscalingTestCase {
 
         boolean primary = randomBoolean();
         ShardRouting shardRouting = TestShardRouting.newShardRouting(
-            indexMetadata.getIndex().getName(),
+            indexMetadata.getIndex(),
             randomInt(10),
             clusterState.nodes().iterator().next().getId(),
             primary,

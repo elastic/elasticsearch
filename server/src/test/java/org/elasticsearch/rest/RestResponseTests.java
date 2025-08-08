@@ -22,6 +22,7 @@ import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.ShardSearchFailure;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.logging.Loggers;
@@ -228,11 +229,11 @@ public class RestResponseTests extends ESTestCase {
         RestChannel channel = new DetailedExceptionRestChannel(request);
         ShardSearchFailure failure = new ShardSearchFailure(
             new ParsingException(1, 2, "foobar", null),
-            new SearchShardTarget("node_1", new ShardId("foo", "_na_", 1), null)
+            new SearchShardTarget("node_1", new ShardId("foo", IndexMetadata.INDEX_UUID_NA_VALUE, 1), null)
         );
         ShardSearchFailure failure1 = new ShardSearchFailure(
             new ParsingException(1, 2, "foobar", null),
-            new SearchShardTarget("node_1", new ShardId("foo", "_na_", 2), null)
+            new SearchShardTarget("node_1", new ShardId("foo", IndexMetadata.INDEX_UUID_NA_VALUE, 2), null)
         );
         SearchPhaseExecutionException ex = new SearchPhaseExecutionException(
             "search",

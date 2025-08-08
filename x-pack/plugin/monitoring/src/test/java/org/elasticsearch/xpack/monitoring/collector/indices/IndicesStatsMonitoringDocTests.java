@@ -221,6 +221,13 @@ public class IndicesStatsMonitoringDocTests extends BaseFilteredMonitoringDocTes
     }
 
     private ShardRouting mockShardRouting(final boolean primary) {
-        return TestShardRouting.newShardRouting(randomAlphaOfLength(5), randomInt(), randomAlphaOfLength(5), primary, INITIALIZING);
+        return TestShardRouting.newShardRouting(
+            randomAlphaOfLength(5),
+            randomUUID(),
+            randomInt(),
+            randomAlphaOfLength(5),
+            primary,
+            INITIALIZING
+        );
     }
 }

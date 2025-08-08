@@ -150,9 +150,7 @@ public class BalanceConfigurationTests extends ESAllocationTestCase {
 
         for (int i = 0; i < numberOfIndices; i++) {
             IndexMetadata.Builder index = IndexMetadata.builder("test" + i)
-                .settings(settings(IndexVersion.current()))
-                .numberOfShards(numberOfShards)
-                .numberOfReplicas(numberOfReplicas);
+                .settings(indexSettings(IndexVersion.current(), randomUUID(), numberOfShards, numberOfReplicas));
             metadataBuilder = metadataBuilder.put(index);
         }
 

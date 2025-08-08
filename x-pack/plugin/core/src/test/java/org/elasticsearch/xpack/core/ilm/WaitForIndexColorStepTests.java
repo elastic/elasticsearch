@@ -230,13 +230,7 @@ public class WaitForIndexColorStepTests extends AbstractStepTestCase<WaitForInde
             .build();
 
         String indexPrefix = randomAlphaOfLengthBetween(5, 10) + "-";
-        ShardRouting shardRouting = TestShardRouting.newShardRouting(
-            originalIndex.getIndex().getName(),
-            0,
-            "1",
-            true,
-            ShardRoutingState.STARTED
-        );
+        ShardRouting shardRouting = TestShardRouting.newShardRouting(originalIndex.getIndex(), 0, "1", true, ShardRoutingState.STARTED);
         IndexRoutingTable indexRoutingTable = IndexRoutingTable.builder(originalIndex.getIndex()).addShard(shardRouting).build();
 
         final var project = ProjectMetadata.builder(randomProjectIdOrDefault()).put(originalIndex, false).build();
@@ -272,7 +266,7 @@ public class WaitForIndexColorStepTests extends AbstractStepTestCase<WaitForInde
             .numberOfReplicas(2)
             .build();
         ShardRouting originalShardRouting = TestShardRouting.newShardRouting(
-            originalIndex.getIndex().getName(),
+            originalIndex.getIndex(),
             0,
             "1",
             true,

@@ -1099,7 +1099,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
     }
 
     protected static DirectoryReader wrapInMockESDirectoryReader(DirectoryReader directoryReader) throws IOException {
-        return ElasticsearchDirectoryReader.wrap(directoryReader, new ShardId(new Index("_index", "_na_"), 0));
+        return ElasticsearchDirectoryReader.wrap(directoryReader, new ShardId(new Index("_index", IndexMetadata.INDEX_UUID_NA_VALUE), 0));
     }
 
     /**

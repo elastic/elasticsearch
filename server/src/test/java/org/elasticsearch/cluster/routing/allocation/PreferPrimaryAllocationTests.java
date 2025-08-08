@@ -41,8 +41,8 @@ public class PreferPrimaryAllocationTests extends ESAllocationTestCase {
         logger.info("create several indices with no replicas, and wait till all are allocated");
 
         Metadata metadata = Metadata.builder()
-            .put(IndexMetadata.builder("test1").settings(settings(IndexVersion.current())).numberOfShards(10).numberOfReplicas(0))
-            .put(IndexMetadata.builder("test2").settings(settings(IndexVersion.current())).numberOfShards(10).numberOfReplicas(0))
+            .put(IndexMetadata.builder("test1").settings(indexSettings(IndexVersion.current(), randomUUID(), 10, 0)))
+            .put(IndexMetadata.builder("test2").settings(indexSettings(IndexVersion.current(), randomUUID(), 10, 0)))
             .build();
 
         RoutingTable initialRoutingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)

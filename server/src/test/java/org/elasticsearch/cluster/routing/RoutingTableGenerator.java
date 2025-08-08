@@ -13,6 +13,7 @@ import com.carrotsearch.randomizedtesting.RandomizedContext;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 
 import static org.elasticsearch.cluster.health.ClusterShardHealth.getInactivePrimaryHealth;
@@ -20,7 +21,7 @@ import static org.elasticsearch.cluster.health.ClusterShardHealth.getInactivePri
 public class RoutingTableGenerator {
     private static int node_id = 1;
 
-    private ShardRouting genShardRouting(String index, int shardId, boolean primary) {
+    private ShardRouting genShardRouting(Index index, int shardId, boolean primary) {
 
         ShardRoutingState state;
 
@@ -34,19 +35,11 @@ public class RoutingTableGenerator {
         }
 
         return switch (state) {
-            case STARTED -> TestShardRouting.newShardRouting(
-                index,
-                shardId,
-                "node_" + (node_id++),
-                null,
-                primary,
-                ShardRoutingState.STARTED
-            );
+            case STARTED -> TestShardRouting.newShardRouting(index, shardId, "node_" + (node_id++), primary, ShardRoutingState.STARTED);
             case INITIALIZING -> TestShardRouting.newShardRouting(
                 index,
                 shardId,
                 "node_" + (node_id++),
-                null,
                 primary,
                 ShardRoutingState.INITIALIZING
             );
@@ -64,8 +57,8 @@ public class RoutingTableGenerator {
     }
 
     public IndexShardRoutingTable.Builder genShardRoutingTable(IndexMetadata indexMetadata, int shardId, ShardCounter counter) {
-        final String index = indexMetadata.getIndex().getName();
-        IndexShardRoutingTable.Builder builder = new IndexShardRoutingTable.Builder(new ShardId(index, "_na_", shardId));
+        final Index index = indexMetadata.getIndex();
+        IndexShardRoutingTable.Builder builder = new IndexShardRoutingTable.Builder(new ShardId(index, shardId));
         final ShardRouting primary = genShardRouting(index, shardId, true);
         counter.update(primary);
         builder.addShard(primary);

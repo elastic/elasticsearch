@@ -16,6 +16,7 @@ import org.elasticsearch.cluster.NodeUsageStatsForThreadPools;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
 import org.elasticsearch.test.ESTestCase;
@@ -39,7 +40,10 @@ public class ShardMovementWriteLoadSimulatorTests extends ESTestCase {
 
     private static final RoutingChangesObserver NOOP = new RoutingChangesObserver() {
     };
-    private static final String[] INDICES = { "indexOne", "indexTwo", "indexThree" };
+    private final Index[] indices = {
+        new Index("indexOne", randomUUID()),
+        new Index("indexTwo", randomUUID()),
+        new Index("indexThree", randomUUID()) };
 
     /**
      * We should not adjust the values if there's no movement
@@ -131,7 +135,7 @@ public class ShardMovementWriteLoadSimulatorTests extends ESTestCase {
         final var allocation = createRoutingAllocationWithRandomisedWriteLoads(
             originalNode0ThreadPoolStats,
             originalNode1ThreadPoolStats,
-            new HashSet<>(randomSubsetOf(Arrays.asList(INDICES)))
+            new HashSet<>(randomSubsetOf(Arrays.asList(indices)))
         );
         final var shardMovementWriteLoadSimulator = new ShardMovementWriteLoadSimulator(allocation);
 
@@ -164,7 +168,7 @@ public class ShardMovementWriteLoadSimulatorTests extends ESTestCase {
     private RoutingAllocation createRoutingAllocationWithRandomisedWriteLoads(
         NodeUsageStatsForThreadPools.ThreadPoolUsageStats node0ThreadPoolStats,
         NodeUsageStatsForThreadPools.ThreadPoolUsageStats node1ThreadPoolStats,
-        Set<String> indicesWithNoWriteLoad
+        Set<Index> indicesWithNoWriteLoad
     ) {
         final Map<String, NodeUsageStatsForThreadPools> nodeUsageStats = new HashMap<>();
         if (node0ThreadPoolStats != null) {
@@ -181,7 +185,7 @@ public class ShardMovementWriteLoadSimulatorTests extends ESTestCase {
                 clusterState.metadata()
                     .getProject(ProjectId.DEFAULT)
                     .stream()
-                    .filter(index -> indicesWithNoWriteLoad.contains(index.getIndex().getName()) == false)
+                    .filter(index -> indicesWithNoWriteLoad.contains(index.getIndex()) == false)
                     .flatMap(index -> IntStream.range(0, 3).mapToObj(shardNum -> new ShardId(index.getIndex(), shardNum)))
                     .collect(
                         Collectors.toUnmodifiableMap(
@@ -202,6 +206,6 @@ public class ShardMovementWriteLoadSimulatorTests extends ESTestCase {
     }
 
     private ClusterState createClusterState() {
-        return ClusterStateCreationUtils.stateWithAssignedPrimariesAndReplicas(INDICES, 3, 0);
+        return ClusterStateCreationUtils.stateWithAssignedPrimariesAndReplicas(indices, 3, 0);
     }
 }

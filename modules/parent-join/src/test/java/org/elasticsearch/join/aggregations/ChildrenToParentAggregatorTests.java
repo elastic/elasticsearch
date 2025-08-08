@@ -20,6 +20,7 @@ import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
@@ -86,7 +87,7 @@ public class ChildrenToParentAggregatorTests extends AggregatorTestCase {
 
         DirectoryReader indexReader = ElasticsearchDirectoryReader.wrap(
             DirectoryReader.open(directory),
-            new ShardId(new Index("foo", "_na_"), 1)
+            new ShardId(new Index("foo", IndexMetadata.INDEX_UUID_NA_VALUE), 1)
         );
         // verify with all documents
         testCase(new MatchAllDocsQuery(), indexReader, parent -> {
@@ -151,7 +152,7 @@ public class ChildrenToParentAggregatorTests extends AggregatorTestCase {
 
         DirectoryReader indexReader = ElasticsearchDirectoryReader.wrap(
             DirectoryReader.open(directory),
-            new ShardId(new Index("foo", "_na_"), 1)
+            new ShardId(new Index("foo", IndexMetadata.INDEX_UUID_NA_VALUE), 1)
         );
         // verify a terms-aggregation inside the parent-aggregation
         testCaseTerms(new MatchAllDocsQuery(), indexReader, parent -> {
@@ -192,7 +193,7 @@ public class ChildrenToParentAggregatorTests extends AggregatorTestCase {
 
         DirectoryReader indexReader = ElasticsearchDirectoryReader.wrap(
             DirectoryReader.open(directory),
-            new ShardId(new Index("foo", "_na_"), 1)
+            new ShardId(new Index("foo", IndexMetadata.INDEX_UUID_NA_VALUE), 1)
         );
         // verify a terms-aggregation inside the parent-aggregation which itself is inside a
         // terms-aggregation on the child-documents

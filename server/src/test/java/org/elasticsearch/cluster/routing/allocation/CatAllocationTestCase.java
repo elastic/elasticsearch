@@ -67,18 +67,18 @@ public abstract class CatAllocationTestCase extends ESAllocationTestCase {
             while ((line = reader.readLine()) != null) {
                 final Matcher matcher;
                 if ((matcher = pattern.matcher(line)).matches()) {
-                    final String index = matcher.group(1);
-                    Idx idx = indices.get(index);
+                    final String indexName = matcher.group(1);
+                    Idx idx = indices.get(indexName);
                     if (idx == null) {
-                        idx = new Idx(index);
-                        indices.put(index, idx);
+                        idx = new Idx(indexName, randomUUID());
+                        indices.put(indexName, idx);
                     }
                     final int shard = Integer.parseInt(matcher.group(2));
                     final boolean primary = matcher.group(3).equals("p");
                     ShardRoutingState state = ShardRoutingState.valueOf(matcher.group(4));
                     String ip = matcher.group(5);
                     nodes.add(ip);
-                    ShardRouting routing = TestShardRouting.newShardRouting(index, shard, ip, null, primary, state);
+                    ShardRouting routing = TestShardRouting.newShardRouting(indexName, idx.uuid, shard, ip, null, primary, state);
                     idx.add(routing);
                     logger.debug("Add routing {}", routing);
                 } else {
@@ -93,9 +93,7 @@ public abstract class CatAllocationTestCase extends ESAllocationTestCase {
         RoutingTable.Builder routingTableBuilder = RoutingTable.builder();
         for (Idx idx : indices.values()) {
             IndexMetadata.Builder idxMetaBuilder = IndexMetadata.builder(idx.name)
-                .settings(settings(IndexVersion.current()))
-                .numberOfShards(idx.numShards())
-                .numberOfReplicas(idx.numReplicas());
+                .settings(indexSettings(IndexVersion.current(), idx.uuid, idx.numShards(), idx.numReplicas()));
             for (ShardRouting shardRouting : idx.routing) {
                 if (shardRouting.active()) {
                     Set<String> allocationIds = idxMetaBuilder.getInSyncAllocationIds(shardRouting.id());
@@ -167,10 +165,12 @@ public abstract class CatAllocationTestCase extends ESAllocationTestCase {
 
     public class Idx {
         final String name;
+        final String uuid;
         final List<ShardRouting> routing = new ArrayList<>();
 
-        public Idx(String name) {
+        public Idx(String name, String uuid) {
             this.name = name;
+            this.uuid = uuid;
         }
 
         public void add(ShardRouting r) {

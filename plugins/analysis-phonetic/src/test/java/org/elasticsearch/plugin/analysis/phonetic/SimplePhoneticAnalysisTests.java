@@ -38,7 +38,7 @@ public class SimplePhoneticAnalysisTests extends ESTestCase {
             .loadFromStream(yaml, getClass().getResourceAsStream(yaml), false)
             .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
             .build();
-        this.analysis = createTestAnalysis(new Index("test", "_na_"), settings, new AnalysisPhoneticPlugin());
+        this.analysis = createTestAnalysis(new Index("test", IndexMetadata.INDEX_UUID_NA_VALUE), settings, new AnalysisPhoneticPlugin());
     }
 
     public void testPhoneticTokenFilterFactory() throws IOException {

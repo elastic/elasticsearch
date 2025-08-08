@@ -70,8 +70,8 @@ public class RoutingNodesTests extends ESAllocationTestCase {
         logger.info("Building initial routing table");
 
         Metadata metadata = Metadata.builder()
-            .put(IndexMetadata.builder("test").settings(settings(IndexVersion.current())).numberOfShards(3).numberOfReplicas(1))
-            .put(IndexMetadata.builder("test1").settings(settings(IndexVersion.current())).numberOfShards(3).numberOfReplicas(1))
+            .put(IndexMetadata.builder("test").settings(indexSettings(IndexVersion.current(), randomUUID(), 3, 1)))
+            .put(IndexMetadata.builder("test1").settings(indexSettings(IndexVersion.current(), randomUUID(), 3, 1)))
             .build();
 
         RoutingTable initialRoutingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
@@ -136,8 +136,8 @@ public class RoutingNodesTests extends ESAllocationTestCase {
         logger.info("Building initial routing table");
 
         Metadata metadata = Metadata.builder()
-            .put(IndexMetadata.builder("test").settings(settings(IndexVersion.current())).numberOfShards(3).numberOfReplicas(1))
-            .put(IndexMetadata.builder("test1").settings(settings(IndexVersion.current())).numberOfShards(3).numberOfReplicas(1))
+            .put(IndexMetadata.builder("test").settings(indexSettings(IndexVersion.current(), randomUUID(), 3, 1)))
+            .put(IndexMetadata.builder("test1").settings(indexSettings(IndexVersion.current(), randomUUID(), 3, 1)))
             .build();
 
         RoutingTable initialRoutingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
@@ -196,7 +196,7 @@ public class RoutingNodesTests extends ESAllocationTestCase {
         logger.info("Building initial routing table");
 
         Metadata metadata = Metadata.builder()
-            .put(IndexMetadata.builder("test").settings(settings(IndexVersion.current())).numberOfShards(3).numberOfReplicas(1))
+            .put(IndexMetadata.builder("test").settings(indexSettings(IndexVersion.current(), randomUUID(), 3, 1)))
             .build();
 
         RoutingTable initialRoutingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)

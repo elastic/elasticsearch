@@ -33,6 +33,7 @@ import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.cluster.routing.allocation.decider.DiskThresholdDecider;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.repositories.IndexId;
@@ -494,15 +495,15 @@ public class ClusterInfoSimulatorTests extends ESAllocationTestCase {
         var metadataBuilder = Metadata.builder();
         var routingTableBuilder = RoutingTable.builder();
 
-        var shard1 = newShardRouting("index-1", 0, "node-0", null, true, STARTED);
+        var shard1 = newShardRouting("index-1", randomUUID(), 0, "node-0", null, true, STARTED);
         addIndex(metadataBuilder, routingTableBuilder, shard1);
 
-        var shard2 = shardRoutingBuilder(new ShardId("index-2", "_na_", 0), "node-0", true, INITIALIZING).withRelocatingNodeId("node-1")
+        var shard2 = shardRoutingBuilder("index-2", randomUUID(), 0, "node-0", true, INITIALIZING).withRelocatingNodeId("node-1")
             .withRecoverySource(RecoverySource.PeerRecoverySource.INSTANCE)
             .build();
         addIndex(metadataBuilder, routingTableBuilder, shard2);
 
-        var shard3 = newShardRouting("index-3", 0, "node-1", null, true, STARTED);
+        var shard3 = newShardRouting("index-3", randomUUID(), 0, "node-1", null, true, STARTED);
         addIndex(metadataBuilder, routingTableBuilder, shard3);
 
         var state = ClusterState.builder(ClusterName.DEFAULT)
@@ -565,15 +566,15 @@ public class ClusterInfoSimulatorTests extends ESAllocationTestCase {
         var metadataBuilder = Metadata.builder();
         var routingTableBuilder = RoutingTable.builder();
 
-        var shard1 = newShardRouting("index-1", 0, "node-0", null, true, STARTED);
+        var shard1 = newShardRouting("index-1", randomUUID(), 0, "node-0", null, true, STARTED);
         addIndex(metadataBuilder, routingTableBuilder, shard1);
 
-        var shard2 = shardRoutingBuilder(new ShardId("index-2", "_na_", 0), "node-0", true, INITIALIZING).withRelocatingNodeId("node-1")
+        var shard2 = shardRoutingBuilder("index-2", randomUUID(), 0, "node-0", true, INITIALIZING).withRelocatingNodeId("node-1")
             .withRecoverySource(RecoverySource.PeerRecoverySource.INSTANCE)
             .build();
         addIndex(metadataBuilder, routingTableBuilder, shard2);
 
-        var shard3 = newShardRouting("index-3", 0, "node-1", null, true, STARTED);
+        var shard3 = newShardRouting("index-3", randomUUID(), 0, "node-1", null, true, STARTED);
         addIndex(metadataBuilder, routingTableBuilder, shard3);
 
         var state = ClusterState.builder(ClusterName.DEFAULT)
@@ -632,9 +633,9 @@ public class ClusterInfoSimulatorTests extends ESAllocationTestCase {
     }
 
     private static void addIndex(Metadata.Builder metadataBuilder, RoutingTable.Builder routingTableBuilder, ShardRouting shardRouting) {
-        var name = shardRouting.getIndexName();
-        metadataBuilder.put(IndexMetadata.builder(name).settings(indexSettings(IndexVersion.current(), 1, 0)));
-        routingTableBuilder.add(IndexRoutingTable.builder(metadataBuilder.get(name).getIndex()).addShard(shardRouting));
+        Index index = shardRouting.shardId().getIndex();
+        metadataBuilder.put(IndexMetadata.builder(index.getName()).settings(indexSettings(IndexVersion.current(), index.getUUID(), 1, 0)));
+        routingTableBuilder.add(IndexRoutingTable.builder(index).addShard(shardRouting));
     }
 
     private static RoutingAllocation createRoutingAllocation(

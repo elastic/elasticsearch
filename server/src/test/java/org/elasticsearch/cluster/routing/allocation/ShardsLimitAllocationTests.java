@@ -22,6 +22,7 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexVersion;
 
 import static org.elasticsearch.cluster.routing.RoutingNodesHelper.numberOfShardsWithState;
@@ -147,12 +148,13 @@ public class ShardsLimitAllocationTests extends ESAllocationTestCase {
 
         logger.info("Building initial routing table");
 
+        Index testIndex = new Index("test", randomUUID());
         Metadata metadata = Metadata.builder()
-            .put(IndexMetadata.builder("test").settings(indexSettings(IndexVersion.current(), 5, 0)))
+            .put(IndexMetadata.builder(testIndex.getName()).settings(indexSettings(IndexVersion.current(), testIndex.getUUID(), 5, 0)))
             .build();
 
         RoutingTable initialRoutingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
-            .addAsNew(metadata.getProject().index("test"))
+            .addAsNew(metadata.getProject().index(testIndex))
             .build();
 
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).routingTable(initialRoutingTable).build();
@@ -166,13 +168,14 @@ public class ShardsLimitAllocationTests extends ESAllocationTestCase {
         assertThat(numberOfShardsWithState(clusterState.getRoutingNodes(), STARTED), equalTo(5));
 
         logger.info("add another index with 5 shards");
+        Index testIndex1 = new Index("test1", randomUUID());
         metadata = Metadata.builder(clusterState.metadata())
-            .put(IndexMetadata.builder("test1").settings(indexSettings(IndexVersion.current(), 5, 0)))
+            .put(IndexMetadata.builder(testIndex1.getName()).settings(indexSettings(IndexVersion.current(), testIndex1.getUUID(), 5, 0)))
             .build();
         RoutingTable updatedRoutingTable = RoutingTable.builder(
             TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY,
             clusterState.routingTable()
-        ).addAsNew(metadata.getProject().index("test1")).build();
+        ).addAsNew(metadata.getProject().index(testIndex1)).build();
 
         clusterState = ClusterState.builder(clusterState).metadata(metadata).routingTable(updatedRoutingTable).build();
 
@@ -185,21 +188,21 @@ public class ShardsLimitAllocationTests extends ESAllocationTestCase {
         assertThat(numberOfShardsWithState(clusterState.getRoutingNodes(), STARTED), equalTo(10));
 
         for (ShardRouting shardRouting : clusterState.getRoutingNodes().node("node1")) {
-            assertThat(shardRouting.getIndexName(), equalTo("test"));
+            assertThat(shardRouting.getIndexName(), equalTo(testIndex.getName()));
         }
         for (ShardRouting shardRouting : clusterState.getRoutingNodes().node("node2")) {
-            assertThat(shardRouting.getIndexName(), equalTo("test1"));
+            assertThat(shardRouting.getIndexName(), equalTo(testIndex1.getName()));
         }
 
         logger.info("update {} for test, see that things move", ShardsLimitAllocationDecider.INDEX_TOTAL_SHARDS_PER_NODE_SETTING.getKey());
+        IndexMetadata indexMetadata = clusterState.metadata().getProject().index(testIndex);
         metadata = Metadata.builder(clusterState.metadata())
             .put(
-                IndexMetadata.builder(clusterState.metadata().getProject().index("test"))
+                IndexMetadata.builder(indexMetadata)
                     .settings(
-                        indexSettings(IndexVersion.current(), 5, 0).put(
-                            ShardsLimitAllocationDecider.INDEX_TOTAL_SHARDS_PER_NODE_SETTING.getKey(),
-                            3
-                        )
+                        Settings.builder()
+                            .put(indexMetadata.getSettings())
+                            .put(ShardsLimitAllocationDecider.INDEX_TOTAL_SHARDS_PER_NODE_SETTING.getKey(), 3)
                     )
             )
             .build();
@@ -216,7 +219,7 @@ public class ShardsLimitAllocationTests extends ESAllocationTestCase {
         // the first move will destroy the balance and the balancer will move 2 shards from node2 to node one right after
         // moving the nodes to node2 since we consider INITIALIZING nodes during rebalance
         clusterState = startInitializingShardsAndReroute(strategy, clusterState);
-        // now we are done compared to EvenShardCountAllocator since the Balancer is not soely based on the average
+        // now we are done compared to EvenShardCountAllocator since the Balancer is not solely based on the average
         assertThat(clusterState.getRoutingNodes().node("node1").numberOfShardsWithState(STARTED), equalTo(5));
         assertThat(clusterState.getRoutingNodes().node("node2").numberOfShardsWithState(STARTED), equalTo(5));
     }

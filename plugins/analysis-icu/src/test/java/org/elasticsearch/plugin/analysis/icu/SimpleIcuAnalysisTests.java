@@ -9,6 +9,7 @@
 
 package org.elasticsearch.plugin.analysis.icu;
 
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.analysis.CharFilterFactory;
@@ -22,7 +23,11 @@ import static org.hamcrest.Matchers.instanceOf;
 
 public class SimpleIcuAnalysisTests extends ESTestCase {
     public void testDefaultsIcuAnalysis() throws IOException {
-        TestAnalysis analysis = createTestAnalysis(new Index("test", "_na_"), Settings.EMPTY, new AnalysisICUPlugin());
+        TestAnalysis analysis = createTestAnalysis(
+            new Index("test", IndexMetadata.INDEX_UUID_NA_VALUE),
+            Settings.EMPTY,
+            new AnalysisICUPlugin()
+        );
 
         TokenizerFactory tokenizerFactory = analysis.tokenizer.get("icu_tokenizer");
         assertThat(tokenizerFactory, instanceOf(IcuTokenizerFactory.class));

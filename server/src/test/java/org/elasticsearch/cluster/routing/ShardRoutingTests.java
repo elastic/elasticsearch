@@ -157,7 +157,7 @@ public class ShardRoutingTests extends AbstractWireSerializingTestCase<ShardRout
         );
     }
 
-    private ShardRouting randomShardRouting(String index, int shard) {
+    private ShardRouting randomShardRouting(Index index, int shard) {
         ShardRoutingState state = randomFrom(ShardRoutingState.values());
         return TestShardRouting.newShardRouting(
             index,
@@ -170,10 +170,16 @@ public class ShardRoutingTests extends AbstractWireSerializingTestCase<ShardRout
     }
 
     public void testIsSameAllocation() {
-        ShardRouting unassignedShard0 = TestShardRouting.newShardRouting("test", 0, null, false, ShardRoutingState.UNASSIGNED);
-        ShardRouting unassignedShard1 = TestShardRouting.newShardRouting("test", 1, null, false, ShardRoutingState.UNASSIGNED);
-        ShardRouting initializingShard0 = TestShardRouting.newShardRouting("test", 0, "1", randomBoolean(), ShardRoutingState.INITIALIZING);
-        ShardRouting initializingShard1 = TestShardRouting.newShardRouting("test", 1, "1", randomBoolean(), ShardRoutingState.INITIALIZING);
+        Index index = new Index("test", UUIDs.randomBase64UUID());
+        ShardRouting unassignedShard0 = TestShardRouting.newShardRouting(new ShardId(index, 0), null, false, ShardRoutingState.UNASSIGNED);
+        ShardRouting unassignedShard1 = TestShardRouting.newShardRouting(new ShardId(index, 1), null, false, ShardRoutingState.UNASSIGNED);
+        ShardRouting initializingShard0 = TestShardRouting.newShardRouting(index, 0, "1", randomBoolean(), ShardRoutingState.INITIALIZING);
+        ShardRouting initializingShard1 = TestShardRouting.newShardRouting(
+            new ShardId(index, 1),
+            "1",
+            randomBoolean(),
+            ShardRoutingState.INITIALIZING
+        );
         ShardRouting startedShard0 = initializingShard0.moveToStarted(ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE);
         ShardRouting startedShard1 = initializingShard1.moveToStarted(ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE);
 
@@ -194,16 +200,17 @@ public class ShardRoutingTests extends AbstractWireSerializingTestCase<ShardRout
     }
 
     public void testIsSourceTargetRelocation() {
-        ShardRouting unassignedShard0 = TestShardRouting.newShardRouting("test", 0, null, false, ShardRoutingState.UNASSIGNED);
+        Index index = new Index("test", UUIDs.randomBase64UUID());
+        ShardRouting unassignedShard0 = TestShardRouting.newShardRouting(new ShardId(index, 0), null, false, ShardRoutingState.UNASSIGNED);
         ShardRouting initializingShard0 = TestShardRouting.newShardRouting(
-            "test",
+            index,
             0,
             "node1",
             randomBoolean(),
             ShardRoutingState.INITIALIZING
         );
         ShardRouting initializingShard1 = TestShardRouting.newShardRouting(
-            "test",
+            index,
             1,
             "node1",
             randomBoolean(),
@@ -252,7 +259,7 @@ public class ShardRoutingTests extends AbstractWireSerializingTestCase<ShardRout
     }
 
     public void testEqualsIgnoringVersion() {
-        ShardRouting routing = randomShardRouting("test", 0);
+        ShardRouting routing = randomShardRouting(new Index("test", randomUUID()), 0);
 
         ShardRouting otherRouting = routing;
 
@@ -361,8 +368,7 @@ public class ShardRoutingTests extends AbstractWireSerializingTestCase<ShardRout
                 case 5:
                     // change primary flag
                     otherRouting = shardRoutingBuilder(
-                        otherRouting.getIndexName(),
-                        otherRouting.id(),
+                        otherRouting.shardId(),
                         otherRouting.currentNodeId(),
                         otherRouting.primary() == false,
                         otherRouting.state()
@@ -372,8 +378,7 @@ public class ShardRoutingTests extends AbstractWireSerializingTestCase<ShardRout
                     // change state
                     ShardRoutingState newState = randomValueOtherThan(otherRouting.state(), () -> randomFrom(ShardRoutingState.values()));
                     otherRouting = shardRoutingBuilder(
-                        otherRouting.getIndexName(),
-                        otherRouting.id(),
+                        otherRouting.shardId(),
                         newState == ShardRoutingState.UNASSIGNED ? null : Objects.requireNonNullElse(otherRouting.currentNodeId(), "1"),
                         otherRouting.primary(),
                         newState
@@ -393,8 +398,7 @@ public class ShardRoutingTests extends AbstractWireSerializingTestCase<ShardRout
             if (randomBoolean() && otherRouting.state() == ShardRoutingState.UNASSIGNED) {
                 // change unassigned info
                 otherRouting = shardRoutingBuilder(
-                    otherRouting.getIndexName(),
-                    otherRouting.id(),
+                    otherRouting.shardId(),
                     otherRouting.currentNodeId(),
                     otherRouting.primary(),
                     otherRouting.state()
@@ -420,7 +424,7 @@ public class ShardRoutingTests extends AbstractWireSerializingTestCase<ShardRout
     public void testExpectedSize() throws IOException {
         final int iters = randomIntBetween(10, 100);
         for (int i = 0; i < iters; i++) {
-            ShardRouting routing = randomShardRouting("test", 0);
+            ShardRouting routing = randomShardRouting(new Index("test", randomUUID()), 0);
             long byteSize = randomIntBetween(0, Integer.MAX_VALUE);
             if (routing.unassigned()) {
                 routing = ShardRoutingHelper.initialize(routing, "foo", byteSize);

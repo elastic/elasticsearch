@@ -23,6 +23,7 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.common.Table;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.IndexingStats;
 import org.elasticsearch.index.shard.ShardPath;
 import org.elasticsearch.test.ESTestCase;
@@ -127,7 +128,7 @@ public class RestShardsActionTests extends ESTestCase {
         this.localNode = DiscoveryNodeUtils.create("local");
         this.shardRoutings = new ArrayList<>(numShards);
         Map<ShardRouting, ShardStats> shardStatsMap = new HashMap<>();
-        String index = "index";
+        Index index = new Index("index", randomUUID());
         for (int i = 0; i < numShards; i++) {
             ShardRoutingState shardRoutingState = ShardRoutingState.fromValue((byte) randomIntBetween(2, 3));
             ShardRouting shardRouting = TestShardRouting.newShardRouting(index, i, localNode.getId(), randomBoolean(), shardRoutingState);

@@ -14,6 +14,7 @@ import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.analysis.core.KeywordTokenizer;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.plugin.analysis.stempel.AnalysisStempelPlugin;
@@ -35,7 +36,7 @@ public class SimplePolishTokenFilterTests extends ESTestCase {
     }
 
     private void testToken(String source, String expected) throws IOException {
-        Index index = new Index("test", "_na_");
+        Index index = new Index("test", IndexMetadata.INDEX_UUID_NA_VALUE);
         Settings settings = Settings.builder().put("index.analysis.filter.myStemmer.type", "polish_stem").build();
         TestAnalysis analysis = createTestAnalysis(index, settings, new AnalysisStempelPlugin());
 
@@ -53,7 +54,11 @@ public class SimplePolishTokenFilterTests extends ESTestCase {
     }
 
     private void testAnalyzer(String source, String... expected_terms) throws IOException {
-        TestAnalysis analysis = createTestAnalysis(new Index("test", "_na_"), Settings.EMPTY, new AnalysisStempelPlugin());
+        TestAnalysis analysis = createTestAnalysis(
+            new Index("test", IndexMetadata.INDEX_UUID_NA_VALUE),
+            Settings.EMPTY,
+            new AnalysisStempelPlugin()
+        );
 
         Analyzer analyzer = analysis.indexAnalyzers.get("polish").analyzer();
 

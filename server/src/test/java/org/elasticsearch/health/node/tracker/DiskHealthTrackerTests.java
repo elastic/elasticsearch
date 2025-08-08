@@ -26,6 +26,7 @@ import org.elasticsearch.common.unit.RelativeByteSizeValue;
 import org.elasticsearch.health.HealthStatus;
 import org.elasticsearch.health.metadata.HealthMetadata;
 import org.elasticsearch.health.node.DiskHealthInfo;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.monitor.fs.FsInfo;
 import org.elasticsearch.node.NodeService;
 import org.elasticsearch.test.ESTestCase;
@@ -210,8 +211,8 @@ public class DiskHealthTrackerTests extends ESTestCase {
     }
 
     public void testHasRelocatingShards() {
-        String indexName = "my-index";
-        final ClusterState state = state(indexName, true, ShardRoutingState.RELOCATING);
+        final Index index = new Index("my-index", randomUUID());
+        final ClusterState state = state(index, true, ShardRoutingState.RELOCATING);
         // local node coincides with the node hosting the (relocating) primary shard
         DiscoveryNode localNode = state.nodes().getLocalNode();
         assertTrue(DiskHealthTracker.hasRelocatingShards(state, localNode));

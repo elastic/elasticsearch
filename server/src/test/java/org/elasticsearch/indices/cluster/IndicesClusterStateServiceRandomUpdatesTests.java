@@ -159,20 +159,25 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
      */
     public void testJoiningNewClusterOnlyRemovesInMemoryIndexStructures() {
         // a cluster state derived from the initial state that includes a created index
-        String name = "index_" + randomAlphaOfLength(8).toLowerCase(Locale.ROOT);
+        Index index = new Index("index_" + randomAlphaOfLength(8).toLowerCase(Locale.ROOT), randomUUID());
         ShardRoutingState[] replicaStates = new ShardRoutingState[randomIntBetween(0, 3)];
         Arrays.fill(replicaStates, ShardRoutingState.UNASSIGNED);
-        ClusterState stateWithIndex = ClusterStateCreationUtils.state(name, randomBoolean(), ShardRoutingState.INITIALIZING, replicaStates);
+        ClusterState stateWithIndex = ClusterStateCreationUtils.state(
+            index,
+            randomBoolean(),
+            ShardRoutingState.INITIALIZING,
+            replicaStates
+        );
 
         // the initial state which is derived from the newly created cluster state but doesn't contain the index
         ClusterState initialState = ClusterState.builder(stateWithIndex)
-            .metadata(Metadata.builder(stateWithIndex.metadata()).remove(name))
+            .metadata(Metadata.builder(stateWithIndex.metadata()).remove(index.getName()))
             .routingTable(RoutingTable.builder().build())
             .build();
 
         // pick a data node to simulate the adding an index cluster state change event on, that has shards assigned to it
         DiscoveryNode node = stateWithIndex.nodes()
-            .get(randomFrom(stateWithIndex.routingTable().index(name).shardsWithState(INITIALIZING)).currentNodeId());
+            .get(randomFrom(stateWithIndex.routingTable().index(index.getName()).shardsWithState(INITIALIZING)).currentNodeId());
 
         // simulate the cluster state change on the node
         ClusterState localState = adaptClusterStateToLocalNode(stateWithIndex, node);
@@ -201,9 +206,8 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
         // but the persistent data is still there
         RecordingIndicesService indicesService = (RecordingIndicesService) indicesCSSvc.indicesService;
         for (IndexMetadata indexMetadata : stateWithIndex.metadata().getProject()) {
-            Index index = indexMetadata.getIndex();
-            assertNull(indicesService.indexService(index));
-            assertFalse(indicesService.isDeleted(index));
+            assertNull(indicesService.indexService(indexMetadata.getIndex()));
+            assertFalse(indicesService.isDeleted(indexMetadata.getIndex()));
         }
     }
 
@@ -217,7 +221,7 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
      */
     public void testInitializingPrimaryRemovesInitializingReplicaWithSameAID() {
         disableRandomFailures();
-        String index = "index_" + randomAlphaOfLength(8).toLowerCase(Locale.ROOT);
+        Index index = new Index("index_" + randomAlphaOfLength(8).toLowerCase(Locale.ROOT), randomUUID());
         ClusterState state = ClusterStateCreationUtils.state(
             index,
             randomBoolean(),
@@ -228,7 +232,7 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
 
         // the initial state which is derived from the newly created cluster state but doesn't contain the index
         ClusterState previousState = ClusterState.builder(state)
-            .metadata(Metadata.builder(state.metadata()).remove(index))
+            .metadata(Metadata.builder(state.metadata()).remove(index.getName()))
             .routingTable(RoutingTable.builder().build())
             .build();
 
@@ -270,7 +274,7 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
 
     public void testRecoveryFailures() {
         disableRandomFailures();
-        String index = "index_" + randomAlphaOfLength(8).toLowerCase(Locale.ROOT);
+        Index index = new Index("index_" + randomAlphaOfLength(8).toLowerCase(Locale.ROOT), randomUUID());
         ClusterState state = ClusterStateCreationUtils.state(
             index,
             randomBoolean(),
@@ -280,7 +284,7 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
 
         // the initial state which is derived from the newly created cluster state but doesn't contain the index
         ClusterState previousState = ClusterState.builder(state)
-            .metadata(Metadata.builder(state.metadata()).remove(index))
+            .metadata(Metadata.builder(state.metadata()).remove(index.getName()))
             .routingTable(RoutingTable.builder().build())
             .build();
 

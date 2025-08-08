@@ -302,8 +302,8 @@ public class TransportWriteActionTests extends ESTestCase {
             shardStateAction,
             threadPool
         );
-        final String index = "test";
-        final ShardId shardId = new ShardId(index, "_na_", 0);
+        final Index index = new Index("test", randomUUID());
+        final ShardId shardId = new ShardId(index, 0);
         ClusterState state = ClusterStateCreationUtils.stateWithActivePrimary(projectId, index, true, 1 + randomInt(3), randomInt(2));
         logger.info("using state: {}", state);
         ClusterServiceUtils.setState(clusterService, state);

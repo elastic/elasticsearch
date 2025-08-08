@@ -91,7 +91,7 @@ public class BitSetFilterCacheTests extends ESTestCase {
         writer.commit();
 
         DirectoryReader reader = DirectoryReader.open(writer);
-        reader = ElasticsearchDirectoryReader.wrap(reader, new ShardId("test", "_na_", 0));
+        reader = ElasticsearchDirectoryReader.wrap(reader, new ShardId("test", IndexMetadata.INDEX_UUID_NA_VALUE, 0));
 
         BitsetFilterCache cache = new BitsetFilterCache(INDEX_SETTINGS, BitsetFilterCache.Listener.NOOP);
         BitSetProducer filter = cache.getBitSetProducer(new TermQuery(new Term("field", "value")));

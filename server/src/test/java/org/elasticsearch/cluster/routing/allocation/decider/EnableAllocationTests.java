@@ -170,13 +170,11 @@ public class EnableAllocationTests extends ESAllocationTestCase {
             .put(
                 IndexMetadata.builder("always_disabled")
                     .settings(
-                        settings(IndexVersion.current()).put(
+                        indexSettings(IndexVersion.current(), randomUUID(), 1, 1).put(
                             EnableAllocationDecider.INDEX_ROUTING_REBALANCE_ENABLE_SETTING.getKey(),
                             Rebalance.NONE
                         )
                     )
-                    .numberOfShards(1)
-                    .numberOfReplicas(1)
             )
             .build();
 

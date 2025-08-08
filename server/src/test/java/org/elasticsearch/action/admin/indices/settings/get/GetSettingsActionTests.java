@@ -15,6 +15,7 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.replication.ClusterStateCreationUtils;
 import org.elasticsearch.cluster.ProjectState;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.project.TestProjectResolvers;
@@ -47,7 +48,7 @@ public class GetSettingsActionTests extends ESTestCase {
     private ClusterService clusterService;
     private ThreadPool threadPool;
     private SettingsFilter settingsFilter;
-    private final String indexName = "test_index";
+    private final Index index = new Index("test_index", randomUUID());
 
     private TestTransportGetSettingsAction getSettingsAction;
 
@@ -72,7 +73,7 @@ public class GetSettingsActionTests extends ESTestCase {
             ProjectState state,
             ActionListener<GetSettingsResponse> listener
         ) {
-            ProjectState stateWithIndex = ClusterStateCreationUtils.state(indexName, 1, 1).projectState(state.projectId());
+            ProjectState stateWithIndex = ClusterStateCreationUtils.state(index, 1, 1).projectState(state.projectId());
             super.localClusterStateOperation(task, request, stateWithIndex, listener);
         }
     }
@@ -107,7 +108,7 @@ public class GetSettingsActionTests extends ESTestCase {
     }
 
     public void testIncludeDefaults() {
-        GetSettingsRequest noDefaultsRequest = new GetSettingsRequest(TEST_REQUEST_TIMEOUT).indices(indexName);
+        GetSettingsRequest noDefaultsRequest = new GetSettingsRequest(TEST_REQUEST_TIMEOUT).indices(index.getName());
         ActionTestUtils.execute(
             getSettingsAction,
             null,
@@ -115,12 +116,12 @@ public class GetSettingsActionTests extends ESTestCase {
             ActionTestUtils.assertNoFailureListener(
                 noDefaultsResponse -> assertNull(
                     "index.refresh_interval should be null as it was never set",
-                    noDefaultsResponse.getSetting(indexName, "index.refresh_interval")
+                    noDefaultsResponse.getSetting(index.getName(), "index.refresh_interval")
                 )
             )
         );
 
-        GetSettingsRequest defaultsRequest = new GetSettingsRequest(TEST_REQUEST_TIMEOUT).indices(indexName).includeDefaults(true);
+        GetSettingsRequest defaultsRequest = new GetSettingsRequest(TEST_REQUEST_TIMEOUT).indices(index.getName()).includeDefaults(true);
 
         ActionTestUtils.execute(
             getSettingsAction,
@@ -129,7 +130,7 @@ public class GetSettingsActionTests extends ESTestCase {
             ActionTestUtils.assertNoFailureListener(
                 defaultsResponse -> assertNotNull(
                     "index.refresh_interval should be set as we are including defaults",
-                    defaultsResponse.getSetting(indexName, "index.refresh_interval")
+                    defaultsResponse.getSetting(index.getName(), "index.refresh_interval")
                 )
             )
         );
@@ -137,21 +138,21 @@ public class GetSettingsActionTests extends ESTestCase {
     }
 
     public void testIncludeDefaultsWithFiltering() {
-        GetSettingsRequest defaultsRequest = new GetSettingsRequest(TEST_REQUEST_TIMEOUT).indices(indexName)
+        GetSettingsRequest defaultsRequest = new GetSettingsRequest(TEST_REQUEST_TIMEOUT).indices(index.getName())
             .includeDefaults(true)
             .names("index.refresh_interval");
         ActionTestUtils.execute(getSettingsAction, null, defaultsRequest, ActionTestUtils.assertNoFailureListener(defaultsResponse -> {
             assertNotNull(
                 "index.refresh_interval should be set as we are including defaults",
-                defaultsResponse.getSetting(indexName, "index.refresh_interval")
+                defaultsResponse.getSetting(index.getName(), "index.refresh_interval")
             );
             assertNull(
                 "index.number_of_shards should be null as this query is filtered",
-                defaultsResponse.getSetting(indexName, "index.number_of_shards")
+                defaultsResponse.getSetting(index.getName(), "index.number_of_shards")
             );
             assertNull(
                 "index.warmer.enabled should be null as this query is filtered",
-                defaultsResponse.getSetting(indexName, "index.warmer.enabled")
+                defaultsResponse.getSetting(index.getName(), "index.warmer.enabled")
             );
         }));
     }
@@ -170,7 +171,12 @@ public class GetSettingsActionTests extends ESTestCase {
         public Index[] concreteIndices(ProjectMetadata project, IndicesRequest request) {
             Index[] out = new Index[request.indices().length];
             for (int x = 0; x < out.length; x++) {
-                out[x] = new Index(request.indices()[x], "_na_");
+                String indexName = request.indices()[x];
+                if (project.hasIndex(indexName)) {
+                    out[x] = project.index(indexName).getIndex();
+                } else {
+                    out[x] = new Index(indexName, IndexMetadata.INDEX_UUID_NA_VALUE);
+                }
             }
             return out;
         }

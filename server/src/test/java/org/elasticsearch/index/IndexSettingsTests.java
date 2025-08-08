@@ -156,7 +156,7 @@ public class IndexSettingsTests extends ESTestCase {
         IndexMetadata metadata = newIndexMeta("index", Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, version).build());
         IndexSettings settings = new IndexSettings(metadata, Settings.EMPTY);
         assertEquals(version, settings.getIndexVersionCreated());
-        assertEquals("_na_", settings.getUUID());
+        assertEquals(IndexMetadata.INDEX_UUID_NA_VALUE, settings.getUUID());
         try {
             settings.updateIndexMetadata(
                 newIndexMeta(

@@ -275,7 +275,7 @@ public class AuthorizedIndicesTests extends ESTestCase {
                 true
             )
             .put(new IndexMetadata.Builder(backingIndex).settings(indexSettings).numberOfShards(1).numberOfReplicas(0).build(), true)
-            .put(DataStreamTestHelper.newInstance("adatastream1", List.of(new Index(backingIndex, "_na_"))))
+            .put(DataStreamTestHelper.newInstance("adatastream1", List.of(new Index(backingIndex, IndexMetadata.INDEX_UUID_NA_VALUE))))
             .build();
         final PlainActionFuture<Role> future = new PlainActionFuture<>();
         final Set<RoleDescriptor> descriptors = Sets.newHashSet(aStarRole, bRole);

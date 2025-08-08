@@ -79,10 +79,7 @@ public class RandomAllocationDeciderTests extends ESAllocationTestCase {
             int numShards = scaledRandomIntBetween(1, 20);
             totalNumShards += numShards * (replicas + 1);
             metaBuilder.put(
-                IndexMetadata.builder("INDEX_" + i)
-                    .settings(settings(IndexVersion.current()))
-                    .numberOfShards(numShards)
-                    .numberOfReplicas(replicas)
+                IndexMetadata.builder("INDEX_" + i).settings(indexSettings(IndexVersion.current(), randomUUID(), numShards, replicas))
             );
 
         }

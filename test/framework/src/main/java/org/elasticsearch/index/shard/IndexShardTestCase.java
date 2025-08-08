@@ -262,7 +262,7 @@ public abstract class IndexShardTestCase extends ESTestCase {
         EngineFactory engineFactory,
         final IndexingOperationListener... listeners
     ) throws IOException {
-        return newShard(primary, new ShardId("index", "_na_", 0), settings, engineFactory, listeners);
+        return newShard(primary, new ShardId("index", IndexMetadata.INDEX_UUID_NA_VALUE, 0), settings, engineFactory, listeners);
     }
 
     /**

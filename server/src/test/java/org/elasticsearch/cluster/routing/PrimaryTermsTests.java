@@ -42,9 +42,6 @@ public class PrimaryTermsTests extends ESAllocationTestCase {
     private static final String TEST_INDEX_2 = "test2";
     private int numberOfShards;
     private int numberOfReplicas;
-    private static final Settings DEFAULT_SETTINGS = Settings.builder()
-        .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
-        .build();
     private AllocationService allocationService;
     private ClusterState clusterState;
 
@@ -171,9 +168,9 @@ public class PrimaryTermsTests extends ESAllocationTestCase {
 
     private IndexMetadata.Builder createIndexMetadata(String indexName) {
         primaryTermsPerIndex.put(indexName, new long[numberOfShards]);
-        final IndexMetadata.Builder builder = new IndexMetadata.Builder(indexName).settings(DEFAULT_SETTINGS)
-            .numberOfReplicas(this.numberOfReplicas)
-            .numberOfShards(this.numberOfShards);
+        final IndexMetadata.Builder builder = new IndexMetadata.Builder(indexName).settings(
+            indexSettings(IndexVersion.current(), randomUUID(), this.numberOfShards, this.numberOfReplicas)
+        );
         for (int i = 0; i < numberOfShards; i++) {
             builder.primaryTerm(i, randomInt(200));
             primaryTermsPerIndex.get(indexName)[i] = builder.primaryTerm(i);

@@ -16,6 +16,9 @@ import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
+import org.hamcrest.Description;
+import org.hamcrest.Matcher;
+import org.hamcrest.TypeSafeMatcher;
 
 import java.net.InetAddress;
 import java.util.Arrays;
@@ -24,15 +27,25 @@ import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
+import static org.elasticsearch.cluster.routing.RoutingNodeTests.ParsedShardIdMatcher.equalsToParsedShardId;
+import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 
 public class RoutingNodeTests extends ESTestCase {
-    private ShardRouting unassignedShard0 = TestShardRouting.newShardRouting("test", 0, "node-1", false, ShardRoutingState.STARTED);
-    private ShardRouting initializingShard0 = TestShardRouting.newShardRouting("test", 1, "node-1", false, ShardRoutingState.INITIALIZING);
-    private ShardRouting relocatingShard0 = TestShardRouting.newShardRouting(
-        "test",
+    private final Index index = new Index("test", randomUUID());
+    private final ShardRouting unassignedShard0 = TestShardRouting.newShardRouting(index, 0, "node-1", false, ShardRoutingState.STARTED);
+    private final ShardRouting initializingShard0 = TestShardRouting.newShardRouting(
+        index,
+        1,
+        "node-1",
+        false,
+        ShardRoutingState.INITIALIZING
+    );
+    private final ShardRouting relocatingShard0 = TestShardRouting.newShardRouting(
+        index,
         2,
         "node-1",
         "node-2",
@@ -51,49 +64,38 @@ public class RoutingNodeTests extends ESTestCase {
     }
 
     public void testAdd() {
-        ShardRouting initializingShard1 = TestShardRouting.newShardRouting("test", 3, "node-1", false, ShardRoutingState.INITIALIZING);
-        ShardRouting relocatingShard0 = TestShardRouting.newShardRouting(
-            "test",
-            4,
-            "node-1",
-            "node-2",
-            false,
-            ShardRoutingState.RELOCATING
-        );
+        ShardId shard3Id = new ShardId(index, 3);
+        ShardId shard4Id = new ShardId(index, 4);
+        ShardRouting initializingShard1 = TestShardRouting.newShardRouting(shard3Id, "node-1", false, ShardRoutingState.INITIALIZING);
+        ShardRouting relocatingShard0 = TestShardRouting.newShardRouting(shard4Id, "node-1", "node-2", false, ShardRoutingState.RELOCATING);
         routingNode.add(initializingShard1);
         routingNode.add(relocatingShard0);
-        assertThat(routingNode.getByShardId(new ShardId("test", IndexMetadata.INDEX_UUID_NA_VALUE, 3)), equalTo(initializingShard1));
-        assertThat(routingNode.getByShardId(new ShardId("test", IndexMetadata.INDEX_UUID_NA_VALUE, 4)), equalTo(relocatingShard0));
+        assertThat(routingNode.getByShardId(shard3Id), equalTo(initializingShard1));
+        assertThat(routingNode.getByShardId(shard4Id), equalTo(relocatingShard0));
     }
 
     public void testUpdate() {
-        ShardRouting startedShard0 = TestShardRouting.newShardRouting("test", 0, "node-1", false, ShardRoutingState.STARTED);
-        ShardRouting startedShard1 = TestShardRouting.newShardRouting("test", 1, "node-1", "node-2", false, ShardRoutingState.RELOCATING);
-        ShardRouting startedShard2 = TestShardRouting.newShardRouting("test", 2, "node-1", false, ShardRoutingState.INITIALIZING);
+        ShardId shard0Id = new ShardId(index, 0);
+        ShardId shard1Id = new ShardId(index, 1);
+        ShardId shard2Id = new ShardId(index, 2);
+        ShardRouting startedShard0 = TestShardRouting.newShardRouting(shard0Id, "node-1", false, ShardRoutingState.STARTED);
+        ShardRouting startedShard1 = TestShardRouting.newShardRouting(shard1Id, "node-1", "node-2", false, ShardRoutingState.RELOCATING);
+        ShardRouting startedShard2 = TestShardRouting.newShardRouting(shard2Id, "node-1", false, ShardRoutingState.INITIALIZING);
         routingNode.update(unassignedShard0, startedShard0);
         routingNode.update(initializingShard0, startedShard1);
         routingNode.update(relocatingShard0, startedShard2);
-        assertThat(
-            routingNode.getByShardId(new ShardId("test", IndexMetadata.INDEX_UUID_NA_VALUE, 0)).state(),
-            equalTo(ShardRoutingState.STARTED)
-        );
-        assertThat(
-            routingNode.getByShardId(new ShardId("test", IndexMetadata.INDEX_UUID_NA_VALUE, 1)).state(),
-            equalTo(ShardRoutingState.RELOCATING)
-        );
-        assertThat(
-            routingNode.getByShardId(new ShardId("test", IndexMetadata.INDEX_UUID_NA_VALUE, 2)).state(),
-            equalTo(ShardRoutingState.INITIALIZING)
-        );
+        assertThat(routingNode.getByShardId(shard0Id).state(), equalTo(ShardRoutingState.STARTED));
+        assertThat(routingNode.getByShardId(shard1Id).state(), equalTo(ShardRoutingState.RELOCATING));
+        assertThat(routingNode.getByShardId(shard2Id).state(), equalTo(ShardRoutingState.INITIALIZING));
     }
 
     public void testRemove() {
         routingNode.remove(unassignedShard0);
         routingNode.remove(initializingShard0);
         routingNode.remove(relocatingShard0);
-        assertThat(routingNode.getByShardId(new ShardId("test", IndexMetadata.INDEX_UUID_NA_VALUE, 0)), is(nullValue()));
-        assertThat(routingNode.getByShardId(new ShardId("test", IndexMetadata.INDEX_UUID_NA_VALUE, 1)), is(nullValue()));
-        assertThat(routingNode.getByShardId(new ShardId("test", IndexMetadata.INDEX_UUID_NA_VALUE, 2)), is(nullValue()));
+        assertThat(routingNode.getByShardId(new ShardId(index, 0)), is(nullValue()));
+        assertThat(routingNode.getByShardId(new ShardId(index, 1)), is(nullValue()));
+        assertThat(routingNode.getByShardId(new ShardId(index, 2)), is(nullValue()));
     }
 
     public void testNumberOfShardsWithState() {
@@ -109,10 +111,13 @@ public class RoutingNodeTests extends ESTestCase {
     }
 
     public void testShardsWithStateInIndex() {
-        assertThat(routingNode.shardsWithState("test", ShardRoutingState.INITIALIZING, ShardRoutingState.STARTED).count(), equalTo(2L));
-        assertThat(routingNode.shardsWithState("test", ShardRoutingState.STARTED).count(), equalTo(1L));
-        assertThat(routingNode.shardsWithState("test", ShardRoutingState.RELOCATING).count(), equalTo(1L));
-        assertThat(routingNode.shardsWithState("test", ShardRoutingState.INITIALIZING).count(), equalTo(1L));
+        assertThat(
+            routingNode.shardsWithState(index.getName(), ShardRoutingState.INITIALIZING, ShardRoutingState.STARTED).count(),
+            equalTo(2L)
+        );
+        assertThat(routingNode.shardsWithState(index.getName(), ShardRoutingState.STARTED).count(), equalTo(1L));
+        assertThat(routingNode.shardsWithState(index.getName(), ShardRoutingState.RELOCATING).count(), equalTo(1L));
+        assertThat(routingNode.shardsWithState(index.getName(), ShardRoutingState.INITIALIZING).count(), equalTo(1L));
     }
 
     public void testNumberOfOwningShards() {
@@ -120,9 +125,11 @@ public class RoutingNodeTests extends ESTestCase {
     }
 
     public void testNumberOfOwningShardsForIndex() {
-        final ShardRouting test1Shard0 = TestShardRouting.newShardRouting("test1", 0, "node-1", false, ShardRoutingState.STARTED);
+        Index index1 = new Index("test1", randomUUID());
+        Index index2 = new Index("test2", randomUUID());
+        final ShardRouting test1Shard0 = TestShardRouting.newShardRouting(index1, 0, "node-1", false, ShardRoutingState.STARTED);
         final ShardRouting test2Shard0 = TestShardRouting.newShardRouting(
-            "test2",
+            index2,
             0,
             "node-1",
             "node-2",
@@ -131,22 +138,32 @@ public class RoutingNodeTests extends ESTestCase {
         );
         routingNode.add(test1Shard0);
         routingNode.add(test2Shard0);
-        assertThat(routingNode.numberOfOwningShardsForIndex(new Index("test", IndexMetadata.INDEX_UUID_NA_VALUE)), equalTo(2));
-        assertThat(routingNode.numberOfOwningShardsForIndex(new Index("test1", IndexMetadata.INDEX_UUID_NA_VALUE)), equalTo(1));
-        assertThat(routingNode.numberOfOwningShardsForIndex(new Index("test2", IndexMetadata.INDEX_UUID_NA_VALUE)), equalTo(0));
+        assertThat(routingNode.numberOfOwningShardsForIndex(index), equalTo(2));
+        assertThat(routingNode.numberOfOwningShardsForIndex(index1), equalTo(1));
+        assertThat(routingNode.numberOfOwningShardsForIndex(index2), equalTo(0));
         assertThat(routingNode.numberOfOwningShardsForIndex(new Index("test3", IndexMetadata.INDEX_UUID_NA_VALUE)), equalTo(0));
     }
 
     public void testReturnStartedShards() {
-        assertThat(startedShardsSet(routingNode), equalTo(Set.of(ShardId.fromString("[test][0]"))));
+        Matcher<ShardId> shard0Matcher = equalsToParsedShardId("[test][0]");
+        assertThat(startedShardsSet(routingNode), contains(shard0Matcher));
 
-        ShardRouting startedShard = TestShardRouting.newShardRouting("test1", 1, "node-1", false, ShardRoutingState.STARTED);
+        ShardRouting anotherStartedShard = TestShardRouting.newShardRouting(
+            "test1",
+            randomUUID(),
+            1,
+            "node-1",
+            false,
+            ShardRoutingState.STARTED
+        );
 
-        routingNode.add(startedShard);
-        assertThat(startedShardsSet(routingNode), equalTo(Set.of(ShardId.fromString("[test][0]"), ShardId.fromString("[test1][1]"))));
+        routingNode.add(anotherStartedShard);
+        Matcher<ShardId> shard1Matcher = equalsToParsedShardId("[test1][1]");
+        assertThat(startedShardsSet(routingNode), containsInAnyOrder(shard0Matcher, shard1Matcher));
 
         ShardRouting relocatingShard = TestShardRouting.newShardRouting(
             "test2",
+            IndexMetadata.INDEX_UUID_NA_VALUE,
             2,
             "node-1",
             "node-2",
@@ -154,14 +171,40 @@ public class RoutingNodeTests extends ESTestCase {
             ShardRoutingState.RELOCATING
         );
         routingNode.add(relocatingShard);
-        assertThat(startedShardsSet(routingNode), equalTo(Set.of(ShardId.fromString("[test][0]"), ShardId.fromString("[test1][1]"))));
+        assertThat(startedShardsSet(routingNode), containsInAnyOrder(shard0Matcher, shard1Matcher));
 
-        routingNode.remove(startedShard);
-        assertThat(startedShardsSet(routingNode), equalTo(Set.of(ShardId.fromString("[test][0]"))));
+        routingNode.remove(anotherStartedShard);
+        assertThat(startedShardsSet(routingNode), containsInAnyOrder(shard0Matcher));
     }
 
     private static Set<ShardId> startedShardsSet(RoutingNode routingNode) {
         return Arrays.stream(routingNode.started()).map(ShardRouting::shardId).collect(Collectors.toSet());
+    }
+
+    /**
+     * When parsing from string, we lose uuid information, this is why we do not check shard id equality.
+     */
+    static class ParsedShardIdMatcher extends TypeSafeMatcher<ShardId> {
+
+        private final ShardId expectedShardId;
+
+        private ParsedShardIdMatcher(ShardId expectedShardId) {
+            this.expectedShardId = expectedShardId;
+        }
+
+        @Override
+        protected boolean matchesSafely(ShardId shardId) {
+            return expectedShardId.getIndexName().equals(shardId.getIndexName()) && expectedShardId.getId() == shardId.getId();
+        }
+
+        @Override
+        public void describeTo(Description description) {
+            description.appendText("equals to " + expectedShardId.toString());
+        }
+
+        static Matcher<ShardId> equalsToParsedShardId(String shardId) {
+            return new ParsedShardIdMatcher(ShardId.fromString(shardId));
+        }
     }
 
 }

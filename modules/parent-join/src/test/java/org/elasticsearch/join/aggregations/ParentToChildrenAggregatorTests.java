@@ -24,6 +24,7 @@ import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
@@ -89,7 +90,7 @@ public class ParentToChildrenAggregatorTests extends AggregatorTestCase {
 
         DirectoryReader indexReader = ElasticsearchDirectoryReader.wrap(
             DirectoryReader.open(directory),
-            new ShardId(new Index("foo", "_na_"), 1)
+            new ShardId(new Index("foo", IndexMetadata.INDEX_UUID_NA_VALUE), 1)
         );
         testCase(new MatchAllDocsQuery(), indexReader, child -> {
             int expectedTotalChildren = 0;
@@ -128,7 +129,7 @@ public class ParentToChildrenAggregatorTests extends AggregatorTestCase {
             try (
                 DirectoryReader indexReader = ElasticsearchDirectoryReader.wrap(
                     DirectoryReader.open(directory),
-                    new ShardId(new Index("foo", "_na_"), 1)
+                    new ShardId(new Index("foo", IndexMetadata.INDEX_UUID_NA_VALUE), 1)
                 )
             ) {
                 AggregationBuilder request = new TermsAggregationBuilder("t").field("kwd")
@@ -180,7 +181,7 @@ public class ParentToChildrenAggregatorTests extends AggregatorTestCase {
             try (
                 var indexReader = ElasticsearchDirectoryReader.wrap(
                     DirectoryReader.open(directory),
-                    new ShardId(new Index("foo", "_na_"), 1)
+                    new ShardId(new Index("foo", IndexMetadata.INDEX_UUID_NA_VALUE), 1)
                 )
             ) {
                 // invalid usage,

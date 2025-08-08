@@ -45,6 +45,7 @@ import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
@@ -87,7 +88,7 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
 
     public void testDecideShardAllocation() {
         BalancedShardsAllocator allocator = new BalancedShardsAllocator(Settings.EMPTY);
-        ClusterState clusterState = ClusterStateCreationUtils.state("idx", false, ShardRoutingState.STARTED);
+        ClusterState clusterState = ClusterStateCreationUtils.state(new Index("idx", randomUUID()), false, ShardRoutingState.STARTED);
         assertEquals(clusterState.nodes().getSize(), 3);
 
         // add new index
@@ -146,14 +147,14 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
         // Create some projects with some assigned indices
         for (int i = 1; i <= numberOfProjects; i++) {
             var projectId = ProjectId.fromId(Strings.format("proj_%02d", i));
-            String[] indices = {
+            Index[] indices = {
                 // 2 indices that are unique to this project
-                "index_proj_" + i + "a",
-                "index_proj_" + i + "b",
+                new Index("index_proj_" + i + "a", randomUUID()),
+                new Index("index_proj_" + i + "b", randomUUID()),
                 // 1 index that is shared in all projects
-                "common_index",
+                new Index("common_index", randomUUID()),
                 // 1 index that is shared with some projects
-                "common_index_" + (i % 3) };
+                new Index("common_index_" + (i % 3), randomUUID()) };
             final Tuple<ProjectMetadata.Builder, RoutingTable.Builder> project = ClusterStateCreationUtils
                 .projectWithAssignedPrimariesAndReplicas(projectId, indices, 1, 0, nodes);
             metadataBuilder.put(project.v1());
@@ -179,7 +180,7 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
         var origProject = randomFrom(clusterState.metadata().projects().values());
         final var indexName = "new_index";
         ProjectMetadata updatedProject = ProjectMetadata.builder(origProject)
-            .put(IndexMetadata.builder(indexName).settings(indexSettings(IndexVersion.current(), 1, 0)))
+            .put(IndexMetadata.builder(indexName).settings(indexSettings(IndexVersion.current(), randomUUID(), 1, 0)))
             .build();
         GlobalRoutingTable routingTable = GlobalRoutingTable.builder(clusterState.globalRoutingTable())
             .put(
@@ -705,11 +706,11 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
     }
 
     private static IndexMetadata.Builder anIndex(String name) {
-        return anIndex(name, indexSettings(IndexVersion.current(), 1, 0));
+        return anIndex(name, indexSettings(IndexVersion.current(), randomUUID(), 1, 0));
     }
 
     private static IndexMetadata.Builder anIndex(String name, Settings.Builder settings) {
-        return IndexMetadata.builder(name).settings(settings);
+        return IndexMetadata.builder(name).settings(settings.put(IndexMetadata.SETTING_INDEX_UUID, randomUUID()));
     }
 
     private static ClusterState createStateWithIndices(IndexMetadata.Builder... indexMetadataBuilders) {
@@ -769,7 +770,8 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
     ) {
         var numberOfShards = assignments.entrySet().stream().mapToInt(Map.Entry::getValue).sum();
         var inSyncIds = randomList(numberOfShards, numberOfShards, () -> UUIDs.randomBase64UUID(random()));
-        var indexMetadataBuilder = IndexMetadata.builder(name).settings(indexSettings(IndexVersion.current(), numberOfShards, 0));
+        var indexMetadataBuilder = IndexMetadata.builder(name)
+            .settings(indexSettings(IndexVersion.current(), randomUUID(), numberOfShards, 0));
 
         for (int shardId = 0; shardId < numberOfShards; shardId++) {
             indexMetadataBuilder.putInSyncAllocationIds(shardId, Set.of(inSyncIds.get(shardId)));

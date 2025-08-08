@@ -1328,7 +1328,9 @@ public class DesiredBalanceReconcilerTests extends ESAllocationTestCase {
         final var metadataBuilder = Metadata.builder();
         final var routingTableBuilder = RoutingTable.builder();
         for (int i = 0; i < shardCount; i++) {
-            final var indexMetadata = IndexMetadata.builder("index-" + i).settings(indexSettings(IndexVersion.current(), 1, 0)).build();
+            final var indexMetadata = IndexMetadata.builder("index-" + i)
+                .settings(indexSettings(IndexVersion.current(), randomUUID(), 1, 0))
+                .build();
             final var index = indexMetadata.getIndex();
             final var shardId = new ShardId(index, 0);
             metadataBuilder.put(indexMetadata, false);

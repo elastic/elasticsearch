@@ -20,6 +20,7 @@ import org.apache.lucene.index.SegmentCommitInfo;
 import org.apache.lucene.index.SegmentReader;
 import org.apache.lucene.index.TieredMergePolicy;
 import org.apache.lucene.store.Directory;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -34,7 +35,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 public class MergePolicyConfigTests extends ESTestCase {
-    protected final ShardId shardId = new ShardId("index", "_na_", 1);
+    protected final ShardId shardId = new ShardId("index", IndexMetadata.INDEX_UUID_NA_VALUE, 1);
 
     public void testCompoundFileSettings() throws IOException {
         assertCompoundThreshold(Settings.EMPTY, 1.0, ByteSizeValue.ofGb(1));

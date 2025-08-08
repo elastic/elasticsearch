@@ -153,7 +153,7 @@ import static org.hamcrest.Matchers.notNullValue;
 @SuppressWarnings("HiddenField")
 public abstract class EngineTestCase extends ESTestCase {
 
-    protected final ShardId shardId = new ShardId(new Index("index", "_na_"), 0);
+    protected final ShardId shardId = new ShardId(new Index("index", IndexMetadata.INDEX_UUID_NA_VALUE), 0);
     protected final AllocationId allocationId = AllocationId.newInitializing();
     protected static final IndexSettings INDEX_SETTINGS = IndexSettingsModule.newIndexSettings("index", Settings.EMPTY);
 

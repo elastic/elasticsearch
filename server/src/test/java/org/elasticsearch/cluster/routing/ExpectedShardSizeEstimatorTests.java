@@ -20,6 +20,7 @@ import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.repositories.IndexId;
@@ -48,12 +49,12 @@ public class ExpectedShardSizeEstimatorTests extends ESAllocationTestCase {
 
     public void testShouldFallbackToDefaultExpectedShardSize() {
 
-        var state = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata(index("my-index"))).build();
+        var index = new Index("my-index", randomUUID());
+        var state = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata(index(index))).build();
         state = buildRoutingTable(state);
-        var shard = shardRoutingBuilder(new ShardId("my-index", "_na_", 0), randomIdentifier(), true, ShardRoutingState.INITIALIZING)
-            .withRecoverySource(
-                randomFrom(RecoverySource.EmptyStoreRecoverySource.INSTANCE, RecoverySource.ExistingStoreRecoverySource.INSTANCE)
-            ).build();
+        var shard = shardRoutingBuilder(new ShardId(index, 0), randomIdentifier(), true, ShardRoutingState.INITIALIZING).withRecoverySource(
+            randomFrom(RecoverySource.EmptyStoreRecoverySource.INSTANCE, RecoverySource.ExistingStoreRecoverySource.INSTANCE)
+        ).build();
 
         var allocation = createRoutingAllocation(state, ClusterInfo.EMPTY, SnapshotShardSizeInfo.EMPTY);
 
@@ -67,11 +68,12 @@ public class ExpectedShardSizeEstimatorTests extends ESAllocationTestCase {
     public void testShouldReadExpectedSizeFromClusterInfo() {
 
         var shardSize = randomLongBetween(100, 1000);
-        var state = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata(index("my-index"))).build();
+        var index = new Index("my-index", randomUUID());
+        var state = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata(index(index))).build();
         state = buildRoutingTable(state);
-        var shard = shardRoutingBuilder(new ShardId("my-index", "_na_", 0), randomIdentifier(), true, ShardRoutingState.INITIALIZING)
-            .withRecoverySource(RecoverySource.PeerRecoverySource.INSTANCE)
-            .build();
+        var shard = shardRoutingBuilder(new ShardId(index, 0), randomIdentifier(), true, ShardRoutingState.INITIALIZING).withRecoverySource(
+            RecoverySource.PeerRecoverySource.INSTANCE
+        ).build();
 
         var clusterInfo = createClusterInfo(shard, shardSize);
         var allocation = createRoutingAllocation(state, clusterInfo, SnapshotShardSizeInfo.EMPTY);
@@ -83,10 +85,12 @@ public class ExpectedShardSizeEstimatorTests extends ESAllocationTestCase {
     public void testShouldReadExpectedSizeFromPrimaryWhenAddingNewReplica() {
 
         var shardSize = randomLongBetween(100, 1000);
-        var state = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata(index("my-index"))).build();
+        var index = new Index("my-index", randomUUID());
+        var state = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata(index(index))).build();
         state = buildRoutingTable(state);
-        var primary = newShardRouting("my-index", 0, randomIdentifier(), true, ShardRoutingState.STARTED);
-        var replica = newShardRouting("my-index", 0, randomIdentifier(), false, ShardRoutingState.INITIALIZING);
+        var shardId = new ShardId(index, 0);
+        var primary = newShardRouting(shardId, randomIdentifier(), true, ShardRoutingState.STARTED);
+        var replica = newShardRouting(shardId, randomIdentifier(), false, ShardRoutingState.INITIALIZING);
 
         var clusterInfo = createClusterInfo(primary, shardSize);
         var allocation = createRoutingAllocation(state, clusterInfo, SnapshotShardSizeInfo.EMPTY);
@@ -99,31 +103,33 @@ public class ExpectedShardSizeEstimatorTests extends ESAllocationTestCase {
 
         var snapshotShardSize = randomLongBetween(100, 1000);
 
-        var index = switch (randomIntBetween(0, 2)) {
+        var index = new Index("my-index", randomUUID());
+        var indexMetadata = switch (randomIntBetween(0, 2)) {
             // regular snapshot
-            case 0 -> index("my-index");
+            case 0 -> index(index).settings(indexSettings(IndexVersion.current(), index.getUUID(), 1, 0));
             // searchable snapshot
-            case 1 -> index("my-index").settings(
-                indexSettings(IndexVersion.current(), 1, 0) //
+            case 1 -> index(index).settings(
+                indexSettings(IndexVersion.current(), index.getUUID(), 1, 0) //
                     .put(INDEX_STORE_TYPE_SETTING.getKey(), SEARCHABLE_SNAPSHOT_STORE_TYPE) //
             );
             // partial searchable snapshot
-            case 2 -> index("my-index").settings(
-                indexSettings(IndexVersion.current(), 1, 0) //
+            case 2 -> index(index).settings(
+                indexSettings(IndexVersion.current(), index.getUUID(), 1, 0) //
                     .put(INDEX_STORE_TYPE_SETTING.getKey(), SEARCHABLE_SNAPSHOT_STORE_TYPE) //
                     .put(SNAPSHOT_PARTIAL_SETTING.getKey(), true) //
             );
             default -> throw new AssertionError("unexpected index type");
         };
-        var state = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata(index)).build();
+        var state = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata(indexMetadata)).build();
         state = buildRoutingTable(state);
 
         var snapshot = new Snapshot("repository", new SnapshotId("snapshot-1", "na"));
-        var indexId = new IndexId("my-index", "_na_");
+        // The uuid in the IndexId is different from index uuid.
+        var indexId = new IndexId(index.getName(), randomUUID());
 
-        var shard = shardRoutingBuilder(new ShardId("my-index", "_na_", 0), randomIdentifier(), true, ShardRoutingState.INITIALIZING)
-            .withRecoverySource(new RecoverySource.SnapshotRecoverySource(randomUUID(), snapshot, IndexVersion.current(), indexId))
-            .build();
+        var shard = shardRoutingBuilder(new ShardId(index, 0), randomIdentifier(), true, ShardRoutingState.INITIALIZING).withRecoverySource(
+            new RecoverySource.SnapshotRecoverySource(randomUUID(), snapshot, IndexVersion.current(), indexId)
+        ).build();
 
         var snapshotShardSizeInfo = new SnapshotShardSizeInfo(
             Map.of(new InternalSnapshotsInfoService.SnapshotShard(snapshot, indexId, shard.shardId()), snapshotShardSize)
@@ -131,7 +137,7 @@ public class ExpectedShardSizeEstimatorTests extends ESAllocationTestCase {
         var allocation = createRoutingAllocation(state, ClusterInfo.EMPTY, snapshotShardSizeInfo);
 
         assertThat(getExpectedShardSize(shard, defaultValue, allocation), equalTo(snapshotShardSize));
-        if (state.metadata().getProject().index("my-index").isPartialSearchableSnapshot() == false) {
+        if (state.metadata().getProject().index(index).isPartialSearchableSnapshot() == false) {
             assertTrue("Should reserve space for snapshot restore", shouldReserveSpaceForInitializingShard(shard, allocation));
         } else {
             assertFalse(
@@ -143,21 +149,24 @@ public class ExpectedShardSizeEstimatorTests extends ESAllocationTestCase {
 
     public void testShouldReadSizeFromClonedShard() {
 
+        Index sourceIndex = new Index("source", randomUUID());
+        Index targetIndex = new Index("target", randomUUID());
         var sourceShardSize = randomLongBetween(100, 1000);
-        var source = newShardRouting(new ShardId("source", "_na_", 0), randomIdentifier(), true, ShardRoutingState.STARTED);
-        var target = shardRoutingBuilder(new ShardId("target", "_na_", 0), randomIdentifier(), true, ShardRoutingState.INITIALIZING)
-            .withRecoverySource(RecoverySource.LocalShardsRecoverySource.INSTANCE)
-            .build();
+        var source = newShardRouting(sourceIndex, 0, randomIdentifier(), true, ShardRoutingState.STARTED);
+        var target = shardRoutingBuilder(targetIndex, 0, randomIdentifier(), true, ShardRoutingState.INITIALIZING).withRecoverySource(
+            RecoverySource.LocalShardsRecoverySource.INSTANCE
+        ).build();
 
         var state = ClusterState.builder(ClusterName.DEFAULT)
             .metadata(
                 metadata(
-                    IndexMetadata.builder("source").settings(indexSettings(IndexVersion.current(), 1, 0)),
-                    IndexMetadata.builder("target")
+                    IndexMetadata.builder(sourceIndex.getName())
+                        .settings(indexSettings(IndexVersion.current(), sourceIndex.getUUID(), 1, 0)),
+                    IndexMetadata.builder(targetIndex.getName())
                         .settings(
-                            indexSettings(IndexVersion.current(), 1, 0) //
-                                .put(INDEX_RESIZE_SOURCE_NAME_KEY, "source") //
-                                .put(INDEX_RESIZE_SOURCE_UUID_KEY, "_na_")
+                            indexSettings(IndexVersion.current(), targetIndex.getUUID(), 1, 0) //
+                                .put(INDEX_RESIZE_SOURCE_NAME_KEY, sourceIndex.getName()) //
+                                .put(INDEX_RESIZE_SOURCE_UUID_KEY, sourceIndex.getUUID())
                         )
                 )
             )
@@ -186,8 +195,8 @@ public class ExpectedShardSizeEstimatorTests extends ESAllocationTestCase {
         return new RoutingAllocation(new AllocationDeciders(List.of()), state, clusterInfo, snapshotShardSizeInfo, 0);
     }
 
-    private static IndexMetadata.Builder index(String name) {
-        return IndexMetadata.builder(name).settings(indexSettings(IndexVersion.current(), 1, 0));
+    private static IndexMetadata.Builder index(Index index) {
+        return IndexMetadata.builder(index.getName()).settings(indexSettings(IndexVersion.current(), index.getUUID(), 1, 0));
     }
 
     private static Metadata metadata(IndexMetadata.Builder... indices) {

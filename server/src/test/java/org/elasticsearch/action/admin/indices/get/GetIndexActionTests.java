@@ -49,7 +49,7 @@ public class GetIndexActionTests extends ESSingleNodeTestCase {
     private IndicesService indicesService;
     private ThreadPool threadPool;
     private SettingsFilter settingsFilter;
-    private final String indexName = "test_index";
+    private final Index index = new Index("test_index", randomUUID());
 
     private TestTransportGetIndexAction getIndexAction;
 
@@ -83,7 +83,7 @@ public class GetIndexActionTests extends ESSingleNodeTestCase {
     }
 
     public void testIncludeDefaults() {
-        GetIndexRequest defaultsRequest = new GetIndexRequest(TEST_REQUEST_TIMEOUT).indices(indexName).includeDefaults(true);
+        GetIndexRequest defaultsRequest = new GetIndexRequest(TEST_REQUEST_TIMEOUT).indices(index.getName()).includeDefaults(true);
         ActionTestUtils.execute(
             getIndexAction,
             null,
@@ -91,14 +91,14 @@ public class GetIndexActionTests extends ESSingleNodeTestCase {
             ActionTestUtils.assertNoFailureListener(
                 defaultsResponse -> assertNotNull(
                     "index.refresh_interval should be set as we are including defaults",
-                    defaultsResponse.getSetting(indexName, "index.refresh_interval")
+                    defaultsResponse.getSetting(index.getName(), "index.refresh_interval")
                 )
             )
         );
     }
 
     public void testDoNotIncludeDefaults() {
-        GetIndexRequest noDefaultsRequest = new GetIndexRequest(TEST_REQUEST_TIMEOUT).indices(indexName);
+        GetIndexRequest noDefaultsRequest = new GetIndexRequest(TEST_REQUEST_TIMEOUT).indices(index.getName());
         ActionTestUtils.execute(
             getIndexAction,
             null,
@@ -106,7 +106,7 @@ public class GetIndexActionTests extends ESSingleNodeTestCase {
             ActionTestUtils.assertNoFailureListener(
                 noDefaultsResponse -> assertNull(
                     "index.refresh_interval should be null as it was never set",
-                    noDefaultsResponse.getSetting(indexName, "index.refresh_interval")
+                    noDefaultsResponse.getSetting(index.getName(), "index.refresh_interval")
                 )
             )
         );
@@ -135,7 +135,7 @@ public class GetIndexActionTests extends ESSingleNodeTestCase {
             ProjectState state,
             ActionListener<GetIndexResponse> listener
         ) throws Exception {
-            ProjectState stateWithIndex = ClusterStateCreationUtils.state(indexName, 1, 1).projectState(ProjectId.DEFAULT);
+            ProjectState stateWithIndex = ClusterStateCreationUtils.state(index, 1, 1).projectState(ProjectId.DEFAULT);
             super.localClusterStateOperation(task, request, stateWithIndex, listener);
         }
     }

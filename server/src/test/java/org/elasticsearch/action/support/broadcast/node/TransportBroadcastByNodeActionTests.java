@@ -100,10 +100,10 @@ import static org.hamcrest.object.HasToString.hasToString;
 
 public class TransportBroadcastByNodeActionTests extends ESTestCase {
 
-    private static final String TEST_INDEX = "test-index";
     private static final String TEST_CLUSTER = "test-cluster";
     private static ThreadPool THREAD_POOL;
 
+    private final Index testIndex = new Index("test-index", randomUUID());
     private ClusterService clusterService;
     private CapturingTransport transport;
 
@@ -216,7 +216,7 @@ public class TransportBroadcastByNodeActionTests extends ESTestCase {
 
         @Override
         protected ShardsIterator shards(ClusterState clusterState, Request request, String[] concreteIndices) {
-            return clusterState.routingTable().allShards(new String[] { TEST_INDEX });
+            return clusterState.routingTable().allShards(new String[] { testIndex.getName() });
         }
 
         @Override
@@ -288,7 +288,7 @@ public class TransportBroadcastByNodeActionTests extends ESTestCase {
     void setClusterState(ClusterService clusterService) {
         int numberOfNodes = randomIntBetween(3, 5);
         DiscoveryNodes.Builder discoBuilder = DiscoveryNodes.builder();
-        IndexRoutingTable.Builder indexRoutingTable = IndexRoutingTable.builder(new Index(TEST_INDEX, "_na_"));
+        IndexRoutingTable.Builder indexRoutingTable = IndexRoutingTable.builder(testIndex);
 
         int shardIndex = -1;
         int totalIndexShards = 0;
@@ -298,9 +298,9 @@ public class TransportBroadcastByNodeActionTests extends ESTestCase {
             int numberOfShards = randomIntBetween(1, 10);
             totalIndexShards += numberOfShards;
             for (int j = 0; j < numberOfShards; j++) {
-                final ShardId shardId = new ShardId(TEST_INDEX, "_na_", ++shardIndex);
+                final ShardId shardId = new ShardId(testIndex, ++shardIndex);
                 ShardRouting shard = TestShardRouting.newShardRouting(
-                    TEST_INDEX,
+                    testIndex,
                     shardId.getId(),
                     node.getId(),
                     true,
@@ -315,10 +315,8 @@ public class TransportBroadcastByNodeActionTests extends ESTestCase {
         discoBuilder.masterNodeId(newNode(numberOfNodes - 1).getId());
         ClusterState.Builder stateBuilder = ClusterState.builder(new ClusterName(TEST_CLUSTER));
         stateBuilder.nodes(discoBuilder);
-        final IndexMetadata.Builder indexMetadata = IndexMetadata.builder(TEST_INDEX)
-            .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()))
-            .numberOfReplicas(0)
-            .numberOfShards(totalIndexShards);
+        final IndexMetadata.Builder indexMetadata = IndexMetadata.builder(testIndex.getName())
+            .settings(indexSettings(IndexVersion.current(), testIndex.getUUID(), totalIndexShards, 0));
 
         stateBuilder.metadata(Metadata.builder().put(indexMetadata));
         stateBuilder.routingTable(RoutingTable.builder().add(indexRoutingTable.build()).build());
@@ -338,7 +336,7 @@ public class TransportBroadcastByNodeActionTests extends ESTestCase {
     }
 
     public void testGlobalBlock() {
-        Request request = new Request(TEST_INDEX);
+        Request request = new Request(testIndex.getName());
 
         ClusterBlocks.Builder block = ClusterBlocks.builder()
             .addGlobalBlock(new ClusterBlock(1, "test-block", false, true, false, RestStatus.SERVICE_UNAVAILABLE, ClusterBlockLevel.ALL));
@@ -352,23 +350,23 @@ public class TransportBroadcastByNodeActionTests extends ESTestCase {
     }
 
     public void testRequestBlock() {
-        Request request = new Request(TEST_INDEX);
+        Request request = new Request(testIndex.getName());
 
         ClusterBlocks.Builder block = ClusterBlocks.builder()
             .addIndexBlock(
-                TEST_INDEX,
+                testIndex.getName(),
                 new ClusterBlock(1, "test-block", false, true, false, RestStatus.SERVICE_UNAVAILABLE, ClusterBlockLevel.ALL)
             );
         setState(clusterService, ClusterState.builder(clusterService.state()).blocks(block));
         assertEquals(
-            "index [" + TEST_INDEX + "] blocked by: [SERVICE_UNAVAILABLE/1/test-block];",
+            "index [" + testIndex.getName() + "] blocked by: [SERVICE_UNAVAILABLE/1/test-block];",
             safeAwaitFailure(ClusterBlockException.class, Response.class, listener -> action.doExecute(null, request, listener))
                 .getMessage()
         );
     }
 
     public void testOneRequestIsSentToEachNodeHoldingAShard() {
-        Request request = new Request(TEST_INDEX);
+        Request request = new Request(testIndex.getName());
         PlainActionFuture<Response> listener = new PlainActionFuture<>();
 
         action.doExecute(null, request, listener);
@@ -376,7 +374,7 @@ public class TransportBroadcastByNodeActionTests extends ESTestCase {
         awaitForkedTasks();
         Map<String, List<CapturingTransport.CapturedRequest>> capturedRequests = transport.getCapturedRequestsByTargetNodeAndClear();
 
-        ShardsIterator shardIt = clusterService.state().routingTable().allShards(new String[] { TEST_INDEX });
+        ShardsIterator shardIt = clusterService.state().routingTable().allShards(new String[] { testIndex.getName() });
         Set<String> set = new HashSet<>();
         for (ShardRouting shard : shardIt) {
             set.add(shard.currentNodeId());
@@ -395,7 +393,7 @@ public class TransportBroadcastByNodeActionTests extends ESTestCase {
                 allOf(
                     containsString('[' + action.transportNodeBroadcastAction + ']'),
                     containsString('[' + entry.getKey() + ']'),
-                    containsString("[testrequest[" + TEST_INDEX + "]]")
+                    containsString("[testrequest[" + testIndex.getName() + "]]")
                 )
             );
         }
@@ -405,7 +403,7 @@ public class TransportBroadcastByNodeActionTests extends ESTestCase {
     }
 
     public void testNoShardOperationsExecutedIfTaskCancelled() throws Exception {
-        ShardsIterator shardIt = clusterService.state().routingTable().allShards(new String[] { TEST_INDEX });
+        ShardsIterator shardIt = clusterService.state().routingTable().allShards(new String[] { testIndex.getName() });
         Set<ShardRouting> shards = new HashSet<>();
         String nodeId = shardIt.iterator().next().currentNodeId();
         for (ShardRouting shard : shardIt) {
@@ -432,7 +430,7 @@ public class TransportBroadcastByNodeActionTests extends ESTestCase {
     // that node will not be in the local cluster state on any node that has detected the master as failing
     // in this case, such a shard should be treated as unassigned
     public void testRequestsAreNotSentToFailedMaster() {
-        Request request = new Request(TEST_INDEX);
+        Request request = new Request(testIndex.getName());
         PlainActionFuture<Response> listener = new PlainActionFuture<>();
 
         DiscoveryNode masterNode = clusterService.state().nodes().getMasterNode();
@@ -446,7 +444,7 @@ public class TransportBroadcastByNodeActionTests extends ESTestCase {
         Map<String, List<CapturingTransport.CapturedRequest>> capturedRequests = transport.getCapturedRequestsByTargetNodeAndClear();
 
         // the master should not be in the list of nodes that requests were sent to
-        ShardsIterator shardIt = clusterService.state().routingTable().allShards(new String[] { TEST_INDEX });
+        ShardsIterator shardIt = clusterService.state().routingTable().allShards(new String[] { testIndex.getName() });
         Set<String> set = new HashSet<>();
         for (ShardRouting shard : shardIt) {
             if (shard.currentNodeId().equals(masterNode.getId()) == false) {
@@ -466,7 +464,7 @@ public class TransportBroadcastByNodeActionTests extends ESTestCase {
     }
 
     public void testOperationExecution() throws Exception {
-        ShardsIterator shardIt = clusterService.state().routingTable().allShards(new String[] { TEST_INDEX });
+        ShardsIterator shardIt = clusterService.state().routingTable().allShards(new String[] { testIndex.getName() });
         Set<ShardRouting> shards = new HashSet<>();
         String nodeId = shardIt.iterator().next().currentNodeId();
         for (ShardRouting shard : shardIt) {
@@ -515,7 +513,7 @@ public class TransportBroadcastByNodeActionTests extends ESTestCase {
     }
 
     public void testResultAggregation() throws ExecutionException, InterruptedException {
-        Request request = new Request(TEST_INDEX);
+        Request request = new Request(testIndex.getName());
         PlainActionFuture<Response> listener = new PlainActionFuture<>();
 
         // simulate removing the master
@@ -534,7 +532,7 @@ public class TransportBroadcastByNodeActionTests extends ESTestCase {
         awaitForkedTasks();
         Map<String, List<CapturingTransport.CapturedRequest>> capturedRequests = transport.getCapturedRequestsByTargetNodeAndClear();
 
-        ShardsIterator shardIt = clusterService.state().getRoutingTable().allShards(new String[] { TEST_INDEX });
+        ShardsIterator shardIt = clusterService.state().getRoutingTable().allShards(new String[] { testIndex.getName() });
         Map<String, List<ShardRouting>> map = new HashMap<>();
         for (ShardRouting shard : shardIt) {
             if (map.containsKey(shard.currentNodeId()) == false) {
@@ -588,7 +586,7 @@ public class TransportBroadcastByNodeActionTests extends ESTestCase {
     public void testResponsesReleasedOnCancellation() {
         final CancellableTask cancellableTask = new CancellableTask(randomLong(), "transport", "action", "", null, emptyMap());
         final PlainActionFuture<Response> listener = new PlainActionFuture<>();
-        action.execute(cancellableTask, new Request(TEST_INDEX), listener);
+        action.execute(cancellableTask, new Request(testIndex.getName()), listener);
         awaitForkedTasks();
 
         final List<CapturingTransport.CapturedRequest> capturedRequests = new ArrayList<>(
@@ -674,7 +672,7 @@ public class TransportBroadcastByNodeActionTests extends ESTestCase {
         action.new BroadcastByNodeTransportRequestHandler().messageReceived(
             action.new NodeRequest(
                 new Request(), IntStream.range(0, 3)
-                    .mapToObj(shardId -> TestShardRouting.newShardRouting(TEST_INDEX, shardId, "node-id", true, ShardRoutingState.STARTED))
+                    .mapToObj(shardId -> TestShardRouting.newShardRouting(testIndex, shardId, "node-id", true, ShardRoutingState.STARTED))
                     .toList(), "node-id"
             ),
             new TestTransportChannel(nodeResponseFuture),
@@ -708,7 +706,7 @@ public class TransportBroadcastByNodeActionTests extends ESTestCase {
         action.new BroadcastByNodeTransportRequestHandler().messageReceived(
             action.new NodeRequest(
                 new Request(), IntStream.range(0, 3)
-                    .mapToObj(shardId -> TestShardRouting.newShardRouting(TEST_INDEX, shardId, "node-id", true, ShardRoutingState.STARTED))
+                    .mapToObj(shardId -> TestShardRouting.newShardRouting(testIndex, shardId, "node-id", true, ShardRoutingState.STARTED))
                     .toList(), "node-id"
             ),
             new TestTransportChannel(nodeResponseFuture),

@@ -2049,6 +2049,7 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
             public void onAfter() {
                 assert pendingEpoch.get() == epoch.get() + 1;
                 epoch.incrementAndGet();
+                blobCacheMetrics.recordEpochChange();
             }
 
             @Override

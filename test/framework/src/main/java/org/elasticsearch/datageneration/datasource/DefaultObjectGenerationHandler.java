@@ -13,7 +13,6 @@ import org.elasticsearch.datageneration.FieldType;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Arrays;
-import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -63,16 +62,14 @@ public class DefaultObjectGenerationHandler implements DataSourceHandler {
 
     @Override
     public DataSourceResponse.FieldTypeGenerator handle(DataSourceRequest.FieldTypeGenerator request) {
-        return new DataSourceResponse.FieldTypeGenerator(
-            () -> {
-                // All field types minus the excluded ones.
-                var fieldTypes = Arrays.stream(FieldType.values())
-                        .filter(fieldType -> EXCLUDED_FROM_DYNAMIC_MAPPING.contains(fieldType) == false)
-                        .collect(Collectors.toSet());
-                var fieldType = ESTestCase.randomFrom(fieldTypes);
-                return new DataSourceResponse.FieldTypeGenerator.FieldTypeInfo(fieldType.toString());
-            }
-        );
+        return new DataSourceResponse.FieldTypeGenerator(() -> {
+            // All field types minus the excluded ones.
+            var fieldTypes = Arrays.stream(FieldType.values())
+                .filter(fieldType -> EXCLUDED_FROM_DYNAMIC_MAPPING.contains(fieldType) == false)
+                .collect(Collectors.toSet());
+            var fieldType = ESTestCase.randomFrom(fieldTypes);
+            return new DataSourceResponse.FieldTypeGenerator.FieldTypeInfo(fieldType.toString());
+        });
     }
 
     @Override

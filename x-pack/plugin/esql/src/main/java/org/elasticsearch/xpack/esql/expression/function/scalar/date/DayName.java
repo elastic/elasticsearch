@@ -106,14 +106,7 @@ public class DayName extends EsqlConfigurationFunction {
     @Override
     public EvalOperator.ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
         var fieldEvaluator = toEvaluator.apply(field);
-        return getEvaluator(field().dataType(), fieldEvaluator);
-    }
-
-    private EvalOperator.ExpressionEvaluator.Factory getEvaluator(
-        DataType dateType,
-        EvalOperator.ExpressionEvaluator.Factory fieldEvaluator
-    ) {
-        if (dateType == DataType.DATE_NANOS) {
+        if (field().dataType() == DataType.DATE_NANOS) {
             return new DayNameNanosEvaluator.Factory(source(), fieldEvaluator, configuration().zoneId(), configuration().locale());
         }
         return new DayNameMillisEvaluator.Factory(source(), fieldEvaluator, configuration().zoneId(), configuration().locale());

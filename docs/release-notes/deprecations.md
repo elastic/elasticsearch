@@ -16,6 +16,13 @@ To give you insight into what deprecated features you’re using, {{es}}:
 
 % ## Next version [elasticsearch-nextversion-deprecations]
 
+```{applies_to}
+stack: coming 9.1.1
+```
+## 9.1.1 [elasticsearch-9.1.1-deprecations]
+
+There are no deprecations associated with this release.
+
 ## 9.1.0 [elasticsearch-9.1.0-deprecations]
 
 There are no deprecations associated with this release.

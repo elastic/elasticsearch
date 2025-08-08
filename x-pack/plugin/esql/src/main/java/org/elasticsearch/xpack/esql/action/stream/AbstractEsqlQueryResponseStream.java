@@ -90,11 +90,11 @@ abstract class AbstractEsqlQueryResponseStream<T> implements EsqlQueryResponseSt
     }
 
     @Override
-    public final void sendPage(Page pages) {
-        assert finished == false : "sendPage() called on a finished stream";
+    public final void sendPages(Iterable<Page> pages) {
+        assert finished == false : "sendPages() called on a finished stream";
 
         if (initialStreamChunkSent) {
-            sendChunks(doSendPage(page));
+            sendChunks(doSendPages(pages));
         }
     }
 
@@ -178,7 +178,7 @@ abstract class AbstractEsqlQueryResponseStream<T> implements EsqlQueryResponseSt
      *     Only called if {@link #canBeStreamed()} returns {@code true}.
      * </p>
      */
-    protected abstract Iterator<T> doSendPage(Page page);
+    protected abstract Iterator<T> doSendPages(Iterable<Page> pages);
 
     /**
      * Returns the remaining chunks of the response. Called once, at the end of the response.
@@ -205,7 +205,7 @@ abstract class AbstractEsqlQueryResponseStream<T> implements EsqlQueryResponseSt
      */
     protected Iterator<T> doSendEverything(EsqlQueryResponse response) {
         // TODO: Is this safe? Should this be abstract to ensure proper implementation? Add tests for both streamed and "everything" cases
-        return Iterators.concat(doStartResponse(response.columns()), doSendPage(response.pages()), doFinishResponse(response));
+        return Iterators.concat(doStartResponse(response.columns()), doSendPages(response.pages()), doFinishResponse(response));
     }
 
     protected abstract void doSendChunks(Iterator<T> chunks, Releasable releasable);

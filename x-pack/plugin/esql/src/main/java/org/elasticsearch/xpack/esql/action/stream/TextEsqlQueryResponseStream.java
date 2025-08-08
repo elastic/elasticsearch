@@ -63,7 +63,7 @@ class TextEsqlQueryResponseStream extends AbstractEsqlQueryResponseStream<Checke
     }
 
     @Override
-    protected Iterator<CheckedConsumer<Writer, IOException>> doSendPage(Page page) {
+    protected Iterator<CheckedConsumer<Writer, IOException>> doSendPages(Iterable<Page> pages) {
         throw new UnsupportedOperationException("Not implemented yet");
     }
 

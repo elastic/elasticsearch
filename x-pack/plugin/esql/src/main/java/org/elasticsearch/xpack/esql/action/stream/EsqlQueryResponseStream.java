@@ -64,7 +64,7 @@ public interface EsqlQueryResponseStream extends Releasable {
     /**
      * Called after {@link #startResponse}, for each page of results.
      */
-    void sendPage(Page page);
+    void sendPages(Iterable<Page> pages);
 
     /**
      * Last method to be called, when the computation is finished.

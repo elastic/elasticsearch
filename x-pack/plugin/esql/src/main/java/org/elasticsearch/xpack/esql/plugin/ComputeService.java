@@ -231,7 +231,7 @@ public class ComputeService {
         PhysicalPlan mainPlan = new OutputExec(subplansAndMainPlan.v2(), page -> {
             collectedPages.add(page);
             if (responseStream != null) {
-                responseStream.sendPage(List.of(page));
+                responseStream.sendPages(List.of(page));
             }
         });
 
@@ -343,7 +343,7 @@ public class ComputeService {
             coordinatorPlan = new OutputExec(coordinatorAndDataNodePlan.v1(), page -> {
                 collectedPages.add(page);
                 if (responseStream != null) {
-                    responseStream.sendPage(List.of(page));
+                    responseStream.sendPages(List.of(page));
                 }
             });
         }

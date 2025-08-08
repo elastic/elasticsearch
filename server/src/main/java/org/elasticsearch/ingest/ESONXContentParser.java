@@ -152,22 +152,6 @@ public class ESONXContentParser extends AbstractXContentParser {
         }
     }
 
-    private static final Token[] SIMPLE_TOKENS = new Token[32];
-
-    static {
-        SIMPLE_TOKENS[ESONSource.KeyEntry.TYPE_NULL] = Token.VALUE_NULL;
-        SIMPLE_TOKENS[ESONSource.KeyEntry.TYPE_TRUE] = Token.VALUE_BOOLEAN;
-        SIMPLE_TOKENS[ESONSource.KeyEntry.TYPE_FALSE] = Token.VALUE_BOOLEAN;
-        SIMPLE_TOKENS[ESONSource.KeyEntry.TYPE_INT] = Token.VALUE_NUMBER;
-        SIMPLE_TOKENS[ESONSource.KeyEntry.TYPE_LONG] = Token.VALUE_NUMBER;
-        SIMPLE_TOKENS[ESONSource.KeyEntry.TYPE_FLOAT] = Token.VALUE_NUMBER;
-        SIMPLE_TOKENS[ESONSource.KeyEntry.TYPE_DOUBLE] = Token.VALUE_NUMBER;
-        SIMPLE_TOKENS[ESONSource.KeyEntry.BIG_INTEGER] = Token.VALUE_NUMBER;
-        SIMPLE_TOKENS[ESONSource.KeyEntry.BIG_DECIMAL] = Token.VALUE_NUMBER;
-        SIMPLE_TOKENS[ESONSource.KeyEntry.STRING] = Token.VALUE_STRING;
-        SIMPLE_TOKENS[ESONSource.KeyEntry.BINARY] = Token.VALUE_EMBEDDED_OBJECT;
-    }
-
     private Token emitValue(ESONSource.KeyEntry entry) throws IOException {
         ContainerContext currentContainer = containerStack.peek();
         assert currentContainer != null;
@@ -185,13 +169,30 @@ public class ESONXContentParser extends AbstractXContentParser {
                 containerStack.push(new ContainerContext(ContainerContext.Type.ARRAY, ((ESONSource.ArrayEntry) entry).elementCount));
                 yield Token.START_ARRAY;
             }
-            case ESONSource.KeyEntry.MUTATION -> {
+            case ESONSource.KeyEntry.TYPE_NULL -> {
                 currentType = ((ESONSource.FieldEntry) entry).value;
-                yield determineTokenFromObject(((ESONSource.Mutation) currentType).object());
+                yield Token.VALUE_NULL;
+            }
+            case ESONSource.KeyEntry.TYPE_TRUE, ESONSource.KeyEntry.TYPE_FALSE -> {
+                currentType = ((ESONSource.FieldEntry) entry).value;
+                yield Token.VALUE_BOOLEAN;
+            }
+            case ESONSource.KeyEntry.TYPE_INT, ESONSource.KeyEntry.TYPE_LONG, ESONSource.KeyEntry.TYPE_FLOAT,
+                ESONSource.KeyEntry.TYPE_DOUBLE, ESONSource.KeyEntry.BIG_INTEGER, ESONSource.KeyEntry.BIG_DECIMAL -> {
+                currentType = ((ESONSource.FieldEntry) entry).value;
+                yield Token.VALUE_NUMBER;
+            }
+            case ESONSource.KeyEntry.STRING -> {
+                currentType = ((ESONSource.FieldEntry) entry).value;
+                yield Token.VALUE_STRING;
+            }
+            case ESONSource.KeyEntry.BINARY -> {
+                currentType = ((ESONSource.FieldEntry) entry).value;
+                yield Token.VALUE_EMBEDDED_OBJECT;
             }
             default -> {
                 currentType = ((ESONSource.FieldEntry) entry).value;
-                yield SIMPLE_TOKENS[entry.type()];
+                yield determineTokenFromObject(((ESONSource.Mutation) currentType).object());
             }
         };
         return currentToken;

@@ -107,19 +107,19 @@ public abstract class SemanticQueryRewriteInterceptor implements QueryRewriteInt
         Collection<IndexMetadata> indexMetadataCollection = resolvedIndices.getConcreteLocalIndicesMetadata().values();
 
         Map<String, Map<String, InferenceFieldMetadata>> inferenceFieldsPerIndex = new HashMap<>();
-        Map<String, Set<String>> nonInferenceFieldsPerIndex = new HashMap<>();
+        Map<String, Map<String, Float>> nonInferenceFieldsPerIndex = new HashMap<>();
 
         for (IndexMetadata indexMetadata : indexMetadataCollection) {
             String indexName = indexMetadata.getIndex().getName();
             Map<String, InferenceFieldMetadata> indexInferenceFields = new HashMap<>();
-            Set<String> indexNonInferenceFields = new HashSet<>();
+            Map<String, Float> indexNonInferenceFields = new HashMap<>();
 
             // Classify each field as inference or non-inference
             for (String fieldName : fieldNames) {
                 if (indexMetadata.getInferenceFields().containsKey(fieldName)) {
                     indexInferenceFields.put(fieldName, indexMetadata.getInferenceFields().get(fieldName));
                 } else {
-                    indexNonInferenceFields.add(fieldName);
+                    indexNonInferenceFields.put(fieldName, fieldsWithWeights.get(fieldName));
                 }
             }
 
@@ -174,40 +174,28 @@ public abstract class SemanticQueryRewriteInterceptor implements QueryRewriteInt
     public record InferenceIndexInformationForField(
         // Map: IndexName -> (FieldName -> InferenceFieldMetadata)
         Map<String, Map<String, InferenceFieldMetadata>> inferenceFieldsPerIndex,
-        // Map: IndexName -> Set of non-inference field names
-        Map<String, Set<String>> nonInferenceFieldsPerIndex
+        // Map: IndexName -> (FieldName -> Boost)
+        Map<String, Map<String, Float>> nonInferenceFieldsPerIndex
     ) {
 
         // Backward compatibility for single-field queries
-        public InferenceIndexInformationForField(String fieldName, Map<String, InferenceFieldMetadata> inferenceIndicesMetadata, List<String> nonInferenceIndices) {
+        public InferenceIndexInformationForField(
+            String fieldName,
+            Map<String, InferenceFieldMetadata> inferenceIndicesMetadata,
+            List<String> nonInferenceIndices
+        ) {
             this(
                 // Convert single field metadata to multi-field structure
-                inferenceIndicesMetadata.entrySet().stream()
-                    .collect(Collectors.toMap(
-                        Map.Entry::getKey,
-                        entry -> Map.of(fieldName, entry.getValue())
-                    )),
-                // Convert non-inference indices to multi-field structure
-                nonInferenceIndices.stream()
-                    .collect(Collectors.toMap(
-                        indexName -> indexName,
-                        indexName -> Set.of(fieldName)
-                    ))
+                inferenceIndicesMetadata.entrySet()
+                    .stream()
+                    .collect(Collectors.toMap(Map.Entry::getKey, entry -> Map.of(fieldName, entry.getValue()))),
+                // Convert non-inference indices to multi-field structure with default boost
+                nonInferenceIndices.stream().collect(Collectors.toMap(indexName -> indexName, indexName -> Map.of(fieldName, 1.0f)))
             );
         }
 
         public Set<String> getAllInferenceFields() {
-            return inferenceFieldsPerIndex.values()
-                .stream()
-                .flatMap(fields -> fields.keySet().stream())
-                .collect(Collectors.toSet());
-        }
-
-        public Set<String> getAllNonInferenceFields() {
-            return nonInferenceFieldsPerIndex.values()
-                .stream()
-                .flatMap(Set::stream)
-                .collect(Collectors.toSet());
+            return inferenceFieldsPerIndex.values().stream().flatMap(fields -> fields.keySet().stream()).collect(Collectors.toSet());
         }
 
         public boolean hasInferenceFields() {
@@ -238,7 +226,7 @@ public abstract class SemanticQueryRewriteInterceptor implements QueryRewriteInt
             }
             return result;
         }
-        
+
         /**
          * Returns the set of indices where the given field is a semantic field (has inference metadata).
          */
@@ -251,18 +239,6 @@ public abstract class SemanticQueryRewriteInterceptor implements QueryRewriteInt
             }
             return indices;
         }
-        
-        /**
-         * Returns the set of indices where the given field is a non-semantic field.
-         */
-        public Set<String> getNonInferenceIndicesForField(String fieldName) {
-            Set<String> indices = new HashSet<>();
-            for (Map.Entry<String, Set<String>> entry : nonInferenceFieldsPerIndex.entrySet()) {
-                if (entry.getValue().contains(fieldName)) {
-                    indices.add(entry.getKey());
-                }
-            }
-            return indices;
-        }
+
     }
 }

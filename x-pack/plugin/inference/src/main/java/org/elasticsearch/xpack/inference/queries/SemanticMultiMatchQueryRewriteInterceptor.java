@@ -19,6 +19,7 @@ import org.elasticsearch.inference.MinimalServiceSettings;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.inference.registry.ModelRegistry;
 
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -127,7 +128,6 @@ public class SemanticMultiMatchQueryRewriteInterceptor extends SemanticQueryRewr
         };
     }
 
-
     /**
      * Validates that the multi_match query type is supported for semantic_text fields.
      * Throws IllegalArgumentException for unsupported types.
@@ -158,19 +158,14 @@ public class SemanticMultiMatchQueryRewriteInterceptor extends SemanticQueryRewr
     /**
      * Creates a semantic query with field boost applied.
      */
-    private SemanticQueryBuilder createSemanticQuery(
-        String fieldName,
-        String queryValue,
-        Map<String, Float> fieldsBoosts
-    ) {
+    private SemanticQueryBuilder createSemanticQuery(String fieldName, String queryValue, Map<String, Float> fieldsBoosts) {
         SemanticQueryBuilder semanticQuery = new SemanticQueryBuilder(fieldName, queryValue, false);
         float fieldBoost = fieldsBoosts.getOrDefault(fieldName, AbstractQueryBuilder.DEFAULT_BOOST);
         semanticQuery.boost(fieldBoost);
         return semanticQuery;
     }
 
-
-    private QueryBuilder  buildBestFieldsSemanticQuery(
+    private QueryBuilder buildBestFieldsSemanticQuery(
         MultiMatchQueryBuilder originalQuery,
         Map<String, Float> fieldsBoosts,
         Set<String> inferenceFields,
@@ -222,26 +217,23 @@ public class SemanticMultiMatchQueryRewriteInterceptor extends SemanticQueryRewr
             Set<String> semanticIndices = inferenceInfo.getInferenceIndicesForField(fieldName);
             if (semanticIndices.isEmpty() == false) {
                 disMaxQuery.add(
-                    createSemanticSubQuery(
-                        semanticIndices,
-                        fieldName,
-                        queryValue
-                    ).boost(fieldsBoosts.getOrDefault(fieldName, AbstractQueryBuilder.DEFAULT_BOOST))
+                    createSemanticSubQuery(semanticIndices, fieldName, queryValue).boost(
+                        fieldsBoosts.getOrDefault(fieldName, AbstractQueryBuilder.DEFAULT_BOOST)
+                    )
                 );
             }
         }
 
-        // Add separate queries for non-inference fields, but only in indices where they are non-inference
-        for (String fieldName : inferenceInfo.getAllNonInferenceFields()) {
-            Set<String> nonInferenceIndices = inferenceInfo.getNonInferenceIndicesForField(fieldName);
-            if (nonInferenceIndices.isEmpty() == false) {
-                // Create a single-field multi_match query for this field
-                MultiMatchQueryBuilder singleFieldQuery = new MultiMatchQueryBuilder(originalQuery.value());
-                singleFieldQuery.field(fieldName, fieldsBoosts.getOrDefault(fieldName, AbstractQueryBuilder.DEFAULT_BOOST));
-                copyQueryProperties(originalQuery, singleFieldQuery);
+        // Add one multi_match query per index containing all non-inference fields in that index
+        for (Map.Entry<String, Map<String, Float>> entry : inferenceInfo.nonInferenceFieldsPerIndex().entrySet()) {
+            String indexName = entry.getKey();
+            Map<String, Float> indexFields = entry.getValue();
 
-                disMaxQuery.add(createSubQueryForIndices(nonInferenceIndices, singleFieldQuery));
-            }
+            MultiMatchQueryBuilder indexQuery = new MultiMatchQueryBuilder(originalQuery.value());
+            indexQuery.fields(indexFields);
+            copyQueryProperties(originalQuery, indexQuery);
+
+            disMaxQuery.add(createSubQueryForIndices(List.of(indexName), indexQuery));
         }
 
         // Apply tie_breaker - use explicit value or fall back to type's default
@@ -265,26 +257,23 @@ public class SemanticMultiMatchQueryRewriteInterceptor extends SemanticQueryRewr
             Set<String> semanticIndices = inferenceInfo.getInferenceIndicesForField(fieldName);
             if (semanticIndices.isEmpty() == false) {
                 boolQuery.should(
-                    createSemanticSubQuery(
-                        semanticIndices,
-                        fieldName,
-                        queryValue
-                    ).boost(fieldsBoosts.getOrDefault(fieldName, AbstractQueryBuilder.DEFAULT_BOOST))
+                    createSemanticSubQuery(semanticIndices, fieldName, queryValue).boost(
+                        fieldsBoosts.getOrDefault(fieldName, AbstractQueryBuilder.DEFAULT_BOOST)
+                    )
                 );
             }
         }
 
-        // Add separate queries for non-inference fields, but only in indices where they are non-inference
-        for (String fieldName : inferenceInfo.getAllNonInferenceFields()) {
-            Set<String> nonInferenceIndices = inferenceInfo.getNonInferenceIndicesForField(fieldName);
-            if (nonInferenceIndices.isEmpty() == false) {
-                // Create a single-field multi_match query for this field
-                MultiMatchQueryBuilder singleFieldQuery = new MultiMatchQueryBuilder(originalQuery.value());
-                singleFieldQuery.field(fieldName, fieldsBoosts.getOrDefault(fieldName, AbstractQueryBuilder.DEFAULT_BOOST));
-                copyQueryProperties(originalQuery, singleFieldQuery);
+        // Add one multi_match query per index containing all non-inference fields in that index
+        for (Map.Entry<String, Map<String, Float>> entry : inferenceInfo.nonInferenceFieldsPerIndex().entrySet()) {
+            String indexName = entry.getKey();
+            Map<String, Float> indexFields = entry.getValue();
 
-                boolQuery.should(createSubQueryForIndices(nonInferenceIndices, singleFieldQuery));
-            }
+            MultiMatchQueryBuilder indexQuery = new MultiMatchQueryBuilder(originalQuery.value());
+            indexQuery.fields(indexFields);
+            copyQueryProperties(originalQuery, indexQuery);
+
+            boolQuery.should(createSubQueryForIndices(List.of(indexName), indexQuery));
         }
 
         // Apply minimumShouldMatch - use original query's value or default to "1"
@@ -317,7 +306,6 @@ public class SemanticMultiMatchQueryRewriteInterceptor extends SemanticQueryRewr
             target.fuzziness(original.fuzziness());
         }
     }
-
 
     /**
      * Detects and warns about score range mismatches when a multi_match query has at least one dense vector model (TEXT_EMBEDDING)

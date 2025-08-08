@@ -20,6 +20,8 @@ import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.Example;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlConfigurationFunction;
@@ -44,7 +46,8 @@ public class DayName extends EsqlConfigurationFunction {
     @FunctionInfo(
         returnType = "keyword",
         description = "Returns the name of the weekday for date based on the configured Locale.",
-        examples = @Example(file = "date", tag = "docsDayName")
+        examples = @Example(file = "date", tag = "docsDayName"),
+        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA, version = "9.2.0") }
     )
     public DayName(
         Source source,

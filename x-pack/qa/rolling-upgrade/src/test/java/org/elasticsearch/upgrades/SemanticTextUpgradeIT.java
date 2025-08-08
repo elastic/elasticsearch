@@ -17,6 +17,7 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.mapper.InferenceMetadataFieldsMapper;
+import org.elasticsearch.index.mapper.MapperFeatures;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapperTestUtils;
 import org.elasticsearch.index.query.NestedQueryBuilder;
@@ -85,10 +86,19 @@ public class SemanticTextUpgradeIT extends AbstractUpgradeTestCase {
 
     public void testSemanticTextOperations() throws Exception {
         switch (CLUSTER_TYPE) {
-            case OLD -> createAndPopulateIndex();
+            case OLD -> {
+                checkSupportsBFloat16();
+                createAndPopulateIndex();
+            }
             case MIXED, UPGRADED -> performIndexQueryHighlightOps();
             default -> throw new UnsupportedOperationException("Unknown cluster type [" + CLUSTER_TYPE + "]");
         }
+    }
+
+    private static void checkSupportsBFloat16() {
+        assumeTrue("The old cluster needs to support bfloat16 if it is used",
+            DENSE_MODEL.getServiceSettings().elementType() != DenseVectorFieldMapper.ElementType.BFLOAT16
+                || clusterHasFeature(MapperFeatures.BBQ_BFLOAT16));
     }
 
     private void createAndPopulateIndex() throws IOException {

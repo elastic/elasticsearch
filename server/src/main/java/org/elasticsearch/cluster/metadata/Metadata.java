@@ -1879,6 +1879,13 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
     }
 
     /**
+     * Attempt to find a project for the supplied index UUID.
+     */
+    public Optional<ProjectMetadata> lookupProject(String indexUuid) {
+        return getProjectLookup().project(indexUuid);
+    }
+
+    /**
      * Attempt to find a project for the supplied {@link Index}.
      * @throws org.elasticsearch.index.IndexNotFoundException if the index does not exist in any project
      */
@@ -1932,6 +1939,8 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
          * Return the {@link ProjectId} for the provided {@link Index}, if it exists
          */
         Optional<ProjectMetadata> project(Index index);
+
+        Optional<ProjectMetadata> project(String indexUuid);
     }
 
     /**
@@ -1949,6 +1958,15 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
         @Override
         public Optional<ProjectMetadata> project(Index index) {
             if (project.hasIndex(index)) {
+                return Optional.of(project);
+            } else {
+                return Optional.empty();
+            }
+        }
+
+        @Override
+        public Optional<ProjectMetadata> project(String indexUuid) {
+            if (project.hasIndexUuid(indexUuid)) {
                 return Optional.of(project);
             } else {
                 return Optional.empty();
@@ -1978,6 +1996,16 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
         public Optional<ProjectMetadata> project(Index index) {
             final ProjectMetadata project = lookup.get(index.getUUID());
             if (project != null && project.hasIndex(index)) {
+                return Optional.of(project);
+            } else {
+                return Optional.empty();
+            }
+        }
+
+        @Override
+        public Optional<ProjectMetadata> project(String indexUuid) {
+            final ProjectMetadata project = lookup.get(indexUuid);
+            if (project != null && project.hasIndexUuid(indexUuid)) {
                 return Optional.of(project);
             } else {
                 return Optional.empty();

@@ -104,6 +104,7 @@ public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<Projec
     private final String[] visibleClosedIndices;
 
     private volatile SortedMap<String, IndexAbstraction> indicesLookup;
+    private volatile ImmutableOpenMap<String, IndexMetadata> indexMetadataLookupByUUID;
     private final Map<String, MappingMetadata> mappingsByHash;
 
     private final IndexVersion oldestIndexVersion;
@@ -453,6 +454,15 @@ public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<Projec
     }
 
     /**
+     * Checks whether an index exists (as of this {@link ProjectMetadata} with the given uuid. Does not check aliases or data streams.
+     * @param uuid The index uuid that may or may not exist in the cluster.
+     * @return {@code true} if a concrete index with that uuid exists, {@code false} otherwise.
+     */
+    public boolean hasIndexUuid(String uuid) {
+        return getIndexMetadataByUUID(uuid) != null;
+    }
+
+    /**
      * Checks whether an index exists. Similar to {@link ProjectMetadata#hasIndex(String)}, but ensures that the index has the same UUID as
      * the given {@link Index}.
      * @param index An {@link Index} object that may or may not exist in the cluster.
@@ -524,6 +534,14 @@ public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<Projec
         return lookup;
     }
 
+    public IndexMetadata getIndexMetadataByUUID(String uuid) {
+        ImmutableOpenMap<String, IndexMetadata> lookup = indexMetadataLookupByUUID;
+        if (indexMetadataLookupByUUID == null) {
+            lookup = buildIndexMetadataUuidLookup();
+        }
+        return lookup.get(uuid);
+    }
+
     private synchronized SortedMap<String, IndexAbstraction> buildIndicesLookup() {
         SortedMap<String, IndexAbstraction> i = indicesLookup;
         if (i != null) {
@@ -532,6 +550,19 @@ public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<Projec
         i = Builder.buildIndicesLookup(custom(DataStreamMetadata.TYPE, DataStreamMetadata.EMPTY), indices);
         indicesLookup = i;
         return i;
+    }
+
+    private synchronized ImmutableOpenMap<String, IndexMetadata> buildIndexMetadataUuidLookup() {
+        ImmutableOpenMap<String, IndexMetadata> lookupByUUID = indexMetadataLookupByUUID;
+        if (lookupByUUID != null) {
+            return lookupByUUID;
+        }
+        ImmutableOpenMap.Builder<String, IndexMetadata> builder = ImmutableOpenMap.builder();
+        for (IndexMetadata indexMetadata : indices.values()) {
+            builder.put(indexMetadata.getIndexUUID(), indexMetadata);
+        }
+        indexMetadataLookupByUUID = builder.build();
+        return indexMetadataLookupByUUID;
     }
 
     public boolean sameIndicesLookup(ProjectMetadata other) {

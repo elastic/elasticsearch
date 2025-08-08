@@ -18,10 +18,10 @@ import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.PushLimitToSo
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.PushSampleToSource;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.PushStatsToSource;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.PushTopNToSource;
+import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.ReplaceRoundToWithQueryAndTags;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.ReplaceSourceAttributes;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.SpatialDocValuesExtraction;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.SpatialShapeBoundsExtraction;
-import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.SubstituteRoundToWithQueryAndTags;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.rule.ParameterizedRuleExecutor;
 import org.elasticsearch.xpack.esql.rule.Rule;
@@ -77,7 +77,7 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
         var pushdown = new Batch<PhysicalPlan>("Push to ES", esSourceRules.toArray(Rule[]::new));
         List<Rule<?, PhysicalPlan>> substitutionRules = new ArrayList<>(1);
         if (optimizeForEsSource) {
-            substitutionRules.add(new SubstituteRoundToWithQueryAndTags());
+            substitutionRules.add(new ReplaceRoundToWithQueryAndTags());
         }
         // execute the SubstituteRoundToWithQueryAndTags rule once after all the other pushdown rules are applied, as this rule generate
         // multiple QueryBuilders according the number of RoundTo points, it should be applied after all the other eligible pushdowns are

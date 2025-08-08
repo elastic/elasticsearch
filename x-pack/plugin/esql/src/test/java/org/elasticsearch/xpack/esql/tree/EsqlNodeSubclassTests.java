@@ -520,7 +520,7 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
         }
 
         if (argClass == EsQueryExec.QueryBuilderAndTags.class) {
-            return new EsQueryExec.QueryBuilderAndTags(randomQuery(), List.of(randomLong()));
+            return new EsQueryExec.QueryBuilderAndTags(randomQuery(), List.of(randomBoolean() ? randomLong() : randomDouble()));
         }
 
         try {

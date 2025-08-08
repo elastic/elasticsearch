@@ -19,7 +19,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.util.Queries;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.RoundTo;
-import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
+import org.elasticsearch.xpack.esql.expression.predicate.Range;
 import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNull;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThanOrEqual;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThan;
@@ -38,7 +38,7 @@ import java.util.Map;
 import static org.elasticsearch.xpack.esql.core.type.DataTypeConverter.safeToLong;
 import static org.elasticsearch.xpack.esql.planner.TranslatorHandler.TRANSLATOR_HANDLER;
 
-public class SubstituteRoundToWithQueryAndTags extends PhysicalOptimizerRules.ParameterizedOptimizerRule<
+public class ReplaceRoundToWithQueryAndTags extends PhysicalOptimizerRules.ParameterizedOptimizerRule<
     EvalExec,
     LocalPhysicalOptimizerContext> {
 
@@ -130,6 +130,7 @@ public class SubstituteRoundToWithQueryAndTags extends PhysicalOptimizerRules.Pa
         List<Expression> roundingPoints = roundTo.points();
         int count = roundingPoints.size();
         DataType dataType = roundTo.dataType();
+        // sort rounding points
         List<? extends Number> points = resolveRoundingPoints(dataType, roundingPoints);
         if (points.size() != count || points.isEmpty()) {
             return null;
@@ -138,17 +139,17 @@ public class SubstituteRoundToWithQueryAndTags extends PhysicalOptimizerRules.Pa
 
         Number tag = points.get(0);
         if (points.size() == 1) {
-            EsQueryExec.QueryBuilderAndTags queryBuilderAndTags = tageOnlyBucket(queryExec, tag);
+            EsQueryExec.QueryBuilderAndTags queryBuilderAndTags = tagOnlyBucket(queryExec, tag);
             queries.add(queryBuilderAndTags);
         } else {
-            Source source = queryExec.source();
+            Source source = roundTo.source();
             Number lower = null;
             Number upper = null;
             Queries.Clause clause = queryExec.hasScoring() ? Queries.Clause.MUST : Queries.Clause.FILTER;
             ZoneId zoneId = ctx.configuration().zoneId();
             for (int i = 1; i < count; i++) {
                 upper = points.get(i);
-                // build predicates for RoundTo ranges
+                // build predicates and range queries for RoundTo ranges
                 queries.add(rangeBucket(source, field, dataType, lower, upper, tag, zoneId, queryExec, pushdownPredicates, clause));
                 lower = upper;
                 tag = upper;
@@ -211,19 +212,19 @@ public class SubstituteRoundToWithQueryAndTags extends PhysicalOptimizerRules.Pa
         Object upper,
         ZoneId zoneId
     ) {
-        LessThan lt = new LessThan(source, field, new Literal(source, upper, dataType), zoneId);
-        GreaterThanOrEqual gte = new GreaterThanOrEqual(source, field, new Literal(source, lower, dataType), zoneId);
-        And and = new And(source, lt, gte);
+        Literal lowerValue = new Literal(source, lower, dataType);
+        Literal upperValue = new Literal(source, upper, dataType);
         if (lower == null) {
-            return lt;
+            return new LessThan(source, field, upperValue, zoneId);
         } else if (upper == null) {
-            return gte;
+            return new GreaterThanOrEqual(source, field, lowerValue, zoneId);
         } else {
-            return and;
+            // lower and upper should not be both null, should an assert be added here
+            return new Range(source, field, lowerValue, true, upperValue, false, dataType.isDate() ? zoneId : null);
         }
     }
 
-    private static EsQueryExec.QueryBuilderAndTags tageOnlyBucket(EsQueryExec queryExec, Object tag) {
+    private static EsQueryExec.QueryBuilderAndTags tagOnlyBucket(EsQueryExec queryExec, Object tag) {
         return new EsQueryExec.QueryBuilderAndTags(queryExec.query(), List.of(tag));
     }
 

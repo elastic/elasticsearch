@@ -122,7 +122,7 @@ public final class Text implements XContentString, Comparable<Text>, ToXContentF
                 count++; // 3 byte character
                 i += 2; // skip next two bytes
             } else if ((b & 0xF8) == 0xF0) {
-                count+=2; // 4 byte character
+                count += 2; // 4 byte character
                 i += 3; // skip next three bytes
             } else {
                 return -1; // invalid UTF-8 sequence

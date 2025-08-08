@@ -122,7 +122,7 @@ public class StatelessReshardIT extends AbstractStatelessIntegTestCase {
         // Note that we can go from 1 shard to any number of shards (< 1024)
         int startingNumShards = 1;
         int targetNumShards = multiple2 * startingNumShards;
-        logger.info("Starting reshard to go from " + startingNumShards + " to " + targetNumShards + "shards");
+        logger.info("Starting reshard to go from {} to {} shards", startingNumShards, targetNumShards);
         var reshardAction = client(indexNode).execute(TransportReshardAction.TYPE, new ReshardIndexRequest(indexName, multiple2));
 
         reshardAction.actionGet(SAFE_AWAIT_TIMEOUT);
@@ -132,7 +132,7 @@ public class StatelessReshardIT extends AbstractStatelessIntegTestCase {
         startingNumShards = 2;
         checkNumberOfShardsSetting(indexNode, indexName, startingNumShards);
         targetNumShards = multiple3 * startingNumShards;
-        logger.info("Starting reshard to go from " + startingNumShards + " to " + targetNumShards + "shards");
+        logger.info("Starting reshard to go from {} to {} shards", startingNumShards, targetNumShards);
         assertThrows(
             IllegalStateException.class,
             () -> client(indexNode).execute(TransportReshardAction.TYPE, new ReshardIndexRequest(indexName, multiple3))
@@ -144,7 +144,7 @@ public class StatelessReshardIT extends AbstractStatelessIntegTestCase {
         startingNumShards = 2;
         checkNumberOfShardsSetting(indexNode, indexName, startingNumShards);
         targetNumShards = multiple2 * startingNumShards;
-        logger.info("Starting reshard to go from " + startingNumShards + " to " + targetNumShards + "shards");
+        logger.info("Starting reshard to go from {} to {} shards", startingNumShards, targetNumShards);
         reshardAction = client(indexNode).execute(TransportReshardAction.TYPE, new ReshardIndexRequest(indexName, multiple2));
         reshardAction.actionGet(SAFE_AWAIT_TIMEOUT);
         checkNumberOfShardsSetting(indexNode, indexName, targetNumShards);
@@ -565,11 +565,6 @@ public class StatelessReshardIT extends AbstractStatelessIntegTestCase {
         indexDocs(indexName, NUM_DOCS);
 
         assertThat(getIndexCount(client().admin().indices().prepareStats(indexName).execute().actionGet(), 0), equalTo(100L));
-
-        // We currently need to flush all indexed data in order for copy logic to see it.
-        // This will be included in later stages of resharding that currently don't exist.
-        var flushResponse = indicesAdmin().prepareFlush(indexName).setForce(true).setWaitIfOngoing(true).get();
-        assertNoFailures(flushResponse);
 
         logger.info("starting reshard");
         var reshardAction = client(indexNode).execute(TransportReshardAction.TYPE, new ReshardIndexRequest(indexName, 2));
@@ -1291,26 +1286,24 @@ public class StatelessReshardIT extends AbstractStatelessIntegTestCase {
 
         startIndexNode();
 
-        MockTransportService mockTransportService = MockTransportService.getInstance(indexNode);
-        CountDownLatch handoffAttemptedLatch = new CountDownLatch(1);
-        CountDownLatch handoffLatch = new CountDownLatch(1);
-        mockTransportService.addSendBehavior((connection, requestId, action, request1, options) -> {
-            if (TransportReshardSplitAction.SPLIT_HANDOFF_ACTION_NAME.equals(action) && handoffAttemptedLatch.getCount() != 0) {
-                try {
-                    handoffAttemptedLatch.countDown();
-                    handoffLatch.await();
-                } catch (InterruptedException e) {
-                    throw new RuntimeException(e);
-                }
+        final var preHandoffEnteredLatch = new CountDownLatch(1);
+        final var preHandoffLatch = new CountDownLatch(1);
+        var splitSourceService = internalCluster().getInstance(SplitSourceService.class, indexNode);
+        splitSourceService.setPreHandoffHook(() -> {
+            try {
+                logger.info("waiting for prehandoff latch");
+                preHandoffEnteredLatch.countDown();
+                preHandoffLatch.await(SAFE_AWAIT_TIMEOUT.seconds(), TimeUnit.SECONDS);
+                logger.info("prehandoff latch released");
+            } catch (InterruptedException e) {
+                throw new RuntimeException(e);
             }
-            connection.sendRequest(requestId, action, request1, options);
         });
 
         ReshardIndexRequest request = new ReshardIndexRequest(indexName, 2);
         ActionFuture<ReshardIndexResponse> reshard = client(indexNode).execute(TransportReshardAction.TYPE, request);
 
-        handoffAttemptedLatch.await();
-        logger.info("Handoff attempted");
+        preHandoffEnteredLatch.await(SAFE_AWAIT_TIMEOUT.seconds(), TimeUnit.SECONDS);
 
         // Now index a document that belongs to the target shard and verify that it goes to the source shard id.
         IndexMetadata indexMetadata = clusterService().state().projectState().metadata().index(indexName);
@@ -1319,14 +1312,8 @@ public class StatelessReshardIT extends AbstractStatelessIntegTestCase {
         index(indexName, targetDocId, Map.of("foo", "bar"));
         logger.info("Target shard document indexed into source");
 
-        // We currently need to flush all indexed data in order for copy logic to see it.
-        // This will be included in later stages of resharding that currently don't exist.
-        var flushResponse = indicesAdmin().prepareFlush(indexName).setForce(true).setWaitIfOngoing(true).get();
-        assertNoFailures(flushResponse);
-        logger.info("Index flushed");
-
         // Allow handoff to proceed
-        handoffLatch.countDown();
+        preHandoffLatch.countDown();
         reshard.actionGet();
 
         // verify that the index metadata returned matches the expected multiple of shards

@@ -33,6 +33,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
@@ -118,24 +119,28 @@ public class TransportReshardSplitAction extends TransportAction<TransportReshar
     }
 
     private void handleStartSplitOnSource(Task task, Request request, ActionListener<ActionResponse.Empty> listener) {
-        SubscribableListener.<Void>newForked(
+        SubscribableListener.<Releasable>newForked(
             l -> splitSourceService.setupTargetShard(request.shardId, request.sourcePrimaryTerm, request.targetPrimaryTerm, l)
-        ).<Void>andThen((l, ignored) -> {
-            // at this point the base copy is done, so it is time to acquire permits, flush, and handoff
-            splitSourceService.prepareForHandoff(l, request.shardId);
-        })
+        )
             .<ActionResponse>andThen(
                 // Finally, initiate handoff.
-                (l, ignored) -> {
-                    transportService.sendChildRequest(
+                (l, releasable) -> SubscribableListener.<ActionResponse>newForked(
+                    afterHandoff -> transportService.sendChildRequest(
                         request.targetNode,
                         SPLIT_HANDOFF_ACTION_NAME,
                         request,
                         task,
                         TransportRequestOptions.EMPTY,
-                        new ActionListenerResponseHandler<>(l, in -> ActionResponse.Empty.INSTANCE, EsExecutors.DIRECT_EXECUTOR_SERVICE)
-                    );
-                }
+                        new ActionListenerResponseHandler<>(
+                            ActionListener.runBefore(afterHandoff, () -> logger.debug("handoff to target {} complete", request.shardId)),
+                            in -> ActionResponse.Empty.INSTANCE,
+                            EsExecutors.DIRECT_EXECUTOR_SERVICE
+                        )
+                    )
+                ).addListener(ActionListener.runBefore(l, () -> {
+                    logger.debug("handoff attempt completed, releasing permits");
+                    releasable.close();
+                }))
             )
             // we are only interested in success/failure, the response is empty
             .addListener(listener.map(ignored -> ActionResponse.Empty.INSTANCE));

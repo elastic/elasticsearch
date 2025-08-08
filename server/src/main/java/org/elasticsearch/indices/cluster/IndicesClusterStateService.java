@@ -246,7 +246,10 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
      * other lenience to handle that. It'd be better to wait for the shard locks to be released and then delete the data. See #74149.
      */
     private volatile SubscribableListener<Void> lastClusterStateShardsClosedListener = SubscribableListener.nullSuccess();
+
+    // used to avoid chaining too many ref counting listeners, hence avoiding stack overflow exceptions
     private int shardsClosedListenerChainLength = 0;
+    private boolean closingMoreShards;
 
     @Nullable // if not currently applying a cluster state
     private RefCountingListener currentClusterStateShardsClosedListeners;
@@ -257,6 +260,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
             assert false : "not currently applying cluster state";
             return ActionListener.noop();
         } else {
+            closingMoreShards = true;
             return currentClusterStateShardsClosedListeners.acquire();
         }
     }
@@ -275,7 +279,6 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         lastClusterStateShardsClosedListener = new SubscribableListener<>();
         currentClusterStateShardsClosedListeners = new RefCountingListener(lastClusterStateShardsClosedListener);
         try {
-            doApplyClusterState(event);
             // HACK: chain listeners but avoid too deep of a stack
             {
                 if (previousShardsClosedListener.isDone()) {
@@ -294,10 +297,17 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                 if (shardsClosedListenerChainLength >= 10) {
                     shardsClosedListenerChainLength = 0;
                 }
+                // reset the variable before applying the cluster state
+                closingMoreShards = false;
             }
+            doApplyClusterState(event);
         } finally {
             currentClusterStateShardsClosedListeners.close();
             currentClusterStateShardsClosedListeners = null;
+            if (closingMoreShards == false) {
+                // avoids chaining when no shard has been closed after applying this cluster state
+                lastClusterStateShardsClosedListener = previousShardsClosedListener;
+            }
         }
     }
 

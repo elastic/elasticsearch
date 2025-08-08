@@ -88,19 +88,19 @@ public final class MaxIpAggregatorFunction implements AggregatorFunction {
 
   private void addRawVector(BytesRefVector valueVector) {
     BytesRef valueScratch = new BytesRef();
-    for (int i = 0; i < valueVector.getPositionCount(); i++) {
-      BytesRef valueValue = valueVector.getBytesRef(i, valueScratch);
+    for (int valuesPosition = 0; valuesPosition < valueVector.getPositionCount(); valuesPosition++) {
+      BytesRef valueValue = valueVector.getBytesRef(valuesPosition, valueScratch);
       MaxIpAggregator.combine(state, valueValue);
     }
   }
 
   private void addRawVector(BytesRefVector valueVector, BooleanVector mask) {
     BytesRef valueScratch = new BytesRef();
-    for (int i = 0; i < valueVector.getPositionCount(); i++) {
-      if (mask.getBoolean(i) == false) {
+    for (int valuesPosition = 0; valuesPosition < valueVector.getPositionCount(); valuesPosition++) {
+      if (mask.getBoolean(valuesPosition) == false) {
         continue;
       }
-      BytesRef valueValue = valueVector.getBytesRef(i, valueScratch);
+      BytesRef valueValue = valueVector.getBytesRef(valuesPosition, valueScratch);
       MaxIpAggregator.combine(state, valueValue);
     }
   }

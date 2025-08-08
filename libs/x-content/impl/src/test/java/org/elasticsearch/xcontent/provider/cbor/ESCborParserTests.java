@@ -17,7 +17,6 @@ import org.elasticsearch.xcontent.Text;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.cbor.CborXContent;
 import org.hamcrest.Matchers;
-import org.junit.Test;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -27,7 +26,6 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class ESCborParserTests extends ESTestCase {
 
-    @Test
     public void testParseText() throws IOException {
         testStringValue("foo");
         testStringValue("føø");

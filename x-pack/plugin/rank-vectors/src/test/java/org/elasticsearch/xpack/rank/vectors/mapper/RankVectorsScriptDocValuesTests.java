@@ -51,6 +51,7 @@ public class RankVectorsScriptDocValuesTests extends ESTestCase {
             }
         }
     }
+
     public void testBFloat16GetVectorValueAndGetMagnitude() throws IOException {
         int dims = 3;
         float[][][] vectors = { { { 1, 1, 1 }, { 1, 1, 2 }, { 1, 1, 3 } }, { { 1, 0, 2 } } };
@@ -58,7 +59,13 @@ public class RankVectorsScriptDocValuesTests extends ESTestCase {
 
         BinaryDocValues docValues = wrap(vectors, ElementType.BFLOAT16);
         BinaryDocValues magnitudeValues = wrap(expectedMagnitudes);
-        RankVectorsDocValuesField field = new BFloat16RankVectorsDocValuesField(docValues, magnitudeValues, "test", ElementType.BFLOAT16, dims);
+        RankVectorsDocValuesField field = new BFloat16RankVectorsDocValuesField(
+            docValues,
+            magnitudeValues,
+            "test",
+            ElementType.BFLOAT16,
+            dims
+        );
         RankVectorsScriptDocValues scriptDocValues = field.toScriptDocValues();
         for (int i = 0; i < vectors.length; i++) {
             field.setNextDocId(i);
@@ -123,12 +130,20 @@ public class RankVectorsScriptDocValuesTests extends ESTestCase {
 
     public void testBFloat16MetadataAndIterator() throws IOException {
         int dims = 3;
-        float[][][] vectors = new float[][][] { fill(new float[3][dims], ElementType.BFLOAT16), fill(new float[2][dims], ElementType.BFLOAT16) };
+        float[][][] vectors = new float[][][] {
+            fill(new float[3][dims], ElementType.BFLOAT16),
+            fill(new float[2][dims], ElementType.BFLOAT16) };
         float[][] magnitudes = new float[][] { new float[3], new float[2] };
         BinaryDocValues docValues = wrap(vectors, ElementType.BFLOAT16);
         BinaryDocValues magnitudeValues = wrap(magnitudes);
 
-        RankVectorsDocValuesField field = new BFloat16RankVectorsDocValuesField(docValues, magnitudeValues, "test", ElementType.BFLOAT16, dims);
+        RankVectorsDocValuesField field = new BFloat16RankVectorsDocValuesField(
+            docValues,
+            magnitudeValues,
+            "test",
+            ElementType.BFLOAT16,
+            dims
+        );
         for (int i = 0; i < vectors.length; i++) {
             field.setNextDocId(i);
             RankVectors dv = field.get();
@@ -197,7 +212,13 @@ public class RankVectorsScriptDocValuesTests extends ESTestCase {
         float[][] magnitudes = { { 1.7320f, 2.4495f, 3.3166f }, { 2.2361f } };
         BinaryDocValues docValues = wrap(vectors, ElementType.BFLOAT16);
         BinaryDocValues magnitudeValues = wrap(magnitudes);
-        RankVectorsDocValuesField field = new FloatRankVectorsDocValuesField(docValues, magnitudeValues, "test", ElementType.BFLOAT16, dims);
+        RankVectorsDocValuesField field = new FloatRankVectorsDocValuesField(
+            docValues,
+            magnitudeValues,
+            "test",
+            ElementType.BFLOAT16,
+            dims
+        );
         RankVectorsScriptDocValues scriptDocValues = field.toScriptDocValues();
 
         field.setNextDocId(3);
@@ -253,7 +274,13 @@ public class RankVectorsScriptDocValuesTests extends ESTestCase {
         float[][] magnitudes = { { 1.7320f, 2.4495f, 3.3166f }, { 2.2361f } };
         BinaryDocValues docValues = wrap(vectors, ElementType.BFLOAT16);
         BinaryDocValues magnitudeValues = wrap(magnitudes);
-        RankVectorsDocValuesField field = new BFloat16RankVectorsDocValuesField(docValues, magnitudeValues, "test", ElementType.BFLOAT16, dims);
+        RankVectorsDocValuesField field = new BFloat16RankVectorsDocValuesField(
+            docValues,
+            magnitudeValues,
+            "test",
+            ElementType.BFLOAT16,
+            dims
+        );
         RankVectorsScriptDocValues scriptDocValues = field.toScriptDocValues();
 
         field.setNextDocId(0);
@@ -390,7 +417,7 @@ public class RankVectorsScriptDocValuesTests extends ESTestCase {
             for (float value : vector) {
                 switch (elementType) {
                     case FLOAT -> byteBuffer.putFloat(value);
-                    case BFLOAT16 -> byteBuffer.putShort((short)(Float.floatToIntBits(value) >>> 16));
+                    case BFLOAT16 -> byteBuffer.putShort((short) (Float.floatToIntBits(value) >>> 16));
                     case BYTE, BIT -> byteBuffer.put((byte) value);
                     default -> throw new IllegalStateException("unknown element_type [" + elementType + "]");
                 }

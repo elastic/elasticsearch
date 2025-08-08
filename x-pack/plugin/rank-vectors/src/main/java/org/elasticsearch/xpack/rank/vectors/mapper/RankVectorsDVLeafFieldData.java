@@ -25,7 +25,6 @@ import org.elasticsearch.search.DocValueFormat;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 
 final class RankVectorsDVLeafFieldData implements LeafFieldData {

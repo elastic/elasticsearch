@@ -26,15 +26,17 @@ import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LogByteSizeMergePolicy;
 import org.apache.lucene.index.NumericDocValues;
-import org.apache.lucene.index.SortedNumericDocValues;
+import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.SortedNumericSortField;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.common.Randomness;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.index.codec.Elasticsearch900Lucene101Codec;
 import org.elasticsearch.index.codec.tsdb.ES87TSDBDocValuesFormatTests;
+import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -42,6 +44,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 import java.util.function.Supplier;
+import java.util.stream.IntStream;
 
 public class ES819TSDBDocValuesFormatTests extends ES87TSDBDocValuesFormatTests {
 
@@ -543,6 +546,11 @@ public class ES819TSDBDocValuesFormatTests extends ES87TSDBDocValuesFormatTests 
             });
             return config;
         };
+        List<String> allNumericFields = IntStream.range(0, 5).mapToObj(n -> "numeric_" + n).toList();
+        List<String> allSortedNumericFields = IntStream.range(0, 5).mapToObj(n -> "sorted_numeric_" + n).toList();
+        List<String> allSortedFields = IntStream.range(0, 5).mapToObj(n -> "sorted_" + n).toList();
+        List<String> allSortedSetFields = IntStream.range(0, 5).mapToObj(n -> "sorted_set" + n).toList();
+        List<String> allBinaryFields = IntStream.range(0, 5).mapToObj(n -> "binary_" + n).toList();
         try (var source1 = newDirectory(); var source2 = newDirectory(); var singleDir = newDirectory(); var mergeDir = newDirectory()) {
             try (
                 var writer1 = new IndexWriter(source1, indexConfigWithRandomDVFormat.get());
@@ -558,21 +566,38 @@ public class ES819TSDBDocValuesFormatTests extends ES87TSDBDocValuesFormatTests 
                     fields.add(new SortedDocValuesField(hostnameField, new BytesRef(hostName)));
                     fields.add(new SortedNumericDocValuesField(timestampField, timestamp));
                     final IndexWriter splitWriter = random().nextBoolean() ? writer1 : writer2;
-                    if (random().nextBoolean()) {
-                        fields.add(new SortedNumericDocValuesField("gets", random().nextLong(1000_000L)));
-                    } else {
-                        fields.add(new SortedNumericDocValuesField("posts", random().nextLong(1000_000L)));
+                    var numericFields = ESTestCase.randomSubsetOf(allNumericFields);
+                    for (String f : numericFields) {
+                        fields.add(new NumericDocValuesField(f, random().nextLong(1000L)));
                     }
-                    fields.add(new NumericDocValuesField("memory", random().nextLong(1000_000L)));
-                    Randomness.shuffle(fields);
-                    splitWriter.addDocument(fields);
-                    if (random().nextInt(100) <= 5) {
-                        splitWriter.commit();
+                    var sortedNumericFields = ESTestCase.randomSubsetOf(allSortedNumericFields);
+                    for (String field : sortedNumericFields) {
+                        int valueCount = 1 + random().nextInt(3);
+                        for (int v = 0; v < valueCount; v++) {
+                            fields.add(new SortedNumericDocValuesField(field, random().nextLong(1000L)));
+                        }
                     }
-                    // add to the single writer
-                    singleWriter.addDocument(fields);
-                    if (random().nextInt(100) <= 5) {
-                        singleWriter.commit();
+                    var sortedFields = ESTestCase.randomSubsetOf(allSortedFields);
+                    for (String field : sortedFields) {
+                        fields.add(new SortedDocValuesField(field, new BytesRef("v" + random().nextInt(100))));
+                    }
+                    var sortedSetFields = ESTestCase.randomSubsetOf(allSortedSetFields);
+                    for (String field : sortedSetFields) {
+                        int valueCount = 1 + random().nextInt(3);
+                        for (int v = 0; v < valueCount; v++) {
+                            fields.add(new SortedSetDocValuesField(field, new BytesRef("v" + random().nextInt(100))));
+                        }
+                    }
+                    List<String> binaryFields = ESTestCase.randomSubsetOf(allBinaryFields);
+                    for (String field : binaryFields) {
+                        fields.add(new BinaryDocValuesField(field, new BytesRef("b" + random().nextInt(100))));
+                    }
+                    for (IndexWriter writer : List.of(splitWriter, singleWriter)) {
+                        Randomness.shuffle(fields);
+                        writer.addDocument(fields);
+                        if (random().nextInt(100) <= 5) {
+                            writer.commit();
+                        }
                     }
                 }
                 if (random().nextBoolean()) {
@@ -595,41 +620,90 @@ public class ES819TSDBDocValuesFormatTests extends ES87TSDBDocValuesFormatTests 
                 for (int i = 0; i < reader1.leaves().size(); i++) {
                     LeafReader leaf1 = reader1.leaves().get(i).reader();
                     LeafReader leaf2 = reader2.leaves().get(i).reader();
-                    duelAssertNumericField(leaf1, leaf2, "gets");
-                    duelAssertNumericField(leaf1, leaf2, "posts");
-                    duelAssertNumericField(leaf1, leaf2, "memory");
-                    duelAssertNumericField(leaf1, leaf2, "@timestamp");
+                    for (String f : CollectionUtils.appendToCopy(allSortedNumericFields, timestampField)) {
+                        var dv1 = leaf1.getNumericDocValues(f);
+                        var dv2 = leaf2.getNumericDocValues(f);
+                        if (dv1 == null) {
+                            assertNull(dv2);
+                            continue;
+                        }
+                        assertNotNull(dv2);
+                        while (dv1.nextDoc() != NumericDocValues.NO_MORE_DOCS) {
+                            assertNotEquals(NumericDocValues.NO_MORE_DOCS, dv2.nextDoc());
+                            assertEquals(dv1.docID(), dv2.docID());
+                            assertEquals(dv1.longValue(), dv2.longValue());
+                        }
+                        assertEquals(NumericDocValues.NO_MORE_DOCS, dv2.nextDoc());
+                    }
+                    for (String f : CollectionUtils.appendToCopy(allSortedNumericFields, timestampField)) {
+                        var dv1 = leaf1.getSortedNumericDocValues(f);
+                        var dv2 = leaf2.getSortedNumericDocValues(f);
+                        if (dv1 == null) {
+                            assertNull(dv2);
+                            continue;
+                        }
+                        assertNotNull(dv2);
+                        while (dv1.nextDoc() != NumericDocValues.NO_MORE_DOCS) {
+                            assertNotEquals(NumericDocValues.NO_MORE_DOCS, dv2.nextDoc());
+                            assertEquals(dv1.docID(), dv2.docID());
+                            assertEquals(dv1.docValueCount(), dv2.docValueCount());
+                            for (int v = 0; v < dv1.docValueCount(); v++) {
+                                assertEquals(dv1.nextValue(), dv2.nextValue());
+                            }
+                        }
+                        assertEquals(NumericDocValues.NO_MORE_DOCS, dv2.nextDoc());
+                    }
+                    for (String f : CollectionUtils.appendToCopy(allSortedFields, hostnameField)) {
+                        var dv1 = leaf1.getSortedDocValues(f);
+                        var dv2 = leaf2.getSortedDocValues(f);
+                        if (dv1 == null) {
+                            assertNull(dv2);
+                            continue;
+                        }
+                        assertNotNull(dv2);
+                        while (dv1.nextDoc() != SortedDocValues.NO_MORE_DOCS) {
+                            assertNotEquals(SortedDocValues.NO_MORE_DOCS, dv2.nextDoc());
+                            assertEquals(dv1.docID(), dv2.docID());
+                            assertEquals(dv1.lookupOrd(dv1.ordValue()), dv2.lookupOrd(dv2.ordValue()));
+                        }
+                        assertEquals(NumericDocValues.NO_MORE_DOCS, dv2.nextDoc());
+                    }
+                    for (String f : allSortedSetFields) {
+                        var dv1 = leaf1.getSortedSetDocValues(f);
+                        var dv2 = leaf2.getSortedSetDocValues(f);
+                        if (dv1 == null) {
+                            assertNull(dv2);
+                            continue;
+                        }
+                        assertNotNull(dv2);
+                        while (dv1.nextDoc() != SortedDocValues.NO_MORE_DOCS) {
+                            assertNotEquals(SortedDocValues.NO_MORE_DOCS, dv2.nextDoc());
+                            assertEquals(dv1.docID(), dv2.docID());
+                            assertEquals(dv1.docValueCount(), dv2.docValueCount());
+                            for (int v = 0; v < dv1.docValueCount(); v++) {
+                                assertEquals(dv1.lookupOrd(dv1.nextOrd()), dv2.lookupOrd(dv2.nextOrd()));
+                            }
+                        }
+                        assertEquals(NumericDocValues.NO_MORE_DOCS, dv2.nextDoc());
+                    }
+                    for (String f : allBinaryFields) {
+                        var dv1 = leaf1.getBinaryDocValues(f);
+                        var dv2 = leaf2.getBinaryDocValues(f);
+                        if (dv1 == null) {
+                            assertNull(dv2);
+                            continue;
+                        }
+                        assertNotNull(dv2);
+                        while (dv1.nextDoc() != SortedDocValues.NO_MORE_DOCS) {
+                            assertNotEquals(SortedDocValues.NO_MORE_DOCS, dv2.nextDoc());
+                            assertEquals(dv1.docID(), dv2.docID());
+                            assertEquals(dv1.binaryValue(), dv2.binaryValue());
+                        }
+                        assertEquals(NumericDocValues.NO_MORE_DOCS, dv2.nextDoc());
+                    }
                 }
             }
         }
-    }
-
-    static void duelAssertNumericField(LeafReader reader1, LeafReader reader2, String fieldName) throws IOException {
-        SortedNumericDocValues sdv1 = reader1.getSortedNumericDocValues(fieldName);
-        SortedNumericDocValues sdv2 = reader2.getSortedNumericDocValues(fieldName);
-        NumericDocValues dv1;
-        NumericDocValues dv2;
-        if (sdv1 != null) {
-            dv1 = DocValues.unwrapSingleton(sdv1);
-            assertNotNull(sdv2);
-            dv2 = DocValues.unwrapSingleton(sdv2);
-            assertNotNull(dv1);
-            assertNotNull(dv2);
-        } else {
-            assertNull(sdv2);
-            dv1 = reader1.getNumericDocValues(fieldName);
-            dv2 = reader2.getNumericDocValues(fieldName);
-            if (dv1 == null) {
-                assertNull(dv2);
-                return;
-            }
-        }
-        while (dv1.nextDoc() != NumericDocValues.NO_MORE_DOCS) {
-            assertNotEquals(NumericDocValues.NO_MORE_DOCS, dv2.nextDoc());
-            assertEquals(dv1.docID(), dv2.docID());
-            assertEquals(dv1.longValue(), dv2.longValue());
-        }
-        assertEquals(NumericDocValues.NO_MORE_DOCS, dv2.nextDoc());
     }
 
     private IndexWriterConfig getTimeSeriesIndexWriterConfig(String hostnameField, String timestampField) {

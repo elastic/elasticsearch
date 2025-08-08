@@ -1575,7 +1575,7 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         if (requestObject.allowPartialResults != null) {
             request.addParameter("allow_partial_results", String.valueOf(requestObject.allowPartialResults));
         }
-        if (randomBoolean()) {
+        if (randomBoolean() && hasCapabilities(client(), List.of(EsqlCapabilities.Cap.RESPONSE_STREAM.capabilityName()))) {
             request.addParameter("stream", "true");
         }
 

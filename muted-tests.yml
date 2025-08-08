@@ -521,6 +521,15 @@ tests:
 - class: org.elasticsearch.xpack.esql.inference.completion.CompletionOperatorTests
   method: testSimpleCircuitBreaking
   issue: https://github.com/elastic/elasticsearch/issues/132382
+- class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecIT
+  method: test {csv-spec:lookup-join.MvJoinKeyOnFrom}
+  issue: https://github.com/elastic/elasticsearch/issues/132554
+- class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
+  method: test {csv-spec:lookup-join.MvJoinKeyFromRow}
+  issue: https://github.com/elastic/elasticsearch/issues/132555
+- class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecIT
+  method: test {csv-spec:spatial.ConvertFromStringParseError}
+  issue: https://github.com/elastic/elasticsearch/issues/132558
 
 # Examples:
 #

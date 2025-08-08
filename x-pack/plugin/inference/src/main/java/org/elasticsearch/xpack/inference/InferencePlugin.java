@@ -113,6 +113,7 @@ import org.elasticsearch.xpack.inference.rest.RestPutInferenceModelAction;
 import org.elasticsearch.xpack.inference.rest.RestStreamInferenceAction;
 import org.elasticsearch.xpack.inference.rest.RestUpdateInferenceModelAction;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
+import org.elasticsearch.xpack.inference.services.ai21.Ai21Service;
 import org.elasticsearch.xpack.inference.services.alibabacloudsearch.AlibabaCloudSearchService;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockService;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.client.AmazonBedrockRequestSender;
@@ -145,6 +146,8 @@ import org.elasticsearch.xpack.inference.services.voyageai.VoyageAIService;
 
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -177,6 +180,13 @@ public class InferencePlugin extends Plugin
     public static final Setting<Boolean> SKIP_VALIDATE_AND_START = Setting.boolSetting(
         "xpack.inference.skip_validate_and_start",
         false,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+    public static final Setting<TimeValue> INFERENCE_QUERY_TIMEOUT = Setting.timeSetting(
+        "xpack.inference.query_timeout",
+        TimeValue.timeValueSeconds(10),
+        TimeValue.timeValueMillis(1),
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
     );
@@ -404,6 +414,7 @@ public class InferencePlugin extends Plugin
             context -> new VoyageAIService(httpFactory.get(), serviceComponents.get(), context),
             context -> new DeepSeekService(httpFactory.get(), serviceComponents.get(), context),
             context -> new LlamaService(httpFactory.get(), serviceComponents.get(), context),
+            context -> new Ai21Service(httpFactory.get(), serviceComponents.get(), context),
             ElasticsearchInternalService::new,
             context -> new CustomService(httpFactory.get(), serviceComponents.get(), context)
         );
@@ -455,7 +466,7 @@ public class InferencePlugin extends Plugin
                 .setPrimaryIndex(InferenceIndex.INDEX_NAME)
                 .setDescription("Contains inference service and model configuration")
                 .setMappings(InferenceIndex.mappings())
-                .setSettings(InferenceIndex.settings())
+                .setSettings(getIndexSettings())
                 .setOrigin(ClientHelper.INFERENCE_ORIGIN)
                 .setPriorSystemIndexDescriptors(List.of(inferenceIndexV1Descriptor))
                 .build(),
@@ -465,11 +476,21 @@ public class InferencePlugin extends Plugin
                 .setPrimaryIndex(InferenceSecretsIndex.INDEX_NAME)
                 .setDescription("Contains inference service secrets")
                 .setMappings(InferenceSecretsIndex.mappings())
-                .setSettings(InferenceSecretsIndex.settings())
+                .setSettings(getSecretsIndexSettings())
                 .setOrigin(ClientHelper.INFERENCE_ORIGIN)
                 .setNetNew()
                 .build()
         );
+    }
+
+    // Overridable for tests
+    protected Settings getIndexSettings() {
+        return InferenceIndex.settings();
+    }
+
+    // Overridable for tests
+    protected Settings getSecretsIndexSettings() {
+        return InferenceSecretsIndex.settings();
     }
 
     @Override
@@ -490,7 +511,11 @@ public class InferencePlugin extends Plugin
 
     @Override
     public List<Setting<?>> getSettings() {
-        ArrayList<Setting<?>> settings = new ArrayList<>();
+        return List.copyOf(getInferenceSettings());
+    }
+
+    public static Set<Setting<?>> getInferenceSettings() {
+        Set<Setting<?>> settings = new HashSet<>();
         settings.addAll(HttpSettings.getSettingsDefinitions());
         settings.addAll(HttpClientManager.getSettingsDefinitions());
         settings.addAll(ThrottlerManager.getSettingsDefinitions());
@@ -499,9 +524,9 @@ public class InferencePlugin extends Plugin
         settings.addAll(RequestExecutorServiceSettings.getSettingsDefinitions());
         settings.add(SKIP_VALIDATE_AND_START);
         settings.add(INDICES_INFERENCE_BATCH_SIZE);
+        settings.add(INFERENCE_QUERY_TIMEOUT);
         settings.addAll(ElasticInferenceServiceSettings.getSettingsDefinitions());
-
-        return settings;
+        return Collections.unmodifiableSet(settings);
     }
 
     @Override

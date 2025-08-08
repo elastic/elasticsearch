@@ -15,7 +15,6 @@ import org.elasticsearch.action.fieldcaps.FieldCapabilitiesFailure;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.common.collect.Iterators;
-import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockUtils;
 import org.elasticsearch.compute.data.Page;
@@ -33,8 +32,10 @@ import org.elasticsearch.indices.IndicesExpressionGrouper;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.search.SearchShardTarget;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.transport.RemoteClusterService;
+import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.elasticsearch.xpack.esql.action.EsqlQueryRequest;
@@ -44,7 +45,6 @@ import org.elasticsearch.xpack.esql.analysis.EnrichResolution;
 import org.elasticsearch.xpack.esql.analysis.PreAnalyzer;
 import org.elasticsearch.xpack.esql.analysis.Verifier;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
-import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -54,7 +54,7 @@ import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.index.MappingException;
 import org.elasticsearch.xpack.esql.inference.InferenceResolution;
-import org.elasticsearch.xpack.esql.inference.InferenceRunner;
+import org.elasticsearch.xpack.esql.inference.InferenceService;
 import org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.optimizer.LogicalPlanPreOptimizer;
 import org.elasticsearch.xpack.esql.optimizer.PhysicalOptimizerContext;
@@ -64,7 +64,6 @@ import org.elasticsearch.xpack.esql.parser.QueryParams;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.logical.Explain;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.esql.plan.logical.inference.InferencePlan;
 import org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
@@ -87,6 +86,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static java.util.stream.Collectors.toSet;
 import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
 import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
 import static org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin.firstSubPlan;
@@ -119,7 +119,7 @@ public class EsqlSession {
     private final PhysicalPlanOptimizer physicalPlanOptimizer;
     private final PlanTelemetry planTelemetry;
     private final IndicesExpressionGrouper indicesExpressionGrouper;
-    private final InferenceRunner inferenceRunner;
+    private final InferenceService inferenceService;
     private final RemoteClusterService remoteClusterService;
 
     private boolean explainMode;
@@ -154,7 +154,7 @@ public class EsqlSession {
         this.physicalPlanOptimizer = new PhysicalPlanOptimizer(new PhysicalOptimizerContext(configuration));
         this.planTelemetry = planTelemetry;
         this.indicesExpressionGrouper = indicesExpressionGrouper;
-        this.inferenceRunner = services.inferenceRunner();
+        this.inferenceService = services.inferenceService();
         this.preMapper = new PreMapper(services);
         this.remoteClusterService = services.transportService().getRemoteClusterService();
     }
@@ -167,6 +167,7 @@ public class EsqlSession {
      * Execute an ESQL request.
      */
     public void execute(EsqlQueryRequest request, EsqlExecutionInfo executionInfo, PlanRunner planRunner, ActionListener<Result> listener) {
+        assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.SEARCH);
         assert executionInfo != null : "Null EsqlExecutionInfo";
         LOGGER.debug("ESQL query:\n{}", request.query());
         LogicalPlan parsed = parse(request.query(), request.params());
@@ -197,6 +198,12 @@ public class EsqlSession {
         LogicalPlan optimizedPlan,
         ActionListener<Result> listener
     ) {
+        assert ThreadPool.assertCurrentThreadPool(
+            TcpTransport.TRANSPORT_WORKER_THREAD_NAME_PREFIX,
+            ThreadPool.Names.SYSTEM_READ,
+            ThreadPool.Names.SEARCH,
+            ThreadPool.Names.SEARCH_COORDINATION
+        );
         if (explainMode) {// TODO: INLINESTATS come back to the explain mode branch and reevaluate
             PhysicalPlan physicalPlan = logicalPlanToPhysicalPlan(optimizedPlan, request);
             String physicalPlanString = physicalPlan.toString();
@@ -357,6 +364,7 @@ public class EsqlSession {
         QueryBuilder requestFilter,
         ActionListener<LogicalPlan> logicalPlanListener
     ) {
+        assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.SEARCH);
         if (parsed.analyzed()) {
             logicalPlanListener.onResponse(parsed);
             return;
@@ -374,22 +382,15 @@ public class EsqlSession {
         };
 
         PreAnalyzer.PreAnalysis preAnalysis = preAnalyzer.preAnalyze(parsed);
-        var unresolvedPolicies = preAnalysis.enriches.stream()
-            .map(
-                e -> new EnrichPolicyResolver.UnresolvedPolicy(
-                    BytesRefs.toString(e.policyName().fold(FoldContext.small() /* TODO remove me*/)),
-                    e.mode()
-                )
-            )
-            .collect(Collectors.toSet());
+        var unresolvedPolicies = preAnalysis.enriches.stream().map(EnrichPolicyResolver.UnresolvedPolicy::from).collect(toSet());
 
         EsqlCCSUtils.initCrossClusterState(indicesExpressionGrouper, verifier.licenseState(), preAnalysis.indices, executionInfo);
 
         var listener = SubscribableListener.<EnrichResolution>newForked(
             l -> enrichPolicyResolver.resolvePolicies(unresolvedPolicies, executionInfo, l)
         )
-            .<PreAnalysisResult>andThen((l, enrichResolution) -> resolveFieldNames(parsed, enrichResolution, l))
-            .<PreAnalysisResult>andThen((l, preAnalysisResult) -> resolveInferences(preAnalysis.inferencePlans, preAnalysisResult, l));
+            .<PreAnalysisResult>andThenApply(enrichResolution -> FieldNameUtils.resolveFieldNames(parsed, enrichResolution))
+            .<PreAnalysisResult>andThen((l, preAnalysisResult) -> resolveInferences(parsed, preAnalysisResult, l));
         // first resolve the lookup indices, then the main indices
         for (var index : preAnalysis.lookupIndices) {
             listener = listener.andThen((l, preAnalysisResult) -> preAnalyzeLookupIndex(index, preAnalysisResult, executionInfo, l));
@@ -440,6 +441,11 @@ public class EsqlSession {
         String localPattern = lookupIndexPattern.indexPattern();
         assert RemoteClusterAware.isRemoteIndexName(localPattern) == false
             : "Lookup index name should not include remote, but got: " + localPattern;
+        assert ThreadPool.assertCurrentThreadPool(
+            ThreadPool.Names.SEARCH,
+            ThreadPool.Names.SEARCH_COORDINATION,
+            ThreadPool.Names.SYSTEM_READ
+        );
         Set<String> fieldNames = result.wildcardJoinIndices().contains(localPattern) ? IndexResolver.ALL_FIELDS : result.fieldNames;
 
         String patternWithRemotes;
@@ -491,6 +497,11 @@ public class EsqlSession {
         }
         if (executionInfo.getClusters().isEmpty() || executionInfo.isCrossClusterSearch() == false) {
             // Local only case, still do some checks, since we moved analysis checks here
+            if (lookupIndexResolution.get().indexNameWithModes().isEmpty()) {
+                // This is not OK, but we proceed with it as we do with invalid resolution, and it will fail on the verification
+                // because lookup field will be missing.
+                return result.addLookupIndexResolution(index, lookupIndexResolution);
+            }
             if (lookupIndexResolution.get().indexNameWithModes().size() > 1) {
                 throw new VerificationException(
                     "Lookup Join requires a single lookup mode index; [" + index + "] resolves to multiple indices"
@@ -510,6 +521,16 @@ public class EsqlSession {
             }
             return result.addLookupIndexResolution(index, lookupIndexResolution);
         }
+
+        if (lookupIndexResolution.get().indexNameWithModes().isEmpty() && lookupIndexResolution.resolvedIndices().isEmpty() == false) {
+            // This is a weird situation - we have empty index list but non-empty resolution. This is likely because IndexResolver
+            // got an empty map and pretends to have an empty resolution. This means this query will fail, since lookup fields will not
+            // match, but here we can pretend it's ok to pass it on to the verifier and generate a correct error message.
+            // Note this only happens if the map is completely empty, which means it's going to error out anyway, since we should have
+            // at least the key field there.
+            return result.addLookupIndexResolution(index, lookupIndexResolution);
+        }
+
         // Collect resolved clusters from the index resolution, verify that each cluster has a single resolution for the lookup index
         Map<String, String> clustersWithResolvedIndices = new HashMap<>(lookupIndexResolution.resolvedIndices().size());
         lookupIndexResolution.get().indexNameWithModes().forEach((indexName, indexMode) -> {
@@ -579,7 +600,7 @@ public class EsqlSession {
     ) {
         // If all indices resolve to the same name, we can use that for BWC
         // Older clusters only can handle one name in LOOKUP JOIN
-        var localIndexNames = indexNames.stream().map(n -> RemoteClusterAware.splitIndexName(n)[1]).collect(Collectors.toSet());
+        var localIndexNames = indexNames.stream().map(n -> RemoteClusterAware.splitIndexName(n)[1]).collect(toSet());
         if (localIndexNames.size() == 1) {
             String indexName = localIndexNames.iterator().next();
             EsIndex newIndex = new EsIndex(index, lookupIndexResolution.get().mapping(), Map.of(indexName, IndexMode.LOOKUP));
@@ -625,6 +646,11 @@ public class EsqlSession {
         QueryBuilder requestFilter,
         ActionListener<PreAnalysisResult> listener
     ) {
+        assert ThreadPool.assertCurrentThreadPool(
+            ThreadPool.Names.SEARCH,
+            ThreadPool.Names.SEARCH_COORDINATION,
+            ThreadPool.Names.SYSTEM_READ
+        );
         // TODO we plan to support joins in the future when possible, but for now we'll just fail early if we see one
         List<IndexPattern> indices = preAnalysis.indices;
         if (indices.size() > 1) {
@@ -742,16 +768,8 @@ public class EsqlSession {
         logicalPlanListener.onResponse(plan);
     }
 
-    private static void resolveFieldNames(LogicalPlan parsed, EnrichResolution enrichResolution, ActionListener<PreAnalysisResult> l) {
-        ActionListener.completeWith(l, () -> FieldNameUtils.resolveFieldNames(parsed, enrichResolution));
-    }
-
-    private void resolveInferences(
-        List<InferencePlan<?>> inferencePlans,
-        PreAnalysisResult preAnalysisResult,
-        ActionListener<PreAnalysisResult> l
-    ) {
-        inferenceRunner.resolveInferenceIds(inferencePlans, l.map(preAnalysisResult::withInferenceResolution));
+    private void resolveInferences(LogicalPlan plan, PreAnalysisResult preAnalysisResult, ActionListener<PreAnalysisResult> l) {
+        inferenceService.inferenceResolver().resolveInferenceIds(plan, l.map(preAnalysisResult::withInferenceResolution));
     }
 
     private PhysicalPlan logicalPlanToPhysicalPlan(LogicalPlan optimizedPlan, EsqlQueryRequest request) {

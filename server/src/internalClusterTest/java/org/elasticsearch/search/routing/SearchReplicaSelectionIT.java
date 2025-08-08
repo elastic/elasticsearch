@@ -9,9 +9,6 @@
 
 package org.elasticsearch.search.routing;
 
-import com.carrotsearch.randomizedtesting.annotations.Repeat;
-import com.carrotsearch.randomizedtesting.annotations.Seed;
-
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
@@ -41,7 +38,6 @@ public class SearchReplicaSelectionIT extends ESIntegTestCase {
             .put(OperationRouting.USE_ADAPTIVE_REPLICA_SELECTION_SETTING.getKey(), true)
             .build();
     }
-
 
     public void testNodeSelection() throws Exception {
         // We grab a client directly to avoid using a randomizing client that might set a search preference.

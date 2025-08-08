@@ -2249,11 +2249,13 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         }
 
         private void markSplitting(ShardId targetShardId) {
+            logger.debug("marking split starting for {}", targetShardId);
             var absent = copyTargets.add(targetShardId);
             assert absent : "target shard " + targetShardId + " already marked as splitting from " + shardId;
         }
 
         private void markSplitCompleting(ShardId targetShardId) {
+            logger.debug("marking split completing for {}", targetShardId);
             var present = copyTargets.remove(targetShardId);
             assert present : "target shard " + targetShardId + " not currently splitting from " + shardId;
         }

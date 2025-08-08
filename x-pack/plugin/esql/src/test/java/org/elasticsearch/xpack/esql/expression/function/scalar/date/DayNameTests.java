@@ -45,7 +45,6 @@ public class DayNameTests extends AbstractConfigurationFunctionTestCase {
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
-        long ts = toMillis("2023-02-17T10:25:33.38Z");
         List<TestCaseSupplier> suppliers = new ArrayList<>();
         suppliers.addAll(generateTest("2019-03-11T00:00:00.00Z", "Monday"));
         suppliers.addAll(generateTest("2022-07-26T23:59:59.99Z", "Tuesday"));
@@ -119,9 +118,9 @@ public class DayNameTests extends AbstractConfigurationFunctionTestCase {
     }
 
     public void testFixedLocaleAndTime() {
-        long randomMillis = toMillis("2019-03-12T00:00:00.00Z");
+        long randomMillis = toMillis("2019-03-16T00:00:00.00Z");
         Configuration cfg = configWithZoneAndLocale(ZoneId.of("America/Sao_Paulo"), Locale.of("pt", "br"));
-        String expected = "segunda-feira";
+        String expected = "sexta-feira";
 
         DayName func = new DayName(Source.EMPTY, new Literal(Source.EMPTY, randomMillis, DataType.DATETIME), cfg);
         assertThat(BytesRefs.toBytesRef(expected), equalTo(func.fold(FoldContext.small())));

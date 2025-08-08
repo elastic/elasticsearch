@@ -42,6 +42,6 @@ public final class LastDoubleByTimestampAggregatorFunctionSupplier implements Ag
 
   @Override
   public String describe() {
-    return "last_double_by of timestamps";
+    return LastDoubleByTimestampAggregator.describe();
   }
 }

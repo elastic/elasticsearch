@@ -42,6 +42,6 @@ public final class FirstLongByTimestampAggregatorFunctionSupplier implements Agg
 
   @Override
   public String describe() {
-    return "first_long_by of timestamps";
+    return FirstLongByTimestampAggregator.describe();
   }
 }

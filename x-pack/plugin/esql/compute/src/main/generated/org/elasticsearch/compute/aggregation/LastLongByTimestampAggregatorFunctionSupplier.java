@@ -42,6 +42,6 @@ public final class LastLongByTimestampAggregatorFunctionSupplier implements Aggr
 
   @Override
   public String describe() {
-    return "last_long_by of timestamps";
+    return LastLongByTimestampAggregator.describe();
   }
 }

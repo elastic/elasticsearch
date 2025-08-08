@@ -42,6 +42,6 @@ public final class FirstFloatByTimestampAggregatorFunctionSupplier implements Ag
 
   @Override
   public String describe() {
-    return "first_float_by of timestamps";
+    return FirstFloatByTimestampAggregator.describe();
   }
 }

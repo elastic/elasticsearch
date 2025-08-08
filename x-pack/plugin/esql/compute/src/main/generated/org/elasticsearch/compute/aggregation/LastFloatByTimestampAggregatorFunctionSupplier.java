@@ -42,6 +42,6 @@ public final class LastFloatByTimestampAggregatorFunctionSupplier implements Agg
 
   @Override
   public String describe() {
-    return "last_float_by of timestamps";
+    return LastFloatByTimestampAggregator.describe();
   }
 }

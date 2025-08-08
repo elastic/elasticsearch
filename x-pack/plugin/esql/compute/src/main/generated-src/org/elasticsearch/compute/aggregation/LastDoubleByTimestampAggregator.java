@@ -37,6 +37,10 @@ import org.elasticsearch.core.Releasables;
     { @IntermediateState(name = "timestamps", type = "LONG_BLOCK"), @IntermediateState(name = "values", type = "DOUBLE_BLOCK") }
 )
 public class LastDoubleByTimestampAggregator {
+    public static String describe() {
+        return "last_double_by_timestamp";
+    }
+
     public static LongDoubleState initSingle(DriverContext driverContext) {
         return new LongDoubleState(0, 0);
     }

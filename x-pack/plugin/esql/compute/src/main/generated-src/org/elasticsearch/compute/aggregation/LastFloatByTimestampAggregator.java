@@ -37,6 +37,10 @@ import org.elasticsearch.core.Releasables;
     { @IntermediateState(name = "timestamps", type = "LONG_BLOCK"), @IntermediateState(name = "values", type = "FLOAT_BLOCK") }
 )
 public class LastFloatByTimestampAggregator {
+    public static String describe() {
+        return "last_float_by_timestamp";
+    }
+
     public static LongFloatState initSingle(DriverContext driverContext) {
         return new LongFloatState(0, 0);
     }

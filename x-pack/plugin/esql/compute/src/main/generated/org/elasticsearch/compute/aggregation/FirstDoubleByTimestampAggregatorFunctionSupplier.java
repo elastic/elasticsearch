@@ -42,6 +42,6 @@ public final class FirstDoubleByTimestampAggregatorFunctionSupplier implements A
 
   @Override
   public String describe() {
-    return "first_double_by of timestamps";
+    return FirstDoubleByTimestampAggregator.describe();
   }
 }

@@ -42,6 +42,6 @@ public final class FirstIntByTimestampAggregatorFunctionSupplier implements Aggr
 
   @Override
   public String describe() {
-    return "first_int_by of timestamps";
+    return FirstIntByTimestampAggregator.describe();
   }
 }

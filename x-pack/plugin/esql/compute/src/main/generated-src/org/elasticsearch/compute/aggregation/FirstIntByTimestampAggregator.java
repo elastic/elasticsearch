@@ -37,6 +37,10 @@ import org.elasticsearch.core.Releasables;
     { @IntermediateState(name = "timestamps", type = "LONG_BLOCK"), @IntermediateState(name = "values", type = "INT_BLOCK") }
 )
 public class FirstIntByTimestampAggregator {
+    public static String describe() {
+        return "first_int_by_timestamp";
+    }
+
     public static LongIntState initSingle(DriverContext driverContext) {
         return new LongIntState(0, 0);
     }

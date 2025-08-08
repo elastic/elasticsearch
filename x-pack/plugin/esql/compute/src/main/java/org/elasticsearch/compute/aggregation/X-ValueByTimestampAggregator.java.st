@@ -37,6 +37,10 @@ import org.elasticsearch.core.Releasables;
     { @IntermediateState(name = "timestamps", type = "LONG_BLOCK"), @IntermediateState(name = "values", type = "$TYPE$_BLOCK") }
 )
 public class $Occurrence$$Type$ByTimestampAggregator {
+    public static String describe() {
+        return "$occurrence$_$type$_by_timestamp";
+    }
+
     public static Long$Type$State initSingle(DriverContext driverContext) {
         return new Long$Type$State(0, 0);
     }

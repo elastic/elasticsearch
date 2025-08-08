@@ -42,6 +42,6 @@ public final class LastIntByTimestampAggregatorFunctionSupplier implements Aggre
 
   @Override
   public String describe() {
-    return "last_int_by of timestamps";
+    return LastIntByTimestampAggregator.describe();
   }
 }

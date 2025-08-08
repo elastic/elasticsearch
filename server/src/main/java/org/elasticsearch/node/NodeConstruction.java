@@ -1152,7 +1152,8 @@ class NodeConstruction {
             transportService,
             actionModule.getActionFilters(),
             systemIndices,
-            projectResolver.supportsMultipleProjects()
+            projectResolver.supportsMultipleProjects(),
+            statelessSnapshotEnabled
         );
         SnapshotShardsService snapshotShardsService = new SnapshotShardsService(
             settings,

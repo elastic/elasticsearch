@@ -2424,6 +2424,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                     transportService,
                     actionFilters,
                     EmptySystemIndices.INSTANCE,
+                    false,
                     false
                 );
                 nodeEnv = new NodeEnvironment(settings, environment);

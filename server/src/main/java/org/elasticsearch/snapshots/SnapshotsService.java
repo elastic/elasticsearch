@@ -200,6 +200,8 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
 
     private final boolean serializeProjectMetadata;
 
+    private final boolean statelessSnapshotEnabled;
+
     private final MasterServiceTaskQueue<SnapshotTask> masterServiceTaskQueue;
 
     private final ShardSnapshotUpdateCompletionHandler shardSnapshotUpdateCompletionHandler;
@@ -230,7 +232,8 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
         TransportService transportService,
         ActionFilters actionFilters,
         SystemIndices systemIndices,
-        boolean serializeProjectMetadata
+        boolean serializeProjectMetadata,
+        boolean statelessSnapshotEnabled
     ) {
         this.clusterService = clusterService;
         this.rerouteService = rerouteService;
@@ -250,6 +253,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
         }
         this.systemIndices = systemIndices;
         this.serializeProjectMetadata = serializeProjectMetadata;
+        this.statelessSnapshotEnabled = statelessSnapshotEnabled;
 
         this.masterServiceTaskQueue = clusterService.createTaskQueue("snapshots-service", Priority.NORMAL, new SnapshotTaskExecutor());
         this.updateNodeIdsToRemoveQueue = clusterService.createTaskQueue(
@@ -1136,7 +1140,8 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                                     currentState.routingTable(projectId),
                                     nodes,
                                     snapshotsInProgress::isNodeIdForRemoval,
-                                    knownFailures
+                                    knownFailures,
+                                    statelessSnapshotEnabled
                                 );
                                 if (shards != null) {
                                     final SnapshotsInProgress.Entry updatedSnapshot = snapshotEntry.withShardStates(shards);
@@ -1236,7 +1241,8 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
         RoutingTable routingTable,
         DiscoveryNodes nodes,
         Predicate<String> nodeIdRemovalPredicate,
-        Map<RepositoryShardId, ShardSnapshotStatus> knownFailures
+        Map<RepositoryShardId, ShardSnapshotStatus> knownFailures,
+        boolean statelessSnapshotEnabled
     ) {
         assert snapshotEntry.isClone() == false : "clones take a different path";
         boolean snapshotChanged = false;
@@ -1320,6 +1326,32 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                 } else {
                     // TODO: Restart snapshot on another node?
                     snapshotChanged = true;
+                    if (statelessSnapshotEnabled && shardStatus.state() == ShardState.INIT) {
+                        // Node shutdown before the shard snapshot can be paused, attempt to reassign the shard snapshot
+                        IndexRoutingTable indexRoutingTable = routingTable.index(shardId.getIndex());
+                        if (indexRoutingTable != null) {
+                            IndexShardRoutingTable indexShardRoutingTable = indexRoutingTable.shard(shardId.id());
+                            if (indexShardRoutingTable != null) {
+                                final var updatedShardSnapshotStatus = initShardSnapshotStatus(
+                                    shardStatus.generation(),
+                                    indexShardRoutingTable.primaryShard(),
+                                    nodeIdRemovalPredicate
+                                );
+                                if (updatedShardSnapshotStatus.state().completed() == false) {
+                                    logger.info(
+                                        "restart snapshot of shard {} from departed node [{}] on node [{}], new state [{}]",
+                                        shardId,
+                                        shardStatus.nodeId(),
+                                        updatedShardSnapshotStatus.nodeId(),
+                                        updatedShardSnapshotStatus.state()
+                                    );
+                                    shards.put(shardId, updatedShardSnapshotStatus);
+                                    continue;
+                                }
+                                // If shard becomes unassigned at the same time. We let it fall through the same failure as node removal
+                            }
+                        }
+                    }
                     logger.warn("failing snapshot of shard [{}] on departed node [{}]", shardId, shardStatus.nodeId());
                     final ShardSnapshotStatus failedState = new ShardSnapshotStatus(
                         shardStatus.nodeId(),

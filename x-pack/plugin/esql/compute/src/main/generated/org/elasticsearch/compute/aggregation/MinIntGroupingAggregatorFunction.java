@@ -62,9 +62,7 @@ public final class MinIntGroupingAggregatorFunction implements GroupingAggregato
     IntBlock vBlock = page.getBlock(channels.get(0));
     IntVector vVector = vBlock.asVector();
     if (vVector == null) {
-      if (vBlock.mayHaveNulls()) {
-        state.enableGroupIdTracking(seenGroupIds);
-      }
+      maybeEnableGroupIdTracking(seenGroupIds, vBlock);
       return new GroupingAggregatorFunction.AddInput() {
         @Override
         public void add(int positionOffset, IntArrayBlock groupIds) {
@@ -294,6 +292,12 @@ public final class MinIntGroupingAggregatorFunction implements GroupingAggregato
       if (seen.getBoolean(valuesPosition)) {
         state.set(groupId, MinIntAggregator.combine(state.getOrDefault(groupId), min.getInt(valuesPosition)));
       }
+    }
+  }
+
+  private void maybeEnableGroupIdTracking(SeenGroupIds seenGroupIds, IntBlock vBlock) {
+    if (vBlock.mayHaveNulls()) {
+      state.enableGroupIdTracking(seenGroupIds);
     }
   }
 

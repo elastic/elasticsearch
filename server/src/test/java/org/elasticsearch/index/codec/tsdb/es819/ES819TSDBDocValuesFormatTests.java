@@ -546,11 +546,11 @@ public class ES819TSDBDocValuesFormatTests extends ES87TSDBDocValuesFormatTests 
             });
             return config;
         };
-        List<String> allNumericFields = IntStream.range(0, 5).mapToObj(n -> "numeric_" + n).toList();
-        List<String> allSortedNumericFields = IntStream.range(0, 5).mapToObj(n -> "sorted_numeric_" + n).toList();
-        List<String> allSortedFields = IntStream.range(0, 5).mapToObj(n -> "sorted_" + n).toList();
-        List<String> allSortedSetFields = IntStream.range(0, 5).mapToObj(n -> "sorted_set" + n).toList();
-        List<String> allBinaryFields = IntStream.range(0, 5).mapToObj(n -> "binary_" + n).toList();
+        var allNumericFields = IntStream.range(0, ESTestCase.between(1, 10)).mapToObj(n -> "numeric_" + n).toList();
+        var allSortedNumericFields = IntStream.range(0, ESTestCase.between(1, 10)).mapToObj(n -> "sorted_numeric_" + n).toList();
+        var allSortedFields = IntStream.range(0, ESTestCase.between(1, 10)).mapToObj(n -> "sorted_" + n).toList();
+        var allSortedSetFields = IntStream.range(0, ESTestCase.between(1, 10)).mapToObj(n -> "sorted_set" + n).toList();
+        var allBinaryFields = IntStream.range(0, ESTestCase.between(1, 10)).mapToObj(n -> "binary_" + n).toList();
         try (var source1 = newDirectory(); var source2 = newDirectory(); var singleDir = newDirectory(); var mergeDir = newDirectory()) {
             try (
                 var writer1 = new IndexWriter(source1, indexConfigWithRandomDVFormat.get());
@@ -565,7 +565,6 @@ public class ES819TSDBDocValuesFormatTests extends ES87TSDBDocValuesFormatTests 
                     timestamp += 1 + random().nextInt(1_000);
                     fields.add(new SortedDocValuesField(hostnameField, new BytesRef(hostName)));
                     fields.add(new SortedNumericDocValuesField(timestampField, timestamp));
-                    final IndexWriter splitWriter = random().nextBoolean() ? writer1 : writer2;
                     var numericFields = ESTestCase.randomSubsetOf(allNumericFields);
                     for (String f : numericFields) {
                         fields.add(new NumericDocValuesField(f, random().nextLong(1000L)));
@@ -579,20 +578,20 @@ public class ES819TSDBDocValuesFormatTests extends ES87TSDBDocValuesFormatTests 
                     }
                     var sortedFields = ESTestCase.randomSubsetOf(allSortedFields);
                     for (String field : sortedFields) {
-                        fields.add(new SortedDocValuesField(field, new BytesRef("v" + random().nextInt(100))));
+                        fields.add(new SortedDocValuesField(field, new BytesRef("s" + random().nextInt(100))));
                     }
                     var sortedSetFields = ESTestCase.randomSubsetOf(allSortedSetFields);
                     for (String field : sortedSetFields) {
                         int valueCount = 1 + random().nextInt(3);
                         for (int v = 0; v < valueCount; v++) {
-                            fields.add(new SortedSetDocValuesField(field, new BytesRef("v" + random().nextInt(100))));
+                            fields.add(new SortedSetDocValuesField(field, new BytesRef("ss" + random().nextInt(100))));
                         }
                     }
                     List<String> binaryFields = ESTestCase.randomSubsetOf(allBinaryFields);
                     for (String field : binaryFields) {
                         fields.add(new BinaryDocValuesField(field, new BytesRef("b" + random().nextInt(100))));
                     }
-                    for (IndexWriter writer : List.of(splitWriter, singleWriter)) {
+                    for (IndexWriter writer : List.of(ESTestCase.randomFrom(writer1, writer2), singleWriter)) {
                         Randomness.shuffle(fields);
                         writer.addDocument(fields);
                         if (random().nextInt(100) <= 5) {

@@ -60,9 +60,7 @@ public final class ValuesBooleanGroupingAggregatorFunction implements GroupingAg
     BooleanBlock vBlock = page.getBlock(channels.get(0));
     BooleanVector vVector = vBlock.asVector();
     if (vVector == null) {
-      if (vBlock.mayHaveNulls()) {
-        state.enableGroupIdTracking(seenGroupIds);
-      }
+      maybeEnableGroupIdTracking(seenGroupIds, vBlock);
       return new GroupingAggregatorFunction.AddInput() {
         @Override
         public void add(int positionOffset, IntArrayBlock groupIds) {
@@ -268,6 +266,12 @@ public final class ValuesBooleanGroupingAggregatorFunction implements GroupingAg
       int groupId = groups.getInt(groupPosition);
       int valuesPosition = groupPosition + positionOffset;
       ValuesBooleanAggregator.combineIntermediate(state, groupId, values, valuesPosition);
+    }
+  }
+
+  private void maybeEnableGroupIdTracking(SeenGroupIds seenGroupIds, BooleanBlock vBlock) {
+    if (vBlock.mayHaveNulls()) {
+      state.enableGroupIdTracking(seenGroupIds);
     }
   }
 

@@ -27,10 +27,42 @@ import org.elasticsearch.core.Releasables;
  * A time-series aggregation function that collects the First occurrence value of a time series in a specified interval.
  * This class is generated. Edit `X-ValueByTimestampAggregator.java.st` instead.
  */
+@Aggregator(
+    {
+        @IntermediateState(name = "timestamps", type = "LONG"),
+        @IntermediateState(name = "values", type = "LONG"),
+        @IntermediateState(name = "seen", type = "BOOLEAN") }
+)
 @GroupingAggregator(
     { @IntermediateState(name = "timestamps", type = "LONG_BLOCK"), @IntermediateState(name = "values", type = "LONG_BLOCK") }
 )
 public class FirstLongByTimestampAggregator {
+    public static String describe() {
+        return "first_long_by_timestamp";
+    }
+
+    public static LongLongState initSingle(DriverContext driverContext) {
+        return new LongLongState(0, 0);
+    }
+
+    public static void combine(LongLongState current, long value, long timestamp) {
+        if (timestamp < current.v1()) {
+            current.v1(timestamp);
+            current.v2(value);
+        }
+    }
+
+    public static void combineIntermediate(LongLongState current, long timestamp, long value, boolean seen) {
+        if (seen) {
+            current.seen(true);
+            combine(current, value, timestamp);
+        }
+    }
+
+    public static Block evaluateFinal(LongLongState current, DriverContext ctx) {
+        return ctx.blockFactory().newConstantLongBlockWith(current.v2(), 1);
+    }
+
     public static GroupingState initGrouping(DriverContext driverContext) {
         return new GroupingState(driverContext.bigArrays());
     }
@@ -76,6 +108,11 @@ public class FirstLongByTimestampAggregator {
                 timestamps = bigArrays.newLongArray(1, false);
                 this.timestamps = timestamps;
                 this.values = bigArrays.newLongArray(1, false);
+                /*
+                 * Enable group id tracking because we use has hasValue in the
+                 * collection itself to detect the when a value first arrives.
+                 */
+                enableGroupIdTracking(new SeenGroupIds.Empty());
                 success = true;
             } finally {
                 if (success == false) {

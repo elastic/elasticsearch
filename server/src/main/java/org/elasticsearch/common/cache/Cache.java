@@ -15,15 +15,20 @@ import java.util.function.BiConsumer;
 import java.util.function.ToLongBiFunction;
 
 /**
- * Interface for cache implementations, currently still quite tied to {@link LRUCache} it's currently an ongoing effort to decouple.
+ * Interface for cache implementations
  * <p>
  * Implementations are expected to notify through a {@link RemovalListener} but the interface does not feature a method for registering a
- * listener as how it's left to the implementation; which could possibly be supplied through a constructor. If an implementation supplies
- * a means of modifying the listener(s) it should specify its guarantees with respect to delivery of notifies. If the implementation
- * features an eviction strategy, and events are evicted, a removal notification with
+ * listener, as how it's left to the implementation. This leaves the option open for it to be registered through a constructor. If an
+ * implementation supplies the option of modifying the listener(s) after the cache is created, it should specify its guarantees of delivery
+ * of notifications. If the implementation features an eviction strategy, and events are evicted, a removal notification with
  * {@link org.elasticsearch.common.cache.RemovalNotification.RemovalReason} EVICTED should be emitted. If {@link #invalidate(Key)},
  * {@link #invalidate(Key, Value)}, or {@link #invalidateAll()} is used, a removal notification with
  * {@link org.elasticsearch.common.cache.RemovalNotification.RemovalReason} INVALIDATED should be emitted.
+ * </p>
+ * <p>
+ * Similarly, the implementation doesn't specify a means of supplying a weigher in the form of a {@link ToLongBiFunction}. The function
+ * will be supplied the Kay Value pair as arguments and should compute and return the weight of the entry.
+ * If values have mutable components which affect their weight, if any recomputation happens, and when, is left to the implementation.
  * </p>
  *
  * @param <Key> Type of keys to lookup values
@@ -103,7 +108,7 @@ public interface Cache<Key, Value> {
     int count();
 
     /**
-     * The total weight of all entries in the cache. This interface does not specify the property that gives a entry weight,
+     * The total weight of all entries in the cache. This interface does not specify the unit or what gives an entry weight,
      * implementations are expected to allow the user to specify an external weigher in the form of a {@link ToLongBiFunction}
      *
      * @return the weight of all the entries in the cache

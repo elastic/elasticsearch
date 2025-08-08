@@ -62,7 +62,7 @@ public class Netty4Plugin extends Plugin implements NetworkPlugin {
     );
     public static final Setting<Integer> WORKER_COUNT = new Setting<>(
         "transport.netty.worker_count",
-        (s) -> Integer.toString(EsExecutors.allocatedProcessors(s)),
+        (s) -> Integer.toString(EsExecutors.allocatedProcessors(s) * 2),
         (s) -> Setting.parseInt(s, 1, "transport.netty.worker_count"),
         Setting.Property.NodeScope
     );

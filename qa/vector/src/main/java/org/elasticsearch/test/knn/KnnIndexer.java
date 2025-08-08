@@ -27,8 +27,6 @@ import org.apache.lucene.document.KnnByteVectorField;
 import org.apache.lucene.document.KnnFloatVectorField;
 import org.apache.lucene.document.StoredField;
 import org.apache.lucene.index.ConcurrentMergeScheduler;
-import org.apache.lucene.index.DirectoryReader;
-import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.MergePolicy;
@@ -92,14 +90,6 @@ class KnnIndexer {
         this.similarityFunction = similarityFunction;
         this.numDocs = numDocs;
         this.mergePolicy = mergePolicy;
-    }
-
-    void numSegments(KnnIndexTester.Results result) {
-        try (FSDirectory dir = FSDirectory.open(indexPath); IndexReader reader = DirectoryReader.open(dir)) {
-            result.numSegments = reader.leaves().size();
-        } catch (IOException e) {
-            throw new UncheckedIOException("Failed to get segment count for index at " + indexPath, e);
-        }
     }
 
     void createIndex(KnnIndexTester.Results result) throws IOException, InterruptedException, ExecutionException {

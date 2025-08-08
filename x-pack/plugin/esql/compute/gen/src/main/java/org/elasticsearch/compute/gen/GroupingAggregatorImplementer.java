@@ -198,6 +198,7 @@ public class GroupingAggregatorImplementer {
             builder.addMethod(addRawInputLoop(groupIdClass, true));
             builder.addMethod(addIntermediateInput(groupIdClass));
         }
+        builder.addMethod(maybeEnableGroupIdTracking());
         builder.addMethod(selectedMayContainUnseenGroups());
         builder.addMethod(evaluateIntermediate());
         builder.addMethod(evaluateFinal());
@@ -321,9 +322,11 @@ public class GroupingAggregatorImplementer {
             builder.addStatement("$T $L = $L.asVector()", vectorType(p.type()), p.vectorName(), p.blockName());
             builder.beginControlFlow("if ($L == null)", p.vectorName());
             {
-                builder.beginControlFlow("if ($L.mayHaveNulls())", p.blockName());
-                builder.addStatement("state.enableGroupIdTracking(seenGroupIds)");
-                builder.endControlFlow();
+                builder.addStatement(
+                    "maybeEnableGroupIdTracking(seenGroupIds, "
+                        + aggParams.stream().map(AggregationParameter::blockName).collect(joining(", "))
+                        + ")"
+                );
                 returnAddInput(builder, false);
             }
             builder.endControlFlow();
@@ -349,6 +352,23 @@ public class GroupingAggregatorImplementer {
         } else {
             builder.addStatement("return $L", addInput(valuesAreVector));
         }
+    }
+
+    private MethodSpec maybeEnableGroupIdTracking() {
+        MethodSpec.Builder builder = MethodSpec.methodBuilder("maybeEnableGroupIdTracking");
+        builder.addModifiers(Modifier.PRIVATE).returns(TypeName.VOID);
+        builder.addParameter(SEEN_GROUP_IDS, "seenGroupIds");
+        for (AggregationParameter p : aggParams) {
+            builder.addParameter(blockType(p.type()), p.blockName());
+        }
+
+        for (AggregationParameter p : aggParams) {
+            builder.beginControlFlow("if ($L.mayHaveNulls())", p.blockName());
+            builder.addStatement("state.enableGroupIdTracking(seenGroupIds)");
+            builder.endControlFlow();
+        }
+
+        return builder.build();
     }
 
     /**

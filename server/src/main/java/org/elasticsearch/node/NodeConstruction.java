@@ -1135,7 +1135,6 @@ class NodeConstruction {
             clusterModule.getIndexNameExpressionResolver(),
             repositoriesService,
             transportService,
-            actionModule.getActionFilters(),
             systemIndices,
             projectResolver.supportsMultipleProjects()
         );

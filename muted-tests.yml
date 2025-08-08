@@ -368,9 +368,6 @@ tests:
 - class: org.elasticsearch.test.rest.yaml.RcsCcsCommonYamlTestSuiteIT
   method: test {p0=msearch/20_typed_keys/Multisearch test with typed_keys parameter for sampler and significant terms}
   issue: https://github.com/elastic/elasticsearch/issues/130472
-- class: org.elasticsearch.index.codec.vectors.cluster.HierarchicalKMeansTests
-  method: testHKmeans
-  issue: https://github.com/elastic/elasticsearch/issues/130497
 - class: org.elasticsearch.gradle.LoggedExecFuncTest
   method: failed tasks output logged to console when spooling true
   issue: https://github.com/elastic/elasticsearch/issues/119509
@@ -518,6 +515,21 @@ tests:
 - class: org.elasticsearch.xpack.logsdb.qa.LogsDbVersusReindexedIntoStoredSourceChallengeRestIT
   method: testRandomQueries
   issue: https://github.com/elastic/elasticsearch/issues/132378
+- class: org.elasticsearch.xpack.esql.inference.completion.CompletionOperatorTests
+  method: testSimpleCircuitBreaking
+  issue: https://github.com/elastic/elasticsearch/issues/132382
+- class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecIT
+  method: test {csv-spec:lookup-join.MvJoinKeyOnFrom}
+  issue: https://github.com/elastic/elasticsearch/issues/132554
+- class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
+  method: test {csv-spec:lookup-join.MvJoinKeyFromRow}
+  issue: https://github.com/elastic/elasticsearch/issues/132555
+- class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecIT
+  method: test {csv-spec:spatial.ConvertFromStringParseError}
+  issue: https://github.com/elastic/elasticsearch/issues/132558
+- class: org.elasticsearch.xpack.esql.qa.mixed.EsqlClientYamlIT
+  method: test {p0=esql/40_unsupported_types/nested declared inline}
+  issue: https://github.com/elastic/elasticsearch/issues/126606
 
 # Examples:
 #

@@ -11,6 +11,7 @@ package org.elasticsearch.index.codec.tsdb.es819;
 
 import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.codecs.DocValuesFormat;
+import org.apache.lucene.codecs.lucene90.Lucene90DocValuesFormat;
 import org.apache.lucene.document.BinaryDocValuesField;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.NumericDocValuesField;
@@ -21,17 +22,26 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
+import org.apache.lucene.index.IndexableField;
+import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LogByteSizeMergePolicy;
+import org.apache.lucene.index.NumericDocValues;
+import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.SortedNumericSortField;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.cluster.metadata.DataStream;
+import org.elasticsearch.common.Randomness;
 import org.elasticsearch.index.codec.Elasticsearch900Lucene101Codec;
 import org.elasticsearch.index.codec.tsdb.ES87TSDBDocValuesFormatTests;
 
+import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.List;
 import java.util.Locale;
+import java.util.function.Supplier;
 
 public class ES819TSDBDocValuesFormatTests extends ES87TSDBDocValuesFormatTests {
 
@@ -512,6 +522,114 @@ public class ES819TSDBDocValuesFormatTests extends ES87TSDBDocValuesFormatTests 
                 }
             }
         }
+    }
+
+    public void testAddIndices() throws IOException {
+        String timestampField = "@timestamp";
+        String hostnameField = "host.name";
+        Supplier<IndexWriterConfig> indexConfigWithRandomDVFormat = () -> {
+            IndexWriterConfig config = getTimeSeriesIndexWriterConfig(hostnameField, timestampField);
+            DocValuesFormat dvFormat = switch (random().nextInt(3)) {
+                case 0 -> new ES87TSDBDocValuesFormatTests.TestES87TSDBDocValuesFormat(random().nextInt(4, 16));
+                case 1 -> new ES819TSDBDocValuesFormat();
+                case 2 -> new Lucene90DocValuesFormat();
+                default -> throw new AssertionError("unknown option");
+            };
+            config.setCodec(new Elasticsearch900Lucene101Codec() {
+                @Override
+                public DocValuesFormat getDocValuesFormatForField(String field) {
+                    return dvFormat;
+                }
+            });
+            return config;
+        };
+        try (var source1 = newDirectory(); var source2 = newDirectory(); var singleDir = newDirectory(); var mergeDir = newDirectory()) {
+            try (
+                var writer1 = new IndexWriter(source1, indexConfigWithRandomDVFormat.get());
+                var writer2 = new IndexWriter(source2, indexConfigWithRandomDVFormat.get());
+                var singleWriter = new IndexWriter(singleDir, indexConfigWithRandomDVFormat.get())
+            ) {
+                int numDocs = 1 + random().nextInt(1_000);
+                long timestamp = random().nextLong(1000_000L);
+                for (int i = 0; i < numDocs; i++) {
+                    List<IndexableField> fields = new ArrayList<>();
+                    String hostName = String.format(Locale.ROOT, "host-%d", random().nextInt(5));
+                    timestamp += 1 + random().nextInt(1_000);
+                    fields.add(new SortedDocValuesField(hostnameField, new BytesRef(hostName)));
+                    fields.add(new SortedNumericDocValuesField(timestampField, timestamp));
+                    final IndexWriter splitWriter = random().nextBoolean() ? writer1 : writer2;
+                    if (random().nextBoolean()) {
+                        fields.add(new SortedNumericDocValuesField("gets", random().nextLong(1000_000L)));
+                    } else {
+                        fields.add(new SortedNumericDocValuesField("posts", random().nextLong(1000_000L)));
+                    }
+                    fields.add(new NumericDocValuesField("memory", random().nextLong(1000_000L)));
+                    Randomness.shuffle(fields);
+                    splitWriter.addDocument(fields);
+                    if (random().nextInt(100) <= 5) {
+                        splitWriter.commit();
+                    }
+                    // add to the single writer
+                    singleWriter.addDocument(fields);
+                    if (random().nextInt(100) <= 5) {
+                        singleWriter.commit();
+                    }
+                }
+                if (random().nextBoolean()) {
+                    writer1.forceMerge(1);
+                }
+                if (random().nextBoolean()) {
+                    writer2.forceMerge(1);
+                }
+                singleWriter.commit();
+                singleWriter.forceMerge(1);
+            }
+            try (var mergeWriter = new IndexWriter(mergeDir, getTimeSeriesIndexWriterConfig(hostnameField, timestampField))) {
+                mergeWriter.addIndexes(source1, source2);
+                mergeWriter.forceMerge(1);
+            }
+            try (var reader1 = DirectoryReader.open(singleDir); var reader2 = DirectoryReader.open(mergeDir)) {
+                assertEquals(reader1.maxDoc(), reader2.maxDoc());
+                assertEquals(1, reader1.leaves().size());
+                assertEquals(1, reader2.leaves().size());
+                for (int i = 0; i < reader1.leaves().size(); i++) {
+                    LeafReader leaf1 = reader1.leaves().get(i).reader();
+                    LeafReader leaf2 = reader2.leaves().get(i).reader();
+                    duelAssertNumericField(leaf1, leaf2, "gets");
+                    duelAssertNumericField(leaf1, leaf2, "posts");
+                    duelAssertNumericField(leaf1, leaf2, "memory");
+                    duelAssertNumericField(leaf1, leaf2, "@timestamp");
+                }
+            }
+        }
+    }
+
+    static void duelAssertNumericField(LeafReader reader1, LeafReader reader2, String fieldName) throws IOException {
+        SortedNumericDocValues sdv1 = reader1.getSortedNumericDocValues(fieldName);
+        SortedNumericDocValues sdv2 = reader2.getSortedNumericDocValues(fieldName);
+        NumericDocValues dv1;
+        NumericDocValues dv2;
+        if (sdv1 != null) {
+            dv1 = DocValues.unwrapSingleton(sdv1);
+            assertNotNull(sdv2);
+            dv2 = DocValues.unwrapSingleton(sdv2);
+            assertNotNull(dv1);
+            assertNotNull(dv2);
+        } else {
+            assertNull(sdv2);
+            dv1 = reader1.getNumericDocValues(fieldName);
+            dv2 = reader2.getNumericDocValues(fieldName);
+            if (dv1 == null) {
+                assertNull(dv2);
+                return;
+            }
+        }
+        while (dv1.nextDoc() != NumericDocValues.NO_MORE_DOCS) {
+            assertNotEquals(NumericDocValues.NO_MORE_DOCS, dv2.nextDoc());
+            assertEquals(dv1.docID(), dv2.docID());
+            assertEquals(dv1.longValue(), dv2.longValue());
+        }
+        assertEquals(NumericDocValues.NO_MORE_DOCS, dv2.nextDoc());
     }
 
     private IndexWriterConfig getTimeSeriesIndexWriterConfig(String hostnameField, String timestampField) {

@@ -74,10 +74,10 @@ class XContentEsqlQueryResponseStream extends AbstractEsqlQueryResponseStream<To
     }
 
     @Override
-    protected Iterator<ToXContent> doSendPages(Iterable<Page> pages) {
+    protected Iterator<ToXContent> doSendPage(Page page) {
         assert columns != null : "columns must be set before sending pages";
 
-        return ResponseXContentUtils.rowValues(columns, pages, null);
+        return ResponseXContentUtils.rowValues(columns, List.of(page), null);
     }
 
     @Override
@@ -145,7 +145,7 @@ class XContentEsqlQueryResponseStream extends AbstractEsqlQueryResponseStream<To
         } else {
             content.add(doStartResponse(response.columns()));
         }
-        // doSendPages doesn't work with nullColumns or columnar, so we generate them here directly
+        // doSendPage doesn't work with nullColumns or columnar, so we generate them here directly
         content.add(ResponseXContentUtils.columnValues(response.columns(), response.pages(), esqlRequest.columnar(), nullColumns));
         content.add(doFinishResponse(response));
         return asIterator(content);

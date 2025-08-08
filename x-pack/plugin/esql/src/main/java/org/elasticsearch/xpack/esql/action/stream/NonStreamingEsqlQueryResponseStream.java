@@ -42,7 +42,7 @@ class NonStreamingEsqlQueryResponseStream implements EsqlQueryResponseStream {
     }
 
     @Override
-    public void sendPages(Iterable<Page> pages) {
+    public void sendPage(Page pages) {
         // No-op, all done in the listener
     }
 

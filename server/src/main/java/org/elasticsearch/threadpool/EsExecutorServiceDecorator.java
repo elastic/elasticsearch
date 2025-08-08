@@ -28,6 +28,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.elasticsearch.common.util.concurrent.EsThreadPoolExecutor.WORKER_PROBE;
+import static org.elasticsearch.common.util.concurrent.ThreadContext.unwrap;
 import static org.elasticsearch.core.Strings.format;
 
 /**
@@ -148,39 +149,7 @@ public class EsExecutorServiceDecorator implements ExecutorService {
             if (rejectAfterShutdown && (shutdownRequested.get() || delegate.isShutdown())) {
                 throw new EsRejectedExecutionException("executor has been shutdown", delegate.isShutdown());
             }
-            // Increment outstanding task count
-            runningTasks.getAndUpdate(currentValue -> {
-                if (currentValue == -1) {
-                    throw new EsRejectedExecutionException("executor has been shutdown", true);
-                } else {
-                    return currentValue + 1;
-                }
-            });
-            boolean executed = false;
-            try {
-                delegate.execute(() -> {
-                    try {
-                        wrappedRunnable.run();
-                    } finally {
-                        // Decrement outstanding
-                        runningTasks.decrementAndGet();
-                        tryShutdownDelegate();
-                    }
-                });
-                executed = true;
-            } catch (RejectedExecutionException e) {
-                tryShutdownDelegate();
-                if (command == WORKER_PROBE) {
-                    return;
-                }
-                throw new EsRejectedExecutionException("delegate rejected execution", delegate.isShutdown());
-            } finally {
-                if (executed == false) {
-                    // Decrement outstanding
-                    runningTasks.decrementAndGet();
-                    tryShutdownDelegate();
-                }
-            }
+            executeIfTasksAreOngoing(wrappedRunnable);
         } catch (Exception e) {
             if (wrappedRunnable instanceof AbstractRunnable abstractRunnable) {
                 try {
@@ -196,6 +165,46 @@ public class EsExecutorServiceDecorator implements ExecutorService {
                 }
             } else {
                 throw e;
+            }
+        }
+    }
+
+    /**
+     * Execute the runnable if the delegate is still running
+     *
+     * @param wrappedRunnable The wrapped runnable to run
+     */
+    private void executeIfTasksAreOngoing(Runnable wrappedRunnable) {
+        // Increment outstanding task count
+        runningTasks.getAndUpdate(currentValue -> {
+            if (currentValue == -1) {
+                throw new EsRejectedExecutionException("executor has been shutdown", true);
+            } else {
+                return currentValue + 1;
+            }
+        });
+        boolean executed = false;
+        try {
+            delegate.execute(() -> {
+                try {
+                    wrappedRunnable.run();
+                } finally {
+                    // Decrement outstanding
+                    runningTasks.decrementAndGet();
+                    tryShutdownDelegate();
+                }
+            });
+            executed = true;
+        } catch (RejectedExecutionException e) {
+            if (unwrap(wrappedRunnable) == WORKER_PROBE) {
+                return;
+            }
+            throw new EsRejectedExecutionException("delegate rejected execution", delegate.isShutdown());
+        } finally {
+            if (executed == false) {
+                // Decrement outstanding
+                runningTasks.decrementAndGet();
+                tryShutdownDelegate();
             }
         }
     }

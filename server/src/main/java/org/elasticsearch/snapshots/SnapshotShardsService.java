@@ -398,7 +398,7 @@ public final class SnapshotShardsService extends AbstractLifecycleComponent impl
             newSnapshotShards.put(shardId, snapshotStatus);
             final IndexId indexId = entry.indices().get(shardId.getIndexName());
             assert indexId != null;
-            assert SnapshotsService.useShardGenerations(entry.version())
+            assert SnapshotsServiceUtils.useShardGenerations(entry.version())
                 || ShardGenerations.fixShardGeneration(snapshotStatus.generation()) == null
                 : "Found non-null, non-numeric shard generation ["
                     + snapshotStatus.generation()
@@ -905,7 +905,7 @@ public final class SnapshotShardsService extends AbstractLifecycleComponent impl
             updateResultListener,
             (req, reqListener) -> transportService.sendRequest(
                 transportService.getLocalNode(),
-                SnapshotsService.UPDATE_SNAPSHOT_STATUS_ACTION_NAME,
+                TransportUpdateSnapshotStatusAction.NAME,
                 req,
                 new ActionListenerResponseHandler<>(
                     reqListener.map(res -> null),

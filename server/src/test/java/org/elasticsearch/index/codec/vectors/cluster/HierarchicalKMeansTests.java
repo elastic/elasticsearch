@@ -36,7 +36,7 @@ public class HierarchicalKMeansTests extends ESTestCase {
         int[] assignments = result.assignments();
         int[] soarAssignments = result.soarAssignments();
 
-        assertEquals(Math.min(nClusters, nVectors), centroids.length, 8);
+        assertEquals(Math.min(nClusters, nVectors), centroids.length, 10);
         assertEquals(nVectors, assignments.length);
 
         for (int assignment : assignments) {

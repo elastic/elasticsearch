@@ -20,7 +20,7 @@ public final class LastDoubleByTimestampAggregatorFunctionSupplier implements Ag
 
   @Override
   public List<IntermediateStateDesc> nonGroupingIntermediateStateDesc() {
-    throw new UnsupportedOperationException("non-grouping aggregator is not supported");
+    return LastDoubleByTimestampAggregatorFunction.intermediateStateDesc();
   }
 
   @Override
@@ -29,8 +29,9 @@ public final class LastDoubleByTimestampAggregatorFunctionSupplier implements Ag
   }
 
   @Override
-  public AggregatorFunction aggregator(DriverContext driverContext, List<Integer> channels) {
-    throw new UnsupportedOperationException("non-grouping aggregator is not supported");
+  public LastDoubleByTimestampAggregatorFunction aggregator(DriverContext driverContext,
+      List<Integer> channels) {
+    return LastDoubleByTimestampAggregatorFunction.create(driverContext, channels);
   }
 
   @Override
@@ -41,6 +42,6 @@ public final class LastDoubleByTimestampAggregatorFunctionSupplier implements Ag
 
   @Override
   public String describe() {
-    return "last_double_by of timestamps";
+    return LastDoubleByTimestampAggregator.describe();
   }
 }

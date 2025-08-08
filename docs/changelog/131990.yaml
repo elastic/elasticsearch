@@ -1,6 +1,0 @@
-pr: 131990
-summary: Prevent the trained model deployment memory estimation from double-counting
-  allocations
-area: Machine Learning
-type: bug
-issues: []

@@ -66,9 +66,7 @@ public final class CountDistinctDoubleGroupingAggregatorFunction implements Grou
     DoubleBlock vBlock = page.getBlock(channels.get(0));
     DoubleVector vVector = vBlock.asVector();
     if (vVector == null) {
-      if (vBlock.mayHaveNulls()) {
-        state.enableGroupIdTracking(seenGroupIds);
-      }
+      maybeEnableGroupIdTracking(seenGroupIds, vBlock);
       return new GroupingAggregatorFunction.AddInput() {
         @Override
         public void add(int positionOffset, IntArrayBlock groupIds) {
@@ -277,6 +275,12 @@ public final class CountDistinctDoubleGroupingAggregatorFunction implements Grou
       int groupId = groups.getInt(groupPosition);
       int valuesPosition = groupPosition + positionOffset;
       CountDistinctDoubleAggregator.combineIntermediate(state, groupId, hll.getBytesRef(valuesPosition, scratch));
+    }
+  }
+
+  private void maybeEnableGroupIdTracking(SeenGroupIds seenGroupIds, DoubleBlock vBlock) {
+    if (vBlock.mayHaveNulls()) {
+      state.enableGroupIdTracking(seenGroupIds);
     }
   }
 

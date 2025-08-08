@@ -214,6 +214,7 @@ public class TransportVersions {
     public static final TransportVersion ESQL_SPLIT_ON_BIG_VALUES_8_19 = def(8_841_0_63);
     public static final TransportVersion ESQL_FIXED_INDEX_LIKE_8_19 = def(8_841_0_64);
     public static final TransportVersion INITIAL_ELASTICSEARCH_8_19_1 = def(8_841_0_65);
+    public static final TransportVersion INITIAL_ELASTICSEARCH_8_19_2 = def(8_841_0_66);
     public static final TransportVersion V_9_0_0 = def(9_000_0_09);
     public static final TransportVersion INITIAL_ELASTICSEARCH_9_0_1 = def(9_000_0_10);
     public static final TransportVersion INITIAL_ELASTICSEARCH_9_0_2 = def(9_000_0_11);
@@ -335,6 +336,7 @@ public class TransportVersions {
     public static final TransportVersion ESQL_FIXED_INDEX_LIKE_9_1 = def(9_112_0_02);
     public static final TransportVersion ESQL_SAMPLE_OPERATOR_STATUS_9_1 = def(9_112_0_03);
     public static final TransportVersion INITIAL_ELASTICSEARCH_9_1_1 = def(9_112_0_04);
+    public static final TransportVersion INITIAL_ELASTICSEARCH_9_1_2 = def(9_112_0_05);
 
     /*
      * STOP! READ THIS FIRST! No, really,

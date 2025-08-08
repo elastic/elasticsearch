@@ -52,8 +52,6 @@ public class ESCborParser extends CBORParser implements OptimizedTextCapable {
     }
 
     private Text _finishAndReturnText(int ch) throws IOException {
-        _tokenIncomplete = false;
-        _sharedString = null;
         final int type = ((ch >> 5) & 0x7);
         ch &= 0x1F;
 
@@ -62,6 +60,7 @@ public class ESCborParser extends CBORParser implements OptimizedTextCapable {
             // should never happen so
             _throwInternal();
         }
+        int previousPointer = _inputPtr;
 
         // String value, decode
         final int len = _decodeExplicitLength(ch);
@@ -75,25 +74,11 @@ public class ESCborParser extends CBORParser implements OptimizedTextCapable {
         final int available = _inputEnd - _inputPtr;
         if (available >= len) {
             Text text = new Text(new XContentString.UTF8Bytes(_inputBuffer, _inputPtr, len));
-            _inputPtr += len;
+            _inputPtr = previousPointer;
             return text;
         }
-        byte[] bytes = new byte[len];
-        for (int i = 0; i < len; i++) {
-            bytes[i] = _nextByte();
-        }
-        return new Text(new XContentString.UTF8Bytes(bytes, 0, len));
-    }
-
-    private byte _nextByte() throws IOException {
-        int inPtr = _inputPtr;
-        if (inPtr < _inputEnd) {
-            byte b = _inputBuffer[inPtr];
-            _inputPtr = inPtr + 1;
-            return b;
-        }
-        loadMoreGuaranteed();
-        return _inputBuffer[_inputPtr++];
+        // this is expected to be used in the context where the input stream is not available
+        return null;
     }
 
     /**

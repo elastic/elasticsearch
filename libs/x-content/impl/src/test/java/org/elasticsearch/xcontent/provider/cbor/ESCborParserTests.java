@@ -56,6 +56,8 @@ public class ESCborParserTests extends ESTestCase {
         assertThat(text.hasBytes(), equalTo(true));
         assertThat(text.stringLength(), equalTo(expected.length()));
         assertThat(text.string(), equalTo(expected));
+        assertThat(parser.getValueAsText().string(), equalTo(expected));
+        assertThat(parser.getValueAsString(), equalTo(expected));
         assertThat(parser.nextToken(), equalTo(JsonToken.END_OBJECT));
     }
 }

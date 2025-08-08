@@ -28,16 +28,18 @@ import org.apache.lucene.search.SortedNumericSortField;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.index.codec.Elasticsearch900Lucene101Codec;
+import org.elasticsearch.index.codec.tsdb.BinaryDVCompressionMode;
 import org.elasticsearch.index.codec.tsdb.ES87TSDBDocValuesFormatTests;
 
 import java.util.Arrays;
 import java.util.Locale;
+import java.util.Random;
 
 public class ES819TSDBDocValuesFormatTests extends ES87TSDBDocValuesFormatTests {
 
     private final Codec codec = new Elasticsearch900Lucene101Codec() {
 
-        final ES819TSDBDocValuesFormat docValuesFormat = new ES819TSDBDocValuesFormat();
+        final ES819TSDBDocValuesFormat docValuesFormat = new ES819TSDBDocValuesFormat(randomBinaryDVCompressionMode(random()));
 
         @Override
         public DocValuesFormat getDocValuesFormatForField(String field) {
@@ -528,4 +530,8 @@ public class ES819TSDBDocValuesFormatTests extends ES87TSDBDocValuesFormatTests 
         return config;
     }
 
+    public static BinaryDVCompressionMode randomBinaryDVCompressionMode(Random random) {
+        BinaryDVCompressionMode[] values = BinaryDVCompressionMode.values();
+        return values[random.nextInt(0, values.length)];
+    }
 }

@@ -17,14 +17,18 @@ public class ES819TSDBDocValuesFormatVariableSkipIntervalTests extends ES87TSDBD
 
     @Override
     protected Codec getCodec() {
+        var compressionMode = ES819TSDBDocValuesFormatTests.randomBinaryDVCompressionMode(random());
         // small interval size to test with many intervals
-        return TestUtil.alwaysDocValuesFormat(new ES819TSDBDocValuesFormat(random().nextInt(4, 16), random().nextBoolean()));
+        return TestUtil.alwaysDocValuesFormat(
+            new ES819TSDBDocValuesFormat(random().nextInt(4, 16), random().nextBoolean(), compressionMode)
+        );
     }
 
     public void testSkipIndexIntervalSize() {
+        var compressionMode = ES819TSDBDocValuesFormatTests.randomBinaryDVCompressionMode(random());
         IllegalArgumentException ex = expectThrows(
             IllegalArgumentException.class,
-            () -> new ES819TSDBDocValuesFormat(random().nextInt(Integer.MIN_VALUE, 2), random().nextBoolean())
+            () -> new ES819TSDBDocValuesFormat(random().nextInt(Integer.MIN_VALUE, 2), random().nextBoolean(), compressionMode)
         );
         assertTrue(ex.getMessage().contains("skipIndexIntervalSize must be > 1"));
     }

@@ -1255,7 +1255,7 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
                                         // consume remaining
                                         int docsLength = docs.count() - offset;
                                         int blockLength = ES819TSDBDocValuesFormat.NUMERIC_BLOCK_SIZE - firstBlockInIndex;
-                                        if (docsLength< blockLength) {
+                                        if (docsLength < blockLength) {
                                             builder.appendLongs(currentBlock, firstBlockInIndex, docsLength);
                                             return;
                                         } else {

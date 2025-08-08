@@ -666,21 +666,25 @@ public final class RemoteClusterService extends RemoteClusterAware
      * @throws IllegalArgumentException If this node is not configured to support client operations.
      */
     public void ensureClientIsEnabled() {
-        if (isStateless) {
-            // For stateless the remote cluster client is enabled by default for search nodes,
-            // REMOTE_CLUSTER_CLIENT_ROLE is not explicitly required.
-            if (isSearchNode == false) {
-                throw new IllegalArgumentException(
-                    "node ["
-                        + getNodeName()
-                        + "] must have the ["
-                        + DiscoveryNodeRole.SEARCH_ROLE.roleName()
-                        + "] role in stateless environments to use linked project client features"
-                );
-            }
-        } else if (isRemoteClusterClient == false) {
+        if (isRemoteClusterClient) {
+            return;
+        }
+        if (isStateless == false) {
             throw new IllegalArgumentException(
                 "node [" + getNodeName() + "] does not have the [" + DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE.roleName() + "] role"
+            );
+        }
+        // For stateless the remote cluster client is enabled by default for search nodes,
+        // REMOTE_CLUSTER_CLIENT_ROLE is not explicitly required.
+        if (isSearchNode == false) {
+            throw new IllegalArgumentException(
+                "node ["
+                    + getNodeName()
+                    + "] must have the ["
+                    + DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE.roleName()
+                    + "] role or the ["
+                    + DiscoveryNodeRole.SEARCH_ROLE.roleName()
+                    + "] role in stateless environments to use linked project client features"
             );
         }
     }

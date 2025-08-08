@@ -49,7 +49,6 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executor;
@@ -103,7 +102,7 @@ public final class RemoteClusterService extends RemoteClusterAware
         (ns, key) -> boolSetting(
             key,
             true,
-            new FixedValueIfStatelessEnabledValidator<>(ns, key, true),
+            new UnsupportedInStatelessValidator<>(ns, key),
             Setting.Property.Dynamic,
             Setting.Property.NodeScope
         )
@@ -304,7 +303,7 @@ public final class RemoteClusterService extends RemoteClusterAware
      * Returns whether the cluster identified by the provided alias is configured to be skipped when unavailable
      */
     public boolean isSkipUnavailable(String clusterAlias) {
-        return isStateless || getRemoteClusterConnection(clusterAlias).isSkipUnavailable();
+        return getRemoteClusterConnection(clusterAlias).isSkipUnavailable();
     }
 
     public Transport.Connection getConnection(String cluster) {
@@ -367,7 +366,8 @@ public final class RemoteClusterService extends RemoteClusterAware
     }
 
     private synchronized void updateSkipUnavailable(String clusterAlias, Boolean skipUnavailable) {
-        assert isStateless == false : "Cannot configure setting [" + REMOTE_CLUSTER_SKIP_UNAVAILABLE + "] in stateless environments.";
+        assert isStateless == false
+            : "Cannot configure setting [" + REMOTE_CLUSTER_SKIP_UNAVAILABLE.getKey() + "] in stateless environments.";
         RemoteClusterConnection remote = getConnectionsMapForCurrentProject().get(clusterAlias);
         if (remote != null) {
             remote.setSkipUnavailable(skipUnavailable);
@@ -681,11 +681,11 @@ public final class RemoteClusterService extends RemoteClusterAware
             );
         }
         if (isStateless && disconnectedStrategy == DisconnectedStrategy.RECONNECT_UNLESS_SKIP_UNAVAILABLE) {
-            throw new IllegalArgumentException(
-                "DisconnectedStrategy ["
-                    + DisconnectedStrategy.RECONNECT_UNLESS_SKIP_UNAVAILABLE
-                    + "] is not supported in stateless environments"
-            );
+            final var message = "DisconnectedStrategy ["
+                + DisconnectedStrategy.RECONNECT_UNLESS_SKIP_UNAVAILABLE
+                + "] is not supported in stateless environments";
+            assert false : message;
+            throw new IllegalArgumentException(message);
         }
         if (transportService.getRemoteClusterService().getRegisteredRemoteClusterNames().contains(clusterAlias) == false) {
             throw new NoSuchRemoteClusterException(clusterAlias);
@@ -785,21 +785,17 @@ public final class RemoteClusterService extends RemoteClusterAware
         }
     };
 
-    private static class FixedValueIfStatelessEnabledValidator<T> extends RemoteConnectionEnabled<T> {
+    private static class UnsupportedInStatelessValidator<T> extends RemoteConnectionEnabled<T> {
         private final Setting<Boolean> statelessSetting = Setting.boolSetting(DiscoveryNode.STATELESS_ENABLED_SETTING_NAME, false);
-        private final T requiredValue;
 
-        private FixedValueIfStatelessEnabledValidator(String clusterAlias, String key, T requiredValue) {
+        private UnsupportedInStatelessValidator(String clusterAlias, String key) {
             super(clusterAlias, key);
-            this.requiredValue = Objects.requireNonNull(requiredValue);
         }
 
         @Override
         public void validate(T value, Map<Setting<?>, Object> settings, boolean isPresent) {
-            if (isPresent && ((Boolean) settings.get(statelessSetting)) && requiredValue.equals(value) == false) {
-                throw new IllegalArgumentException(
-                    "setting [" + getKey() + "] must be set to [" + requiredValue + "] when stateless is enabled"
-                );
+            if (isPresent && (Boolean) settings.get(statelessSetting)) {
+                throw new IllegalArgumentException("setting [" + getKey() + "] is unavailable when stateless is enabled");
             }
             super.validate(value, settings, isPresent);
         }

@@ -252,14 +252,18 @@ public class RemoteClusterClientTests extends ESTestCase {
             )
         ) {
             final var remoteClusterService = service.getRemoteClusterService();
-            expectThrows(
-                IllegalArgumentException.class,
-                RemoteClusterService.DisconnectedStrategy.RECONNECT_UNLESS_SKIP_UNAVAILABLE + " is unsupported when stateless is enabled",
+            final var unsupportedDisconnectedStrategy = RemoteClusterService.DisconnectedStrategy.RECONNECT_UNLESS_SKIP_UNAVAILABLE;
+            final var error = expectThrows(
+                AssertionError.class,
                 () -> remoteClusterService.getRemoteClusterClient(
                     "test",
                     EsExecutors.DIRECT_EXECUTOR_SERVICE,
-                    RemoteClusterService.DisconnectedStrategy.RECONNECT_UNLESS_SKIP_UNAVAILABLE
+                    unsupportedDisconnectedStrategy
                 )
+            );
+            assertThat(
+                error.getMessage(),
+                equalTo("DisconnectedStrategy [" + unsupportedDisconnectedStrategy + "] is not supported in stateless environments")
             );
         }
     }

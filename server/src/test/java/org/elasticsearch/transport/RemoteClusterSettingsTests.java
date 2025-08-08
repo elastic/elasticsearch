@@ -107,29 +107,24 @@ public class RemoteClusterSettingsTests extends ESTestCase {
             .put(proxyAddressSetting.getKey(), "localhost:9400")
             .build();
 
-        // Ensure the validator still throws if a connection mode is not set.
-        expectThrows(
+        // Ensure the validator still throws in non-stateless environment if a connection mode is not set.
+        var exception = expectThrows(
             IllegalArgumentException.class,
-            "should not be able to set skip_unavailable if connection mode is not set",
-            () -> skipUnavailableSetting.get(
-                Settings.builder().put(statelessEnabledSettings).put(skipUnavailableSetting.getKey(), true).build()
-            )
+            () -> skipUnavailableSetting.get(Settings.builder().put(skipUnavailableSetting.getKey(), true).build())
+        );
+        assertThat(
+            exception.getMessage(),
+            equalTo("Cannot configure setting [" + skipUnavailableSetting.getKey() + "] if remote cluster is not enabled.")
         );
 
-        // Check the validator requires skip_unavailable to always be true if stateless is enabled.
-        assertThat(
-            skipUnavailableSetting.get(
-                Settings.builder()
-                    .put(statelessEnabledSettings)
-                    .put(proxyEnabledSettings)
-                    .put(skipUnavailableSetting.getKey(), true)
-                    .build()
-            ),
-            equalTo(true)
+        // Ensure we can still get the set value in non-stateless environment.
+        assertFalse(
+            skipUnavailableSetting.get(Settings.builder().put(proxyEnabledSettings).put(skipUnavailableSetting.getKey(), false).build())
         );
-        expectThrows(
+
+        // Check the validator rejects the skip_unavailable setting if present when stateless is enabled.
+        exception = expectThrows(
             IllegalArgumentException.class,
-            "should not be able to set skip_unavailable to false if stateless is enabled",
             () -> skipUnavailableSetting.get(
                 Settings.builder()
                     .put(statelessEnabledSettings)
@@ -138,5 +133,12 @@ public class RemoteClusterSettingsTests extends ESTestCase {
                     .build()
             )
         );
+        assertThat(
+            exception.getMessage(),
+            equalTo("setting [" + skipUnavailableSetting.getKey() + "] is unavailable when stateless is enabled")
+        );
+
+        // Should not throw if the setting is not present, returning the expected default value of true.
+        assertTrue(skipUnavailableSetting.get(Settings.builder().put(statelessEnabledSettings).put(proxyEnabledSettings).build()));
     }
 }

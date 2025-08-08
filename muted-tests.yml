@@ -527,9 +527,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecIT
   method: test {csv-spec:spatial.ConvertFromStringParseError}
   issue: https://github.com/elastic/elasticsearch/issues/132558
-- class: org.elasticsearch.xpack.esql.qa.mixed.EsqlClientYamlIT
-  method: test {p0=esql/40_unsupported_types/nested declared inline}
-  issue: https://github.com/elastic/elasticsearch/issues/126606
 
 # Examples:
 #

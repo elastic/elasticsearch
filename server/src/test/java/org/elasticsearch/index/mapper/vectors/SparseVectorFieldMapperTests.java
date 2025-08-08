@@ -17,6 +17,7 @@ import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
@@ -39,6 +40,7 @@ import org.elasticsearch.inference.WeightedToken;
 import org.elasticsearch.search.lookup.Source;
 import org.elasticsearch.search.vectors.SparseVectorQueryWrapper;
 import org.elasticsearch.test.index.IndexVersionUtils;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParseException;
@@ -48,6 +50,7 @@ import org.hamcrest.Matchers;
 import org.junit.AssumptionViolatedException;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.EnumSet;
@@ -56,6 +59,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.index.IndexVersions.SPARSE_VECTOR_PRUNING_INDEX_OPTIONS_SUPPORT;
 import static org.elasticsearch.index.IndexVersions.UPGRADE_TO_LUCENE_10_0_0;
@@ -73,25 +78,27 @@ public class SparseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase
     public static final float STRICT_TOKENS_WEIGHT_THRESHOLD = 0.5f;
     public static final float STRICT_TOKENS_FREQ_RATIO_THRESHOLD = 1;
 
+    private static final Map<String, Float> COMMON_TOKENS = Map.of(
+        "common1_drop_default", 0.1f,
+        "common2_drop_default", 0.1f,
+        "common3_drop_default", 0.1f
+    );
+
+    private static final Map<String, Float> MEDIUM_TOKENS = Map.of(
+        "medium1_keep_strict", 0.5f,
+        "medium2_keep_default", 0.25f
+    );
+
+    private static final Map<String, Float> RARE_TOKENS = Map.of(
+        "rare1_keep_strict", 0.9f,
+        "rare2_keep_strict", 0.85f
+    );
+
     @Override
     protected Object getSampleValueForDocument() {
-        // randomMap(1, 5, () -> Tuple.tuple(randomAlphaOfLengthBetween(5, 10), Float.valueOf(randomIntBetween(1, 127))))
-        Map<String, Float> map = new TreeMap<>();
-
-        // High weight tokens - low freq (should survive strict pruning)
-        map.put("rare1", (float) randomIntBetween(1, 127));
-        map.put("rare2", (float) randomIntBetween(1, 127));
-
-        // Medium weight - medium freq (half of them should survive strict pruning)
-        map.put("medium_freq", (float) randomIntBetween(1, 127));
-        map.put("medium_freq2", (float) randomIntBetween(1, 127));
-
-        // Low weight tokens - high freq (pruned under default or strict pruning)
-        map.put("common1", (float) randomIntBetween(1, 127));
-        map.put("common2", (float) randomIntBetween(1, 127));
-        map.put("common3", (float) randomIntBetween(1, 127));
-
-        return map;
+        return new TreeMap<>(
+            randomMap(1, 5, () -> Tuple.tuple(randomAlphaOfLengthBetween(5, 10), Float.valueOf(randomIntBetween(1, 127))))
+        );
     }
 
     @Override
@@ -722,30 +729,17 @@ public class SparseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase
         try (Directory directory = newDirectory()) {
             RandomIndexWriter iw = new RandomIndexWriter(random(), directory);
 
-            Map<String, Float> commonTokens = new TreeMap<>();
-            commonTokens.put("common1", 0.1f);
-            commonTokens.put("common2", 0.1f);
-            commonTokens.put("common3", 0.1f);
-
-            Map<String, Float> mediumTokens = new TreeMap<>();
-            mediumTokens.put("medium1", 0.5f);
-            mediumTokens.put("medium2", 0.25f);
-
-            Map<String, Float> rareTokens = new TreeMap<>();
-            rareTokens.put("rare1", 0.9f);
-            rareTokens.put("rare2", 0.85f);
-
             int commonDocs = 20;
             for (int i = 0; i < commonDocs; i++) {
-                iw.addDocument(mapper.parse(source(b -> b.field("field", commonTokens))).rootDoc());
+                iw.addDocument(mapper.parse(source(b -> b.field("field", COMMON_TOKENS))).rootDoc());
             }
 
             int mediumDocs = 5;
             for (int i = 0; i < mediumDocs; i++) {
-                iw.addDocument(mapper.parse(source(b -> b.field("field", mediumTokens))).rootDoc());
+                iw.addDocument(mapper.parse(source(b -> b.field("field", MEDIUM_TOKENS))).rootDoc());
             }
 
-            iw.addDocument(mapper.parse(source(b -> b.field("field", rareTokens))).rootDoc());
+            iw.addDocument(mapper.parse(source(b -> b.field("field", RARE_TOKENS))).rootDoc());
 
             // This will lower the averageTokenFreqRatio so that common tokens get pruned with default settings
             Map<String, Float> uniqueDoc = new TreeMap<>();
@@ -762,13 +756,13 @@ public class SparseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase
         }
     }
 
-    public void testTypeQueryFinalizationPruningScenarios() throws Exception {
+    public void testPruningScenarios() throws Exception {
         for (int i = 0; i < 60; i++) {
-            runTestTypeQueryFinalization(randomFrom(IndexPruningScenario.values()), randomFrom(QueryPruningScenario.values()));
+            assertPruningScenario(randomFrom(IndexPruningScenario.values()), randomFrom(QueryPruningScenario.values()));
         }
     }
 
-    public void testTypeQueryFinalizationDefaultsPreviousVersion() throws Exception {
+    public void testPruningDefaultsPreIndexOptions() throws Exception {
         IndexVersion version = IndexVersionUtils.randomVersionBetween(
             random(),
             UPGRADE_TO_LUCENE_10_0_0,
@@ -791,7 +785,8 @@ public class SparseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase
                 queryPruneConfig.v2()
             );
             // query should _not_ be pruned by default on older index versions
-            assertQueryWasPruned(finalizedQuery, PruningScenario.NO_PRUNING);
+            List<Query> expectedQueryClauses = getExpectedQueryClauses(ft, PruningScenario.NO_PRUNING, context);
+            assertQueryContains(expectedQueryClauses, finalizedQuery);
         });
 
     }
@@ -805,12 +800,14 @@ public class SparseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase
         };
     }
 
-    private void assertQueryWasPruned(Query query, PruningScenario pruningScenario) {
-        switch (pruningScenario) {
-            case NO_PRUNING -> assertQueryHasClauseCount(query, QUERY_VECTORS.size());
-            case DEFAULT_PRUNING -> assertQueryHasClauseCount(query, QUERY_VECTORS.size() - 3); // 3 common tokens pruned
-            case STRICT_PRUNING -> assertQueryHasClauseCount(query, QUERY_VECTORS.size() - 4); // 3 common and 1 medium tokens pruned
-        }
+    private void assertQueryContains(List<Query> expectedClauses, Query query) {
+        SparseVectorQueryWrapper queryWrapper = (SparseVectorQueryWrapper) query;
+        var termsQuery = queryWrapper.getTermsQuery();
+        assertNotNull(termsQuery);
+        var booleanQuery = (BooleanQuery) termsQuery;
+
+        Collection<Query> shouldClauses = booleanQuery.getClauses(BooleanClause.Occur.SHOULD);
+        assertThat(shouldClauses, Matchers.containsInAnyOrder(expectedClauses.toArray()));
     }
 
     private void assertQueryHasClauseCount(Query query, int clauseCount) {
@@ -880,7 +877,22 @@ public class SparseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase
         };
     }
 
-    private void runTestTypeQueryFinalization(IndexPruningScenario indexPruningScenario, QueryPruningScenario queryPruningScenario)
+    private List<Query> getExpectedQueryClauses(SparseVectorFieldMapper.SparseVectorFieldType ft, PruningScenario pruningScenario, SearchExecutionContext searchExecutionContext) {
+        List<WeightedToken> tokens = switch (pruningScenario) {
+            case NO_PRUNING -> QUERY_VECTORS;
+            case DEFAULT_PRUNING -> QUERY_VECTORS.stream()
+                .filter(t -> t.token().startsWith("rare") || t.token().startsWith("medium")).toList();
+            case STRICT_PRUNING -> QUERY_VECTORS.stream()
+                .filter(t -> t.token().endsWith("keep_strict")).toList();
+        };
+
+        return tokens.stream().map(t -> {
+            Query termQuery = ft.termQuery(t.token(), searchExecutionContext);
+            return new BoostQuery(termQuery, t.weight());
+        }).collect(Collectors.toUnmodifiableList());
+    }
+
+    private void assertPruningScenario(IndexPruningScenario indexPruningScenario, QueryPruningScenario queryPruningScenario)
         throws IOException {
         logger.debug("Running test with indexPruningScenario: {}, queryPruningScenario: {}", indexPruningScenario, queryPruningScenario);
         IndexVersion indexVersion = IndexVersionUtils.randomVersionBetween(
@@ -896,6 +908,7 @@ public class SparseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase
             SparseVectorFieldMapper.SparseVectorFieldType ft = (SparseVectorFieldMapper.SparseVectorFieldType) mapperService.fieldType(
                 "field"
             );
+            List<Query> expectedQueryClauses = getExpectedQueryClauses(ft, effectivePruningScenario, context);
             Query finalizedQuery = ft.finalizeSparseVectorQuery(
                 context,
                 "field",
@@ -903,7 +916,7 @@ public class SparseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase
                 queryPruneConfig.v1(),
                 queryPruneConfig.v2()
             );
-            assertQueryWasPruned(finalizedQuery, effectivePruningScenario);
+            assertQueryContains(expectedQueryClauses, finalizedQuery);
         });
     }
 
@@ -917,17 +930,10 @@ public class SparseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase
             : IndexVersionUtils.randomVersionBetween(random(), SPARSE_VECTOR_PRUNING_INDEX_OPTIONS_SUPPORT, IndexVersion.current());
     }
 
-    private static List<WeightedToken> QUERY_VECTORS = List.of(
-        new WeightedToken("rare1", 0.9f),
-        new WeightedToken("rare2", 0.85f),
-
-        new WeightedToken("medium1", 0.5f), // this will survive strict pruning, due to higher weight
-        new WeightedToken("medium2", 0.25f),
-
-        new WeightedToken("common1", 0.2f),
-        new WeightedToken("common2", 0.15f),
-        new WeightedToken("common3", 0.1f)
-    );
+    private static final List<WeightedToken> QUERY_VECTORS = Stream.of(RARE_TOKENS, MEDIUM_TOKENS, COMMON_TOKENS)
+        .flatMap(map -> map.entrySet().stream())
+        .map(entry -> new WeightedToken(entry.getKey(), entry.getValue()))
+        .collect(Collectors.toList());
 
     /**
      * Handles float/double conversion when reading/writing with xcontent by converting all numbers to floats.

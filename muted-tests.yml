@@ -527,6 +527,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
   method: test {csv-spec:lookup-join.MvJoinKeyFromRowExpanded}
   issue: https://github.com/elastic/elasticsearch/issues/132604
+- class: org.elasticsearch.xpack.esql.plugin.DataNodeRequestSenderTests
+  method: testLimitConcurrentNodes
+  issue: https://github.com/elastic/elasticsearch/issues/132607
 
 # Examples:
 #

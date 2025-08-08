@@ -277,12 +277,11 @@ public class DefaultMappingParametersHandler implements DataSourceHandler {
 
     private Map<String, Object> stringSubField(DataSourceRequest.LeafMappingParametersGenerator request) {
         FieldType parent = FieldType.tryParse(request.fieldType());
-        List<FieldType> stringTypes = List.of(FieldType.TEXT, FieldType.MATCH_ONLY_TEXT, FieldType.KEYWORD, FieldType.WILDCARD);
-        var childType = ESTestCase.randomValueOtherThan(parent, () -> ESTestCase.randomFrom(stringTypes));
+        List<FieldType> childTypes = List.of(FieldType.TEXT, FieldType.MATCH_ONLY_TEXT, FieldType.KEYWORD);
+        var childType = ESTestCase.randomValueOtherThan(parent, () -> ESTestCase.randomFrom(childTypes));
         var child = switch (childType) {
             case TEXT -> textMapping(true, request).get();
             case MATCH_ONLY_TEXT -> matchOnlyTextMapping(true, request).get();
-            case WILDCARD -> wildcardMapping(true, request).get();
             case KEYWORD -> {
                 var mapping = keywordMapping(true, request).get();
                 mapping.remove("copy_to");

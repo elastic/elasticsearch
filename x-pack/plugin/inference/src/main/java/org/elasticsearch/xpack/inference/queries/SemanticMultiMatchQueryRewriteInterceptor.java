@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.inference.registry.ModelRegistry;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.function.Supplier;
 
@@ -161,10 +162,9 @@ public class SemanticMultiMatchQueryRewriteInterceptor extends SemanticQueryRewr
     private SemanticQueryBuilder createSemanticQuery(
         String fieldName,
         String queryValue,
-        Map<String, Float> fieldsBoosts,
-        boolean lenient
+        Map<String, Float> fieldsBoosts
     ) {
-        SemanticQueryBuilder semanticQuery = new SemanticQueryBuilder(fieldName, queryValue, lenient);
+        SemanticQueryBuilder semanticQuery = new SemanticQueryBuilder(fieldName, queryValue, false);
         float fieldBoost = fieldsBoosts.getOrDefault(fieldName, AbstractQueryBuilder.DEFAULT_BOOST);
         semanticQuery.boost(fieldBoost);
         return semanticQuery;
@@ -179,15 +179,11 @@ public class SemanticMultiMatchQueryRewriteInterceptor extends SemanticQueryRewr
     ) {
         DisMaxQueryBuilder disMaxQuery = QueryBuilders.disMaxQuery();
         for (String fieldName : inferenceFields) {
-            disMaxQuery.add(createSemanticQuery(fieldName, queryValue, fieldsBoosts, false));
+            disMaxQuery.add(createSemanticQuery(fieldName, queryValue, fieldsBoosts));
         }
         // Apply tie_breaker - use explicit value or fall back to type's default
         Float tieBreaker = originalQuery.tieBreaker();
-        if (tieBreaker != null) {
-            disMaxQuery.tieBreaker(tieBreaker);
-        } else {
-            disMaxQuery.tieBreaker(originalQuery.type().tieBreaker());
-        }
+        disMaxQuery.tieBreaker(Objects.requireNonNullElseGet(tieBreaker, () -> originalQuery.type().tieBreaker()));
         disMaxQuery.boost(originalQuery.boost());
         disMaxQuery.queryName(originalQuery.queryName());
         return disMaxQuery;
@@ -204,7 +200,7 @@ public class SemanticMultiMatchQueryRewriteInterceptor extends SemanticQueryRewr
     ) {
         BoolQueryBuilder boolQuery = new BoolQueryBuilder();
         for (String fieldName : inferenceFields) {
-            boolQuery.should(createSemanticQuery(fieldName, queryValue, fieldsBoosts, false));
+            boolQuery.should(createSemanticQuery(fieldName, queryValue, fieldsBoosts));
         }
         // Apply minimumShouldMatch - use original query's value or default to "1"
         String minimumShouldMatch = originalQuery.minimumShouldMatch();
@@ -245,11 +241,7 @@ public class SemanticMultiMatchQueryRewriteInterceptor extends SemanticQueryRewr
 
         // Apply tie_breaker - use explicit value or fall back to type's default
         Float tieBreaker = originalQuery.tieBreaker();
-        if (tieBreaker != null) {
-            disMaxQuery.tieBreaker(tieBreaker);
-        } else {
-            disMaxQuery.tieBreaker(originalQuery.type().tieBreaker());
-        }
+        disMaxQuery.tieBreaker(Objects.requireNonNullElseGet(tieBreaker, () -> originalQuery.type().tieBreaker()));
         disMaxQuery.boost(originalQuery.boost());
         disMaxQuery.queryName(originalQuery.queryName());
         return disMaxQuery;

@@ -13,13 +13,16 @@ import com.sun.management.ThreadMXBean;
 
 import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.codecs.KnnVectorsFormat;
-import org.apache.lucene.codecs.lucene101.Lucene101Codec;
+import org.apache.lucene.codecs.lucene103.Lucene103Codec;
 import org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsFormat;
+import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LogByteSizeMergePolicy;
 import org.apache.lucene.index.LogDocMergePolicy;
 import org.apache.lucene.index.MergePolicy;
 import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.TieredMergePolicy;
+import org.apache.lucene.store.FSDirectory;
 import org.elasticsearch.cli.ProcessInfo;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.LogConfigurator;
@@ -37,7 +40,9 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 
+import java.io.IOException;
 import java.io.InputStream;
+import java.io.UncheckedIOException;
 import java.lang.management.ThreadInfo;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -125,7 +130,7 @@ public class KnnIndexTester {
                 format = new Lucene99HnswVectorsFormat(args.hnswM(), args.hnswEfConstruction(), 1, null);
             }
         }
-        return new Lucene101Codec() {
+        return new Lucene103Codec() {
             @Override
             public KnnVectorsFormat getKnnVectorsFormatForField(String field) {
                 return format;
@@ -231,8 +236,8 @@ public class KnnIndexTester {
                 if (cmdLineArgs.forceMerge()) {
                     knnIndexer.forceMerge(indexResults);
                 }
-                knnIndexer.numSegments(indexResults);
             }
+            numSegments(indexPath, indexResults);
             if (cmdLineArgs.queryVectors() != null && cmdLineArgs.numQueries() > 0) {
                 for (int i = 0; i < results.length; i++) {
                     int nProbe = nProbes[i];
@@ -262,6 +267,14 @@ public class KnnIndexTester {
             }
         }
         return mergePolicy;
+    }
+
+    static void numSegments(Path indexPath, KnnIndexTester.Results result) {
+        try (FSDirectory dir = FSDirectory.open(indexPath); IndexReader reader = DirectoryReader.open(dir)) {
+            result.numSegments = reader.leaves().size();
+        } catch (IOException e) {
+            throw new UncheckedIOException("Failed to get segment count for index at " + indexPath, e);
+        }
     }
 
     static class FormattedResults {

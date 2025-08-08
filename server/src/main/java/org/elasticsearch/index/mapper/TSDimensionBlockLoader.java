@@ -76,7 +76,7 @@ public class TSDimensionBlockLoader implements BlockLoader {
         private final SortedDocValues sorted;
         private final SingletonDocValuesBlockLoader blockLoader;
 
-        TSDimensions(BlockAwareSortedDocValues sorted,  SingletonDocValuesBlockLoader blockLoader) {
+        TSDimensions(BlockAwareSortedDocValues sorted, SingletonDocValuesBlockLoader blockLoader) {
             this.creationThread = Thread.currentThread();
             this.sorted = Objects.requireNonNull(sorted);
             this.blockLoader = Objects.requireNonNull(blockLoader);

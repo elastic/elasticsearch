@@ -32,6 +32,7 @@ import org.elasticsearch.cluster.metadata.IndexReshardingMetadata;
 import org.elasticsearch.cluster.metadata.IndexReshardingState;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
@@ -44,6 +45,8 @@ import org.elasticsearch.indices.IndicesService;
 import java.util.Locale;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Consumer;
 import java.util.function.Predicate;
 
 public class SplitSourceService {
@@ -84,7 +87,10 @@ public class SplitSourceService {
      * A newly created shard starts in CLONE state and has no backing lucene index. This operation
      * sets up a lucene index on the target shard by copying the source shard's lucene index to the target
      * directory on the blob store, and arranging for any new commits to also be copied to the target until the
-     * target shard enters handoff state.
+     * target shard enters handoff state. Once it has finished copying all the existing commits, it prepares for
+     * handoff by acquiring indexing permits, flushing, and stopping the copying of new commits, and then calls
+     * the listener with a handle on the permits that are held if it succeeds, so that the listener can perform
+     * the actual handoff with the target shard.
      * <p>
      * This function also registers a cluster state observer to trigger cleaning up the local shard when all
      * targets have advanced to split, if one isn't already registered.
@@ -92,9 +98,16 @@ public class SplitSourceService {
      * @param sourcePrimaryTerm the primary term of the source shard seen by the target when it requested population
      * @param targetPrimaryTerm the primary term of the target shard when it requested population
      *     These are used to ensure that the copy operation hasn't become stale due to advances on either side.
-     * @param listener called when the target shard has been set up
+     * @param listener called when the target shard is ready for handoff, with a handle on the indexing permits that must be
+     *     released when handoff completes. This function may throw so the caller should wrap the listener to catch exceptions and inject
+     *     them into the listener's failure handler.
      */
-    public void setupTargetShard(ShardId targetShardId, long sourcePrimaryTerm, long targetPrimaryTerm, ActionListener<Void> listener) {
+    public void setupTargetShard(
+        ShardId targetShardId,
+        long sourcePrimaryTerm,
+        long targetPrimaryTerm,
+        ActionListener<Releasable> listener
+    ) {
         Index index = targetShardId.getIndex();
 
         var indexMetadata = clusterService.state().metadata().projectFor(index).getIndexSafe(index);
@@ -176,7 +189,7 @@ public class SplitSourceService {
             throw new IllegalStateException(message);
         }
 
-        if (onGoingSplits.putIfAbsent(sourceShard, new Split()) == null) {
+        if (onGoingSplits.putIfAbsent(sourceShard, new Split(sourceShard)) == null) {
             // This is the first time a target shard contacted this source shard to start a split.
             // We'll start tracking this split now to be able to eventually properly finish it.
             // If we have already seen this split before, we are all set already.
@@ -186,9 +199,11 @@ public class SplitSourceService {
         // register new commits to be copied prior to copying existing data to avoid gaps.
         commitService.markSplitting(sourceShardId, targetShardId);
 
-        ActionListener.run(listener, l -> {
+        ActionListener.run(listener.delegateFailure((handoffListener, indexShard) -> {
+            prepareForHandoff(handoffListener, sourceShard, targetShardId);
+        }), l -> {
             objectStoreService.copyShard(sourceShardId, targetShardId, sourcePrimaryTerm);
-            l.onResponse(null);
+            l.onResponse(sourceShard);
         });
     }
 
@@ -200,47 +215,45 @@ public class SplitSourceService {
     /**
      * Prepare to complete handoff to target shard
      * Blocks indexing and flushes the source to synchronize the target with the latest changes,
-     * and turns off commit copying after the flush.
-     * @param listener a listener to be called when preparation has completed, to do the handoff or abort
+     * and turns off commit copying after the flush. Indexing will resume after the provided listener
+     * has completed.
+     * @param handoffListener A listener to be called when preparation has completed, to attempt the handoff itself.
+     *     It is responsible for releasing the provided releasable when it completes the handoff attempt.
+     * @param sourceShard the source shard of the split that is ready for handoff.
      * @param targetShardId the shardId of the target of the split operation that is ready for handoff.
      */
-    public void prepareForHandoff(ActionListener<Void> listener, ShardId targetShardId) {
+    private void prepareForHandoff(ActionListener<Releasable> handoffListener, IndexShard sourceShard, ShardId targetShardId) {
         // testing hook, to be removed
         if (preHandoffHook != null) {
             preHandoffHook.run();
         }
 
-        Index index = targetShardId.getIndex();
-        var indexService = indicesService.indexServiceSafe(index);
-        ShardId splitSource = getSplitSource(targetShardId);
-        var indexShard = indexService.getShard(splitSource.id());
+        var split = onGoingSplits.get(sourceShard);
+        assert split != null;
 
-        indexShard.ensureMutable(listener.delegateFailureAndWrap((l, ignored) -> indexShard.withEngine(engine -> {
-            ActionListener.run(l, runListener -> {
-                // XXX acquire permits here (ref counted to handle multiple targets with concurrent handoff in flight)
-                // With permits acquired, flush whatever may be outstanding
-                engine.flush(/* force */ true, /* waitIfOngoing */ true, runListener.map(r -> null));
-                // and stop copying any new commits.
-                stopCopyingNewCommits(targetShardId);
-            });
-            return null;
-        })), false);
-        listener.onResponse(null);
+        logger.debug("preparing for handoff to {}", targetShardId);
+        SubscribableListener<Releasable> withPermits = SubscribableListener.newForked(split::withPermits)
+            .andThen(
+                (l, permits) -> SubscribableListener.<Void>newForked(afterMutable -> sourceShard.ensureMutable(afterMutable, true))
+                    .andThen(afterFlush -> sourceShard.withEngine(engine -> {
+                        logger.debug("handoff: flushing {} for {}", sourceShard.shardId(), targetShardId);
+                        // Don't stop copying commits until anything outstanding has been flushed.
+                        engine.flush(/* force */ true, /* waitIfOngoing */ true, afterFlush.map(fr -> {
+                            // No commits need to be copied after the flush, but it is possible that some might be if the engine generates
+                            // commits spontaneously even though indexing permits are held. These are harmless to copy.
+                            logger.debug("handoff: stopping commit copy from {} to {}", sourceShard.shardId(), targetShardId);
+                            stopCopyingNewCommits(targetShardId);
+                            return null;
+                        }));
+                        return null;
+                    }))
+                    .addListener(l.map((ignored) -> permits))
+            );
+        withPermits.addListener(handoffListener);
     }
 
     public void stopCopyingNewCommits(ShardId targetShardId) {
         commitService.markSplitCompleting(getSplitSource(targetShardId), targetShardId);
-    }
-
-    private ShardId getSplitSource(ShardId targetShardId) {
-        Index index = targetShardId.getIndex();
-
-        var indexMetadata = clusterService.state().metadata().projectFor(index).getIndexSafe(index);
-        var reshardingMetadata = indexMetadata.getReshardingMetadata();
-        assert reshardingMetadata != null && reshardingMetadata.isSplit() : "Unexpected resharding state";
-        int sourceShardIndex = reshardingMetadata.getSplit().sourceShard(targetShardId.getId());
-
-        return new ShardId(index, sourceShardIndex);
     }
 
     public void afterSplitSourceIndexShardRecovery(
@@ -262,7 +275,7 @@ public class SplitSourceService {
         // It is possible that the shard is already STARTED at this point, see IndicesClusterStateService#updateShard.
         // As such it is possible that we are already accepting requests to start split from targets.
         // If any of them already set up tracking of the split process we don't need to do anything here.
-        if (onGoingSplits.putIfAbsent(indexShard, new Split()) != null) {
+        if (onGoingSplits.putIfAbsent(indexShard, new Split(indexShard)) != null) {
             listener.onResponse(null);
             return;
         }
@@ -285,6 +298,79 @@ public class SplitSourceService {
         });
 
         tracker.run();
+    }
+
+    private ShardId getSplitSource(ShardId targetShardId) {
+        Index index = targetShardId.getIndex();
+
+        var indexMetadata = clusterService.state().metadata().projectFor(index).getIndexSafe(index);
+        var reshardingMetadata = indexMetadata.getReshardingMetadata();
+        assert reshardingMetadata != null && reshardingMetadata.isSplit() : "Unexpected resharding state";
+        int sourceShardIndex = reshardingMetadata.getSplit().sourceShard(targetShardId.getId());
+
+        return new ShardId(index, sourceShardIndex);
+    }
+
+    // visible for testing
+    static class RefCountedAcquirer {
+        AtomicInteger refCount = new AtomicInteger();
+        Consumer<ActionListener<Releasable>> acquirer;
+        @Nullable
+        Releasable releasable;
+        @Nullable
+        SubscribableListener<Releasable> onAcquired;
+
+        RefCountedAcquirer(Consumer<ActionListener<Releasable>> acquirer) {
+            this.acquirer = acquirer;
+        }
+
+        /**
+         * Notify a listener when the underlying resource is held.
+         * If it is already held, its reference count will be incremented and the listener will be notified immediately.
+         * If resource acquisition fails, the listener will be notified of that failure.
+         * @param onAcquired a listener that will be notified when the resource managed by this acquirer has been acquired.
+         *     The listener is provided a releasable on success, which it must release when it is done with the resource
+         *         (which may be after the listener has been notified).
+         *     The listener's onResponse handler must not throw, because it would be unclear who should release the resource
+         *     in that case -- the listener might already have released it, or created a task that will before throwing.
+         */
+        public void acquire(ActionListener<Releasable> onAcquired) {
+            synchronized (this) {
+                if (refCount.incrementAndGet() == 1) {
+                    // create a listener that will first acquire, and if that succeeds, squirrel away
+                    // the returned releasable to be dropped when the refcount goes to zero, and then
+                    // complete any listeners that may be listening for it.
+                    this.onAcquired = SubscribableListener.newForked(l -> acquirer.accept(l.delegateFailure((inner, releasable) -> {
+                        this.releasable = releasable;
+                        inner.onResponse(this::release);
+                    })));
+                }
+            }
+            assert this.onAcquired != null;
+            // This method always increments the refcount, but it is only the responsibility of onAcquired to decrement it
+            // if acquisition succeeded. If it fails, this takes care of decrementing it.
+            this.onAcquired.addListener(onAcquired.delegateResponse((l, e) -> {
+                l.onFailure(e);
+                release();
+            }));
+        }
+
+        public void release() {
+            Releasable releasable = null;
+            synchronized (this) {
+                if (refCount.decrementAndGet() == 0) {
+                    releasable = this.releasable;
+                    this.releasable = null;
+                    onAcquired = null;
+                }
+            }
+
+            // may be null if onAcquired failed
+            if (releasable != null) {
+                // release outside of lock, since operation may take time
+                releasable.close();
+            }
+        }
     }
 
     private class SplitProgressTracker extends RetryableAction<Void> {
@@ -420,6 +506,32 @@ public class SplitSourceService {
             .orElse(null);
     }
 
-    // Currently empty, a placeholder for any metadata needed by the source shard to track the split process.
-    private record Split() {}
+    // Holds resources needed to manage an ongoing split
+    private static class Split {
+        // used to acquire permits on the source shard with reference counting, so that if the permits are already held
+        // we can bump the refcount instead of waiting for them to be released and then reacquiring.
+        // This speeds up handoff when multiple target shards enter handoff concurrently.
+        final RefCountedAcquirer permitAcquirer;
+
+        Split(IndexShard sourceShard) {
+            // XXX figure out what to do with the timeout on acquiring the permit. I would guess that we're blocking any new requests that
+            // come in while we're waiting for existing ones to drain, so we probably don't want to wait a very long time, but if we
+            // fail we need a way to retry later with some backoff. Ticket this.
+            permitAcquirer = new RefCountedAcquirer(
+                releasableListener -> sourceShard.acquireAllPrimaryOperationsPermits(releasableListener, TimeValue.ONE_MINUTE)
+            );
+        }
+
+        /**
+         * Calls listener when permits for the source shard are held.
+         * If they are not yet held they will be acquired before calling the listener, but if they are already held a reference count
+         * on them will be incremented and the listener will be called immediately.
+         * The reference count will be decremented when the listener completes, and permits will be released when the reference count
+         * reaches zero.
+         * @param listener a listener to call when permits have been acquired
+         */
+        public void withPermits(ActionListener<Releasable> listener) {
+            permitAcquirer.acquire(listener);
+        }
+    }
 }

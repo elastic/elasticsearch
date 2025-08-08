@@ -527,6 +527,7 @@ public final class BulkRequestParser {
             assert currentRequest != null && currentRequest instanceof DeleteRequest == false;
             if (currentRequest instanceof IndexRequest indexRequest) {
                 indexRequest.source(sliceTrimmingCarriageReturn(data, from, to, xContentType), xContentType);
+                indexRequest.ensureStructureSource();
                 indexRequestConsumer.accept(indexRequest, currentType);
             } else if (currentRequest instanceof UpdateRequest updateRequest) {
                 try (

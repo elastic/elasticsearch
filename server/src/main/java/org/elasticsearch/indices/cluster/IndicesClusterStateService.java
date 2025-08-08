@@ -24,7 +24,6 @@ import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateApplier;
-import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MetadataIndexAliasesService;
@@ -32,7 +31,6 @@ import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RecoverySource.Type;
@@ -54,7 +52,6 @@ import org.elasticsearch.common.util.concurrent.ThrottledTaskRunner;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Strings;
-import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.ShardLockObtainFailedException;
 import org.elasticsearch.gateway.GatewayService;
@@ -101,7 +98,6 @@ import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.Executor;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
-import java.util.stream.StreamSupport;
 
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.indices.cluster.IndexRemovalReason.CLOSED;
@@ -306,15 +302,6 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         // TODO: feels hacky, a block disables state persistence, and then we clean the allocated shards, maybe another flag in blocks?
         if (state.blocks().disableStatePersistence()) {
             for (AllocatedIndex<? extends Shard> indexService : indicesService) {
-                if (indexService.getIndexSettings()
-                    .getIndexMetadata()
-                    .getCustomData(MetadataIndexAliasesService.CUSTOM_RENAME_METADATA_KEY)
-                    .isEmpty() == false) {
-                    logger.info("==> skipping shard clean for {} because it's being renamed", indexService.getIndexSettings().getIndex());
-                    continue;
-                } else {
-                    logger.info(">>> index {} is not being renamed", indexService.getIndexSettings().getIndex());
-                }
                 // also cleans shards
                 indicesService.removeIndex(
                     indexService.getIndexSettings().getIndex(),
@@ -326,8 +313,6 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
             }
             return;
         }
-
-        renameIndices(event); // handle renames of indices, if necessary
 
         updateFailedShardsCache(state);
 
@@ -410,24 +395,6 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
     }
 
     /**
-     * @return the IndexMetadata from the given cluster state using either the original or the renamed name of the index.
-     */
-    private static IndexMetadata getIndexMetadataFromState(ProjectMetadata project, AllocatedIndex<? extends Shard> indexService) {
-        if (indexService.isRenamed()) {
-            assert indexService.getRenamedIndex() != null;
-            logger.info("--> Found renamed index [{} -> {}]", indexService.getIndexSettings().getIndex(), indexService.getRenamedIndex());
-            IndexMetadata indexMetadata = project.index(indexService.getIndexSettings().getIndex());
-            if (indexMetadata == null) {
-                logger.info("Cluster state knows about the new name [{}]", indexService.getRenamedIndex());
-                return project.index(indexService.getRenamedIndex());
-            } else {
-                logger.info("Cluster state knows about the original name[{}]", indexService.getIndexSettings().getIndex());
-            }
-        }
-        return project.index(indexService.getIndexSettings().getIndex());
-    }
-
-    /**
      * Deletes indices (with shard data).
      *
      * @param event cluster change event
@@ -439,15 +406,20 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         assert localNodeId != null;
 
         for (Index index : event.indicesDeleted()) {
-            IndexMetadata previousMetadata = previousState.metadata().findIndex(index).orElse(null);
-            if (isBeingRenamed(previousMetadata)) {
-                logger.info("==> skipping deletion because index is being renamed");
+            if (logger.isDebugEnabled()) {
+                logger.debug("cleaning index [{}], no longer part of the metadata", index);
+            }
+            // Theoretically, just retrieving the project is proof that this index exists and has been renamed
+            final Optional<ProjectMetadata> currentProject = state.metadata().lookupProject(index.getUUID());
+            if (currentProject.isPresent()) {
+                logger.info(
+                    "==> skipping deletion because index {} has been renamed to {}",
+                    index.getName(),
+                    currentProject.get().getIndexMetadataByUUID(index.getUUID()).getIndex()
+                );
                 continue;
             }
-            if (logger.isDebugEnabled()) {
-                logger.debug("[{}] cleaning index, no longer part of the metadata", index);
-            }
-            final Optional<ProjectMetadata> project = previousState.metadata().lookupProject(index);
+            final Optional<ProjectMetadata> previousProject = previousState.metadata().lookupProject(index.getUUID());
             AllocatedIndex<? extends Shard> indexService = indicesService.indexService(index);
             final IndexSettings indexSettings;
             final SubscribableListener<Void> indexServiceClosedListener;
@@ -456,12 +428,12 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                 indexServiceClosedListener = SubscribableListener.newForked(
                     l -> indicesService.removeIndex(index, DELETED, "index no longer part of the metadata", shardCloseExecutor, l)
                 );
-            } else if (project.isPresent() && project.get().hasIndex(index)) {
+            } else if (previousProject.isPresent() && previousProject.get().hasIndex(index)) {
                 // The deleted index was part of the previous cluster state, but not loaded on the local node
                 indexServiceClosedListener = SubscribableListener.nullSuccess();
-                final IndexMetadata metadata = project.get().index(index);
+                final IndexMetadata metadata = previousProject.get().index(index);
                 indexSettings = new IndexSettings(metadata, settings);
-                final var projectId = project.get().id();
+                final var projectId = previousProject.get().id();
                 indicesService.deleteUnassignedIndex(
                     "deleted index in project [" + projectId + "] was not assigned to local node",
                     metadata,
@@ -531,15 +503,14 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
      */
     private void removeIndicesAndShards(final ClusterChangedEvent event) {
         final ClusterState state = event.state();
-        final ClusterState previousState = event.previousState();
         final String localNodeId = state.nodes().getLocalNodeId();
         assert localNodeId != null;
 
         RoutingNode localRoutingNode = state.getRoutingNodes().node(localNodeId);
         for (AllocatedIndex<? extends Shard> indexService : indicesService) {
-            final Index index = indexService.isRenamed() ? indexService.getRenamedIndex() : indexService.getIndexSettings().getIndex();
+            final Index index = indexService.getIndex(state);
             final Optional<ProjectMetadata> project = state.metadata().lookupProject(index);
-            final IndexMetadata indexMetadata = project.map(proj -> getIndexMetadataFromState(proj, indexService)).orElse(null);
+            final IndexMetadata indexMetadata = project.map(proj -> proj.index(index)).orElse(null);
             final IndexMetadata existingMetadata = indexService.getIndexSettings().getIndexMetadata();
 
             IndexRemovalReason reason = null;
@@ -558,11 +529,6 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                 reason = indexMetadata != null && indexMetadata.getState() == IndexMetadata.State.CLOSE ? CLOSED : NO_LONGER_ASSIGNED;
             }
 
-            if (indexService.isRenamed()) {
-                logger.info(">>> skipping removal of {} index service or shards because it's being renamed", index);
-                continue;
-            }
-
             if (reason != null) {
                 logger.debug("{} removing index ({})", index, reason);
                 indicesService.removeIndex(index, reason, "removing index (" + reason + ")", shardCloseExecutor, getShardsClosedListener());
@@ -571,7 +537,8 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                 for (Shard shard : indexService) {
                     ShardRouting currentRoutingEntry = shard.routingEntry();
                     ShardId shardId = currentRoutingEntry.shardId();
-                    ShardRouting newShardRouting = localRoutingNode.getByShardId(shardId);
+                    boolean isRenamed = shardId.getIndex().equals(index) == false;
+                    ShardRouting newShardRouting = localRoutingNode.getByShardId(isRenamed ? new ShardId(index, shardId.id()) : shardId);
                     if (newShardRouting == null) {
                         // we can just remove the shard without cleaning it locally, since we will clean it in IndicesStore
                         // once all shards are allocated
@@ -708,128 +675,16 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         }
     }
 
-    @SuppressForbidden(reason = "usage of unbatched task") // TODO add support for batching here
-    private void renameIndices(ClusterChangedEvent event) {
-        // No need to check any renamed indices if the no metadata has changed or the node is not the master node
-        if (event.metadataChanged() == false || event.localNodeMaster() == false) {
-            return;
-        }
-        final ClusterState state = event.state();
-        for (AllocatedIndex<? extends Shard> indexService : indicesService) {
-            final IndexMetadata currentIndexMetadata = indexService.getIndexSettings().getIndexMetadata();
-            final Index index = indexService.getIndexSettings().getIndex();
-            final Optional<ProjectMetadata> project = state.metadata().lookupProject(index);
-            final IndexMetadata newIndexMetadata = project.map(proj -> proj.index(index)).orElse(null);
-            // assert newIndexMetadata != null : "index " + index + " should have been removed by deleteIndices";
-
-            logger.info("--> checking rename for [{}]", index);
-            if (newIndexMetadata != null && ClusterChangedEvent.indexMetadataChanged(currentIndexMetadata, newIndexMetadata)) {
-                // If the new index metadata is null, it's because the current state doesn't "see"
-                // the renamed index under that name yet, so we need to make changes to rename the
-                // index everywhere it's necessary.
-                final Map<String, String> custom = newIndexMetadata.getCustomData(MetadataIndexAliasesService.CUSTOM_RENAME_METADATA_KEY);
-                logger.info("--> got custom [{}] for [{}]", custom, index);
-                if (custom == null || custom.isEmpty()) {
-                    return;
-                }
-                final String originalName = custom.get("original_name");
-                final String destinationName = custom.get("new_name");
-
-                // What is my current name?
-                final String currentName = index.getName();
-                if (currentName.equals(destinationName) == false) {
-                    // The name doesn't match, some renaming needs to happen
-                    logger.info("--> name doesn't match, I'm [{}] but I'm supposed to be [{}]", currentName, destinationName);
-
-                    logger.info("==> renaming index in indicesService");
-                    indicesService.renameIndex(index, destinationName);
-
-                    // Need to do the actual rename now:
-                    logger.info("==> kicking off a cluster state update to rename metadata");
-                    final Index newIndex = new Index(destinationName, index.getUUID());
-                    clusterService.submitUnbatchedStateUpdateTask(
-                        "rename from [" + originalName + "] to [" + destinationName + "]",
-                        new ClusterStateUpdateTask() {
-                            @Override
-                            public ClusterState execute(ClusterState currentState) throws Exception {
-                                ProjectId projectId = project.get().id();
-                                RoutingTable existingRoutingTable = currentState.routingTable(projectId);
-                                RoutingTable.Builder rtBuilder = RoutingTable.builder(existingRoutingTable);
-                                logger.info("==> updating routing table for {} ==> {}", originalName, destinationName);
-                                IndexRoutingTable indexTable = existingRoutingTable.index(originalName);
-                                logger.info("==> building a new routing table for " + index);
-                                IndexRoutingTable.Builder tableBuilder = IndexRoutingTable.builder(
-                                    new Index(destinationName, index.getUUID())
-                                );
-
-                                indexTable.allShards().forEach(shard -> tableBuilder.addIndexShard(shard.rename(newIndex)));
-
-                                rtBuilder.add(tableBuilder);
-                                rtBuilder.remove(originalName);
-
-                                ClusterState updatedState = ClusterState.builder(currentState)
-                                    .putRoutingTable(projectId, rtBuilder.build())
-                                    .build();
-
-                                logger.info("==> modifying index name in IndexMetadata");
-                                ProjectMetadata currentProject = currentState.metadata().getProject(projectId);
-                                IndexMetadata currentMetadata = currentProject.index(index);
-                                updatedState = ClusterState.builder(updatedState)
-                                    .putProjectMetadata(
-                                        ProjectMetadata.builder(currentProject)
-                                            // Add the metadata under the new name
-                                            .put(
-                                                IndexMetadata.builder(currentMetadata)
-                                                    .index(destinationName)
-                                                    .putCustom(MetadataIndexAliasesService.CUSTOM_RENAME_METADATA_KEY, Map.of())
-                                            )
-                                            // Remove the existing one
-                                            .remove(index.getName())
-                                    )
-                                    .build();
-                                return updatedState;
-                            }
-
-                            @Override
-                            public void onFailure(Exception e) {
-                                logger.error("failed to rename metadata", e);
-                            }
-
-                        }
-                    );
-                } else {
-                    logger.info("--> name matches, I'm [{}] and I was previously [{}]", currentName, originalName);
-                }
-            } else {
-                logger.info("--> looks like [{}] is unchanged", index.getName());
-            }
-        }
-    }
-
     private void updateIndices(ClusterChangedEvent event) {
         if (event.metadataChanged() == false) {
             return;
         }
         final ClusterState state = event.state();
-        final ClusterState previousState = event.previousState();
         for (AllocatedIndex<? extends Shard> indexService : indicesService) {
             final IndexMetadata currentIndexMetadata = indexService.getIndexSettings().getIndexMetadata();
-            final Index index = indexService.getIndexSettings().getIndex();
-            final Optional<ProjectMetadata> project = state.metadata().lookupProject(index);
-            final IndexMetadata newIndexMetadata = project.map(proj -> proj.index(index)).orElse(null);
-            if (newIndexMetadata == null) {
-                logger.info(
-                    "--> Updating. I have {}",
-                    StreamSupport.stream(previousState.metadata().indicesAllProjects().spliterator(), false)
-                        .map(IndexMetadata::getIndex)
-                        .toList()
-                );
-            }
-            if (newIndexMetadata == null) {
-                // if (newIndexMetadata == null && isBeingRenamed(previousState.metadata().findIndex(index).orElse(null))) {
-                logger.info("--> skipping update for rename-in-progress for [{}]", index.getName());
-                continue;
-            }
+            final Index index = indexService.getIndex(state);
+            final ProjectMetadata project = state.metadata().projectFor(index);
+            final IndexMetadata newIndexMetadata = project.index(index);
             assert newIndexMetadata != null : "index " + index + " should have been removed by deleteIndices";
             if (ClusterChangedEvent.indexMetadataChanged(currentIndexMetadata, newIndexMetadata)) {
                 String reason = null;
@@ -1085,11 +940,11 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         final long primaryTerm;
         try {
             final ProjectMetadata project = clusterState.metadata().projectFor(shardRouting.shardId().getIndex());
+            // We retrieve the index service by uuid, so this should work even for a renamed service.
             final var indexService = indicesService.indexService(shardRouting.index());
-            final boolean isBeingRenamed = indexService != null && indexService.isRenamed();
-            final IndexMetadata indexMetadata = indexService == null
-                ? project.index(shard.shardId().getIndex())
-                : getIndexMetadataFromState(project, indexService);
+            final Index index = indexService.getIndex(project);
+            boolean isRenamed = shard.shardId().getIndex().equals(index) == false;
+            final IndexMetadata indexMetadata = project.index(index);
             primaryTerm = indexMetadata.primaryTerm(shard.shardId().id());
             final Set<String> inSyncIds = indexMetadata.inSyncAllocationIds(shard.shardId().id());
             final IndexShardRoutingTable indexShardRoutingTable = clusterState.routingTable(project.id())
@@ -1101,7 +956,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                 clusterState.version(),
                 inSyncIds,
                 indexShardRoutingTable,
-                isBeingRenamed
+                isRenamed
             );
         } catch (Exception e) {
             failAndRemoveShard(
@@ -1430,17 +1285,30 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         IndexSettings getIndexSettings();
 
         /**
-         * Returns the renamed index, if it exists.
+         * Returns the most up-to-date index.
          */
-        @Nullable
-        default Index getRenamedIndex() {
-            return null;
+        default Index getIndex(ProjectMetadata ignored) {
+            return getIndexSettings().getIndex();
+        }
+
+        /**
+         * Returns the most up-to-date index, if it exists.
+         */
+        default Index getIndex(ClusterState ignored) {
+            return getIndexSettings().getIndex();
         }
 
         /**
          * Returns true if the service has been renamed.
          */
-        default boolean isRenamed() {
+        default boolean isRenamed(ClusterState ignored) {
+            return false;
+        }
+
+        /**
+         * Returns true if the service has been renamed.
+         */
+        default boolean isRenamed(ProjectMetadata ignored) {
             return false;
         }
 

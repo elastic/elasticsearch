@@ -9,6 +9,8 @@
 
 package org.elasticsearch.cluster.metadata;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesClusterStateUpdateRequest;
@@ -21,6 +23,8 @@ import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.SimpleBatchedAckListenerTaskExecutor;
 import org.elasticsearch.cluster.metadata.AliasAction.NewAliasValidator;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.routing.IndexRoutingTable;
+import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
 import org.elasticsearch.common.Priority;
@@ -56,6 +60,7 @@ import static org.elasticsearch.indices.cluster.IndexRemovalReason.NO_LONGER_ASS
 public class MetadataIndexAliasesService {
 
     public static final String CUSTOM_RENAME_METADATA_KEY = "index_rename";
+    private static final Logger logger = LogManager.getLogger(MetadataIndexAliasesService.class);
 
     private final IndicesService indicesService;
 
@@ -131,15 +136,18 @@ public class MetadataIndexAliasesService {
             ProjectMetadata.Builder metadata = ProjectMetadata.builder(currentProjectMetadata);
             // Run the remaining alias actions
             final Set<String> maybeModifiedIndices = new HashSet<>();
-            final Map<String, String> renamedIndices = new HashMap<>();
+            final List<Tuple<String, String>> renamedIndices = new ArrayList<>();
             for (AliasAction action : actions) {
                 if (action.removeIndex()) {
                     // Handled above
                     continue;
                 }
-                final Tuple<String, String> destination = action.rename();
-                if (destination != null) {
-                    renamedIndices.put(destination.v1(), destination.v2());
+                if (action.rename() != null) {
+                    var originalName = action.rename().v1();
+                    var destinationName = action.rename().v2();
+                    renamedIndices.add(Tuple.tuple(originalName, destinationName));
+                    changed = true;
+                    continue;
                 }
 
                 /* It is important that we look up the index using the metadata builder we are modifying so we can remove an
@@ -207,30 +215,24 @@ public class MetadataIndexAliasesService {
             }
 
             if (changed) {
+                ClusterState.Builder clusterStateBuilder = ClusterState.builder(currentState);
+                if (renamedIndices.isEmpty() == false) {
+                    RoutingTable.Builder rtBuilder = RoutingTable.builder(currentState.routingTable(projectId));
+                    for (Tuple<String, String> renaming : renamedIndices) {
+                        rename(
+                            currentState.routingTable(projectId).index(renaming.v1()),
+                            currentProjectMetadata.index(renaming.v1()),
+                            renaming.v1(),
+                            renaming.v2(),
+                            rtBuilder,
+                            metadata
+                        );
+                    }
+                    clusterStateBuilder.putRoutingTable(projectId, rtBuilder.build());
+                }
                 ProjectMetadata updatedMetadata = metadata.build();
-
-                // TODO: move this rename logic to a service that looks at the custom map in the IndexMetadata and does the right thing
-                // RoutingTable existingRoutingTable = currentState.routingTable();
-                // RoutingTable.Builder rtBuilder = RoutingTable.builder(existingRoutingTable);
-                // for (Map.Entry<String, String> renamedIndex : renamedIndices.entrySet()) {
-                // final String oldName = renamedIndex.getKey();
-                // final String newName = renamedIndex.getValue();
-                // System.out.println("--> updating routing table for " + oldName + " ==> " + newName);
-                // IndexRoutingTable indexTable = existingRoutingTable.index(oldName);
-                // IndexMetadata im = updatedState.getMetadata().index(newName);
-                // System.out.println("--> building a new routing table for " + im.getIndex());
-                // IndexRoutingTable.Builder tableBuilder = IndexRoutingTable.builder(im.getIndex());
-                // for (ShardRouting sr : indexTable.randomAllActiveShardsIt()) {
-                // tableBuilder.addShard(sr.updateIndex(im.getIndex()));
-                // }
-                // rtBuilder.add(tableBuilder);
-                // rtBuilder.remove(oldName);
-                // updatedState = ClusterState.builder(updatedState).routingTable(rtBuilder).build();
-                // }
-                // even though changes happened, they resulted in 0 actual changes to metadata
-                // i.e. remove and add the same alias to the same index
-                if (renamedIndices.isEmpty() == false || updatedMetadata.equalsAliases(currentProjectMetadata) == false) {
-                    return ClusterState.builder(currentState).putProjectMetadata(updatedMetadata).build();
+                if (updatedMetadata.equalsAliases(currentProjectMetadata) == false || renamedIndices.isEmpty() == false) {
+                    return clusterStateBuilder.putProjectMetadata(updatedMetadata).build();
                 }
             }
             return currentState;
@@ -245,6 +247,33 @@ public class MetadataIndexAliasesService {
                 );
             }
         }
+    }
+
+    void rename(
+        IndexRoutingTable indexTable,
+        IndexMetadata originalIndexMetadata,
+        String originalName,
+        String destinationName,
+        RoutingTable.Builder rtBuilder,
+        ProjectMetadata.Builder metadata
+    ) {
+        logger.info("==> updating routing table for {} ==> {}", originalName, destinationName);
+        Index originalIndex = indexTable.getIndex();
+        logger.info("==> building a new routing table for " + originalIndex);
+        Index renamedIndex = new Index(destinationName, originalIndex.getUUID());
+        IndexRoutingTable.Builder tableBuilder = IndexRoutingTable.builder(renamedIndex);
+
+        indexTable.allShards().forEach(shard -> tableBuilder.addIndexShard(shard.rename(renamedIndex)));
+
+        rtBuilder.add(tableBuilder);
+        rtBuilder.remove(originalName);
+
+        logger.info("==> modifying index name in IndexMetadata");
+        metadata
+            // Add the metadata under the new name
+            .put(IndexMetadata.builder(originalIndexMetadata).index(destinationName))
+            // Remove the existing one
+            .remove(originalName);
     }
 
     // Visible for testing purposes

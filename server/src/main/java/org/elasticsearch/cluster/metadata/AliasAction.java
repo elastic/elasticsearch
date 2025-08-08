@@ -15,8 +15,6 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.rest.action.admin.indices.AliasesNotFoundException;
 
-import java.util.Map;
-
 /**
  * Individual operation to perform on the cluster state as part of an {@link IndicesAliasesRequest}.
  */
@@ -252,14 +250,7 @@ public abstract class AliasAction {
 
         @Override
         boolean apply(NewAliasValidator aliasValidator, ProjectMetadata.Builder metadata, IndexMetadata index) {
-            metadata.put(
-                IndexMetadata.builder(index)
-                    .putCustom(
-                        MetadataIndexAliasesService.CUSTOM_RENAME_METADATA_KEY,
-                        Map.of("original_name", getIndex(), "new_name", destination)
-                    )
-            );
-            return true;
+            throw new UnsupportedOperationException();
         }
     }
 

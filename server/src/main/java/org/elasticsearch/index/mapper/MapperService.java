@@ -339,7 +339,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
      * Update local mapping by applying the incoming mapping that have already been merged with the current one on the master
      */
     public void updateMapping(final IndexMetadata currentIndexMetadata, final IndexMetadata newIndexMetadata) {
-        assert newIndexMetadata.getIndex().equals(index())
+        assert newIndexMetadata.getIndex().getUUID().equals(index().getUUID())
             : "index mismatch: expected " + index() + " but was " + newIndexMetadata.getIndex();
 
         if (currentIndexMetadata != null && currentIndexMetadata.getMappingVersion() == newIndexMetadata.getMappingVersion()) {

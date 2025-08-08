@@ -19,8 +19,10 @@ import org.apache.lucene.util.Accountable;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.RefCountingRunnable;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -750,20 +752,38 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
     }
 
     /**
-     * @return the renamed index when applicable
+     * @return the most up-to-date index based on its UUID, if the state doesn't have
+     * information for this UUID default to the {@link Index} in the settings.
      */
     @Override
-    @Nullable
-    public Index getRenamedIndex() {
-        return renamedTo;
+    public Index getIndex(ProjectMetadata metadata) {
+        IndexMetadata indexMetadata = metadata.getIndexMetadataByUUID(getIndexSettings().getUUID());
+        return indexMetadata == null ? index() : indexMetadata.getIndex();
+    }
+
+    /**
+     * @return the most up-to-date index based on its UUID, if the state doesn't have
+     * information for this UUID default to the {@link Index} in the settings.
+     */
+    @Override
+    public Index getIndex(ClusterState state) {
+        return state.metadata().lookupProject(index().getUUID()).map(this::getIndex).orElse(index());
     }
 
     /**
      * @return if this index service has been renamed
      */
     @Override
-    public boolean isRenamed() {
-        return renamedTo != null;
+    public boolean isRenamed(ClusterState state) {
+        return Objects.equals(getIndex(state), index()) == false;
+    }
+
+    /**
+     * @return if this index service has been renamed
+     */
+    @Override
+    public boolean isRenamed(ProjectMetadata metadata) {
+        return Objects.equals(getIndex(metadata), index()) == false;
     }
 
     /**

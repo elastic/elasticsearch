@@ -12,6 +12,7 @@ import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.xcontent.MediaType;
 import org.elasticsearch.xpack.core.esql.action.ColumnInfo;
+import org.elasticsearch.xpack.esql.action.ColumnInfoImpl;
 import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
 
@@ -27,6 +28,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.Function;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.esql.action.EsqlQueryResponse.DROP_NULL_COLUMNS_OPTION;
 
@@ -42,7 +44,35 @@ public enum TextFormat implements MediaType {
         @Override
         public Iterator<CheckedConsumer<Writer, IOException>> format(RestRequest request, EsqlQueryResponse esqlResponse) {
             boolean dropNullColumns = request.paramAsBoolean(DROP_NULL_COLUMNS_OPTION, false);
-            return new TextFormatter(esqlResponse, hasHeader(request), dropNullColumns).format();
+            return new TextFormatter(
+                esqlResponse.columns(),
+                esqlResponse::values,
+                hasHeader(request),
+                dropNullColumns ? esqlResponse.nullColumns() : new boolean[esqlResponse.columns().size()]
+            ).format();
+        }
+
+        @Override
+        public Iterator<CheckedConsumer<Writer, IOException>> formatHeader(
+            RestRequest request,
+            List<ColumnInfoImpl> columns,
+            boolean[] dropColumns
+        ) {
+            if (hasHeader(request) == false) {
+                return Collections.emptyIterator();
+            }
+
+            return new TextFormatter(columns, Collections::emptyIterator, true, dropColumns).format();
+        }
+
+        @Override
+        public Iterator<CheckedConsumer<Writer, IOException>> formatRows(
+            RestRequest request,
+            List<ColumnInfoImpl> columns,
+            Supplier<Iterator<Iterator<Object>>> values,
+            boolean[] dropColumns
+        ) {
+            return new TextFormatter(columns, values, false, dropColumns).format();
         }
 
         @Override
@@ -287,18 +317,36 @@ public enum TextFormat implements MediaType {
     public static final String URL_PARAM_DELIMITER = "delimiter";
 
     public Iterator<CheckedConsumer<Writer, IOException>> format(RestRequest request, EsqlQueryResponse esqlResponse) {
-        final var delimiter = delimiter(request);
         boolean dropNullColumns = request.paramAsBoolean(DROP_NULL_COLUMNS_OPTION, false);
         boolean[] dropColumns = dropNullColumns ? esqlResponse.nullColumns() : new boolean[esqlResponse.columns().size()];
         return Iterators.concat(
             // if the header is requested return the info
-            hasHeader(request) && esqlResponse.columns() != null
-                ? Iterators.single(writer -> row(writer, esqlResponse.columns().iterator(), ColumnInfo::name, delimiter, dropColumns))
-                : Collections.emptyIterator(),
-            Iterators.map(
-                esqlResponse.values(),
-                row -> writer -> row(writer, row, f -> Objects.toString(f, StringUtils.EMPTY), delimiter, dropColumns)
-            )
+            formatHeader(request, esqlResponse.columns(), dropColumns),
+            formatRows(request, esqlResponse.columns(), esqlResponse::values, dropColumns)
+        );
+    }
+
+    public Iterator<CheckedConsumer<Writer, IOException>> formatHeader(
+        RestRequest request,
+        List<ColumnInfoImpl> columns,
+        boolean[] dropColumns
+    ) {
+        final var delimiter = delimiter(request);
+        return hasHeader(request) && columns != null
+            ? Iterators.single(writer -> row(writer, columns.iterator(), ColumnInfo::name, delimiter, dropColumns))
+            : Collections.emptyIterator();
+    }
+
+    public Iterator<CheckedConsumer<Writer, IOException>> formatRows(
+        RestRequest request,
+        List<ColumnInfoImpl> columns,
+        Supplier<Iterator<Iterator<Object>>> values,
+        boolean[] dropColumns
+    ) {
+        final var delimiter = delimiter(request);
+        return Iterators.map(
+            values.get(),
+            row -> writer -> row(writer, row, f -> Objects.toString(f, StringUtils.EMPTY), delimiter, dropColumns)
         );
     }
 

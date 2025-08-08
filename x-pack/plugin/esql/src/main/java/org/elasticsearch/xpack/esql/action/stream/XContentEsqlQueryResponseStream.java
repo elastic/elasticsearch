@@ -37,7 +37,7 @@ class XContentEsqlQueryResponseStream extends AbstractEsqlQueryResponseStream<To
     private final StreamingXContentResponse streamingXContentResponse;
 
     /**
-     * Columns, stored on {@link #doStartResponse}, and used later when sending pages.
+     * Stored on {@link #doStartResponse}, and used later when sending pages.
      */
     @Nullable
     private List<ColumnInfoImpl> columns;

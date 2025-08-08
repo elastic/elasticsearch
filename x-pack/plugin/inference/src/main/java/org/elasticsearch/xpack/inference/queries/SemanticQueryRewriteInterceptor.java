@@ -43,14 +43,17 @@ public abstract class SemanticQueryRewriteInterceptor implements QueryRewriteInt
         }
 
         InferenceIndexInformationForField indexInformation = resolveIndicesForFields(queryBuilder, resolvedIndices);
-        if (!indexInformation.hasInferenceFields()) {
+        if (indexInformation.hasInferenceFields() == false) {
             // No inference fields were identified, so return the original query.
             return queryBuilder;
         } else if (indexInformation.hasNonInferenceFields()) {
-            // Combined case where some fields are semantic_text and others are not
+            // Combined case where the field name(s) requested by this query contain both
+            // semantic_text and non-inference fields, so we have to combine queries per index
+            // containing each field type.
             return buildCombinedInferenceAndNonInferenceQuery(queryBuilder, indexInformation);
         } else {
-            // All specified fields are inference fields (semantic_text)
+            // The only fields we've identified are inference fields (e.g. semantic_text),
+            // so rewrite the entire query to work on semantic_text field(s).
             return buildInferenceQuery(queryBuilder, indexInformation);
         }
     }
@@ -102,7 +105,7 @@ public abstract class SemanticQueryRewriteInterceptor implements QueryRewriteInt
         Map<String, Float> fieldsWithWeights = getFieldsWithWeights(queryBuilder);
         Set<String> fieldNames = fieldsWithWeights.keySet();
         Collection<IndexMetadata> indexMetadataCollection = resolvedIndices.getConcreteLocalIndicesMetadata().values();
-        
+
         Map<String, Map<String, InferenceFieldMetadata>> inferenceFieldsPerIndex = new HashMap<>();
         Map<String, Set<String>> nonInferenceFieldsPerIndex = new HashMap<>();
 
@@ -199,27 +202,27 @@ public abstract class SemanticQueryRewriteInterceptor implements QueryRewriteInt
                 .flatMap(fields -> fields.keySet().stream())
                 .collect(Collectors.toSet());
         }
-        
+
         public Set<String> getAllNonInferenceFields() {
             return nonInferenceFieldsPerIndex.values()
                 .stream()
                 .flatMap(Set::stream)
                 .collect(Collectors.toSet());
         }
-        
+
         public boolean hasInferenceFields() {
             return !inferenceFieldsPerIndex.isEmpty();
         }
-        
+
         public boolean hasNonInferenceFields() {
             return !nonInferenceFieldsPerIndex.isEmpty();
         }
-        
+
         // Backward compatibility methods
         public Collection<String> getInferenceIndices() {
             return inferenceFieldsPerIndex.keySet();
         }
-        
+
         public List<String> nonInferenceIndices() {
             return new ArrayList<>(nonInferenceFieldsPerIndex.keySet());
         }

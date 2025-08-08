@@ -52,6 +52,7 @@ import java.util.function.BiFunction;
 import static org.elasticsearch.test.MockLog.assertThatLogger;
 import static org.elasticsearch.test.NodeRoles.masterOnlyNode;
 import static org.elasticsearch.test.NodeRoles.nonMasterNode;
+import static org.elasticsearch.test.NodeRoles.onlyRole;
 import static org.elasticsearch.test.NodeRoles.onlyRoles;
 import static org.elasticsearch.test.NodeRoles.removeRoles;
 import static org.hamcrest.Matchers.containsString;
@@ -1431,7 +1432,6 @@ public class RemoteClusterServiceTests extends ESTestCase {
         // Expect throws when missing search node role when stateless is enabled.
         final var statelessEnabledSettingsOnNonSearchNode = Settings.builder()
             .put(nodeNameSettings)
-            .put(onlyRoles(Set.of(DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE)))
             .put(DiscoveryNode.STATELESS_ENABLED_SETTING_NAME, true)
             .build();
         try (RemoteClusterService service = new RemoteClusterService(statelessEnabledSettingsOnNonSearchNode, null)) {
@@ -1445,7 +1445,7 @@ public class RemoteClusterServiceTests extends ESTestCase {
         // Shouldn't throw when stateless is enabled on a search node.
         final var statelessEnabledOnSearchNodeSettings = Settings.builder()
             .put(nodeNameSettings)
-            .put(onlyRoles(Set.of(DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE, DiscoveryNodeRole.SEARCH_ROLE)))
+            .put(onlyRole(DiscoveryNodeRole.SEARCH_ROLE))
             .put(DiscoveryNode.STATELESS_ENABLED_SETTING_NAME, true)
             .build();
         try (RemoteClusterService service = new RemoteClusterService(statelessEnabledOnSearchNodeSettings, null)) {

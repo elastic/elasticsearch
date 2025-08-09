@@ -225,8 +225,8 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
         }
         int numVectors = rawVectorsReader.getFloatVectorValues(field).size();
         BitSet visitedDocs = new FixedBitSet(state.segmentInfo.maxDoc() + 1);
-        IntPredicate needsScoring = docId -> {
-            if (acceptDocs != null && acceptDocs.get(docId) == false) {
+        IntPredicate needsScoring = acceptDocs == null ? null : docId -> {
+            if (acceptDocs.get(docId) == false) {
                 return false;
             }
             return visitedDocs.getAndSet(docId) == false;

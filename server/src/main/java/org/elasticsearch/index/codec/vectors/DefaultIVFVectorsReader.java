@@ -447,7 +447,7 @@ public class DefaultIVFVectorsReader extends IVFVectorsReader implements OffHeap
             int limit = vectors - BULK_SIZE + 1;
             int i = 0;
             for (; i < limit; i += BULK_SIZE) {
-                final int docsToBulkScore = docToBulkScore(docIdsScratch, i, needsScoring);
+                final int docsToBulkScore = needsScoring == null ? BULK_SIZE : docToBulkScore(docIdsScratch, i, needsScoring);
                 if (docsToBulkScore == 0) {
                     continue;
                 }
@@ -476,7 +476,7 @@ public class DefaultIVFVectorsReader extends IVFVectorsReader implements OffHeap
             // process tail
             for (; i < vectors; i++) {
                 int doc = docIdsScratch[i];
-                if (needsScoring.test(doc)) {
+                if (needsScoring != null && needsScoring.test(doc)) {
                     quantizeQueryIfNecessary();
                     indexInput.seek(slicePos + i * quantizedByteLength);
                     float qcDist = osqVectorsScorer.quantizeScore(quantizedQueryScratch);

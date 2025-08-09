@@ -16,6 +16,7 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.IntBlock;
+import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.OrdinalBytesRefBlock;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
@@ -77,11 +78,6 @@ public final class TSSingletonOrdinalsBuilder implements BlockLoader.TSSingleton
 
     @Override
     public BytesRefBlock build() {
-        // TODO: detect when constant block can be used like is done in: https://github.com/elastic/elasticsearch/pull/132456
-        return buildOrdinal();
-    }
-
-    BytesRefBlock buildOrdinal() {
         assert ords.length == count;
 
         int minOrd;
@@ -106,8 +102,16 @@ public final class TSSingletonOrdinalsBuilder implements BlockLoader.TSSingleton
             minOrd = Math.toIntExact(tmpMinOrd);
             maxOrd = Math.toIntExact(tmpMaxOrd);
         }
-        int valueCount = maxOrd - minOrd + 1;
 
+        var constantBlock = tryBuildConstantBlock(minOrd, maxOrd);
+        if (constantBlock != null) {
+            return constantBlock;
+        }
+        int valueCount = maxOrd - minOrd + 1;
+        return buildOrdinal(minOrd, maxOrd, valueCount, isDense);
+    }
+
+    BytesRefBlock buildOrdinal(int minOrd, int maxOrd, int valueCount, boolean isDense) {
         long breakerSize = ordsSize(count);
         blockFactory.adjustBreaker(breakerSize);
 
@@ -144,6 +148,35 @@ public final class TSSingletonOrdinalsBuilder implements BlockLoader.TSSingleton
             return result;
         } finally {
             Releasables.close(() -> blockFactory.adjustBreaker(-breakerSize), ordinalBlock, bytesVector);
+        }
+    }
+
+    private BytesRefBlock tryBuildConstantBlock(int minOrd, int maxOrd) {
+        if (minOrd != maxOrd) {
+            return null;
+        }
+
+        final BytesRef v;
+        try {
+            v = BytesRef.deepCopyOf(docValues.lookupOrd(minOrd));
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+        BytesRefVector bytes = null;
+        IntVector ordinals = null;
+        boolean success = false;
+        try {
+            bytes = blockFactory.newConstantBytesRefVector(v, 1);
+            ordinals = blockFactory.newConstantIntVector(0, ords.length);
+            // Ideally, we would return a ConstantBytesRefVector, but we return an ordinal constant block instead
+            // to ensure ordinal optimizations are applied when constant optimization is not available.
+            final var result = new OrdinalBytesRefBlock(ordinals.asBlock(), bytes);
+            success = true;
+            return result;
+        } finally {
+            if (success == false) {
+                Releasables.close(bytes, ordinals);
+            }
         }
     }
 

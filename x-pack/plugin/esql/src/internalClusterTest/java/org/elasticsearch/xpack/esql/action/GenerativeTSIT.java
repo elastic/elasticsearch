@@ -49,6 +49,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -79,7 +80,8 @@ public class GenerativeTSIT extends AbstractEsqlIntegTestCase {
 
         DataGenerationHelper() {
             // Metrics coming into our system have a pre-set group of attributes.
-            attributesForMetrics = ESTestCase.randomList(1, 300, () -> ESTestCase.randomAlphaOfLengthBetween(1, 30));
+            // Making a list-to-set-to-list to ensure uniqueness.
+            attributesForMetrics = List.copyOf(Set.copyOf(ESTestCase.randomList(1, 300, () -> ESTestCase.randomAlphaOfLengthBetween(1, 30))));
             numTimeSeries = ESTestCase.randomIntBetween(10, 50); // TODO: Larger size of timeseries
             // System.out.println("Total of time series: " + numTimeSeries);
             // allTimeSeries contains the list of dimension-values for each time series.
@@ -108,8 +110,6 @@ public class GenerativeTSIT extends AbstractEsqlIntegTestCase {
                                 return tsDimensions.stream().collect(Collectors.toMap(Tuple::v1, Tuple::v2));
                             }
                         ),
-                        // TODO: How do we add a `metrics` top field that contains all metrics and indexes
-                        // them dynamically?
                         new PredefinedField.WithGenerator(
                             "metrics",
                             FieldType.PASSTHROUGH,

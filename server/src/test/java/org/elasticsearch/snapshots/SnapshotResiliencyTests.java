@@ -1287,7 +1287,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
         // A transport interceptor that throttles the shard snapshot status updates to run one at a time, for more interesting interleavings
         final TransportInterceptor throttlingInterceptor = new TransportInterceptor() {
             private final ThrottledTaskRunner runner = new ThrottledTaskRunner(
-                SnapshotsService.UPDATE_SNAPSHOT_STATUS_ACTION_NAME + "-throttle",
+                TransportUpdateSnapshotStatusAction.NAME + "-throttle",
                 1,
                 SnapshotResiliencyTests.this::scheduleNow
             );
@@ -1299,7 +1299,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                 boolean forceExecution,
                 TransportRequestHandler<T> actualHandler
             ) {
-                if (action.equals(SnapshotsService.UPDATE_SNAPSHOT_STATUS_ACTION_NAME)) {
+                if (action.equals(TransportUpdateSnapshotStatusAction.NAME)) {
                     return (request, channel, task) -> ActionListener.run(
                         new ChannelActionListener<>(channel),
                         l -> runner.enqueueTask(
@@ -1456,7 +1456,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                     boolean forceExecution,
                     TransportRequestHandler<T> actualHandler
                 ) {
-                    if (action.equals(SnapshotsService.UPDATE_SNAPSHOT_STATUS_ACTION_NAME)) {
+                    if (action.equals(TransportUpdateSnapshotStatusAction.NAME)) {
                         return (request, channel, task) -> ActionListener.run(
                             ActionTestUtils.<TransportResponse>assertNoFailureListener(new ChannelActionListener<>(channel)::onResponse),
                             l -> {
@@ -1713,10 +1713,10 @@ public class SnapshotResiliencyTests extends ESTestCase {
             assertTrue("executed all runnable tasks but test steps are still incomplete", testListener.isDone());
             safeAwait(testListener); // shouldn't throw
         },
-            SnapshotsService.class,
+            SnapshotsServiceUtils.class,
             new MockLog.SeenEventExpectation(
                 "INFO log",
-                SnapshotsService.class.getCanonicalName(),
+                SnapshotsServiceUtils.class.getCanonicalName(),
                 Level.INFO,
                 "*failed to create snapshot*the following indices have unassigned primary shards*"
             )
@@ -1784,16 +1784,16 @@ public class SnapshotResiliencyTests extends ESTestCase {
             assertTrue("executed all runnable tasks but test steps are still incomplete", testListener.isDone());
             safeAwait(testListener); // shouldn't throw
         },
-            SnapshotsService.class,
+            SnapshotsServiceUtils.class,
             new MockLog.SeenEventExpectation(
                 "INFO log",
-                SnapshotsService.class.getCanonicalName(),
+                SnapshotsServiceUtils.class.getCanonicalName(),
                 Level.INFO,
                 Strings.format("*failed to create snapshot*%s", expectedMessage)
             ),
             new MockLog.SeenEventExpectation(
                 "INFO log",
-                SnapshotsService.class.getCanonicalName(),
+                SnapshotsServiceUtils.class.getCanonicalName(),
                 Level.INFO,
                 Strings.format("*failed to clone snapshot*%s", expectedMessage)
             )
@@ -1843,10 +1843,10 @@ public class SnapshotResiliencyTests extends ESTestCase {
             assertTrue("executed all runnable tasks but test steps are still incomplete", testListener.isDone());
             safeAwait(testListener); // shouldn't throw
         },
-            SnapshotsService.class,
+            SnapshotsServiceUtils.class,
             new MockLog.SeenEventExpectation(
                 "INFO log",
-                SnapshotsService.class.getCanonicalName(),
+                SnapshotsServiceUtils.class.getCanonicalName(),
                 Level.INFO,
                 Strings.format("failed to create snapshot: no such index [%s]", indexName)
             )
@@ -1895,10 +1895,10 @@ public class SnapshotResiliencyTests extends ESTestCase {
             assertTrue("executed all runnable tasks but test steps are still incomplete", testListener.isDone());
             safeAwait(testListener); // shouldn't throw
         },
-            SnapshotsService.class,
+            SnapshotsServiceUtils.class,
             new MockLog.SeenEventExpectation(
                 "INFO log",
-                SnapshotsService.class.getCanonicalName(),
+                SnapshotsServiceUtils.class.getCanonicalName(),
                 Level.INFO,
                 Strings.format("*failed to create snapshot*other feature states were requested: [none, none]", "")
             )
@@ -2413,7 +2413,6 @@ public class SnapshotResiliencyTests extends ESTestCase {
                     client,
                     List.of()
                 );
-                final ActionFilters actionFilters = new ActionFilters(emptySet());
                 snapshotsService = new SnapshotsService(
                     settings,
                     clusterService,
@@ -2421,13 +2420,18 @@ public class SnapshotResiliencyTests extends ESTestCase {
                     indexNameExpressionResolver,
                     repositoriesService,
                     transportService,
-                    actionFilters,
                     EmptySystemIndices.INSTANCE,
                     false
                 );
                 nodeEnv = new NodeEnvironment(settings, environment);
                 final NamedXContentRegistry namedXContentRegistry = new NamedXContentRegistry(Collections.emptyList());
-                final ScriptService scriptService = new ScriptService(settings, emptyMap(), emptyMap(), () -> 1L);
+                final ScriptService scriptService = new ScriptService(
+                    settings,
+                    emptyMap(),
+                    emptyMap(),
+                    () -> 1L,
+                    TestProjectResolvers.singleProject(randomProjectIdOrDefault())
+                );
 
                 final SetOnce<RerouteService> rerouteServiceSetOnce = new SetOnce<>();
                 final SnapshotsInfoService snapshotsInfoService = new InternalSnapshotsInfoService(
@@ -2504,7 +2508,12 @@ public class SnapshotResiliencyTests extends ESTestCase {
                     threadPool
                 );
                 nodeConnectionsService = new NodeConnectionsService(clusterService.getSettings(), threadPool, transportService);
+                final ActionFilters actionFilters = new ActionFilters(emptySet());
                 Map<ActionType<?>, TransportAction<?, ?>> actions = new HashMap<>();
+                actions.put(
+                    TransportUpdateSnapshotStatusAction.TYPE,
+                    new TransportUpdateSnapshotStatusAction(transportService, clusterService, threadPool, snapshotsService, actionFilters)
+                );
                 actions.put(
                     GlobalCheckpointSyncAction.TYPE,
                     new GlobalCheckpointSyncAction(
@@ -2702,7 +2711,9 @@ public class SnapshotResiliencyTests extends ESTestCase {
                     EmptySystemIndices.INSTANCE,
                     indicesService,
                     mock(FileSettingsService.class),
-                    threadPool
+                    threadPool,
+                    false,
+                    IndexMetadataRestoreTransformer.NoOpRestoreTransformer.getInstance()
                 );
                 actions.put(
                     TransportPutMappingAction.TYPE,
@@ -2755,7 +2766,14 @@ public class SnapshotResiliencyTests extends ESTestCase {
                 );
                 actions.put(
                     TransportRestoreSnapshotAction.TYPE,
-                    new TransportRestoreSnapshotAction(transportService, clusterService, threadPool, restoreService, actionFilters)
+                    new TransportRestoreSnapshotAction(
+                        transportService,
+                        clusterService,
+                        threadPool,
+                        restoreService,
+                        actionFilters,
+                        TestProjectResolvers.DEFAULT_PROJECT_ONLY
+                    )
                 );
                 actions.put(
                     TransportDeleteIndexAction.TYPE,

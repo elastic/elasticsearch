@@ -62,8 +62,8 @@ class MinBytesRefAggregator {
         }
     }
 
-    public static Block evaluateFinal(GroupingState state, IntVector selected, DriverContext driverContext) {
-        return state.toBlock(selected, driverContext);
+    public static Block evaluateFinal(GroupingState state, IntVector selected, GroupingAggregatorEvaluationContext ctx) {
+        return state.toBlock(selected, ctx.driverContext());
     }
 
     public static class GroupingState implements GroupingAggregatorState {

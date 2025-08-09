@@ -17,9 +17,9 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.test.ESTestCase.randomAlphaOfLengthBetween;
 import static org.elasticsearch.test.ESTestCase.randomDouble;
 import static org.elasticsearch.test.ESTestCase.randomIntBetween;
+import static org.elasticsearch.test.ESTestCase.randomRealisticUnicodeOfCodepointLengthBetween;
 
 public class DefaultObjectGenerationHandler implements DataSourceHandler {
     @Override
@@ -51,7 +51,17 @@ public class DefaultObjectGenerationHandler implements DataSourceHandler {
 
             @Override
             public String generateFieldName() {
-                return randomAlphaOfLengthBetween(1, 10);
+                while (true) {
+                    String fieldName = randomRealisticUnicodeOfCodepointLengthBetween(1, 10);
+                    if (fieldName.isBlank()) {
+                        continue;
+                    }
+                    if (fieldName.indexOf('.') != -1) {
+                        continue;
+                    }
+
+                    return fieldName;
+                }
             }
         };
     }

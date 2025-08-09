@@ -23,6 +23,7 @@ import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.BitSet;
 import org.apache.lucene.util.FixedBitSet;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.cache.Cache;
 import org.elasticsearch.common.cache.CacheBuilder;
 import org.elasticsearch.common.cache.RemovalNotification;
@@ -142,7 +143,7 @@ public final class DocumentSubsetBitsetCache implements IndexReader.ClosedListen
         this.bitsetCache = CacheBuilder.<BitsetCacheKey, BitSet>builder()
             .setExpireAfterAccess(ttl)
             .setMaximumWeight(maxWeightBytes)
-            .weigher((key, bitSet) -> bitSet == NULL_MARKER ? 0 : bitSet.ramBytesUsed())
+            .weigher((key, bitSet) -> BitsetCacheKey.SHALLOW_SIZE + (bitSet == NULL_MARKER ? 0 : bitSet.ramBytesUsed()))
             .removalListener(this::onCacheEviction)
             .build();
 
@@ -247,7 +248,7 @@ public final class DocumentSubsetBitsetCache implements IndexReader.ClosedListen
                     // A cache loader is not allowed to return null, return a marker object instead.
                     return NULL_MARKER;
                 }
-                final long bitSetBytes = result.ramBytesUsed();
+                final long bitSetBytes = result.ramBytesUsed(); // note: this ignores the size of the key itself, but that's okay
                 if (bitSetBytes > this.maxWeightBytes) {
                     logger.warn(
                         "built a DLS BitSet that uses [{}] bytes; the DLS BitSet cache has a maximum size of [{}] bytes;"
@@ -325,12 +326,21 @@ public final class DocumentSubsetBitsetCache implements IndexReader.ClosedListen
 
     private static final class BitsetCacheKey {
 
+        // the shallow size accounts for the object itself, but it ignores the index and the query.
+        // the index is owned by the associated IndexReader and the query is shared, so they don't count against us here.
+        private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(BitsetCacheKey.class);
+
         final IndexReader.CacheKey index;
         final Query query;
+        final int hashCode;
 
         private BitsetCacheKey(IndexReader.CacheKey index, Query query) {
             this.index = index;
             this.query = query;
+            // compute the hashCode eagerly, since it's used multiple times in the cache implementation anyway -- the query here will
+            // be a ConstantScoreQuery around a BooleanQuery, and BooleanQuery already *lazily* caches the hashCode, so this isn't
+            // altogether that much faster in reality, but it makes it more explicit here that we're doing this
+            this.hashCode = computeHashCode();
         }
 
         @Override
@@ -345,9 +355,15 @@ public final class DocumentSubsetBitsetCache implements IndexReader.ClosedListen
             return Objects.equals(this.index, that.index) && Objects.equals(this.query, that.query);
         }
 
+        private int computeHashCode() {
+            int result = index.hashCode();
+            result = 31 * result + query.hashCode();
+            return result;
+        }
+
         @Override
         public int hashCode() {
-            return Objects.hash(index, query);
+            return hashCode;
         }
 
         @Override

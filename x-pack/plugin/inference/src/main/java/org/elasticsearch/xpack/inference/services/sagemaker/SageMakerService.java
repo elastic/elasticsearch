@@ -25,6 +25,7 @@ import org.elasticsearch.inference.InferenceServiceExtension;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
+import org.elasticsearch.inference.RerankingInferenceService;
 import org.elasticsearch.inference.SettingsConfiguration;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.UnifiedCompletionRequest;
@@ -48,7 +49,7 @@ import static org.elasticsearch.xpack.inference.InferencePlugin.UTILITY_THREAD_P
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.createInvalidModelException;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.invalidModelTypeForUpdateModelWithEmbeddingDetails;
 
-public class SageMakerService implements InferenceService {
+public class SageMakerService implements InferenceService, RerankingInferenceService {
     public static final String NAME = "amazon_sagemaker";
     private static final String DISPLAY_NAME = "Amazon SageMaker";
     private static final List<String> ALIASES = List.of("sagemaker", "amazonsagemaker");
@@ -327,5 +328,12 @@ public class SageMakerService implements InferenceService {
     @Override
     public void close() throws IOException {
         client.close();
+    }
+
+    @Override
+    public int rerankerWindowSize(String modelId) {
+        // Assume a small window size as the true value is not known.
+        // TODO make the rerank window size configurable
+        return RerankingInferenceService.CONSERVATIVE_DEFAULT_WINDOW_SIZE;
     }
 }

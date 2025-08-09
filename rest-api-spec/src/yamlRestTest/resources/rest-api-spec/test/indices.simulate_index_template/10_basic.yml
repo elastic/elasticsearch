@@ -250,3 +250,55 @@
   - match: {template.lifecycle.data_retention: "7d"}
   - is_true: template.lifecycle.rollover
   - match: {overlapping: []}
+
+---
+"Simulate index template with data stream with mapping and setting overrides":
+  - requires:
+      cluster_features: [ "logs_stream" ]
+      reason: requires setting 'logs_stream' to get or set data stream mappings
+
+  - do:
+      indices.put_index_template:
+        name: test
+        body:
+          index_patterns: test*
+          template:
+            lifecycle:
+              data_retention: "7d"
+          data_stream: {}
+
+  - do:
+      indices.create_data_stream:
+        name: test
+  - is_true: acknowledged
+
+  - do:
+      cluster.health:
+        wait_for_status: yellow
+
+  - do:
+      indices.put_data_stream_mappings:
+        name: test
+        body:
+          properties:
+            foo:
+              type: keyword
+
+  - match: { data_streams.0.applied_to_data_stream: true }
+
+  - do:
+      indices.put_data_stream_settings:
+        name: test
+        body:
+          index:
+            refresh_interval: "47s"
+
+  - match: { data_streams.0.applied_to_data_stream: true }
+
+  - do:
+      indices.simulate_index_template:
+        name: test
+        include_defaults: true
+
+  - match: {template.mappings.properties.foo.type: "keyword"}
+  - match: {template.settings.index.refresh_interval: "47s"}

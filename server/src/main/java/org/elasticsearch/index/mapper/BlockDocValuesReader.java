@@ -21,6 +21,9 @@ import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.ByteArrayStreamInput;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.codec.tsdb.es819.BlockAwareNumericDocValues;
+import org.elasticsearch.index.codec.tsdb.es819.BlockAwareSortedDocValues;
+import org.elasticsearch.index.codec.tsdb.es819.BlockAwareSortedNumericDocValues;
 import org.elasticsearch.index.mapper.BlockLoader.BlockFactory;
 import org.elasticsearch.index.mapper.BlockLoader.BooleanBuilder;
 import org.elasticsearch.index.mapper.BlockLoader.Builder;
@@ -104,13 +107,25 @@ public abstract class BlockDocValuesReader implements BlockLoader.AllReader {
             if (docValues != null) {
                 NumericDocValues singleton = DocValues.unwrapSingleton(docValues);
                 if (singleton != null) {
-                    return new SingletonLongs(singleton);
+                    if (singleton instanceof BlockAwareNumericDocValues blockAware) {
+                        return new BlockAwareSingletonLongs(blockAware);
+                    } else {
+                        return new SingletonLongs(singleton);
+                    }
                 }
-                return new Longs(docValues);
+                if (docValues instanceof BlockAwareSortedNumericDocValues blockAware) {
+                    return new BlockAwareLongs(blockAware);
+                } else {
+                    return new Longs(docValues);
+                }
             }
             NumericDocValues singleton = context.reader().getNumericDocValues(fieldName);
             if (singleton != null) {
-                return new SingletonLongs(singleton);
+                if (singleton instanceof BlockAwareNumericDocValues blockAware) {
+                    return new BlockAwareSingletonLongs(blockAware);
+                } else {
+                    return new SingletonLongs(singleton);
+                }
             }
             return new ConstantNullsReader();
         }
@@ -161,6 +176,42 @@ public abstract class BlockDocValuesReader implements BlockLoader.AllReader {
         @Override
         public String toString() {
             return "BlockDocValuesReader.SingletonLongs";
+        }
+    }
+
+    private static class BlockAwareSingletonLongs extends BlockDocValuesReader {
+        private final BlockAwareNumericDocValues blockAware;
+
+        BlockAwareSingletonLongs(BlockAwareNumericDocValues blockAware) {
+            this.blockAware = blockAware;
+        }
+
+        @Override
+        public BlockLoader.Block read(BlockFactory factory, Docs docs, int offset) throws IOException {
+            try (BlockLoader.LongBuilder builder = factory.longsFromDocValues(docs.count() - offset)) {
+                blockAware.loadBlock(builder, docs, offset);
+                return builder.build();
+            }
+        }
+
+        @Override
+        public void read(int docId, BlockLoader.StoredFields storedFields, Builder builder) throws IOException {
+            BlockLoader.LongBuilder blockBuilder = (BlockLoader.LongBuilder) builder;
+            if (blockAware.advanceExact(docId)) {
+                blockBuilder.appendLong(blockAware.longValue());
+            } else {
+                blockBuilder.appendNull();
+            }
+        }
+
+        @Override
+        public int docId() {
+            return blockAware.docID();
+        }
+
+        @Override
+        public String toString() {
+            return "BlockDocValuesReader.BlockAwareSingletonLongs";
         }
     }
 
@@ -221,6 +272,51 @@ public abstract class BlockDocValuesReader implements BlockLoader.AllReader {
         }
     }
 
+    private static class BlockAwareLongs extends BlockDocValuesReader {
+        private final BlockAwareSortedNumericDocValues blockAware;
+
+        BlockAwareLongs(BlockAwareSortedNumericDocValues blockAware) {
+            this.blockAware = blockAware;
+        }
+
+        @Override
+        public BlockLoader.Block read(BlockFactory factory, Docs docs, int offset) throws IOException {
+            try (BlockLoader.LongBuilder builder = factory.longsFromDocValues(docs.count() - offset)) {
+                blockAware.loadBlock(builder, docs, offset);
+                return builder.build();
+            }
+        }
+
+        @Override
+        public void read(int docId, BlockLoader.StoredFields storedFields, Builder builder) throws IOException {
+            BlockLoader.LongBuilder longBuilder = (BlockLoader.LongBuilder) builder;
+            if (false == blockAware.advanceExact(docId)) {
+                builder.appendNull();
+                return;
+            }
+            int count = blockAware.docValueCount();
+            if (count == 1) {
+                longBuilder.appendLong(blockAware.nextValue());
+                return;
+            }
+            builder.beginPositionEntry();
+            for (int v = 0; v < count; v++) {
+                longBuilder.appendLong(blockAware.nextValue());
+            }
+            builder.endPositionEntry();
+        }
+
+        @Override
+        public int docId() {
+            return blockAware.docID();
+        }
+
+        @Override
+        public String toString() {
+            return "BlockDocValuesReader.BlockAwareLongs";
+        }
+    }
+
     public static class IntsBlockLoader extends DocValuesBlockLoader {
         private final String fieldName;
 
@@ -239,13 +335,25 @@ public abstract class BlockDocValuesReader implements BlockLoader.AllReader {
             if (docValues != null) {
                 NumericDocValues singleton = DocValues.unwrapSingleton(docValues);
                 if (singleton != null) {
-                    return new SingletonInts(singleton);
+                    if (singleton instanceof BlockAwareNumericDocValues blockAware) {
+                        return new BlockAwareSingletonInts(blockAware);
+                    } else {
+                        return new SingletonInts(singleton);
+                    }
                 }
-                return new Ints(docValues);
+                if (docValues instanceof BlockAwareSortedNumericDocValues blockAware) {
+                    return new BlockAwareInts(blockAware);
+                } else {
+                    return new Ints(docValues);
+                }
             }
             NumericDocValues singleton = context.reader().getNumericDocValues(fieldName);
             if (singleton != null) {
-                return new SingletonInts(singleton);
+                if (singleton instanceof BlockAwareNumericDocValues blockAware) {
+                    return new BlockAwareSingletonInts(blockAware);
+                } else {
+                    return new SingletonInts(singleton);
+                }
             }
             return new ConstantNullsReader();
         }
@@ -296,6 +404,42 @@ public abstract class BlockDocValuesReader implements BlockLoader.AllReader {
         @Override
         public String toString() {
             return "BlockDocValuesReader.SingletonInts";
+        }
+    }
+
+    private static class BlockAwareSingletonInts extends BlockDocValuesReader {
+        private final BlockAwareNumericDocValues blockAware;
+
+        BlockAwareSingletonInts(BlockAwareNumericDocValues blockAware) {
+            this.blockAware = blockAware;
+        }
+
+        @Override
+        public BlockLoader.Block read(BlockFactory factory, Docs docs, int offset) throws IOException {
+            try (BlockLoader.IntBuilder builder = factory.intsFromDocValues(docs.count() - offset)) {
+                blockAware.loadBlock(builder, docs, offset);
+                return builder.build();
+            }
+        }
+
+        @Override
+        public void read(int docId, BlockLoader.StoredFields storedFields, Builder builder) throws IOException {
+            IntBuilder blockBuilder = (IntBuilder) builder;
+            if (blockAware.advanceExact(docId)) {
+                blockBuilder.appendInt(Math.toIntExact(blockAware.longValue()));
+            } else {
+                blockBuilder.appendNull();
+            }
+        }
+
+        @Override
+        public int docId() {
+            return blockAware.docID();
+        }
+
+        @Override
+        public String toString() {
+            return "BlockDocValuesReader.BlockAwareSingletonInts";
         }
     }
 
@@ -356,6 +500,51 @@ public abstract class BlockDocValuesReader implements BlockLoader.AllReader {
         }
     }
 
+    private static class BlockAwareInts extends BlockDocValuesReader {
+        private final BlockAwareSortedNumericDocValues blockAware;
+
+        BlockAwareInts(BlockAwareSortedNumericDocValues blockAware) {
+            this.blockAware = blockAware;
+        }
+
+        @Override
+        public BlockLoader.Block read(BlockFactory factory, Docs docs, int offset) throws IOException {
+            try (BlockLoader.IntBuilder builder = factory.intsFromDocValues(docs.count() - offset)) {
+                blockAware.loadBlock(builder, docs, offset);
+                return builder.build();
+            }
+        }
+
+        @Override
+        public void read(int docId, BlockLoader.StoredFields storedFields, Builder builder) throws IOException {
+            IntBuilder blockBuilder = (IntBuilder) builder;
+            if (false == blockAware.advanceExact(docId)) {
+                builder.appendNull();
+                return;
+            }
+            int count = blockAware.docValueCount();
+            if (count == 1) {
+                blockBuilder.appendInt(Math.toIntExact(blockAware.nextValue()));
+                return;
+            }
+            builder.beginPositionEntry();
+            for (int v = 0; v < count; v++) {
+                blockBuilder.appendInt(Math.toIntExact(blockAware.nextValue()));
+            }
+            builder.endPositionEntry();
+        }
+
+        @Override
+        public int docId() {
+            return blockAware.docID();
+        }
+
+        @Override
+        public String toString() {
+            return "BlockDocValuesReader.BlockAwareInts";
+        }
+    }
+
     /**
      * Convert from the stored {@link long} into the {@link double} to load.
      * Sadly, this will go megamorphic pretty quickly and slow us down,
@@ -385,13 +574,25 @@ public abstract class BlockDocValuesReader implements BlockLoader.AllReader {
             if (docValues != null) {
                 NumericDocValues singleton = DocValues.unwrapSingleton(docValues);
                 if (singleton != null) {
-                    return new SingletonDoubles(singleton, toDouble);
+                    if (singleton instanceof BlockAwareNumericDocValues blockAware) {
+                        return new BlockAwareSingletonDoubles(blockAware, toDouble);
+                    } else {
+                        return new SingletonDoubles(singleton, toDouble);
+                    }
                 }
-                return new Doubles(docValues, toDouble);
+                if (docValues instanceof BlockAwareSortedNumericDocValues blockAware) {
+                    return new BlockAwareDoubles(blockAware, toDouble);
+                } else {
+                    return new Doubles(docValues, toDouble);
+                }
             }
             NumericDocValues singleton = context.reader().getNumericDocValues(fieldName);
             if (singleton != null) {
-                return new SingletonDoubles(singleton, toDouble);
+                if (singleton instanceof BlockAwareNumericDocValues blockAware) {
+                    return new BlockAwareSingletonDoubles(blockAware, toDouble);
+                } else {
+                    return new SingletonDoubles(singleton, toDouble);
+                }
             }
             return new ConstantNullsReader();
         }
@@ -447,6 +648,44 @@ public abstract class BlockDocValuesReader implements BlockLoader.AllReader {
         @Override
         public String toString() {
             return "BlockDocValuesReader.SingletonDoubles";
+        }
+    }
+
+    private static class BlockAwareSingletonDoubles extends BlockDocValuesReader {
+        private final BlockAwareNumericDocValues blockAware;
+        private final ToDouble toDouble;
+
+        BlockAwareSingletonDoubles(BlockAwareNumericDocValues blockAware, ToDouble toDouble) {
+            this.blockAware = blockAware;
+            this.toDouble = toDouble;
+        }
+
+        @Override
+        public BlockLoader.Block read(BlockFactory factory, Docs docs, int offset) throws IOException {
+            try (BlockLoader.DoubleBuilder builder = factory.doublesFromDocValues(docs.count() - offset)) {
+                blockAware.loadBlock(builder, docs, offset, toDouble);
+                return builder.build();
+            }
+        }
+
+        @Override
+        public void read(int docId, BlockLoader.StoredFields storedFields, Builder builder) throws IOException {
+            DoubleBuilder blockBuilder = (DoubleBuilder) builder;
+            if (blockAware.advanceExact(docId)) {
+                blockBuilder.appendDouble(toDouble.convert(blockAware.longValue()));
+            } else {
+                blockBuilder.appendNull();
+            }
+        }
+
+        @Override
+        public int docId() {
+            return blockAware.docID();
+        }
+
+        @Override
+        public String toString() {
+            return "BlockDocValuesReader.BlockAwareSingletonDoubles";
         }
     }
 
@@ -506,6 +745,54 @@ public abstract class BlockDocValuesReader implements BlockLoader.AllReader {
         public String toString() {
             return "BlockDocValuesReader.Doubles";
         }
+    }
+
+    private static class BlockAwareDoubles extends BlockDocValuesReader {
+        private final BlockAwareSortedNumericDocValues blockAware;
+        private final ToDouble toDouble;
+
+        BlockAwareDoubles(BlockAwareSortedNumericDocValues blockAware, ToDouble toDouble) {
+            this.blockAware = blockAware;
+            this.toDouble = toDouble;
+        }
+
+        @Override
+        public BlockLoader.Block read(BlockFactory factory, Docs docs, int offset) throws IOException {
+            try (BlockLoader.DoubleBuilder builder = factory.doublesFromDocValues(docs.count() - offset)) {
+                blockAware.loadBlock(builder, docs, offset, toDouble);
+                return builder.build();
+            }
+        }
+
+        @Override
+        public void read(int docId, BlockLoader.StoredFields storedFields, Builder builder) throws IOException {
+            DoubleBuilder blockBuilder = (DoubleBuilder) builder;
+            if (false == blockAware.advanceExact(docId)) {
+                builder.appendNull();
+                return;
+            }
+            int count = blockAware.docValueCount();
+            if (count == 1) {
+                blockBuilder.appendDouble(toDouble.convert(blockAware.nextValue()));
+                return;
+            }
+            builder.beginPositionEntry();
+            for (int v = 0; v < count; v++) {
+                blockBuilder.appendDouble(toDouble.convert(blockAware.nextValue()));
+            }
+            builder.endPositionEntry();
+        }
+
+        @Override
+        public int docId() {
+            return blockAware.docID();
+        }
+
+        @Override
+        public String toString() {
+            return "BlockDocValuesReader.BlockAwareDoubles";
+        }
+
     }
 
     public static class DenseVectorBlockLoader extends DocValuesBlockLoader {
@@ -605,13 +892,21 @@ public abstract class BlockDocValuesReader implements BlockLoader.AllReader {
             if (docValues != null) {
                 SortedDocValues singleton = DocValues.unwrapSingleton(docValues);
                 if (singleton != null) {
-                    return new SingletonOrdinals(singleton);
+                    if (singleton instanceof BlockAwareSortedDocValues blockAware) {
+                        return new BlockAwareSingletonOrdinals(blockAware);
+                    } else {
+                        return new SingletonOrdinals(singleton);
+                    }
                 }
                 return new Ordinals(docValues);
             }
             SortedDocValues singleton = context.reader().getSortedDocValues(fieldName);
             if (singleton != null) {
-                return new SingletonOrdinals(singleton);
+                if (singleton instanceof BlockAwareSortedDocValues blockAware) {
+                    return new BlockAwareSingletonOrdinals(blockAware);
+                } else {
+                    return new SingletonOrdinals(singleton);
+                }
             }
             return new ConstantNullsReader();
         }
@@ -687,6 +982,54 @@ public abstract class BlockDocValuesReader implements BlockLoader.AllReader {
         @Override
         public String toString() {
             return "BlockDocValuesReader.SingletonOrdinals";
+        }
+    }
+
+    private static class BlockAwareSingletonOrdinals extends BlockDocValuesReader {
+        private final BlockAwareSortedDocValues ordinals;
+
+        BlockAwareSingletonOrdinals(BlockAwareSortedDocValues ordinals) {
+            this.ordinals = ordinals;
+        }
+
+        private BlockLoader.Block readSingleDoc(BlockFactory factory, int docId) throws IOException {
+            if (ordinals.advanceExact(docId)) {
+                BytesRef v = ordinals.lookupOrd(ordinals.ordValue());
+                // the returned BytesRef can be reused
+                return factory.constantBytes(BytesRef.deepCopyOf(v), 1);
+            } else {
+                return factory.constantNulls(1);
+            }
+        }
+
+        @Override
+        public BlockLoader.Block read(BlockFactory factory, Docs docs, int offset) throws IOException {
+            if (docs.count() - offset == 1) {
+                return readSingleDoc(factory, docs.get(offset));
+            }
+            try (var builder = factory.singletonOrdinalsBuilder(ordinals, docs.count() - offset)) {
+                ordinals.loadBlock(builder, docs, offset);
+                return builder.build();
+            }
+        }
+
+        @Override
+        public void read(int docId, BlockLoader.StoredFields storedFields, Builder builder) throws IOException {
+            if (ordinals.advanceExact(docId)) {
+                ((BytesRefBuilder) builder).appendBytesRef(ordinals.lookupOrd(ordinals.ordValue()));
+            } else {
+                builder.appendNull();
+            }
+        }
+
+        @Override
+        public int docId() {
+            return ordinals.docID();
+        }
+
+        @Override
+        public String toString() {
+            return "BlockDocValuesReader.BlockAwareSingletonOrdinals";
         }
     }
 

@@ -95,4 +95,50 @@ public class RemoteClusterSettingsTests extends ESTestCase {
         final String alias = randomAlphaOfLength(8);
         assertThat(REMOTE_CLUSTERS_PROXY.getConcreteSettingForNamespace(alias).get(Settings.EMPTY), equalTo(""));
     }
+
+    public void testSkipUnavailableAlwaysTrueIfStatelessEnabled() {
+        final var alias = randomAlphaOfLength(8);
+        final var skipUnavailableSetting = REMOTE_CLUSTER_SKIP_UNAVAILABLE.getConcreteSettingForNamespace(alias);
+        final var modeSetting = RemoteConnectionStrategy.REMOTE_CONNECTION_MODE.getConcreteSettingForNamespace(alias);
+        final var proxyAddressSetting = ProxyConnectionStrategy.PROXY_ADDRESS.getConcreteSettingForNamespace(alias);
+        final var statelessEnabledSettings = Settings.builder().put(DiscoveryNode.STATELESS_ENABLED_SETTING_NAME, true).build();
+        final var proxyEnabledSettings = Settings.builder()
+            .put(modeSetting.getKey(), RemoteConnectionStrategy.ConnectionStrategy.PROXY.toString())
+            .put(proxyAddressSetting.getKey(), "localhost:9400")
+            .build();
+
+        // Ensure the validator still throws in non-stateless environment if a connection mode is not set.
+        var exception = expectThrows(
+            IllegalArgumentException.class,
+            () -> skipUnavailableSetting.get(Settings.builder().put(skipUnavailableSetting.getKey(), true).build())
+        );
+        assertThat(
+            exception.getMessage(),
+            equalTo("Cannot configure setting [" + skipUnavailableSetting.getKey() + "] if remote cluster is not enabled.")
+        );
+
+        // Ensure we can still get the set value in non-stateless environment.
+        assertFalse(
+            skipUnavailableSetting.get(Settings.builder().put(proxyEnabledSettings).put(skipUnavailableSetting.getKey(), false).build())
+        );
+
+        // Check the validator rejects the skip_unavailable setting if present when stateless is enabled.
+        exception = expectThrows(
+            IllegalArgumentException.class,
+            () -> skipUnavailableSetting.get(
+                Settings.builder()
+                    .put(statelessEnabledSettings)
+                    .put(proxyEnabledSettings)
+                    .put(skipUnavailableSetting.getKey(), false)
+                    .build()
+            )
+        );
+        assertThat(
+            exception.getMessage(),
+            equalTo("setting [" + skipUnavailableSetting.getKey() + "] is unavailable when stateless is enabled")
+        );
+
+        // Should not throw if the setting is not present, returning the expected default value of true.
+        assertTrue(skipUnavailableSetting.get(Settings.builder().put(statelessEnabledSettings).put(proxyEnabledSettings).build()));
+    }
 }

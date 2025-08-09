@@ -81,7 +81,9 @@ public class GenerativeTSIT extends AbstractEsqlIntegTestCase {
         DataGenerationHelper() {
             // Metrics coming into our system have a pre-set group of attributes.
             // Making a list-to-set-to-list to ensure uniqueness.
-            attributesForMetrics = List.copyOf(Set.copyOf(ESTestCase.randomList(1, 300, () -> ESTestCase.randomAlphaOfLengthBetween(1, 30))));
+            attributesForMetrics = List.copyOf(
+                Set.copyOf(ESTestCase.randomList(1, 300, () -> ESTestCase.randomAlphaOfLengthBetween(1, 30)))
+            );
             numTimeSeries = ESTestCase.randomIntBetween(10, 50); // TODO: Larger size of timeseries
             // System.out.println("Total of time series: " + numTimeSeries);
             // allTimeSeries contains the list of dimension-values for each time series.

@@ -14,6 +14,8 @@ import org.apache.lucene.codecs.DocValuesProducer;
 import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.index.SegmentWriteState;
 import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 
 import java.io.IOException;
 
@@ -138,5 +140,10 @@ public class ES819TSDBDocValuesFormat extends org.apache.lucene.codecs.DocValues
     @Override
     public DocValuesProducer fieldsProducer(SegmentReadState state) throws IOException {
         return new ES819TSDBDocValuesProducer(state, DATA_CODEC, DATA_EXTENSION, META_CODEC, META_EXTENSION);
+    }
+
+    public static ES819TSDBDocValuesFormat load(IndexVersion indexVersion) {
+        boolean enableOptimizedMerge = indexVersion.onOrAfter(IndexVersions.USE_819_TSDB_DOC_VALUES_FORMAT);
+        return new ES819TSDBDocValuesFormat(DEFAULT_SKIP_INDEX_INTERVAL_SIZE, enableOptimizedMerge);
     }
 }

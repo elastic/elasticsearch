@@ -30,7 +30,6 @@ import org.apache.commons.math3.distribution.RealDistribution;
 import org.apache.commons.math3.distribution.UniformRealDistribution;
 import org.apache.commons.math3.distribution.WeibullDistribution;
 import org.apache.commons.math3.random.Well19937c;
-import org.elasticsearch.test.ESTestCase;
 
 import java.util.Arrays;
 import java.util.HashSet;
@@ -47,7 +46,7 @@ import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.notANumber;
 
-public class QuantileAccuracyTests extends ESTestCase {
+public class QuantileAccuracyTests extends ExponentialHistogramTestCase {
 
     public static final double[] QUANTILES_TO_TEST = { 0, 0.0000001, 0.01, 0.1, 0.25, 0.5, 0.75, 0.9, 0.95, 0.99, 0.999999, 1.0 };
 
@@ -57,7 +56,7 @@ public class QuantileAccuracyTests extends ESTestCase {
     }
 
     public void testNoNegativeZeroReturned() {
-        FixedCapacityExponentialHistogram histogram = new FixedCapacityExponentialHistogram(2);
+        FixedCapacityExponentialHistogram histogram = createAutoReleasedHistogram(2);
         histogram.resetBuckets(MAX_SCALE);
         // add a single, negative bucket close to zero
         histogram.tryAddBucket(MIN_INDEX, 3, false);
@@ -100,7 +99,7 @@ public class QuantileAccuracyTests extends ESTestCase {
     }
 
     public void testPercentileOverlapsZeroBucket() {
-        ExponentialHistogram histo = ExponentialHistogram.create(9, -3.0, -2, -1, 0, 0, 0, 1, 2, 3);
+        ExponentialHistogram histo = createAutoReleasedHistogram(9, -3.0, -2, -1, 0, 0, 0, 1, 2, 3);
         assertThat(ExponentialHistogramQuantile.getQuantile(histo, 8.0 / 16.0), equalTo(0.0));
         assertThat(ExponentialHistogramQuantile.getQuantile(histo, 7.0 / 16.0), equalTo(0.0));
         assertThat(ExponentialHistogramQuantile.getQuantile(histo, 9.0 / 16.0), equalTo(0.0));
@@ -154,14 +153,14 @@ public class QuantileAccuracyTests extends ESTestCase {
     }
 
     public void testEmptyHistogram() {
-        ExponentialHistogram histo = ExponentialHistogram.create(1);
+        ExponentialHistogram histo = ExponentialHistogram.empty();
         for (double q : QUANTILES_TO_TEST) {
             assertThat(ExponentialHistogramQuantile.getQuantile(histo, q), notANumber());
         }
     }
 
     public void testSingleValueHistogram() {
-        ExponentialHistogram histo = ExponentialHistogram.create(1, 42.0);
+        ExponentialHistogram histo = createAutoReleasedHistogram(1, 42.0);
         for (double q : QUANTILES_TO_TEST) {
             assertThat(ExponentialHistogramQuantile.getQuantile(histo, q), closeTo(42, 0.0000001));
         }
@@ -232,12 +231,12 @@ public class QuantileAccuracyTests extends ESTestCase {
     }
 
     private double testQuantileAccuracy(double[] values, int bucketCount) {
-        // Create histogram
-        ExponentialHistogram histogram = ExponentialHistogram.create(bucketCount, values);
+        ExponentialHistogram histogram = createAutoReleasedHistogram(bucketCount, values);
+
         Arrays.sort(values);
 
-        double allowedError = getMaximumRelativeError(values, bucketCount);
         double maxError = 0;
+        double allowedError = getMaximumRelativeError(values, bucketCount);
 
         // Compare histogram quantiles with exact quantiles
         for (double q : QUANTILES_TO_TEST) {

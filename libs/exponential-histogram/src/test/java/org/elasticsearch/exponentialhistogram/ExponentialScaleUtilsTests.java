@@ -23,8 +23,6 @@ package org.elasticsearch.exponentialhistogram;
 
 import ch.obermuhlner.math.big.BigDecimalMath;
 
-import org.elasticsearch.test.ESTestCase;
-
 import java.math.BigDecimal;
 import java.math.MathContext;
 import java.math.RoundingMode;
@@ -49,7 +47,7 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
-public class ExponentialScaleUtilsTests extends ESTestCase {
+public class ExponentialScaleUtilsTests extends ExponentialHistogramTestCase {
 
     public void testMaxIndex() {
         assertThat(getMaximumScaleIncrease(MAX_INDEX), equalTo(0));

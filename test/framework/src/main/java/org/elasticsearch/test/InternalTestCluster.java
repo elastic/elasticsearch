@@ -2064,7 +2064,7 @@ public final class InternalTestCluster extends TestCluster {
             throw new AssertionError("Unable to get master name, no node found");
         }
         try {
-            ClusterServiceUtils.awaitClusterState(logger, state -> state.nodes().getMasterNode() != null, clusterService(viaNode));
+            ClusterServiceUtils.awaitClusterState(state -> state.nodes().getMasterNode() != null, clusterService(viaNode));
             final ClusterState state = client(viaNode).admin().cluster().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
             final DiscoveryNode masterNode = state.nodes().getMasterNode();
             if (masterNode == null) {

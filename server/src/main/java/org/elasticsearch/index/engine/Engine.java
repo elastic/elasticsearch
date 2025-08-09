@@ -1123,7 +1123,7 @@ public abstract class Engine implements Closeable {
     /**
      * Acquires a lock on Lucene soft-deleted documents to prevent them from being trimmed
      */
-    public abstract Closeable acquireHistoryRetentionLock();
+    public abstract Releasable acquireHistoryRetentionLock();
 
     /**
      * Counts the number of operations in the range of the given sequence numbers.

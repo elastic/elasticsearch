@@ -3357,7 +3357,7 @@ public class InternalEngine extends Engine {
     }
 
     @Override
-    public Closeable acquireHistoryRetentionLock() {
+    public Releasable acquireHistoryRetentionLock() {
         return softDeletesPolicy.acquireRetentionLock();
     }
 

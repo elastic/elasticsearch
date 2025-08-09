@@ -1013,7 +1013,8 @@ public final class DateFieldMapper extends FieldMapper {
         @Override
         public BlockLoader blockLoader(BlockLoaderContext blContext) {
             if (hasDocValues()) {
-                return new BlockDocValuesReader.LongsBlockLoader(name());
+                var indexMode = blContext.indexSettings().getMode();
+                return new BlockDocValuesReader.LongsBlockLoader(name(), indexMode);
             }
 
             // Multi fields don't have fallback synthetic source.

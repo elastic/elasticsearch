@@ -23,6 +23,7 @@ import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.Point;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.mapper.AbstractPointGeometryFieldMapper;
@@ -242,7 +243,8 @@ public class PointFieldMapper extends AbstractPointGeometryFieldMapper<Cartesian
         @Override
         public BlockLoader blockLoader(BlockLoaderContext blContext) {
             if (blContext.fieldExtractPreference() == DOC_VALUES && hasDocValues()) {
-                return new BlockDocValuesReader.LongsBlockLoader(name());
+                var indexMode = blContext.indexSettings().getMode();
+                return new BlockDocValuesReader.LongsBlockLoader(name(), indexMode);
             }
 
             // Multi fields don't have fallback synthetic source.s

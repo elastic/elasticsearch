@@ -36,6 +36,7 @@ import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.index.codec.Elasticsearch900Lucene101Codec;
 import org.elasticsearch.index.codec.tsdb.ES87TSDBDocValuesFormatTests;
+import org.elasticsearch.index.mapper.TestBlock;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -705,14 +706,172 @@ public class ES819TSDBDocValuesFormatTests extends ES87TSDBDocValuesFormatTests 
         }
     }
 
+    public void testBulkLoading() throws Exception {
+        final String counterField = "counter";
+        final String timestampField = "@timestamp";
+        final String gaugeField = "gauge";
+        long currentTimestamp = 1704067200000L;
+        long currentCounter = 10_000_000;
+
+        var config = getTimeSeriesIndexWriterConfig(null, timestampField);
+        try (var dir = newDirectory(); var iw = new IndexWriter(dir, config)) {
+            long[] gauge1Values = new long[] { 2, 4, 6, 8, 10, 12, 14, 16 };
+            int numDocs = 256 + random().nextInt(8096);
+
+            for (int i = 0; i < numDocs; i++) {
+                var d = new Document();
+                long timestamp = currentTimestamp;
+                // Index sorting doesn't work with NumericDocValuesField:
+                d.add(SortedNumericDocValuesField.indexedField(timestampField, timestamp));
+                d.add(new SortedNumericDocValuesField(counterField, currentCounter));
+                d.add(new SortedNumericDocValuesField(gaugeField, gauge1Values[i % gauge1Values.length]));
+
+                iw.addDocument(d);
+                if (i % 100 == 0) {
+                    iw.commit();
+                }
+                if (i < numDocs - 1) {
+                    currentTimestamp += 1000L;
+                    currentCounter++;
+                }
+            }
+            iw.commit();
+            final long lastIndexedTimestamp = currentTimestamp;
+            final long lastIndexedCounter = currentCounter;
+            try (var reader = DirectoryReader.open(iw)) {
+                int gaugeIndex = numDocs;
+                for (var leaf : reader.leaves()) {
+                    var timestampDV = DocValues.unwrapSingleton(leaf.reader().getSortedNumericDocValues(timestampField));
+                    var timestampBulkReader = ((BulkNumericDocValues) timestampDV).getBulkReader();
+                    var counterDV = DocValues.unwrapSingleton(leaf.reader().getSortedNumericDocValues(counterField));
+                    var counterBulkReader = ((BulkNumericDocValues) counterDV).getBulkReader();
+                    var gaugeDV = DocValues.unwrapSingleton(leaf.reader().getSortedNumericDocValues(gaugeField));
+                    var gaugeBulkReader = ((BulkNumericDocValues) gaugeDV).getBulkReader();
+                    int maxDoc = leaf.reader().maxDoc();
+                    for (int i = 0; i < maxDoc;) {
+                        int size = Math.max(1, random().nextInt(0, maxDoc - i));
+                        var docs = TestBlock.docs(IntStream.range(i, i + size).toArray());
+
+                        {
+                            // bulk loading timestamp:
+                            var builder = TestBlock.factory().singletonLongs(size);
+                            timestampBulkReader.bulkRead(builder, docs, 0);
+                            var block = (TestBlock) builder.build();
+                            assertEquals(size, block.size());
+                            for (int j = 0; j < block.size(); j++) {
+                                long actualTimestamp = (long) block.get(j);
+                                long expectedTimestamp = currentTimestamp;
+                                assertEquals(expectedTimestamp, actualTimestamp);
+                                currentTimestamp -= 1000L;
+                            }
+                        }
+                        {
+                            // bulk loading counter field:
+                            var builder = TestBlock.factory().singletonLongs(size);
+                            counterBulkReader.bulkRead(builder, docs, 0);
+                            var block = (TestBlock) builder.build();
+                            assertEquals(size, block.size());
+                            for (int j = 0; j < block.size(); j++) {
+                                long actualCounter = (long) block.get(j);
+                                long expectedCounter = currentCounter;
+                                assertEquals(expectedCounter, actualCounter);
+                                currentCounter--;
+                            }
+                        }
+                        {
+                            // bulk loading gauge field:
+                            var builder = TestBlock.factory().singletonLongs(size);
+                            gaugeBulkReader.bulkRead(builder, docs, 0);
+                            var block = (TestBlock) builder.build();
+                            assertEquals(size, block.size());
+                            for (int j = 0; j < block.size(); j++) {
+                                long actualGauge = (long) block.get(j);
+                                long expectedGauge = gauge1Values[--gaugeIndex % gauge1Values.length];
+                                assertEquals(expectedGauge, actualGauge);
+                            }
+                        }
+
+                        i += size;
+                    }
+                }
+            }
+
+            // Now bulk reader from one big segment and use random offset:
+            iw.forceMerge(1);
+            try (var reader = DirectoryReader.open(iw)) {
+                int randomOffset = random().nextInt(numDocs / 4);
+                currentTimestamp = lastIndexedTimestamp - (randomOffset * 1000L);
+                currentCounter = lastIndexedCounter - randomOffset;
+                assertEquals(1, reader.leaves().size());
+                assertEquals(numDocs, reader.maxDoc());
+                var leafReader = reader.leaves().get(0).reader();
+                int maxDoc = leafReader.maxDoc();
+                int size = maxDoc - randomOffset;
+                int gaugeIndex = size;
+
+                var timestampDV = DocValues.unwrapSingleton(leafReader.getSortedNumericDocValues(timestampField));
+                var timestampBulkReader = ((BulkNumericDocValues) timestampDV).getBulkReader();
+                var counterDV = DocValues.unwrapSingleton(leafReader.getSortedNumericDocValues(counterField));
+                var counterBulkReader = ((BulkNumericDocValues) counterDV).getBulkReader();
+                var gaugeDV = DocValues.unwrapSingleton(leafReader.getSortedNumericDocValues(gaugeField));
+                var gaugeBulkReader = ((BulkNumericDocValues) gaugeDV).getBulkReader();
+
+                var docs = TestBlock.docs(IntStream.range(0, maxDoc).toArray());
+
+                {
+                    // bulk loading timestamp:
+                    var builder = TestBlock.factory().singletonLongs(size);
+                    timestampBulkReader.bulkRead(builder, docs, randomOffset);
+                    var block = (TestBlock) builder.build();
+                    assertEquals(size, block.size());
+                    for (int j = 0; j < block.size(); j++) {
+                        long actualTimestamp = (long) block.get(j);
+                        long expectedTimestamp = currentTimestamp;
+                        assertEquals(expectedTimestamp, actualTimestamp);
+                        currentTimestamp -= 1000L;
+                    }
+                }
+                {
+                    // bulk loading counter field:
+                    var builder = TestBlock.factory().singletonLongs(size);
+                    counterBulkReader.bulkRead(builder, docs, randomOffset);
+                    var block = (TestBlock) builder.build();
+                    assertEquals(size, block.size());
+                    for (int j = 0; j < block.size(); j++) {
+                        long actualCounter = (long) block.get(j);
+                        long expectedCounter = currentCounter;
+                        assertEquals(expectedCounter, actualCounter);
+                        currentCounter--;
+                    }
+                }
+                {
+                    // bulk loading gauge field:
+                    var builder = TestBlock.factory().singletonLongs(size);
+                    gaugeBulkReader.bulkRead(builder, docs, randomOffset);
+                    var block = (TestBlock) builder.build();
+                    assertEquals(size, block.size());
+                    for (int j = 0; j < block.size(); j++) {
+                        long actualGauge = (long) block.get(j);
+                        long expectedGauge = gauge1Values[--gaugeIndex % gauge1Values.length];
+                        assertEquals(expectedGauge, actualGauge);
+                    }
+                }
+            }
+        }
+    }
+
     private IndexWriterConfig getTimeSeriesIndexWriterConfig(String hostnameField, String timestampField) {
         var config = new IndexWriterConfig();
-        config.setIndexSort(
-            new Sort(
-                new SortField(hostnameField, SortField.Type.STRING, false),
-                new SortedNumericSortField(timestampField, SortField.Type.LONG, true)
-            )
-        );
+        if (hostnameField != null) {
+            config.setIndexSort(
+                new Sort(
+                    new SortField(hostnameField, SortField.Type.STRING, false),
+                    new SortedNumericSortField(timestampField, SortField.Type.LONG, true)
+                )
+            );
+        } else {
+            config.setIndexSort(new Sort(new SortedNumericSortField(timestampField, SortField.Type.LONG, true)));
+        }
         config.setLeafSorter(DataStream.TIMESERIES_LEAF_READERS_SORTER);
         config.setMergePolicy(new LogByteSizeMergePolicy());
         config.setCodec(getCodec());

@@ -234,6 +234,11 @@ public enum IndexMode {
         public SourceFieldMapper.Mode defaultSourceMode() {
             return SourceFieldMapper.Mode.SYNTHETIC;
         }
+
+        @Override
+        public boolean supportOptimizedDocValueLoading() {
+            return true;
+        }
     },
     LOGSDB("logsdb") {
         @Override
@@ -319,6 +324,11 @@ public enum IndexMode {
         @Override
         public String getDefaultCodec() {
             return CodecService.BEST_COMPRESSION_CODEC;
+        }
+
+        @Override
+        public boolean supportOptimizedDocValueLoading() {
+            return true;
         }
     },
     LOOKUP("lookup") {
@@ -561,6 +571,13 @@ public enum IndexMode {
      * Whether the default posting format (for inverted indices) from Lucene should be used.
      */
     public boolean useDefaultPostingsFormat() {
+        return false;
+    }
+
+    /**
+     * @return Whether the index mode uses a doc value codec that may support optimized doc value loading for one or more fields.
+     */
+    public boolean supportOptimizedDocValueLoading() {
         return false;
     }
 

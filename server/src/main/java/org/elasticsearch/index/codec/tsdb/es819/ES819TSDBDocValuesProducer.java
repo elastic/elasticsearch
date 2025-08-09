@@ -43,6 +43,7 @@ import org.apache.lucene.util.packed.DirectMonotonicReader;
 import org.apache.lucene.util.packed.PackedInts;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.codec.tsdb.TSDBDocValuesEncoder;
+import org.elasticsearch.index.mapper.BlockLoader;
 
 import java.io.IOException;
 
@@ -1140,13 +1141,14 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
         final int bitsPerOrd = maxOrd >= 0 ? PackedInts.bitsRequired(maxOrd - 1) : -1;
         if (entry.docsWithFieldOffset == -1) {
             // dense
-            return new NumericDocValues() {
+            return new BulkNumericDocValues() {
 
                 private final int maxDoc = ES819TSDBDocValuesProducer.this.maxDoc;
                 private int doc = -1;
                 private final TSDBDocValuesEncoder decoder = new TSDBDocValuesEncoder(ES819TSDBDocValuesFormat.NUMERIC_BLOCK_SIZE);
                 private long currentBlockIndex = -1;
                 private final long[] currentBlock = new long[ES819TSDBDocValuesFormat.NUMERIC_BLOCK_SIZE];
+                private BulkReader bulkReader;
 
                 @Override
                 public int docID() {
@@ -1155,11 +1157,13 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
 
                 @Override
                 public int nextDoc() throws IOException {
+                    assert bulkReader == null : "can't use this method if bulk loader has been initialized";
                     return advance(doc + 1);
                 }
 
                 @Override
                 public int advance(int target) throws IOException {
+                    assert bulkReader == null : "can't use this method if bulk loader has been initialized";
                     if (target >= maxDoc) {
                         return doc = NO_MORE_DOCS;
                     }
@@ -1168,6 +1172,7 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
 
                 @Override
                 public boolean advanceExact(int target) {
+                    assert bulkReader == null : "can't use this method if bulk loader has been initialized";
                     doc = target;
                     return true;
                 }
@@ -1179,6 +1184,7 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
 
                 @Override
                 public long longValue() throws IOException {
+                    assert bulkReader == null : "can't use this method if bulk loader has been initialized";
                     final int index = doc;
                     final int blockIndex = index >>> ES819TSDBDocValuesFormat.NUMERIC_BLOCK_SHIFT;
                     final int blockInIndex = index & ES819TSDBDocValuesFormat.NUMERIC_BLOCK_MASK;
@@ -1196,6 +1202,126 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
                         }
                     }
                     return currentBlock[blockInIndex];
+                }
+
+                @Override
+                public BulkReader getBulkReader() {
+                    if (bulkReader == null) {
+                        bulkReader = new BulkReader() {
+
+                            @Override
+                            public void bulkRead(BlockLoader.SingletonBulkLongBuilder builder, BlockLoader.Docs docs, int offset)
+                                throws IOException {
+                                assert maxOrd == -1;
+                                doc = docs.get(docs.count() - 1);
+                                boolean isDense = doc - docs.get(0) == docs.count() - 1;
+                                if (isDense) {
+                                    // Figure out where we start and whether the previous block needs to be read:
+                                    int firstDocId = docs.get(offset);
+                                    int firstBlockIndex = firstDocId >>> ES819TSDBDocValuesFormat.NUMERIC_BLOCK_SHIFT;
+                                    int firstBlockInIndex = firstDocId & ES819TSDBDocValuesFormat.NUMERIC_BLOCK_MASK;
+
+                                    int start;
+                                    if (currentBlockIndex != firstBlockIndex) {
+                                        // different block, so seek:
+                                        valuesData.seek(indexReader.get(firstBlockIndex));
+                                        if (firstBlockInIndex == 0) {
+                                            // start is a full block, defer consuming later with complete blocks.
+                                            start = offset;
+                                        } else {
+                                            // partial block, consume it here
+                                            currentBlockIndex = firstBlockInIndex;
+                                            decoder.decode(valuesData, currentBlock);
+                                            int length = ES819TSDBDocValuesFormat.NUMERIC_BLOCK_SIZE - firstBlockInIndex;
+                                            if (docs.count() < length) {
+                                                builder.appendLongs(currentBlock, firstBlockInIndex, docs.count());
+                                                return;
+                                            } else {
+                                                builder.appendLongs(currentBlock, firstBlockInIndex, length);
+                                                start = offset + length;
+                                            }
+                                        }
+                                    } else {
+                                        // consume remaining
+                                        int docsLength = docs.count() - offset;
+                                        int blockLength = ES819TSDBDocValuesFormat.NUMERIC_BLOCK_SIZE - firstBlockInIndex;
+                                        if (docsLength < blockLength) {
+                                            builder.appendLongs(currentBlock, firstBlockInIndex, docsLength);
+                                            return;
+                                        } else {
+                                            builder.appendLongs(currentBlock, firstBlockInIndex, blockLength);
+                                            start = offset + blockLength;
+                                        }
+                                    }
+
+                                    // Figure out how many complete blocks we can read:
+                                    int completeBlockSize = 0;
+                                    int[] completeBlocks = new int[(docs.count() / ES819TSDBDocValuesFormat.NUMERIC_BLOCK_SIZE) + 1];
+                                    int docsIndex = start;
+                                    while (docsIndex < docs.count()) {
+                                        int docId = docs.get(docsIndex);
+                                        if (docsIndex + ES819TSDBDocValuesFormat.NUMERIC_BLOCK_SIZE >= docs.count()) {
+                                            break;
+                                        }
+
+                                        int nextIndex = docs.get(docsIndex + ES819TSDBDocValuesFormat.NUMERIC_BLOCK_SIZE);
+                                        if (nextIndex - docId == ES819TSDBDocValuesFormat.NUMERIC_BLOCK_SIZE) {
+                                            completeBlocks[completeBlockSize++] = docId;
+                                            docsIndex += ES819TSDBDocValuesFormat.NUMERIC_BLOCK_SIZE;
+                                        } else {
+                                            break;
+                                        }
+                                    }
+
+                                    // Read those complete blocks:
+                                    for (int i = 0; i < completeBlockSize; i++) {
+                                        int docId = completeBlocks[i];
+                                        currentBlockIndex = docId >>> ES819TSDBDocValuesFormat.NUMERIC_BLOCK_SHIFT;
+                                        decoder.decode(valuesData, currentBlock);
+                                        int blockInIndex = docId & ES819TSDBDocValuesFormat.NUMERIC_BLOCK_MASK;
+                                        int length = ES819TSDBDocValuesFormat.NUMERIC_BLOCK_SIZE - blockInIndex;
+                                        assert length == ES819TSDBDocValuesFormat.NUMERIC_BLOCK_SIZE : "unexpected length [" + length + "]";
+                                        builder.appendLongs(currentBlock, blockInIndex, length);
+                                    }
+
+                                    // Check for a remainder and if so read it:
+                                    if (docsIndex < docs.count()) {
+                                        int docId = docs.get(docsIndex);
+                                        currentBlockIndex = docId >>> ES819TSDBDocValuesFormat.NUMERIC_BLOCK_SHIFT;
+                                        decoder.decode(valuesData, currentBlock);
+
+                                        int blockInIndex = docId & ES819TSDBDocValuesFormat.NUMERIC_BLOCK_MASK;
+                                        int lastBlockInIndex = doc & ES819TSDBDocValuesFormat.NUMERIC_BLOCK_MASK;
+                                        int length = lastBlockInIndex - blockInIndex + 1;
+
+                                        builder.appendLongs(currentBlock, blockInIndex, length);
+                                    }
+                                } else {
+                                    for (int i = offset; i < docs.count(); i++) {
+                                        int index = docs.get(i);
+                                        final int blockIndex = index >>> ES819TSDBDocValuesFormat.NUMERIC_BLOCK_SHIFT;
+                                        final int blockInIndex = index & ES819TSDBDocValuesFormat.NUMERIC_BLOCK_MASK;
+                                        if (blockIndex != currentBlockIndex) {
+                                            assert blockIndex > currentBlockIndex : blockIndex + " < " + currentBlockIndex;
+                                            // no need to seek if the loading block is the next block
+                                            if (currentBlockIndex + 1 != blockIndex) {
+                                                valuesData.seek(indexReader.get(blockIndex));
+                                            }
+                                            currentBlockIndex = blockIndex;
+                                            decoder.decode(valuesData, currentBlock);
+                                        }
+                                        builder.appendLong(currentBlock[blockInIndex]);
+                                    }
+                                }
+                            }
+
+                            @Override
+                            public int docID() {
+                                return doc;
+                            }
+                        };
+                    }
+                    return bulkReader;
                 }
             };
         } else {

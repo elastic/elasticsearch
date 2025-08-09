@@ -20,7 +20,10 @@ import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.ByteArrayStreamInput;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.codec.tsdb.es819.BulkReader;
+import org.elasticsearch.index.codec.tsdb.es819.BulkNumericDocValues;
 import org.elasticsearch.index.mapper.BlockLoader.BlockFactory;
 import org.elasticsearch.index.mapper.BlockLoader.BooleanBuilder;
 import org.elasticsearch.index.mapper.BlockLoader.Builder;
@@ -62,6 +65,12 @@ public abstract class BlockDocValuesReader implements BlockLoader.AllReader {
 
         @Override
         public final ColumnAtATimeReader columnAtATimeReader(LeafReaderContext context) throws IOException {
+            if (supportsOptimizedColumnAtTimeReader()) {
+                var optimizedColumnAtTimeReader = optimizedColumnAtTimeReader(context);
+                if (optimizedColumnAtTimeReader != null) {
+                    return optimizedColumnAtTimeReader;
+                }
+            }
             return reader(context);
         }
 
@@ -84,13 +93,23 @@ public abstract class BlockDocValuesReader implements BlockLoader.AllReader {
         public SortedSetDocValues ordinals(LeafReaderContext context) throws IOException {
             throw new UnsupportedOperationException();
         }
+
+        protected boolean supportsOptimizedColumnAtTimeReader() {
+            return false;
+        }
+
+        protected ColumnAtATimeReader optimizedColumnAtTimeReader(LeafReaderContext context) throws IOException {
+            throw new UnsupportedOperationException();
+        }
     }
 
     public static class LongsBlockLoader extends DocValuesBlockLoader {
         private final String fieldName;
+        private final IndexMode indexMode;
 
-        public LongsBlockLoader(String fieldName) {
+        public LongsBlockLoader(String fieldName, IndexMode indexMode) {
             this.fieldName = fieldName;
+            this.indexMode = indexMode;
         }
 
         @Override
@@ -114,9 +133,57 @@ public abstract class BlockDocValuesReader implements BlockLoader.AllReader {
             }
             return new ConstantNullsReader();
         }
+
+        @Override
+        protected boolean supportsOptimizedColumnAtTimeReader() {
+            return indexMode.supportOptimizedDocValueLoading();
+        }
+
+        protected ColumnAtATimeReader optimizedColumnAtTimeReader(LeafReaderContext context) throws IOException {
+            NumericDocValues singleton = context.reader().getNumericDocValues(fieldName);
+            if (singleton == null) {
+                SortedNumericDocValues docValues = context.reader().getSortedNumericDocValues(fieldName);
+                singleton = DocValues.unwrapSingleton(docValues);
+            }
+
+            if (singleton instanceof BulkNumericDocValues bulkDv) {
+                var bulkLoader = bulkDv.getBulkReader();
+                return new BulkSingletonLong(bulkLoader);
+            }
+
+            return null;
+        }
     }
 
-    private static class SingletonLongs extends BlockDocValuesReader {
+    static final class BulkSingletonLong implements BlockLoader.ColumnAtATimeReader {
+        private final Thread creationThread;
+        private final BulkReader bulkReader;
+
+        BulkSingletonLong(BulkReader bulkReader) {
+            this.creationThread = Thread.currentThread();
+            this.bulkReader = bulkReader;
+        }
+
+        @Override
+        public BlockLoader.Block read(BlockFactory factory, Docs docs, int offset) throws IOException {
+            try (BlockLoader.SingletonBulkLongBuilder builder = factory.singletonLongs(docs.count() - offset)) {
+                bulkReader.bulkRead(builder, docs, offset);
+                return builder.build();
+            }
+        }
+
+        @Override
+        public boolean canReuse(int startingDocID) {
+            return creationThread == Thread.currentThread() && bulkReader.docID() <= startingDocID;
+        }
+
+        @Override
+        public String toString() {
+            return "BlockDocValuesReader.BulkSingletonLong";
+        }
+    }
+
+    static class SingletonLongs extends BlockDocValuesReader {
         private final NumericDocValues numericDocValues;
 
         SingletonLongs(NumericDocValues numericDocValues) {
@@ -164,7 +231,7 @@ public abstract class BlockDocValuesReader implements BlockLoader.AllReader {
         }
     }
 
-    private static class Longs extends BlockDocValuesReader {
+    static class Longs extends BlockDocValuesReader {
         private final SortedNumericDocValues numericDocValues;
         private int docID = -1;
 

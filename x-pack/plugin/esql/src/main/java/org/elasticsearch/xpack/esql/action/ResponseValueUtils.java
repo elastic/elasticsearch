@@ -48,7 +48,7 @@ public final class ResponseValueUtils {
      * Returns an iterator of iterators over the values in the given pages. There is one iterator
      * for each block.
      */
-    public static Iterator<Iterator<Object>> pagesToValues(List<DataType> dataTypes, List<Page> pages) {
+    public static Iterator<Iterator<Object>> pagesToValues(List<DataType> dataTypes, Iterable<Page> pages) {
         BytesRef scratch = new BytesRef();
         return Iterators.flatMap(
             pages.iterator(),

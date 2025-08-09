@@ -18,8 +18,10 @@ import org.hamcrest.Matcher;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.test.ESTestCase.assertThat;
 import static org.hamcrest.Matchers.equalTo;
@@ -198,6 +200,55 @@ public class TestBlock implements BlockLoader.Block {
             }
 
             @Override
+            public BlockLoader.SingletonLongBuilder singletonLongs(int expectedCount) {
+                final long[] values = new long[expectedCount];
+                return new BlockLoader.SingletonLongBuilder() {
+
+                    private int count;
+
+                    @Override
+                    public BlockLoader.Block build() {
+                        return new TestBlock(Arrays.stream(values).boxed().collect(Collectors.toUnmodifiableList()));
+                    }
+
+                    @Override
+                    public BlockLoader.SingletonLongBuilder appendLong(long value) {
+                        values[count++] = value;
+                        return this;
+                    }
+
+                    @Override
+                    public BlockLoader.SingletonLongBuilder appendLongs(long[] newValues, int from, int length) {
+                        try {
+                            System.arraycopy(newValues, from, values, count, length);
+                        } catch (ArrayIndexOutOfBoundsException e) {
+                            throw e;
+                        }
+                        count += length;
+                        return this;
+                    }
+
+                    @Override
+                    public BlockLoader.Builder appendNull() {
+                        throw new UnsupportedOperationException();
+                    }
+
+                    @Override
+                    public BlockLoader.Builder beginPositionEntry() {
+                        throw new UnsupportedOperationException();
+                    }
+
+                    @Override
+                    public BlockLoader.Builder endPositionEntry() {
+                        throw new UnsupportedOperationException();
+                    }
+
+                    @Override
+                    public void close() {}
+                };
+            }
+
+            @Override
             public BlockLoader.Builder nulls(int expectedCount) {
                 return longs(expectedCount);
             }
@@ -221,6 +272,65 @@ public class TestBlock implements BlockLoader.Block {
             }
 
             @Override
+            public BlockLoader.TSSingletonOrdinalsBuilder tsSingletonOrdinalsBuilder(
+                boolean isPrimaryIndexSortField,
+                SortedDocValues ordinals,
+                int expectedCount
+            ) {
+                final long[] ords = new long[expectedCount];
+                return new BlockLoader.TSSingletonOrdinalsBuilder() {
+
+                    int count;
+
+                    @Override
+                    public BlockLoader.TSSingletonOrdinalsBuilder appendOrd(long value) {
+                        ords[count++] = value;
+                        return this;
+                    }
+
+                    @Override
+                    public BlockLoader.TSSingletonOrdinalsBuilder appendOrds(long[] values, int from, int length) {
+                        try {
+                            System.arraycopy(values, from, ords, count, length);
+                        } catch (ArrayIndexOutOfBoundsException e) {
+                            throw e;
+                        }
+                        count += length;
+                        return this;
+                    }
+
+                    @Override
+                    public BlockLoader.Block build() {
+                        return new TestBlock(Arrays.stream(ords).mapToInt(Math::toIntExact).mapToObj(ord -> {
+                            try {
+                                return BytesRef.deepCopyOf(ordinals.lookupOrd(ord));
+                            } catch (IOException e) {
+                                throw new UncheckedIOException(e);
+                            }
+                        }).collect(Collectors.toUnmodifiableList()));
+                    }
+
+                    @Override
+                    public BlockLoader.Builder appendNull() {
+                        throw new UnsupportedOperationException();
+                    }
+
+                    @Override
+                    public BlockLoader.Builder beginPositionEntry() {
+                        throw new UnsupportedOperationException();
+                    }
+
+                    @Override
+                    public BlockLoader.Builder endPositionEntry() {
+                        throw new UnsupportedOperationException();
+                    }
+
+                    @Override
+                    public void close() {}
+                };
+            }
+
+            @Override
             public BlockLoader.SingletonOrdinalsBuilder singletonOrdinalsBuilder(SortedDocValues ordinals, int expectedCount) {
                 class SingletonOrdsBuilder extends TestBlock.Builder implements BlockLoader.SingletonOrdinalsBuilder {
                     private SingletonOrdsBuilder() {
@@ -230,7 +340,7 @@ public class TestBlock implements BlockLoader.Block {
                     @Override
                     public SingletonOrdsBuilder appendOrd(int value) {
                         try {
-                            add(ordinals.lookupOrd(value));
+                            add(BytesRef.deepCopyOf(ordinals.lookupOrd(value)));
                             return this;
                         } catch (IOException e) {
                             throw new UncheckedIOException(e);

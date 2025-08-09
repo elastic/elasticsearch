@@ -47,6 +47,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -59,8 +60,9 @@ public class GenerativeTSIT extends AbstractEsqlIntegTestCase {
 
     private static final String DATASTREAM_NAME = "tsit_ds";
     private List<XContentBuilder> documents = null;
+    private DataGenerationHelper dataGenerationHelper;
 
-    static class DataGenerationHelper {
+    static final class DataGenerationHelper {
 
         private static Object randomDimensionValue(String dimensionName) {
             // We use dimensionName to determine the type of the value.
@@ -77,16 +79,18 @@ public class GenerativeTSIT extends AbstractEsqlIntegTestCase {
 
         DataGenerationHelper() {
             // Metrics coming into our system have a pre-set group of attributes.
-            List<String> attributesForMetrics = ESTestCase.randomList(1, 300, () -> ESTestCase.randomAlphaOfLengthBetween(1, 30));
-            int numTimeSeries = ESTestCase.randomIntBetween(100, 1000); // TODO: Larger size of timeseries
+            attributesForMetrics = ESTestCase.randomList(1, 300, () -> ESTestCase.randomAlphaOfLengthBetween(1, 30));
+            numTimeSeries = ESTestCase.randomIntBetween(10, 50); // TODO: Larger size of timeseries
+            // System.out.println("Total of time series: " + numTimeSeries);
             // allTimeSeries contains the list of dimension-values for each time series.
             List<List<Tuple<String, Object>>> allTimeSeries = IntStream.range(0, numTimeSeries).mapToObj(tsIdx -> {
                 List<String> dimensionsInMetric = ESTestCase.randomNonEmptySubsetOf(attributesForMetrics);
-                // TODO: How do we handle the case when there are no dimensions?
+                // TODO: How do we handle the case when there are no dimensions? (i.e. regular randomSubsetof(...)
                 return dimensionsInMetric.stream().map(attr -> new Tuple<>(attr, randomDimensionValue(attr))).collect(Collectors.toList());
             }).toList();
 
             spec = DataGeneratorSpecification.builder()
+                .withMaxFieldCountPerLevel(0)
                 .withPredefinedFields(
                     List.of(
                         new PredefinedField.WithGenerator(
@@ -150,6 +154,8 @@ public class GenerativeTSIT extends AbstractEsqlIntegTestCase {
         final DocumentGenerator documentGenerator;
         final Template template;
         final Mapping mapping;
+        final int numTimeSeries;
+        final List<String> attributesForMetrics;
 
         XContentBuilder generateDocument(Map<String, Object> additionalFields) throws IOException {
             var doc = XContentFactory.jsonBuilder();
@@ -170,15 +176,22 @@ public class GenerativeTSIT extends AbstractEsqlIntegTestCase {
         for (XContentBuilder doc : docs) {
             Map<String, Object> docMap = XContentHelper.convertToMap(BytesReference.bytes(doc), false, XContentType.JSON).v2();
             @SuppressWarnings("unchecked")
-            List<String> groupingValues = groupingAttributes.stream()
-                .map(attr -> ((Map<String, Object>) docMap.get("attributes")).get(attr).toString())
-                .collect(Collectors.toList());
+            List<String> groupingPairs = groupingAttributes.stream()
+                .map(
+                    attr -> Tuple.tuple(
+                        attr,
+                        ((Map<String, Object>) docMap.getOrDefault("attributes", Map.of())).getOrDefault(attr, "").toString()
+                    )
+                )
+                .filter(val -> val.v2().isEmpty() == false) // Filter out empty values
+                .map(tup -> tup.v1() + ":" + tup.v2())
+                .toList();
             // TODO: Verify that this window start calculation is correct.
             long timeBucketStart = Instant.parse(((String) docMap.get("@timestamp"))).toEpochMilli() / 1000 / secondsInWindow
                 * secondsInWindow;
-            String key = String.join("|", groupingValues) + "|" + timeBucketStart;
-            // TODO: Why use this pipe syntax lol
-            groupedMap.computeIfAbsent(List.of(key), k -> new ArrayList<>()).add(docMap);
+            var keyList = new ArrayList<>(groupingPairs);
+            keyList.add(Long.toString(timeBucketStart));
+            groupedMap.computeIfAbsent(keyList, k -> new ArrayList<>()).add(docMap);
         }
         return groupedMap;
     }
@@ -233,17 +246,17 @@ public class GenerativeTSIT extends AbstractEsqlIntegTestCase {
 
     @Before
     public void populateIndex() throws IOException {
-        var dataGenHelper = new DataGenerationHelper();
+        dataGenerationHelper = new DataGenerationHelper();
         final XContentBuilder builder = XContentFactory.jsonBuilder();
-        builder.map(dataGenHelper.mapping.raw());
+        builder.map(dataGenerationHelper.mapping.raw());
         // print the mapping
-        System.out.println("PABLO Data stream mapping: " + Strings.toString(builder));
+        // System.out.println("PABLO Data stream mapping: " + Strings.toString(builder));
         final String jsonMappings = Strings.toString(builder);
 
         putTSDBIndexTemplate(DATASTREAM_NAME, List.of(DATASTREAM_NAME + "*"), null, jsonMappings, null, null);
         // Now we can push data into the data stream.
         for (int i = 0; i < 1000; i++) {
-            var document = dataGenHelper.generateDocument(Map.of());
+            var document = dataGenerationHelper.generateDocument(Map.of());
             if (documents == null) {
                 documents = new ArrayList<>();
             }
@@ -254,19 +267,62 @@ public class GenerativeTSIT extends AbstractEsqlIntegTestCase {
         }
     }
 
+    public void testGroupBySubset() {
+        var dimensions = ESTestCase.randomNonEmptySubsetOf(dataGenerationHelper.attributesForMetrics);
+        var dimensionsStr = dimensions.stream().map(d -> "attributes." + d).collect(Collectors.joining(", "));
+        try (var resp = run(String.format(Locale.ROOT, """
+            TS %s
+            | STATS max(max_over_time(metrics.gauge_hdd.bytes.used)),
+                min(min_over_time(metrics.gauge_hdd.bytes.used)),
+                avg(avg_over_time(metrics.gauge_hdd.bytes.used))
+                BY tbucket=bucket(@timestamp, 1 minute), %s
+            | SORT tbucket
+            | LIMIT 1000""", DATASTREAM_NAME, dimensionsStr))) {
+            var groups = groupedRows(documents, dimensions, 60);
+            List<List<Object>> rows = new ArrayList<>();
+            resp.rows().forEach(rowIter -> {
+                List<Object> row = new ArrayList<>();
+                rowIter.forEach(row::add);
+                rows.add(row);
+            });
+            // Print rows for now
+            for (List<Object> row : rows) {
+                var rowGroupingAttributes = row.subList(4, row.size());
+                var rowKey = IntStream.range(0, dimensions.size())
+                    .filter(idx -> rowGroupingAttributes.get(idx) != null)
+                    .mapToObj(idx -> (dimensions.get(idx) + ":" + rowGroupingAttributes.get(idx)))
+                    .collect(Collectors.toList());
+                rowKey.add(Long.toString(Instant.parse((String) row.get(3)).toEpochMilli() / 1000));
+                var pointsInGroup = groups.get(rowKey);
+                @SuppressWarnings("unchecked")
+                var docValues = pointsInGroup.stream()
+                    .map(doc -> ((Map<String, Integer>) doc.get("metrics")).get("gauge_hdd.bytes.used"))
+                    .toList();
+                docValues.stream().max(Integer::compareTo).ifPresentOrElse(maxValue -> {
+                    var res = ((Long) row.getFirst()).intValue();
+                    assertThat(res, equalTo(maxValue));
+                }, () -> { throw new AssertionError("No values found for group: " + rowKey); });
+                docValues.stream().min(Integer::compareTo).ifPresentOrElse(minValue -> {
+                    var res = ((Long) row.get(1)).intValue();
+                    assertThat(res, equalTo(minValue));
+                }, () -> { throw new AssertionError("No values found for group: " + rowKey); });
+                docValues.stream().mapToDouble(Integer::doubleValue).average().ifPresentOrElse(avgValue -> {
+                    var res = (Double) row.get(2);
+                    assertThat(res, closeTo(avgValue, res * 0.5));
+                }, () -> { throw new AssertionError("No values found for group: " + rowKey); });
+            }
+        }
+    }
+
     public void testGroupByNothing() {
-        try (
-            var resp = run(
-                String.format(
-                    """
-                        TS %s
-                        | STATS max(max_over_time(metrics.gauge_hdd.bytes.used)), avg(avg_over_time(metrics.gauge_hdd.bytes.used)), min(min_over_time(metrics.gauge_hdd.bytes.used)) BY tbucket=bucket(@timestamp, 1 minute)
-                        | SORT tbucket
-                        | LIMIT 100""",
-                    DATASTREAM_NAME
-                )
-            )
-        ) {
+        try (var resp = run(String.format(Locale.ROOT, """
+            TS %s
+            | STATS
+                max(max_over_time(metrics.gauge_hdd.bytes.used)),
+                avg(avg_over_time(metrics.gauge_hdd.bytes.used)),
+                min(min_over_time(metrics.gauge_hdd.bytes.used)) BY tbucket=bucket(@timestamp, 1 minute)
+            | SORT tbucket
+            | LIMIT 1000""", DATASTREAM_NAME))) {
             List<List<Object>> rows = new ArrayList<>();
             resp.rows().forEach(rowIter -> {
                 List<Object> row = new ArrayList<>();
@@ -274,10 +330,9 @@ public class GenerativeTSIT extends AbstractEsqlIntegTestCase {
                 rows.add(row);
             });
             var groups = groupedRows(documents, List.of(), 60);
-            for (int i = 0; i < rows.size(); i++) {
-                var row = rows.get(i);
+            for (List<Object> row : rows) {
                 var windowStart = Instant.parse((String) row.getLast()).toEpochMilli() / 1000 / 60 * 60;
-                var windowDataPoints = groups.get(List.of(String.format("|%d", windowStart)));
+                var windowDataPoints = groups.get(List.of(Long.toString(windowStart)));
                 @SuppressWarnings("unchecked")
                 var docValues = windowDataPoints.stream()
                     .map(doc -> ((Map<String, Integer>) doc.get("metrics")).get("gauge_hdd.bytes.used"))

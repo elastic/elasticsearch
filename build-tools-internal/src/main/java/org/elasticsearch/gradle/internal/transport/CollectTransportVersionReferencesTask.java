@@ -74,14 +74,15 @@ public abstract class CollectTransportVersionReferencesTask extends DefaultTask 
         Files.writeString(outputFile, String.join("\n", results.stream().map(Object::toString).sorted().toList()));
     }
 
-    private void addNamesFromClassesDirectory(Set<TransportVersionUtils.TransportVersionReference> results, Path file) throws IOException {
-        Files.walkFileTree(file, new SimpleFileVisitor<>() {
+    private void addNamesFromClassesDirectory(Set<TransportVersionUtils.TransportVersionReference> results, Path basePath)
+        throws IOException {
+        Files.walkFileTree(basePath, new SimpleFileVisitor<>() {
             @Override
             public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
                 String filename = file.getFileName().toString();
                 if (filename.endsWith(CLASS_EXTENSION) && filename.endsWith(MODULE_INFO) == false) {
                     try (var inputStream = Files.newInputStream(file)) {
-                        addNamesFromClass(results, inputStream, classname(file.toString()));
+                        addNamesFromClass(results, inputStream, classname(basePath.relativize(file).toString()));
                     }
                 }
                 return FileVisitResult.CONTINUE;

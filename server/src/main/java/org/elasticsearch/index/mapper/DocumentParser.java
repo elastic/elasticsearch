@@ -12,6 +12,7 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -93,7 +94,7 @@ public final class DocumentParser {
                 )
             )
         ) {
-            context = new RootDocumentParserContext(mappingLookup, mappingParserContext, source, parser);
+            context = new RootDocumentParserContext(mappingLookup, mappingParserContext, source, parser, source.tsid());
             validateStart(context.parser());
             MetadataFieldMapper[] metadataFieldsMappers = mappingLookup.getMapping().getSortedMetadataMappers();
             internalParseDocument(metadataFieldsMappers, context);
@@ -1078,12 +1079,14 @@ public final class DocumentParser {
         private final long maxAllowedNumNestedDocs;
         private long numNestedDocs;
         private boolean docsReversed = false;
+        private final BytesRef tsid;
 
         RootDocumentParserContext(
             MappingLookup mappingLookup,
             MappingParserContext mappingParserContext,
             SourceToParse source,
-            XContentParser parser
+            XContentParser parser,
+            BytesRef tsid
         ) throws IOException {
             super(
                 mappingLookup,
@@ -1092,6 +1095,7 @@ public final class DocumentParser {
                 mappingLookup.getMapping().getRoot(),
                 ObjectMapper.Dynamic.getRootDynamic(mappingLookup)
             );
+            this.tsid = tsid;
             if (mappingLookup.getMapping().getRoot().subobjects() == ObjectMapper.Subobjects.ENABLED) {
                 this.parser = DotExpandingXContentParser.expandDots(parser, this.path);
             } else {
@@ -1147,6 +1151,11 @@ public final class DocumentParser {
                 );
             }
             this.documents.add(doc);
+        }
+
+        @Override
+        public BytesRef getTsid() {
+            return this.tsid;
         }
 
         @Override

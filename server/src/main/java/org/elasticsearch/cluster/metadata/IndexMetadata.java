@@ -514,6 +514,12 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         Property.ServerlessPublic
     );
 
+    public static final Setting<List<String>> INDEX_DIMENSIONS = Setting.stringListSetting(
+        "index.dimensions",
+        Setting.Property.IndexScope,
+        Setting.Property.Final
+    );
+
     /**
      * Legacy index setting, kept for 7.x BWC compatibility. This setting has no effect in 8.x. Do not use.
      * TODO: Remove in 9.0
@@ -576,6 +582,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
     private final int routingFactor;
     private final int routingPartitionSize;
     private final List<String> routingPaths;
+    private final List<String> dimensions;
 
     private final int numberOfShards;
     private final int numberOfReplicas;
@@ -689,6 +696,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         final int routingNumShards,
         final int routingPartitionSize,
         final List<String> routingPaths,
+        final List<String> dimensions,
         final ActiveShardCount waitForActiveShards,
         final ImmutableOpenMap<String, RolloverInfo> rolloverInfos,
         final boolean isSystem,
@@ -744,6 +752,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         this.routingFactor = routingNumShards / numberOfShards;
         this.routingPartitionSize = routingPartitionSize;
         this.routingPaths = routingPaths;
+        this.dimensions = dimensions;
         this.waitForActiveShards = waitForActiveShards;
         this.rolloverInfos = rolloverInfos;
         this.isSystem = isSystem;
@@ -803,6 +812,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             this.routingNumShards,
             this.routingPartitionSize,
             this.routingPaths,
+            this.dimensions,
             this.waitForActiveShards,
             this.rolloverInfos,
             this.isSystem,
@@ -865,6 +875,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             this.routingNumShards,
             this.routingPartitionSize,
             this.routingPaths,
+            this.dimensions,
             this.waitForActiveShards,
             this.rolloverInfos,
             this.isSystem,
@@ -935,6 +946,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             this.routingNumShards,
             this.routingPartitionSize,
             this.routingPaths,
+            this.dimensions,
             this.waitForActiveShards,
             this.rolloverInfos,
             this.isSystem,
@@ -996,6 +1008,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             this.routingNumShards,
             this.routingPartitionSize,
             this.routingPaths,
+            this.dimensions,
             this.waitForActiveShards,
             this.rolloverInfos,
             this.isSystem,
@@ -1052,6 +1065,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             this.routingNumShards,
             this.routingPartitionSize,
             this.routingPaths,
+            this.dimensions,
             this.waitForActiveShards,
             this.rolloverInfos,
             this.isSystem,
@@ -1164,6 +1178,10 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
 
     public List<String> getRoutingPaths() {
         return routingPaths;
+    }
+
+    public List<String> getDimensions() {
+        return dimensions;
     }
 
     public int getTotalNumberOfShards() {
@@ -2378,6 +2396,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             }
 
             final List<String> routingPaths = INDEX_ROUTING_PATH.get(settings);
+            final List<String> dimensions = INDEX_DIMENSIONS.get(settings);
 
             final String uuid = settings.get(SETTING_INDEX_UUID, INDEX_UUID_NA_VALUE);
 
@@ -2457,6 +2476,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                 getRoutingNumShards(),
                 routingPartitionSize,
                 routingPaths,
+                dimensions,
                 waitForActiveShards,
                 rolloverInfos.build(),
                 isSystem,

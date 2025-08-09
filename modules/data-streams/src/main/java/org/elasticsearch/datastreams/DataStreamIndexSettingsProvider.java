@@ -13,6 +13,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.compress.CompressedXContent;
+import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.core.CheckedFunction;
@@ -23,6 +24,7 @@ import org.elasticsearch.index.IndexSettingProvider;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.DateFieldMapper;
+import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
@@ -38,6 +40,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 
+import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_DIMENSIONS;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_ROUTING_PATH;
 
 /**
@@ -117,15 +120,16 @@ public class DataStreamIndexSettingsProvider implements IndexSettingProvider {
                     builder.put(IndexSettings.TIME_SERIES_START_TIME.getKey(), FORMATTER.format(start));
                     builder.put(IndexSettings.TIME_SERIES_END_TIME.getKey(), FORMATTER.format(end));
 
-                    if (indexTemplateAndCreateRequestSettings.hasValue(IndexMetadata.INDEX_ROUTING_PATH.getKey()) == false
-                        && combinedTemplateMappings.isEmpty() == false) {
-                        List<String> routingPaths = findRoutingPaths(
+                    if (combinedTemplateMappings.isEmpty() == false) {
+                        List<String> dimensions = findDimensionFields(
                             indexName,
                             indexTemplateAndCreateRequestSettings,
                             combinedTemplateMappings
                         );
-                        if (routingPaths.isEmpty() == false) {
-                            builder.putList(INDEX_ROUTING_PATH.getKey(), routingPaths);
+                        if (dimensions.isEmpty() == false) {
+                            // TODO handle the case when adding a dimension field to the mappings of an existing index
+                            // at the moment, the index.dimensions setting is only set when an index is created
+                            builder.putList(INDEX_DIMENSIONS.getKey(), dimensions);
                         }
                     }
                     return builder.build();
@@ -137,15 +141,15 @@ public class DataStreamIndexSettingsProvider implements IndexSettingProvider {
     }
 
     /**
-     * Find fields in mapping that are of type keyword and time_series_dimension enabled.
+     * Find fields in mapping that are time_series_dimension enabled.
      * Using MapperService here has an overhead, but allows the mappings from template to
      * be merged correctly and fetching the fields without manually parsing the mappings.
-     *
+     * <p>
      * Alternatively this method can instead parse mappings into map of maps and merge that and
      * iterate over all values to find the field that can serve as routing value. But this requires
      * mapping specific logic to exist here.
      */
-    private List<String> findRoutingPaths(String indexName, Settings allSettings, List<CompressedXContent> combinedTemplateMappings) {
+    private List<String> findDimensionFields(String indexName, Settings allSettings, List<CompressedXContent> combinedTemplateMappings) {
         var tmpIndexMetadata = IndexMetadata.builder(indexName);
 
         int dummyPartitionSize = IndexMetadata.INDEX_ROUTING_PARTITION_SIZE_SETTING.get(allSettings);
@@ -170,15 +174,15 @@ public class DataStreamIndexSettingsProvider implements IndexSettingProvider {
         try (var mapperService = mapperServiceFactory.apply(tmpIndexMetadata.build())) {
             mapperService.merge(MapperService.SINGLE_MAPPING_NAME, combinedTemplateMappings, MapperService.MergeReason.INDEX_TEMPLATE);
             List<String> routingPaths = new ArrayList<>();
-            for (var fieldMapper : mapperService.documentMapper().mappers().fieldMappers()) {
-                extractPath(routingPaths, fieldMapper);
-            }
             for (var objectMapper : mapperService.documentMapper().mappers().objectMappers().values()) {
                 if (objectMapper instanceof PassThroughObjectMapper passThroughObjectMapper) {
                     if (passThroughObjectMapper.containsDimensions()) {
                         routingPaths.add(passThroughObjectMapper.fullPath() + ".*");
                     }
                 }
+            }
+            for (var fieldMapper : mapperService.documentMapper().mappers().fieldMappers()) {
+                extractPath(routingPaths, fieldMapper);
             }
             for (var template : mapperService.getAllDynamicTemplates()) {
                 if (template.pathMatch().isEmpty()) {
@@ -214,12 +218,17 @@ public class DataStreamIndexSettingsProvider implements IndexSettingProvider {
     }
 
     /**
-     * Helper method that adds the name of the mapper to the provided list if it is a keyword dimension field.
+     * Helper method that adds the name of the mapper to the provided list.
      */
     private static void extractPath(List<String> routingPaths, Mapper mapper) {
-        if (mapper instanceof KeywordFieldMapper keywordFieldMapper) {
-            if (keywordFieldMapper.fieldType().isDimension()) {
-                routingPaths.add(mapper.fullPath());
+        if (mapper instanceof FieldMapper fieldMapper) {
+            if (fieldMapper.fieldType().isDimension()) {
+                String path = mapper.fullPath();
+                // don't add if the path already matches via a wildcard pattern in the list
+                // e.g. if "path.*" is already added, "path.foo" should not be added
+                if (Regex.simpleMatch(routingPaths, path) == false) {
+                    routingPaths.add(path);
+                }
             }
         }
     }

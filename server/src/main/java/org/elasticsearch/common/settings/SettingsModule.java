@@ -82,7 +82,7 @@ public class SettingsModule implements Module {
         }
         this.indexScopedSettings = new IndexScopedSettings(settings, new HashSet<>(this.indexSettings.values()));
         this.clusterSettings = new ClusterSettings(settings, new HashSet<>(this.nodeSettings.values()));
-        this.projectScopedSettings = new ProjectScopedSettings(settings, new HashSet<>(this.projectSettings.values()));
+        this.projectScopedSettings = new ProjectScopedSettings(new HashSet<>(this.projectSettings.values()));
         Settings indexSettings = settings.filter((s) -> s.startsWith("index.") && clusterSettings.get(s) == null);
         if (indexSettings.isEmpty() == false) {
             try {

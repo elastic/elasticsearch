@@ -447,7 +447,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
      * Build an {@link Attribute} that loads a field.
      */
     public static FieldAttribute field(String name, DataType type) {
-        return new FieldAttribute(Source.synthetic(name), name, new EsField(name, type, Map.of(), true));
+        return new FieldAttribute(Source.synthetic(name), name, new EsField(name, type, Map.of(), true, EsField.TimeSeriesFieldType.NONE));
     }
 
     /**
@@ -456,7 +456,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
     public static Expression deepCopyOfField(String name, DataType type) {
         return new DeepCopy(
             Source.synthetic(name),
-            new FieldAttribute(Source.synthetic(name), name, new EsField(name, type, Map.of(), true))
+            new FieldAttribute(Source.synthetic(name), name, new EsField(name, type, Map.of(), true, EsField.TimeSeriesFieldType.NONE))
         );
     }
 

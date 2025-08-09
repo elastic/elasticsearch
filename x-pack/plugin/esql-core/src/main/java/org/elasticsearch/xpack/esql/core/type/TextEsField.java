@@ -25,14 +25,6 @@ import static org.elasticsearch.xpack.esql.core.util.PlanStreamOutput.writeCache
  */
 public class TextEsField extends EsField {
 
-    public TextEsField(String name, Map<String, EsField> properties, boolean hasDocValues) {
-        this(name, properties, hasDocValues, false);
-    }
-
-    public TextEsField(String name, Map<String, EsField> properties, boolean hasDocValues, boolean isAlias) {
-        super(name, TEXT, properties, hasDocValues, isAlias, TimeSeriesFieldType.UNKNOWN);
-    }
-
     public TextEsField(
         String name,
         Map<String, EsField> properties,

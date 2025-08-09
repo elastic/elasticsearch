@@ -247,6 +247,10 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
      */
     private volatile SubscribableListener<Void> lastClusterStateShardsClosedListener = SubscribableListener.nullSuccess();
 
+    // used to avoid chaining too many ref counting listeners, hence avoiding stack overflow exceptions
+    private int shardsClosedListenerChainLength = 0;
+    private boolean closingMoreShards;
+
     @Nullable // if not currently applying a cluster state
     private RefCountingListener currentClusterStateShardsClosedListeners;
 
@@ -256,6 +260,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
             assert false : "not currently applying cluster state";
             return ActionListener.noop();
         } else {
+            closingMoreShards = true;
             return currentClusterStateShardsClosedListeners.acquire();
         }
     }
@@ -274,11 +279,35 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         lastClusterStateShardsClosedListener = new SubscribableListener<>();
         currentClusterStateShardsClosedListeners = new RefCountingListener(lastClusterStateShardsClosedListener);
         try {
-            previousShardsClosedListener.addListener(currentClusterStateShardsClosedListeners.acquire());
+            // HACK: chain listeners but avoid too deep of a stack
+            {
+                if (previousShardsClosedListener.isDone()) {
+                    shardsClosedListenerChainLength = 0;
+                }
+                previousShardsClosedListener.addListener(
+                    currentClusterStateShardsClosedListeners.acquire(),
+                    // Sometimes fork the listener on a different thread.
+                    // Chaining too many listeners might trigger a stackoverflow exception on the thread that eventually gets to
+                    // execute them all (because the last thread that decreases the ref count to 0 of a {@link RefCountingListener}
+                    // also executes its listeners, which in turn might decrease the ref count to 0 of another
+                    // {@link RefCountingListerner}, again executing its listeners, etc...).
+                    shardsClosedListenerChainLength++ < 10 ? EsExecutors.DIRECT_EXECUTOR_SERVICE : threadPool.generic(),
+                    null
+                );
+                if (shardsClosedListenerChainLength >= 10) {
+                    shardsClosedListenerChainLength = 0;
+                }
+                // reset the variable before applying the cluster state
+                closingMoreShards = false;
+            }
             doApplyClusterState(event);
         } finally {
             currentClusterStateShardsClosedListeners.close();
             currentClusterStateShardsClosedListeners = null;
+            if (closingMoreShards == false) {
+                // avoids chaining when no shard has been closed after applying this cluster state
+                lastClusterStateShardsClosedListener = previousShardsClosedListener;
+            }
         }
     }
 

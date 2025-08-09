@@ -1243,7 +1243,7 @@ public class ElasticInferenceServiceTests extends ESSingleNodeTestCase {
                       "task_types": ["chat"]
                     },
                     {
-                      "model_name": "elser-v2",
+                      "model_name": "elser_model_2",
                       "task_types": ["embed/text/sparse"]
                     },
                     {
@@ -1270,7 +1270,7 @@ public class ElasticInferenceServiceTests extends ESSingleNodeTestCase {
                 is(
                     List.of(
                         new InferenceService.DefaultConfigId(
-                            ".elser-v2-elastic",
+                            ".elser-2-elastic",
                             MinimalServiceSettings.sparseEmbedding(ElasticInferenceService.NAME),
                             service
                         ),
@@ -1306,7 +1306,7 @@ public class ElasticInferenceServiceTests extends ESSingleNodeTestCase {
             service.defaultConfigs(listener);
             var models = listener.actionGet(TIMEOUT);
             assertThat(models.size(), is(4));
-            assertThat(models.get(0).getConfigurations().getInferenceEntityId(), is(".elser-v2-elastic"));
+            assertThat(models.get(0).getConfigurations().getInferenceEntityId(), is(".elser-2-elastic"));
             assertThat(models.get(1).getConfigurations().getInferenceEntityId(), is(".multilingual-embed-v1-elastic"));
             assertThat(models.get(2).getConfigurations().getInferenceEntityId(), is(".rainbow-sprinkles-elastic"));
             assertThat(models.get(3).getConfigurations().getInferenceEntityId(), is(".rerank-v1-elastic"));

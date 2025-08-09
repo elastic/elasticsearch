@@ -80,6 +80,7 @@ import org.elasticsearch.protocol.xpack.XPackInfoResponse;
 import org.elasticsearch.protocol.xpack.XPackUsageRequest;
 import org.elasticsearch.repositories.RepositoriesMetrics;
 import org.elasticsearch.repositories.Repository;
+import org.elasticsearch.repositories.SnapshotMetrics;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.snapshots.sourceonly.SourceOnlySnapshotRepository;
@@ -441,7 +442,8 @@ public class XPackPlugin extends XPackClientPlugin
         ClusterService clusterService,
         BigArrays bigArrays,
         RecoverySettings recoverySettings,
-        RepositoriesMetrics repositoriesMetrics
+        RepositoriesMetrics repositoriesMetrics,
+        SnapshotMetrics snapshotMetrics
     ) {
         return Collections.singletonMap("source", SourceOnlySnapshotRepository.newRepositoryFactory());
     }

@@ -34,6 +34,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.repositories.AbstractThirdPartyRepositoryTestCase;
 import org.elasticsearch.repositories.RepositoriesService;
+import org.elasticsearch.repositories.SnapshotMetrics;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.fixtures.minio.MinioTestContainer;
@@ -155,7 +156,8 @@ public class S3RepositoryThirdPartyTests extends AbstractThirdPartyRepositoryTes
                 ClusterServiceUtils.createClusterService(threadpool),
                 BigArrays.NON_RECYCLING_INSTANCE,
                 new RecoverySettings(node().settings(), node().injector().getInstance(ClusterService.class).getClusterSettings()),
-                S3RepositoriesMetrics.NOOP
+                S3RepositoriesMetrics.NOOP,
+                SnapshotMetrics.NOOP
             )
         ) {
             repository.start();

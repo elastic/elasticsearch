@@ -26,6 +26,7 @@ import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.ShardGeneration;
 import org.elasticsearch.repositories.ShardSnapshotResult;
+import org.elasticsearch.repositories.SnapshotMetrics;
 import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.tasks.CancellableTask;
@@ -74,7 +75,8 @@ public class TransportSnapshotsStatusActionTests extends ESTestCase {
             Map.of(),
             threadPool,
             nodeClient,
-            List.of()
+            List.of(),
+            SnapshotMetrics.NOOP
         );
         action = new TransportSnapshotsStatusAction(
             transportService,

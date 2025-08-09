@@ -26,6 +26,7 @@ import org.elasticsearch.index.store.Store;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotInfo;
+import org.elasticsearch.telemetry.metric.LongWithAttributes;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -98,16 +99,6 @@ public class FilterRepository implements Repository {
     }
 
     @Override
-    public long getSnapshotThrottleTimeInNanos() {
-        return in.getSnapshotThrottleTimeInNanos();
-    }
-
-    @Override
-    public long getRestoreThrottleTimeInNanos() {
-        return in.getRestoreThrottleTimeInNanos();
-    }
-
-    @Override
     public String startVerification() {
         return in.startVerification();
     }
@@ -173,6 +164,16 @@ public class FilterRepository implements Repository {
     @Override
     public void awaitIdle() {
         in.awaitIdle();
+    }
+
+    @Override
+    public LongWithAttributes getShardSnapshotsInProgress() {
+        return in.getShardSnapshotsInProgress();
+    }
+
+    @Override
+    public RepositoriesStats.SnapshotStats getSnapshotStats() {
+        return in.getSnapshotStats();
     }
 
     @Override

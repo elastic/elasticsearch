@@ -81,6 +81,7 @@ import org.elasticsearch.plugins.SystemIndexPlugin;
 import org.elasticsearch.plugins.interceptor.RestServerActionPlugin;
 import org.elasticsearch.repositories.RepositoriesMetrics;
 import org.elasticsearch.repositories.Repository;
+import org.elasticsearch.repositories.SnapshotMetrics;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.rest.RestHeaderDefinition;
@@ -512,14 +513,31 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin
         ClusterService clusterService,
         BigArrays bigArrays,
         RecoverySettings recoverySettings,
-        RepositoriesMetrics repositoriesMetrics
+        RepositoriesMetrics repositoriesMetrics,
+        SnapshotMetrics snapshotMetrics
     ) {
         HashMap<String, Repository.Factory> repositories = new HashMap<>(
-            super.getRepositories(env, namedXContentRegistry, clusterService, bigArrays, recoverySettings, repositoriesMetrics)
+            super.getRepositories(
+                env,
+                namedXContentRegistry,
+                clusterService,
+                bigArrays,
+                recoverySettings,
+                repositoriesMetrics,
+                snapshotMetrics
+            )
         );
         filterPlugins(RepositoryPlugin.class).forEach(
             r -> repositories.putAll(
-                r.getRepositories(env, namedXContentRegistry, clusterService, bigArrays, recoverySettings, RepositoriesMetrics.NOOP)
+                r.getRepositories(
+                    env,
+                    namedXContentRegistry,
+                    clusterService,
+                    bigArrays,
+                    recoverySettings,
+                    RepositoriesMetrics.NOOP,
+                    SnapshotMetrics.NOOP
+                )
             )
         );
         return repositories;

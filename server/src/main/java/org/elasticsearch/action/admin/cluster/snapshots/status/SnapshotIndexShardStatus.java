@@ -68,8 +68,8 @@ public class SnapshotIndexShardStatus extends BroadcastShardResponse implements 
             default -> throw new IllegalArgumentException("Unknown stage type " + indexShardStatus.getStage());
         };
         this.stats = new SnapshotStats(
-            indexShardStatus.getStartTime(),
-            indexShardStatus.getTotalTime(),
+            indexShardStatus.getStartTimeMillis(),
+            indexShardStatus.getTotalTimeMillis(),
             indexShardStatus.getIncrementalFileCount(),
             indexShardStatus.getTotalFileCount(),
             indexShardStatus.getProcessedFileCount(),

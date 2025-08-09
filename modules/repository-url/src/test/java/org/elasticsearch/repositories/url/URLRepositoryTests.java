@@ -19,6 +19,7 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.repositories.RepositoryException;
+import org.elasticsearch.repositories.SnapshotMetrics;
 import org.elasticsearch.repositories.blobstore.BlobStoreTestUtil;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -45,7 +46,8 @@ public class URLRepositoryTests extends ESTestCase {
             BlobStoreTestUtil.mockClusterService(),
             MockBigArrays.NON_RECYCLING_INSTANCE,
             new RecoverySettings(baseSettings, new ClusterSettings(baseSettings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)),
-            mock(URLHttpClient.Factory.class)
+            mock(URLHttpClient.Factory.class),
+            SnapshotMetrics.NOOP
         );
         assertThat(repository.getProjectId(), equalTo(projectId));
         return repository;

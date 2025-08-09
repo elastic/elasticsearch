@@ -39,6 +39,7 @@ import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.RepositoriesMetrics;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
+import org.elasticsearch.repositories.SnapshotMetrics;
 import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotState;
@@ -377,7 +378,8 @@ public class SearchableSnapshotDiskThresholdIntegTests extends DiskUsageIntegTes
             ClusterService clusterService,
             BigArrays bigArrays,
             RecoverySettings recoverySettings,
-            RepositoriesMetrics repositoriesMetrics
+            RepositoriesMetrics repositoriesMetrics,
+            SnapshotMetrics snapshotMetrics
         ) {
             return Collections.singletonMap(
                 TYPE,
@@ -388,7 +390,8 @@ public class SearchableSnapshotDiskThresholdIntegTests extends DiskUsageIntegTes
                     namedXContentRegistry,
                     clusterService,
                     bigArrays,
-                    recoverySettings
+                    recoverySettings,
+                    snapshotMetrics
                 )
             );
         }
@@ -405,9 +408,10 @@ public class SearchableSnapshotDiskThresholdIntegTests extends DiskUsageIntegTes
             NamedXContentRegistry namedXContentRegistry,
             ClusterService clusterService,
             BigArrays bigArrays,
-            RecoverySettings recoverySettings
+            RecoverySettings recoverySettings,
+            SnapshotMetrics snapshotMetrics
         ) {
-            super(projectId, metadata, environment, namedXContentRegistry, clusterService, bigArrays, recoverySettings);
+            super(projectId, metadata, environment, namedXContentRegistry, clusterService, bigArrays, recoverySettings, snapshotMetrics);
         }
 
         private void unlockRestore() {

@@ -52,6 +52,7 @@ import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.RepositoryData;
 import org.elasticsearch.repositories.RepositoryMissingException;
 import org.elasticsearch.repositories.RepositoryStats;
+import org.elasticsearch.repositories.SnapshotMetrics;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.repositories.blobstore.BlobStoreTestUtil;
 import org.elasticsearch.repositories.blobstore.ESMockAPIBasedRepositoryIntegTestCase;
@@ -591,7 +592,8 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
             ClusterService clusterService,
             BigArrays bigArrays,
             RecoverySettings recoverySettings,
-            S3RepositoriesMetrics s3RepositoriesMetrics
+            S3RepositoriesMetrics s3RepositoriesMetrics,
+            SnapshotMetrics snapshotMetrics
         ) {
             return new S3Repository(
                 projectId,
@@ -601,7 +603,8 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
                 clusterService,
                 bigArrays,
                 recoverySettings,
-                s3RepositoriesMetrics
+                s3RepositoriesMetrics,
+                snapshotMetrics
             ) {
 
                 @Override

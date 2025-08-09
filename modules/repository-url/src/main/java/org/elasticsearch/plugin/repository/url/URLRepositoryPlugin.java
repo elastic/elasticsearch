@@ -20,6 +20,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.RepositoryPlugin;
 import org.elasticsearch.repositories.RepositoriesMetrics;
 import org.elasticsearch.repositories.Repository;
+import org.elasticsearch.repositories.SnapshotMetrics;
 import org.elasticsearch.repositories.url.URLRepository;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 
@@ -49,7 +50,8 @@ public class URLRepositoryPlugin extends Plugin implements RepositoryPlugin {
         ClusterService clusterService,
         BigArrays bigArrays,
         RecoverySettings recoverySettings,
-        RepositoriesMetrics repositoriesMetrics
+        RepositoriesMetrics repositoriesMetrics,
+        SnapshotMetrics snapshotMetrics
     ) {
         return Collections.singletonMap(
             URLRepository.TYPE,
@@ -61,7 +63,8 @@ public class URLRepositoryPlugin extends Plugin implements RepositoryPlugin {
                 clusterService,
                 bigArrays,
                 recoverySettings,
-                httpClientFactory.updateAndGet(factory -> factory == null ? new URLHttpClient.Factory() : factory)
+                httpClientFactory.updateAndGet(factory -> factory == null ? new URLHttpClient.Factory() : factory),
+                snapshotMetrics
             )
         );
     }

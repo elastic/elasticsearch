@@ -57,7 +57,7 @@ public class DateTimeToCharProcessorTests extends ESTestCase {
     @ParametersFactory(argumentFormatting = "%1$s:%2$s %5$s")
     public static Iterable<Object[]> parameters() throws Exception {
         List<Object[]> params = new ArrayList<>();
-        String testFile = "tochar-generated.csv";
+        String testFile = "/org/elasticsearch/xpack/sql/expression/function/scalar/datetime/tochar-generated.csv";
         int lineNumber = 0;
         for (String line : Files.readAllLines(PathUtils.get(DateTimeToCharProcessorTests.class.getResource(testFile).toURI()))) {
             lineNumber += 1;

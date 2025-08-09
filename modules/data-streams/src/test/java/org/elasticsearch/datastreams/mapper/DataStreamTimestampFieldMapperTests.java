@@ -119,24 +119,25 @@ public class DataStreamTimestampFieldMapperTests extends MetadataMapperTestCase 
         );
     }
 
-    public void testValidateNotIndexed() {
+    public void testValidateNotSearchable() {
         Exception e = expectThrows(IllegalArgumentException.class, () -> createMapperService(timestampMapping(true, b -> {
             b.startObject("@timestamp");
             b.field("type", "date");
             b.field("index", false);
+            b.field("doc_values", false);
             b.endObject();
         })));
-        assertThat(e.getMessage(), equalTo("data stream timestamp field [@timestamp] is not indexed"));
+        assertThat(e.getMessage(), equalTo("data stream timestamp field [@timestamp] is not searchable"));
     }
 
-    public void testValidateNotDocValues() {
+    public void testValidateNotAggregatable() {
         Exception e = expectThrows(IllegalArgumentException.class, () -> createMapperService(timestampMapping(true, b -> {
             b.startObject("@timestamp");
             b.field("type", "date");
             b.field("doc_values", false);
             b.endObject();
         })));
-        assertThat(e.getMessage(), equalTo("data stream timestamp field [@timestamp] doesn't have doc values"));
+        assertThat(e.getMessage(), equalTo("data stream timestamp field [@timestamp] is not aggregatable"));
     }
 
     public void testValidateNullValue() {
@@ -436,7 +437,7 @@ public class DataStreamTimestampFieldMapperTests extends MetadataMapperTestCase 
         );
         assertEquals(
             ex.getMessage(),
-            "data stream timestamp field [" + DataStreamTimestampFieldMapper.DEFAULT_PATH + "] doesn't have doc values"
+            "data stream timestamp field [" + DataStreamTimestampFieldMapper.DEFAULT_PATH + "] is not aggregatable"
         );
     }
 
@@ -460,7 +461,7 @@ public class DataStreamTimestampFieldMapperTests extends MetadataMapperTestCase 
         );
         assertEquals(
             ex.getMessage(),
-            "data stream timestamp field [" + DataStreamTimestampFieldMapper.DEFAULT_PATH + "] doesn't have doc values"
+            "data stream timestamp field [" + DataStreamTimestampFieldMapper.DEFAULT_PATH + "] is not aggregatable"
         );
     }
 

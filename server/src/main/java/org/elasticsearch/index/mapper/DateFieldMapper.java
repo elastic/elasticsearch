@@ -257,7 +257,7 @@ public final class DateFieldMapper extends FieldMapper {
 
     public static final class Builder extends FieldMapper.Builder {
 
-        private final Parameter<Boolean> index = Parameter.indexParam(m -> toType(m).indexed, true);
+        private final Parameter<Boolean> index;
         private final Parameter<Boolean> docValues = Parameter.docValuesParam(m -> toType(m).hasDocValues, true);
         private final Parameter<Boolean> store = Parameter.storeParam(m -> toType(m).store, false);
 
@@ -290,6 +290,7 @@ public final class DateFieldMapper extends FieldMapper {
         private final IndexMode indexMode;
         private final IndexSortConfig indexSortConfig;
         private final boolean useDocValuesSkipper;
+        private final boolean indexDisabledByDefault;
 
         public Builder(
             String name,
@@ -308,6 +309,7 @@ public final class DateFieldMapper extends FieldMapper {
                 IndexMode.STANDARD,
                 null,
                 indexCreatedVersion,
+                false,
                 false
             );
         }
@@ -321,9 +323,11 @@ public final class DateFieldMapper extends FieldMapper {
             IndexMode indexMode,
             IndexSortConfig indexSortConfig,
             IndexVersion indexCreatedVersion,
-            boolean useDocValuesSkipper
+            boolean useDocValuesSkipper,
+            boolean indexDisabledByDefault
         ) {
             super(name);
+            this.index = Parameter.indexParam(m -> toType(m).indexed, indexDisabledByDefault == false);
             this.resolution = resolution;
             this.indexCreatedVersion = indexCreatedVersion;
             this.scriptCompiler = Objects.requireNonNull(scriptCompiler);
@@ -348,6 +352,7 @@ public final class DateFieldMapper extends FieldMapper {
             this.indexMode = indexMode;
             this.indexSortConfig = indexSortConfig;
             this.useDocValuesSkipper = useDocValuesSkipper;
+            this.indexDisabledByDefault = indexDisabledByDefault;
         }
 
         DateFormatter buildFormatter() {
@@ -479,7 +484,8 @@ public final class DateFieldMapper extends FieldMapper {
             c.getIndexSettings().getMode(),
             c.getIndexSettings().getIndexSortConfig(),
             c.indexVersionCreated(),
-            IndexSettings.USE_DOC_VALUES_SKIPPER.get(c.getSettings())
+            IndexSettings.USE_DOC_VALUES_SKIPPER.get(c.getSettings()),
+            c.getIndexSettings().isIndexDisabledByDefault()
         );
     });
 
@@ -494,7 +500,8 @@ public final class DateFieldMapper extends FieldMapper {
             c.getIndexSettings().getMode(),
             c.getIndexSettings().getIndexSortConfig(),
             c.indexVersionCreated(),
-            IndexSettings.USE_DOC_VALUES_SKIPPER.get(c.getSettings())
+            IndexSettings.USE_DOC_VALUES_SKIPPER.get(c.getSettings()),
+            c.getIndexSettings().isIndexDisabledByDefault()
         );
     });
 
@@ -1153,6 +1160,7 @@ public final class DateFieldMapper extends FieldMapper {
     private final IndexMode indexMode;
     private final IndexSortConfig indexSortConfig;
     private final boolean hasDocValuesSkipper;
+    private final boolean indexDisabledByDefault;
 
     private DateFieldMapper(
         String leafName,
@@ -1186,6 +1194,7 @@ public final class DateFieldMapper extends FieldMapper {
         this.indexMode = indexMode;
         this.indexSortConfig = indexSortConfig;
         this.hasDocValuesSkipper = hasDocValuesSkipper;
+        this.indexDisabledByDefault = builder.indexDisabledByDefault;
     }
 
     /**
@@ -1234,7 +1243,8 @@ public final class DateFieldMapper extends FieldMapper {
             indexMode,
             indexSortConfig,
             indexCreatedVersion,
-            hasDocValuesSkipper
+            hasDocValuesSkipper,
+            indexDisabledByDefault
         ).init(this);
     }
 

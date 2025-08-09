@@ -134,13 +134,15 @@ public class ScaledFloatFieldMapper extends FieldMapper {
         private final IndexMode indexMode;
         private final IndexVersion indexCreatedVersion;
         private final SourceKeepMode indexSourceKeepMode;
+        private final boolean indexDisabledByDefault;
 
         public Builder(
             String name,
             Settings settings,
             IndexMode indexMode,
             IndexVersion indexCreatedVersion,
-            SourceKeepMode indexSourceKeepMode
+            SourceKeepMode indexSourceKeepMode,
+            boolean indexDisabledByDefault
         ) {
             this(
                 name,
@@ -148,7 +150,8 @@ public class ScaledFloatFieldMapper extends FieldMapper {
                 COERCE_SETTING.get(settings),
                 indexMode,
                 indexCreatedVersion,
-                indexSourceKeepMode
+                indexSourceKeepMode,
+                indexDisabledByDefault
             );
         }
 
@@ -158,7 +161,8 @@ public class ScaledFloatFieldMapper extends FieldMapper {
             boolean coerceByDefault,
             IndexMode indexMode,
             IndexVersion indexCreatedVersion,
-            SourceKeepMode indexSourceKeepMode
+            SourceKeepMode indexSourceKeepMode,
+            boolean indexDisabledByDefault
         ) {
             super(name);
             this.ignoreMalformed = Parameter.explicitBoolParam(
@@ -170,6 +174,10 @@ public class ScaledFloatFieldMapper extends FieldMapper {
             this.coerce = Parameter.explicitBoolParam("coerce", true, m -> toType(m).coerce, coerceByDefault);
             this.indexMode = indexMode;
             this.indexed = Parameter.indexParam(m -> toType(m).indexed, () -> {
+                if (indexDisabledByDefault) {
+                    return false;
+                }
+
                 if (indexMode == IndexMode.TIME_SERIES) {
                     var metricType = getMetric().getValue();
                     return metricType != TimeSeriesParams.MetricType.COUNTER && metricType != TimeSeriesParams.MetricType.GAUGE;
@@ -190,6 +198,7 @@ public class ScaledFloatFieldMapper extends FieldMapper {
             });
             this.indexCreatedVersion = indexCreatedVersion;
             this.indexSourceKeepMode = indexSourceKeepMode;
+            this.indexDisabledByDefault = indexDisabledByDefault;
         }
 
         Builder scalingFactor(double scalingFactor) {
@@ -257,7 +266,8 @@ public class ScaledFloatFieldMapper extends FieldMapper {
             c.getSettings(),
             c.getIndexSettings().getMode(),
             c.indexVersionCreated(),
-            c.getIndexSettings().sourceKeepMode()
+            c.getIndexSettings().sourceKeepMode(),
+            c.getIndexSettings().isIndexDisabledByDefault()
         )
     );
 
@@ -592,6 +602,7 @@ public class ScaledFloatFieldMapper extends FieldMapper {
     private final IndexVersion indexCreatedVersion;
     private final String offsetsFieldName;
     private final SourceKeepMode indexSourceKeepMode;
+    private final boolean indexDisabledByDefault;
 
     private ScaledFloatFieldMapper(
         String simpleName,
@@ -617,6 +628,7 @@ public class ScaledFloatFieldMapper extends FieldMapper {
         this.indexCreatedVersion = builder.indexCreatedVersion;
         this.offsetsFieldName = offsetsFieldName;
         this.indexSourceKeepMode = builder.indexSourceKeepMode;
+        this.indexDisabledByDefault = builder.indexDisabledByDefault;
     }
 
     boolean coerce() {
@@ -645,9 +657,15 @@ public class ScaledFloatFieldMapper extends FieldMapper {
 
     @Override
     public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(leafName(), ignoreMalformedByDefault, coerceByDefault, indexMode, indexCreatedVersion, indexSourceKeepMode)
-            .metric(metricType)
-            .init(this);
+        return new Builder(
+            leafName(),
+            ignoreMalformedByDefault,
+            coerceByDefault,
+            indexMode,
+            indexCreatedVersion,
+            indexSourceKeepMode,
+            indexDisabledByDefault
+        ).metric(metricType).init(this);
     }
 
     @Override

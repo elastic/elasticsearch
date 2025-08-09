@@ -13,6 +13,7 @@ import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
@@ -123,8 +124,22 @@ public abstract class NumberFieldMapperTests extends MapperTestCase {
 
         List<IndexableField> fields = doc.rootDoc().getFields("field");
         assertEquals(1, fields.size());
-        IndexableField dvField = fields.get(0);
-        assertEquals(DocValuesType.SORTED_NUMERIC, dvField.fieldType().docValuesType());
+        IndexableField field = fields.get(0);
+        assertEquals(0, field.fieldType().pointIndexDimensionCount());
+        assertEquals(DocValuesType.SORTED_NUMERIC, field.fieldType().docValuesType());
+    }
+
+    public void testDisableDefaultIndex() throws IOException {
+        var settings = Settings.builder().put(IndexSettings.INDEX_DISABLED_BY_DEFAULT.getKey(), true).build();
+        var mapperService = createMapperService(settings, fieldMapping(this::minimalMapping));
+        var documentMapper = mapperService.documentMapper();
+        ParsedDocument doc = documentMapper.parse(source(b -> b.field("field", 123)));
+
+        List<IndexableField> fields = doc.rootDoc().getFields("field");
+        assertEquals(1, fields.size());
+        IndexableField field = fields.get(0);
+        assertEquals(0, field.fieldType().pointIndexDimensionCount());
+        assertEquals(DocValuesType.SORTED_NUMERIC, field.fieldType().docValuesType());
     }
 
     public void testNoDocValues() throws Exception {

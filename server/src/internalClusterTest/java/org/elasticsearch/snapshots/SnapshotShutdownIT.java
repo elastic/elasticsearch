@@ -202,7 +202,7 @@ public class SnapshotShutdownIT extends AbstractSnapshotIntegTestCase {
         final var masterName = internalCluster().getMasterName();
         final var masterTransportService = MockTransportService.getInstance(masterName);
         masterTransportService.addRequestHandlingBehavior(
-            SnapshotsService.UPDATE_SNAPSHOT_STATUS_ACTION_NAME,
+            TransportUpdateSnapshotStatusAction.NAME,
             (handler, request, channel, task) -> masterTransportService.getThreadPool().generic().execute(() -> {
                 safeAwait(snapshotStatusUpdateBarrier);
                 safeAwait(snapshotStatusUpdateBarrier);
@@ -400,7 +400,7 @@ public class SnapshotShutdownIT extends AbstractSnapshotIntegTestCase {
         final var updateSnapshotStatusBarrier = new CyclicBarrier(2);
         final var masterTransportService = MockTransportService.getInstance(internalCluster().getMasterName());
         masterTransportService.addRequestHandlingBehavior(
-            SnapshotsService.UPDATE_SNAPSHOT_STATUS_ACTION_NAME,
+            TransportUpdateSnapshotStatusAction.NAME,
             (handler, request, channel, task) -> masterTransportService.getThreadPool().generic().execute(() -> {
                 safeAwait(updateSnapshotStatusBarrier);
                 safeAwait(updateSnapshotStatusBarrier);
@@ -450,7 +450,7 @@ public class SnapshotShutdownIT extends AbstractSnapshotIntegTestCase {
         final var clusterService = internalCluster().getCurrentMasterNodeInstance(ClusterService.class);
         final var masterTransportService = MockTransportService.getInstance(internalCluster().getMasterName());
         masterTransportService.addRequestHandlingBehavior(
-            SnapshotsService.UPDATE_SNAPSHOT_STATUS_ACTION_NAME,
+            TransportUpdateSnapshotStatusAction.NAME,
             (handler, request, channel, task) -> putShutdownForRemovalMetadata(
                 clusterService,
                 primaryNode,
@@ -554,7 +554,7 @@ public class SnapshotShutdownIT extends AbstractSnapshotIntegTestCase {
         final CountDownLatch snapshotStatusUpdateLatch = new CountDownLatch(1);
         final var masterTransportService = MockTransportService.getInstance(internalCluster().getMasterName());
         masterTransportService.addRequestHandlingBehavior(
-            SnapshotsService.UPDATE_SNAPSHOT_STATUS_ACTION_NAME,
+            TransportUpdateSnapshotStatusAction.NAME,
             (handler, request, channel, task) -> masterTransportService.getThreadPool().generic().execute(() -> {
                 safeAwait(snapshotStatusUpdateLatch);
                 try {

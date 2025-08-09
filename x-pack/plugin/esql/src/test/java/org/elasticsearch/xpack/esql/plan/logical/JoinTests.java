@@ -24,7 +24,6 @@ import java.util.List;
 import java.util.Set;
 
 public class JoinTests extends ESTestCase {
-    @AwaitsFix(bugUrl = "Test needs updating to the new JOIN planning")
     public void testExpressionsAndReferences() {
         int numMatchFields = between(1, 10);
 

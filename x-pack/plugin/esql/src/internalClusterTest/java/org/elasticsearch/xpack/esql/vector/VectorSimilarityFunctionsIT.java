@@ -14,17 +14,25 @@ import org.apache.lucene.index.VectorSimilarityFunction;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.compute.operator.exchange.ExchangeService;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xpack.esql.EsqlClientException;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.action.AbstractEsqlIntegTestCase;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
+import org.elasticsearch.xpack.esql.expression.function.vector.L1Norm;
+import org.elasticsearch.xpack.esql.expression.function.vector.L2Norm;
+import org.elasticsearch.xpack.esql.expression.function.vector.VectorSimilarityFunction.SimilarityEvaluatorFunction;
 import org.junit.Before;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
 
@@ -36,18 +44,45 @@ public class VectorSimilarityFunctionsIT extends AbstractEsqlIntegTestCase {
     public static Iterable<Object[]> parameters() throws Exception {
         List<Object[]> params = new ArrayList<>();
 
-        params.add(new Object[] { "v_cosine", VectorSimilarityFunction.COSINE });
+        if (EsqlCapabilities.Cap.COSINE_VECTOR_SIMILARITY_FUNCTION.isEnabled()) {
+            params.add(new Object[] { "v_cosine", (SimilarityEvaluatorFunction) VectorSimilarityFunction.COSINE::compare });
+        }
+        if (EsqlCapabilities.Cap.DOT_PRODUCT_VECTOR_SIMILARITY_FUNCTION.isEnabled()) {
+            params.add(new Object[] { "v_dot_product", (SimilarityEvaluatorFunction) VectorSimilarityFunction.DOT_PRODUCT::compare });
+        }
+        if (EsqlCapabilities.Cap.L1_NORM_VECTOR_SIMILARITY_FUNCTION.isEnabled()) {
+            params.add(new Object[] { "v_l1_norm", (SimilarityEvaluatorFunction) L1Norm::calculateSimilarity });
+        }
+        if (EsqlCapabilities.Cap.L2_NORM_VECTOR_SIMILARITY_FUNCTION.isEnabled()) {
+            params.add(new Object[] { "v_l2_norm", (SimilarityEvaluatorFunction) L2Norm::calculateSimilarity });
+        }
 
         return params;
     }
 
+    @Override
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
+        return Settings.builder()
+            .put(super.nodeSettings(nodeOrdinal, otherSettings))
+            // testDifferentDimensions fails the final driver on the coordinator, leading to cancellation of the entire request.
+            // If the exchange sink is opened on a remote node but the compute request hasn't been sent, we cannot close the exchange
+            // sink (for now).Here, we reduce the inactive sinks interval to ensure those inactive sinks are removed quickly.
+            .put(ExchangeService.INACTIVE_SINKS_INTERVAL_SETTING, TimeValue.timeValueMillis(between(3000, 4000)))
+            .build();
+    }
+
+    @Override
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        return CollectionUtils.appendToCopy(super.nodePlugins(), InternalExchangePlugin.class);
+    }
+
     private final String functionName;
-    private final VectorSimilarityFunction similarityFunction;
+    private final SimilarityEvaluatorFunction similarityFunction;
     private int numDims;
 
     public VectorSimilarityFunctionsIT(
         @Name("functionName") String functionName,
-        @Name("similarityFunction") VectorSimilarityFunction similarityFunction
+        @Name("similarityFunction") SimilarityEvaluatorFunction similarityFunction
     ) {
         this.functionName = functionName;
         this.similarityFunction = similarityFunction;
@@ -69,7 +104,7 @@ public class VectorSimilarityFunctionsIT extends AbstractEsqlIntegTestCase {
                 Double similarity = (Double) values.get(2);
 
                 assertNotNull(similarity);
-                float expectedSimilarity = similarityFunction.compare(left, right);
+                float expectedSimilarity = similarityFunction.calculateSimilarity(left, right);
                 assertEquals(expectedSimilarity, similarity, 0.0001);
             });
         }
@@ -91,7 +126,7 @@ public class VectorSimilarityFunctionsIT extends AbstractEsqlIntegTestCase {
                 Double similarity = (Double) values.get(1);
 
                 assertNotNull(similarity);
-                float expectedSimilarity = similarityFunction.compare(left, randomVector);
+                float expectedSimilarity = similarityFunction.calculateSimilarity(left, randomVector);
                 assertEquals(expectedSimilarity, similarity, 0.0001);
             });
         }
@@ -125,7 +160,7 @@ public class VectorSimilarityFunctionsIT extends AbstractEsqlIntegTestCase {
 
             Double similarity = (Double) valuesList.get(0).get(0);
             assertNotNull(similarity);
-            float expectedSimilarity = similarityFunction.compare(vectorLeft, vectorRight);
+            float expectedSimilarity = similarityFunction.calculateSimilarity(vectorLeft, vectorRight);
             assertEquals(expectedSimilarity, similarity, 0.0001);
         }
     }

@@ -29,9 +29,18 @@ public interface ESVectorUtilSupport {
 
     float ipFloatByte(float[] q, byte[] d);
 
-    float calculateOSQLoss(float[] target, float[] interval, float step, float invStep, float norm2, float lambda);
+    float calculateOSQLoss(
+        float[] target,
+        float lowerInterval,
+        float upperInterval,
+        float step,
+        float invStep,
+        float norm2,
+        float lambda,
+        int[] quantize
+    );
 
-    void calculateOSQGridPoints(float[] target, float[] interval, int points, float invStep, float[] pts);
+    void calculateOSQGridPoints(float[] target, int[] quantize, int points, float[] pts);
 
     void centerAndCalculateOSQStatsEuclidean(float[] target, float[] centroid, float[] centered, float[] stats);
 
@@ -41,4 +50,17 @@ public interface ESVectorUtilSupport {
 
     int quantizeVectorWithIntervals(float[] vector, int[] quantize, float lowInterval, float upperInterval, byte bit);
 
+    void squareDistanceBulk(float[] query, float[] v0, float[] v1, float[] v2, float[] v3, float[] distances);
+
+    void soarDistanceBulk(
+        float[] v1,
+        float[] c0,
+        float[] c1,
+        float[] c2,
+        float[] c3,
+        float[] originalResidual,
+        float soarLambda,
+        float rnorm,
+        float[] distances
+    );
 }

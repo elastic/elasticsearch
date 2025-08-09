@@ -94,10 +94,14 @@ public class DenseVectorFieldTypeIT extends AbstractEsqlIntegTestCase {
                 var values = valuesList.get(id);
                 assertEquals(id, values.get(0));
                 List<Float> vectors = (List<Float>) values.get(1);
-                assertNotNull(vectors);
-                assertEquals(vector.size(), vectors.size());
-                for (int i = 0; i < vector.size(); i++) {
-                    assertEquals(vector.get(i), vectors.get(i), 0F);
+                if (vector == null) {
+                    assertNull(vectors);
+                } else {
+                    assertNotNull(vectors);
+                    assertEquals(vector.size(), vectors.size());
+                    for (int i = 0; i < vector.size(); i++) {
+                        assertEquals(vector.get(i), vectors.get(i), 0F);
+                    }
                 }
             });
         }
@@ -117,12 +121,18 @@ public class DenseVectorFieldTypeIT extends AbstractEsqlIntegTestCase {
                 ;
                 assertEquals(2, value.size());
                 Integer id = (Integer) value.get(0);
-                List<Float> vector = (List<Float>) value.get(1);
-                assertNotNull(vector);
                 List<Float> expectedVector = indexedVectors.get(id);
-                assertNotNull(expectedVector);
-                for (int i = 0; i < vector.size(); i++) {
-                    assertEquals(expectedVector.get(i), vector.get(i), 0F);
+                List<Float> vector = (List<Float>) value.get(1);
+                if (expectedVector == null) {
+                    assertNull(vector);
+                } else {
+                    assertNotNull(vector);
+                    assertEquals(expectedVector.size(), vector.size());
+                    assertNotNull(vector);
+                    assertNotNull(expectedVector);
+                    for (int i = 0; i < vector.size(); i++) {
+                        assertEquals(expectedVector.get(i), vector.get(i), 0F);
+                    }
                 }
             });
         }
@@ -168,11 +178,16 @@ public class DenseVectorFieldTypeIT extends AbstractEsqlIntegTestCase {
         IndexRequestBuilder[] docs = new IndexRequestBuilder[numDocs];
         for (int i = 0; i < numDocs; i++) {
             List<Float> vector = new ArrayList<>(numDims);
-            for (int j = 0; j < numDims; j++) {
-                vector.add(randomFloat());
+            if (rarely()) {
+                docs[i] = prepareIndex("test").setId("" + i).setSource("id", String.valueOf(i));
+                indexedVectors.put(i, null);
+            } else {
+                for (int j = 0; j < numDims; j++) {
+                    vector.add(randomFloat());
+                }
+                docs[i] = prepareIndex("test").setId("" + i).setSource("id", String.valueOf(i), "vector", vector);
+                indexedVectors.put(i, vector);
             }
-            docs[i] = prepareIndex("test").setId("" + i).setSource("id", String.valueOf(i), "vector", vector);
-            indexedVectors.put(i, vector);
         }
 
         indexRandom(true, docs);
@@ -203,10 +218,10 @@ public class DenseVectorFieldTypeIT extends AbstractEsqlIntegTestCase {
             settingsBuilder.put(INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), SYNTHETIC);
         }
 
-        var CreateRequest = client.prepareCreate(indexName)
+        var createRequest = client.prepareCreate(indexName)
             .setSettings(Settings.builder().put("index.number_of_shards", 1))
             .setMapping(mapping)
             .setSettings(settingsBuilder.build());
-        assertAcked(CreateRequest);
+        assertAcked(createRequest);
     }
 }

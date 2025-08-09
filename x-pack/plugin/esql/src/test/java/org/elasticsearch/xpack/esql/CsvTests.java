@@ -599,7 +599,7 @@ public class CsvTests extends ESTestCase {
 
         session.preOptimizedPlan(analyzed, listener.delegateFailureAndWrap((l, preOptimized) -> {
             session.executeOptimizedPlan(
-                new EsqlQueryRequest(),
+                new EsqlQueryRequest().approximate(testCase.approximate),
                 new EsqlExecutionInfo(randomBoolean()),
                 planRunner(bigArrays, foldCtx, physicalOperationProviders),
                 session.optimizedPlan(preOptimized),

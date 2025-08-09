@@ -1340,7 +1340,12 @@ public class EsqlCapabilities {
         /**
          * Support correct counting of skipped shards.
          */
-        CORRECT_SKIPPED_SHARDS_COUNT;
+        CORRECT_SKIPPED_SHARDS_COUNT,
+
+        /**
+         * Support query approximation.
+         */
+        APPROXIMATE;
 
         private final boolean enabled;
 

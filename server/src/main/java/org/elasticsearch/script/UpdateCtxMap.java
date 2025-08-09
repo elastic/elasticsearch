@@ -9,6 +9,8 @@
 
 package org.elasticsearch.script;
 
+import org.elasticsearch.ingest.MapStructuredSource;
+
 import java.util.Map;
 
 /**
@@ -26,10 +28,10 @@ public class UpdateCtxMap extends CtxMap<UpdateMetadata> {
         long now,
         Map<String, Object> source
     ) {
-        super(source, new UpdateMetadata(index, id, version, routing, type, op, now));
+        super(new MapStructuredSource(source), new UpdateMetadata(index, id, version, routing, type, op, now));
     }
 
     protected UpdateCtxMap(Map<String, Object> source, UpdateMetadata metadata) {
-        super(source, metadata);
+        super(new MapStructuredSource(source), metadata);
     }
 }

@@ -38,13 +38,18 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.ingest.ESONSource;
+import org.elasticsearch.ingest.ESONXContentSerializer;
 import org.elasticsearch.ingest.IngestService;
-import org.elasticsearch.plugins.internal.XContentParserDecorator;
+import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -99,6 +104,8 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
     private String routing;
 
     private BytesReference source;
+    private ESONSource.ESONObject structuredSource;
+    private boolean useStructuredSource = false;
 
     private OpType opType = OpType.INDEX;
 
@@ -415,12 +422,48 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
         return source;
     }
 
-    public Map<String, Object> sourceAsMap() {
-        return XContentHelper.convertToMap(source, false, contentType).v2();
+    public void setStructuredSource(ESONSource.ESONObject esonSource) {
+        this.useStructuredSource = true;
+        this.structuredSource = esonSource;
+        try (XContentBuilder builder = XContentFactory.contentBuilder(contentType)) {
+            ESONXContentSerializer.flattenToXContent(esonSource, builder, ToXContent.EMPTY_PARAMS);
+            source = BytesReference.bytes(builder);
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
     }
 
-    public Map<String, Object> sourceAsMap(XContentParserDecorator parserDecorator) {
-        return XContentHelper.convertToMap(source, false, contentType, parserDecorator).v2();
+    public void ensureStructureSource() {
+        if (useStructuredSource == false) {
+            this.useStructuredSource = true;
+            createStructuredSource();
+        }
+    }
+
+    private void createStructuredSource() {
+        ESONSource.Builder builder = new ESONSource.Builder((int) (source.length() * 0.70));
+        try (XContentParser parser = XContentHelper.createParser(XContentParserConfiguration.EMPTY, source, contentType)) {
+            structuredSource = builder.parse(parser);
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+    }
+
+    public boolean isStructuredSource() {
+        return useStructuredSource;
+    }
+
+    public ESONSource.ESONObject structuredSource() {
+        return structuredSource;
+    }
+
+    public Map<String, Object> sourceAsMap() {
+        if (useStructuredSource) {
+            assert structuredSource != null;
+            return structuredSource;
+        } else {
+            return XContentHelper.convertToMap(source, false, contentType).v2();
+        }
     }
 
     /**
@@ -539,6 +582,9 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
     public IndexRequest source(BytesReference source, XContentType xContentType) {
         this.source = Objects.requireNonNull(source);
         this.contentType = Objects.requireNonNull(xContentType);
+        if (useStructuredSource) {
+            createStructuredSource();
+        }
         return this;
     }
 
@@ -769,7 +815,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
         }
         out.writeOptionalString(id);
         out.writeOptionalString(routing);
-        out.writeBytesReference(source);
+        out.writeBytesReference(source());
         out.writeByte(opType.getId());
         out.writeLong(version);
         out.writeByte(versionType.getValue());
@@ -917,7 +963,14 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
 
     @Override
     public int route(IndexRouting indexRouting) {
-        return indexRouting.indexShard(id, routing, contentType, source);
+        if (useStructuredSource) {
+            assert structuredSource != null;
+            // TODO: Need to implement filtering
+            // return indexRouting.indexShard(id, routing, contentType, structuredSource);
+            return indexRouting.indexShard(id, routing, contentType, source());
+        } else {
+            return indexRouting.indexShard(id, routing, contentType, source());
+        }
     }
 
     public IndexRequest setRequireAlias(boolean requireAlias) {

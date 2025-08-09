@@ -25,6 +25,8 @@ import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
+import org.elasticsearch.ingest.ESONSource;
+import org.elasticsearch.ingest.ESONXContentParser;
 import org.elasticsearch.plugins.internal.XContentMeteringParserDecorator;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.lookup.Source;
@@ -34,6 +36,7 @@ import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xcontent.support.MapXContentParser;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -84,15 +87,7 @@ public final class DocumentParser {
         final XContentType xContentType = source.getXContentType();
 
         XContentMeteringParserDecorator meteringParserDecorator = source.getMeteringParserDecorator();
-        try (
-            XContentParser parser = meteringParserDecorator.decorate(
-                XContentHelper.createParser(
-                    parserConfiguration.withIncludeSourceOnError(source.getIncludeSourceOnError()),
-                    source.source(),
-                    xContentType
-                )
-            )
-        ) {
+        try (XContentParser parser = meteringParserDecorator.decorate(getParser(source, source.getStructuredSource(), xContentType))) {
             context = new RootDocumentParserContext(mappingLookup, mappingParserContext, source, parser);
             validateStart(context.parser());
             MetadataFieldMapper[] metadataFieldsMappers = mappingLookup.getMapping().getSortedMetadataMappers();
@@ -125,6 +120,20 @@ public final class DocumentParser {
                 return idMapper.documentDescription(this);
             }
         };
+    }
+
+    private XContentParser getParser(SourceToParse source, @Nullable Map<String, Object> structuredSource, XContentType xContentType)
+        throws IOException {
+        XContentParserConfiguration config = parserConfiguration.withIncludeSourceOnError(source.getIncludeSourceOnError());
+        if (structuredSource == null) {
+            return XContentHelper.createParser(config, source.source(), xContentType);
+        } else {
+            if (structuredSource instanceof ESONSource.ESONObject esonObject) {
+                return new ESONXContentParser(esonObject, config.registry(), config.deprecationHandler(), xContentType);
+            } else {
+                return new MapXContentParser(config.registry(), config.deprecationHandler(), structuredSource, xContentType);
+            }
+        }
     }
 
     private void internalParseDocument(MetadataFieldMapper[] metadataFieldsMappers, DocumentParserContext context) {

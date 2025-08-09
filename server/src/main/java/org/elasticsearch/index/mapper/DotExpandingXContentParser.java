@@ -58,12 +58,15 @@ class DotExpandingXContentParser extends FilterXContentParserWrapper {
             XContentParser delegate;
             // cache object field (even when final this is a valid optimization, see https://openjdk.org/jeps/8132243)
             var parsers = this.parsers;
-            while ((token = (delegate = parsers.peek()).nextToken()) == null) {
+            delegate = parsers.peek(); // Store in local variable
+            while ((token = delegate.nextToken()) == null) {
                 parsers.pop();
                 if (parsers.isEmpty()) {
                     return null;
                 }
+                delegate = parsers.peek();
             }
+
             if (token != Token.FIELD_NAME) {
                 return token;
             }

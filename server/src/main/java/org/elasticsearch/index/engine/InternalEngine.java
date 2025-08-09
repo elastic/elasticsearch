@@ -134,6 +134,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.core.Strings.format;
+import static org.elasticsearch.index.engine.CheckAbortedDuringMergePolicy.ENABLE_CHECK_ABORTED_DURING_MERGE;
 
 public class InternalEngine extends Engine {
 
@@ -2795,6 +2796,13 @@ public class InternalEngine extends Engine {
             // but there should be no overhead for other type of indices so it's simpler than adding a setting
             // to enable it.
             mergePolicy = new ShuffleForcedMergePolicy(mergePolicy);
+        }
+        if (ENABLE_CHECK_ABORTED_DURING_MERGE.get(engineConfig.getIndexSettings().getSettings())) {
+            mergePolicy = new CheckAbortedDuringMergePolicy(
+                shardId,
+                mergePolicy,
+                engineConfig.getThreadPool().relativeTimeInMillisSupplier()
+            );
         }
         iwc.setMergePolicy(mergePolicy);
         // TODO: Introduce an index setting for setMaxFullFlushMergeWaitMillis

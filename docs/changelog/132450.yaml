@@ -1,0 +1,6 @@
+pr: 132450
+summary: Check if merge is aborted before executing integrity checks and access fields
+  and documents
+area: Engine
+type: enhancement
+issues: []

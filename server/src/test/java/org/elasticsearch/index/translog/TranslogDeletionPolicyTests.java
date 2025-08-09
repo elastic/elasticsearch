@@ -11,9 +11,6 @@ package org.elasticsearch.index.translog;
 
 import org.apache.lucene.store.ByteArrayDataOutput;
 import org.elasticsearch.common.UUIDs;
-import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.bytes.ReleasableBytesReference;
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Tuple;
@@ -29,6 +26,7 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 
+import static org.elasticsearch.index.translog.TranslogTests.wrapAsReleasableOutput;
 import static org.hamcrest.Matchers.equalTo;
 
 public class TranslogDeletionPolicyTests extends ESTestCase {
@@ -93,7 +91,6 @@ public class TranslogDeletionPolicyTests extends ESTestCase {
                 randomNonNegativeLong(),
                 new TragicExceptionHolder(),
                 seqNo -> {},
-                BigArrays.NON_RECYCLING_INSTANCE,
                 TranslogTests.RANDOMIZING_IO_BUFFERS,
                 TranslogConfig.NOOP_OPERATION_LISTENER,
                 TranslogOperationAsserter.DEFAULT,
@@ -106,7 +103,7 @@ public class TranslogDeletionPolicyTests extends ESTestCase {
             for (int ops = randomIntBetween(0, 20); ops > 0; ops--) {
                 out.reset(bytes);
                 out.writeInt(ops);
-                writer.add(ReleasableBytesReference.wrap(new BytesArray(bytes)), ops);
+                writer.add(wrapAsReleasableOutput(bytes), ops);
             }
         }
         return new Tuple<>(readers, writer);

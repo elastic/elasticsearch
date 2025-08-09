@@ -680,13 +680,6 @@ public final class RemoteClusterService extends RemoteClusterAware
                 "this node does not have the " + DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE.roleName() + " role"
             );
         }
-        if (isStateless && disconnectedStrategy == DisconnectedStrategy.RECONNECT_UNLESS_SKIP_UNAVAILABLE) {
-            final var message = "DisconnectedStrategy ["
-                + DisconnectedStrategy.RECONNECT_UNLESS_SKIP_UNAVAILABLE
-                + "] is not supported in stateless environments";
-            assert false : message;
-            throw new IllegalArgumentException(message);
-        }
         if (transportService.getRemoteClusterService().getRegisteredRemoteClusterNames().contains(clusterAlias) == false) {
             throw new NoSuchRemoteClusterException(clusterAlias);
         }

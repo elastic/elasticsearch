@@ -9,4 +9,30 @@
 
 package org.elasticsearch.ingest;
 
-public class ESONBytes {}
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
+
+import java.io.IOException;
+import java.io.UncheckedIOException;
+import java.nio.charset.StandardCharsets;
+
+public class ESONBytes {
+
+    public ESONBytes(ESONFlat flat) {
+        try (BytesStreamOutput out = new BytesStreamOutput((int) (flat.values().data().length() * 0.5))) {
+            for (ESONEntry entry : flat.keyArray()) {
+                out.writeByte(entry.type());
+                String key = entry.key();
+                if (key != null) {
+                    byte[] bytes = key.getBytes(StandardCharsets.UTF_8);
+                    out.writeVInt(bytes.length);
+                    out.writeBytes(bytes);
+                } else {
+                    out.writeVInt(0);
+                }
+                int offset = entry.getOffset();
+            }
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+    }
+}

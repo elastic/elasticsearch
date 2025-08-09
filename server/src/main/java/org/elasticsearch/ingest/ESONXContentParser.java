@@ -117,7 +117,7 @@ public class ESONXContentParser extends AbstractXContentParser {
         if (currentToken == null) {
             assert size >= currentIndex;
             ESONEntry.ObjectEntry rootEntry = (ESONEntry.ObjectEntry) keyArray.get(currentIndex);
-            containerStack.push(new ContainerContext(ContainerContext.Type.OBJECT, rootEntry.fieldCount));
+            containerStack.push(new ContainerContext(ContainerContext.Type.OBJECT, rootEntry.offsetOrCount()));
             currentIndex++;
             currentToken = Token.START_OBJECT;
             return currentToken;
@@ -161,12 +161,12 @@ public class ESONXContentParser extends AbstractXContentParser {
         currentToken = switch (entry.type()) {
             case ESONEntry.TYPE_OBJECT -> {
                 // Starting a nested object
-                containerStack.push(new ContainerContext(ContainerContext.Type.OBJECT, ((ESONEntry.ObjectEntry) entry).fieldCount));
+                containerStack.push(new ContainerContext(ContainerContext.Type.OBJECT, entry.offsetOrCount()));
                 yield Token.START_OBJECT;
             }
             case ESONEntry.TYPE_ARRAY -> {
                 // Starting a nested array
-                containerStack.push(new ContainerContext(ContainerContext.Type.ARRAY, ((ESONEntry.ArrayEntry) entry).elementCount));
+                containerStack.push(new ContainerContext(ContainerContext.Type.ARRAY, entry.offsetOrCount()));
                 yield Token.START_ARRAY;
             }
             case ESONEntry.TYPE_NULL -> {
@@ -177,8 +177,8 @@ public class ESONXContentParser extends AbstractXContentParser {
                 currentType = ((ESONEntry.FieldEntry) entry).value;
                 yield Token.VALUE_BOOLEAN;
             }
-            case ESONEntry.TYPE_INT, ESONEntry.TYPE_LONG, ESONEntry.TYPE_FLOAT,
-                 ESONEntry.TYPE_DOUBLE, ESONEntry.BIG_INTEGER, ESONEntry.BIG_DECIMAL -> {
+            case ESONEntry.TYPE_INT, ESONEntry.TYPE_LONG, ESONEntry.TYPE_FLOAT, ESONEntry.TYPE_DOUBLE, ESONEntry.BIG_INTEGER,
+                ESONEntry.BIG_DECIMAL -> {
                 currentType = ((ESONEntry.FieldEntry) entry).value;
                 yield Token.VALUE_NUMBER;
             }

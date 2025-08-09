@@ -54,7 +54,7 @@ public class ESONXContentSerializer {
 
         // Start with root object
         builder.startObject();
-        containerStack.push(new ContainerState(false, rootObjEntry.fieldCount));
+        containerStack.push(new ContainerState(false, rootObjEntry.offsetOrCount()));
 
         int index = 1; // Skip root ObjectEntry at index 0
 
@@ -101,7 +101,7 @@ public class ESONXContentSerializer {
                 }
 
                 builder.startObject();
-                containerStack.push(new ContainerState(false, objEntry.fieldCount));
+                containerStack.push(new ContainerState(false, objEntry.offsetOrCount()));
                 index++;
 
             } else if (entry instanceof ESONEntry.ArrayEntry arrEntry) {

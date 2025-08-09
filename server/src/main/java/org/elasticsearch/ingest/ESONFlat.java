@@ -14,15 +14,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import java.io.IOException;
 import java.util.List;
 
-public class ESONFlat {
-
-    private final List<ESONEntry> keyArray;
-    private final ESONSource.Values values;
-
-    public ESONFlat(List<ESONEntry> keyArray, ESONSource.Values values) {
-        this.keyArray = keyArray;
-        this.values = values;
-    }
+public record ESONFlat(List<ESONEntry> keyArray, ESONSource.Values values) {
 
     public void toBytes(StreamOutput output) throws IOException {
         for (ESONEntry entry : keyArray) {

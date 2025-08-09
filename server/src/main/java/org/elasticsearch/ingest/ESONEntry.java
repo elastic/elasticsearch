@@ -33,6 +33,7 @@ public abstract class ESONEntry {
 
     private final byte type;
     private final String key;
+    private int offsetOrCount = -1;
 
     ESONEntry(byte type, String key) {
         this.type = type;
@@ -47,9 +48,16 @@ public abstract class ESONEntry {
         return type;
     }
 
+    public int offsetOrCount() {
+        return offsetOrCount;
+    }
+
+    public void offsetOrCount(int offsetOrCount) {
+        this.offsetOrCount = offsetOrCount;
+    }
+
     public static class ObjectEntry extends ESONEntry {
 
-        public int fieldCount = 0;
         public Map<String, ESONSource.Value> mutationMap = null;
 
         public ObjectEntry(String key) {
@@ -62,12 +70,13 @@ public abstract class ESONEntry {
 
         @Override
         public String toString() {
-            return "ObjectEntry{" + "key='" + key() + '\'' + ", fieldCount=" + fieldCount + ", hasMutations=" + hasMutations() + '}';
+            return "ObjectEntry{" + "key='" + key() + '\'' + ", fieldCount=" + offsetOrCount() + ", hasMutations=" + hasMutations() + '}';
         }
     }
 
     public static class ArrayEntry extends ESONEntry {
 
+        // TODO: remove
         public int elementCount = 0;
         public List<ESONSource.Value> mutationArray = null;
 

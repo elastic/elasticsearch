@@ -78,7 +78,7 @@ public class ESONSource {
                 count++;
             }
 
-            objEntry.fieldCount = count;
+            objEntry.offsetOrCount(count);
         }
 
         private static void parseArray(XContentParser parser, BytesStreamOutput bytes, List<ESONEntry> keyArray, String arrayFieldName)
@@ -318,10 +318,10 @@ public class ESONSource {
 
         private void ensureMaterializedMap() {
             if (materializedMap == null) {
-                materializedMap = new HashMap<>(objEntry.fieldCount);
+                materializedMap = new HashMap<>(objEntry.offsetOrCount());
 
                 int currentIndex = keyArrayIndex + 1;
-                for (int i = 0; i < objEntry.fieldCount; i++) {
+                for (int i = 0; i < objEntry.offsetOrCount(); i++) {
                     ESONEntry entry = keyArray.get(currentIndex);
                     if (entry instanceof ESONEntry.FieldEntry fieldEntry) {
                         materializedMap.put(fieldEntry.key(), fieldEntry.value);
@@ -341,7 +341,7 @@ public class ESONSource {
         @Override
         public int size() {
             if (materializedMap == null) {
-                return objEntry.fieldCount;
+                return objEntry.offsetOrCount();
             } else {
                 return materializedMap.size();
             }
@@ -787,7 +787,7 @@ public class ESONSource {
         int index = containerIndex + 1;
         final int fieldCount;
         if (entry instanceof ESONEntry.ObjectEntry objEntry) {
-            fieldCount = objEntry.fieldCount;
+            fieldCount = objEntry.offsetOrCount();
         } else {
             fieldCount = ((ESONEntry.ArrayEntry) entry).elementCount;
         }
@@ -830,7 +830,7 @@ public class ESONSource {
             int currentIndex = obj.keyArrayIndex + 1;
             int fieldCount = 0;
 
-            for (int i = 0; i < obj.objEntry.fieldCount; i++) {
+            for (int i = 0; i < obj.objEntry.offsetOrCount(); i++) {
                 ESONEntry entry = obj.keyArray.get(currentIndex);
 
                 if (entry instanceof ESONEntry.FieldEntry fieldEntry) {
@@ -855,7 +855,7 @@ public class ESONSource {
                 }
             }
 
-            newObjEntry.fieldCount = fieldCount;
+            newObjEntry.offsetOrCount(fieldCount);
         } else {
             // Has mutations - need to iterate through materialized map
             obj.ensureMaterializedMap();
@@ -888,7 +888,7 @@ public class ESONSource {
                 }
             }
 
-            newObjEntry.fieldCount = fieldCount;
+            newObjEntry.offsetOrCount(fieldCount);
         }
     }
 
@@ -896,7 +896,7 @@ public class ESONSource {
         if (object instanceof Map<?, ?> map) {
             ESONEntry.ObjectEntry objectEntry = new ESONEntry.ObjectEntry(key);
             flatKeyArray.add(objectEntry);
-            objectEntry.fieldCount = map.size();
+            objectEntry.offsetOrCount(map.size());
             for (Map.Entry<?, ?> entry1 : map.entrySet()) {
                 Object value = entry1.getValue();
                 handleObject(flatKeyArray, value, entry1.getKey().toString());

@@ -1,0 +1,5 @@
+pr: 130336
+summary: "[EIS] Rename the elser 2 default model and the default inference endpoint"
+area: Machine Learning
+type: bug
+issues: []

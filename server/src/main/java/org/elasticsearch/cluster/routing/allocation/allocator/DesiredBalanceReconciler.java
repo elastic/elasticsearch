@@ -9,6 +9,9 @@
 
 package org.elasticsearch.cluster.routing.allocation.allocator;
 
+import com.carrotsearch.hppc.ObjectLongHashMap;
+import com.carrotsearch.hppc.ObjectLongMap;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.ArrayUtil;
@@ -40,6 +43,7 @@ import java.util.Set;
 import java.util.function.BiFunction;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
+import java.util.stream.StreamSupport;
 
 import static org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata.Type.REPLACE;
 import static org.elasticsearch.cluster.routing.ExpectedShardSizeEstimator.getExpectedShardSize;
@@ -525,6 +529,7 @@ public class DesiredBalanceReconciler {
             int unassignedShards = routingNodes.unassigned().size() + routingNodes.unassigned().ignored().size();
             int totalAllocations = 0;
             int undesiredAllocationsExcludingShuttingDownNodes = 0;
+            final ObjectLongMap<ShardRouting.Role> undesiredAllocationsExcludingShuttingDownNodesByRole = new ObjectLongHashMap<>();
 
             // Iterate over all started shards and try to move any which are on undesired nodes. In the presence of throttling shard
             // movements, the goal of this iteration order is to achieve a fairer movement of shards from the nodes that are offloading the
@@ -553,6 +558,7 @@ public class DesiredBalanceReconciler {
                 if (allocation.metadata().nodeShutdowns().contains(shardRouting.currentNodeId()) == false) {
                     // shard is not on a shutting down node, nor is it on a desired node per the previous check.
                     undesiredAllocationsExcludingShuttingDownNodes++;
+                    undesiredAllocationsExcludingShuttingDownNodesByRole.addTo(shardRouting.role(), 1);
                 }
 
                 if (allocation.deciders().canRebalance(allocation).type() != Decision.Type.YES) {
@@ -595,7 +601,9 @@ public class DesiredBalanceReconciler {
             return new DesiredBalanceMetrics.AllocationStats(
                 unassignedShards,
                 totalAllocations,
-                undesiredAllocationsExcludingShuttingDownNodes
+                undesiredAllocationsExcludingShuttingDownNodes,
+                StreamSupport.stream(undesiredAllocationsExcludingShuttingDownNodesByRole.spliterator(), false)
+                    .collect(Collectors.toUnmodifiableMap(lc -> lc.key, lc -> lc.value))
             );
         }
 

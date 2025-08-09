@@ -1,0 +1,78 @@
+name: "Docs versioning comment"
+
+on:
+  pull_request_target:
+    types: [opened, reopened]
+    paths:
+      - 'docs/**/*.md'
+
+permissions:
+  contents: read
+  issues: write
+  pull-requests: write
+
+jobs:
+  versioning-reminder:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Comment on docs changes about versioning requirements
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const pr = context.payload.pull_request;
+            const prNum = pr.number;
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            
+            const { data: files } = await github.rest.pulls.listFiles({
+              owner, repo, pull_number: prNum
+            });
+            
+            const docsFiles = files.filter(f => 
+              /^docs\/.*\.md$/i.test(f.filename) && 
+              f.status !== 'removed'
+            );
+            
+            if (!docsFiles.length) return;
+            
+            const { data: comments } = await github.rest.issues.listComments({
+              owner, repo, issue_number: prNum
+            });
+            
+            const existingComment = comments.find(c =>
+              c.user.type === 'Bot' &&
+              c.body.includes("Important: Docs version tagging")
+            );
+            
+            if (existingComment) return;
+            
+            const body = `## ℹ️ Important: Docs version tagging
+
+👋 Thanks for updating the docs! Just a friendly reminder that our docs are now **cumulative**. This means all 9.x versions are documented on the same page and published off of the main branch, instead of creating separate pages for each minor version. 
+
+We use [applies_to tags](https://elastic.github.io/docs-builder/syntax/applies) to mark version-specific features and changes.
+
+<details>
+<summary>Expand for a quick overview</summary>
+
+### When to use applies_to tags:
+✅ At the page level to indicate which products/deployments the content applies to (mandatory)
+✅ When features change state (e.g. preview, ga) in a specific version
+✅ When availability differs across deployments and environments
+
+### What NOT to do:
+❌ Don't remove or replace information that applies to an older version
+❌ Don't add new information that applies to a specific version without an applies_to tag
+❌ Don't forget that applies_to tags can be used at the page, section, and inline level
+</details>
+
+### 🤔 Need help?
+- Check out the [cumulative docs guidelines](https://elastic.github.io/docs-builder/contribute/cumulative-docs/)
+- Reach out in the [#docs](https://elastic.slack.com/archives/C0JF80CJZ) Slack channel`;
+            
+            await github.rest.issues.createComment({
+              owner, repo,
+              issue_number: prNum,
+              body
+            });

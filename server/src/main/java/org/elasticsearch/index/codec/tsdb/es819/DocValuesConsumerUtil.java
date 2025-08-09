@@ -64,6 +64,9 @@ class DocValuesConsumerUtil {
                             if (entry != null) {
                                 sumNumValues += entry.numValues;
                                 sumNumDocsWithField += entry.numDocsWithField;
+                            } else {
+                                assert false : "unexpectedly got no entry for field [" + fieldInfo.number + "\\" + fieldInfo.name + "]";
+                                return UNSUPPORTED;
                             }
                         }
                         case SORTED_NUMERIC -> {
@@ -71,6 +74,9 @@ class DocValuesConsumerUtil {
                             if (entry != null) {
                                 sumNumValues += entry.numValues;
                                 sumNumDocsWithField += entry.numDocsWithField;
+                            } else {
+                                assert false : "unexpectedly got no entry for field [" + fieldInfo.number + "\\" + fieldInfo.name + "]";
+                                return UNSUPPORTED;
                             }
                         }
                         case SORTED -> {
@@ -78,6 +84,9 @@ class DocValuesConsumerUtil {
                             if (entry != null) {
                                 sumNumValues += entry.ordsEntry.numValues;
                                 sumNumDocsWithField += entry.ordsEntry.numDocsWithField;
+                            } else {
+                                assert false : "unexpectedly got no entry for field [" + fieldInfo.number + "\\" + fieldInfo.name + "]";
+                                return UNSUPPORTED;
                             }
                         }
                         case SORTED_SET -> {
@@ -90,6 +99,9 @@ class DocValuesConsumerUtil {
                                     sumNumValues += entry.ordsEntry.numValues;
                                     sumNumDocsWithField += entry.ordsEntry.numDocsWithField;
                                 }
+                            } else {
+                                assert false : "unexpectedly got no entry for field [" + fieldInfo.number + "\\" + fieldInfo.name + "]";
+                                return UNSUPPORTED;
                             }
                         }
                         case BINARY -> {
@@ -98,6 +110,9 @@ class DocValuesConsumerUtil {
                                 sumNumDocsWithField += entry.numDocsWithField;
                                 minLength = Math.min(minLength, entry.minLength);
                                 maxLength = Math.max(maxLength, entry.maxLength);
+                            } else {
+                                assert false : "unexpectedly got no entry for field [" + fieldInfo.number + "\\" + fieldInfo.name + "]";
+                                return UNSUPPORTED;
                             }
                         }
                         default -> throw new IllegalStateException("unexpected doc values producer type: " + fieldInfo.getDocValuesType());

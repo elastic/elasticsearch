@@ -204,6 +204,7 @@ import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.SearchUtils;
 import org.elasticsearch.search.aggregations.support.AggregationUsageService;
+import org.elasticsearch.search.internal.CrossClusterSearchExtension;
 import org.elasticsearch.shutdown.PluginShutdownService;
 import org.elasticsearch.snapshots.IndexMetadataRestoreTransformer;
 import org.elasticsearch.snapshots.IndexMetadataRestoreTransformer.NoOpRestoreTransformer;
@@ -1032,6 +1033,13 @@ class NodeConstruction {
         modules.bindToInstance(ResponseCollectorService.class, responseCollectorService);
 
         var reservedStateHandlerProviders = pluginsService.loadServiceProviders(ReservedStateHandlerProvider.class);
+
+        var crossClusterSearchExtension = pluginsService.loadSingletonServiceProvider(
+            CrossClusterSearchExtension.class,
+            CrossClusterSearchExtension.Default::new
+        );
+
+        logger.info("Cross-cluster example: [{}]", crossClusterSearchExtension.indicesExpressionRewriter().getClass());
 
         ActionModule actionModule = new ActionModule(
             settings,

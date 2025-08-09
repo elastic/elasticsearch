@@ -1,6 +1,6 @@
 version: 9.1.1
-released: false
-generated: 2025-08-06T08:42:03.230079779Z
+released: true
+generated: 2025-08-07T10:37:38.264033861Z
 changelogs:
   - pr: 130279
     summary: Fix missing removal of query cancellation callback in QueryPhase

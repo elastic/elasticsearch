@@ -10,6 +10,7 @@ package org.elasticsearch.index.fieldvisitor;
 
 import org.apache.lucene.index.FieldInfo;
 import org.elasticsearch.index.mapper.IgnoredFieldMapper;
+import org.elasticsearch.index.mapper.IgnoredSourceFieldMapper;
 
 import java.util.HashSet;
 import java.util.Set;
@@ -50,6 +51,11 @@ public class CustomFieldsVisitor extends FieldsVisitor {
         if (fields.contains(fieldInfo.name)) {
             return Status.YES;
         }
+
+        if (IgnoredSourceFieldMapper.NAME.equals(fieldInfo.name)) {
+            return Status.YES;
+        }
+
         return Status.NO;
     }
 }

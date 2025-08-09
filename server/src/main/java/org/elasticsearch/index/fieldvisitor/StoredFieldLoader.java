@@ -50,6 +50,9 @@ public abstract class StoredFieldLoader {
         if (spec.noRequirements()) {
             return StoredFieldLoader.empty();
         }
+        if (IgnoredSourceFieldLoader.supports(spec)) {
+            return new IgnoredSourceFieldLoader(spec);
+        }
         return create(spec.requiresSource(), spec.requiredStoredFields());
     }
 
@@ -91,6 +94,10 @@ public abstract class StoredFieldLoader {
         if (spec.noRequirements()) {
             return StoredFieldLoader.empty();
         }
+        if (IgnoredSourceFieldLoader.supports(spec)) {
+            return new IgnoredSourceFieldLoader(spec);
+        }
+
         List<String> fieldsToLoad = fieldsToLoad(spec.requiresSource(), spec.requiredStoredFields());
         return new StoredFieldLoader() {
             @Override

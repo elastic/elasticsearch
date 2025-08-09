@@ -1,0 +1,129 @@
+---
+setup:
+  - requires:
+      test_runner_features: allowed_warnings_regex
+
+  - do:
+      indices.create:
+        index: my-index
+        body:
+          settings:
+            index:
+              mode: logsdb
+          mappings:
+            properties:
+              "@timestamp":
+                type: date
+              host.name:
+                type: keyword
+              agent_id:
+                type: keyword
+                doc_values: false
+                store: false
+              process_id:
+                type: integer
+                doc_values: false
+                store: false
+              http_method:
+                type: keyword
+                doc_values: false
+                store: true
+              is_https:
+                type: boolean
+                doc_values: false
+                store: false
+              location:
+                type: geo_point
+                doc_values: false
+                store: false
+              message:
+                type: text
+                store: false
+                fields:
+                  raw:
+                    type: keyword
+
+  - do:
+      bulk:
+        index: my-index
+        refresh: true
+        body:
+          - { "index": { } }
+          - { "@timestamp": "2024-02-12T10:30:00Z", "host.name": "foo", "agent_id": "darth-vader", "process_id": 101, "http_method": "GET", "is_https": false, "location": { "lat": 40.7128, "lon": -74.0060 }, "message": "No, I am your father." }
+          - { "index": { } }
+          - { "@timestamp": "2024-02-12T10:31:00Z", "host.name": "bar", "agent_id": "yoda", "process_id": 102, "http_method": "PUT", "is_https": false, "location": { "lat": 40.7128, "lon": -74.0060 }, "message": "Do. Or do not. There is no try." }
+          - { "index": { } }
+          - { "@timestamp": "2024-02-12T10:32:00Z", "host.name": "foo", "agent_id": "obi-wan", "process_id": 103, "http_method": "GET", "is_https": false, "location": { "lat": 40.7128, "lon": -74.0060 }, "message": "May the force be with you." }
+          - { "index": { } }
+          - { "@timestamp": "2024-02-12T10:33:00Z", "host.name": "baz", "agent_id": "darth-vader", "process_id": 102, "http_method": "POST", "is_https": true, "location": { "lat": 40.7128, "lon": -74.0060 }, "message": "I find your lack of faith disturbing." }
+          - { "index": { } }
+          - { "@timestamp": "2024-02-12T10:34:00Z", "host.name": "baz", "agent_id": "yoda", "process_id": 104, "http_method": "POST", "is_https": false, "location": { "lat": 40.7128, "lon": -74.0060 }, "message": "Wars not make one great." }
+          - { "index": { } }
+          - { "@timestamp": "2024-02-12T10:35:00Z", "host.name": "foo", "agent_id": "obi-wan", "process_id": 105, "http_method": "GET", "is_https": false, "location": { "lat": 40.7128, "lon": -74.0060 }, "message": "That's no moon. It's a space station." }
+
+---
+teardown:
+  - do:
+      indices.delete:
+        index: my-index
+
+---
+"Simple from":
+  - do:
+      esql.query:
+        body:
+          query: 'FROM my-index | SORT host.name, @timestamp | LIMIT 1'
+
+  - match: { columns.0.name: "@timestamp" }
+  - match: { columns.0.type: "date" }
+  - match: { columns.1.name: "agent_id" }
+  - match: { columns.1.type: "keyword" }
+  - match: { columns.2.name: "host.name" }
+  - match: { columns.2.type: "keyword" }
+  - match: { columns.3.name: "http_method" }
+  - match: { columns.3.type: "keyword" }
+  - match: { columns.4.name: "is_https" }
+  - match: { columns.4.type: "boolean" }
+  - match: { columns.5.name: "location" }
+  - match: { columns.5.type: "geo_point" }
+  - match: { columns.6.name: "message" }
+  - match: { columns.6.type: "text" }
+  - match: { columns.7.name: "message.raw" }
+  - match: { columns.7.type: "keyword" }
+  - match: { columns.8.name: "process_id" }
+  - match: { columns.8.type: "integer" }
+
+  - match: { values.0.0: "2024-02-12T10:31:00.000Z" }
+  - match: { values.0.1: "yoda" }
+  - match: { values.0.2: "bar" }
+  - match: { values.0.3: "PUT" }
+  - match: { values.0.4: false }
+  - match: { values.0.5: "POINT (-74.006 40.7128)" }
+  - match: { values.0.6: "Do. Or do not. There is no try." }
+  - match: { values.0.7: "Do. Or do not. There is no try." }
+  - match: { values.0.8: 102 }
+
+---
+"Simple from keyword fields":
+  - do:
+      esql.query:
+        body:
+          query: 'FROM my-index | SORT host.name, @timestamp | KEEP agent_id, http_method | LIMIT 10'
+
+  - match: { columns.0.name: "agent_id" }
+  - match: { columns.0.type: "keyword" }
+  - match: { columns.1.name: "http_method" }
+  - match: { columns.1.type: "keyword" }
+
+  - match: { values.0.0: "yoda" }
+  - match: { values.0.1: "PUT" }
+  - match: { values.1.0: "darth-vader" }
+  - match: { values.1.1: "POST" }
+  - match: { values.2.0: "yoda" }
+  - match: { values.2.1: "POST" }
+  - match: { values.3.0: "darth-vader" }
+  - match: { values.3.1: "GET" }
+  - match: { values.4.0: "obi-wan" }
+  - match: { values.4.1: "GET" }
+  - match: { values.5.0: "obi-wan" }
+  - match: { values.5.1: "GET" }

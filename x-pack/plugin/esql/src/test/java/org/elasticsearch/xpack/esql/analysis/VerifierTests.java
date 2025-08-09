@@ -50,7 +50,7 @@ import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.loadMappin
 import static org.elasticsearch.xpack.esql.core.type.DataType.BOOLEAN;
 import static org.elasticsearch.xpack.esql.core.type.DataType.CARTESIAN_POINT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.CARTESIAN_SHAPE;
-import static org.elasticsearch.xpack.esql.core.type.DataType.COUNTER_DOUBLE;
+import static org.elasticsearch.xpack.esql.core.type.DataType.COUNTER_FLOAT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.COUNTER_INTEGER;
 import static org.elasticsearch.xpack.esql.core.type.DataType.COUNTER_LONG;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATETIME;
@@ -1064,7 +1064,7 @@ public class VerifierTests extends ESTestCase {
 
     public void testCountersSorting() {
         Map<DataType, String> counterDataTypes = Map.of(
-            COUNTER_DOUBLE,
+            COUNTER_FLOAT,
             "network.message_in",
             COUNTER_INTEGER,
             "network.message_out",
@@ -1610,7 +1610,7 @@ public class VerifierTests extends ESTestCase {
             assertEquals(
                 "1:22: second argument of ["
                     + functionName
-                    + "(languages, height.float)] must be [integer], found value [height.float] type [double]",
+                    + "(languages, height.float)] must be [integer], found value [height.float] type [float]",
                 error("from test | eval x = " + functionName + "(languages, height.float)")
             );
             assertEquals(
@@ -1663,7 +1663,7 @@ public class VerifierTests extends ESTestCase {
                 "1:22: third argument of ["
                     + functionName
                     + "(null, languages, height.float)] must be [integer], "
-                    + "found value [height.float] type [double]",
+                    + "found value [height.float] type [float]",
                 error("from test | eval x = " + functionName + "(null, languages, height.float)")
             );
             assertEquals(

@@ -58,7 +58,6 @@ public abstract class RestrictedBuildApiService implements BuildService<Restrict
         map.put(LegacyRestTestBasePlugin.class, ":x-pack:qa:third-party:slack");
         map.put(LegacyRestTestBasePlugin.class, ":x-pack:plugin:deprecation:qa:early-deprecation-rest");
         map.put(LegacyRestTestBasePlugin.class, ":x-pack:plugin:deprecation:qa:rest");
-        map.put(LegacyRestTestBasePlugin.class, ":x-pack:plugin:downsample:qa:with-security");
         map.put(LegacyRestTestBasePlugin.class, ":x-pack:plugin:ent-search:qa:rest");
         map.put(LegacyRestTestBasePlugin.class, ":x-pack:plugin:eql:qa:ccs-rolling-upgrade");
         map.put(LegacyRestTestBasePlugin.class, ":x-pack:plugin:eql:qa:correctness");

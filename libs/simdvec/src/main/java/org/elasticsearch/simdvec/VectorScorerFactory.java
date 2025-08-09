@@ -9,6 +9,7 @@
 
 package org.elasticsearch.simdvec;
 
+import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.hnsw.RandomVectorScorer;
@@ -53,4 +54,32 @@ public interface VectorScorerFactory {
      * @return an optional containing the vector scorer, or empty
      */
     Optional<RandomVectorScorer> getInt7SQVectorScorer(VectorSimilarityFunction sim, QuantizedByteVectorValues values, float[] queryVector);
+
+    /**
+     * Returns an optional containing a float32 vector scorer for the given
+     * parameters, or an empty optional if a scorer is not supported.
+     *
+     * @param similarityType the similarity type
+     * @param input the index input containing the vector data;
+     *    offset of the first vector is 0,
+     *    the length must be maxOrd * dims * Float#BYTES.
+     * @param values the random access vector values
+     * @return an optional containing the vector scorer, or empty
+     */
+    Optional<RandomVectorScorerSupplier> getFloat32VectorScorerSupplier(
+        VectorSimilarityType similarityType,
+        IndexInput input,
+        FloatVectorValues values
+    );
+
+    /**
+     * Returns an optional containing a float32 vector scorer for the given
+     * parameters, or an empty optional if a scorer is not supported.
+     *
+     * @param sim the similarity type
+     * @param values the random access vector values
+     * @param queryVector the query vector
+     * @return an optional containing the vector scorer, or empty
+     */
+    Optional<RandomVectorScorer> getFloat32VectorScorer(VectorSimilarityFunction sim, FloatVectorValues values, float[] queryVector);
 }

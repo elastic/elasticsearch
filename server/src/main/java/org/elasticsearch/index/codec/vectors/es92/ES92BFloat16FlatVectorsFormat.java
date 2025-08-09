@@ -17,14 +17,12 @@
  *
  * Modifications copyright (C) 2024 Elasticsearch B.V.
  */
-package org.elasticsearch.index.codec.vectors.es818;
+package org.elasticsearch.index.codec.vectors.es92;
 
 import org.apache.lucene.codecs.hnsw.FlatVectorsFormat;
 import org.apache.lucene.codecs.hnsw.FlatVectorsReader;
 import org.apache.lucene.codecs.hnsw.FlatVectorsScorer;
 import org.apache.lucene.codecs.hnsw.FlatVectorsWriter;
-import org.apache.lucene.codecs.lucene99.Lucene99FlatVectorsReader;
-import org.apache.lucene.codecs.lucene99.Lucene99FlatVectorsWriter;
 import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.index.SegmentWriteState;
 import org.apache.lucene.store.FlushInfo;
@@ -32,22 +30,18 @@ import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.MergeInfo;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.codec.vectors.MergeReaderWrapper;
+import org.elasticsearch.index.codec.vectors.es818.DirectIOHint;
+import org.elasticsearch.index.codec.vectors.es818.ES818BinaryQuantizedVectorsFormat;
 import org.elasticsearch.index.store.FsDirectoryFactory;
 
 import java.io.IOException;
 import java.util.Set;
 
-/**
- * Copied from Lucene99FlatVectorsFormat in Lucene 10.1
- *
- * This is copied to change the implementation of {@link #fieldsReader} only.
- * The codec format itself is not changed, so we keep the original {@link #NAME}
- */
-public class DirectIOLucene99FlatVectorsFormat extends FlatVectorsFormat {
+public final class ES92BFloat16FlatVectorsFormat extends FlatVectorsFormat {
 
-    static final String NAME = "Lucene99FlatVectorsFormat";
-    static final String META_CODEC_NAME = "Lucene99FlatVectorsFormatMeta";
-    static final String VECTOR_DATA_CODEC_NAME = "Lucene99FlatVectorsFormatData";
+    static final String NAME = "ES92BFloat16FlatVectorsFormat";
+    static final String META_CODEC_NAME = "ES92BFloat16FlatVectorsFormatMeta";
+    static final String VECTOR_DATA_CODEC_NAME = "ES92BFloat16FlatVectorsFormatData";
     static final String META_EXTENSION = "vemf";
     static final String VECTOR_DATA_EXTENSION = "vec";
 
@@ -57,20 +51,18 @@ public class DirectIOLucene99FlatVectorsFormat extends FlatVectorsFormat {
     static final int DIRECT_MONOTONIC_BLOCK_SHIFT = 16;
     private final FlatVectorsScorer vectorsScorer;
 
-    /** Constructs a format */
-    public DirectIOLucene99FlatVectorsFormat(FlatVectorsScorer vectorsScorer) {
+    public ES92BFloat16FlatVectorsFormat(FlatVectorsScorer vectorsScorer) {
         super(NAME);
         this.vectorsScorer = vectorsScorer;
     }
 
     @Override
     public FlatVectorsWriter fieldsWriter(SegmentWriteState state) throws IOException {
-        return new Lucene99FlatVectorsWriter(state, vectorsScorer);
+        return new ES92BFloat16FlatVectorsWriter(state, vectorsScorer);
     }
 
     static boolean shouldUseDirectIO(SegmentReadState state) {
-        assert ES818BinaryQuantizedVectorsFormat.USE_DIRECT_IO;
-        return FsDirectoryFactory.isHybridFs(state.directory);
+        return ES818BinaryQuantizedVectorsFormat.USE_DIRECT_IO && FsDirectoryFactory.isHybridFs(state.directory);
     }
 
     @Override
@@ -87,17 +79,17 @@ public class DirectIOLucene99FlatVectorsFormat extends FlatVectorsFormat {
             // Use mmap for merges and direct I/O for searches.
             // TODO: Open the mmap file with sequential access instead of random (current behavior).
             return new MergeReaderWrapper(
-                new Lucene99FlatVectorsReader(directIOState, vectorsScorer),
-                new Lucene99FlatVectorsReader(state, vectorsScorer)
+                new ES92BFloat16FlatVectorsReader(directIOState, vectorsScorer),
+                new ES92BFloat16FlatVectorsReader(state, vectorsScorer)
             );
         } else {
-            return new Lucene99FlatVectorsReader(state, vectorsScorer);
+            return new ES92BFloat16FlatVectorsReader(state, vectorsScorer);
         }
     }
 
     @Override
     public String toString() {
-        return "Lucene99FlatVectorsFormat(" + "vectorsScorer=" + vectorsScorer + ')';
+        return "ES92BFloat16FlatVectorsFormat(" + "vectorsScorer=" + vectorsScorer + ')';
     }
 
     static class DirectIOContext implements IOContext {

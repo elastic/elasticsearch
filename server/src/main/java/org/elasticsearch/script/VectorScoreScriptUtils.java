@@ -209,7 +209,7 @@ public class VectorScoreScriptUtils {
                     }
                     throw new IllegalArgumentException("Unsupported input object for byte vectors: " + queryVector.getClass().getName());
                 }
-                case FLOAT -> {
+                case FLOAT, BFLOAT16 -> {
                     if (queryVector instanceof List) {
                         yield new FloatL1Norm(scoreScript, field, (List<Number>) queryVector);
                     }
@@ -319,7 +319,7 @@ public class VectorScoreScriptUtils {
                     }
                     throw new IllegalArgumentException("Unsupported input object for byte vectors: " + queryVector.getClass().getName());
                 }
-                case FLOAT -> {
+                case FLOAT, BFLOAT16 -> {
                     if (queryVector instanceof List) {
                         yield new FloatL2Norm(scoreScript, field, (List<Number>) queryVector);
                     }
@@ -477,7 +477,7 @@ public class VectorScoreScriptUtils {
                     }
                     throw new IllegalArgumentException("Unsupported input object for byte vectors: " + queryVector.getClass().getName());
                 }
-                case FLOAT -> {
+                case FLOAT, BFLOAT16 -> {
                     if (queryVector instanceof List) {
                         yield new FloatDotProduct(scoreScript, field, (List<Number>) queryVector);
                     }
@@ -546,7 +546,7 @@ public class VectorScoreScriptUtils {
                     }
                     throw new IllegalArgumentException("Unsupported input object for byte vectors: " + queryVector.getClass().getName());
                 }
-                case FLOAT -> {
+                case FLOAT, BFLOAT16 -> {
                     if (queryVector instanceof List) {
                         yield new FloatCosineSimilarity(scoreScript, field, (List<Number>) queryVector);
                     }

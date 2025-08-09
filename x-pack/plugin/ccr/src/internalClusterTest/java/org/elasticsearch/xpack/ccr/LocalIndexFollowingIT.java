@@ -76,6 +76,7 @@ public class LocalIndexFollowingIT extends CcrSingleNodeTestCase {
         ensureEmptyWriteBuffers();
     }
 
+    @AwaitsFix(bugUrl = "depends on there being a limited number of threads in the write pool")
     public void testIndexingMetricsIncremented() throws Exception {
         final String leaderIndexSettings = getIndexSettings(1, 0, Collections.emptyMap());
         assertAcked(client().admin().indices().prepareCreate("leader").setSource(leaderIndexSettings, XContentType.JSON));

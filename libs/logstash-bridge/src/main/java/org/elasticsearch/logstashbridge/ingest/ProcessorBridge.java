@@ -20,6 +20,7 @@ import org.elasticsearch.logstashbridge.script.ScriptServiceBridge;
 import org.elasticsearch.logstashbridge.threadpool.ThreadPoolBridge;
 
 import java.util.Map;
+import java.util.Objects;
 import java.util.function.BiConsumer;
 
 /**
@@ -81,7 +82,10 @@ public interface ProcessorBridge extends StableBridgeAPI<Processor> {
             public void execute(IngestDocument ingestDocument, BiConsumer<IngestDocument, Exception> handler) {
                 AbstractExternal.this.execute(
                     IngestDocumentBridge.fromInternalNullable(ingestDocument),
-                    (idb, e) -> handler.accept(idb.toInternal(), e)
+                    (ingestDocumentBridge, e) -> handler.accept(
+                        Objects.isNull(ingestDocumentBridge) ? null : ingestDocumentBridge.toInternal(),
+                        e
+                    )
                 );
             }
 

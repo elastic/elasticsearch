@@ -13,7 +13,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
-import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
@@ -35,15 +34,7 @@ public final class TransportRemoteInfoAction extends HandledTransportAction<Remo
 
     @Override
     protected void doExecute(Task task, RemoteInfoRequest remoteInfoRequest, ActionListener<RemoteInfoResponse> listener) {
-        if (remoteClusterService.isEnabled() == false) {
-            throw new IllegalArgumentException(
-                "node ["
-                    + remoteClusterService.getLocalNode().getName()
-                    + "] does not have the ["
-                    + DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE.roleName()
-                    + "] role"
-            );
-        }
+        remoteClusterService.ensureClientIsEnabled();
         listener.onResponse(new RemoteInfoResponse(remoteClusterService.getRemoteConnectionInfos().collect(toList())));
     }
 }

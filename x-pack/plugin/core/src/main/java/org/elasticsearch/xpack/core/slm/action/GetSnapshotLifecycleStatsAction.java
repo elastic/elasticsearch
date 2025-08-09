@@ -7,8 +7,10 @@
 
 package org.elasticsearch.xpack.core.slm.action;
 
+import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.support.master.MasterNodeReadRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -30,6 +32,18 @@ public class GetSnapshotLifecycleStatsAction extends ActionType<GetSnapshotLifec
 
     protected GetSnapshotLifecycleStatsAction() {
         super(NAME);
+    }
+
+    public static class Request extends MasterNodeReadRequest<Request> {
+
+        public Request(StreamInput input) throws IOException {
+            super(input);
+        }
+
+        @Override
+        public ActionRequestValidationException validate() {
+            return null;
+        }
     }
 
     public static class Response extends ActionResponse implements ToXContentObject {

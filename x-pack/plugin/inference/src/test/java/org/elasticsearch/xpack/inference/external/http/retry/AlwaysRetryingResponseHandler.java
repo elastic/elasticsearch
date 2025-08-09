@@ -36,13 +36,8 @@ public class AlwaysRetryingResponseHandler implements ResponseHandler {
     }
 
     @Override
-    public void validateResponse(
-        ThrottlerManager throttlerManager,
-        Logger logger,
-        Request request,
-        HttpResult result,
-        boolean checkForErrorObject
-    ) throws RetryException {
+    public void validateResponse(ThrottlerManager throttlerManager, Logger logger, Request request, HttpResult result)
+        throws RetryException {
         try {
             checkForFailureStatusCode(throttlerManager, logger, request, result);
             checkForEmptyBody(throttlerManager, logger, request, result);

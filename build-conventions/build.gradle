@@ -85,6 +85,9 @@ dependencies {
   api(buildLibs.spotless.plugin) {
     exclude module: "groovy-xml"
   }
+  api(buildLibs.rewrite.plugin) {
+    exclude module: "groovy-xml"
+  }
 }
 
 project.getPlugins().withType(JavaBasePlugin.class) {

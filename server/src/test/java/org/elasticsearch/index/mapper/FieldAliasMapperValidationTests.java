@@ -161,15 +161,7 @@ public class FieldAliasMapperValidationTests extends ESTestCase {
 
     private static FieldMapper createFieldMapper(String parent, String name) {
         return new BooleanFieldMapper.Builder(name, ScriptCompiler.NONE, false, IndexVersion.current(), null).build(
-            new MapperBuilderContext(
-                parent,
-                false,
-                false,
-                false,
-                ObjectMapper.Defaults.DYNAMIC,
-                MapperService.MergeReason.MAPPING_UPDATE,
-                false
-            )
+            MapperBuilderContext.builder().path(parent).isSourceSynthetic(false).build()
         );
     }
 

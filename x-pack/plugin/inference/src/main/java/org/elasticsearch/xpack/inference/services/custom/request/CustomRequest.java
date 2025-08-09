@@ -45,10 +45,12 @@ public class CustomRequest implements Request {
         var stringOnlyParams = new HashMap<String, String>();
         addStringParams(stringOnlyParams, model.getSecretSettings().getSecretParameters());
         addStringParams(stringOnlyParams, model.getTaskSettings().getParameters());
+        addStringParams(stringOnlyParams, model.getServiceSettings().getParameters());
 
         var jsonParams = new HashMap<String, String>();
         addJsonStringParams(jsonParams, model.getSecretSettings().getSecretParameters());
         addJsonStringParams(jsonParams, model.getTaskSettings().getParameters());
+        addJsonStringParams(jsonParams, model.getServiceSettings().getParameters());
 
         jsonParams.putAll(requestParams.jsonParameters());
 

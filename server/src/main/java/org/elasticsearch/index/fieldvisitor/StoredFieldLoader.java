@@ -9,12 +9,16 @@
 
 package org.elasticsearch.index.fieldvisitor;
 
+import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.StoredFieldVisitor;
 import org.apache.lucene.index.StoredFields;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.index.SequentialStoredFieldsLeafReader;
+import org.elasticsearch.index.mapper.BlockLoader;
+import org.elasticsearch.index.mapper.IgnoredSourceFieldMapper;
 import org.elasticsearch.search.fetch.StoredFieldsSpec;
 
 import java.io.IOException;
@@ -51,6 +55,26 @@ public abstract class StoredFieldLoader {
             return StoredFieldLoader.empty();
         }
         return create(spec.requiresSource(), spec.requiredStoredFields());
+    }
+
+    /**
+     * Crates a new StoredFieldLaoader using a BlockLoader.FieldsSpec
+     */
+    public static StoredFieldLoader fromSpec(BlockLoader.FieldsSpec spec, boolean forceSequentialReader) {
+        if (spec.noRequirements()) {
+            return StoredFieldLoader.empty();
+        }
+
+        if (IgnoredSourceFieldLoader.supports(spec)) {
+            return new IgnoredSourceFieldLoader(spec, forceSequentialReader);
+        }
+
+        StoredFieldsSpec mergedSpec = spec.storedFieldsSpec().merge(spec.ignoredFieldsSpec().requiredStoredFields());
+        if (forceSequentialReader) {
+            return fromSpecSequential(mergedSpec);
+        } else {
+            return fromSpec(mergedSpec);
+        }
     }
 
     public static StoredFieldLoader create(boolean loadSource, Set<String> fields) {
@@ -139,7 +163,8 @@ public abstract class StoredFieldLoader {
         };
     }
 
-    private static CheckedBiConsumer<Integer, FieldsVisitor, IOException> reader(LeafReaderContext ctx, int[] docs) throws IOException {
+    protected static CheckedBiConsumer<Integer, StoredFieldVisitor, IOException> reader(LeafReaderContext ctx, int[] docs)
+        throws IOException {
         LeafReader leafReader = ctx.reader();
         if (docs != null && docs.length > 10 && hasSequentialDocs(docs)) {
             return sequentialReader(ctx);
@@ -148,7 +173,8 @@ public abstract class StoredFieldLoader {
         return storedFields::document;
     }
 
-    private static CheckedBiConsumer<Integer, FieldsVisitor, IOException> sequentialReader(LeafReaderContext ctx) throws IOException {
+    protected static CheckedBiConsumer<Integer, StoredFieldVisitor, IOException> sequentialReader(LeafReaderContext ctx)
+        throws IOException {
         LeafReader leafReader = ctx.reader();
         if (leafReader instanceof SequentialStoredFieldsLeafReader lf) {
             return lf.getSequentialStoredFieldsReader()::document;
@@ -199,13 +225,33 @@ public abstract class StoredFieldLoader {
 
     private static class ReaderStoredFieldLoader implements LeafStoredFieldLoader {
 
-        private final CheckedBiConsumer<Integer, FieldsVisitor, IOException> reader;
+        private final CheckedBiConsumer<Integer, StoredFieldVisitor, IOException> reader;
         private final CustomFieldsVisitor visitor;
         private int doc = -1;
 
-        ReaderStoredFieldLoader(CheckedBiConsumer<Integer, FieldsVisitor, IOException> reader, boolean loadSource, Set<String> fields) {
+        private static CustomFieldsVisitor getFieldsVisitor(Set<String> fields, boolean loadSource) {
+            if (fields.contains(IgnoredSourceFieldMapper.NAME)) {
+                return new CustomFieldsVisitor(fields, loadSource) {
+                    @Override
+                    public Status needsField(FieldInfo fieldInfo) {
+                        if (fieldInfo.name.startsWith(IgnoredSourceFieldMapper.NAME)) {
+                            return Status.YES;
+                        }
+                        return super.needsField(fieldInfo);
+                    }
+                };
+            }
+
+            return new CustomFieldsVisitor(fields, loadSource);
+        }
+
+        ReaderStoredFieldLoader(
+            CheckedBiConsumer<Integer, StoredFieldVisitor, IOException> reader,
+            boolean loadSource,
+            Set<String> fields
+        ) {
             this.reader = reader;
-            this.visitor = new CustomFieldsVisitor(fields, loadSource);
+            this.visitor = getFieldsVisitor(fields, loadSource);
         }
 
         @Override

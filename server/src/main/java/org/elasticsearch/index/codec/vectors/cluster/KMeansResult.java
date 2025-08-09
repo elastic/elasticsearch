@@ -14,24 +14,31 @@ package org.elasticsearch.index.codec.vectors.cluster;
  */
 public class KMeansResult {
     private float[][] centroids;
+    private int[] centroidCounts;
     private final int[] assignments;
     private int[] soarAssignments;
 
-    KMeansResult(float[][] centroids, int[] assignments, int[] soarAssignments) {
+    KMeansResult(float[][] centroids, int[] assignments, int[] soarAssignments, int[] centroidCounts) {
         assert centroids != null;
         assert assignments != null;
         assert soarAssignments != null;
         this.centroids = centroids;
         this.assignments = assignments;
         this.soarAssignments = soarAssignments;
+        this.centroidCounts = centroidCounts;
     }
 
     public float[][] centroids() {
         return centroids;
     }
 
-    void setCentroids(float[][] centroids) {
+    public int[] centroidCounts() {
+        return centroidCounts;
+    }
+
+    void setCentroidsAndCounts(float[][] centroids, int[] counts) {
         this.centroids = centroids;
+        this.centroidCounts = counts;
     }
 
     public int[] assignments() {

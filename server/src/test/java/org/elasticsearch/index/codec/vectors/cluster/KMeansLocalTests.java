@@ -15,6 +15,7 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
 import static org.hamcrest.Matchers.containsString;
@@ -23,7 +24,7 @@ public class KMeansLocalTests extends ESTestCase {
 
     public void testIllegalClustersPerNeighborhood() {
         KMeansLocal kMeansLocal = new KMeansLocal(randomInt(), randomInt());
-        KMeansIntermediate kMeansIntermediate = new KMeansIntermediate(new float[0][], new int[0], i -> i);
+        KMeansIntermediate kMeansIntermediate = new KMeansIntermediate(new float[0][], new int[0], new int[0], i -> i);
         IllegalArgumentException ex = expectThrows(
             IllegalArgumentException.class,
             () -> kMeansLocal.cluster(
@@ -47,10 +48,11 @@ public class KMeansLocalTests extends ESTestCase {
         FloatVectorValues vectors = generateData(nVectors, dims, nClusters);
 
         float[][] centroids = KMeansLocal.pickInitialCentroids(vectors, nClusters);
-        KMeansLocal.cluster(vectors, centroids, sampleSize, maxIterations);
+        cluster(vectors, centroids, sampleSize, maxIterations);
 
         int[] assignments = new int[vectors.size()];
         int[] assignmentOrdinals = new int[vectors.size()];
+        int[] counts = new int[centroids.length];
         for (int i = 0; i < vectors.size(); i++) {
             float minDist = Float.MAX_VALUE;
             int ord = -1;
@@ -63,14 +65,16 @@ public class KMeansLocalTests extends ESTestCase {
             }
             assignments[i] = ord;
             assignmentOrdinals[i] = i;
+            counts[ord]++;
         }
 
-        KMeansIntermediate kMeansIntermediate = new KMeansIntermediate(centroids, assignments, i -> assignmentOrdinals[i]);
+        KMeansIntermediate kMeansIntermediate = new KMeansIntermediate(centroids, assignments, counts, i -> assignmentOrdinals[i]);
         KMeansLocal kMeansLocal = new KMeansLocal(sampleSize, maxIterations);
         kMeansLocal.cluster(vectors, kMeansIntermediate, clustersPerNeighborhood, soarLambda);
 
         assertEquals(nClusters, centroids.length);
         assertNotNull(kMeansIntermediate.soarAssignments());
+        assertCounts(kMeansIntermediate);
     }
 
     public void testKMeansNeighborsAllZero() throws IOException {
@@ -88,10 +92,11 @@ public class KMeansLocalTests extends ESTestCase {
         FloatVectorValues fvv = FloatVectorValues.fromFloats(vectors, 5);
 
         float[][] centroids = KMeansLocal.pickInitialCentroids(fvv, nClusters);
-        KMeansLocal.cluster(fvv, centroids, sampleSize, maxIterations);
+        cluster(fvv, centroids, sampleSize, maxIterations);
 
         int[] assignments = new int[vectors.size()];
         int[] assignmentOrdinals = new int[vectors.size()];
+        int[] counts = new int[centroids.length];
         for (int i = 0; i < vectors.size(); i++) {
             float minDist = Float.MAX_VALUE;
             int ord = -1;
@@ -104,9 +109,10 @@ public class KMeansLocalTests extends ESTestCase {
             }
             assignments[i] = ord;
             assignmentOrdinals[i] = i;
+            counts[ord]++;
         }
 
-        KMeansIntermediate kMeansIntermediate = new KMeansIntermediate(centroids, assignments, i -> assignmentOrdinals[i]);
+        KMeansIntermediate kMeansIntermediate = new KMeansIntermediate(centroids, assignments, counts, i -> assignmentOrdinals[i]);
         KMeansLocal kMeansLocal = new KMeansLocal(sampleSize, maxIterations);
         kMeansLocal.cluster(fvv, kMeansIntermediate, clustersPerNeighborhood, soarLambda);
 
@@ -119,6 +125,7 @@ public class KMeansLocalTests extends ESTestCase {
                 }
             }
         }
+        assertCounts(kMeansIntermediate);
     }
 
     private static FloatVectorValues generateData(int nSamples, int nDims, int nClusters) {
@@ -140,5 +147,32 @@ public class KMeansLocalTests extends ESTestCase {
             vectors.add(vector);
         }
         return FloatVectorValues.fromFloats(vectors, nDims);
+    }
+
+    static void assertCounts(KMeansResult kMeansResult) {
+        int[] counts = new int[kMeansResult.centroidCounts().length];
+        for (int i = 0; i < kMeansResult.assignments().length; i++) {
+            counts[kMeansResult.assignments()[i]]++;
+            if (kMeansResult.soarAssignments().length > i && kMeansResult.soarAssignments()[i] != -1) {
+                counts[kMeansResult.soarAssignments()[i]]++;
+            }
+        }
+        for (int i = 0; i < counts.length; i++) {
+            assertEquals(counts[i], kMeansResult.centroidCounts()[i]);
+        }
+    }
+
+    private static void cluster(FloatVectorValues vectors, float[][] centroids, int sampleSize, int maxIterations) throws IOException {
+        int[] assignments = new int[vectors.size()];
+        Arrays.fill(assignments, -1);
+        KMeansIntermediate kMeansIntermediate = new KMeansIntermediate(
+            centroids,
+            assignments,
+            new int[centroids.length],
+            vectors::ordToDoc
+        );
+        KMeansLocal kMeans = new KMeansLocal(sampleSize, maxIterations);
+        kMeans.cluster(vectors, kMeansIntermediate);
+        assertCounts(kMeansIntermediate);
     }
 }

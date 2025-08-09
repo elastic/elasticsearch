@@ -40,7 +40,7 @@ public class ESONSource {
 
     public static class Builder {
         private final BytesStreamOutput bytes;
-        private final List<KeyEntry> keyArray;
+        private final List<ESONEntry> keyArray;
 
         public Builder() {
             this(0);
@@ -66,9 +66,9 @@ public class ESONSource {
             return new ESONObject(0, keyArray, new Values(bytes.bytes()));
         }
 
-        private static void parseObject(XContentParser parser, BytesStreamOutput bytes, List<KeyEntry> keyArray, String objectFieldName)
+        private static void parseObject(XContentParser parser, BytesStreamOutput bytes, List<ESONEntry> keyArray, String objectFieldName)
             throws IOException {
-            ObjectEntry objEntry = new ObjectEntry(objectFieldName);
+            ESONEntry.ObjectEntry objEntry = new ESONEntry.ObjectEntry(objectFieldName);
             keyArray.add(objEntry);
 
             int count = 0;
@@ -81,9 +81,9 @@ public class ESONSource {
             objEntry.fieldCount = count;
         }
 
-        private static void parseArray(XContentParser parser, BytesStreamOutput bytes, List<KeyEntry> keyArray, String arrayFieldName)
+        private static void parseArray(XContentParser parser, BytesStreamOutput bytes, List<ESONEntry> keyArray, String arrayFieldName)
             throws IOException {
-            ArrayEntry arrEntry = new ArrayEntry(arrayFieldName);
+            ESONEntry.ArrayEntry arrEntry = new ESONEntry.ArrayEntry(arrayFieldName);
             keyArray.add(arrEntry);
 
             int count = 0;
@@ -94,7 +94,7 @@ public class ESONSource {
                     case START_ARRAY -> parseArray(parser, bytes, keyArray, null);
                     default -> {
                         Value type = parseSimpleValue(parser, bytes, token);
-                        keyArray.add(new FieldEntry(null, type));
+                        keyArray.add(new ESONEntry.FieldEntry(null, type));
                     }
                 }
                 count++;
@@ -103,7 +103,7 @@ public class ESONSource {
             arrEntry.elementCount = count;
         }
 
-        private static void parseValue(XContentParser parser, String fieldName, BytesStreamOutput bytes, List<KeyEntry> keyArray)
+        private static void parseValue(XContentParser parser, String fieldName, BytesStreamOutput bytes, List<ESONEntry> keyArray)
             throws IOException {
             XContentParser.Token token = parser.nextToken();
 
@@ -112,7 +112,7 @@ public class ESONSource {
                 case START_ARRAY -> parseArray(parser, bytes, keyArray, fieldName);
                 default -> {
                     Value type = parseSimpleValue(parser, bytes, token);
-                    keyArray.add(new FieldEntry(fieldName, type));
+                    keyArray.add(new ESONEntry.FieldEntry(fieldName, type));
                 }
             }
         }
@@ -125,29 +125,29 @@ public class ESONSource {
                 case VALUE_STRING -> {
                     XContentString.UTF8Bytes stringBytes = parser.optimizedText().bytes();
                     bytes.write(stringBytes.bytes(), stringBytes.offset(), stringBytes.length());
-                    yield new VariableValue((int) position, stringBytes.length(), KeyEntry.STRING);
+                    yield new VariableValue((int) position, stringBytes.length(), ESONEntry.STRING);
                 }
                 case VALUE_NUMBER -> {
                     XContentParser.NumberType numberType = parser.numberType();
                     yield switch (numberType) {
                         case INT -> {
                             bytes.writeInt(parser.intValue());
-                            yield new FixedValue((int) position, KeyEntry.TYPE_INT);
+                            yield new FixedValue((int) position, ESONEntry.TYPE_INT);
                         }
                         case LONG -> {
                             bytes.writeLong(parser.longValue());
-                            yield new FixedValue((int) position, KeyEntry.TYPE_LONG);
+                            yield new FixedValue((int) position, ESONEntry.TYPE_LONG);
                         }
                         case FLOAT -> {
                             bytes.writeFloat(parser.floatValue());
-                            yield new FixedValue((int) position, KeyEntry.TYPE_FLOAT);
+                            yield new FixedValue((int) position, ESONEntry.TYPE_FLOAT);
                         }
                         case DOUBLE -> {
                             bytes.writeDouble(parser.doubleValue());
-                            yield new FixedValue((int) position, KeyEntry.TYPE_DOUBLE);
+                            yield new FixedValue((int) position, ESONEntry.TYPE_DOUBLE);
                         }
                         case BIG_INTEGER, BIG_DECIMAL -> {
-                            byte type = numberType == XContentParser.NumberType.BIG_INTEGER ? KeyEntry.BIG_INTEGER : KeyEntry.BIG_DECIMAL;
+                            byte type = numberType == XContentParser.NumberType.BIG_INTEGER ? ESONEntry.BIG_INTEGER : ESONEntry.BIG_DECIMAL;
                             byte[] numberBytes = parser.text().getBytes(StandardCharsets.UTF_8);
                             bytes.write(numberBytes);
                             yield new VariableValue((int) position, numberBytes.length, type);
@@ -159,99 +159,10 @@ public class ESONSource {
                 case VALUE_EMBEDDED_OBJECT -> {
                     byte[] binaryValue = parser.binaryValue();
                     bytes.write(binaryValue);
-                    yield new VariableValue((int) position, binaryValue.length, KeyEntry.BINARY);
+                    yield new VariableValue((int) position, binaryValue.length, ESONEntry.BINARY);
                 }
                 default -> throw new IllegalArgumentException("Unexpected token: " + token);
             };
-        }
-    }
-
-    public abstract static class KeyEntry {
-
-        public static final byte TYPE_NULL = 0x00;
-        public static final byte TYPE_FALSE = 0x01;
-        public static final byte TYPE_TRUE = 0x02;
-        public static final byte TYPE_INT = 0x03;
-        public static final byte TYPE_LONG = 0x04;
-        public static final byte TYPE_FLOAT = 0x05;
-        public static final byte TYPE_DOUBLE = 0x06;
-        public static final byte STRING = 0x07;
-        public static final byte BINARY = 0x08;
-        public static final byte TYPE_OBJECT = 0x09;
-        // TODO: Maybe add fixed width arrays
-        public static final byte TYPE_ARRAY = 0x0A;
-        public static final byte BIG_INTEGER = 0x0B;
-        public static final byte BIG_DECIMAL = 0x0C;
-        // TODO: Fix
-        public static final byte MUTATION = 0x64;
-
-        private final byte type;
-        private final String key;
-
-        KeyEntry(byte type, String key) {
-            this.type = type;
-            this.key = key;
-        }
-
-        public String key() {
-            return key;
-        }
-
-        public byte type() {
-            return type;
-        }
-    }
-
-    public static class ObjectEntry extends KeyEntry {
-
-        public int fieldCount = 0;
-        private Map<String, Value> mutationMap = null;
-
-        public ObjectEntry(String key) {
-            super(TYPE_OBJECT, key);
-        }
-
-        public boolean hasMutations() {
-            return mutationMap != null;
-        }
-
-        @Override
-        public String toString() {
-            return "ObjectEntry{" + "key='" + key() + '\'' + ", fieldCount=" + fieldCount + ", hasMutations=" + hasMutations() + '}';
-        }
-    }
-
-    public static class ArrayEntry extends KeyEntry {
-
-        public int elementCount = 0;
-        private List<Value> mutationArray = null;
-
-        public ArrayEntry(String key) {
-            super(TYPE_ARRAY, key);
-        }
-
-        public boolean hasMutations() {
-            return mutationArray != null;
-        }
-
-        @Override
-        public String toString() {
-            return "ArrayEntry{" + "key='" + key() + '\'' + ", elementCount=" + elementCount + ", hasMutations=" + hasMutations() + '}';
-        }
-    }
-
-    public static class FieldEntry extends KeyEntry {
-
-        public final Value value;
-
-        public FieldEntry(String key, Value value) {
-            super(value.type(), key);
-            this.value = value;
-        }
-
-        @Override
-        public String toString() {
-            return "FieldEntry{" + "value=" + value + '}';
         }
     }
 
@@ -263,14 +174,14 @@ public class ESONSource {
 
         @Override
         public byte type() {
-            return KeyEntry.MUTATION;
+            return ESONEntry.MUTATION;
         }
     }
 
     public enum ConstantValue implements Value {
-        NULL(KeyEntry.TYPE_NULL),
-        TRUE(KeyEntry.TYPE_TRUE),
-        FALSE(KeyEntry.TYPE_FALSE);
+        NULL(ESONEntry.TYPE_NULL),
+        TRUE(ESONEntry.TYPE_TRUE),
+        FALSE(ESONEntry.TYPE_FALSE);
 
         private final byte type;
 
@@ -295,20 +206,20 @@ public class ESONSource {
     public record FixedValue(int position, byte type) implements Value {
         public Object getValue(Values source) {
             return switch (type) {
-                case KeyEntry.TYPE_INT -> source.readInt(position);
-                case KeyEntry.TYPE_LONG -> source.readLong(position);
-                case KeyEntry.TYPE_FLOAT -> source.readFloat(position);
-                case KeyEntry.TYPE_DOUBLE -> source.readDouble(position);
+                case ESONEntry.TYPE_INT -> source.readInt(position);
+                case ESONEntry.TYPE_LONG -> source.readLong(position);
+                case ESONEntry.TYPE_FLOAT -> source.readFloat(position);
+                case ESONEntry.TYPE_DOUBLE -> source.readDouble(position);
                 default -> throw new IllegalArgumentException("Invalid value type: " + type);
             };
         }
 
         public void writeToXContent(XContentBuilder builder, Values values) throws IOException {
             switch (type) {
-                case KeyEntry.TYPE_INT -> builder.value(values.readInt(position));
-                case KeyEntry.TYPE_LONG -> builder.value(values.readLong(position));
-                case KeyEntry.TYPE_FLOAT -> builder.value(values.readFloat(position));
-                case KeyEntry.TYPE_DOUBLE -> builder.value(values.readDouble(position));
+                case ESONEntry.TYPE_INT -> builder.value(values.readInt(position));
+                case ESONEntry.TYPE_LONG -> builder.value(values.readLong(position));
+                case ESONEntry.TYPE_FLOAT -> builder.value(values.readFloat(position));
+                case ESONEntry.TYPE_DOUBLE -> builder.value(values.readDouble(position));
                 default -> throw new IllegalArgumentException("Invalid value type: " + type);
             }
         }
@@ -317,10 +228,10 @@ public class ESONSource {
     public record VariableValue(int position, int length, byte type) implements Value {
         public Object getValue(Values source) {
             return switch (type) {
-                case KeyEntry.STRING -> source.readString(position, length);
-                case KeyEntry.BINARY -> source.readByteArray(position, length);
-                case KeyEntry.BIG_INTEGER -> new BigInteger(source.readString(position, length));
-                case KeyEntry.BIG_DECIMAL -> new BigDecimal(source.readString(position, length));
+                case ESONEntry.STRING -> source.readString(position, length);
+                case ESONEntry.BINARY -> source.readByteArray(position, length);
+                case ESONEntry.BIG_INTEGER -> new BigInteger(source.readString(position, length));
+                case ESONEntry.BIG_DECIMAL -> new BigDecimal(source.readString(position, length));
                 default -> throw new IllegalArgumentException("Invalid value type: " + type);
             };
         }
@@ -337,11 +248,11 @@ public class ESONSource {
                 offset = 0;
             }
             switch (type) {
-                case KeyEntry.STRING -> builder.utf8Value(bytes, offset, length);
-                case KeyEntry.BINARY -> builder.value(bytes, offset, length);
+                case ESONEntry.STRING -> builder.utf8Value(bytes, offset, length);
+                case ESONEntry.BINARY -> builder.value(bytes, offset, length);
                 // TODO: Improve?
-                case KeyEntry.BIG_INTEGER -> builder.value(new BigInteger(new String(bytes, offset, length, StandardCharsets.UTF_8)));
-                case KeyEntry.BIG_DECIMAL -> builder.value(new BigDecimal(new String(bytes, offset, length, StandardCharsets.UTF_8)));
+                case ESONEntry.BIG_INTEGER -> builder.value(new BigInteger(new String(bytes, offset, length, StandardCharsets.UTF_8)));
+                case ESONEntry.BIG_DECIMAL -> builder.value(new BigDecimal(new String(bytes, offset, length, StandardCharsets.UTF_8)));
                 default -> throw new IllegalArgumentException("Invalid value type: " + type);
             }
         }
@@ -385,19 +296,19 @@ public class ESONSource {
 
     public static class ESONObject implements Value, Map<String, Object>, ToXContent {
         private final int keyArrayIndex;
-        private final ObjectEntry objEntry;
-        private final List<KeyEntry> keyArray;
+        private final ESONEntry.ObjectEntry objEntry;
+        private final List<ESONEntry> keyArray;
         private final Values values;
         private Map<String, Value> materializedMap;
 
-        public ESONObject(int keyArrayIndex, List<KeyEntry> keyArray, Values values) {
+        public ESONObject(int keyArrayIndex, List<ESONEntry> keyArray, Values values) {
             this.keyArrayIndex = keyArrayIndex;
-            this.objEntry = (ObjectEntry) keyArray.get(keyArrayIndex);
+            this.objEntry = (ESONEntry.ObjectEntry) keyArray.get(keyArrayIndex);
             this.keyArray = keyArray;
             this.values = values;
         }
 
-        public List<KeyEntry> getKeyArray() {
+        public List<ESONEntry> getKeyArray() {
             return keyArray;
         }
 
@@ -411,12 +322,12 @@ public class ESONSource {
 
                 int currentIndex = keyArrayIndex + 1;
                 for (int i = 0; i < objEntry.fieldCount; i++) {
-                    KeyEntry entry = keyArray.get(currentIndex);
-                    if (entry instanceof FieldEntry fieldEntry) {
+                    ESONEntry entry = keyArray.get(currentIndex);
+                    if (entry instanceof ESONEntry.FieldEntry fieldEntry) {
                         materializedMap.put(fieldEntry.key(), fieldEntry.value);
                         currentIndex++;
                     } else {
-                        if (entry instanceof ObjectEntry) {
+                        if (entry instanceof ESONEntry.ObjectEntry) {
                             materializedMap.put(entry.key(), new ESONObject(currentIndex, keyArray, values));
                         } else {
                             materializedMap.put(entry.key(), new ESONArray(currentIndex, keyArray, values));
@@ -621,7 +532,7 @@ public class ESONSource {
 
         @Override
         public byte type() {
-            return KeyEntry.TYPE_OBJECT;
+            return ESONEntry.TYPE_OBJECT;
         }
 
         private class LazyEntry implements Entry<String, Object> {
@@ -706,14 +617,14 @@ public class ESONSource {
     public static class ESONArray extends AbstractList<Object> implements Value, List<Object>, ToXContent {
 
         private final int keyArrayIndex;
-        private final ArrayEntry arrEntry;
-        private final List<KeyEntry> keyArray;
+        private final ESONEntry.ArrayEntry arrEntry;
+        private final List<ESONEntry> keyArray;
         private final Values values;
         private List<Value> materializedList;
 
-        public ESONArray(int keyArrayIndex, List<KeyEntry> keyArray, Values values) {
+        public ESONArray(int keyArrayIndex, List<ESONEntry> keyArray, Values values) {
             this.keyArrayIndex = keyArrayIndex;
-            this.arrEntry = (ArrayEntry) keyArray.get(keyArrayIndex);
+            this.arrEntry = (ESONEntry.ArrayEntry) keyArray.get(keyArrayIndex);
             this.keyArray = keyArray;
             this.values = values;
         }
@@ -724,12 +635,12 @@ public class ESONSource {
 
                 int currentIndex = keyArrayIndex + 1;
                 for (int i = 0; i < arrEntry.elementCount; i++) {
-                    KeyEntry entry = keyArray.get(currentIndex);
-                    if (entry instanceof FieldEntry fieldEntry) {
+                    ESONEntry entry = keyArray.get(currentIndex);
+                    if (entry instanceof ESONEntry.FieldEntry fieldEntry) {
                         materializedList.add(fieldEntry.value);
                         currentIndex++;
                     } else {
-                        if (entry instanceof ObjectEntry) {
+                        if (entry instanceof ESONEntry.ObjectEntry) {
                             materializedList.add(new ESONObject(currentIndex, keyArray, values));
                         } else {
                             materializedList.add(new ESONArray(currentIndex, keyArray, values));
@@ -853,7 +764,7 @@ public class ESONSource {
 
         @Override
         public byte type() {
-            return KeyEntry.TYPE_ARRAY;
+            return ESONEntry.TYPE_ARRAY;
         }
     }
 
@@ -872,21 +783,21 @@ public class ESONSource {
         };
     }
 
-    private static int skipContainer(List<KeyEntry> keyArray, KeyEntry entry, int containerIndex) {
+    private static int skipContainer(List<ESONEntry> keyArray, ESONEntry entry, int containerIndex) {
         int index = containerIndex + 1;
         final int fieldCount;
-        if (entry instanceof ObjectEntry objEntry) {
+        if (entry instanceof ESONEntry.ObjectEntry objEntry) {
             fieldCount = objEntry.fieldCount;
         } else {
-            fieldCount = ((ArrayEntry) entry).elementCount;
+            fieldCount = ((ESONEntry.ArrayEntry) entry).elementCount;
         }
 
         for (int i = 0; i < fieldCount; i++) {
-            KeyEntry fieldKeyEntry = keyArray.get(index);
-            if (fieldKeyEntry instanceof FieldEntry) {
+            ESONEntry fieldESONEntry = keyArray.get(index);
+            if (fieldESONEntry instanceof ESONEntry.FieldEntry) {
                 index++;
             } else {
-                index = skipContainer(keyArray, fieldKeyEntry, index);
+                index = skipContainer(keyArray, fieldESONEntry, index);
             }
         }
 
@@ -894,7 +805,7 @@ public class ESONSource {
     }
 
     public static ESONObject flatten(ESONObject original) {
-        List<KeyEntry> flatKeyArray = new ArrayList<>(original.getKeyArray().size());
+        List<ESONEntry> flatKeyArray = new ArrayList<>(original.getKeyArray().size());
 
         // Start flattening from the root object
         flattenObject(original, null, flatKeyArray);
@@ -906,9 +817,9 @@ public class ESONSource {
     /**
      * Recursively flattens an ESONObject into the flat key array
      */
-    private static void flattenObject(ESONObject obj, String objectFieldName, List<KeyEntry> flatKeyArray) {
+    private static void flattenObject(ESONObject obj, String objectFieldName, List<ESONEntry> flatKeyArray) {
         // Create new ObjectEntry for this object
-        ObjectEntry newObjEntry = new ObjectEntry(objectFieldName);
+        ESONEntry.ObjectEntry newObjEntry = new ESONEntry.ObjectEntry(objectFieldName);
         flatKeyArray.add(newObjEntry);
 
         // Check if object has mutations
@@ -920,21 +831,21 @@ public class ESONSource {
             int fieldCount = 0;
 
             for (int i = 0; i < obj.objEntry.fieldCount; i++) {
-                KeyEntry entry = obj.keyArray.get(currentIndex);
+                ESONEntry entry = obj.keyArray.get(currentIndex);
 
-                if (entry instanceof FieldEntry fieldEntry) {
+                if (entry instanceof ESONEntry.FieldEntry fieldEntry) {
                     // Copy field entry as-is
                     flatKeyArray.add(fieldEntry);
                     currentIndex++;
                     fieldCount++;
-                } else if (entry instanceof ObjectEntry) {
+                } else if (entry instanceof ESONEntry.ObjectEntry) {
                     // Nested object - create new ESONObject and flatten recursively
                     ESONObject nestedObj = new ESONObject(currentIndex, obj.keyArray, obj.values);
                     flattenObject(nestedObj, entry.key(), flatKeyArray);
                     // TODO: Remove Need to skip container
                     currentIndex = skipContainer(obj.keyArray, entry, currentIndex);
                     fieldCount++;
-                } else if (entry instanceof ArrayEntry) {
+                } else if (entry instanceof ESONEntry.ArrayEntry) {
                     // Nested array - create new ESONArray and flatten recursively
                     ESONArray nestedArr = new ESONArray(currentIndex, obj.keyArray, obj.values);
                     flattenArray(nestedArr, entry.key(), flatKeyArray);
@@ -971,7 +882,7 @@ public class ESONSource {
                     }
                     case null, default -> {
                         // Regular type (FixedValue, VariableValue, NullValue) - create field entry
-                        flatKeyArray.add(new FieldEntry(key, type));
+                        flatKeyArray.add(new ESONEntry.FieldEntry(key, type));
                         fieldCount++;
                     }
                 }
@@ -981,9 +892,9 @@ public class ESONSource {
         }
     }
 
-    private static void handleObject(List<KeyEntry> flatKeyArray, Object object, String key) {
+    private static void handleObject(List<ESONEntry> flatKeyArray, Object object, String key) {
         if (object instanceof Map<?, ?> map) {
-            ObjectEntry objectEntry = new ObjectEntry(key);
+            ESONEntry.ObjectEntry objectEntry = new ESONEntry.ObjectEntry(key);
             flatKeyArray.add(objectEntry);
             objectEntry.fieldCount = map.size();
             for (Map.Entry<?, ?> entry1 : map.entrySet()) {
@@ -991,14 +902,14 @@ public class ESONSource {
                 handleObject(flatKeyArray, value, entry1.getKey().toString());
             }
         } else if (object instanceof List<?> list) {
-            ArrayEntry arrayEntry = new ArrayEntry(key);
+            ESONEntry.ArrayEntry arrayEntry = new ESONEntry.ArrayEntry(key);
             flatKeyArray.add(arrayEntry);
             arrayEntry.elementCount = list.size();
             for (Object value : list) {
                 handleObject(flatKeyArray, value, null);
             }
         } else {
-            flatKeyArray.add(new FieldEntry(key, ensureOneLevelMutation(object)));
+            flatKeyArray.add(new ESONEntry.FieldEntry(key, ensureOneLevelMutation(object)));
         }
     }
 
@@ -1015,9 +926,9 @@ public class ESONSource {
     /**
      * Recursively flattens an ESONArray into the flat key array
      */
-    private static void flattenArray(ESONArray arr, String arrayFieldName, List<KeyEntry> flatKeyArray) {
+    private static void flattenArray(ESONArray arr, String arrayFieldName, List<ESONEntry> flatKeyArray) {
         // Create new ArrayEntry for this array
-        ArrayEntry newArrEntry = new ArrayEntry(arrayFieldName);
+        ESONEntry.ArrayEntry newArrEntry = new ESONEntry.ArrayEntry(arrayFieldName);
         flatKeyArray.add(newArrEntry);
 
         // Check if array has mutations
@@ -1029,20 +940,20 @@ public class ESONSource {
             int elementCount = 0;
 
             for (int i = 0; i < arr.arrEntry.elementCount; i++) {
-                KeyEntry entry = arr.keyArray.get(currentIndex);
+                ESONEntry entry = arr.keyArray.get(currentIndex);
 
-                if (entry instanceof FieldEntry fieldEntry) {
+                if (entry instanceof ESONEntry.FieldEntry fieldEntry) {
                     // Copy field entry as-is (array element)
                     flatKeyArray.add(fieldEntry);
                     currentIndex++;
                     elementCount++;
-                } else if (entry instanceof ObjectEntry) {
+                } else if (entry instanceof ESONEntry.ObjectEntry) {
                     // Nested object - create new ESONObject and flatten recursively
                     ESONObject nestedObj = new ESONObject(currentIndex, arr.keyArray, arr.values);
                     flattenObject(nestedObj, null, flatKeyArray);
                     currentIndex = skipContainer(arr.keyArray, entry, currentIndex);
                     elementCount++;
-                } else if (entry instanceof ArrayEntry) {
+                } else if (entry instanceof ESONEntry.ArrayEntry) {
                     // Nested array - create new ESONArray and flatten recursively
                     ESONArray nestedArr = new ESONArray(currentIndex, arr.keyArray, arr.values);
                     flattenArray(nestedArr, null, flatKeyArray);
@@ -1058,7 +969,7 @@ public class ESONSource {
                 switch (type) {
                     case Mutation mutation -> {
                         // This is a mutated element - create new FieldEntry with mutation
-                        flatKeyArray.add(new FieldEntry(null, mutation));
+                        flatKeyArray.add(new ESONEntry.FieldEntry(null, mutation));
                         elementCount++;
                     }
                     case ESONObject nestedObj -> {
@@ -1073,7 +984,7 @@ public class ESONSource {
                     }
                     case null, default -> {
                         // Regular type (FixedValue, VariableValue, NullValue) - create field entry
-                        flatKeyArray.add(new FieldEntry(null, type));
+                        flatKeyArray.add(new ESONEntry.FieldEntry(null, type));
                         elementCount++;
                     }
                 }

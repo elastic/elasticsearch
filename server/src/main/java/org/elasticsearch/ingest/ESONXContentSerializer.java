@@ -46,9 +46,9 @@ public class ESONXContentSerializer {
      */
     public static XContentBuilder flattenToXContent(ESONSource.ESONObject rootObject, XContentBuilder builder, ToXContent.Params params)
         throws IOException {
-        List<ESONSource.KeyEntry> keyArray = rootObject.getKeyArray();
+        List<ESONEntry> keyArray = rootObject.getKeyArray();
         ESONSource.Values values = rootObject.objectValues();
-        ESONSource.ObjectEntry rootObjEntry = (ESONSource.ObjectEntry) keyArray.get(0);
+        ESONEntry.ObjectEntry rootObjEntry = (ESONEntry.ObjectEntry) keyArray.get(0);
 
         Deque<ContainerState> containerStack = new ArrayDeque<>();
 
@@ -59,7 +59,7 @@ public class ESONXContentSerializer {
         int index = 1; // Skip root ObjectEntry at index 0
 
         while (index < keyArray.size() && containerStack.isEmpty() == false) {
-            ESONSource.KeyEntry entry = keyArray.get(index);
+            ESONEntry entry = keyArray.get(index);
             ContainerState currentContainer = containerStack.peek();
 
             // Check if we need to close any containers
@@ -84,7 +84,7 @@ public class ESONXContentSerializer {
             }
 
             // Process the current entry
-            if (entry instanceof ESONSource.FieldEntry fieldEntry) {
+            if (entry instanceof ESONEntry.FieldEntry fieldEntry) {
                 // Simple field with a value
                 if (currentContainer.isArray == false && fieldEntry.key() != null) {
                     builder.field(fieldEntry.key());
@@ -94,7 +94,7 @@ public class ESONXContentSerializer {
                 currentContainer.remainingFields--;
                 index++;
 
-            } else if (entry instanceof ESONSource.ObjectEntry objEntry) {
+            } else if (entry instanceof ESONEntry.ObjectEntry objEntry) {
                 // Nested object
                 if (currentContainer.isArray == false && objEntry.key() != null) {
                     builder.field(objEntry.key());
@@ -104,7 +104,7 @@ public class ESONXContentSerializer {
                 containerStack.push(new ContainerState(false, objEntry.fieldCount));
                 index++;
 
-            } else if (entry instanceof ESONSource.ArrayEntry arrEntry) {
+            } else if (entry instanceof ESONEntry.ArrayEntry arrEntry) {
                 // Nested array
                 if (currentContainer.isArray == false && arrEntry.key() != null) {
                     builder.field(arrEntry.key());

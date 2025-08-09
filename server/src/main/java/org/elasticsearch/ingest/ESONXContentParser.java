@@ -44,7 +44,7 @@ public class ESONXContentParser extends AbstractXContentParser {
     private final XContentType xContentType;
 
     // Key array iteration state
-    private final List<ESONSource.KeyEntry> keyArray;
+    private final List<ESONEntry> keyArray;
     private int currentIndex = 0;
 
     // Current token state
@@ -116,7 +116,7 @@ public class ESONXContentParser extends AbstractXContentParser {
         // First token - start root object
         if (currentToken == null) {
             assert size >= currentIndex;
-            ESONSource.ObjectEntry rootEntry = (ESONSource.ObjectEntry) keyArray.get(currentIndex);
+            ESONEntry.ObjectEntry rootEntry = (ESONEntry.ObjectEntry) keyArray.get(currentIndex);
             containerStack.push(new ContainerContext(ContainerContext.Type.OBJECT, rootEntry.fieldCount));
             currentIndex++;
             currentToken = Token.START_OBJECT;
@@ -137,7 +137,7 @@ public class ESONXContentParser extends AbstractXContentParser {
         assert size > currentIndex;
 
         // Process next entry
-        ESONSource.KeyEntry entry = keyArray.get(currentIndex);
+        ESONEntry entry = keyArray.get(currentIndex);
         ContainerContext currentContainer = containerStack.peek();
         assert currentContainer != null;
 
@@ -152,46 +152,46 @@ public class ESONXContentParser extends AbstractXContentParser {
         }
     }
 
-    private Token emitValue(ESONSource.KeyEntry entry) throws IOException {
+    private Token emitValue(ESONEntry entry) throws IOException {
         ContainerContext currentContainer = containerStack.peek();
         assert currentContainer != null;
         currentContainer.fieldsRemaining--;
         currentIndex++;
 
         currentToken = switch (entry.type()) {
-            case ESONSource.KeyEntry.TYPE_OBJECT -> {
+            case ESONEntry.TYPE_OBJECT -> {
                 // Starting a nested object
-                containerStack.push(new ContainerContext(ContainerContext.Type.OBJECT, ((ESONSource.ObjectEntry) entry).fieldCount));
+                containerStack.push(new ContainerContext(ContainerContext.Type.OBJECT, ((ESONEntry.ObjectEntry) entry).fieldCount));
                 yield Token.START_OBJECT;
             }
-            case ESONSource.KeyEntry.TYPE_ARRAY -> {
+            case ESONEntry.TYPE_ARRAY -> {
                 // Starting a nested array
-                containerStack.push(new ContainerContext(ContainerContext.Type.ARRAY, ((ESONSource.ArrayEntry) entry).elementCount));
+                containerStack.push(new ContainerContext(ContainerContext.Type.ARRAY, ((ESONEntry.ArrayEntry) entry).elementCount));
                 yield Token.START_ARRAY;
             }
-            case ESONSource.KeyEntry.TYPE_NULL -> {
-                currentType = ((ESONSource.FieldEntry) entry).value;
+            case ESONEntry.TYPE_NULL -> {
+                currentType = ((ESONEntry.FieldEntry) entry).value;
                 yield Token.VALUE_NULL;
             }
-            case ESONSource.KeyEntry.TYPE_TRUE, ESONSource.KeyEntry.TYPE_FALSE -> {
-                currentType = ((ESONSource.FieldEntry) entry).value;
+            case ESONEntry.TYPE_TRUE, ESONEntry.TYPE_FALSE -> {
+                currentType = ((ESONEntry.FieldEntry) entry).value;
                 yield Token.VALUE_BOOLEAN;
             }
-            case ESONSource.KeyEntry.TYPE_INT, ESONSource.KeyEntry.TYPE_LONG, ESONSource.KeyEntry.TYPE_FLOAT,
-                ESONSource.KeyEntry.TYPE_DOUBLE, ESONSource.KeyEntry.BIG_INTEGER, ESONSource.KeyEntry.BIG_DECIMAL -> {
-                currentType = ((ESONSource.FieldEntry) entry).value;
+            case ESONEntry.TYPE_INT, ESONEntry.TYPE_LONG, ESONEntry.TYPE_FLOAT,
+                 ESONEntry.TYPE_DOUBLE, ESONEntry.BIG_INTEGER, ESONEntry.BIG_DECIMAL -> {
+                currentType = ((ESONEntry.FieldEntry) entry).value;
                 yield Token.VALUE_NUMBER;
             }
-            case ESONSource.KeyEntry.STRING -> {
-                currentType = ((ESONSource.FieldEntry) entry).value;
+            case ESONEntry.STRING -> {
+                currentType = ((ESONEntry.FieldEntry) entry).value;
                 yield Token.VALUE_STRING;
             }
-            case ESONSource.KeyEntry.BINARY -> {
-                currentType = ((ESONSource.FieldEntry) entry).value;
+            case ESONEntry.BINARY -> {
+                currentType = ((ESONEntry.FieldEntry) entry).value;
                 yield Token.VALUE_EMBEDDED_OBJECT;
             }
             default -> {
-                currentType = ((ESONSource.FieldEntry) entry).value;
+                currentType = ((ESONEntry.FieldEntry) entry).value;
                 yield determineTokenFromObject(((ESONSource.Mutation) currentType).object());
             }
         };
@@ -291,7 +291,7 @@ public class ESONXContentParser extends AbstractXContentParser {
     @Override
     public XContentString optimizedText() throws IOException {
         // For strings, try to access raw bytes directly without materializing the string
-        if (currentType instanceof ESONSource.VariableValue varValue && varValue.type() == ESONSource.KeyEntry.STRING) {
+        if (currentType instanceof ESONSource.VariableValue varValue && varValue.type() == ESONEntry.STRING) {
             // Return XContentString with direct byte access (lazy string conversion)
             byte[] rawBytes;
             int offset;
@@ -319,7 +319,7 @@ public class ESONXContentParser extends AbstractXContentParser {
     @Override
     public boolean optimizedTextToStream(OutputStream out) throws IOException {
         // For strings, try to write raw bytes directly without materializing the string
-        if (currentType instanceof ESONSource.VariableValue varValue && varValue.type() == ESONSource.KeyEntry.STRING) {
+        if (currentType instanceof ESONSource.VariableValue varValue && varValue.type() == ESONEntry.STRING) {
             try {
                 // TODO: Can optimize more. Just not sure if this method needs to stay.
                 if (values.data().hasArray()) {

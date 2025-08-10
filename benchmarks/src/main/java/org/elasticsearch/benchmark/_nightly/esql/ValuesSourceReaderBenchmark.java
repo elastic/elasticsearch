@@ -23,6 +23,7 @@ import org.apache.lucene.store.ByteBuffersDirectory;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.NumericUtils;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.common.lucene.Lucene;
@@ -272,6 +273,13 @@ public class ValuesSourceReaderBenchmark {
             case STORED:
                 throw new UnsupportedOperationException();
         }
+        var settings = Settings.builder()
+            .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
+            .put("index.number_of_shards", 1)
+            .put("index.number_of_replicas", 0)
+            .build();
+        var indexMetadata = new IndexMetadata.Builder("index").settings(settings).build();
+        var indexSettings = new IndexSettings(indexMetadata, settings);
         return new NumberFieldMapper.NumberFieldType(
             w.name,
             numberType,
@@ -299,7 +307,7 @@ public class ValuesSourceReaderBenchmark {
 
             @Override
             public IndexSettings indexSettings() {
-                throw new UnsupportedOperationException();
+                return indexSettings;
             }
 
             @Override

@@ -23,7 +23,6 @@ import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.Point;
-import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.mapper.AbstractPointGeometryFieldMapper;

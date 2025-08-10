@@ -139,7 +139,7 @@ public class ESONXContentSerializer {
         } else if (type == ESONSource.ConstantValue.TRUE || type == ESONSource.ConstantValue.FALSE) {
             builder.value(type == ESONSource.ConstantValue.TRUE);
         } else if (type instanceof ESONSource.Mutation mutation) {
-            writeObject(builder, mutation.object(), params);
+            throw new IllegalStateException("Should not have mutation in flattened ESON " + mutation);
         } else if (type instanceof ESONSource.FixedValue fixed) {
             fixed.writeToXContent(builder, values);
         } else if (type instanceof ESONSource.VariableValue var) {

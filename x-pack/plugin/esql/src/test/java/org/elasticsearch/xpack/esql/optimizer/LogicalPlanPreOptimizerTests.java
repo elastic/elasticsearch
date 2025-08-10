@@ -7,44 +7,57 @@
 
 package org.elasticsearch.xpack.esql.optimizer;
 
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
-import org.elasticsearch.xpack.esql.core.expression.Alias;
-import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.expression.FoldContext;
-import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.expression.function.scalar.string.Concat;
-import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Add;
-import org.elasticsearch.xpack.esql.plan.logical.Eval;
-import org.elasticsearch.xpack.esql.plan.logical.Filter;
-import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.esql.plan.logical.Project;
 
-import java.util.List;
+import java.util.Arrays;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
-import static org.elasticsearch.xpack.esql.EsqlTestUtils.fieldAttribute;
-import static org.elasticsearch.xpack.esql.EsqlTestUtils.of;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 
-public class LogicalPlanPreOptimizerTests extends ESTestCase {
+public class LogicalPlanPreOptimizerTests extends AbstractLogicalPlanPreOptimizerTests {
 
+    private final TestEmbeddingModel embeddingModel;
+
+    public LogicalPlanPreOptimizerTests(TestEmbeddingModel embeddingModel) {
+        this.embeddingModel = embeddingModel;
+    }
+
+    @ParametersFactory(argumentFormatting = "%1$s")
+    public static Iterable<Object[]> parameters() {
+        return Arrays.stream(TestEmbeddingModel.values()).map(textEmbeddingModel -> new Object[] { textEmbeddingModel }).toList();
+    }
+
+    /**
+     * Tests that the pre-optimizer correctly marks plans as pre-optimized.
+     */
     public void testPlanIsMarkedAsPreOptimized() throws Exception {
         for (int round = 0; round < 100; round++) {
-            // We want to make sure that the pre-optimizer woks for a wide range of plans
-            preOptimizedPlan(randomPlan());
+            // Create a random plan for testing
+            LogicalPlan plan = randomPlan();
+            plan.setAnalyzed();
+
+            // Apply pre-optimization
+            preOptimizedPlan(preOptimizer(embeddingModel), plan);
         }
     }
 
-    public void testPreOptimizeFailsIfPlanIsNotAnalyzed() throws Exception {
+    /**
+     * Tests that the pre-optimizer fails when given a plan that is not analyzed.
+     */
+    public void testPreOptimizeFailsPlanIsNotAnalyzed() throws Exception {
+        // Create a plan that is not marked as analyzed
         LogicalPlan plan = EsqlTestUtils.relation();
         SetOnce<Exception> exceptionHolder = new SetOnce<>();
 
-        preOptimizer().preOptimize(plan, ActionListener.wrap(r -> fail("Should have failed"), exceptionHolder::set));
+        // Apply pre-optimization and expect failure
+        preOptimizer(embeddingModel).preOptimize(plan, ActionListener.wrap(r -> fail("Should have failed"), exceptionHolder::set));
         assertBusy(() -> {
             assertThat(exceptionHolder.get(), notNullValue());
             IllegalStateException e = as(exceptionHolder.get(), IllegalStateException.class);
@@ -52,59 +65,21 @@ public class LogicalPlanPreOptimizerTests extends ESTestCase {
         });
     }
 
-    public LogicalPlan preOptimizedPlan(LogicalPlan plan) throws Exception {
-        // set plan as analyzed
+    /**
+     * Executes pre-optimization on the given plan and returns the result.
+     */
+    protected LogicalPlan preOptimizedPlan(LogicalPlanPreOptimizer preOptimizer, LogicalPlan plan) throws Exception {
+        // set plan as analyzed to meet pre-optimizer requirements
         plan.setPreOptimized();
 
-        SetOnce<LogicalPlan> resultHolder = new SetOnce<>();
-        SetOnce<Exception> exceptionHolder = new SetOnce<>();
+        PlainActionFuture<LogicalPlan> logicalPlanFuture = new PlainActionFuture<>();
+        preOptimizer.preOptimize(plan, logicalPlanFuture);
 
-        preOptimizer().preOptimize(plan, ActionListener.wrap(resultHolder::set, exceptionHolder::set));
+        LogicalPlan preOptimized = logicalPlanFuture.get();
 
-        if (exceptionHolder.get() != null) {
-            throw exceptionHolder.get();
-        }
+        assertThat(preOptimized, notNullValue());
+        assertThat(preOptimized.preOptimized(), equalTo(true));
 
-        assertThat(resultHolder.get(), notNullValue());
-        assertThat(resultHolder.get().preOptimized(), equalTo(true));
-
-        return resultHolder.get();
-    }
-
-    private LogicalPlanPreOptimizer preOptimizer() {
-        LogicalPreOptimizerContext preOptimizerContext = new LogicalPreOptimizerContext(FoldContext.small());
-        return new LogicalPlanPreOptimizer(preOptimizerContext);
-    }
-
-    private LogicalPlan randomPlan() {
-        LogicalPlan plan = EsqlTestUtils.relation();
-        int numCommands = between(0, 100);
-
-        for (int i = 0; i < numCommands; i++) {
-            plan = switch (randomInt(3)) {
-                case 0 -> new Eval(Source.EMPTY, plan, List.of(new Alias(Source.EMPTY, randomIdentifier(), randomExpression())));
-                case 1 -> new Limit(Source.EMPTY, of(randomInt()), plan);
-                case 2 -> new Filter(Source.EMPTY, plan, randomCondition());
-                default -> new Project(Source.EMPTY, plan, List.of(new Alias(Source.EMPTY, randomIdentifier(), fieldAttribute())));
-            };
-        }
-        return plan;
-    }
-
-    private Expression randomExpression() {
-        return switch (randomInt(3)) {
-            case 0 -> of(randomInt());
-            case 1 -> of(randomIdentifier());
-            case 2 -> new Add(Source.EMPTY, of(randomInt()), of(randomDouble()));
-            default -> new Concat(Source.EMPTY, of(randomIdentifier()), randomList(1, 10, () -> of(randomIdentifier())));
-        };
-    }
-
-    private Expression randomCondition() {
-        if (randomBoolean()) {
-            return EsqlTestUtils.equalsOf(randomExpression(), randomExpression());
-        }
-
-        return EsqlTestUtils.greaterThanOf(randomExpression(), randomExpression());
+        return preOptimized;
     }
 }

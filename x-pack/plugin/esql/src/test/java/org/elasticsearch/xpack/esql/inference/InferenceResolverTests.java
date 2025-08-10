@@ -22,6 +22,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.xpack.core.inference.action.GetInferenceModelAction;
+import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.junit.After;
@@ -205,7 +206,7 @@ public class InferenceResolverTests extends ESTestCase {
     }
 
     private InferenceResolver inferenceResolver() {
-        return new InferenceResolver(mockClient());
+        return new InferenceResolver(mockClient(), new EsqlFunctionRegistry());
     }
 
     private static ModelConfigurations mockModelConfig(String inferenceId, TaskType taskType) {

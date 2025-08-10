@@ -308,6 +308,10 @@ public class CsvTests extends ESTestCase {
                 testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.KNN_FUNCTION_V3.capabilityName())
             );
             assumeFalse(
+                "can't use TEXT_EMBEDDING function in csv tests",
+                testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.TEXT_EMBEDDING_FUNCTION.capabilityName())
+            );
+            assumeFalse(
                 "lookup join disabled for csv tests",
                 testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.JOIN_LOOKUP_V12.capabilityName())
             );
@@ -584,7 +588,7 @@ public class CsvTests extends ESTestCase {
             null,
             null,
             null,
-            new LogicalPlanPreOptimizer(new LogicalPreOptimizerContext(foldCtx)),
+            new LogicalPlanPreOptimizer(EsqlTestUtils.MOCK_TRANSPORT_ACTION_SERVICES, new LogicalPreOptimizerContext(foldCtx)),
             functionRegistry,
             new LogicalPlanOptimizer(new LogicalOptimizerContext(configuration, foldCtx)),
             mapper,

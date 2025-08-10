@@ -25,7 +25,7 @@ import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
-import org.elasticsearch.ingest.ESONSource;
+import org.elasticsearch.ingest.ESONIndexed;
 import org.elasticsearch.ingest.ESONXContentParser;
 import org.elasticsearch.plugins.internal.XContentMeteringParserDecorator;
 import org.elasticsearch.search.lookup.SearchLookup;
@@ -128,7 +128,7 @@ public final class DocumentParser {
         if (structuredSource == null) {
             return XContentHelper.createParser(config, source.source(), xContentType);
         } else {
-            if (structuredSource instanceof ESONSource.ESONObject esonObject) {
+            if (structuredSource instanceof ESONIndexed.ESONObject esonObject) {
                 return new ESONXContentParser(esonObject, config.registry(), config.deprecationHandler(), xContentType);
             } else {
                 return new MapXContentParser(config.registry(), config.deprecationHandler(), structuredSource, xContentType);

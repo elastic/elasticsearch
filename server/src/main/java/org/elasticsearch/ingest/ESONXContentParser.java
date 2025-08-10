@@ -39,7 +39,7 @@ import java.util.List;
  */
 public class ESONXContentParser extends AbstractXContentParser {
 
-    private final ESONSource.ESONObject root;
+    private final ESONIndexed.ESONObject root;
     private final ESONSource.Values values;
     private final XContentType xContentType;
 
@@ -78,17 +78,17 @@ public class ESONXContentParser extends AbstractXContentParser {
     }
 
     public ESONXContentParser(
-        ESONSource.ESONObject root,
+        ESONIndexed.ESONObject root,
         NamedXContentRegistry registry,
         DeprecationHandler deprecationHandler,
         XContentType xContentType
     ) {
         super(registry, deprecationHandler);
         this.root = root;
-        this.values = root.objectValues();
+        this.values = root.esonFlat().values();
         this.xContentType = xContentType;
 
-        this.keyArray = root.getKeyArray();
+        this.keyArray = root.esonFlat().keys();
     }
 
     @Override
@@ -237,9 +237,9 @@ public class ESONXContentParser extends AbstractXContentParser {
             return fixed.getValue(values);
         } else if (type instanceof ESONSource.VariableValue var) {
             return var.getValue(values);
-        } else if (type instanceof ESONSource.ESONObject obj) {
+        } else if (type instanceof ESONIndexed.ESONObject obj) {
             return obj;
-        } else if (type instanceof ESONSource.ESONArray arr) {
+        } else if (type instanceof ESONIndexed.ESONArray arr) {
             return arr;
         }
 

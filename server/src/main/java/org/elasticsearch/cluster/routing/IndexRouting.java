@@ -30,7 +30,7 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.TimeSeriesRoutingHashFieldMapper;
-import org.elasticsearch.ingest.ESONSource;
+import org.elasticsearch.ingest.ESONIndexed;
 import org.elasticsearch.ingest.ESONXContentParser;
 import org.elasticsearch.transport.Transports;
 import org.elasticsearch.xcontent.DeprecationHandler;
@@ -104,7 +104,7 @@ public abstract class IndexRouting {
      */
     public abstract int indexShard(String id, @Nullable String routing, XContentType sourceType, BytesReference source);
 
-    public abstract int indexShard(String id, @Nullable String routing, XContentType sourceType, ESONSource.ESONObject structuredSource);
+    public abstract int indexShard(String id, @Nullable String routing, XContentType sourceType, ESONIndexed.ESONObject structuredSource);
 
     /**
      * Called when updating a document to generate the shard id that should contain
@@ -227,7 +227,7 @@ public abstract class IndexRouting {
         }
 
         @Override
-        public int indexShard(String id, String routing, XContentType sourceType, ESONSource.ESONObject structuredSource) {
+        public int indexShard(String id, String routing, XContentType sourceType, ESONIndexed.ESONObject structuredSource) {
             return indexShard(id, routing, sourceType, (BytesReference) null);
         }
 
@@ -354,7 +354,7 @@ public abstract class IndexRouting {
         }
 
         @Override
-        public int indexShard(String id, @Nullable String routing, XContentType sourceType, ESONSource.ESONObject structuredSource) {
+        public int indexShard(String id, @Nullable String routing, XContentType sourceType, ESONIndexed.ESONObject structuredSource) {
             assert Transports.assertNotTransportThread("parsing the _source can get slow");
             checkNoRouting(routing);
             try (

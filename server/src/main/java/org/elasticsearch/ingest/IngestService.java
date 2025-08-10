@@ -1430,8 +1430,8 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         // keeping the check and assert as a guard against extraordinarily surprising circumstances
         assert ensureNoSelfReferences == false;
         MapStructuredSource source = (MapStructuredSource) document.getSource();
-        ESONSource.ESONObject esonSource = (ESONSource.ESONObject) source.map();
-        request.setStructuredSource(ESONSource.flatten(esonSource));
+        ESONIndexed.ESONObject esonSource = (ESONIndexed.ESONObject) source.map();
+        request.setStructuredSource(ESONIndexed.flatten(esonSource));
     }
 
     /**

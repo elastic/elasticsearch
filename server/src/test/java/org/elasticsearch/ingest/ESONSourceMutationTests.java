@@ -43,7 +43,7 @@ public class ESONSourceMutationTests extends ESTestCase {
 
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, jsonString)) {
             ESONSource.Builder builder = new ESONSource.Builder();
-            ESONSource.ESONObject root = builder.parse(parser);
+            ESONIndexed.ESONObject root = builder.parse(parser);
 
             // Test in-place int modification
             Object oldIntValue = root.put("intField", 100);
@@ -92,7 +92,7 @@ public class ESONSourceMutationTests extends ESTestCase {
 
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, jsonString)) {
             ESONSource.Builder builder = new ESONSource.Builder();
-            ESONSource.ESONObject root = builder.parse(parser);
+            ESONIndexed.ESONObject root = builder.parse(parser);
 
             // Test type change modifications (should be tracked, not in-place)
             Object oldIntValue = root.put("intField", "forty-two");
@@ -128,7 +128,7 @@ public class ESONSourceMutationTests extends ESTestCase {
 
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, jsonString)) {
             ESONSource.Builder builder = new ESONSource.Builder();
-            ESONSource.ESONObject root = builder.parse(parser);
+            ESONIndexed.ESONObject root = builder.parse(parser);
 
             // Mix of in-place and tracked modifications
             root.put("intField", 100);              // In-place
@@ -162,7 +162,7 @@ public class ESONSourceMutationTests extends ESTestCase {
 
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, jsonString)) {
             ESONSource.Builder builder = new ESONSource.Builder();
-            ESONSource.ESONObject root = builder.parse(parser);
+            ESONIndexed.ESONObject root = builder.parse(parser);
 
             // Test removal
             Object removedValue = root.remove("field2");
@@ -190,10 +190,10 @@ public class ESONSourceMutationTests extends ESTestCase {
 
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, jsonString)) {
             ESONSource.Builder builder = new ESONSource.Builder();
-            ESONSource.ESONObject root = builder.parse(parser);
+            ESONIndexed.ESONObject root = builder.parse(parser);
 
             // Test array in-place modifications
-            ESONSource.ESONArray numbers = (ESONSource.ESONArray) root.get("numbers");
+            ESONIndexed.ESONArray numbers = (ESONIndexed.ESONArray) root.get("numbers");
             Object oldValue = numbers.set(0, 10);
             assertThat(oldValue, equalTo(1));
             assertThat(numbers.get(0), equalTo(10));
@@ -201,7 +201,7 @@ public class ESONSourceMutationTests extends ESTestCase {
             assertThat(numbers.get(2), equalTo(3));
 
             // Test array tracked modifications (type change)
-            ESONSource.ESONArray mixed = (ESONSource.ESONArray) root.get("mixed");
+            ESONIndexed.ESONArray mixed = (ESONIndexed.ESONArray) root.get("mixed");
             Object oldMixedValue = mixed.set(0, "forty-two");
             assertThat(oldMixedValue, equalTo(42));
             assertThat(mixed.get(0), equalTo("forty-two"));
@@ -210,7 +210,7 @@ public class ESONSourceMutationTests extends ESTestCase {
             assertThat((Double) mixed.get(3), equalTo(3.14d));
 
             // Test boolean array in-place modifications
-            ESONSource.ESONArray booleans = (ESONSource.ESONArray) root.get("booleans");
+            ESONIndexed.ESONArray booleans = (ESONIndexed.ESONArray) root.get("booleans");
             booleans.set(1, true);
             assertThat(booleans.get(0), equalTo(true));
             assertThat(booleans.get(1), equalTo(true));
@@ -235,10 +235,10 @@ public class ESONSourceMutationTests extends ESTestCase {
 
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, jsonString)) {
             ESONSource.Builder builder = new ESONSource.Builder();
-            ESONSource.ESONObject root = builder.parse(parser);
+            ESONIndexed.ESONObject root = builder.parse(parser);
 
             // Test nested object modifications
-            ESONSource.ESONObject user = (ESONSource.ESONObject) root.get("user");
+            ESONIndexed.ESONObject user = (ESONIndexed.ESONObject) root.get("user");
             user.put("name", "Jane");           // Tracked (variable length)
             user.put("age", 25);                // In-place
             user.put("active", false);          // In-place
@@ -252,7 +252,7 @@ public class ESONSourceMutationTests extends ESTestCase {
             assertThat(user.get("email"), equalTo("jane@example.com"));
 
             // Verify other nested object is unchanged
-            ESONSource.ESONObject settings = (ESONSource.ESONObject) root.get("settings");
+            ESONIndexed.ESONObject settings = (ESONIndexed.ESONObject) root.get("settings");
             assertThat(settings.get("theme"), equalTo("dark"));
             assertThat(settings.get("notifications"), equalTo(true));
         }
@@ -276,13 +276,13 @@ public class ESONSourceMutationTests extends ESTestCase {
 
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, jsonString)) {
             ESONSource.Builder builder = new ESONSource.Builder();
-            ESONSource.ESONObject root = builder.parse(parser);
+            ESONIndexed.ESONObject root = builder.parse(parser);
 
             // Navigate to nested structures
-            ESONSource.ESONObject data = (ESONSource.ESONObject) root.get("data");
-            ESONSource.ESONArray users = (ESONSource.ESONArray) data.get("users");
-            ESONSource.ESONObject user1 = (ESONSource.ESONObject) users.get(0);
-            ESONSource.ESONObject config = (ESONSource.ESONObject) data.get("config");
+            ESONIndexed.ESONObject data = (ESONIndexed.ESONObject) root.get("data");
+            ESONIndexed.ESONArray users = (ESONIndexed.ESONArray) data.get("users");
+            ESONIndexed.ESONObject user1 = (ESONIndexed.ESONObject) users.get(0);
+            ESONIndexed.ESONObject config = (ESONIndexed.ESONObject) data.get("config");
 
             // Test deep mutations
             user1.put("name", "Alice Smith");   // Tracked
@@ -300,7 +300,7 @@ public class ESONSourceMutationTests extends ESTestCase {
             assertThat(config.get("enabled"), equalTo(false));
 
             // Verify other user is unchanged
-            ESONSource.ESONObject user2 = (ESONSource.ESONObject) users.get(1);
+            ESONIndexed.ESONObject user2 = (ESONIndexed.ESONObject) users.get(1);
             assertThat(user2.get("name"), equalTo("Bob"));
             assertThat((Double) user2.get("score"), equalTo(87.2));
         }
@@ -317,7 +317,7 @@ public class ESONSourceMutationTests extends ESTestCase {
 
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, jsonString)) {
             ESONSource.Builder builder = new ESONSource.Builder();
-            ESONSource.ESONObject root = builder.parse(parser);
+            ESONIndexed.ESONObject root = builder.parse(parser);
 
             // Test putAll
             Map<String, Object> updates = new HashMap<>();
@@ -367,7 +367,7 @@ public class ESONSourceMutationTests extends ESTestCase {
 
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, jsonString)) {
             ESONSource.Builder builder = new ESONSource.Builder();
-            ESONSource.ESONObject root = builder.parse(parser);
+            ESONIndexed.ESONObject root = builder.parse(parser);
 
             // Verify initial state
             assertThat(root.get("field1"), equalTo(42));
@@ -397,7 +397,7 @@ public class ESONSourceMutationTests extends ESTestCase {
 
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, jsonString)) {
             ESONSource.Builder builder = new ESONSource.Builder();
-            ESONSource.ESONObject root = builder.parse(parser);
+            ESONIndexed.ESONObject root = builder.parse(parser);
 
             // Multiple writes to same field
             root.put("counter", 1);
@@ -444,10 +444,10 @@ public class ESONSourceMutationTests extends ESTestCase {
 
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, jsonString)) {
             ESONSource.Builder builder = new ESONSource.Builder();
-            ESONSource.ESONObject root = builder.parse(parser);
+            ESONIndexed.ESONObject root = builder.parse(parser);
 
-            ESONSource.ESONArray numbers = (ESONSource.ESONArray) root.get("numbers");
-            ESONSource.ESONArray empty = (ESONSource.ESONArray) root.get("empty");
+            ESONIndexed.ESONArray numbers = (ESONIndexed.ESONArray) root.get("numbers");
+            ESONIndexed.ESONArray empty = (ESONIndexed.ESONArray) root.get("empty");
 
             // Test add() method
             numbers.add(4);
@@ -484,9 +484,9 @@ public class ESONSourceMutationTests extends ESTestCase {
 
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, jsonString)) {
             ESONSource.Builder builder = new ESONSource.Builder();
-            ESONSource.ESONObject root = builder.parse(parser);
+            ESONIndexed.ESONObject root = builder.parse(parser);
 
-            ESONSource.ESONArray items = (ESONSource.ESONArray) root.get("items");
+            ESONIndexed.ESONArray items = (ESONIndexed.ESONArray) root.get("items");
 
             // Test remove by index
             Object removed = items.remove(2);
@@ -524,9 +524,9 @@ public class ESONSourceMutationTests extends ESTestCase {
 
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, jsonString)) {
             ESONSource.Builder builder = new ESONSource.Builder();
-            ESONSource.ESONObject root = builder.parse(parser);
+            ESONIndexed.ESONObject root = builder.parse(parser);
 
-            ESONSource.ESONArray items = (ESONSource.ESONArray) root.get("items");
+            ESONIndexed.ESONArray items = (ESONIndexed.ESONArray) root.get("items");
 
             // Test iterator basic functionality
             Iterator<Object> iterator = items.iterator();
@@ -575,7 +575,7 @@ public class ESONSourceMutationTests extends ESTestCase {
 
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, jsonString)) {
             ESONSource.Builder builder = new ESONSource.Builder();
-            ESONSource.ESONObject root = builder.parse(parser);
+            ESONIndexed.ESONObject root = builder.parse(parser);
 
             Set<Map.Entry<String, Object>> entrySet = root.entrySet();
             assertThat(entrySet.size(), equalTo(4));
@@ -609,7 +609,7 @@ public class ESONSourceMutationTests extends ESTestCase {
 
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, jsonString)) {
             ESONSource.Builder builder = new ESONSource.Builder();
-            ESONSource.ESONObject root = builder.parse(parser);
+            ESONIndexed.ESONObject root = builder.parse(parser);
 
             Set<Map.Entry<String, Object>> entrySet = root.entrySet();
 
@@ -643,7 +643,7 @@ public class ESONSourceMutationTests extends ESTestCase {
 
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, jsonString)) {
             ESONSource.Builder builder = new ESONSource.Builder();
-            ESONSource.ESONObject root = builder.parse(parser);
+            ESONIndexed.ESONObject root = builder.parse(parser);
 
             Set<Map.Entry<String, Object>> entrySet = root.entrySet();
 
@@ -680,7 +680,7 @@ public class ESONSourceMutationTests extends ESTestCase {
 
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, jsonString)) {
             ESONSource.Builder builder = new ESONSource.Builder();
-            ESONSource.ESONObject root = builder.parse(parser);
+            ESONIndexed.ESONObject root = builder.parse(parser);
 
             Collection<Object> values = root.values();
 
@@ -720,9 +720,9 @@ public class ESONSourceMutationTests extends ESTestCase {
 
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, jsonString)) {
             ESONSource.Builder builder = new ESONSource.Builder();
-            ESONSource.ESONObject root = builder.parse(parser);
+            ESONIndexed.ESONObject root = builder.parse(parser);
 
-            ESONSource.ESONArray items = (ESONSource.ESONArray) root.get("items");
+            ESONIndexed.ESONArray items = (ESONIndexed.ESONArray) root.get("items");
 
             // Test subList functionality
             List<Object> subList = items.subList(2, 5);
@@ -755,11 +755,11 @@ public class ESONSourceMutationTests extends ESTestCase {
     //
     // try (XContentParser parser = createParser(JsonXContent.jsonXContent, jsonString)) {
     // ESONSource.Builder builder = new ESONSource.Builder();
-    // ESONSource.ESONObject root = builder.parse(parser);
+    // ESONIndexed.ESONObject root = builder.parse(parser);
     //
-    // ESONSource.ESONArray matrix = (ESONSource.ESONArray) root.get("matrix");
-    // ESONSource.ESONArray row1 = (ESONSource.ESONArray) matrix.get(0);
-    // ESONSource.ESONArray row2 = (ESONSource.ESONArray) matrix.get(1);
+    // ESONIndexed.ESONArray matrix = (ESONIndexed.ESONArray) root.get("matrix");
+    // ESONIndexed.ESONArray row1 = (ESONIndexed.ESONArray) matrix.get(0);
+    // ESONIndexed.ESONArray row2 = (ESONIndexed.ESONArray) matrix.get(1);
     //
     // // Test nested array mutations
     // row1.set(1, 99);
@@ -770,14 +770,14 @@ public class ESONSourceMutationTests extends ESTestCase {
     // assertThat(row2.get(3), equalTo(100));
     //
     // // Test adding new row
-    // ESONSource.ESONArray newRow = new ESONSource.ESONArray(
-    // List.of(new ESONSource.Mutation(10), new ESONSource.Mutation(11), new ESONSource.Mutation(12)),
+    // ESONIndexed.ESONArray newRow = new ESONIndexed.ESONArray(
+    // List.of(new ESONIndexed.Mutation(10), new ESONIndexed.Mutation(11), new ESONIndexed.Mutation(12)),
     // root.objectValues()
     // );
     // matrix.add(newRow);
     // assertThat(matrix.size(), equalTo(4));
     //
-    // ESONSource.ESONArray addedRow = (ESONSource.ESONArray) matrix.get(3);
+    // ESONIndexed.ESONArray addedRow = (ESONIndexed.ESONArray) matrix.get(3);
     // assertThat(addedRow.get(0), equalTo(10));
     // assertThat(addedRow.get(1), equalTo(11));
     // assertThat(addedRow.get(2), equalTo(12));
@@ -794,7 +794,7 @@ public class ESONSourceMutationTests extends ESTestCase {
 
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, jsonString)) {
             ESONSource.Builder builder = new ESONSource.Builder();
-            ESONSource.ESONObject root = builder.parse(parser);
+            ESONIndexed.ESONObject root = builder.parse(parser);
 
             // Test entry equals and hashCode after mutations
             root.put("field1", 100);
@@ -836,9 +836,9 @@ public class ESONSourceMutationTests extends ESTestCase {
 
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, jsonString)) {
             ESONSource.Builder builder = new ESONSource.Builder();
-            ESONSource.ESONObject root = builder.parse(parser);
+            ESONIndexed.ESONObject root = builder.parse(parser);
 
-            ESONSource.ESONArray items = (ESONSource.ESONArray) root.get("items");
+            ESONIndexed.ESONArray items = (ESONIndexed.ESONArray) root.get("items");
 
             // Test boundary conditions
             assertThrows(IndexOutOfBoundsException.class, () -> items.get(3));
@@ -876,7 +876,7 @@ public class ESONSourceMutationTests extends ESTestCase {
 
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, jsonString)) {
             ESONSource.Builder builder = new ESONSource.Builder();
-            ESONSource.ESONObject root = builder.parse(parser);
+            ESONIndexed.ESONObject root = builder.parse(parser);
 
             Set<String> keySet = root.keySet();
             assertThat(keySet.size(), equalTo(3));
@@ -914,7 +914,7 @@ public class ESONSourceMutationTests extends ESTestCase {
 
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, jsonString)) {
             ESONSource.Builder builder = new ESONSource.Builder();
-            ESONSource.ESONObject root = builder.parse(parser);
+            ESONIndexed.ESONObject root = builder.parse(parser);
 
             assertThat(root.isEmpty(), equalTo(false));
 
@@ -939,10 +939,10 @@ public class ESONSourceMutationTests extends ESTestCase {
 
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, jsonString)) {
             ESONSource.Builder builder = new ESONSource.Builder();
-            ESONSource.ESONObject root = builder.parse(parser);
+            ESONIndexed.ESONObject root = builder.parse(parser);
 
-            ESONSource.ESONArray items = (ESONSource.ESONArray) root.get("items");
-            ESONSource.ESONArray empty = (ESONSource.ESONArray) root.get("empty");
+            ESONIndexed.ESONArray items = (ESONIndexed.ESONArray) root.get("items");
+            ESONIndexed.ESONArray empty = (ESONIndexed.ESONArray) root.get("empty");
 
             assertThat(items.isEmpty(), equalTo(false));
             assertThat(empty.isEmpty(), equalTo(true));

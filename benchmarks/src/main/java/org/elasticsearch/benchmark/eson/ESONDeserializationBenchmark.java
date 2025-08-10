@@ -15,6 +15,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.ingest.ESONIndexed;
 import org.elasticsearch.ingest.ESONSource;
 import org.elasticsearch.ingest.ESONXContentSerializer;
 import org.elasticsearch.xcontent.ToXContent;
@@ -54,7 +55,7 @@ public class ESONDeserializationBenchmark {
     private BytesReference source;
     private BytesReference cborSource;
     private Map<String, Object> map;
-    private ESONSource.ESONObject esonObject;
+    private ESONIndexed.ESONObject esonObject;
 
     private final Recycler<BytesRef> refRecycler = new Recycler<>() {
         @Override
@@ -130,7 +131,7 @@ public class ESONDeserializationBenchmark {
     @Benchmark
     public void writeJSONFromESONFlatten(Blackhole bh) throws IOException {
         XContentBuilder builder = XContentFactory.contentBuilder(JsonXContent.jsonXContent.type());
-        ESONXContentSerializer.flattenToXContent(esonObject, builder, ToXContent.EMPTY_PARAMS);
+        ESONXContentSerializer.flattenToXContent(esonObject.esonFlat(), builder, ToXContent.EMPTY_PARAMS);
         BytesReference bytes = BytesReference.bytes(builder);
         bh.consume(bytes);
     }
@@ -152,7 +153,7 @@ public class ESONDeserializationBenchmark {
                 source.length()
             )
         ) {
-            ESONSource.ESONObject eson = new ESONSource.Builder().parse(parser);
+            ESONIndexed.ESONObject eson = new ESONSource.Builder().parse(parser);
             bh.consume(eson);
         }
     }

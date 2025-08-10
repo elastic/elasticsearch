@@ -12,6 +12,7 @@ package org.elasticsearch.benchmark;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.ingest.ESONIndexed;
 import org.elasticsearch.ingest.ESONSource;
 import org.elasticsearch.plugins.internal.XContentParserDecorator;
 import org.elasticsearch.test.ESTestCase;
@@ -48,7 +49,7 @@ public class ESONSourceBenchmarkTests extends ESTestCase {
                 source.length()
             )
         ) {
-            ESONSource.ESONObject root = new ESONSource.Builder().parse(parser);
+            ESONIndexed.ESONObject root = new ESONSource.Builder().parse(parser);
             System.err.println(root);
             XContentBuilder builder = XContentFactory.contentBuilder(JsonXContent.jsonXContent.type());
             root.toXContent(builder, ToXContent.EMPTY_PARAMS);

@@ -38,6 +38,7 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.ingest.ESONIndexed;
 import org.elasticsearch.ingest.ESONSource;
 import org.elasticsearch.ingest.ESONXContentSerializer;
 import org.elasticsearch.ingest.IngestService;
@@ -104,7 +105,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
     private String routing;
 
     private BytesReference source;
-    private ESONSource.ESONObject structuredSource;
+    private ESONIndexed.ESONObject structuredSource;
     private boolean useStructuredSource = false;
 
     private OpType opType = OpType.INDEX;
@@ -422,11 +423,11 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
         return source;
     }
 
-    public void setStructuredSource(ESONSource.ESONObject esonSource) {
+    public void setStructuredSource(ESONIndexed.ESONObject esonSource) {
         this.useStructuredSource = true;
         this.structuredSource = esonSource;
         try (XContentBuilder builder = XContentFactory.contentBuilder(contentType)) {
-            ESONXContentSerializer.flattenToXContent(esonSource, builder, ToXContent.EMPTY_PARAMS);
+            ESONXContentSerializer.flattenToXContent(esonSource.esonFlat(), builder, ToXContent.EMPTY_PARAMS);
             source = BytesReference.bytes(builder);
         } catch (IOException e) {
             throw new UncheckedIOException(e);
@@ -453,7 +454,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
         return useStructuredSource;
     }
 
-    public ESONSource.ESONObject structuredSource() {
+    public ESONIndexed.ESONObject structuredSource() {
         return structuredSource;
     }
 

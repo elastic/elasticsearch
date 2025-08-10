@@ -34,7 +34,7 @@ public class ESONSourceTests extends ESTestCase {
 
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, jsonString)) {
             ESONSource.Builder builder = new ESONSource.Builder();
-            ESONSource.ESONObject source = builder.parse(parser);
+            ESONIndexed.ESONObject source = builder.parse(parser);
 
             // Test integer
             assertThat(source.get("intField"), equalTo(42));
@@ -78,10 +78,10 @@ public class ESONSourceTests extends ESTestCase {
 
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, jsonString)) {
             ESONSource.Builder builder = new ESONSource.Builder();
-            ESONSource.ESONObject source = builder.parse(parser);
+            ESONIndexed.ESONObject source = builder.parse(parser);
 
             // Test mixed array using List<Object> interface
-            ESONSource.ESONArray mixedArray = (ESONSource.ESONArray) source.get("mixedArray");
+            ESONIndexed.ESONArray mixedArray = (ESONIndexed.ESONArray) source.get("mixedArray");
             assertThat(mixedArray.size(), equalTo(5));
             assertThat(mixedArray.get(0), equalTo(1));
             assertThat(mixedArray.get(1), equalTo("string"));
@@ -91,21 +91,21 @@ public class ESONSourceTests extends ESTestCase {
             assertThat((Double) mixedArray.get(4), equalTo(3.14));
 
             // Test number array
-            ESONSource.ESONArray numberArray = (ESONSource.ESONArray) source.get("numberArray");
+            ESONIndexed.ESONArray numberArray = (ESONIndexed.ESONArray) source.get("numberArray");
             assertThat(numberArray.size(), equalTo(3));
             assertThat(numberArray.get(0), equalTo(10));
             assertThat(numberArray.get(1), equalTo(20));
             assertThat(numberArray.get(2), equalTo(30));
 
             // Test string array
-            ESONSource.ESONArray stringArray = (ESONSource.ESONArray) source.get("stringArray");
+            ESONIndexed.ESONArray stringArray = (ESONIndexed.ESONArray) source.get("stringArray");
             assertThat(stringArray.size(), equalTo(3));
             assertThat(stringArray.get(0), equalTo("a"));
             assertThat(stringArray.get(1), equalTo("b"));
             assertThat(stringArray.get(2), equalTo("c"));
 
             // Test empty array
-            ESONSource.ESONArray emptyArray = (ESONSource.ESONArray) source.get("emptyArray");
+            ESONIndexed.ESONArray emptyArray = (ESONIndexed.ESONArray) source.get("emptyArray");
             assertThat(emptyArray.size(), equalTo(0));
             assertThat(emptyArray.isEmpty(), equalTo(true));
         }
@@ -130,22 +130,22 @@ public class ESONSourceTests extends ESTestCase {
 
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, jsonString)) {
             ESONSource.Builder builder = new ESONSource.Builder();
-            ESONSource.ESONObject source = builder.parse(parser);
+            ESONIndexed.ESONObject source = builder.parse(parser);
 
             // Test nested object
-            ESONSource.ESONObject user = (ESONSource.ESONObject) source.get("user");
+            ESONIndexed.ESONObject user = (ESONIndexed.ESONObject) source.get("user");
             assertThat(user.get("name"), equalTo("John Doe"));
             assertThat(user.get("age"), equalTo(30));
             assertThat(user.get("active"), equalTo(true));
 
             // Test deeply nested object
-            ESONSource.ESONObject address = (ESONSource.ESONObject) user.get("address");
+            ESONIndexed.ESONObject address = (ESONIndexed.ESONObject) user.get("address");
             assertThat(address.get("street"), equalTo("123 Main St"));
             assertThat(address.get("city"), equalTo("Springfield"));
             assertThat(address.get("zipcode"), equalTo("12345"));
 
             // Test empty object
-            ESONSource.ESONObject emptyObject = (ESONSource.ESONObject) source.get("emptyObject");
+            ESONIndexed.ESONObject emptyObject = (ESONIndexed.ESONObject) source.get("emptyObject");
             assertThat(emptyObject.size(), equalTo(0));
             assertThat(emptyObject.isEmpty(), equalTo(true));
         }
@@ -180,31 +180,31 @@ public class ESONSourceTests extends ESTestCase {
 
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, jsonString)) {
             ESONSource.Builder builder = new ESONSource.Builder();
-            ESONSource.ESONObject source = builder.parse(parser);
+            ESONIndexed.ESONObject source = builder.parse(parser);
 
             // Test metadata object
-            ESONSource.ESONObject metadata = (ESONSource.ESONObject) source.get("metadata");
+            ESONIndexed.ESONObject metadata = (ESONIndexed.ESONObject) source.get("metadata");
             assertThat(metadata.get("version"), equalTo(1));
             assertThat(metadata.get("created"), equalTo("2024-01-01"));
 
             // Test users array
-            ESONSource.ESONArray users = (ESONSource.ESONArray) source.get("users");
+            ESONIndexed.ESONArray users = (ESONIndexed.ESONArray) source.get("users");
             assertThat(users.size(), equalTo(2));
 
             // Test first user
-            ESONSource.ESONObject user1 = (ESONSource.ESONObject) users.get(0);
+            ESONIndexed.ESONObject user1 = (ESONIndexed.ESONObject) users.get(0);
             assertThat(user1.get("id"), equalTo(1));
             assertThat(user1.get("name"), equalTo("Alice"));
 
-            ESONSource.ESONArray scores1 = (ESONSource.ESONArray) user1.get("scores");
+            ESONIndexed.ESONArray scores1 = (ESONIndexed.ESONArray) user1.get("scores");
             assertThat(scores1.size(), equalTo(3));
 
             // Test config object
-            ESONSource.ESONObject config = (ESONSource.ESONObject) source.get("config");
+            ESONIndexed.ESONObject config = (ESONIndexed.ESONObject) source.get("config");
             assertThat(config.get("enabled"), equalTo(true));
             assertThat(config.get("maxUsers"), equalTo(100));
 
-            ESONSource.ESONArray features = (ESONSource.ESONArray) config.get("features");
+            ESONIndexed.ESONArray features = (ESONIndexed.ESONArray) config.get("features");
             assertThat(features.size(), equalTo(3));
         }
     }
@@ -221,7 +221,7 @@ public class ESONSourceTests extends ESTestCase {
 
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, jsonString)) {
             ESONSource.Builder builder = new ESONSource.Builder();
-            ESONSource.ESONObject source = builder.parse(parser);
+            ESONIndexed.ESONObject source = builder.parse(parser);
 
             // Test Map interface methods
             assertThat(source.size(), equalTo(4));
@@ -259,7 +259,7 @@ public class ESONSourceTests extends ESTestCase {
 
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, jsonString)) {
             ESONSource.Builder builder = new ESONSource.Builder();
-            ESONSource.ESONObject source = builder.parse(parser);
+            ESONIndexed.ESONObject source = builder.parse(parser);
 
             assertThat(source.get("maxInt"), equalTo(Integer.MAX_VALUE));
             assertThat(source.get("minInt"), equalTo(Integer.MIN_VALUE));
@@ -285,18 +285,18 @@ public class ESONSourceTests extends ESTestCase {
 
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, jsonString)) {
             ESONSource.Builder builder = new ESONSource.Builder();
-            ESONSource.ESONObject source = builder.parse(parser);
+            ESONIndexed.ESONObject source = builder.parse(parser);
 
             assertThat(source.get("emptyString"), equalTo(""));
             assertThat(source.get("nullValue"), nullValue());
 
-            ESONSource.ESONArray emptyArray = (ESONSource.ESONArray) source.get("emptyArray");
+            ESONIndexed.ESONArray emptyArray = (ESONIndexed.ESONArray) source.get("emptyArray");
             assertThat(emptyArray.size(), equalTo(0));
 
-            ESONSource.ESONObject emptyObject = (ESONSource.ESONObject) source.get("emptyObject");
+            ESONIndexed.ESONObject emptyObject = (ESONIndexed.ESONObject) source.get("emptyObject");
             assertThat(emptyObject.size(), equalTo(0));
 
-            ESONSource.ESONArray arrayWithNulls = (ESONSource.ESONArray) source.get("arrayWithNulls");
+            ESONIndexed.ESONArray arrayWithNulls = (ESONIndexed.ESONArray) source.get("arrayWithNulls");
             assertThat(arrayWithNulls.size(), equalTo(3));
             assertThat(arrayWithNulls.get(0), nullValue());
             assertThat(arrayWithNulls.get(2), nullValue());
@@ -312,9 +312,9 @@ public class ESONSourceTests extends ESTestCase {
 
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, jsonString)) {
             ESONSource.Builder builder = new ESONSource.Builder();
-            ESONSource.ESONObject source = builder.parse(parser);
+            ESONIndexed.ESONObject source = builder.parse(parser);
 
-            ESONSource.ESONArray array = (ESONSource.ESONArray) source.get("testArray");
+            ESONIndexed.ESONArray array = (ESONIndexed.ESONArray) source.get("testArray");
 
             // Test List interface methods
             assertThat(array.size(), equalTo(6));
@@ -364,36 +364,36 @@ public class ESONSourceTests extends ESTestCase {
 
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, jsonString)) {
             ESONSource.Builder builder = new ESONSource.Builder();
-            ESONSource.ESONObject source = builder.parse(parser);
+            ESONIndexed.ESONObject source = builder.parse(parser);
 
             // Test matrix (regular 2D array)
-            ESONSource.ESONArray matrix = (ESONSource.ESONArray) source.get("matrix");
+            ESONIndexed.ESONArray matrix = (ESONIndexed.ESONArray) source.get("matrix");
             assertThat(matrix.size(), equalTo(3));
 
-            ESONSource.ESONArray row1 = (ESONSource.ESONArray) matrix.get(0);
+            ESONIndexed.ESONArray row1 = (ESONIndexed.ESONArray) matrix.get(0);
             assertThat(row1.get(0), equalTo(1));
             assertThat(row1.get(1), equalTo(2));
             assertThat(row1.get(2), equalTo(3));
 
-            ESONSource.ESONArray row2 = (ESONSource.ESONArray) matrix.get(1);
+            ESONIndexed.ESONArray row2 = (ESONIndexed.ESONArray) matrix.get(1);
             assertThat(row2.get(0), equalTo(4));
             assertThat(row2.get(1), equalTo(5));
             assertThat(row2.get(2), equalTo(6));
 
             // Test jagged array (different row sizes)
-            ESONSource.ESONArray jagged = (ESONSource.ESONArray) source.get("jagged");
+            ESONIndexed.ESONArray jagged = (ESONIndexed.ESONArray) source.get("jagged");
             assertThat(jagged.size(), equalTo(3));
 
-            ESONSource.ESONArray jaggedRow1 = (ESONSource.ESONArray) jagged.get(0);
+            ESONIndexed.ESONArray jaggedRow1 = (ESONIndexed.ESONArray) jagged.get(0);
             assertThat(jaggedRow1.size(), equalTo(1));
             assertThat(jaggedRow1.get(0), equalTo(1));
 
-            ESONSource.ESONArray jaggedRow2 = (ESONSource.ESONArray) jagged.get(1);
+            ESONIndexed.ESONArray jaggedRow2 = (ESONIndexed.ESONArray) jagged.get(1);
             assertThat(jaggedRow2.size(), equalTo(2));
             assertThat(jaggedRow2.get(0), equalTo(2));
             assertThat(jaggedRow2.get(1), equalTo(3));
 
-            ESONSource.ESONArray jaggedRow3 = (ESONSource.ESONArray) jagged.get(2);
+            ESONIndexed.ESONArray jaggedRow3 = (ESONIndexed.ESONArray) jagged.get(2);
             assertThat(jaggedRow3.size(), equalTo(4));
             assertThat(jaggedRow3.get(3), equalTo(7));
         }
@@ -412,23 +412,23 @@ public class ESONSourceTests extends ESTestCase {
 
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, jsonString)) {
             ESONSource.Builder builder = new ESONSource.Builder();
-            ESONSource.ESONObject source = builder.parse(parser);
+            ESONIndexed.ESONObject source = builder.parse(parser);
 
-            ESONSource.ESONArray items = (ESONSource.ESONArray) source.get("items");
+            ESONIndexed.ESONArray items = (ESONIndexed.ESONArray) source.get("items");
             assertThat(items.size(), equalTo(3));
 
             // Test first item
-            ESONSource.ESONObject item1 = (ESONSource.ESONObject) items.get(0);
+            ESONIndexed.ESONObject item1 = (ESONIndexed.ESONObject) items.get(0);
             assertThat(item1.get("id"), equalTo(1));
             assertThat(item1.get("name"), equalTo("item1"));
 
             // Test second item
-            ESONSource.ESONObject item2 = (ESONSource.ESONObject) items.get(1);
+            ESONIndexed.ESONObject item2 = (ESONIndexed.ESONObject) items.get(1);
             assertThat(item2.get("id"), equalTo(2));
             assertThat(item2.get("name"), equalTo("item2"));
 
             // Test third item
-            ESONSource.ESONObject item3 = (ESONSource.ESONObject) items.get(2);
+            ESONIndexed.ESONObject item3 = (ESONIndexed.ESONObject) items.get(2);
             assertThat(item3.get("id"), equalTo(3));
             assertThat(item3.get("name"), equalTo("item3"));
         }
@@ -453,9 +453,9 @@ public class ESONSourceTests extends ESTestCase {
 
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, jsonString)) {
             ESONSource.Builder builder = new ESONSource.Builder();
-            ESONSource.ESONObject source = builder.parse(parser);
+            ESONIndexed.ESONObject source = builder.parse(parser);
 
-            ESONSource.ESONArray complex = (ESONSource.ESONArray) source.get("complex");
+            ESONIndexed.ESONArray complex = (ESONIndexed.ESONArray) source.get("complex");
             assertThat(complex.size(), equalTo(6));
 
             // Test primitive values
@@ -463,24 +463,24 @@ public class ESONSourceTests extends ESTestCase {
             assertThat(complex.get(1), equalTo("string"));
 
             // Test nested array
-            ESONSource.ESONArray nestedArray = (ESONSource.ESONArray) complex.get(2);
+            ESONIndexed.ESONArray nestedArray = (ESONIndexed.ESONArray) complex.get(2);
             assertThat(nestedArray.size(), equalTo(3));
             assertThat(nestedArray.get(0), equalTo(1));
             assertThat(nestedArray.get(1), equalTo(2));
             assertThat(nestedArray.get(2), equalTo(3));
 
             // Test nested object
-            ESONSource.ESONObject nestedObject = (ESONSource.ESONObject) complex.get(3);
+            ESONIndexed.ESONObject nestedObject = (ESONIndexed.ESONObject) complex.get(3);
             assertThat(nestedObject.get("nested"), equalTo("object"));
 
             // Test deeply nested array
-            ESONSource.ESONArray deepArray = (ESONSource.ESONArray) complex.get(4);
+            ESONIndexed.ESONArray deepArray = (ESONIndexed.ESONArray) complex.get(4);
             assertThat(deepArray.size(), equalTo(2));
 
-            ESONSource.ESONObject deepObject = (ESONSource.ESONObject) deepArray.get(0);
+            ESONIndexed.ESONObject deepObject = (ESONIndexed.ESONObject) deepArray.get(0);
             assertThat(deepObject.get("deep"), equalTo("nesting"));
 
-            ESONSource.ESONArray deepNestedArray = (ESONSource.ESONArray) deepArray.get(1);
+            ESONIndexed.ESONArray deepNestedArray = (ESONIndexed.ESONArray) deepArray.get(1);
             assertThat(deepNestedArray.get(0), equalTo(4));
             assertThat(deepNestedArray.get(1), equalTo(5));
             assertThat(deepNestedArray.get(2), equalTo(6));
@@ -503,22 +503,22 @@ public class ESONSourceTests extends ESTestCase {
 
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, jsonString)) {
             ESONSource.Builder builder = new ESONSource.Builder();
-            ESONSource.ESONObject source = builder.parse(parser);
+            ESONIndexed.ESONObject source = builder.parse(parser);
 
             // Test array of only nulls
-            ESONSource.ESONArray onlyNulls = (ESONSource.ESONArray) source.get("onlyNulls");
+            ESONIndexed.ESONArray onlyNulls = (ESONIndexed.ESONArray) source.get("onlyNulls");
             assertThat(onlyNulls.size(), equalTo(3));
             assertThat(onlyNulls.get(0), nullValue());
             assertThat(onlyNulls.get(1), nullValue());
             assertThat(onlyNulls.get(2), nullValue());
 
             // Test single element array
-            ESONSource.ESONArray singleElement = (ESONSource.ESONArray) source.get("singleElement");
+            ESONIndexed.ESONArray singleElement = (ESONIndexed.ESONArray) source.get("singleElement");
             assertThat(singleElement.size(), equalTo(1));
             assertThat(singleElement.get(0), equalTo(42));
 
             // Test alternating nulls
-            ESONSource.ESONArray alternating = (ESONSource.ESONArray) source.get("alternatingNulls");
+            ESONIndexed.ESONArray alternating = (ESONIndexed.ESONArray) source.get("alternatingNulls");
             assertThat(alternating.size(), equalTo(5));
             assertThat(alternating.get(0), equalTo(1));
             assertThat(alternating.get(1), nullValue());
@@ -527,14 +527,14 @@ public class ESONSourceTests extends ESTestCase {
             assertThat(alternating.get(4), equalTo(3));
 
             // Test empty strings
-            ESONSource.ESONArray emptyStrings = (ESONSource.ESONArray) source.get("emptyStrings");
+            ESONIndexed.ESONArray emptyStrings = (ESONIndexed.ESONArray) source.get("emptyStrings");
             assertThat(emptyStrings.size(), equalTo(3));
             assertThat(emptyStrings.get(0), equalTo(""));
             assertThat(emptyStrings.get(1), equalTo(""));
             assertThat(emptyStrings.get(2), equalTo(""));
 
             // Test booleans
-            ESONSource.ESONArray booleans = (ESONSource.ESONArray) source.get("booleans");
+            ESONIndexed.ESONArray booleans = (ESONIndexed.ESONArray) source.get("booleans");
             assertThat(booleans.size(), equalTo(4));
             assertThat(booleans.get(0), equalTo(true));
             assertThat(booleans.get(1), equalTo(false));

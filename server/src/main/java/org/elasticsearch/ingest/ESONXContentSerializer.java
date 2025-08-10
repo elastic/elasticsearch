@@ -44,10 +44,10 @@ public class ESONXContentSerializer {
      * Efficient toXContent for flattened ESON structures.
      * Performs a single pass through the key array with a stack to track nesting.
      */
-    public static XContentBuilder flattenToXContent(ESONSource.ESONObject rootObject, XContentBuilder builder, ToXContent.Params params)
+    public static XContentBuilder flattenToXContent(ESONFlat esonFlat, XContentBuilder builder, ToXContent.Params params)
         throws IOException {
-        List<ESONEntry> keyArray = rootObject.getKeyArray();
-        ESONSource.Values values = rootObject.objectValues();
+        List<ESONEntry> keyArray = esonFlat.keys();
+        ESONSource.Values values = esonFlat.values();
         ESONEntry.ObjectEntry rootObjEntry = (ESONEntry.ObjectEntry) keyArray.get(0);
 
         Deque<ContainerState> containerStack = new ArrayDeque<>();

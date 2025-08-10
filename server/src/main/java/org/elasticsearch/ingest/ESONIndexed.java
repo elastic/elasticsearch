@@ -40,6 +40,10 @@ public class ESONIndexed {
             this.objEntry = (ESONEntry.ObjectEntry) esonFlat.keys().get(keyArrayIndex);
         }
 
+        public ESONFlat esonFlat() {
+            return esonFlat;
+        }
+
         private void ensureMaterializedMap() {
             if (materializedMap == null) {
                 materializedMap = new HashMap<>(objEntry.offsetOrCount());
@@ -495,8 +499,8 @@ public class ESONIndexed {
             return null;
         }
         return switch (type) {
-            case ESONSource.ESONObject obj -> obj;
-            case ESONSource.ESONArray arr -> arr;
+            case ESONIndexed.ESONObject obj -> obj;
+            case ESONIndexed.ESONArray arr -> arr;
             case ESONSource.FixedValue val -> val.getValue(values);
             case ESONSource.VariableValue val -> val.getValue(values);
             case ESONSource.ConstantValue constantValue -> constantValue.getValue();
@@ -524,6 +528,16 @@ public class ESONIndexed {
         }
 
         return index;
+    }
+
+    public static ESONIndexed.ESONObject flatten(ESONIndexed.ESONObject original) {
+        List<ESONEntry> flatKeyArray = new ArrayList<>(original.esonFlat.keys().size());
+
+        // Start flattening from the root object
+        flattenObject(original, null, flatKeyArray);
+
+        // Return new ESONObject with flattened structure
+        return new ESONIndexed.ESONObject(0, original.esonFlat());
     }
 
     /**

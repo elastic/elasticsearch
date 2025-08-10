@@ -70,7 +70,7 @@ public class SingletonBulkLongBuilderTests extends ComputeTestCase {
                         for (int i = 0; i < ctx.reader().maxDoc(); i++) {
                             assertThat(docValues.advanceExact(i), equalTo(true));
                             long value = docValues.longValue();
-                            builder.appendLong(value);
+                            builder.appendLongs(new long[] {value}, 0, 1);
                         }
                         try (LongVector build = (LongVector) builder.build().asVector()) {
                             for (int i = 0; i < build.getPositionCount(); i++) {
@@ -107,7 +107,7 @@ public class SingletonBulkLongBuilderTests extends ComputeTestCase {
                     for (int i = offset; i < leafReader.maxDoc(); i++) {
                         assertThat(docValues.advanceExact(i), equalTo(true));
                         long value = docValues.longValue();
-                        builder.appendLong(value);
+                        builder.appendLongs(new long[] {value}, 0, 1);
                     }
                     try (LongVector build = (LongVector) builder.build().asVector()) {
                         assertThat(build.getPositionCount(), equalTo(count - offset));

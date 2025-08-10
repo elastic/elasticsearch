@@ -514,8 +514,6 @@ public interface BlockLoader {
      */
     interface SingletonBulkLongBuilder extends Builder {
 
-        SingletonBulkLongBuilder appendLong(long value);
-
         SingletonBulkLongBuilder appendLongs(long[] values, int from, int length);
     }
 

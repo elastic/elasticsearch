@@ -212,12 +212,6 @@ public class TestBlock implements BlockLoader.Block {
                     }
 
                     @Override
-                    public BlockLoader.SingletonBulkLongBuilder appendLong(long value) {
-                        values[count++] = value;
-                        return this;
-                    }
-
-                    @Override
                     public BlockLoader.SingletonBulkLongBuilder appendLongs(long[] newValues, int from, int length) {
                         try {
                             System.arraycopy(newValues, from, values, count, length);

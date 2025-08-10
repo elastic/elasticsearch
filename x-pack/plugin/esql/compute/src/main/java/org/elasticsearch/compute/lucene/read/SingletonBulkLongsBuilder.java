@@ -69,12 +69,6 @@ public final class SingletonBulkLongsBuilder implements BlockLoader.SingletonBul
     }
 
     @Override
-    public BlockLoader.SingletonBulkLongBuilder appendLong(long value) {
-        values[count++] = value;
-        return this;
-    }
-
-    @Override
     public BlockLoader.SingletonBulkLongBuilder appendLongs(long[] values, int from, int length) {
         System.arraycopy(values, from, this.values, count, length);
         count += length;

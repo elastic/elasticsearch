@@ -31,23 +31,13 @@ public class ESONIndexed {
     public static class ESONObject implements ESONSource.Value, Map<String, Object>, ToXContent {
         private final int keyArrayIndex;
         private final ESONEntry.ObjectEntry objEntry;
-        private final List<ESONEntry> keyArray;
-        private final ESONSource.Values values;
+        private final ESONFlat esonFlat;
         private Map<String, ESONSource.Value> materializedMap;
 
-        public ESONObject(int keyArrayIndex, List<ESONEntry> keyArray, ESONSource.Values values) {
+        public ESONObject(int keyArrayIndex, ESONFlat esonFlat) {
             this.keyArrayIndex = keyArrayIndex;
-            this.objEntry = (ESONEntry.ObjectEntry) keyArray.get(keyArrayIndex);
-            this.keyArray = keyArray;
-            this.values = values;
-        }
-
-        public List<ESONEntry> getKeyArray() {
-            return keyArray;
-        }
-
-        public ESONSource.Values objectValues() {
-            return values;
+            this.esonFlat = esonFlat;
+            this.objEntry = (ESONEntry.ObjectEntry) esonFlat.keys().get(keyArrayIndex);
         }
 
         private void ensureMaterializedMap() {
@@ -56,17 +46,17 @@ public class ESONIndexed {
 
                 int currentIndex = keyArrayIndex + 1;
                 for (int i = 0; i < objEntry.offsetOrCount(); i++) {
-                    ESONEntry entry = keyArray.get(currentIndex);
+                    ESONEntry entry = esonFlat.keys().get(currentIndex);
                     if (entry instanceof ESONEntry.FieldEntry fieldEntry) {
                         materializedMap.put(fieldEntry.key(), fieldEntry.value);
                         currentIndex++;
                     } else {
                         if (entry instanceof ESONEntry.ObjectEntry) {
-                            materializedMap.put(entry.key(), new ESONSource.ESONObject(currentIndex, keyArray, values));
+                            materializedMap.put(entry.key(), new ESONObject(currentIndex, esonFlat));
                         } else {
-                            materializedMap.put(entry.key(), new ESONSource.ESONArray(currentIndex, keyArray, values));
+                            materializedMap.put(entry.key(), new ESONArray(currentIndex, esonFlat));
                         }
-                        currentIndex = skipContainer(keyArray, entry, currentIndex);
+                        currentIndex = skipContainer(esonFlat.keys(), entry, currentIndex);
                     }
                 }
             }
@@ -106,7 +96,7 @@ public class ESONIndexed {
             } else if (type instanceof ESONSource.Mutation mutation) {
                 return mutation.object();
             }
-            return convertTypeToValue(type, values);
+            return convertTypeToValue(type, esonFlat.values());
         }
 
         @Override
@@ -128,7 +118,7 @@ public class ESONIndexed {
             } else if (type instanceof ESONSource.Mutation mutation) {
                 return mutation.object();
             }
-            return convertTypeToValue(type, values);
+            return convertTypeToValue(type, esonFlat.values());
         }
 
         @Override
@@ -302,7 +292,7 @@ public class ESONIndexed {
                         if (nullForRawValues && isRawValue()) {
                             cachedValue = null;
                         } else {
-                            cachedValue = convertTypeToValue(type, values);
+                            cachedValue = convertTypeToValue(type, esonFlat.values());
                         }
                     }
                     valueComputed = true;
@@ -352,15 +342,13 @@ public class ESONIndexed {
 
         private final int keyArrayIndex;
         private final ESONEntry.ArrayEntry arrEntry;
-        private final List<ESONEntry> keyArray;
-        private final ESONSource.Values values;
+        private final ESONFlat esonFlat;
         private List<ESONSource.Value> materializedList;
 
-        public ESONArray(int keyArrayIndex, List<ESONEntry> keyArray, ESONSource.Values values) {
+        public ESONArray(int keyArrayIndex, ESONFlat esonFlat) {
             this.keyArrayIndex = keyArrayIndex;
-            this.arrEntry = (ESONEntry.ArrayEntry) keyArray.get(keyArrayIndex);
-            this.keyArray = keyArray;
-            this.values = values;
+            this.esonFlat = esonFlat;
+            this.arrEntry = (ESONEntry.ArrayEntry) esonFlat.keys().get(keyArrayIndex);
         }
 
         private void ensureMaterializedList() {
@@ -369,17 +357,17 @@ public class ESONIndexed {
 
                 int currentIndex = keyArrayIndex + 1;
                 for (int i = 0; i < arrEntry.elementCount; i++) {
-                    ESONEntry entry = keyArray.get(currentIndex);
+                    ESONEntry entry = esonFlat.keys().get(currentIndex);
                     if (entry instanceof ESONEntry.FieldEntry fieldEntry) {
                         materializedList.add(fieldEntry.value);
                         currentIndex++;
                     } else {
                         if (entry instanceof ESONEntry.ObjectEntry) {
-                            materializedList.add(new ESONSource.ESONObject(currentIndex, keyArray, values));
+                            materializedList.add(new ESONObject(currentIndex, esonFlat));
                         } else {
-                            materializedList.add(new ESONSource.ESONArray(currentIndex, keyArray, values));
+                            materializedList.add(new ESONArray(currentIndex, esonFlat));
                         }
-                        currentIndex = skipContainer(keyArray, entry, currentIndex);
+                        currentIndex = skipContainer(esonFlat.keys(), entry, currentIndex);
                     }
                 }
             }
@@ -396,7 +384,7 @@ public class ESONIndexed {
                 return mutation.object();
             }
 
-            return convertTypeToValue(type, values);
+            return convertTypeToValue(type, esonFlat.values());
         }
 
         @Override
@@ -555,7 +543,7 @@ public class ESONIndexed {
             int fieldCount = 0;
 
             for (int i = 0; i < obj.objEntry.offsetOrCount(); i++) {
-                ESONEntry entry = obj.keyArray.get(currentIndex);
+                ESONEntry entry = obj.esonFlat.keys().get(currentIndex);
 
                 if (entry instanceof ESONEntry.FieldEntry fieldEntry) {
                     // Copy field entry as-is
@@ -564,17 +552,17 @@ public class ESONIndexed {
                     fieldCount++;
                 } else if (entry instanceof ESONEntry.ObjectEntry) {
                     // Nested object - create new ESONObject and flatten recursively
-                    ESONObject nestedObj = new ESONObject(currentIndex, obj.keyArray, obj.values);
+                    ESONObject nestedObj = new ESONObject(currentIndex, obj.esonFlat);
                     flattenObject(nestedObj, entry.key(), flatKeyArray);
                     // TODO: Remove Need to skip container
-                    currentIndex = skipContainer(obj.keyArray, entry, currentIndex);
+                    currentIndex = skipContainer(obj.esonFlat.keys(), entry, currentIndex);
                     fieldCount++;
                 } else if (entry instanceof ESONEntry.ArrayEntry) {
                     // Nested array - create new ESONArray and flatten recursively
-                    ESONArray nestedArr = new ESONArray(currentIndex, obj.keyArray, obj.values);
+                    ESONArray nestedArr = new ESONArray(currentIndex, obj.esonFlat);
                     flattenArray(nestedArr, entry.key(), flatKeyArray);
                     // TODO: Remove Need to skip container
-                    currentIndex = skipContainer(obj.keyArray, entry, currentIndex);
+                    currentIndex = skipContainer(obj.esonFlat.keys(), entry, currentIndex);
                     fieldCount++;
                 }
             }
@@ -664,7 +652,7 @@ public class ESONIndexed {
             int elementCount = 0;
 
             for (int i = 0; i < arr.arrEntry.elementCount; i++) {
-                ESONEntry entry = arr.keyArray.get(currentIndex);
+                ESONEntry entry = arr.esonFlat.keys().get(currentIndex);
 
                 if (entry instanceof ESONEntry.FieldEntry fieldEntry) {
                     // Copy field entry as-is (array element)
@@ -673,15 +661,15 @@ public class ESONIndexed {
                     elementCount++;
                 } else if (entry instanceof ESONEntry.ObjectEntry) {
                     // Nested object - create new ESONObject and flatten recursively
-                    ESONObject nestedObj = new ESONObject(currentIndex, arr.keyArray, arr.values);
+                    ESONObject nestedObj = new ESONObject(currentIndex, arr.esonFlat);
                     flattenObject(nestedObj, null, flatKeyArray);
-                    currentIndex = skipContainer(arr.keyArray, entry, currentIndex);
+                    currentIndex = skipContainer(arr.esonFlat.keys(), entry, currentIndex);
                     elementCount++;
                 } else if (entry instanceof ESONEntry.ArrayEntry) {
                     // Nested array - create new ESONArray and flatten recursively
-                    ESONArray nestedArr = new ESONArray(currentIndex, arr.keyArray, arr.values);
+                    ESONArray nestedArr = new ESONArray(currentIndex, arr.esonFlat);
                     flattenArray(nestedArr, null, flatKeyArray);
-                    currentIndex = skipContainer(arr.keyArray, entry, currentIndex);
+                    currentIndex = skipContainer(arr.esonFlat.keys(), entry, currentIndex);
                     elementCount++;
                 }
             }

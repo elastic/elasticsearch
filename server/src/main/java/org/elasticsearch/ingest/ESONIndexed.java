@@ -656,74 +656,8 @@ public class ESONIndexed {
                 handleObject(flatKeyArray, value, null, newOffset, newValuesOut);
             }
         } else {
-            // TODO: Fix
-            int position = newOffset + Math.toIntExact(newValuesOut.position());
-            ESONSource.Value value;
-            if (obj == null) {
-                value = ESONSource.ConstantValue.NULL;
-            } else if (obj instanceof Number num) {
-                value = switch (num) {
-                    case Byte byteValue -> {
-                        newValuesOut.writeInt(byteValue.intValue());
-                        yield new ESONSource.FixedValue(position, ESONEntry.TYPE_INT);
-                    }
-                    case Short shortValue -> {
-                        newValuesOut.writeInt(shortValue);
-                        yield new ESONSource.FixedValue(position, ESONEntry.TYPE_INT);
-                    }
-                    case Integer intValue -> {
-                        newValuesOut.writeInt(intValue);
-                        yield new ESONSource.FixedValue(position, ESONEntry.TYPE_INT);
-                    }
-                    case Long longValue -> {
-                        newValuesOut.writeLong(longValue);
-                        yield new ESONSource.FixedValue(position, ESONEntry.TYPE_LONG);
-                    }
-                    case Float floatValue -> {
-                        newValuesOut.writeFloat(floatValue);
-                        yield new ESONSource.FixedValue(position, ESONEntry.TYPE_FLOAT);
-                    }
-                    case Double doubleValue -> {
-                        newValuesOut.writeDouble(doubleValue);
-                        yield new ESONSource.FixedValue(position, ESONEntry.TYPE_DOUBLE);
-                    }
-                    case BigInteger bigInteger -> {
-                        byte[] numberBytes = bigInteger.toString().getBytes(StandardCharsets.UTF_8);
-                        newValuesOut.write(numberBytes);
-                        yield new ESONSource.VariableValue(position, numberBytes.length, ESONEntry.BIG_INTEGER);
-                    }
-                    case BigDecimal bigDecimal -> {
-                        byte[] numberBytes = bigDecimal.toString().getBytes(StandardCharsets.UTF_8);
-                        newValuesOut.write(numberBytes);
-                        yield new ESONSource.VariableValue(position, numberBytes.length, ESONEntry.BIG_DECIMAL);
-                    }
-                    default -> {
-                        byte[] numberBytes = num.toString().getBytes(StandardCharsets.UTF_8);
-                        newValuesOut.write(numberBytes);
-                        yield new ESONSource.VariableValue(position, numberBytes.length, ESONEntry.STRING);
-                    }
-                };
-            } else if (obj instanceof Boolean bool) {
-                value = bool ? ESONSource.ConstantValue.TRUE : ESONSource.ConstantValue.FALSE;
-            } else if (obj instanceof byte[] bytes) {
-                newValuesOut.writeBytes(bytes);
-                value = new ESONSource.VariableValue(position, bytes.length, ESONEntry.BINARY);
-            } else {
-                String str = obj.toString();
-                byte[] bytes = str.getBytes(StandardCharsets.UTF_8);
-                newValuesOut.writeBytes(bytes);
-                value = new ESONSource.VariableValue(position, bytes.length, ESONEntry.STRING);
-            }
-
-            flatKeyArray.add(new ESONEntry.FieldEntry(key, value));
+            flatKeyArray.add(new ESONEntry.FieldEntry(key, mutationToValue(newOffset, newValuesOut, obj)));
         }
-    }
-
-    private static Object unwrapObject(Object value) {
-        while (value instanceof ESONSource.Mutation m) {
-            value = m.object();
-        }
-        return value;
     }
 
     /**
@@ -778,7 +712,7 @@ public class ESONIndexed {
                 switch (type) {
                     case ESONSource.Mutation mutation -> {
                         // This is a mutated element - create new FieldEntry with mutation
-                        flatKeyArray.add(new ESONEntry.FieldEntry(null, mutation));
+                        flatKeyArray.add(new ESONEntry.FieldEntry(null, mutationToValue(newOffset, newValuesOut, mutation.object())));
                         elementCount++;
                     }
                     case ESONObject nestedObj -> {
@@ -791,7 +725,11 @@ public class ESONIndexed {
                         flattenArray(nestedArr, null, flatKeyArray, newOffset, newValuesOut);
                         elementCount++;
                     }
-                    case null, default -> {
+                    case null -> {
+                        flatKeyArray.add(new ESONEntry.FieldEntry(null, ESONSource.ConstantValue.NULL));
+                        elementCount++;
+                    }
+                    default -> {
                         // Regular type (FixedValue, VariableValue, NullValue) - create field entry
                         flatKeyArray.add(new ESONEntry.FieldEntry(null, type));
                         elementCount++;
@@ -801,5 +739,74 @@ public class ESONIndexed {
 
             newArrEntry.offsetOrCount(elementCount);
         }
+    }
+
+    private static ESONSource.Value mutationToValue(int newOffset, BytesStreamOutput newValuesOut, Object obj) throws IOException {
+        int position = newOffset + Math.toIntExact(newValuesOut.position());
+        ESONSource.Value value;
+        if (obj == null) {
+            value = ESONSource.ConstantValue.NULL;
+        } else if (obj instanceof Number num) {
+            value = switch (num) {
+                case Byte byteValue -> {
+                    newValuesOut.writeInt(byteValue.intValue());
+                    yield new ESONSource.FixedValue(position, ESONEntry.TYPE_INT);
+                }
+                case Short shortValue -> {
+                    newValuesOut.writeInt(shortValue);
+                    yield new ESONSource.FixedValue(position, ESONEntry.TYPE_INT);
+                }
+                case Integer intValue -> {
+                    newValuesOut.writeInt(intValue);
+                    yield new ESONSource.FixedValue(position, ESONEntry.TYPE_INT);
+                }
+                case Long longValue -> {
+                    newValuesOut.writeLong(longValue);
+                    yield new ESONSource.FixedValue(position, ESONEntry.TYPE_LONG);
+                }
+                case Float floatValue -> {
+                    newValuesOut.writeFloat(floatValue);
+                    yield new ESONSource.FixedValue(position, ESONEntry.TYPE_FLOAT);
+                }
+                case Double doubleValue -> {
+                    newValuesOut.writeDouble(doubleValue);
+                    yield new ESONSource.FixedValue(position, ESONEntry.TYPE_DOUBLE);
+                }
+                case BigInteger bigInteger -> {
+                    byte[] numberBytes = bigInteger.toString().getBytes(StandardCharsets.UTF_8);
+                    newValuesOut.write(numberBytes);
+                    yield new ESONSource.VariableValue(position, numberBytes.length, ESONEntry.BIG_INTEGER);
+                }
+                case BigDecimal bigDecimal -> {
+                    byte[] numberBytes = bigDecimal.toString().getBytes(StandardCharsets.UTF_8);
+                    newValuesOut.write(numberBytes);
+                    yield new ESONSource.VariableValue(position, numberBytes.length, ESONEntry.BIG_DECIMAL);
+                }
+                default -> {
+                    byte[] numberBytes = num.toString().getBytes(StandardCharsets.UTF_8);
+                    newValuesOut.write(numberBytes);
+                    yield new ESONSource.VariableValue(position, numberBytes.length, ESONEntry.STRING);
+                }
+            };
+        } else if (obj instanceof Boolean bool) {
+            value = bool ? ESONSource.ConstantValue.TRUE : ESONSource.ConstantValue.FALSE;
+        } else if (obj instanceof byte[] bytes) {
+            newValuesOut.writeBytes(bytes);
+            value = new ESONSource.VariableValue(position, bytes.length, ESONEntry.BINARY);
+        } else {
+            String str = obj.toString();
+            byte[] bytes = str.getBytes(StandardCharsets.UTF_8);
+            newValuesOut.writeBytes(bytes);
+            value = new ESONSource.VariableValue(position, bytes.length, ESONEntry.STRING);
+        }
+
+        return value;
+    }
+
+    private static Object unwrapObject(Object value) {
+        while (value instanceof ESONSource.Mutation m) {
+            value = m.object();
+        }
+        return value;
     }
 }

@@ -14,10 +14,10 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import java.io.IOException;
 import java.util.List;
 
-public record ESONFlat(List<ESONEntry> keyArray, ESONSource.Values values) {
+public record ESONFlat(List<ESONEntry> keys, ESONSource.Values values) {
 
     public void toBytes(StreamOutput output) throws IOException {
-        for (ESONEntry entry : keyArray) {
+        for (ESONEntry entry : keys) {
 
         }
         output.writeBytesReference(values.data());

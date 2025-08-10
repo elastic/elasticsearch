@@ -9,6 +9,7 @@
 
 package org.elasticsearch.ingest;
 
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 
 import java.io.IOException;
@@ -17,9 +18,13 @@ import java.nio.charset.StandardCharsets;
 
 public class ESONBytes {
 
+    private final BytesReference keyBytes;
+    private final BytesReference valueBytes;
+
     public ESONBytes(ESONFlat flat) {
+        this.valueBytes = flat.values().data();
         try (BytesStreamOutput out = new BytesStreamOutput((int) (flat.values().data().length() * 0.5))) {
-            for (ESONEntry entry : flat.keyArray()) {
+            for (ESONEntry entry : flat.keys()) {
                 out.writeByte(entry.type());
                 String key = entry.key();
                 if (key != null) {
@@ -29,8 +34,10 @@ public class ESONBytes {
                 } else {
                     out.writeVInt(0);
                 }
-                int offset = entry.getOffset();
+                int offsetOrCount = entry.offsetOrCount();
+                out.writeInt(offsetOrCount);
             }
+            keyBytes = out.bytes();
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }

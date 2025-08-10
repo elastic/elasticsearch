@@ -89,7 +89,7 @@ public class ESONSource {
                 count++;
             }
 
-            arrEntry.elementCount = count;
+            arrEntry.offsetOrCount(count);
         }
 
         private static void parseValue(XContentParser parser, String fieldName, BytesStreamOutput bytes, List<ESONEntry> keyArray)
@@ -279,7 +279,17 @@ public class ESONSource {
         }
 
         public String readString(int position, int length) {
-            return new String(readByteArray(position, length), java.nio.charset.StandardCharsets.UTF_8);
+            final byte[] bytes;
+            final int offset;
+            // TODO: Maybe slice to improve chance of backing array
+            if (data.hasArray()) {
+                bytes = data.array();
+                offset = data.arrayOffset() + position;
+            } else {
+                bytes = readByteArray(position, length);
+                offset = 0;
+            }
+            return new String(bytes, offset, length, java.nio.charset.StandardCharsets.UTF_8);
         }
     }
 }

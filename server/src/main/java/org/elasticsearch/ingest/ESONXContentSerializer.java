@@ -111,7 +111,7 @@ public class ESONXContentSerializer {
                 }
 
                 builder.startArray();
-                containerStack.push(new ContainerState(true, arrEntry.elementCount));
+                containerStack.push(new ContainerState(true, arrEntry.offsetOrCount()));
                 index++;
             }
         }

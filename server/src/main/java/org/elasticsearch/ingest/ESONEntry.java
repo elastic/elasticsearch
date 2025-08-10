@@ -76,8 +76,6 @@ public abstract class ESONEntry {
 
     public static class ArrayEntry extends ESONEntry {
 
-        // TODO: remove
-        public int elementCount = 0;
         public List<ESONSource.Value> mutationArray = null;
 
         public ArrayEntry(String key) {
@@ -90,7 +88,7 @@ public abstract class ESONEntry {
 
         @Override
         public String toString() {
-            return "ArrayEntry{" + "key='" + key() + '\'' + ", elementCount=" + elementCount + ", hasMutations=" + hasMutations() + '}';
+            return "ArrayEntry{" + "key='" + key() + '\'' + ", elementCount=" + offsetOrCount() + ", hasMutations=" + hasMutations() + '}';
         }
     }
 

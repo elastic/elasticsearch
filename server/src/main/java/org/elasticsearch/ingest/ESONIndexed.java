@@ -9,10 +9,17 @@
 
 package org.elasticsearch.ingest;
 
+import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.bytes.CompositeBytesReference;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
+import java.math.BigDecimal;
+import java.math.BigInteger;
+import java.nio.charset.StandardCharsets;
 import java.util.AbstractCollection;
 import java.util.AbstractList;
 import java.util.AbstractMap;
@@ -357,10 +364,10 @@ public class ESONIndexed {
 
         private void ensureMaterializedList() {
             if (materializedList == null) {
-                materializedList = new ArrayList<>(arrEntry.elementCount);
+                materializedList = new ArrayList<>(arrEntry.offsetOrCount());
 
                 int currentIndex = keyArrayIndex + 1;
-                for (int i = 0; i < arrEntry.elementCount; i++) {
+                for (int i = 0; i < arrEntry.offsetOrCount(); i++) {
                     ESONEntry entry = esonFlat.keys().get(currentIndex);
                     if (entry instanceof ESONEntry.FieldEntry fieldEntry) {
                         materializedList.add(fieldEntry.value);
@@ -435,7 +442,7 @@ public class ESONIndexed {
         @Override
         public int size() {
             if (materializedList == null) {
-                return arrEntry.elementCount;
+                return arrEntry.offsetOrCount();
             } else {
                 return materializedList.size();
             }
@@ -511,12 +518,7 @@ public class ESONIndexed {
 
     private static int skipContainer(List<ESONEntry> keyArray, ESONEntry entry, int containerIndex) {
         int index = containerIndex + 1;
-        final int fieldCount;
-        if (entry instanceof ESONEntry.ObjectEntry objEntry) {
-            fieldCount = objEntry.offsetOrCount();
-        } else {
-            fieldCount = ((ESONEntry.ArrayEntry) entry).elementCount;
-        }
+        final int fieldCount = entry.offsetOrCount();
 
         for (int i = 0; i < fieldCount; i++) {
             ESONEntry fieldESONEntry = keyArray.get(index);
@@ -531,19 +533,32 @@ public class ESONIndexed {
     }
 
     public static ESONIndexed.ESONObject flatten(ESONIndexed.ESONObject original) {
+        BytesStreamOutput newValuesOut = new BytesStreamOutput();
         List<ESONEntry> flatKeyArray = new ArrayList<>(original.esonFlat.keys().size());
+        BytesReference originalData = original.esonFlat.values().data();
 
-        // Start flattening from the root object
-        flattenObject(original, null, flatKeyArray);
+        try {
+            // Start flattening from the root object
+            flattenObject(original, null, flatKeyArray, originalData.length(), newValuesOut);
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
 
         // Return new ESONObject with flattened structure
-        return new ESONIndexed.ESONObject(0, original.esonFlat());
+        BytesReference data = CompositeBytesReference.of(originalData, newValuesOut.bytes());
+        return new ESONIndexed.ESONObject(0, new ESONFlat(flatKeyArray, new ESONSource.Values(data)));
     }
 
     /**
      * Recursively flattens an ESONObject into the flat key array
      */
-    private static void flattenObject(ESONObject obj, String objectFieldName, List<ESONEntry> flatKeyArray) {
+    private static void flattenObject(
+        ESONObject obj,
+        String objectFieldName,
+        List<ESONEntry> flatKeyArray,
+        int newOffset,
+        BytesStreamOutput newValuesOut
+    ) throws IOException {
         // Create new ObjectEntry for this object
         ESONEntry.ObjectEntry newObjEntry = new ESONEntry.ObjectEntry(objectFieldName);
         flatKeyArray.add(newObjEntry);
@@ -567,14 +582,14 @@ public class ESONIndexed {
                 } else if (entry instanceof ESONEntry.ObjectEntry) {
                     // Nested object - create new ESONObject and flatten recursively
                     ESONObject nestedObj = new ESONObject(currentIndex, obj.esonFlat);
-                    flattenObject(nestedObj, entry.key(), flatKeyArray);
+                    flattenObject(nestedObj, entry.key(), flatKeyArray, newOffset, newValuesOut);
                     // TODO: Remove Need to skip container
                     currentIndex = skipContainer(obj.esonFlat.keys(), entry, currentIndex);
                     fieldCount++;
                 } else if (entry instanceof ESONEntry.ArrayEntry) {
                     // Nested array - create new ESONArray and flatten recursively
                     ESONArray nestedArr = new ESONArray(currentIndex, obj.esonFlat);
-                    flattenArray(nestedArr, entry.key(), flatKeyArray);
+                    flattenArray(nestedArr, entry.key(), flatKeyArray, newOffset, newValuesOut);
                     // TODO: Remove Need to skip container
                     currentIndex = skipContainer(obj.esonFlat.keys(), entry, currentIndex);
                     fieldCount++;
@@ -593,20 +608,24 @@ public class ESONIndexed {
 
                 switch (type) {
                     case ESONSource.Mutation mutation -> {
-                        handleObject(flatKeyArray, mutation.object(), key);
+                        handleObject(flatKeyArray, mutation.object(), key, newOffset, newValuesOut);
                         fieldCount++;
                     }
                     case ESONObject nestedObj -> {
                         // Nested object - flatten recursively
-                        flattenObject(nestedObj, key, flatKeyArray);
+                        flattenObject(nestedObj, key, flatKeyArray, newOffset, newValuesOut);
                         fieldCount++;
                     }
                     case ESONArray nestedArr -> {
                         // Nested array - flatten recursively
-                        flattenArray(nestedArr, key, flatKeyArray);
+                        flattenArray(nestedArr, key, flatKeyArray, newOffset, newValuesOut);
                         fieldCount++;
                     }
-                    case null, default -> {
+                    case null -> {
+                        flatKeyArray.add(new ESONEntry.FieldEntry(key, ESONSource.ConstantValue.NULL));
+                        fieldCount++;
+                    }
+                    default -> {
                         // Regular type (FixedValue, VariableValue, NullValue) - create field entry
                         flatKeyArray.add(new ESONEntry.FieldEntry(key, type));
                         fieldCount++;
@@ -618,41 +637,105 @@ public class ESONIndexed {
         }
     }
 
-    private static void handleObject(List<ESONEntry> flatKeyArray, Object object, String key) {
-        if (object instanceof Map<?, ?> map) {
+    private static void handleObject(List<ESONEntry> flatKeyArray, Object object, String key, int newOffset, BytesStreamOutput newValuesOut)
+        throws IOException {
+        Object obj = unwrapObject(object);
+        if (obj instanceof Map<?, ?> map) {
             ESONEntry.ObjectEntry objectEntry = new ESONEntry.ObjectEntry(key);
             flatKeyArray.add(objectEntry);
             objectEntry.offsetOrCount(map.size());
             for (Map.Entry<?, ?> entry1 : map.entrySet()) {
                 Object value = entry1.getValue();
-                handleObject(flatKeyArray, value, entry1.getKey().toString());
+                handleObject(flatKeyArray, value, entry1.getKey().toString(), newOffset, newValuesOut);
             }
-        } else if (object instanceof List<?> list) {
+        } else if (obj instanceof List<?> list) {
             ESONEntry.ArrayEntry arrayEntry = new ESONEntry.ArrayEntry(key);
             flatKeyArray.add(arrayEntry);
-            arrayEntry.elementCount = list.size();
+            arrayEntry.offsetOrCount(list.size());
             for (Object value : list) {
-                handleObject(flatKeyArray, value, null);
+                handleObject(flatKeyArray, value, null, newOffset, newValuesOut);
             }
         } else {
-            flatKeyArray.add(new ESONEntry.FieldEntry(key, ensureOneLevelMutation(object)));
+            // TODO: Fix
+            int position = newOffset + Math.toIntExact(newValuesOut.position());
+            ESONSource.Value value;
+            if (obj == null) {
+                value = ESONSource.ConstantValue.NULL;
+            } else if (obj instanceof Number num) {
+                value = switch (num) {
+                    case Byte byteValue -> {
+                        newValuesOut.writeInt(byteValue.intValue());
+                        yield new ESONSource.FixedValue(position, ESONEntry.TYPE_INT);
+                    }
+                    case Short shortValue -> {
+                        newValuesOut.writeInt(shortValue);
+                        yield new ESONSource.FixedValue(position, ESONEntry.TYPE_INT);
+                    }
+                    case Integer intValue -> {
+                        newValuesOut.writeInt(intValue);
+                        yield new ESONSource.FixedValue(position, ESONEntry.TYPE_INT);
+                    }
+                    case Long longValue -> {
+                        newValuesOut.writeLong(longValue);
+                        yield new ESONSource.FixedValue(position, ESONEntry.TYPE_LONG);
+                    }
+                    case Float floatValue -> {
+                        newValuesOut.writeFloat(floatValue);
+                        yield new ESONSource.FixedValue(position, ESONEntry.TYPE_FLOAT);
+                    }
+                    case Double doubleValue -> {
+                        newValuesOut.writeDouble(doubleValue);
+                        yield new ESONSource.FixedValue(position, ESONEntry.TYPE_DOUBLE);
+                    }
+                    case BigInteger bigInteger -> {
+                        byte[] numberBytes = bigInteger.toString().getBytes(StandardCharsets.UTF_8);
+                        newValuesOut.write(numberBytes);
+                        yield new ESONSource.VariableValue(position, numberBytes.length, ESONEntry.BIG_INTEGER);
+                    }
+                    case BigDecimal bigDecimal -> {
+                        byte[] numberBytes = bigDecimal.toString().getBytes(StandardCharsets.UTF_8);
+                        newValuesOut.write(numberBytes);
+                        yield new ESONSource.VariableValue(position, numberBytes.length, ESONEntry.BIG_DECIMAL);
+                    }
+                    default -> {
+                        byte[] numberBytes = num.toString().getBytes(StandardCharsets.UTF_8);
+                        newValuesOut.write(numberBytes);
+                        yield new ESONSource.VariableValue(position, numberBytes.length, ESONEntry.STRING);
+                    }
+                };
+            } else if (obj instanceof Boolean bool) {
+                value = bool ? ESONSource.ConstantValue.TRUE : ESONSource.ConstantValue.FALSE;
+            } else if (obj instanceof byte[] bytes) {
+                newValuesOut.writeBytes(bytes);
+                value = new ESONSource.VariableValue(position, bytes.length, ESONEntry.BINARY);
+            } else {
+                String str = obj.toString();
+                byte[] bytes = str.getBytes(StandardCharsets.UTF_8);
+                newValuesOut.writeBytes(bytes);
+                value = new ESONSource.VariableValue(position, bytes.length, ESONEntry.STRING);
+            }
+
+            flatKeyArray.add(new ESONEntry.FieldEntry(key, value));
         }
     }
 
-    private static ESONSource.Mutation ensureOneLevelMutation(Object value) {
-        final ESONSource.Mutation valueMutation;
-        if (value instanceof ESONSource.Mutation m) {
-            valueMutation = m;
-        } else {
-            valueMutation = new ESONSource.Mutation(value);
+    private static Object unwrapObject(Object value) {
+        while (value instanceof ESONSource.Mutation m) {
+            value = m.object();
         }
-        return valueMutation;
+        return value;
     }
 
     /**
      * Recursively flattens an ESONArray into the flat key array
      */
-    private static void flattenArray(ESONArray arr, String arrayFieldName, List<ESONEntry> flatKeyArray) {
+    private static void flattenArray(
+        ESONArray arr,
+        String arrayFieldName,
+        List<ESONEntry> flatKeyArray,
+        int newOffset,
+        BytesStreamOutput newValuesOut
+    ) throws IOException {
         // Create new ArrayEntry for this array
         ESONEntry.ArrayEntry newArrEntry = new ESONEntry.ArrayEntry(arrayFieldName);
         flatKeyArray.add(newArrEntry);
@@ -665,7 +748,7 @@ public class ESONIndexed {
             int currentIndex = arr.keyArrayIndex + 1;
             int elementCount = 0;
 
-            for (int i = 0; i < arr.arrEntry.elementCount; i++) {
+            for (int i = 0; i < arr.arrEntry.offsetOrCount(); i++) {
                 ESONEntry entry = arr.esonFlat.keys().get(currentIndex);
 
                 if (entry instanceof ESONEntry.FieldEntry fieldEntry) {
@@ -676,19 +759,19 @@ public class ESONIndexed {
                 } else if (entry instanceof ESONEntry.ObjectEntry) {
                     // Nested object - create new ESONObject and flatten recursively
                     ESONObject nestedObj = new ESONObject(currentIndex, arr.esonFlat);
-                    flattenObject(nestedObj, null, flatKeyArray);
+                    flattenObject(nestedObj, null, flatKeyArray, newOffset, newValuesOut);
                     currentIndex = skipContainer(arr.esonFlat.keys(), entry, currentIndex);
                     elementCount++;
                 } else if (entry instanceof ESONEntry.ArrayEntry) {
                     // Nested array - create new ESONArray and flatten recursively
                     ESONArray nestedArr = new ESONArray(currentIndex, arr.esonFlat);
-                    flattenArray(nestedArr, null, flatKeyArray);
+                    flattenArray(nestedArr, null, flatKeyArray, newOffset, newValuesOut);
                     currentIndex = skipContainer(arr.esonFlat.keys(), entry, currentIndex);
                     elementCount++;
                 }
             }
 
-            newArrEntry.elementCount = elementCount;
+            newArrEntry.offsetOrCount(elementCount);
         } else {
             int elementCount = 0;
             for (ESONSource.Value type : arr.arrEntry.mutationArray) {
@@ -700,12 +783,12 @@ public class ESONIndexed {
                     }
                     case ESONObject nestedObj -> {
                         // Nested object - flatten recursively
-                        flattenObject(nestedObj, null, flatKeyArray);
+                        flattenObject(nestedObj, null, flatKeyArray, newOffset, newValuesOut);
                         elementCount++;
                     }
                     case ESONArray nestedArr -> {
                         // Nested array - flatten recursively
-                        flattenArray(nestedArr, null, flatKeyArray);
+                        flattenArray(nestedArr, null, flatKeyArray, newOffset, newValuesOut);
                         elementCount++;
                     }
                     case null, default -> {
@@ -716,7 +799,7 @@ public class ESONIndexed {
                 }
             }
 
-            newArrEntry.elementCount = elementCount;
+            newArrEntry.offsetOrCount(elementCount);
         }
     }
 }

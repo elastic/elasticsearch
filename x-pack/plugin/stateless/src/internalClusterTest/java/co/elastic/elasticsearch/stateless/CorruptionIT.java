@@ -53,6 +53,7 @@ import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.RepositoriesMetrics;
 import org.elasticsearch.repositories.Repository;
+import org.elasticsearch.repositories.SnapshotMetrics;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.snapshots.mockstore.BlobStoreWrapper;
 import org.elasticsearch.snapshots.mockstore.MockRepository;
@@ -452,7 +453,8 @@ public class CorruptionIT extends AbstractStatelessIntegTestCase {
             ClusterService clusterService,
             BigArrays bigArrays,
             RecoverySettings recoverySettings,
-            RepositoriesMetrics repositoriesMetrics
+            RepositoriesMetrics repositoriesMetrics,
+            SnapshotMetrics snapshotMetrics
         ) {
             return Collections.singletonMap(
                 TYPE,
@@ -463,7 +465,8 @@ public class CorruptionIT extends AbstractStatelessIntegTestCase {
                     namedXContentRegistry,
                     clusterService,
                     bigArrays,
-                    recoverySettings
+                    recoverySettings,
+                    snapshotMetrics
                 )
             );
         }
@@ -480,9 +483,10 @@ public class CorruptionIT extends AbstractStatelessIntegTestCase {
             NamedXContentRegistry namedXContentRegistry,
             ClusterService clusterService,
             BigArrays bigArrays,
-            RecoverySettings recoverySettings
+            RecoverySettings recoverySettings,
+            SnapshotMetrics snapshotMetrics
         ) {
-            super(projectId, metadata, environment, namedXContentRegistry, clusterService, bigArrays, recoverySettings);
+            super(projectId, metadata, environment, namedXContentRegistry, clusterService, bigArrays, recoverySettings, snapshotMetrics);
         }
 
         @Override

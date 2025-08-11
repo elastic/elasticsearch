@@ -44,6 +44,7 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.plugins.RepositoryPlugin;
 import org.elasticsearch.repositories.RepositoriesMetrics;
+import org.elasticsearch.repositories.SnapshotMetrics;
 import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.snapshots.mockstore.BlobStoreWrapper;
 import org.elasticsearch.threadpool.ExecutorBuilder;
@@ -111,7 +112,8 @@ class ConcurrentMultiPartUploadsMockFsRepository extends FsRepository {
             ClusterService clusterService,
             BigArrays bigArrays,
             RecoverySettings recoverySettings,
-            RepositoriesMetrics repositoriesMetrics
+            RepositoriesMetrics repositoriesMetrics,
+            SnapshotMetrics snapshotMetrics
         ) {
             return Map.of(
                 TYPE,
@@ -122,7 +124,8 @@ class ConcurrentMultiPartUploadsMockFsRepository extends FsRepository {
                     namedXContentRegistry,
                     clusterService,
                     bigArrays,
-                    recoverySettings
+                    recoverySettings,
+                    snapshotMetrics
                 )
             );
         }
@@ -147,9 +150,10 @@ class ConcurrentMultiPartUploadsMockFsRepository extends FsRepository {
         NamedXContentRegistry namedXContentRegistry,
         ClusterService clusterService,
         BigArrays bigArrays,
-        RecoverySettings recoverySettings
+        RecoverySettings recoverySettings,
+        SnapshotMetrics snapshotMetrics
     ) {
-        super(projectId, metadata, environment, namedXContentRegistry, clusterService, bigArrays, recoverySettings);
+        super(projectId, metadata, environment, namedXContentRegistry, clusterService, bigArrays, recoverySettings, snapshotMetrics);
         this.executor = clusterService.threadPool().executor(REPOSITORY_THREAD_POOL_NAME);
         this.largeBlobThreshold = MULTIPART_UPLOAD_THRESHOLD_SIZE_SETTING.get(clusterService.getSettings());
         this.multiPartUploadSize = MULTIPART_UPLOAD_PART_SIZE_SETTING.get(clusterService.getSettings());

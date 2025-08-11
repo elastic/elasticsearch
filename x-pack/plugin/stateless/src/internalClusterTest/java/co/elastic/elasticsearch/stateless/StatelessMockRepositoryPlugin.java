@@ -27,6 +27,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.RepositoryPlugin;
 import org.elasticsearch.repositories.RepositoriesMetrics;
 import org.elasticsearch.repositories.Repository;
+import org.elasticsearch.repositories.SnapshotMetrics;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 
 import java.util.Locale;
@@ -45,7 +46,8 @@ public class StatelessMockRepositoryPlugin extends Plugin implements RepositoryP
         ClusterService clusterService,
         BigArrays bigArrays,
         RecoverySettings recoverySettings,
-        RepositoriesMetrics repositoriesMetrics
+        RepositoriesMetrics repositoriesMetrics,
+        SnapshotMetrics snapshotMetrics
     ) {
         return Map.of(
             TYPE,
@@ -57,7 +59,8 @@ public class StatelessMockRepositoryPlugin extends Plugin implements RepositoryP
                 clusterService,
                 bigArrays,
                 recoverySettings,
-                new StatelessMockRepositoryStrategy()
+                new StatelessMockRepositoryStrategy(),
+                snapshotMetrics
             )
         );
     }

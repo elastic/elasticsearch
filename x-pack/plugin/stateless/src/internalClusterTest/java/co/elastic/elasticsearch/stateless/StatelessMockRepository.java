@@ -34,6 +34,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.indices.recovery.RecoverySettings;
+import org.elasticsearch.repositories.SnapshotMetrics;
 import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.snapshots.mockstore.BlobStoreWrapper;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -74,9 +75,10 @@ public class StatelessMockRepository extends FsRepository {
         ClusterService clusterService,
         BigArrays bigArrays,
         RecoverySettings recoverySettings,
-        StatelessMockRepositoryStrategy strategy
+        StatelessMockRepositoryStrategy strategy,
+        SnapshotMetrics snapshotMetrics
     ) {
-        super(projectId, metadata, environment, namedXContentRegistry, clusterService, bigArrays, recoverySettings);
+        super(projectId, metadata, environment, namedXContentRegistry, clusterService, bigArrays, recoverySettings, snapshotMetrics);
         this.strategy = strategy;
     }
 

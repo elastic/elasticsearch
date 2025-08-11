@@ -1,5 +1,5 @@
 pr: 132622
-summary: Push compute engine value loading for longs down to tsdb codec
-area: "Mapping, Compute Engine, Codec"
+summary: Add bulk loading of dense singleton number doc values to tsdb codec and push compute engine value loading for longs down to tsdb codec
+area: "Codec"
 type: enhancement
 issues: []

@@ -94,9 +94,30 @@ public class PerNodeShardSnapshotCounterTests extends ESTestCase {
                 assertFalse(perNodeShardSnapshotCounter.completeShardSnapshotOnNode(nonSnapshotNodeId));
             }
 
+            // Cannot complete where there is nothing running
             for (var snapshotNodeId : snapshotNodeIds) {
-                assertTrue(perNodeShardSnapshotCounter.tryStartShardSnapshotOnNode(snapshotNodeId));
-                assertTrue(perNodeShardSnapshotCounter.completeShardSnapshotOnNode(snapshotNodeId));
+                assertFalse(perNodeShardSnapshotCounter.completeShardSnapshotOnNode(snapshotNodeId));
+            }
+
+            // Can start up to the limit
+            for (int i = 0; i < perNodeLimit; i++) {
+                for (var snapshotNodeId : snapshotNodeIds) {
+                    assertTrue(perNodeShardSnapshotCounter.tryStartShardSnapshotOnNode(snapshotNodeId));
+                }
+            }
+            // Cannot start beyond the limit
+            for (var snapshotNodeId : snapshotNodeIds) {
+                assertFalse(perNodeShardSnapshotCounter.tryStartShardSnapshotOnNode(snapshotNodeId));
+            }
+            // Can complete all started snapshots
+            for (int i = 0; i < perNodeLimit; i++) {
+                for (var snapshotNodeId : snapshotNodeIds) {
+                    assertTrue(perNodeShardSnapshotCounter.completeShardSnapshotOnNode(snapshotNodeId));
+                }
+            }
+            // Cannot complete when nothing is running
+            for (var snapshotNodeId : snapshotNodeIds) {
+                assertFalse(perNodeShardSnapshotCounter.completeShardSnapshotOnNode(snapshotNodeId));
             }
         }
 

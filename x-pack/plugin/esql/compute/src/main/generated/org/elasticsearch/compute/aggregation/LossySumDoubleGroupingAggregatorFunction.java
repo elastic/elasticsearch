@@ -28,7 +28,7 @@ import org.elasticsearch.compute.operator.DriverContext;
 public final class LossySumDoubleGroupingAggregatorFunction implements GroupingAggregatorFunction {
   private static final List<IntermediateStateDesc> INTERMEDIATE_STATE_DESC = List.of(
       new IntermediateStateDesc("value", ElementType.DOUBLE),
-      new IntermediateStateDesc("zeroDeltas", ElementType.DOUBLE),
+      new IntermediateStateDesc("unusedDeltas", ElementType.DOUBLE),
       new IntermediateStateDesc("seen", ElementType.BOOLEAN)  );
 
   private final LossySumDoubleAggregator.GroupingSumState state;
@@ -156,17 +156,17 @@ public final class LossySumDoubleGroupingAggregatorFunction implements GroupingA
       return;
     }
     DoubleVector value = ((DoubleBlock) valueUncast).asVector();
-    Block zeroDeltasUncast = page.getBlock(channels.get(1));
-    if (zeroDeltasUncast.areAllValuesNull()) {
+    Block unusedDeltasUncast = page.getBlock(channels.get(1));
+    if (unusedDeltasUncast.areAllValuesNull()) {
       return;
     }
-    DoubleVector zeroDeltas = ((DoubleBlock) zeroDeltasUncast).asVector();
+    DoubleVector unusedDeltas = ((DoubleBlock) unusedDeltasUncast).asVector();
     Block seenUncast = page.getBlock(channels.get(2));
     if (seenUncast.areAllValuesNull()) {
       return;
     }
     BooleanVector seen = ((BooleanBlock) seenUncast).asVector();
-    assert value.getPositionCount() == zeroDeltas.getPositionCount() && value.getPositionCount() == seen.getPositionCount();
+    assert value.getPositionCount() == unusedDeltas.getPositionCount() && value.getPositionCount() == seen.getPositionCount();
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       if (groups.isNull(groupPosition)) {
         continue;
@@ -176,7 +176,7 @@ public final class LossySumDoubleGroupingAggregatorFunction implements GroupingA
       for (int g = groupStart; g < groupEnd; g++) {
         int groupId = groups.getInt(g);
         int valuesPosition = groupPosition + positionOffset;
-        LossySumDoubleAggregator.combineIntermediate(state, groupId, value.getDouble(valuesPosition), zeroDeltas.getDouble(valuesPosition), seen.getBoolean(valuesPosition));
+        LossySumDoubleAggregator.combineIntermediate(state, groupId, value.getDouble(valuesPosition), unusedDeltas.getDouble(valuesPosition), seen.getBoolean(valuesPosition));
       }
     }
   }
@@ -229,17 +229,17 @@ public final class LossySumDoubleGroupingAggregatorFunction implements GroupingA
       return;
     }
     DoubleVector value = ((DoubleBlock) valueUncast).asVector();
-    Block zeroDeltasUncast = page.getBlock(channels.get(1));
-    if (zeroDeltasUncast.areAllValuesNull()) {
+    Block unusedDeltasUncast = page.getBlock(channels.get(1));
+    if (unusedDeltasUncast.areAllValuesNull()) {
       return;
     }
-    DoubleVector zeroDeltas = ((DoubleBlock) zeroDeltasUncast).asVector();
+    DoubleVector unusedDeltas = ((DoubleBlock) unusedDeltasUncast).asVector();
     Block seenUncast = page.getBlock(channels.get(2));
     if (seenUncast.areAllValuesNull()) {
       return;
     }
     BooleanVector seen = ((BooleanBlock) seenUncast).asVector();
-    assert value.getPositionCount() == zeroDeltas.getPositionCount() && value.getPositionCount() == seen.getPositionCount();
+    assert value.getPositionCount() == unusedDeltas.getPositionCount() && value.getPositionCount() == seen.getPositionCount();
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       if (groups.isNull(groupPosition)) {
         continue;
@@ -249,7 +249,7 @@ public final class LossySumDoubleGroupingAggregatorFunction implements GroupingA
       for (int g = groupStart; g < groupEnd; g++) {
         int groupId = groups.getInt(g);
         int valuesPosition = groupPosition + positionOffset;
-        LossySumDoubleAggregator.combineIntermediate(state, groupId, value.getDouble(valuesPosition), zeroDeltas.getDouble(valuesPosition), seen.getBoolean(valuesPosition));
+        LossySumDoubleAggregator.combineIntermediate(state, groupId, value.getDouble(valuesPosition), unusedDeltas.getDouble(valuesPosition), seen.getBoolean(valuesPosition));
       }
     }
   }
@@ -288,21 +288,21 @@ public final class LossySumDoubleGroupingAggregatorFunction implements GroupingA
       return;
     }
     DoubleVector value = ((DoubleBlock) valueUncast).asVector();
-    Block zeroDeltasUncast = page.getBlock(channels.get(1));
-    if (zeroDeltasUncast.areAllValuesNull()) {
+    Block unusedDeltasUncast = page.getBlock(channels.get(1));
+    if (unusedDeltasUncast.areAllValuesNull()) {
       return;
     }
-    DoubleVector zeroDeltas = ((DoubleBlock) zeroDeltasUncast).asVector();
+    DoubleVector unusedDeltas = ((DoubleBlock) unusedDeltasUncast).asVector();
     Block seenUncast = page.getBlock(channels.get(2));
     if (seenUncast.areAllValuesNull()) {
       return;
     }
     BooleanVector seen = ((BooleanBlock) seenUncast).asVector();
-    assert value.getPositionCount() == zeroDeltas.getPositionCount() && value.getPositionCount() == seen.getPositionCount();
+    assert value.getPositionCount() == unusedDeltas.getPositionCount() && value.getPositionCount() == seen.getPositionCount();
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       int groupId = groups.getInt(groupPosition);
       int valuesPosition = groupPosition + positionOffset;
-      LossySumDoubleAggregator.combineIntermediate(state, groupId, value.getDouble(valuesPosition), zeroDeltas.getDouble(valuesPosition), seen.getBoolean(valuesPosition));
+      LossySumDoubleAggregator.combineIntermediate(state, groupId, value.getDouble(valuesPosition), unusedDeltas.getDouble(valuesPosition), seen.getBoolean(valuesPosition));
     }
   }
 

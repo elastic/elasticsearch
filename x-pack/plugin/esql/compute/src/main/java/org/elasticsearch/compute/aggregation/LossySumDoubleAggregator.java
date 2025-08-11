@@ -22,7 +22,9 @@ import org.elasticsearch.core.Releasables;
 @Aggregator(
     {
         @IntermediateState(name = "value", type = "DOUBLE"),
-        @IntermediateState(name = "zeroDeltas", type = "DOUBLE"), // for BWC with SumDoubleAggregator
+        // Unlike the compensated sum, the lossy sum does not use deltas. This unused deltas block is padded for alignment
+        // with the compensated sum, allow the summation options are exposed to users without worrying about BWC issues.
+        @IntermediateState(name = "unusedDeltas", type = "DOUBLE"),
         @IntermediateState(name = "seen", type = "BOOLEAN") }
 )
 @GroupingAggregator
@@ -36,13 +38,15 @@ class LossySumDoubleAggregator {
         current.value += v;
     }
 
-    public static void combine(SumState current, double value, double zeroDelta) {
-        assert zeroDelta == 0.0 : zeroDelta;
+    public static void combine(SumState current, double value, double unusedDelta) {
+        assert unusedDelta == 0.0 : "Lossy sum should not have delta " + unusedDelta;
         current.value += value;
     }
 
-    public static void combineIntermediate(SumState state, double inValue, double zeroDelta, boolean seen) {
-        assert zeroDelta == 0.0 : zeroDelta;
+    public static void combineIntermediate(SumState state, double inValue, double unusedDelta, boolean seen) {
+        // Unlike the compensated sum, the lossy sum does not use deltas. This unused deltas block is padded for alignment
+        // with the compensated sum, allow the summation options are exposed to users without worrying about BWC issues.
+        assert unusedDelta == 0.0 : "Lossy sum should not have delta " + unusedDelta;
         if (seen) {
             combine(state, inValue);
             state.seen(true);

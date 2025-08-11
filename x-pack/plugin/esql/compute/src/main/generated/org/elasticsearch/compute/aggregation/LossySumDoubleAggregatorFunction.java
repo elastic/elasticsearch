@@ -25,7 +25,7 @@ import org.elasticsearch.compute.operator.DriverContext;
 public final class LossySumDoubleAggregatorFunction implements AggregatorFunction {
   private static final List<IntermediateStateDesc> INTERMEDIATE_STATE_DESC = List.of(
       new IntermediateStateDesc("value", ElementType.DOUBLE),
-      new IntermediateStateDesc("zeroDeltas", ElementType.DOUBLE),
+      new IntermediateStateDesc("unusedDeltas", ElementType.DOUBLE),
       new IntermediateStateDesc("seen", ElementType.BOOLEAN)  );
 
   private final DriverContext driverContext;
@@ -148,19 +148,19 @@ public final class LossySumDoubleAggregatorFunction implements AggregatorFunctio
     }
     DoubleVector value = ((DoubleBlock) valueUncast).asVector();
     assert value.getPositionCount() == 1;
-    Block zeroDeltasUncast = page.getBlock(channels.get(1));
-    if (zeroDeltasUncast.areAllValuesNull()) {
+    Block unusedDeltasUncast = page.getBlock(channels.get(1));
+    if (unusedDeltasUncast.areAllValuesNull()) {
       return;
     }
-    DoubleVector zeroDeltas = ((DoubleBlock) zeroDeltasUncast).asVector();
-    assert zeroDeltas.getPositionCount() == 1;
+    DoubleVector unusedDeltas = ((DoubleBlock) unusedDeltasUncast).asVector();
+    assert unusedDeltas.getPositionCount() == 1;
     Block seenUncast = page.getBlock(channels.get(2));
     if (seenUncast.areAllValuesNull()) {
       return;
     }
     BooleanVector seen = ((BooleanBlock) seenUncast).asVector();
     assert seen.getPositionCount() == 1;
-    LossySumDoubleAggregator.combineIntermediate(state, value.getDouble(0), zeroDeltas.getDouble(0), seen.getBoolean(0));
+    LossySumDoubleAggregator.combineIntermediate(state, value.getDouble(0), unusedDeltas.getDouble(0), seen.getBoolean(0));
   }
 
   @Override

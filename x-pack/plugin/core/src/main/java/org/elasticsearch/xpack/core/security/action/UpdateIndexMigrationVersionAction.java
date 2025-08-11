@@ -160,7 +160,8 @@ public class UpdateIndexMigrationVersionAction extends ActionType<UpdateIndexMig
                 if (metadata.hasProject(projectId) == false) {
                     // project has been deleted? nothing to do
                     logger.warn(
-                        "Cannot update security index [{}] in project [{}] to migration-version [{}] because it does not exist in cluster state",
+                        "Cannot update security index [{}] in project [{}] to migration-version [{}]"
+                            + " because it does not exist in cluster state",
                         indexName,
                         projectId,
                         indexMigrationVersion

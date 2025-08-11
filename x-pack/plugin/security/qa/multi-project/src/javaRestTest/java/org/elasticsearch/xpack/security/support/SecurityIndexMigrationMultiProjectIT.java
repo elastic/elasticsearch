@@ -93,8 +93,8 @@ public class SecurityIndexMigrationMultiProjectIT extends ESRestTestCase {
                 clusterState,
                 "metadata.projects"
             ).stream().collect(Collectors.toMap(obj -> obj.get("id"), Function.identity()));
-            for (var projectId : projectIds) {
 
+            for (var projectId : projectIds) {
                 var projectState = projectStateById.get(projectId);
                 assertThat("project [" + projectId + "] is not available in cluster state", projectState, notNullValue());
 

@@ -118,6 +118,8 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
         }
         // we request numCands as we are using it as an approximation measure
         // we need to ensure we are getting at least 2*k results to ensure we cover overspill duplicates
+        // TODO move the logic for automatically adjusting percentages/nprobe to the query, so we can only pass
+        // 2k to the collector.
         KnnCollectorManager knnCollectorManager = getKnnCollectorManager(Math.max(Math.round(2f * k), numCands), indexSearcher);
         TaskExecutor taskExecutor = indexSearcher.getTaskExecutor();
         List<LeafReaderContext> leafReaderContexts = reader.leaves();

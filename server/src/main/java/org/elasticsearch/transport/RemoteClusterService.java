@@ -795,7 +795,7 @@ public final class RemoteClusterService extends RemoteClusterAware
 
         @Override
         public Iterator<Setting<?>> settings() {
-            return Iterators.concat(super.settings(), List.of(statelessSetting).iterator());
+            return Iterators.concat(super.settings(), Iterators.single(statelessSetting));
         }
     }
 }

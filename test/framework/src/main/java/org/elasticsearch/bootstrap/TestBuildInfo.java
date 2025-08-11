@@ -11,4 +11,4 @@ package org.elasticsearch.bootstrap;
 
 import java.util.List;
 
-record TestBuildInfo(String component, List<TestBuildInfoLocation> locations) {}
+public record TestBuildInfo(String component, List<TestBuildInfoLocation> locations) {}

@@ -1,41 +1,71 @@
 [[esql-metadata-fields]]
 === {esql} metadata fields
-
 ++++
 <titleabbrev>Metadata fields</titleabbrev>
 ++++
 
-{esql} can access <<mapping-fields, metadata fields>>. The currently
-supported ones are:
+{esql} can access <<mapping-fields, metadata fields>>.
 
-  * <<mapping-index-field,`_index`>>: the index to which the document belongs.
-  The field is of the type <<keyword, keyword>>.
-
-  * <<mapping-id-field,`_id`>>: the source document's ID. The field is of the
-  type <<keyword, keyword>>.
-
-  * `_version`: the source document's version. The field is of the type
-  <<number,long>>.
-
-  * <<mapping-ignored-field,`_ignored`>>: the ignored source document fields. The field is of the type
-  <<keyword,keyword>>.
-
-  * `_score`: when enabled, the final score assigned to each row matching an ES|QL query. Scoring will be updated when using <<esql-search-functions,full text search functions>>.
-
-To enable the access to these fields, the <<esql-from,`FROM`>> source command needs
-to be provided with a dedicated directive:
+To access these fields, use the `METADATA` directive with the <<esql-from,`FROM`>> source command. For example:
 
 [source,esql]
 ----
 FROM index METADATA _index, _id
 ----
 
-Metadata fields are only available if the source of the data is an index.
-Consequently, `FROM` is the only source commands that supports the `METADATA`
-directive.
+[[esql-metadata-fields-available]]
+==== Available metadata fields
 
-Once enabled, these fields will be available to subsequent processing commands, just
-like other index fields:
+The following metadata fields are available in {esql}:
+
+[cols="1,1,3"]
+|===
+|Metadata field |Type |Description
+
+|<<mapping-id-field,`_id`>>
+|<<keyword, keyword>>
+|Unique document ID.
+
+|<<mapping-ignored-field,`_ignored`>>
+|<<keyword, keyword>>
+|Names every field in a document that was ignored when the document was indexed.
+
+|<<mapping-index-field,`_index`>>
+|<<keyword, keyword>>
+|Index name.
+
+|`_index_mode`
+|<<keyword, keyword>>
+|<<index-mode-setting,Index mode>>. For example: `standard`, `lookup`, or `logsdb`.
+
+|`_score`
+|<<number,`float`>>
+|Query relevance score (when enabled). Scores are updated when using <<esql-search-functions,full text search functions>>.
+
+|<<mapping-source-field,`_source`>>
+|Special `_source` type
+|Original JSON document body passed at index time (or a reconstructed version if <<synthetic-source,synthetic `_source`>> is enabled).
+
+|`_version`
+|<<number,`long`>>
+|Document version number
+|===
+
+[[esql-metadata-fields-usage]]
+==== Usage and limitations
+
+- Metadata fields are only available when the data source is an index
+- The `_source` type is not supported by functions
+- Only the `FROM` command supports the `METADATA` directive
+- Once enabled, metadata fields work like regular index fields
+
+[[esql-metadata-fields-examples]]
+==== Examples
+
+[[esql-metadata-fields-examples-basic]]
+===== Basic metadata usage
+
+Once enabled, metadata fields are available to subsequent processing commands, just like other index fields:
 
 [source.merge.styled,esql]
 ----
@@ -45,6 +75,9 @@ include::{esql-specs}/metadata.csv-spec[tag=multipleIndices]
 |===
 include::{esql-specs}/metadata.csv-spec[tag=multipleIndices-result]
 |===
+
+[[esql-metadata-fields-examples-aggregations]]
+===== Metadata fields and aggregations
 
 Similar to index fields, once an aggregation is performed, a
 metadata field will no longer be accessible to subsequent commands, unless
@@ -58,3 +91,19 @@ include::{esql-specs}/metadata.csv-spec[tag=metaIndexInAggs]
 |===
 include::{esql-specs}/metadata.csv-spec[tag=metaIndexInAggs-result]
 |===
+
+[[esql-metadata-fields-examples-score]]
+===== Sort results by search score
+
+[source,esql]
+----
+FROM products METADATA _score
+| WHERE MATCH(description, "wireless headphones")
+| SORT _score DESC
+| KEEP name, description, _score
+----
+
+[TIP]
+====
+Refer to <<esql-for-search>> for more information on relevance scoring and how to use `_score` in your queries.
+====

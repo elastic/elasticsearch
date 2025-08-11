@@ -8,12 +8,12 @@
 package org.elasticsearch.xpack.inference.services.elastic.response;
 
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
+import org.elasticsearch.inference.WeightedToken;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResults;
-import org.elasticsearch.xpack.core.ml.search.WeightedToken;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
 import org.elasticsearch.xpack.inference.external.request.Request;
 
@@ -51,11 +51,11 @@ public class ElasticInferenceServiceSparseEmbeddingsResponseEntity {
      *     <code>
      *         {
      *           "data": [
-     *                     {
-     *                       "Embed": 2.1259406,
-     *                       "this": 1.7073475,
-     *                       "text": 0.9020516
-     *                     },
+     *                     [
+     *                       2.1259406,
+     *                       1.7073475,
+     *                       0.9020516
+     *                     ],
      *                    (...)
      *                  ],
      *           "meta": {

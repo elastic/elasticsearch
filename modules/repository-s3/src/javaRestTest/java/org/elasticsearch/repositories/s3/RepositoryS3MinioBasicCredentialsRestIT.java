@@ -21,9 +21,6 @@ import org.junit.rules.TestRule;
 
 import java.util.Locale;
 
-import static org.elasticsearch.repositories.s3.S3Service.REPOSITORY_S3_CAS_ANTI_CONTENTION_DELAY_SETTING;
-import static org.elasticsearch.repositories.s3.S3Service.REPOSITORY_S3_CAS_TTL_SETTING;
-
 @ThreadLeakFilters(filters = { TestContainersThreadFilter.class })
 @ThreadLeakScope(ThreadLeakScope.Scope.NONE) // https://github.com/elastic/elasticsearch/issues/102482
 public class RepositoryS3MinioBasicCredentialsRestIT extends AbstractRepositoryS3RestTestCase {
@@ -42,10 +39,6 @@ public class RepositoryS3MinioBasicCredentialsRestIT extends AbstractRepositoryS
         .keystore("s3.client." + CLIENT + ".access_key", ACCESS_KEY)
         .keystore("s3.client." + CLIENT + ".secret_key", SECRET_KEY)
         .setting("s3.client." + CLIENT + ".endpoint", minioFixture::getAddress)
-        // Skip listing of pre-existing uploads during a CAS because MinIO sometimes leaks them; also reduce the delay before proceeding
-        // TODO do not set these if running a MinIO version in which https://github.com/minio/minio/issues/21189 is fixed
-        .setting(REPOSITORY_S3_CAS_TTL_SETTING.getKey(), "-1")
-        .setting(REPOSITORY_S3_CAS_ANTI_CONTENTION_DELAY_SETTING.getKey(), "100ms")
         .build();
 
     @ClassRule

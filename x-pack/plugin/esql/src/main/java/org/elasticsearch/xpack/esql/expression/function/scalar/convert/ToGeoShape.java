@@ -26,7 +26,6 @@ import java.util.Map;
 import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_POINT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_SHAPE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
-import static org.elasticsearch.xpack.esql.core.type.DataType.SEMANTIC_TEXT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.stringToGeo;
 
@@ -41,8 +40,7 @@ public class ToGeoShape extends AbstractConvertFunction {
         Map.entry(GEO_POINT, (source, fieldEval) -> fieldEval),
         Map.entry(GEO_SHAPE, (source, fieldEval) -> fieldEval),
         Map.entry(KEYWORD, ToGeoShapeFromStringEvaluator.Factory::new),
-        Map.entry(TEXT, ToGeoShapeFromStringEvaluator.Factory::new),
-        Map.entry(SEMANTIC_TEXT, ToGeoShapeFromStringEvaluator.Factory::new)
+        Map.entry(TEXT, ToGeoShapeFromStringEvaluator.Factory::new)
     );
 
     @FunctionInfo(

@@ -59,7 +59,7 @@ public class AggregateMetricDoubleBlockBuilder extends AbstractBlockBuilder impl
     }
 
     @Override
-    public Block.Builder copyFrom(Block b, int beginInclusive, int endExclusive) {
+    public AggregateMetricDoubleBlockBuilder copyFrom(Block b, int beginInclusive, int endExclusive) {
         Block minBlock;
         Block maxBlock;
         Block sumBlock;
@@ -84,7 +84,7 @@ public class AggregateMetricDoubleBlockBuilder extends AbstractBlockBuilder impl
     }
 
     @Override
-    public AbstractBlockBuilder appendNull() {
+    public AggregateMetricDoubleBlockBuilder appendNull() {
         minBuilder.appendNull();
         maxBuilder.appendNull();
         sumBuilder.appendNull();
@@ -93,7 +93,7 @@ public class AggregateMetricDoubleBlockBuilder extends AbstractBlockBuilder impl
     }
 
     @Override
-    public Block.Builder mvOrdering(Block.MvOrdering mvOrdering) {
+    public AggregateMetricDoubleBlockBuilder mvOrdering(Block.MvOrdering mvOrdering) {
         minBuilder.mvOrdering(mvOrdering);
         maxBuilder.mvOrdering(mvOrdering);
         sumBuilder.mvOrdering(mvOrdering);
@@ -102,7 +102,7 @@ public class AggregateMetricDoubleBlockBuilder extends AbstractBlockBuilder impl
     }
 
     @Override
-    public Block build() {
+    public AggregateMetricDoubleBlock build() {
         DoubleBlock minBlock = null;
         DoubleBlock maxBlock = null;
         DoubleBlock sumBlock = null;
@@ -114,7 +114,7 @@ public class AggregateMetricDoubleBlockBuilder extends AbstractBlockBuilder impl
             maxBlock = maxBuilder.build();
             sumBlock = sumBuilder.build();
             countBlock = countBuilder.build();
-            AggregateMetricDoubleBlock block = new AggregateMetricDoubleBlock(minBlock, maxBlock, sumBlock, countBlock);
+            AggregateMetricDoubleBlock block = new AggregateMetricDoubleArrayBlock(minBlock, maxBlock, sumBlock, countBlock);
             success = true;
             return block;
         } finally {
@@ -174,9 +174,9 @@ public class AggregateMetricDoubleBlockBuilder extends AbstractBlockBuilder impl
 
     public record AggregateMetricDoubleLiteral(Double min, Double max, Double sum, Integer count) implements GenericNamedWriteable {
         public AggregateMetricDoubleLiteral {
-            min = min.isNaN() ? null : min;
-            max = max.isNaN() ? null : max;
-            sum = sum.isNaN() ? null : sum;
+            min = (min == null || min.isNaN()) ? null : min;
+            max = (max == null || max.isNaN()) ? null : max;
+            sum = (sum == null || sum.isNaN()) ? null : sum;
         }
 
         public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(

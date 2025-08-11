@@ -46,7 +46,7 @@ public abstract class RunTask extends DefaultTestClustersTask {
 
     private Boolean apmServerEnabled = false;
 
-    private List<String> plugins = List.of();
+    private List<String> plugins;
 
     private Boolean preserveData = false;
 
@@ -115,7 +115,12 @@ public abstract class RunTask extends DefaultTestClustersTask {
         }
     }
 
+    public void setPlugins(List<String> plugins) {
+        this.plugins = plugins;
+    }
+
     @Input
+    @Optional
     public List<String> getPlugins() {
         return plugins;
     }

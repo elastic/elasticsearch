@@ -27,7 +27,10 @@ import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.Rename;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
+import org.elasticsearch.xpack.esql.plan.logical.Sample;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
+import org.elasticsearch.xpack.esql.plan.logical.inference.Completion;
+import org.elasticsearch.xpack.esql.plan.logical.inference.Rerank;
 import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
 import org.elasticsearch.xpack.esql.plan.logical.local.EsqlProject;
 import org.elasticsearch.xpack.esql.plan.logical.show.ShowInfo;
@@ -56,7 +59,10 @@ public enum FeatureMetric {
     LOOKUP_JOIN(LookupJoin.class::isInstance),
     LOOKUP(Lookup.class::isInstance),
     CHANGE_POINT(ChangePoint.class::isInstance),
-    INLINESTATS(InlineStats.class::isInstance);
+    INLINESTATS(InlineStats.class::isInstance),
+    COMPLETION(Completion.class::isInstance),
+    RERANK(Rerank.class::isInstance),
+    SAMPLE(Sample.class::isInstance);
 
     /**
      * List here plans we want to exclude from telemetry

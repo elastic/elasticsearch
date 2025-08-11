@@ -24,6 +24,32 @@ PUT my-index
 }
 --------------------------------------------------
 
+[[sparse-vector-token-pruning]]
+==== Token pruning
+
+With any new indices created, token pruning will be turned on by default with appropriate defaults. You can control this behaviour using the optional `index_options` parameters for the field:
+
+[source,console]
+--------------------------------------------------
+PUT my-index
+{
+  "mappings": {
+    "properties": {
+      "text.tokens": {
+        "type": "sparse_vector",
+        "index_options": {
+          "prune": true,
+          "pruning_config": {
+            "tokens_freq_ratio_threshold": 5,
+            "tokens_weight_threshold": 0.4
+          }
+        }
+      }
+    }
+  }
+}
+--------------------------------------------------
+
 See <<semantic-search-elser, semantic search with ELSER>> for a complete example on adding documents to a `sparse_vector` mapped field using ELSER.
 
 [[sparse-vectors-params]]
@@ -42,6 +68,43 @@ The input map can be retrieved during a search request via the <<search-fields-p
 To benefit from reduced disk usage, you must either:
   * Exclude the field from <<source-filtering, _source>>.
   * Use <<synthetic-source,synthetic `_source`>>.
+
+`index_options`::
+(Optional, object) You can set index options for your  `sparse_vector` field to determine if you should prune tokens, and the parameter configurations for the token pruning. If pruning options are not set in your <<query-dsl-sparse-vector-query, `sparse_vector query`>>, Elasticsearch will use the default options configured for the field, if any.
+
+Parameters for `index_options` are:
+
+[horizontal]
+
+`prune`::
+(Optional, boolean) Whether to perform pruning, omitting the non-significant tokens from the query to improve query performance. If `prune` is true but the `pruning_config` is not specified, pruning will occur but default values will be used. Default: true.
+
+`pruning_config`::
+(Optional, object) Optional pruning configuration. If enabled, this will omit non-significant tokens from the query in order to improve query performance. This is only used if `prune` is set to `true`. If `prune` is set to `true` but `pruning_config` is not specified, default values will be used. If `prune` is set to false but `pruning_config` is specified, an exception will occur.
+
+Parameters for `pruning_config` include:
+
+[horizontal]
+
+`tokens_freq_ratio_threshold`::
+(Optional, integer) Tokens whose frequency is more than `tokens_freq_ratio_threshold` times the average frequency of all tokens in the specified field are considered outliers and pruned. This value must between 1 and 100. Default: `5`.
+
+`tokens_weight_threshold`::
+(Optional, float) Tokens whose weight is less than `tokens_weight_threshold` are considered insignificant and pruned. This value must be between 0 and 1. Default: `0.4`.
+
+NOTE: The default values for `tokens_freq_ratio_threshold` and `tokens_weight_threshold` were chosen based on tests using ELSERv2 that provided the most optimal results.
+
+When token pruning is applied, non-significant tokens will be pruned from the query.
+Non-significant tokens can be defined as tokens that meet both of the following criteria:
+
+* The token appears much more frequently than most tokens, indicating that it is a very common word and may not benefit the overall search results much.
+* The weight/score is so low that the token is likely not very relevant to the original term
+
+Both the token frequency threshold and weight threshold must show the token is non-significant in order for the token to be pruned.
+This ensures that:
+
+* The tokens that are kept are frequent enough and have significant scoring.
+* Very infrequent tokens that may not have as high of a score are removed.
 
 [[index-multi-value-sparse-vectors]]
 ==== Multi-value sparse vectors

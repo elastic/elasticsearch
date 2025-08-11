@@ -16,11 +16,13 @@ See <<esql-limitations-full-text-search,full text search limitations>> for infor
 {esql} supports these full-text search functions:
 
 // tag::search_list[]
-* experimental:[] <<esql-kql>>
-* experimental:[] <<esql-match>>
-* experimental:[] <<esql-qstr>>
+* <<esql-kql>>
+* <<esql-match>>
+* <<esql-match_phrase>>
+*  <<esql-qstr>>
 // end::search_list[]
 
 include::layout/kql.asciidoc[]
 include::layout/match.asciidoc[]
+include::layout/match_phrase.asciidoc[]
 include::layout/qstr.asciidoc[]

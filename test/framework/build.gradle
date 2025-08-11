@@ -17,6 +17,7 @@ dependencies {
   api project(':libs:ssl-config')
   api project(":server")
   api project(":libs:cli")
+  api project(":libs:entitlement:bridge")
   api "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${versions.randomizedrunner}"
   api "junit:junit:${versions.junit}"
   api "org.hamcrest:hamcrest:${versions.hamcrest}"

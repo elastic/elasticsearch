@@ -93,11 +93,11 @@ import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
 import static org.elasticsearch.core.Strings.format;
-import static org.elasticsearch.indices.cluster.IndicesClusterStateService.AllocatedIndices.IndexRemovalReason.CLOSED;
-import static org.elasticsearch.indices.cluster.IndicesClusterStateService.AllocatedIndices.IndexRemovalReason.DELETED;
-import static org.elasticsearch.indices.cluster.IndicesClusterStateService.AllocatedIndices.IndexRemovalReason.FAILURE;
-import static org.elasticsearch.indices.cluster.IndicesClusterStateService.AllocatedIndices.IndexRemovalReason.NO_LONGER_ASSIGNED;
-import static org.elasticsearch.indices.cluster.IndicesClusterStateService.AllocatedIndices.IndexRemovalReason.REOPENED;
+import static org.elasticsearch.indices.cluster.IndexRemovalReason.CLOSED;
+import static org.elasticsearch.indices.cluster.IndexRemovalReason.DELETED;
+import static org.elasticsearch.indices.cluster.IndexRemovalReason.FAILURE;
+import static org.elasticsearch.indices.cluster.IndexRemovalReason.NO_LONGER_ASSIGNED;
+import static org.elasticsearch.indices.cluster.IndexRemovalReason.REOPENED;
 
 public class IndicesClusterStateService extends AbstractLifecycleComponent implements ClusterStateApplier {
     private static final Logger logger = LogManager.getLogger(IndicesClusterStateService.class);
@@ -469,7 +469,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
             final IndexMetadata indexMetadata = state.metadata().index(index);
             final IndexMetadata existingMetadata = indexService.getIndexSettings().getIndexMetadata();
 
-            AllocatedIndices.IndexRemovalReason reason = null;
+            IndexRemovalReason reason = null;
             if (indexMetadata != null && indexMetadata.getState() != existingMetadata.getState()) {
                 reason = indexMetadata.getState() == IndexMetadata.State.CLOSE ? CLOSED : REOPENED;
             } else if (localRoutingNode == null || localRoutingNode.hasIndex(index) == false) {
@@ -1306,47 +1306,6 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
 
         void processPendingDeletes(Index index, IndexSettings indexSettings, TimeValue timeValue) throws IOException, InterruptedException,
             ShardLockObtainFailedException;
-
-        enum IndexRemovalReason {
-            /**
-             * Shard of this index were previously assigned to this node but all shards have been relocated.
-             * The index should be removed and all associated resources released. Persistent parts of the index
-             * like the shards files, state and transaction logs are kept around in the case of a disaster recovery.
-             */
-            NO_LONGER_ASSIGNED,
-
-            /**
-             * The index is deleted. Persistent parts of the index  like the shards files, state and transaction logs are removed once
-             * all resources are released.
-             */
-            DELETED,
-
-            /**
-             * The index has been closed. The index should be removed and all associated resources released. Persistent parts of the index
-             * like the shards files, state and transaction logs are kept around in the case of a disaster recovery.
-             */
-            CLOSED,
-
-            /**
-             * Something around index management has failed and the index should be removed.
-             * Persistent parts of the index like the shards files, state and transaction logs are kept around in the
-             * case of a disaster recovery.
-             */
-            FAILURE,
-
-            /**
-             * The index has been reopened. The index should be removed and all associated resources released. Persistent parts of the index
-             * like the shards files, state and transaction logs are kept around in the case of a disaster recovery.
-             */
-            REOPENED,
-
-            /**
-             * The index is closed as part of the node shutdown process. The index should be removed and all associated resources released.
-             * Persistent parts of the index like the shards files, state and transaction logs should be kept around in the case the node
-             * restarts.
-             */
-            SHUTDOWN,
-        }
     }
 
     static class ShardCloseExecutor implements Executor {

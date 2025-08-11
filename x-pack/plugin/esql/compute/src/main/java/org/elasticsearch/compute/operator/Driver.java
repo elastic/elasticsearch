@@ -77,7 +77,7 @@ public class Driver implements Releasable, Describable {
     private final DriverContext driverContext;
     private final Supplier<String> description;
     private final List<Operator> activeOperators;
-    private final List<DriverStatus.OperatorStatus> statusOfCompletedOperators = new ArrayList<>();
+    private final List<OperatorStatus> statusOfCompletedOperators = new ArrayList<>();
     private final Releasable releasable;
     private final long statusNanos;
 
@@ -211,10 +211,13 @@ public class Driver implements Releasable, Describable {
         while (true) {
             IsBlockedResult isBlocked = Operator.NOT_BLOCKED;
             try {
+                assert driverContext.assertBeginRunLoop();
                 isBlocked = runSingleLoopIteration();
             } catch (DriverEarlyTerminationException unused) {
                 closeEarlyFinishedOperators();
                 assert isFinished() : "not finished after early termination";
+            } finally {
+                assert driverContext.assertEndRunLoop();
             }
             totalIterationsThisRun++;
             iterationsSinceLastStatusUpdate++;
@@ -289,6 +292,8 @@ public class Driver implements Releasable, Describable {
 
             if (op.isFinished() == false && nextOp.needsInput()) {
                 driverContext.checkForEarlyTermination();
+                assert nextOp.isFinished() == false || nextOp instanceof ExchangeSinkOperator || nextOp instanceof LimitOperator
+                    : "next operator should not be finished yet: " + nextOp;
                 Page page = op.getOutput();
                 if (page == null) {
                     // No result, just move to the next iteration
@@ -340,7 +345,7 @@ public class Driver implements Releasable, Describable {
                 Iterator<Operator> itr = finishedOperators.iterator();
                 while (itr.hasNext()) {
                     Operator op = itr.next();
-                    statusOfCompletedOperators.add(new DriverStatus.OperatorStatus(op.toString(), op.status()));
+                    statusOfCompletedOperators.add(new OperatorStatus(op.toString(), op.status()));
                     op.close();
                     itr.remove();
                 }
@@ -566,8 +571,8 @@ public class Driver implements Releasable, Describable {
                 prev.cpuNanos() + extraCpuNanos,
                 prev.iterations() + extraIterations,
                 status,
-                statusOfCompletedOperators,
-                activeOperators.stream().map(op -> new DriverStatus.OperatorStatus(op.toString(), op.status())).toList(),
+                List.copyOf(statusOfCompletedOperators),
+                activeOperators.stream().map(op -> new OperatorStatus(op.toString(), op.status())).toList(),
                 sleeps
             );
         });

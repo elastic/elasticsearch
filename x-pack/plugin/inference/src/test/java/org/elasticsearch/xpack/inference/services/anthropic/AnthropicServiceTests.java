@@ -153,7 +153,7 @@ public class AnthropicServiceTests extends ESTestCase {
 
             var failureListener = getModelListenerForException(
                 ElasticsearchStatusException.class,
-                "Model configuration contains settings [{extra_key=value}] unknown to the [anthropic] service"
+                "Configuration contains settings [{extra_key=value}] unknown to the [anthropic] service"
             );
             service.parseRequestConfig("id", TaskType.COMPLETION, config, failureListener);
         }
@@ -172,7 +172,7 @@ public class AnthropicServiceTests extends ESTestCase {
 
             var failureListener = getModelListenerForException(
                 ElasticsearchStatusException.class,
-                "Model configuration contains settings [{extra_key=value}] unknown to the [anthropic] service"
+                "Configuration contains settings [{extra_key=value}] unknown to the [anthropic] service"
             );
             service.parseRequestConfig("id", TaskType.COMPLETION, config, failureListener);
         }
@@ -191,7 +191,7 @@ public class AnthropicServiceTests extends ESTestCase {
 
             var failureListener = getModelListenerForException(
                 ElasticsearchStatusException.class,
-                "Model configuration contains settings [{extra_key=value}] unknown to the [anthropic] service"
+                "Configuration contains settings [{extra_key=value}] unknown to the [anthropic] service"
             );
             service.parseRequestConfig("id", TaskType.COMPLETION, config, failureListener);
         }
@@ -210,7 +210,7 @@ public class AnthropicServiceTests extends ESTestCase {
 
             var failureListener = getModelListenerForException(
                 ElasticsearchStatusException.class,
-                "Model configuration contains settings [{extra_key=value}] unknown to the [anthropic] service"
+                "Configuration contains settings [{extra_key=value}] unknown to the [anthropic] service"
             );
             service.parseRequestConfig("id", TaskType.COMPLETION, config, failureListener);
         }
@@ -649,6 +649,15 @@ public class AnthropicServiceTests extends ESTestCase {
                               "sensitive": false,
                               "updatable": false,
                               "type": "str",
+                              "supported_task_types": ["completion"]
+                          },
+                        "max_tokens": {
+                              "description": "The maximum number of tokens to generate before stopping.",
+                              "label": "Max Tokens",
+                              "required": true,
+                              "sensitive": false,
+                              "updatable": false,
+                              "type": "int",
                               "supported_task_types": ["completion"]
                           }
                       }

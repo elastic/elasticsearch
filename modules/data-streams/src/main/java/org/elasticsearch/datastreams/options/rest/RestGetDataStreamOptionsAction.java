@@ -46,7 +46,6 @@ public class RestGetDataStreamOptionsAction extends BaseRestHandler {
             RestUtils.getMasterNodeTimeout(request),
             Strings.splitStringByCommaToArray(request.param("name"))
         );
-        getDataStreamOptionsRequest.includeDefaults(request.paramAsBoolean("include_defaults", false));
         getDataStreamOptionsRequest.indicesOptions(IndicesOptions.fromRequest(request, getDataStreamOptionsRequest.indicesOptions()));
         return channel -> client.execute(
             GetDataStreamOptionsAction.INSTANCE,

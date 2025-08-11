@@ -35,6 +35,7 @@ import javax.lang.model.util.Elements;
 
 import static java.util.stream.Collectors.joining;
 import static org.elasticsearch.compute.gen.AggregatorImplementer.capitalize;
+import static org.elasticsearch.compute.gen.Methods.optionalStaticMethod;
 import static org.elasticsearch.compute.gen.Methods.requireAnyArgs;
 import static org.elasticsearch.compute.gen.Methods.requireAnyType;
 import static org.elasticsearch.compute.gen.Methods.requireArgs;
@@ -194,7 +195,7 @@ public class GroupingAggregatorImplementer {
         builder.addMethod(ctor());
         builder.addMethod(intermediateStateDesc());
         builder.addMethod(intermediateBlockCount());
-        builder.addMethod(prepareProcessPage());
+        builder.addMethod(prepareProcessRawInputPage());
         builder.addMethod(addRawInputLoop(INT_VECTOR, blockType(aggParam.type())));
         builder.addMethod(addRawInputLoop(INT_VECTOR, vectorType(aggParam.type())));
         builder.addMethod(addRawInputLoop(INT_BLOCK, blockType(aggParam.type())));
@@ -309,10 +310,10 @@ public class GroupingAggregatorImplementer {
     }
 
     /**
-     * Prepare to process a single page of results.
+     * Prepare to process a single raw input page.
      */
-    private MethodSpec prepareProcessPage() {
-        MethodSpec.Builder builder = MethodSpec.methodBuilder("prepareProcessPage");
+    private MethodSpec prepareProcessRawInputPage() {
+        MethodSpec.Builder builder = MethodSpec.methodBuilder("prepareProcessRawInputPage");
         builder.addAnnotation(Override.class).addModifiers(Modifier.PUBLIC).returns(GROUPING_AGGREGATOR_FUNCTION_ADD_INPUT);
         builder.addParameter(SEEN_GROUP_IDS, "seenGroupIds").addParameter(PAGE, "page");
 
@@ -332,10 +333,32 @@ public class GroupingAggregatorImplementer {
             builder.beginControlFlow("if (valuesBlock.mayHaveNulls())");
             builder.addStatement("state.enableGroupIdTracking(seenGroupIds)");
             builder.endControlFlow();
-            builder.addStatement("return $L", addInput(b -> b.addStatement("addRawInput(positionOffset, groupIds, valuesBlock$L)", extra)));
+            if (shouldWrapAddInput(blockType(aggParam.type()))) {
+                builder.addStatement(
+                    "var addInput = $L",
+                    addInput(b -> b.addStatement("addRawInput(positionOffset, groupIds, valuesBlock$L)", extra))
+                );
+                builder.addStatement("return $T.wrapAddInput(addInput, state, valuesBlock)", declarationType);
+            } else {
+                builder.addStatement(
+                    "return $L",
+                    addInput(b -> b.addStatement("addRawInput(positionOffset, groupIds, valuesBlock$L)", extra))
+                );
+            }
         }
         builder.endControlFlow();
-        builder.addStatement("return $L", addInput(b -> b.addStatement("addRawInput(positionOffset, groupIds, valuesVector$L)", extra)));
+        if (shouldWrapAddInput(vectorType(aggParam.type()))) {
+            builder.addStatement(
+                "var addInput = $L",
+                addInput(b -> b.addStatement("addRawInput(positionOffset, groupIds, valuesVector$L)", extra))
+            );
+            builder.addStatement("return $T.wrapAddInput(addInput, state, valuesVector)", declarationType);
+        } else {
+            builder.addStatement(
+                "return $L",
+                addInput(b -> b.addStatement("addRawInput(positionOffset, groupIds, valuesVector$L)", extra))
+            );
+        }
         return builder.build();
     }
 
@@ -523,6 +546,15 @@ public class GroupingAggregatorImplementer {
 
     private void combineRawInputForArray(MethodSpec.Builder builder, String arrayVariable) {
         warningsBlock(builder, () -> builder.addStatement("$T.combine(state, groupId, $L)", declarationType, arrayVariable));
+    }
+
+    private boolean shouldWrapAddInput(TypeName valuesType) {
+        return optionalStaticMethod(
+            declarationType,
+            requireType(GROUPING_AGGREGATOR_FUNCTION_ADD_INPUT),
+            requireName("wrapAddInput"),
+            requireArgs(requireType(GROUPING_AGGREGATOR_FUNCTION_ADD_INPUT), requireType(aggState.declaredType()), requireType(valuesType))
+        ) != null;
     }
 
     private void warningsBlock(MethodSpec.Builder builder, Runnable block) {

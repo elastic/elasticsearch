@@ -60,6 +60,7 @@ public class TestStreamingCompletionServiceExtension implements InferenceService
 
     public static class TestInferenceService extends AbstractTestInferenceService {
         private static final String NAME = "streaming_completion_test_service";
+        private static final String ALIAS = "streaming_completion_test_service_alias";
         private static final Set<TaskType> supportedStreamingTasks = Set.of(TaskType.COMPLETION, TaskType.CHAT_COMPLETION);
 
         private static final EnumSet<TaskType> supportedTaskTypes = EnumSet.of(
@@ -73,6 +74,11 @@ public class TestStreamingCompletionServiceExtension implements InferenceService
         @Override
         public String name() {
             return NAME;
+        }
+
+        @Override
+        public List<String> aliases() {
+            return List.of(ALIAS);
         }
 
         @Override

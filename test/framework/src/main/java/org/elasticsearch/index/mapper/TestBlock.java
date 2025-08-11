@@ -12,6 +12,7 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.util.BytesRef;
+import org.hamcrest.Matcher;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -19,11 +20,14 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 
+import static org.elasticsearch.test.ESTestCase.assertThat;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 
 public class TestBlock implements BlockLoader.Block {
-    public static BlockLoader.BlockFactory factory(int pageSize) {
+    public static BlockLoader.BlockFactory factory() {
         return new BlockLoader.BlockFactory() {
             @Override
             public BlockLoader.BooleanBuilder booleansFromDocValues(int expectedCount) {
@@ -33,6 +37,10 @@ public class TestBlock implements BlockLoader.Block {
             @Override
             public BlockLoader.BooleanBuilder booleans(int expectedCount) {
                 class BooleansBuilder extends TestBlock.Builder implements BlockLoader.BooleanBuilder {
+                    private BooleansBuilder() {
+                        super(expectedCount);
+                    }
+
                     @Override
                     public BooleansBuilder appendBoolean(boolean value) {
                         add(value);
@@ -44,12 +52,27 @@ public class TestBlock implements BlockLoader.Block {
 
             @Override
             public BlockLoader.BytesRefBuilder bytesRefsFromDocValues(int expectedCount) {
-                return bytesRefs(expectedCount);
+                class BytesRefsFromDocValuesBuilder extends TestBlock.Builder implements BlockLoader.BytesRefBuilder {
+                    private BytesRefsFromDocValuesBuilder() {
+                        super(expectedCount);
+                    }
+
+                    @Override
+                    public BytesRefsFromDocValuesBuilder appendBytesRef(BytesRef value) {
+                        add(BytesRef.deepCopyOf(value));
+                        return this;
+                    }
+                }
+                return new BytesRefsFromDocValuesBuilder();
             }
 
             @Override
             public BlockLoader.BytesRefBuilder bytesRefs(int expectedCount) {
                 class BytesRefsBuilder extends TestBlock.Builder implements BlockLoader.BytesRefBuilder {
+                    private BytesRefsBuilder() {
+                        super(expectedCount);
+                    }
+
                     @Override
                     public BytesRefsBuilder appendBytesRef(BytesRef value) {
                         add(BytesRef.deepCopyOf(value));
@@ -67,6 +90,10 @@ public class TestBlock implements BlockLoader.Block {
             @Override
             public BlockLoader.DoubleBuilder doubles(int expectedCount) {
                 class DoublesBuilder extends TestBlock.Builder implements BlockLoader.DoubleBuilder {
+                    private DoublesBuilder() {
+                        super(expectedCount);
+                    }
+
                     @Override
                     public DoublesBuilder appendDouble(double value) {
                         add(value);
@@ -77,6 +104,43 @@ public class TestBlock implements BlockLoader.Block {
             }
 
             @Override
+            public BlockLoader.FloatBuilder denseVectors(int expectedCount, int dimensions) {
+                class FloatsBuilder extends TestBlock.Builder implements BlockLoader.FloatBuilder {
+                    int numElements = 0;
+
+                    private FloatsBuilder() {
+                        super(expectedCount);
+                    }
+
+                    @Override
+                    public BlockLoader.FloatBuilder appendFloat(float value) {
+                        add(value);
+                        numElements++;
+                        return this;
+                    }
+
+                    @Override
+                    public Builder appendNull() {
+                        throw new IllegalArgumentException("dense vectors should not have null values");
+                    }
+
+                    @Override
+                    public Builder endPositionEntry() {
+                        assert numElements == dimensions : "expected " + dimensions + " dimensions, but got " + numElements;
+                        numElements = 0;
+                        return super.endPositionEntry();
+                    }
+
+                    @Override
+                    public TestBlock build() {
+                        assert numElements == 0 : "endPositionEntry() was not called for the last entry";
+                        return super.build();
+                    }
+                }
+                return new FloatsBuilder();
+            }
+
+            @Override
             public BlockLoader.IntBuilder intsFromDocValues(int expectedCount) {
                 return ints(expectedCount);
             }
@@ -84,6 +148,10 @@ public class TestBlock implements BlockLoader.Block {
             @Override
             public BlockLoader.IntBuilder ints(int expectedCount) {
                 class IntsBuilder extends TestBlock.Builder implements BlockLoader.IntBuilder {
+                    private IntsBuilder() {
+                        super(expectedCount);
+                    }
+
                     @Override
                     public IntsBuilder appendInt(int value) {
                         add(value);
@@ -101,6 +169,10 @@ public class TestBlock implements BlockLoader.Block {
             @Override
             public BlockLoader.LongBuilder longs(int expectedCount) {
                 class LongsBuilder extends TestBlock.Builder implements BlockLoader.LongBuilder {
+                    private LongsBuilder() {
+                        super(expectedCount);
+                    }
+
                     @Override
                     public LongsBuilder appendLong(long value) {
                         add(value);
@@ -116,26 +188,30 @@ public class TestBlock implements BlockLoader.Block {
             }
 
             @Override
-            public BlockLoader.Block constantNulls() {
-                BlockLoader.LongBuilder builder = longs(pageSize);
-                for (int i = 0; i < pageSize; i++) {
+            public BlockLoader.Block constantNulls(int count) {
+                BlockLoader.LongBuilder builder = longs(count);
+                for (int i = 0; i < count; i++) {
                     builder.appendNull();
                 }
                 return builder.build();
             }
 
             @Override
-            public BlockLoader.Block constantBytes(BytesRef value) {
-                BlockLoader.BytesRefBuilder builder = bytesRefs(pageSize);
-                for (int i = 0; i < pageSize; i++) {
+            public BlockLoader.Block constantBytes(BytesRef value, int count) {
+                BlockLoader.BytesRefBuilder builder = bytesRefs(count);
+                for (int i = 0; i < count; i++) {
                     builder.appendBytesRef(value);
                 }
                 return builder.build();
             }
 
             @Override
-            public BlockLoader.SingletonOrdinalsBuilder singletonOrdinalsBuilder(SortedDocValues ordinals, int count) {
+            public BlockLoader.SingletonOrdinalsBuilder singletonOrdinalsBuilder(SortedDocValues ordinals, int expectedCount) {
                 class SingletonOrdsBuilder extends TestBlock.Builder implements BlockLoader.SingletonOrdinalsBuilder {
+                    private SingletonOrdsBuilder() {
+                        super(expectedCount);
+                    }
+
                     @Override
                     public SingletonOrdsBuilder appendOrd(int value) {
                         try {
@@ -150,8 +226,8 @@ public class TestBlock implements BlockLoader.Block {
             }
 
             @Override
-            public BlockLoader.AggregateMetricDoubleBuilder aggregateMetricDoubleBuilder(int count) {
-                return new AggregateMetricDoubleBlockBuilder();
+            public BlockLoader.AggregateMetricDoubleBuilder aggregateMetricDoubleBuilder(int expectedSize) {
+                return new AggregateMetricDoubleBlockBuilder(expectedSize);
             }
         };
     }
@@ -206,7 +282,13 @@ public class TestBlock implements BlockLoader.Block {
     private abstract static class Builder implements BlockLoader.Builder {
         private final List<Object> values = new ArrayList<>();
 
+        private Matcher<Integer> expectedSize;
+
         private List<Object> currentPosition = null;
+
+        private Builder(int expectedSize) {
+            this.expectedSize = equalTo(expectedSize);
+        }
 
         @Override
         public Builder appendNull() {
@@ -236,6 +318,7 @@ public class TestBlock implements BlockLoader.Block {
 
         @Override
         public TestBlock build() {
+            assertThat(values, hasSize(expectedSize));
             return new TestBlock(values);
         }
 
@@ -250,12 +333,23 @@ public class TestBlock implements BlockLoader.Block {
      * The implementation here is fairly close to the production one.
      */
     private static class AggregateMetricDoubleBlockBuilder implements BlockLoader.AggregateMetricDoubleBuilder {
-        private final DoubleBuilder min = new DoubleBuilder();
-        private final DoubleBuilder max = new DoubleBuilder();
-        private final DoubleBuilder sum = new DoubleBuilder();
-        private final IntBuilder count = new IntBuilder();
+        private final DoubleBuilder min;
+        private final DoubleBuilder max;
+        private final DoubleBuilder sum;
+        private final IntBuilder count;
+
+        private AggregateMetricDoubleBlockBuilder(int expectedSize) {
+            min = new DoubleBuilder(expectedSize);
+            max = new DoubleBuilder(expectedSize);
+            sum = new DoubleBuilder(expectedSize);
+            count = new IntBuilder(expectedSize);
+        }
 
         private static class DoubleBuilder extends TestBlock.Builder implements BlockLoader.DoubleBuilder {
+            private DoubleBuilder(int expectedSize) {
+                super(expectedSize);
+            }
+
             @Override
             public BlockLoader.DoubleBuilder appendDouble(double value) {
                 add(value);
@@ -264,6 +358,10 @@ public class TestBlock implements BlockLoader.Block {
         }
 
         private static class IntBuilder extends TestBlock.Builder implements BlockLoader.IntBuilder {
+            private IntBuilder(int expectedSize) {
+                super(expectedSize);
+            }
+
             @Override
             public BlockLoader.IntBuilder appendInt(int value) {
                 add(value);

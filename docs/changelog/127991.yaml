@@ -1,6 +1,0 @@
-pr: 127991
-summary: Avoid nested docs in painless execute api
-area: Infra/Scripting
-type: bug
-issues:
- - 41004

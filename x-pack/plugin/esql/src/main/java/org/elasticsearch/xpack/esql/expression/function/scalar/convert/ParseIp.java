@@ -42,6 +42,14 @@ public class ParseIp {
         return new ParseIpLeadingZerosRejectedEvaluator.Factory(source, field, driverContext -> buildScratch(driverContext.breaker()));
     };
 
+    static final AbstractConvertFunction.BuildFactory FROM_KEYWORD_LEADING_ZEROS_DECIMAL = (source, field) -> {
+        return new ParseIpLeadingZerosAreDecimalEvaluator.Factory(source, field, driverContext -> buildScratch(driverContext.breaker()));
+    };
+
+    static final AbstractConvertFunction.BuildFactory FROM_KEYWORD_LEADING_ZEROS_OCTAL = (source, field) -> {
+        return new ParseIpLeadingZerosAreOctalEvaluator.Factory(source, field, driverContext -> buildScratch(driverContext.breaker()));
+    };
+
     public static BreakingBytesRefBuilder buildScratch(CircuitBreaker breaker) {
         BreakingBytesRefBuilder scratch = new BreakingBytesRefBuilder(breaker, "to_ip", 16);
         scratch.setLength(InetAddressPoint.BYTES);

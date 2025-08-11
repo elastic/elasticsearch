@@ -10,16 +10,15 @@ package org.elasticsearch.xpack.inference.services.mistral.embeddings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.EmptyTaskSettings;
-import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.TaskSettings;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
+import org.elasticsearch.xpack.inference.services.mistral.MistralModel;
 import org.elasticsearch.xpack.inference.services.mistral.action.MistralActionVisitor;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
-import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
 import java.net.URI;
 import java.net.URISyntaxException;
@@ -27,10 +26,11 @@ import java.util.Map;
 
 import static org.elasticsearch.xpack.inference.services.mistral.MistralConstants.API_EMBEDDINGS_PATH;
 
-public class MistralEmbeddingsModel extends Model {
-    protected String model;
-    protected URI uri;
-    protected RateLimitSettings rateLimitSettings;
+/**
+ * Represents a Mistral embeddings model.
+ * This class extends MistralModel to handle embeddings-specific settings and actions.
+ */
+public class MistralEmbeddingsModel extends MistralModel {
 
     public MistralEmbeddingsModel(
         String inferenceEntityId,
@@ -58,6 +58,20 @@ public class MistralEmbeddingsModel extends Model {
         setPropertiesFromServiceSettings(serviceSettings);
     }
 
+    private void setPropertiesFromServiceSettings(MistralEmbeddingsServiceSettings serviceSettings) {
+        this.model = serviceSettings.modelId();
+        this.rateLimitSettings = serviceSettings.rateLimitSettings();
+        setEndpointUrl();
+    }
+
+    private void setEndpointUrl() {
+        try {
+            this.uri = new URI(API_EMBEDDINGS_PATH);
+        } catch (URISyntaxException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
     public MistralEmbeddingsModel(
         String inferenceEntityId,
         TaskType taskType,
@@ -74,49 +88,9 @@ public class MistralEmbeddingsModel extends Model {
         setPropertiesFromServiceSettings(serviceSettings);
     }
 
-    private void setPropertiesFromServiceSettings(MistralEmbeddingsServiceSettings serviceSettings) {
-        this.model = serviceSettings.modelId();
-        this.rateLimitSettings = serviceSettings.rateLimitSettings();
-        setEndpointUrl();
-    }
-
     @Override
     public MistralEmbeddingsServiceSettings getServiceSettings() {
         return (MistralEmbeddingsServiceSettings) super.getServiceSettings();
-    }
-
-    public String model() {
-        return this.model;
-    }
-
-    public URI uri() {
-        return this.uri;
-    }
-
-    public RateLimitSettings rateLimitSettings() {
-        return this.rateLimitSettings;
-    }
-
-    private void setEndpointUrl() {
-        try {
-            this.uri = new URI(API_EMBEDDINGS_PATH);
-        } catch (URISyntaxException e) {
-            throw new RuntimeException(e);
-        }
-    }
-
-    // Needed for testing only
-    public void setURI(String newUri) {
-        try {
-            this.uri = new URI(newUri);
-        } catch (URISyntaxException e) {
-            // swallow any error
-        }
-    }
-
-    @Override
-    public DefaultSecretSettings getSecretSettings() {
-        return (DefaultSecretSettings) super.getSecretSettings();
     }
 
     public ExecutableAction accept(MistralActionVisitor creator, Map<String, Object> taskSettings) {

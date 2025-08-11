@@ -666,6 +666,9 @@ public class IndexLevelReplicationTests extends ESIndexLevelReplicationTestCase 
             indexOnReplica(indexRequest, shards, replica);  // index arrives on replica lately.
             shards.assertAllEqual(0);
         }
+        assertWarnings(
+            "[indices.merge.scheduler.use_thread_pool] setting was deprecated in Elasticsearch and will be removed in a future release."
+        );
     }
 
     private void updateGCDeleteCycle(IndexShard shard, TimeValue interval) {

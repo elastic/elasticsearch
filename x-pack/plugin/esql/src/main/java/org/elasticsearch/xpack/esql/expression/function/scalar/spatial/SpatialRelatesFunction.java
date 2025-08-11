@@ -34,6 +34,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.Check;
 import org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
+import org.elasticsearch.xpack.esql.expression.SurrogateExpression;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdownPredicates;
 import org.elasticsearch.xpack.esql.planner.TranslatorHandler;
 import org.elasticsearch.xpack.esql.querydsl.query.SpatialRelatesQuery;
@@ -48,7 +49,8 @@ public abstract class SpatialRelatesFunction extends BinarySpatialFunction
     implements
         EvaluatorMapper,
         SpatialEvaluatorFactory.SpatialSourceSupplier,
-        TranslationAware {
+        TranslationAware,
+        SurrogateExpression {
 
     protected SpatialRelatesFunction(Source source, Expression left, Expression right, boolean leftDocValues, boolean rightDocValues) {
         super(source, left, right, leftDocValues, rightDocValues, false);
@@ -73,6 +75,7 @@ public abstract class SpatialRelatesFunction extends BinarySpatialFunction
     /**
      * Some spatial functions can replace themselves with alternatives that are more efficient for certain cases.
      */
+    @Override
     public SpatialRelatesFunction surrogate() {
         return this;
     }

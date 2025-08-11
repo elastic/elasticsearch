@@ -81,6 +81,8 @@ Machine Learning::
 * Mitigate IOSession timeouts {es-pull}115414[#115414] (issues: {es-issue}114385[#114385], {es-issue}114327[#114327], {es-issue}114105[#114105], {es-issue}114232[#114232])
 * Propagate scoring function through random sampler {es-pull}116957[#116957] (issue: {es-issue}110134[#110134])
 * Wait for the worker service to shutdown before closing task processor {es-pull}117920[#117920] (issue: {es-issue}117563[#117563])
+* Increase the upper limits for the Boost.JSON SAX parser {ml-pull}2809[#2809]
+* Correct handling of config updates {ml-pull}2821[#2821]
 
 Mapping::
 * Address mapping and compute engine runtime field issues {es-pull}117792[#117792] (issue: {es-issue}117644[#117644])

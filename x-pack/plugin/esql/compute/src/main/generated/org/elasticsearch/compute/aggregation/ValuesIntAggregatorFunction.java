@@ -84,18 +84,18 @@ public final class ValuesIntAggregatorFunction implements AggregatorFunction {
   }
 
   private void addRawVector(IntVector vVector) {
-    for (int i = 0; i < vVector.getPositionCount(); i++) {
-      int vValue = vVector.getInt(i);
+    for (int valuesPosition = 0; valuesPosition < vVector.getPositionCount(); valuesPosition++) {
+      int vValue = vVector.getInt(valuesPosition);
       ValuesIntAggregator.combine(state, vValue);
     }
   }
 
   private void addRawVector(IntVector vVector, BooleanVector mask) {
-    for (int i = 0; i < vVector.getPositionCount(); i++) {
-      if (mask.getBoolean(i) == false) {
+    for (int valuesPosition = 0; valuesPosition < vVector.getPositionCount(); valuesPosition++) {
+      if (mask.getBoolean(valuesPosition) == false) {
         continue;
       }
-      int vValue = vVector.getInt(i);
+      int vValue = vVector.getInt(valuesPosition);
       ValuesIntAggregator.combine(state, vValue);
     }
   }

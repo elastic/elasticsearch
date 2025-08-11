@@ -262,7 +262,7 @@ public class MatchOnlyTextFieldMapper extends TextFamilyFieldMapper {
                     return delegateFieldValueFetcher(searchExecutionContext, textFieldType.syntheticSourceDelegate().get());
                 } else {
                     // otherwise, fetch the value from self
-                    return storedFieldFetcher(syntheticSourceFallbackFieldName(true));
+                    return storedFieldFetcher(name(), syntheticSourceFallbackFieldName(true));
                 }
             }
 
@@ -329,17 +329,20 @@ public class MatchOnlyTextFieldMapper extends TextFamilyFieldMapper {
             final SearchExecutionContext searchExecutionContext,
             final KeywordFieldMapper.KeywordFieldType keywordDelegate
         ) {
-            // since we don't know whether the field will be ignored during parsing (ex. when value trips ignore_above)
-            // we must look for both, the expected field name (if parsing of the field was successful), and the backup
-            // field name (if the field was ignored during parsing)
-            final String expectedFieldName = keywordDelegate.name();
-            final String backupFieldName = keywordDelegate.syntheticSourceFallbackFieldName(true);
+            // because we don't know whether the delegate field will be ignored during parsing, we must also check the current field
+            String fieldName = name();
+            String fallbackName = syntheticSourceFallbackFieldName(true);
+
+            // delegate field names
+            String delegateFieldName = keywordDelegate.name();
+            String delegateFieldFallbackName = keywordDelegate.syntheticSourceFallbackFieldName(true);
 
             if (keywordDelegate.isStored()) {
-                return storedFieldFetcher(expectedFieldName, backupFieldName);
+                return storedFieldFetcher(delegateFieldName, delegateFieldFallbackName, fieldName, fallbackName);
             } else if (keywordDelegate.hasDocValues()) {
                 var ifd = searchExecutionContext.getForField(keywordDelegate, MappedFieldType.FielddataOperation.SEARCH);
-                return combineFieldFetchers(docValuesFieldFetcher(ifd), storedFieldFetcher(backupFieldName));
+                return combineFieldFetchers(docValuesFieldFetcher(ifd),
+                                            storedFieldFetcher(delegateFieldFallbackName, fieldName, fallbackName));
             } else {
                 assert false : "multi field should either be stored or have doc values";
                 return sourceFieldValueFetcher(searchExecutionContext);

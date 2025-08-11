@@ -153,6 +153,7 @@ public class LookupFromIndexOperatorTests extends OperatorTestCase {
             lookupIndex,
             matchField,
             loadFields,
+            null,
             Source.EMPTY
         );
     }
@@ -165,7 +166,8 @@ public class LookupFromIndexOperatorTests extends OperatorTestCase {
     @Override
     protected Matcher<String> expectedToStringOfSimple() {
         return matchesPattern(
-            "LookupOperator\\[index=idx input_type=LONG match_field=match load_fields=\\[lkwd\\{r}#\\d+, lint\\{r}#\\d+] inputChannel=0]"
+            "LookupOperator\\[index=idx input_type=LONG match_field=match load_fields=\\[lkwd\\{r}#\\d+, lint\\{r}#\\d+] "
+                + "inputChannel=0 filterQueryBuilder=null]"
         );
     }
 

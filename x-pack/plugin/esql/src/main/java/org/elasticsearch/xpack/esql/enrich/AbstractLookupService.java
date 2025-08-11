@@ -52,6 +52,7 @@ import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
@@ -197,6 +198,7 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
         AliasFilter aliasFilter,
         Block inputBlock,
         @Nullable DataType inputDataType,
+        // @Nullable QueryBuilder filterQueryBuilder,
         Warnings warnings
     );
 
@@ -342,6 +344,9 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
                 request.inputDataType,
                 warnings
             );
+            if (request.filterQueryBuilder != null) {
+                queryList = queryList.withFilterQueryBuilder(request.filterQueryBuilder);
+            }
             var queryOperator = new EnrichQuerySourceOperator(
                 driverContext.blockFactory(),
                 EnrichQuerySourceOperator.DEFAULT_MAX_PAGE_SIZE,
@@ -511,7 +516,28 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
         final DataType inputDataType;
         final Page inputPage;
         final List<NamedExpression> extractFields;
+        final QueryBuilder filterQueryBuilder;
         final Source source;
+
+        Request(
+            String sessionId,
+            String index,
+            String indexPattern,
+            DataType inputDataType,
+            Page inputPage,
+            List<NamedExpression> extractFields,
+            QueryBuilder filterQueryBuilder,
+            Source source
+        ) {
+            this.sessionId = sessionId;
+            this.index = index;
+            this.indexPattern = indexPattern;
+            this.inputDataType = inputDataType;
+            this.inputPage = inputPage;
+            this.extractFields = extractFields;
+            this.filterQueryBuilder = filterQueryBuilder;
+            this.source = source;
+        }
 
         Request(
             String sessionId,
@@ -522,13 +548,7 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
             List<NamedExpression> extractFields,
             Source source
         ) {
-            this.sessionId = sessionId;
-            this.index = index;
-            this.indexPattern = indexPattern;
-            this.inputDataType = inputDataType;
-            this.inputPage = inputPage;
-            this.extractFields = extractFields;
-            this.source = source;
+            this(sessionId, index, indexPattern, inputDataType, inputPage, extractFields, null, source);
         }
     }
 
@@ -543,6 +563,8 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
         final DataType inputDataType;
         final Page inputPage;
         final List<NamedExpression> extractFields;
+        @Nullable // may be missing: either no filter to apply, or remote node is older than ESQL_LOOKUP_JOIN_FILTER
+        final QueryBuilder filterQueryBuilder;
         final Source source;
         // TODO: Remove this workaround once we have Block RefCount
         final Page toRelease;
@@ -556,6 +578,7 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
             Page inputPage,
             Page toRelease,
             List<NamedExpression> extractFields,
+            QueryBuilder filterQueryBuilder,
             Source source
         ) {
             this.sessionId = sessionId;
@@ -565,7 +588,21 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
             this.inputPage = inputPage;
             this.toRelease = toRelease;
             this.extractFields = extractFields;
+            this.filterQueryBuilder = filterQueryBuilder;
             this.source = source;
+        }
+
+        TransportRequest(
+            String sessionId,
+            ShardId shardId,
+            String indexPattern,
+            DataType inputDataType,
+            Page inputPage,
+            Page toRelease,
+            List<NamedExpression> extractFields,
+            Source source
+        ) {
+            this(sessionId, shardId, indexPattern, inputDataType, inputPage, toRelease, extractFields, null, source);
         }
 
         @Override
@@ -625,6 +662,8 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
                 + inputDataType
                 + " ,extract_fields="
                 + extractFields
+                + ", filterQueryBuilder="
+                + filterQueryBuilder
                 + " ,positions="
                 + inputPage.getPositionCount()
                 + extraDescription()

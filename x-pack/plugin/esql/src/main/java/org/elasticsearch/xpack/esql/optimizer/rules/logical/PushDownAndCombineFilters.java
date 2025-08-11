@@ -82,15 +82,15 @@ public final class PushDownAndCombineFilters extends OptimizerRules.OptimizerRul
         } else if (child instanceof RegexExtract re) {
             // Push down filters that do not rely on attributes created by RegexExtract
             var attributes = AttributeSet.of(Expressions.asAttributes(re.extractedFields()));
-            plan = maybePushDownPastUnary(filter, re, attributes::contains, NO_OP);
+            plan = maybePushDownPastUnary(filter, re, attributes::contains, Function.identity());
         } else if (child instanceof InferencePlan<?> inferencePlan) {
             // Push down filters that do not rely on attributes created by Completion
             var attributes = AttributeSet.of(inferencePlan.generatedAttributes());
-            plan = maybePushDownPastUnary(filter, inferencePlan, attributes::contains, NO_OP);
+            plan = maybePushDownPastUnary(filter, inferencePlan, attributes::contains, Function.identity());
         } else if (child instanceof Enrich enrich) {
             // Push down filters that do not rely on attributes created by Enrich
             var attributes = AttributeSet.of(Expressions.asAttributes(enrich.enrichFields()));
-            plan = maybePushDownPastUnary(filter, enrich, attributes::contains, NO_OP);
+            plan = maybePushDownPastUnary(filter, enrich, attributes::contains, Function.identity());
         } else if (child instanceof Project) {
             return PushDownUtils.pushDownPastProject(filter);
         } else if (child instanceof OrderBy orderBy) {
@@ -106,13 +106,13 @@ public final class PushDownAndCombineFilters extends OptimizerRules.OptimizerRul
         return plan;
     }
 
-    private record ScopedFilter(List<Expression> commonFilters, List<Expression> leftFilters, List<Expression> rightFilters) {}
+    public record ScopedFilter(List<Expression> commonFilters, List<Expression> leftFilters, List<Expression> rightFilters) {}
 
     // split the filter condition in 3 parts:
     // 1. filter scoped to the left
     // 2. filter scoped to the right
     // 3. filter that requires both sides to be evaluated
-    private static ScopedFilter scopeFilter(List<Expression> filters, LogicalPlan left, LogicalPlan right) {
+    public static ScopedFilter scopeFilter(List<Expression> filters, LogicalPlan left, LogicalPlan right) {
         List<Expression> rest = new ArrayList<>(filters);
         List<Expression> leftFilters = new ArrayList<>();
         List<Expression> rightFilters = new ArrayList<>();
@@ -120,7 +120,7 @@ public final class PushDownAndCombineFilters extends OptimizerRules.OptimizerRul
         AttributeSet leftOutput = left.outputSet();
         AttributeSet rightOutput = right.outputSet();
 
-        // first remove things that are left scoped only
+        // first remove things that are left scoped only. note: this will actually collect the common fields too
         rest.removeIf(f -> f.references().subsetOf(leftOutput) && leftFilters.add(f));
         // followed by right scoped only
         rest.removeIf(f -> f.references().subsetOf(rightOutput) && rightFilters.add(f));
@@ -155,8 +155,6 @@ public final class PushDownAndCombineFilters extends OptimizerRules.OptimizerRul
         // ignore the rest of the join
         return plan;
     }
-
-    private static Function<Expression, Expression> NO_OP = expression -> expression;
 
     private static LogicalPlan maybePushDownPastUnary(
         Filter filter,

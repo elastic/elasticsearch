@@ -226,10 +226,18 @@ public class Mapper {
                     join.rightOutputFields()
                 );
             }
-            if (right instanceof FragmentExec fragment
-                && fragment.fragment() instanceof EsRelation relation
-                && relation.indexMode() == IndexMode.LOOKUP) {
-                return new LookupJoinExec(join.source(), left, right, config.leftFields(), config.rightFields(), join.rightOutputFields());
+            if (right instanceof FragmentExec fragment) {
+                var leaves = fragment.fragment().collectLeaves();
+                if (leaves.size() == 1 && leaves.get(0) instanceof EsRelation relation && relation.indexMode() == IndexMode.LOOKUP) {
+                    return new LookupJoinExec(
+                        join.source(),
+                        left,
+                        right,
+                        config.leftFields(),
+                        config.rightFields(),
+                        join.rightOutputFields()
+                    );
+                }
             }
         }
 

@@ -35,7 +35,9 @@ import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.GeoShapeQueryable;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.RangeFieldMapper;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.search.internal.AliasFilter;
 
 import java.io.IOException;
@@ -56,6 +58,8 @@ public abstract class QueryList {
     protected final Block block;
     @Nullable
     protected final OnlySingleValueParams onlySingleValueParams;
+    @Nullable
+    protected final QueryBuilder filterQueryBuilder;
 
     protected QueryList(
         MappedFieldType field,
@@ -64,11 +68,23 @@ public abstract class QueryList {
         Block block,
         OnlySingleValueParams onlySingleValueParams
     ) {
+        this(field, searchExecutionContext, aliasFilter, block, onlySingleValueParams, null);
+    }
+
+    private QueryList(
+        MappedFieldType field,
+        SearchExecutionContext searchExecutionContext,
+        AliasFilter aliasFilter,
+        Block block,
+        OnlySingleValueParams onlySingleValueParams,
+        QueryBuilder filterQueryBuilder
+    ) {
         this.searchExecutionContext = searchExecutionContext;
         this.aliasFilter = aliasFilter;
         this.field = field;
         this.block = block;
         this.onlySingleValueParams = onlySingleValueParams;
+        this.filterQueryBuilder = filterQueryBuilder;
     }
 
     /**
@@ -87,6 +103,27 @@ public abstract class QueryList {
      */
     public abstract QueryList onlySingleValues(Warnings warnings, String multiValueWarningMessage);
 
+    public QueryList withFilterQueryBuilder(QueryBuilder filterQueryBuilder) {
+        return new QueryList(
+            this.field,
+            this.searchExecutionContext,
+            this.aliasFilter,
+            this.block,
+            this.onlySingleValueParams,
+            filterQueryBuilder
+        ) {
+            @Override
+            public QueryList onlySingleValues(Warnings warnings, String multiValueWarningMessage) {
+                return QueryList.this.onlySingleValues(warnings, multiValueWarningMessage);
+            }
+
+            @Override
+            Query doGetQuery(int position, int firstValueIndex, int valueCount) {
+                return QueryList.this.doGetQuery(position, firstValueIndex, valueCount);
+            }
+        };
+    }
+
     final Query getQuery(int position) {
         final int valueCount = block.getValueCount(position);
         if (onlySingleValueParams != null && valueCount != 1) {
@@ -100,20 +137,41 @@ public abstract class QueryList {
         final int firstValueIndex = block.getFirstValueIndex(position);
 
         Query query = doGetQuery(position, firstValueIndex, valueCount);
+        if (query == null) {
+            return null;
+        }
+
+        BooleanQuery.Builder builder = new BooleanQuery.Builder();
+        boolean builderHasClauses = false;
 
         if (aliasFilter != null && aliasFilter != AliasFilter.EMPTY) {
-            BooleanQuery.Builder builder = new BooleanQuery.Builder();
-            builder.add(query, BooleanClause.Occur.FILTER);
             try {
                 builder.add(aliasFilter.getQueryBuilder().toQuery(searchExecutionContext), BooleanClause.Occur.FILTER);
-                query = builder.build();
             } catch (IOException e) {
                 throw new UncheckedIOException("Error while building query for alias filter", e);
             }
         }
 
         if (onlySingleValueParams != null) {
-            query = wrapSingleValueQuery(query);
+            Query singleValueQuery = wrapSingleValueQuery();
+            if (singleValueQuery != null) {
+                builder.add(singleValueQuery, BooleanClause.Occur.FILTER);
+                builderHasClauses = true;
+            }
+        }
+
+        if (filterQueryBuilder != null) {
+            try {
+                builder.add(filterQueryBuilder.toQuery(searchExecutionContext), BooleanClause.Occur.FILTER);
+                builderHasClauses = true;
+            } catch (IOException e) {
+                throw new UncheckedIOException("Error while building filter query", e);
+            }
+        }
+
+        if (builderHasClauses) {
+            builder.add(query, BooleanClause.Occur.FILTER);
+            return builder.build();
         }
 
         return query;
@@ -125,7 +183,7 @@ public abstract class QueryList {
     @Nullable
     abstract Query doGetQuery(int position, int firstValueIndex, int valueCount);
 
-    private Query wrapSingleValueQuery(Query query) {
+    private Query wrapSingleValueQuery() {
         assert onlySingleValueParams != null : "Requested to wrap single value query without single value params";
 
         SingleValueMatchQuery singleValueQuery = new SingleValueMatchQuery(
@@ -138,18 +196,11 @@ public abstract class QueryList {
         Query rewrite;
         try {
             rewrite = singleValueQuery.rewrite(searchExecutionContext.searcher());
-            if (rewrite instanceof MatchAllDocsQuery) {
-                // nothing to filter
-                return query;
-            }
         } catch (IOException e) {
             throw new UncheckedIOException("Error while rewriting SingleValueQuery", e);
         }
 
-        BooleanQuery.Builder builder = new BooleanQuery.Builder();
-        builder.add(query, BooleanClause.Occur.FILTER);
-        builder.add(rewrite, BooleanClause.Occur.FILTER);
-        return builder.build();
+        return rewrite instanceof MatchAllDocsQuery ? /* nothing to filter */ null : rewrite;
     }
 
     /**

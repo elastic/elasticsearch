@@ -123,12 +123,20 @@ public class TransportDownsampleActionTests extends ESTestCase {
             "sum"
         );
 
-        var supported = TransportDownsampleAction.getSupportedMetrics(metricType, fieldProperties);
+        var supported = TransportDownsampleAction.getSupportedMetrics(
+            metricType,
+            fieldProperties,
+            IndexSettings.AggregateMetricDoubleDefaultMetric.MAX
+        );
         assertThat(supported.defaultMetric(), is("sum"));
         assertThat(supported.supportedMetrics(), is(List.of("max", "sum")));
 
         fieldProperties = Map.of("type", "integer");
-        supported = TransportDownsampleAction.getSupportedMetrics(metricType, fieldProperties);
+        supported = TransportDownsampleAction.getSupportedMetrics(
+            metricType,
+            fieldProperties,
+            IndexSettings.AggregateMetricDoubleDefaultMetric.MAX
+        );
         assertThat(supported.defaultMetric(), is("max"));
         assertThat(supported.supportedMetrics(), is(List.of(metricType.supportedAggs())));
     }

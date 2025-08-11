@@ -249,7 +249,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
 
     // HACK used to avoid chaining too many ref counting listeners, hence avoiding stack overflow exceptions
     private int shardsClosedListenerChainLength = 0;
-    private boolean closingMoreShards;
+    private volatile boolean closingMoreShards;
 
     @Nullable // if not currently applying a cluster state
     private RefCountingListener currentClusterStateShardsClosedListeners;

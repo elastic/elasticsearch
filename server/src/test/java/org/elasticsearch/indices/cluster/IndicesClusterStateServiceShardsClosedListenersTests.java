@@ -9,8 +9,11 @@
 
 package org.elasticsearch.indices.cluster;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.node.tasks.TransportTasksActionTests;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.client.internal.node.NodeClient;
+import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -30,7 +33,14 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.After;
 import org.junit.Before;
 
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.BiConsumer;
 
 import static org.mockito.Mockito.mock;
 
@@ -49,14 +59,75 @@ public class IndicesClusterStateServiceShardsClosedListenersTests extends Abstra
         threadPool = null;
     }
 
-    public void testX() {
-        try (TestIndicesClusterStateService x = new TestIndicesClusterStateService(threadPool)) {
+    public void testRunnablesExecuteAfterAllPreviousListenersComplete() {
+        AtomicInteger clusterStateAppliedRound = new AtomicInteger();
+        int totalClusterStateAppliedRounds = randomIntBetween(10, 100);
+        Map<Integer, List<Runnable>> runnablesOnShardsClosedPerRound = new ConcurrentHashMap<>();
+        Map<Integer, List<ActionListener<Void>>> shardsClosedListenersPerRound = new ConcurrentHashMap<>();
+        List<ActionListener<Void>> allShardsClosedListeners = Collections.synchronizedList(new ArrayList<>());
+        try (
+            TestIndicesClusterStateService testIndicesClusterStateService = new TestIndicesClusterStateService(
+                threadPool,
+                    // the apply cluster state hook
+                    (indicesClusterStateService, clusterChangedEvent) -> {
+                    final int round = clusterStateAppliedRound.get();
+                    // maybe register runnable for when all the shards in the currently applied cluster states are closed
+                    if (randomBoolean()) {
+                        Runnable mockRunnable = mock(Runnable.class);
+                        indicesClusterStateService.onClusterStateShardsClosed(mockRunnable);
+                        runnablesOnShardsClosedPerRound.get(round).add(mockRunnable);
+                    }
+                    // maybe get some listeners as if asynchronously closing some shards
+                    int listenersCount = randomIntBetween(0, 2);
+                    for (int i = 0; i < listenersCount; i++) {
+                        var shardsClosedListener = new SubscribableListener<Void>();
+                        shardsClosedListener.addListener(indicesClusterStateService.getShardsClosedListener());
+                        shardsClosedListenersPerRound.get(round).add(shardsClosedListener);
+                        allShardsClosedListeners.add(shardsClosedListener);
+                        shardsClosedListener.andThen(l -> {
+                            shardsClosedListenersPerRound.get(round).remove(shardsClosedListener);
+                            allShardsClosedListeners.remove(shardsClosedListener);
+                        });
+                    }
+                    // maybe register runnable for when all the shards in the currently applied cluster states are closed
+                    if (randomBoolean()) {
+                        Runnable mockRunnable = mock(Runnable.class);
+                        indicesClusterStateService.onClusterStateShardsClosed(mockRunnable);
+                        runnablesOnShardsClosedPerRound.get(round).add(mockRunnable);
+                    }
+                }
+            )
+        ) {
+            while (clusterStateAppliedRound.getAndIncrement() < totalClusterStateAppliedRounds) {
+                final int round = clusterStateAppliedRound.get();
+                runnablesOnShardsClosedPerRound.put(round, Collections.synchronizedList(new ArrayList<>()));
+                shardsClosedListenersPerRound.put(round, Collections.synchronizedList(new ArrayList<>()));
 
+                // apply cluster state this round
+                testIndicesClusterStateService.applyClusterState(mock(ClusterChangedEvent.class));
+
+                // maybe register runnable for when all the shards in the previously applied cluster states are closed
+                runnablesOnShardsClosedPerRound.get(round).addAll(randomList(0, 2, () -> {
+                    Runnable mockRunnable = mock(Runnable.class);
+                    testIndicesClusterStateService.onClusterStateShardsClosed(mockRunnable);
+                    return mockRunnable;
+                }));
+
+                // TODO pick random listeners and complete them
+                if (randomBoolean() && allShardsClosedListeners.isEmpty() == false) {
+                    randomFrom(allShardsClosedListeners).onResponse(null);
+                }
+            }
         }
     }
 
     class TestIndicesClusterStateService extends IndicesClusterStateService {
-        TestIndicesClusterStateService(ThreadPool threadPool) {
+        BiConsumer<IndicesClusterStateService, ClusterChangedEvent> doApplyClusterStateHook;
+
+        TestIndicesClusterStateService(
+            ThreadPool threadPool,
+            BiConsumer<IndicesClusterStateService, ClusterChangedEvent> doApplyClusterStateHook
+        ) {
             super(
                 Settings.EMPTY,
                 new MockIndicesService(),
@@ -78,6 +149,12 @@ public class IndicesClusterStateServiceShardsClosedListenersTests extends Abstra
                 RetentionLeaseSyncer.EMPTY,
                 mock(NodeClient.class)
             );
+            this.doApplyClusterStateHook = doApplyClusterStateHook;
+        }
+
+        @Override
+        protected void doApplyClusterState(final ClusterChangedEvent event) {
+            doApplyClusterStateHook.accept(this, event);
         }
     }
 }

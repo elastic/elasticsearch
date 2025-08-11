@@ -413,6 +413,7 @@ public class ClusterInfoServiceIT extends ESIntegTestCase {
                 WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_ENABLED_SETTING.getKey(),
                 WriteLoadConstraintSettings.WriteLoadDeciderStatus.ENABLED
             )
+            // Manually control cluster info refreshes
             .put(InternalClusterInfoService.INTERNAL_CLUSTER_INFO_UPDATE_INTERVAL_SETTING.getKey(), "60m")
             .build();
         var masterName = internalCluster().startMasterOnlyNode(settings);

@@ -109,11 +109,11 @@ public final class MinDoubleAggregatorFunction implements AggregatorFunction {
       if (vBlock.isNull(p)) {
         continue;
       }
+      state.seen(true);
       int vStart = vBlock.getFirstValueIndex(p);
       int vEnd = vStart + vBlock.getValueCount(p);
       for (int vOffset = vStart; vOffset < vEnd; vOffset++) {
         double vValue = vBlock.getDouble(vOffset);
-        state.seen(true);
         state.doubleValue(MinDoubleAggregator.combine(state.doubleValue(), vValue));
       }
     }
@@ -127,11 +127,11 @@ public final class MinDoubleAggregatorFunction implements AggregatorFunction {
       if (vBlock.isNull(p)) {
         continue;
       }
+      state.seen(true);
       int vStart = vBlock.getFirstValueIndex(p);
       int vEnd = vStart + vBlock.getValueCount(p);
       for (int vOffset = vStart; vOffset < vEnd; vOffset++) {
         double vValue = vBlock.getDouble(vOffset);
-        state.seen(true);
         state.doubleValue(MinDoubleAggregator.combine(state.doubleValue(), vValue));
       }
     }

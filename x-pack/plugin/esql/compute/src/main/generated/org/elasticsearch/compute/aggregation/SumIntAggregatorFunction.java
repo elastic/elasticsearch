@@ -111,11 +111,11 @@ public final class SumIntAggregatorFunction implements AggregatorFunction {
       if (vBlock.isNull(p)) {
         continue;
       }
+      state.seen(true);
       int vStart = vBlock.getFirstValueIndex(p);
       int vEnd = vStart + vBlock.getValueCount(p);
       for (int vOffset = vStart; vOffset < vEnd; vOffset++) {
         int vValue = vBlock.getInt(vOffset);
-        state.seen(true);
         state.longValue(SumIntAggregator.combine(state.longValue(), vValue));
       }
     }
@@ -129,11 +129,11 @@ public final class SumIntAggregatorFunction implements AggregatorFunction {
       if (vBlock.isNull(p)) {
         continue;
       }
+      state.seen(true);
       int vStart = vBlock.getFirstValueIndex(p);
       int vEnd = vStart + vBlock.getValueCount(p);
       for (int vOffset = vStart; vOffset < vEnd; vOffset++) {
         int vValue = vBlock.getInt(vOffset);
-        state.seen(true);
         state.longValue(SumIntAggregator.combine(state.longValue(), vValue));
       }
     }

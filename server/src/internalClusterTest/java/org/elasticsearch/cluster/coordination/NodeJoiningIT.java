@@ -41,10 +41,7 @@ public class NodeJoiningIT extends MasterElectionTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return CollectionUtils.appendToCopyNoNullElements(
-            super.nodePlugins(),
-            MockTransportService.TestPlugin.class
-        );
+        return CollectionUtils.appendToCopyNoNullElements(super.nodePlugins(), MockTransportService.TestPlugin.class);
     }
 
     @Override
@@ -123,11 +120,10 @@ public class NodeJoiningIT extends MasterElectionTestCase {
                 if (mockTransportService.getLocalNode().getName().equals(newMasterNodeName) == false) {
                     mockTransportService.addSendBehavior((connection, requestId, action, request, options) -> {
                         if (
-                            // This disables pre-voting on all nodes except the new master, forcing it to win the election
-                            action.equals(StatefulPreVoteCollector.REQUEST_PRE_VOTE_ACTION_NAME)
+                        // This disables pre-voting on all nodes except the new master, forcing it to win the election
+                        action.equals(StatefulPreVoteCollector.REQUEST_PRE_VOTE_ACTION_NAME)
                             // This forces the current master node to fail
-                            || action.equals(PublicationTransportHandler.PUBLISH_STATE_ACTION_NAME)
-                        ) {
+                            || action.equals(PublicationTransportHandler.PUBLISH_STATE_ACTION_NAME)) {
                             throw new ElasticsearchException("[{}] for [{}] denied", action, connection.getNode());
                         } else {
                             connection.sendRequest(requestId, action, request, options);
@@ -179,8 +175,12 @@ public class NodeJoiningIT extends MasterElectionTestCase {
 
     // Tests whether a WARN log is thrown when a node attempts to join a cluster, and then the same master node is re-elected (#126192)
     @TestLogging(
-            reason = "test includes assertions about logging",
-            value = "org.elasticsearch.cluster.coordination.NodeJoinExecutor:WARN,org.elasticsearch.cluster.coordination.NodeJoinExecutor:INFO,org.elasticsearch.cluster.coordination.MasterService:WARN,org.elasticsearch.cluster.coordination.MasterService:INFO,org.elasticsearch.cluster.coordination.ClusterApplierService:WARN"
+        reason = "test includes assertions about logging",
+        value = "org.elasticsearch.cluster.coordination.NodeJoinExecutor:WARN,"
+            + "org.elasticsearch.cluster.coordination.NodeJoinExecutor:INFO,"
+            + "org.elasticsearch.cluster.coordination.MasterService:WARN,"
+            + "org.elasticsearch.cluster.coordination.MasterService:INFO,"
+            + "org.elasticsearch.cluster.coordination.ClusterApplierService:WARN"
     )
     public void testNodeTriesToJoinClusterAndThenSameMasterIsElected_DoesNotIncludeWarnLog() {
         final var cleanupTasks = new ArrayList<Releasable>();
@@ -210,10 +210,18 @@ public class NodeJoiningIT extends MasterElectionTestCase {
             });
 
             // Latch to remove publishing ban to allow re-election
-            CountDownLatch publishingBanRemovedLatch = removeMockTransportServicePublishBanWhenMasterHasSteppedDown(masterNodeName, masterNodeTransportService, cleanupTasks);
+            CountDownLatch publishingBanRemovedLatch = removeMockTransportServicePublishBanWhenMasterHasSteppedDown(
+                masterNodeName,
+                masterNodeTransportService,
+                cleanupTasks
+            );
 
             // A CountDownLatch that only gets decremented when the first master node is re-elected
-            final var masterKnowsItHasBeenReElectedLatch = configureElectionLatchForReElectedMaster(masterNodeName, originalTerm, cleanupTasks);
+            final var masterKnowsItHasBeenReElectedLatch = configureElectionLatchForReElectedMaster(
+                masterNodeName,
+                originalTerm,
+                cleanupTasks
+            );
 
             for (String nodeName : internalCluster().getNodeNames()) {
                 final var mockTransportService = MockTransportService.getInstance(nodeName);
@@ -280,9 +288,9 @@ public class NodeJoiningIT extends MasterElectionTestCase {
                     // Await for N to be in the cluster state of all nodes
                     for (String nodeName : namesOfAllNodesInOriginalCluster) {
                         ClusterServiceUtils.awaitClusterState(
-                                logger,
-                                clusterState -> clusterState.nodes().nodeExistsWithName(newNodeName),
-                                internalCluster().clusterService(nodeName)
+                            logger,
+                            clusterState -> clusterState.nodes().nodeExistsWithName(newNodeName),
+                            internalCluster().clusterService(nodeName)
                         );
                     }
                 } catch (Exception e) {
@@ -309,10 +317,8 @@ public class NodeJoiningIT extends MasterElectionTestCase {
         }
     }
 
-
-    private List<String> getListOfDataNodeNamesFromCluster(String nodeName){
-        return internalCluster()
-            .clusterService(nodeName)
+    private List<String> getListOfDataNodeNamesFromCluster(String nodeName) {
+        return internalCluster().clusterService(nodeName)
             .state()
             .getNodes()
             .getDataNodes()
@@ -336,12 +342,7 @@ public class NodeJoiningIT extends MasterElectionTestCase {
                     return;
                 }
 
-                Pattern pattern = Pattern.compile(
-                        "node-join: \\["
-                                + expectedNewNodeAsString
-                                + "] "
-                                + "with reason \\[joining]"
-                );
+                Pattern pattern = Pattern.compile("node-join: \\[" + expectedNewNodeAsString + "] " + "with reason \\[joining]");
                 Matcher matcher = pattern.matcher(event.getMessage().getFormattedMessage());
 
                 if (matcher.find()) {
@@ -370,11 +371,15 @@ public class NodeJoiningIT extends MasterElectionTestCase {
                 }
 
                 Pattern pattern = Pattern.compile(
-                        "node-join\\["
+                    "node-join\\["
                         + expectedNewNodeAsString
                         + " joining],"
-                        + " term: " + term + ","
-                        + " version: " + version + ","
+                        + " term: "
+                        + term
+                        + ","
+                        + " version: "
+                        + version
+                        + ","
                         + " delta: added \\{"
                         + expectedNewNodeAsString
                         + "}"
@@ -407,9 +412,11 @@ public class NodeJoiningIT extends MasterElectionTestCase {
                 }
 
                 Pattern pattern = Pattern.compile(
-                        "failing \\[node-join\\["
-                                + expectedNewNodeAsString
-                                + " joining]]: failed to commit cluster state version \\[" + version +"]"
+                    "failing \\[node-join\\["
+                        + expectedNewNodeAsString
+                        + " joining]]: failed to commit cluster state version \\["
+                        + version
+                        + "]"
                 );
                 Matcher matcher = pattern.matcher(event.getMessage().getFormattedMessage());
 
@@ -440,13 +447,14 @@ public class NodeJoiningIT extends MasterElectionTestCase {
 
                 String regexToMatchAnyCharacterExceptClosingBrace = "([^}]+)";
                 Pattern pattern = Pattern.compile(
-                        "node-join: \\["
-                                + expectedNewNodeAsString
-                                + "] "
-                                + "with reason \\[joining, removed \\["
-                                + regexToMatchAnyCharacterExceptClosingBrace
-                                + "] ago with reason \\[disconnected]]; "
-                                + "for troubleshooting guidance, see https://www.elastic.co/docs/troubleshoot/elasticsearch/troubleshooting-unstable-cluster\\?version=master"
+                    "node-join: \\["
+                        + expectedNewNodeAsString
+                        + "] "
+                        + "with reason \\[joining, removed \\["
+                        + regexToMatchAnyCharacterExceptClosingBrace
+                        + "] ago with reason \\[disconnected]]; "
+                        + "for troubleshooting guidance, see "
+                        + "https://www.elastic.co/docs/troubleshoot/elasticsearch/troubleshooting-unstable-cluster\\?version=master"
                 );
                 Matcher matcher = pattern.matcher(event.getMessage().getFormattedMessage());
 
@@ -462,7 +470,10 @@ public class NodeJoiningIT extends MasterElectionTestCase {
         });
     }
 
-    private void addNodeJoinProcessedDuringNewElectionAndClusterStatePublicationExpectation(MockLog mockLog, String expectedNewNodeAsString) {
+    private void addNodeJoinProcessedDuringNewElectionAndClusterStatePublicationExpectation(
+        MockLog mockLog,
+        String expectedNewNodeAsString
+    ) {
         mockLog.addExpectation(new MockLog.LoggingExpectation() {
             boolean matched = false;
 
@@ -475,11 +486,7 @@ public class NodeJoiningIT extends MasterElectionTestCase {
                     return;
                 }
 
-                Pattern pattern = Pattern.compile(
-                        "added \\{"
-                        + expectedNewNodeAsString
-                        + "}"
-                );
+                Pattern pattern = Pattern.compile("added \\{" + expectedNewNodeAsString + "}");
                 Matcher matcher = pattern.matcher(event.getMessage().getFormattedMessage());
 
                 if (matcher.find()) {
@@ -500,15 +507,31 @@ public class NodeJoiningIT extends MasterElectionTestCase {
         String newNodeName = "node_s" + numberOfNodesOriginallyInCluster;
         String regexToMatchAnyCharacterExceptClosingBrace = "([^}]+)";
 
-        return "\\{" + newNodeName + "}"
-            + "\\{" + regexToMatchAnyCharacterExceptClosingBrace + "}"
-            + "\\{" + regexToMatchAnyCharacterExceptClosingBrace + "}"
-            + "\\{" + newNodeName + "}"
-            + "\\{" + masterNode.getHostAddress() + "}"
-            + "\\{" + masterNode.getHostAddress() + ":\\d+}"
+        return "\\{"
+            + newNodeName
+            + "}"
+            + "\\{"
+            + regexToMatchAnyCharacterExceptClosingBrace
+            + "}"
+            + "\\{"
+            + regexToMatchAnyCharacterExceptClosingBrace
+            + "}"
+            + "\\{"
+            + newNodeName
+            + "}"
+            + "\\{"
+            + masterNode.getHostAddress()
+            + "}"
+            + "\\{"
+            + masterNode.getHostAddress()
+            + ":\\d+}"
             + "\\{d}"
-            + "\\{" + masterNode.getVersion() + "}"
-            + "\\{" + regexToMatchAnyCharacterExceptClosingBrace + "}";
+            + "\\{"
+            + masterNode.getVersion()
+            + "}"
+            + "\\{"
+            + regexToMatchAnyCharacterExceptClosingBrace
+            + "}";
     }
 
     /**
@@ -518,7 +541,11 @@ public class NodeJoiningIT extends MasterElectionTestCase {
      * @param mockTransportService The transport service to remove the `addSendBehavior` from
      * @param cleanupTasks The list of cleanup tasks
      */
-    protected CountDownLatch removeMockTransportServicePublishBanWhenMasterHasSteppedDown(String masterNodeName, MockTransportService mockTransportService, List<Releasable> cleanupTasks) {
+    protected CountDownLatch removeMockTransportServicePublishBanWhenMasterHasSteppedDown(
+        String masterNodeName,
+        MockTransportService mockTransportService,
+        List<Releasable> cleanupTasks
+    ) {
         CountDownLatch latch = new CountDownLatch(1);
         ClusterStateApplier newMasterMonitor = event -> {
             DiscoveryNode masterNode = event.state().nodes().getMasterNode();

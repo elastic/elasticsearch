@@ -282,7 +282,6 @@ public class DiscoveryNodes implements Iterable<DiscoveryNode>, SimpleDiffable<D
         return false;
     }
 
-
     /**
      * Determine if the given node exists and has the right roles. Supported roles vary by version, and our local cluster state might
      * have come via an older master, so the roles may differ even if the node is otherwise identical.

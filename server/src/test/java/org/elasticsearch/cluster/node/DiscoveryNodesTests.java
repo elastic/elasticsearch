@@ -18,7 +18,6 @@ import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
-import org.junit.Before;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -527,10 +526,7 @@ public class DiscoveryNodesTests extends ESTestCase {
 
     private final DiscoveryNode node1 = DiscoveryNodeUtils.create("node-1", "NodeOne");
     private final DiscoveryNode node2 = DiscoveryNodeUtils.create("node-2", "NodeTwo");
-    private final DiscoveryNodes discoveryNodes = DiscoveryNodes.builder()
-        .add(node1)
-        .add(node2)
-        .build();
+    private final DiscoveryNodes discoveryNodes = DiscoveryNodes.builder().add(node1).add(node2).build();
 
     public void testNodeExistsById() {
         assertTrue(discoveryNodes.nodeExists("NodeOne"));

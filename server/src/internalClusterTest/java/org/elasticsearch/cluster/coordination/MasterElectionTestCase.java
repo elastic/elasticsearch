@@ -22,7 +22,11 @@ import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
 
+/**
+ * An integration test base class to be used when a test requires a master re-election
+ */
 public abstract class MasterElectionTestCase extends ESIntegTestCase {
+
     /**
      * Block the cluster state applier on a node. Returns only when applier is blocked.
      *
@@ -73,17 +77,21 @@ public abstract class MasterElectionTestCase extends ESIntegTestCase {
      * Configure a latch that will be released when the existing master knows it has been re-elected
      *
      * @param masterNodeName The name of the current master node
-     * @param originalTerm The term the current master node was elected
+     * @param electedTerm The term the current master node was elected
      * @param cleanupTasks The list of cleanup tasks
      * @return A latch that will be released when the master acknowledges it's re-election
      */
-    protected CountDownLatch configureElectionLatchForReElectedMaster(String masterNodeName, long originalTerm, List<Releasable> cleanupTasks) {
+    protected CountDownLatch configureElectionLatchForReElectedMaster(
+        String masterNodeName,
+        long electedTerm,
+        List<Releasable> cleanupTasks
+    ) {
         final var masterKnowsItIsReElectedLatch = new CountDownLatch(1);
         ClusterStateApplier newMasterMonitor = event -> {
             DiscoveryNode masterNode = event.state().nodes().getMasterNode();
             long currentTerm = event.state().coordinationMetadata().term();
-            if (masterNode != null && masterNode.getName().equals(masterNodeName) && currentTerm > originalTerm) {
-                logger.info("Carrot: Master knows it's reelected. term:{}, version:{}", currentTerm, event.state().getVersion());
+            if (masterNode != null && masterNode.getName().equals(masterNodeName) && currentTerm > electedTerm) {
+                logger.info("Master knows it's re-elected");
                 masterKnowsItIsReElectedLatch.countDown();
             }
         };

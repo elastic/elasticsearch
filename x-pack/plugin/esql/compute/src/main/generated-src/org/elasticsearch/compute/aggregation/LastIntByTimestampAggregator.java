@@ -47,6 +47,7 @@ public class LastIntByTimestampAggregator {
 
     public static void combine(LongIntState current, int value, long timestamp) {
         if (timestamp > current.v1()) {
+            // NOCOMMIT we default to 0 in the timestamp and this won't see that - need to deal with empty.
             current.v1(timestamp);
             current.v2(value);
         }

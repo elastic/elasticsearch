@@ -15,6 +15,7 @@ import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.ListRowsBlockSourceOperator;
 import org.elasticsearch.compute.operator.SourceOperator;
+import org.elasticsearch.index.mapper.DateFieldMapper;
 
 import java.util.HashSet;
 import java.util.List;
@@ -24,10 +25,11 @@ import java.util.stream.IntStream;
 public class FirstLongByTimestampGroupingAggregatorFunctionTests extends GroupingAggregatorFunctionTestCase {
     @Override
     protected SourceOperator simpleInput(BlockFactory blockFactory, int size) {
+        TimestampGen tsgen = randomFrom(TimestampGen.values());
         return new ListRowsBlockSourceOperator(
             blockFactory,
             List.of(ElementType.LONG, ElementType.LONG, ElementType.LONG),
-            IntStream.range(0, size).mapToObj(l -> List.of(randomLongBetween(0, 4), randomLong(), randomLong())).toList()
+            IntStream.range(0, size).mapToObj(l -> List.of(randomLongBetween(0, 4), randomLong(), tsgen.gen())).toList()
         );
     }
 
@@ -98,12 +100,60 @@ public class FirstLongByTimestampGroupingAggregatorFunctionTests extends Groupin
                 }
             } else {
                 if (expected.contains(v) == false) {
-                    String expectedMessage = expected.size() == 1
-                        ? "expected " + expected.iterator().next()
-                        : "expected one of " + expected.stream().sorted().toList();
-                    throw new AssertionError(expectedMessage + " but was " + v);
+                    throw new AssertionError("expected " + expectedMessage() + " but was " + v);
                 }
             }
         }
+
+        private String expectedMessage() {
+            if (expected.size() == 1) {
+                return expected.iterator().next().toString();
+            }
+            if (expected.size() > 10) {
+                return "one of " + expected.size() + " values";
+            }
+            return "one of " + expected.stream().sorted().toList();
+        }
+    }
+
+    enum TimestampGen {
+        ANY {
+            @Override
+            public long gen() {
+                return randomLong();
+            }
+        },
+
+        RECENT {
+            private static final long RECENT = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis("2025-01-01");
+
+            @Override
+            public long gen() {
+                return randomLongBetween(RECENT, Long.MAX_VALUE);
+            }
+        },
+
+        AFTER_EPOCH {
+            @Override
+            public long gen() {
+                return randomLongBetween(0, Long.MAX_VALUE);
+            }
+        },
+
+        BEFORE_EPOCH {
+            @Override
+            public long gen() {
+                return randomLongBetween(Long.MIN_VALUE, 0);
+            }
+        },
+
+        EPOCH {
+            @Override
+            public long gen() {
+                return 0;
+            }
+        };
+
+        public abstract long gen();
     }
 }

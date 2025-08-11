@@ -145,7 +145,7 @@ public class PublicationTransportHandlerTests extends ESTestCase {
             StreamInput in = null;
             try {
                 in = request.bytes().streamInput();
-                final Compressor compressor = CompressorFactory.compressor(request.bytes());
+                final Compressor compressor = CompressorFactory.compressorForUnknownXContentType(request.bytes());
                 if (compressor != null) {
                     in = compressor.threadLocalStreamInput(in);
                 }

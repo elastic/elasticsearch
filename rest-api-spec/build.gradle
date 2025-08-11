@@ -94,4 +94,6 @@ tasks.named("yamlRestCompatTestTransform").configure ({ task ->
   task.skipTest("get/100_synthetic_source/non-indexed dense vectors", "Vectors are not returned by default")
   task.skipTest("search.vectors/90_sparse_vector/stored sparse_vector synthetic source", "Vectors are not returned by default")
   task.skipTest("search.vectors/90_sparse_vector/sparse_vector synthetic source", "Vectors are not returned by default")
+  task.skipTest("update/100_synthetic_source/keyword", "synthetic recovery source means _recovery_source field will not be present")
+  task.skipTest("update/100_synthetic_source/stored text", "synthetic recovery source means _recovery_source field will not be present")
 })

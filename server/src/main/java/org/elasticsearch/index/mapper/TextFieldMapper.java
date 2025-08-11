@@ -1062,7 +1062,7 @@ public final class TextFieldMapper extends TextFamilyFieldMapper {
             // But if a text field is a multi field it won't have an entry in _ignored_source.
             // The parent might, but we don't have enough context here to figure this out.
             // So we bail.
-            if (isSyntheticSource && syntheticSourceDelegate == null && parentField == null) {
+            if (isSyntheticSource && syntheticSourceDelegate.isEmpty() && parentField == null) {
                 return fallbackSyntheticSourceBlockLoader(blContext);
             }
 
@@ -1115,7 +1115,7 @@ public final class TextFieldMapper extends TextFamilyFieldMapper {
          * using whatever
          */
         private BlockSourceReader.LeafIteratorLookup blockReaderDisiLookup(BlockLoaderContext blContext) {
-            if (isSyntheticSource && syntheticSourceDelegate != null) {
+            if (isSyntheticSource && syntheticSourceDelegate.isPresent()) {
                 // Since we are using synthetic source and a delegate, we can't use this field
                 // to determine if the delegate has values in the document (f.e. handling of `null` is different
                 // between text and keyword).
@@ -1426,11 +1426,8 @@ public final class TextFieldMapper extends TextFamilyFieldMapper {
                 return;
             }
 
-            // otherwise, we need to store a copy of this value so that synthetic source can load it
-            var utfBytes = value.bytes();
-            var bytesRef = new BytesRef(utfBytes.bytes(), utfBytes.offset(), utfBytes.length());
             final String fieldName = fieldType().syntheticSourceFallbackFieldName(true);
-            context.doc().add(new StoredField(fieldName, bytesRef));
+            context.doc().add(new StoredField(fieldName, value.string()));
         }
     }
 

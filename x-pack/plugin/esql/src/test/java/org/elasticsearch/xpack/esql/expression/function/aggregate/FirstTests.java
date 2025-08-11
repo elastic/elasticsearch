@@ -41,13 +41,12 @@ public class FirstTests extends AbstractAggregationTestCase {
             for (TestCaseSupplier.TypedDataSupplier valueSupplier : unlimitedSuppliers(valueType, rows, rows)) {
                 for (DataType sortType : List.of(DataType.DATETIME, DataType.DATE_NANOS)) {
                     for (TestCaseSupplier.TypedDataSupplier sortSupplier : unlimitedSuppliers(sortType, rows, rows)) {
-                        suppliers.add(makeSupplier(valueSupplier, sortSupplier));
+                        suppliers.add(makeSupplier(valueSupplier, sortSupplier, true));
                     }
                 }
             }
         }
-        // return parameterSuppliersFromTypedDataWithDefaultChecksNoErrors(suppliers, false);
-        return parameterSuppliersFromTypedData(suppliers); // TODO checks with no errors
+        return parameterSuppliersFromTypedData(randomizeBytesRefsOffset(suppliers));
     }
 
     @Override
@@ -55,9 +54,10 @@ public class FirstTests extends AbstractAggregationTestCase {
         return new First(source, args.get(0), args.get(1));
     }
 
-    private static TestCaseSupplier makeSupplier(
+    static TestCaseSupplier makeSupplier(
         TestCaseSupplier.TypedDataSupplier valueSupplier,
-        TestCaseSupplier.TypedDataSupplier sortSupplier
+        TestCaseSupplier.TypedDataSupplier sortSupplier,
+        boolean first
     ) {
         return new TestCaseSupplier(
             valueSupplier.name() + ", " + sortSupplier.name(),
@@ -71,19 +71,17 @@ public class FirstTests extends AbstractAggregationTestCase {
                 List<?> sortsList = (List<?>) sorts.data();
                 for (int p = 0; p < valuesList.size(); p++) {
                     Long s = (Long) sortsList.get(p);
-                    if (firstSort == null || s < firstSort) {
+                    if (firstSort == null || (first ? s < firstSort : s > firstSort)) {
                         firstSort = s;
                         expected.clear();
                         expected.add(valuesList.get(p));
-                        System.err.println("ADSFDAF " + s + " " + valuesList.get(p));
                     } else if (firstSort.equals(s)) {
                         expected.add(valuesList.get(p));
-                        System.err.println("ADSFDAF add " + s + " " + valuesList.get(p));
                     }
                 }
                 return new TestCaseSupplier.TestCase(
                     List.of(values, sorts),
-                    "asdfafa",
+                    "unused",
                     values.type(),
                     anyOf(() -> Iterators.map(expected.iterator(), Matchers::equalTo))
                 );

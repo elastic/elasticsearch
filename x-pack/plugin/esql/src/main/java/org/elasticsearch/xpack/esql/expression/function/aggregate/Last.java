@@ -52,7 +52,7 @@ public class Last extends AggregateFunction implements ToAggregator {
     public Last(
         Source source,
         @Param(name = "field", type = { "long", "integer", "double" }) Expression field,
-        @Param(name = "field", type = { "datetime", "date_nanos" }) Expression sort
+        @Param(name = "field", type = { "date", "date_nanos" }) Expression sort
     ) {
         this(source, field, Literal.TRUE, sort);
     }

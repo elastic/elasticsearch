@@ -52,7 +52,6 @@ public class $Occurrence$$Type$ByTimestampAggregator {
 
     public static void combine(Long$Type$State current, $type$ value, long timestamp) {
         if (timestamp $if(First)$<$else$>$endif$ current.v1()) {
-            // NOCOMMIT we default to 0 in the timestamp and this won't see that - need to deal with empty.
             current.v1(timestamp);
             current.v2(value);
         }

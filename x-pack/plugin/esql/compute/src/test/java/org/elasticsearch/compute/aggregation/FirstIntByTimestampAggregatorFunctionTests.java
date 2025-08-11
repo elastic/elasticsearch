@@ -24,13 +24,9 @@ import java.util.stream.IntStream;
 public class FirstIntByTimestampAggregatorFunctionTests extends AggregatorFunctionTestCase {
     @Override
     protected SourceOperator simpleInput(BlockFactory blockFactory, int size) {
-<<<<<<< HEAD
-        FirstLongByTimestampGroupingAggregatorFunctionTests.TimestampGen tsgen = randomFrom(FirstLongByTimestampGroupingAggregatorFunctionTests.TimestampGen.values());
-=======
         FirstLongByTimestampGroupingAggregatorFunctionTests.TimestampGen tsgen = randomFrom(
             FirstLongByTimestampGroupingAggregatorFunctionTests.TimestampGen.values()
         );
->>>>>>> esql_bad_timestamps
         return new ListRowsBlockSourceOperator(
             blockFactory,
             List.of(ElementType.INT, ElementType.LONG),

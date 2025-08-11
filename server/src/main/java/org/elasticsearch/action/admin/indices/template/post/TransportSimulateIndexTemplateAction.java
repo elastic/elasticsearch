@@ -361,9 +361,20 @@ public class TransportSimulateIndexTemplateAction extends TransportLocalProjectM
         );
     }
 
+    /**
+     * This method collects the mappings from the given template, pulling them from the given simulatedProject. If the template is a data
+     * stream template and the given dataStream is not null, this method also appends any mapping overrides from the data stream itself.
+     * @param simulatedProject Used to fetch the component templates referenced from the template
+     * @param dataStream Used to fetch any mappings explicitly set on the data stream
+     * @param template The template matching the index, used to fetch mappings
+     * @param indexName The name of the index whose templates we are fetching
+     * @param xContentRegistry Used to parse mappings if necessary
+     * @return A list of matching mappings in ascending priority order
+     * @throws IOException
+     */
     private static List<CompressedXContent> collectMappings(
         ProjectMetadata simulatedProject,
-        DataStream dataStream,
+        @Nullable DataStream dataStream,
         ComposableIndexTemplate template,
         String indexName,
         NamedXContentRegistry xContentRegistry
@@ -380,7 +391,7 @@ public class TransportSimulateIndexTemplateAction extends TransportLocalProjectM
             null, // empty request mapping as the user can't specify any explicit mappings via the simulate api
             simulatedProject,
             template,
-            xContentRegistry,
+            xContentRegistry, // This is never used since requestMappings is always null, but it is not marked explicitly as @Nullable
             simulatedIndexName
         );
         if (template.getDataStreamTemplate() != null && dataStream != null) {
@@ -394,9 +405,18 @@ public class TransportSimulateIndexTemplateAction extends TransportLocalProjectM
         return mappings;
     }
 
+    /**
+     * This method collects the settings from the given template using the given simulatedProjcet. If dataStream is not null, it also merges
+     * in any settings overrides on the data stream itself.
+     * @param simulatedProject The project metadata used to get the settings
+     * @param dataStream If not null, this is used to get data stream settings overrides
+     * @param templateName The name of the template
+     * @param template The template, used to check whether this is a data strema template
+     * @return The settings to be used
+     */
     private static Settings collectSettings(
         final ProjectMetadata simulatedProject,
-        final DataStream dataStream,
+        @Nullable final DataStream dataStream,
         String templateName,
         ComposableIndexTemplate template
     ) {

@@ -1573,7 +1573,7 @@ public final class RestoreService implements ClusterStateApplier {
             // Restore global state if needed
             if (request.includeGlobalState()) {
                 applyGlobalStateRestore(currentState, mdBuilder, projectId);
-                fileSettingsService.handleSnapshotRestore(currentState, mdBuilder, projectId);
+                fileSettingsService.handleSnapshotRestore(currentState, builder, mdBuilder, projectId);
             }
 
             if (completed(shards)) {

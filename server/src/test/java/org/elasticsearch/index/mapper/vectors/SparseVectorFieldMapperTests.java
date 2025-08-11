@@ -198,7 +198,8 @@ public class SparseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase
         b.endObject();
     }
 
-    private void mapping(XContentBuilder b, @Nullable Boolean prune, PruningConfig pruningConfig, Boolean previousVersion) throws IOException {
+    private void mapping(XContentBuilder b, @Nullable Boolean prune, PruningConfig pruningConfig, Boolean previousVersion)
+        throws IOException {
         b.field("type", "sparse_vector");
         if (previousVersion == false && prune != null) {
             b.startObject("index_options");
@@ -727,7 +728,9 @@ public class SparseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase
     }
 
     private enum PruningConfig {
-        NULL, EXPLICIT_DEFAULT, STRICT
+        NULL,
+        EXPLICIT_DEFAULT,
+        STRICT
     }
 
     private final Set<PruningOptions> validIndexPruningScenarios = Set.of(
@@ -777,8 +780,7 @@ public class SparseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase
         for (int i = 0; i < 120; i++) {
             assertPruningScenario(
                 randomFrom(validIndexPruningScenarios),
-                new PruningOptions(randomBoolean() ? randomBoolean() : null,
-                    randomFrom(PruningConfig.values()))
+                new PruningOptions(randomBoolean() ? randomBoolean() : null, randomFrom(PruningConfig.values()))
             );
         }
     }
@@ -865,8 +867,7 @@ public class SparseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase
         }).collect(Collectors.toUnmodifiableList());
     }
 
-    private void assertPruningScenario(PruningOptions indexPruningOptions, PruningOptions queryPruningOptions)
-        throws IOException {
+    private void assertPruningScenario(PruningOptions indexPruningOptions, PruningOptions queryPruningOptions) throws IOException {
 
         boolean usePreIndexOptionsIndex = false;
         if (indexPruningOptions.prune == null && indexPruningOptions.pruningConfig == PruningConfig.NULL) {
@@ -876,7 +877,11 @@ public class SparseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase
         IndexVersion indexVersion = getIndexVersionForTest(usePreIndexOptionsIndex);
         MapperService mapperService = createMapperService(indexVersion, getIndexMapping(indexPruningOptions, usePreIndexOptionsIndex));
         Tuple<Boolean, TokenPruningConfig> queryPruneConfig = getQueryPruneConfig(queryPruningOptions);
-        PruningScenario effectivePruningScenario = getEffectivePruningScenario(indexPruningOptions, queryPruningOptions, usePreIndexOptionsIndex);
+        PruningScenario effectivePruningScenario = getEffectivePruningScenario(
+            indexPruningOptions,
+            queryPruningOptions,
+            usePreIndexOptionsIndex
+        );
         withSearchExecutionContext(mapperService, (context) -> {
             SparseVectorFieldMapper.SparseVectorFieldType ft = (SparseVectorFieldMapper.SparseVectorFieldType) mapperService.fieldType(
                 "field"

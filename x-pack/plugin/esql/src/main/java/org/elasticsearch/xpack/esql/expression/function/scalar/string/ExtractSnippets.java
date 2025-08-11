@@ -202,7 +202,7 @@ public class ExtractSnippets extends EsqlScalarFunction implements OptionalArgum
         List<EsPhysicalOperationProviders.ShardContext> shardContexts = toEvaluator.shardContexts();
         LuceneQueryEvaluator.ShardConfig[] shardConfigs = new LuceneQueryEvaluator.ShardConfig[shardContexts.size()];
 
-        Integer numSnippets = this.numSnippets == null ?DEFAULT_NUM_SNIPPETS : (Integer) this.numSnippets.fold(FoldContext.small());
+        Integer numSnippets = this.numSnippets == null ? DEFAULT_NUM_SNIPPETS : (Integer) this.numSnippets.fold(FoldContext.small());
         Integer snippedSize = this.snippetLength == null ? DEFAULT_SNIPPET_LENGTH : (Integer) this.snippetLength.fold(FoldContext.small());
 
         int i = 0;
@@ -212,7 +212,6 @@ public class ExtractSnippets extends EsqlScalarFunction implements OptionalArgum
             if (searchContext == null) {
                 throw new IllegalStateException("Missing search context, cannot extract snippets");
             }
-
 
             try {
                 // TODO: Reduce duplication between this method and TextSimilarityRerankingRankFeaturePhaseRankShardContext#prepareForFetch

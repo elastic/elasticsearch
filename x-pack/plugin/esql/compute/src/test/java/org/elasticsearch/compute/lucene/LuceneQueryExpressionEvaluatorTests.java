@@ -8,7 +8,6 @@
 package org.elasticsearch.compute.lucene;
 
 import org.apache.lucene.search.Scorable;
-import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.Page;

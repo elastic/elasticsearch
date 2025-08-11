@@ -10,7 +10,7 @@ package org.elasticsearch.xpack.esql.capabilities;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 
-public interface RewriteableAware extends TranslationAware{
+public interface RewriteableAware extends TranslationAware {
 
     QueryBuilder queryBuilder();
 

@@ -27,9 +27,7 @@ import java.io.IOException;
  * a {@link BooleanVector}.
  * @see LuceneQueryScoreEvaluator
  */
-public class LuceneQueryExpressionEvaluator extends LuceneQueryEvaluator<BooleanBlock.Builder>
-    implements
-        EvalOperator.ExpressionEvaluator {
+public class LuceneQueryExpressionEvaluator extends LuceneQueryEvaluator<BooleanBlock.Builder> implements EvalOperator.ExpressionEvaluator {
 
     LuceneQueryExpressionEvaluator(BlockFactory blockFactory, ShardConfig[] shards) {
         super(blockFactory, shards);

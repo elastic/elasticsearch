@@ -51,9 +51,9 @@ import static com.github.javaparser.printer.concretesyntaxmodel.CsmElement.token
 
 public abstract class AbstractVersionsTask extends DefaultTask {
 
-    static {
-        replaceDefaultJavaParserClassCsm();
-    }
+//    static {
+//        replaceDefaultJavaParserClassCsm();
+//    }
 
     /*
      * The default JavaParser CSM which it uses to format any new declarations added to a class

@@ -43,7 +43,7 @@ public record ESONFlat(List<ESONEntry> keys, ESONSource.Values values, AtomicRef
                 byte type = streamInput.readByte();
                 int offsetOrCount = streamInput.readInt();
                 ESONEntry entry = switch (type) {
-                    case ESONEntry.TYPE_OBJECT -> new ESONEntry.ObjectEntry(key);
+                    case ESONEntry.TYPE_OBJECT -> new ESONEntry.ObjectEntry(key.isEmpty() ? null : key);
                     case ESONEntry.TYPE_ARRAY -> new ESONEntry.ArrayEntry(key);
                     default -> new ESONEntry.FieldEntry(key, type, offsetOrCount);
                 };
@@ -56,9 +56,11 @@ public record ESONFlat(List<ESONEntry> keys, ESONSource.Values values, AtomicRef
 
     public BytesReference getSerializedKeyBytes() {
         if (serializedKeyBytes.get() == null) {
+            // TODO: Better estimate
             int estimate = 0;
             for (ESONEntry entry : keys) {
-                estimate += entry.key().length() + 5;
+                String key = entry.key();
+                estimate += key == null ? 0 : key.length() + 5;
             }
             try (BytesStreamOutput streamOutput = new BytesStreamOutput((int) (estimate * 1.1))) {
                 streamOutput.writeVInt(keys.size());
@@ -68,9 +70,14 @@ public record ESONFlat(List<ESONEntry> keys, ESONSource.Values values, AtomicRef
                     // streamOutput.writeVInt(bytes.length);
                     // streamOutput.writeBytes(bytes);
                     // TODO: Use UTF-8 byte length eventually
-                    streamOutput.writeString(key);
+                    streamOutput.writeString(key == null ? "" : key);
                     streamOutput.writeByte(entry.type());
-                    streamOutput.writeInt(entry.offsetOrCount());
+                    // TODO: Combine
+                    if (entry instanceof ESONEntry.FieldEntry fieldEntry) {
+                        streamOutput.writeInt(fieldEntry.value.offset());
+                    } else {
+                        streamOutput.writeInt(entry.offsetOrCount());
+                    }
                 }
                 serializedKeyBytes.set(streamOutput.bytes());
             } catch (IOException e) {

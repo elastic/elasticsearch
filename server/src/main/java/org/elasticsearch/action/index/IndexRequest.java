@@ -176,6 +176,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
         routing = in.readOptionalString();
         if (in.getTransportVersion().onOrAfter(TransportVersions.STRUCTURED_SOURCE)) {
             if (in.readBoolean()) {
+                useStructuredSource = true;
                 structuredSource = new ESONFlat(in);
             } else {
                 source = in.readBytesReference();
@@ -183,7 +184,6 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
         } else {
             source = in.readBytesReference();
         }
-        source = in.readBytesReference();
         opType = OpType.fromId(in.readByte());
         version = in.readLong();
         versionType = VersionType.fromValue(in.readByte());
@@ -430,7 +430,16 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
      * The source of the document to index, recopied to a new array if it is unsafe.
      */
     public BytesReference source() {
-        return source;
+        if (useStructuredSource) {
+            try (XContentBuilder builder = XContentFactory.contentBuilder(contentType)) {
+                ESONXContentSerializer.flattenToXContent(structuredSource, builder, ToXContent.EMPTY_PARAMS);
+                return BytesReference.bytes(builder);
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
+            }
+        } else {
+            return source;
+        }
     }
 
     public int sourceSize() {
@@ -440,12 +449,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
     public void setStructuredSource(ESONIndexed.ESONObject esonSource) {
         this.useStructuredSource = true;
         this.structuredSource = esonSource.esonFlat();
-        try (XContentBuilder builder = XContentFactory.contentBuilder(contentType)) {
-            ESONXContentSerializer.flattenToXContent(esonSource.esonFlat(), builder, ToXContent.EMPTY_PARAMS);
-            source = BytesReference.bytes(builder);
-        } catch (IOException e) {
-            throw new UncheckedIOException(e);
-        }
+        this.source = null;
     }
 
     public void ensureStructureSource() {

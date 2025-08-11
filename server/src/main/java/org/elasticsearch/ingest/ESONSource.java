@@ -160,6 +160,11 @@ public class ESONSource {
 
     public interface Value {
         byte type();
+
+        // TODO: Fix
+        default int offset() {
+            return -1;
+        }
     }
 
     public record Mutation(Object object) implements Value {
@@ -215,9 +220,20 @@ public class ESONSource {
                 default -> throw new IllegalArgumentException("Invalid value type: " + type);
             }
         }
+
+        @Override
+        public int offset() {
+            return position;
+        }
     }
 
     public record VariableValue(int position, byte type) implements Value {
+
+        @Override
+        public int offset() {
+            return position;
+        }
+
         public Object getValue(Values source) {
             return switch (type) {
                 case ESONEntry.STRING -> source.readString(position);

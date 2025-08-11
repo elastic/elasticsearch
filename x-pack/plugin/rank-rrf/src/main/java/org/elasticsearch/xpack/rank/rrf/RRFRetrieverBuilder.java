@@ -278,10 +278,8 @@ public final class RRFRetrieverBuilder extends CompoundRetrieverBuilder<RRFRetri
                     return new RRFRetrieverBuilder(retrievers, null, null, rankWindowSize, rankConstant, weights);
                 },
                 w -> {
-                    if (w != 1.0f) {
-                        throw new IllegalArgumentException(
-                            "[" + NAME + "] does not support per-field weights in [" + FIELDS_FIELD.getPreferredName() + "]"
-                        );
+                    if (w < 0) {
+                        throw new IllegalArgumentException("[" + NAME + "] per-field weights must be non-negative");
                     }
                 }
             ).stream().map(RetrieverSource::from).toList();

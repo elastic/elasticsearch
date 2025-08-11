@@ -47,6 +47,9 @@ public abstract class ValidateTransportVersionDefinitionsTask extends DefaultTas
 
     @TaskAction
     public void validateTransportVersions() throws IOException {
+        if (getDefinitionsDirectory().isPresent() == false) {
+            return; // no definitions to validate, remove this leniency once all branches have at least one version
+        }
         Path constantsDir = getDefinitionsDirectory().getAsFile().get().toPath();
 
         Set<String> allTvNames = new HashSet<>();

@@ -158,7 +158,6 @@ public final class RemoteClusterService extends RemoteClusterAware
     private final boolean isSearchNode;
     private final boolean isStateless;
     private final boolean remoteClusterServerEnabled;
-    private final boolean isStateless;
 
     public boolean isRemoteClusterServerEnabled() {
         return remoteClusterServerEnabled;

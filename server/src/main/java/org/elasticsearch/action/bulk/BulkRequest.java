@@ -190,10 +190,10 @@ public class BulkRequest extends LegacyActionRequest
 
         requests.add(request);
         if (request.doc() != null) {
-            sizeInBytes += request.doc().source().length();
+            sizeInBytes += request.doc().sourceSize();
         }
         if (request.upsertRequest() != null) {
-            sizeInBytes += request.upsertRequest().source().length();
+            sizeInBytes += request.upsertRequest().sourceSize();
         }
         if (request.script() != null) {
             sizeInBytes += request.script().getIdOrCode().length() * 2;

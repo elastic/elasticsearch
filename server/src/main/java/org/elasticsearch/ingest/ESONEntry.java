@@ -101,6 +101,21 @@ public abstract class ESONEntry {
             this.value = value;
         }
 
+        public FieldEntry(String key, byte type, int offset) {
+            this(key, parseValue(type, offset));
+        }
+
+        private static ESONSource.Value parseValue(byte type, int offset) {
+            return switch (type) {
+                case TYPE_NULL -> ESONSource.ConstantValue.NULL;
+                case TYPE_FALSE -> ESONSource.ConstantValue.FALSE;
+                case TYPE_TRUE -> ESONSource.ConstantValue.TRUE;
+                case TYPE_INT, TYPE_DOUBLE, TYPE_FLOAT, TYPE_LONG -> new ESONSource.FixedValue(offset, type);
+                case STRING, BINARY, BIG_INTEGER, BIG_DECIMAL -> new ESONSource.VariableValue(offset, type);
+                default -> throw new IllegalArgumentException("Unknown type: " + type);
+            };
+        }
+
         @Override
         public String toString() {
             return "FieldEntry{" + "value=" + value + '}';

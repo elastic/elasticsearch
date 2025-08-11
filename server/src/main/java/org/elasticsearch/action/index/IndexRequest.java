@@ -174,6 +174,15 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
         }
         id = in.readOptionalString();
         routing = in.readOptionalString();
+        if (in.getTransportVersion().onOrAfter(TransportVersions.STRUCTURED_SOURCE)) {
+            if (in.readBoolean()) {
+                structuredSource = new ESONFlat(in);
+            } else {
+                source = in.readBytesReference();
+            }
+        } else {
+            source = in.readBytesReference();
+        }
         source = in.readBytesReference();
         opType = OpType.fromId(in.readByte());
         version = in.readLong();
@@ -422,6 +431,10 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
      */
     public BytesReference source() {
         return source;
+    }
+
+    public int sourceSize() {
+        return useStructuredSource ? structuredSource.values().data().length() : source.length();
     }
 
     public void setStructuredSource(ESONIndexed.ESONObject esonSource) {
@@ -817,7 +830,17 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
         }
         out.writeOptionalString(id);
         out.writeOptionalString(routing);
-        out.writeBytesReference(source());
+        if (out.getTransportVersion().onOrAfter(TransportVersions.STRUCTURED_SOURCE)) {
+            out.writeBoolean(useStructuredSource);
+            if (useStructuredSource) {
+                out.writeBytesReference(structuredSource.getSerializedKeyBytes());
+                out.writeBytesReference(structuredSource.values().data());
+            } else {
+                out.writeBytesReference(source());
+            }
+        } else {
+            out.writeBytesReference(source());
+        }
         out.writeByte(opType.getId());
         out.writeLong(version);
         out.writeByte(versionType.getValue());

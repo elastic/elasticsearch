@@ -476,7 +476,7 @@ public class DefaultIVFVectorsReader extends IVFVectorsReader implements OffHeap
             // process tail
             for (; i < vectors; i++) {
                 int doc = docIdsScratch[i];
-                if (acceptDocs != null && acceptDocs.get(doc)) {
+                if (acceptDocs == null || acceptDocs.get(doc)) {
                     quantizeQueryIfNecessary();
                     indexInput.seek(slicePos + i * quantizedByteLength);
                     float qcDist = osqVectorsScorer.quantizeScore(quantizedQueryScratch);

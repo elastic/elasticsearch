@@ -134,7 +134,7 @@ public record TransportVersion(String name, int id, TransportVersion nextPatchVe
         for (String baseLocation : baseLocations) {
             String manifestLocation = baseLocation + "manifest.txt";
             List<String> versionFileNames = null;
-            try (InputStream inputStream = nameToStream.apply(baseLocation)) {
+            try (InputStream inputStream = nameToStream.apply(manifestLocation)) {
                 if (inputStream != null) {
                     BufferedReader reader = new BufferedReader(new InputStreamReader(inputStream, StandardCharsets.UTF_8));
                     versionFileNames = reader.lines().filter(line -> line.isBlank() == false).toList();

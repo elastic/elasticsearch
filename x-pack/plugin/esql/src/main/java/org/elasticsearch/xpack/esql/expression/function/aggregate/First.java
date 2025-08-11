@@ -41,7 +41,7 @@ public class First extends AggregateFunction implements ToAggregator {
 
     private final Expression sort;
 
-    // TODO: support all types
+    // TODO: support all types of values
     @FunctionInfo(
         type = FunctionType.AGGREGATE,
         returnType = { "long", "integer", "double" },
@@ -52,7 +52,7 @@ public class First extends AggregateFunction implements ToAggregator {
     public First(
         Source source,
         @Param(name = "field", type = { "long", "integer", "double" }) Expression field,
-        @Param(name = "field", type = { "datetime", "date_nanos" }) Expression sort
+        @Param(name = "field", type = { "date", "date_nanos" }) Expression sort
     ) {
         this(source, field, Literal.TRUE, sort);
     }

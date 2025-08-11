@@ -327,7 +327,6 @@ public class DefaultIVFVectorsReader extends IVFVectorsReader implements OffHeap
         final float[] centroid;
         long slicePos;
         OptimizedScalarQuantizer.QuantizationResult queryCorrections;
-        DocIdsWriter docIdsWriter = new DocIdsWriter();
 
         final float[] scratch;
         final int[] quantizationScratch;
@@ -373,7 +372,7 @@ public class DefaultIVFVectorsReader extends IVFVectorsReader implements OffHeap
             GroupVIntUtil.readGroupVInts(indexInput, docIdsScratch, vectors);
             // reconstitute from the deltas
             int sum = 0;
-            for (int i = 1; i < vectors; i++) {
+            for (int i = 0; i < vectors; i++) {
                 sum += docIdsScratch[i];
                 docIdsScratch[i] = sum;
             }

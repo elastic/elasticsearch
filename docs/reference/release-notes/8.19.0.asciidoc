@@ -539,4 +539,17 @@ Snapshot/Restore::
 * Upgrade AWS Java SDK to 2.31.78 {es-pull}131050[#131050]
 * Upgrade AWS SDK to v1.12.746 {es-pull}122431[#122431]
 
+[discrete]
+[[known-issues-8.19.0]]
+=== Known issues
+
+* An [optimization](https://github.com/elastic/elasticsearch/pull/125403) introduced in 8.19.0 contains a [bug](https://github.com/elastic/elasticsearch/pull/132597) that causes merges to fail for shrunk TSDB and LogsDB indices.
+  
+  Possible *temporary* workarounds include:
+  * Configure the ILM policy to not perform force merges after shrinking TSDB or LogsDB indices.
+  * Add `-Dorg.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesConsumer.enableOptimizedMerge=false` as a Java system property to all data nodes in the cluster and perform a rolling restart.
+    * *Important:* Remove this property when upgrading to the fixed version to re-enable merge optimization. Otherwise, merges will be slower.  
+
+The bug is addressed in version 8.19.2. 
+
 

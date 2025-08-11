@@ -302,7 +302,7 @@ class NodeConstruction {
             constructor.createClientAndRegistries(settingsModule.getSettings(), threadPool, searchModule, projectResolver);
             DocumentParsingProvider documentParsingProvider = constructor.getDocumentParsingProvider();
 
-            ScriptService scriptService = constructor.createScriptService(settingsModule, threadPool, serviceProvider);
+            ScriptService scriptService = constructor.createScriptService(settingsModule, threadPool, serviceProvider, projectResolver);
 
             constructor.createUpdateHelper(scriptService);
 
@@ -612,7 +612,12 @@ class NodeConstruction {
         });
     }
 
-    private ScriptService createScriptService(SettingsModule settingsModule, ThreadPool threadPool, NodeServiceProvider serviceProvider) {
+    private ScriptService createScriptService(
+        SettingsModule settingsModule,
+        ThreadPool threadPool,
+        NodeServiceProvider serviceProvider,
+        ProjectResolver projectResolver
+    ) {
         Settings settings = settingsModule.getSettings();
         ScriptModule scriptModule = new ScriptModule(settings, pluginsService.filterPlugins(ScriptPlugin.class).toList());
 
@@ -621,7 +626,8 @@ class NodeConstruction {
             settings,
             scriptModule.engines,
             scriptModule.contexts,
-            threadPool::absoluteTimeInMillis
+            threadPool::absoluteTimeInMillis,
+            projectResolver
         );
         ScriptModule.registerClusterSettingsListeners(scriptService, settingsModule.getClusterSettings());
         modules.add(b -> { b.bind(ScriptService.class).toInstance(scriptService); });
@@ -1129,7 +1135,6 @@ class NodeConstruction {
             clusterModule.getIndexNameExpressionResolver(),
             repositoriesService,
             transportService,
-            actionModule.getActionFilters(),
             systemIndices,
             projectResolver.supportsMultipleProjects()
         );

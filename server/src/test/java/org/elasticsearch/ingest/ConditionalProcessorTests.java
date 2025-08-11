@@ -10,6 +10,7 @@
 package org.elasticsearch.ingest;
 
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.script.IngestConditionalScript;
 import org.elasticsearch.script.MockScriptEngine;
@@ -61,7 +62,8 @@ public class ConditionalProcessorTests extends ESTestCase {
                 )
             ),
             new HashMap<>(ScriptModule.CORE_CONTEXTS),
-            () -> 1L
+            () -> 1L,
+            TestProjectResolvers.singleProject(randomProjectIdOrDefault())
         );
         LongSupplier relativeTimeProvider = mock(LongSupplier.class);
         when(relativeTimeProvider.getAsLong()).thenReturn(0L, TimeUnit.MILLISECONDS.toNanos(1), 0L, TimeUnit.MILLISECONDS.toNanos(2));
@@ -150,7 +152,8 @@ public class ConditionalProcessorTests extends ESTestCase {
                 return true;
             }), Map.of())),
             new HashMap<>(ScriptModule.CORE_CONTEXTS),
-            () -> 1L
+            () -> 1L,
+            TestProjectResolvers.singleProject(randomProjectIdOrDefault())
         );
 
         LongSupplier relativeTimeProvider = mock(LongSupplier.class);
@@ -254,7 +257,8 @@ public class ConditionalProcessorTests extends ESTestCase {
                 return false;
             }), Map.of())),
             new HashMap<>(ScriptModule.CORE_CONTEXTS),
-            () -> 1L
+            () -> 1L,
+            TestProjectResolvers.singleProject(randomProjectIdOrDefault())
         );
         Map<String, Object> document = new HashMap<>();
         ConditionalProcessor processor = new ConditionalProcessor(

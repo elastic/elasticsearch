@@ -13,10 +13,12 @@ import org.elasticsearch.entitlement.runtime.policy.PolicyManager.PolicyScope;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
+import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.entitlement.runtime.policy.PolicyManager.ComponentKind.PLUGIN;
 import static org.hamcrest.Matchers.both;
@@ -34,20 +36,40 @@ public class TestPolicyManagerTests extends ESTestCase {
             List.of(),
             Map.of(),
             c -> new PolicyScope(PLUGIN, "example-plugin" + scopeCounter.incrementAndGet(), "org.example.module"),
-            new TestPathLookup(Map.of()),
+            new PathLookup() {
+                @Override
+                public Path pidFile() {
+                    return null;
+                }
+
+                @Override
+                public Stream<Path> getBaseDirPaths(BaseDir baseDir) {
+                    return Stream.empty();
+                }
+
+                @Override
+                public Stream<Path> resolveSettingPaths(BaseDir baseDir, String settingName) {
+                    return Stream.empty();
+                }
+
+                @Override
+                public boolean isPathOnDefaultFilesystem(Path path) {
+                    return true;
+                }
+            },
             List.of(),
             List.of()
         );
         policyManager.setActive(true);
     }
 
-    public void testResetAfterTest() {
+    public void testClearModuleEntitlementsCache() {
         assertTrue(policyManager.classEntitlementsMap.isEmpty());
         assertEquals("example-plugin1", policyManager.getEntitlements(getClass()).componentName());
         assertEquals("example-plugin1", policyManager.getEntitlements(getClass()).componentName());
         assertFalse(policyManager.classEntitlementsMap.isEmpty());
 
-        policyManager.resetAfterTest();
+        policyManager.clearModuleEntitlementsCache();
 
         assertTrue(policyManager.classEntitlementsMap.isEmpty());
         assertEquals("example-plugin2", policyManager.getEntitlements(getClass()).componentName());

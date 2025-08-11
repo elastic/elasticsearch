@@ -7,31 +7,16 @@
 
 package org.elasticsearch.xpack.logsdb.patternedtext;
 
-import org.elasticsearch.ResourceNotFoundException;
-import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
-import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.action.search.SearchRequestBuilder;
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
-import org.elasticsearch.common.util.CollectionUtils;
-import org.elasticsearch.core.Tuple;
-import org.elasticsearch.datageneration.queries.LeafQueryGenerator;
-import org.elasticsearch.datastreams.DataStreamsPlugin;
-import org.elasticsearch.index.IndexMode;
-import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.extras.MapperExtrasPlugin;
-import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.license.LicenseSettings;
@@ -39,16 +24,9 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.InternalSettingsPlugin;
-import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
-import org.elasticsearch.test.transport.MockTransportService;
-import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
-import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
-import org.elasticsearch.xpack.core.XPackPlugin;
-import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyAction;
 import org.elasticsearch.xpack.logsdb.LogsDBPlugin;
 import org.junit.Before;
 
@@ -60,7 +38,8 @@ import java.util.*;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailuresAndResponse;
+
 
 public class PatternedTextRandomTests extends ESIntegTestCase {
 
@@ -68,20 +47,13 @@ public class PatternedTextRandomTests extends ESIntegTestCase {
     protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
         return Settings.builder()
                 .put(super.nodeSettings(nodeOrdinal, otherSettings))
-//                .put("xpack.license.self_generated.type", "trial")
-//                .put("cluster.logsdb.enabled", "true")
                 .put(LicenseSettings.SELF_GENERATED_LICENSE_TYPE.getKey(), "trial")
                 .build();
     }
 
-
-
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-//        return Arrays.asList(LocalStateCompositeXPackPlugin.class);
         return Arrays.asList(MapperExtrasPlugin.class, LogsDBPlugin.class, LocalStateCompositeXPackPlugin.class);
-//        return CollectionUtils.appendToCopy(super.nodePlugins(), LogsDBPlugin.class, LocalStateCompositeXPackPlugin.class);
-//        return List.of(InternalSettingsPlugin.class, XPackPlugin.class, LogsDBPlugin.class, DataStreamsPlugin.class);
     }
 
     private static final String INDEX = "test_index";
@@ -93,9 +65,8 @@ public class PatternedTextRandomTests extends ESIntegTestCase {
         assumeTrue("Only when patterned_text feature flag is enabled", PatternedTextFieldMapper.PATTERNED_TEXT_MAPPER.isEnabled());
     }
 
-    public void test() throws IOException {
+    public void testQueries() throws IOException {
         var settings = Settings.builder();
-//        var settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.LOGSDB.getName());
         var mappings = XContentFactory.jsonBuilder()
             .startObject()
             .startObject("properties")
@@ -118,10 +89,12 @@ public class PatternedTextRandomTests extends ESIntegTestCase {
         var createResponse = safeGet(admin().indices().create(createRequest));
         assertTrue(createResponse.isAcknowledged());
 
-        int numDocs = randomIntBetween(1, 300);
+        int numDocs = randomIntBetween(10, 1000);
         List<String> logMessages = generateMessages(numDocs);
         indexDocs(logMessages);
 
+        int[] numQueriesWithResults = {0};
+        int[] totalQueries = {0};
         for (var message : logMessages) {
             List<String> queryTerms = randomQueryParts(message);
 
@@ -132,24 +105,24 @@ public class PatternedTextRandomTests extends ESIntegTestCase {
                 var ptQuery = patternedTextQueries.get(i);
                 var motQuery = matchOnlyQueries.get(i);
 
-                var ptResponse = client().prepareSearch(INDEX).setQuery(ptQuery).setSize(numDocs).get();
-                var motResponse = client().prepareSearch(INDEX).setQuery(motQuery).setSize(numDocs).get();
+                var ptRequest = client().prepareSearch(INDEX).setQuery(ptQuery).setSize(numDocs);
+                var motRequest = client().prepareSearch(INDEX).setQuery(motQuery).setSize(numDocs);
+                totalQueries[0]++;
+                assertNoFailuresAndResponse(ptRequest, ptResponse -> {
+                    assertNoFailuresAndResponse(motRequest, motResponse -> {
+                        assertEquals(motResponse.getHits().getTotalHits().value(), ptResponse.getHits().getTotalHits().value());
 
-                assertNoFailures(ptResponse);
-                assertNoFailures(motResponse);
-
-//                assertTrue(motResponse.getHits().getTotalHits().value() > 0);
-                assertEquals(
-                    motResponse.getHits().getTotalHits().value(),
-                    ptResponse.getHits().getTotalHits().value()
-                );
-
-                var motDocIds = Arrays.stream(motResponse.getHits().getHits()).map(SearchHit::getId).collect(Collectors.toSet());
-                var ptDocIds = Arrays.stream(ptResponse.getHits().getHits()).map(SearchHit::getId).collect(Collectors.toSet());
-
-                assertEquals(motDocIds, ptDocIds);
+                        if (motResponse.getHits().getTotalHits().value() > 0) {
+                            numQueriesWithResults[0]++;
+                        }
+                        var motDocIds = Arrays.stream(motResponse.getHits().getHits()).map(SearchHit::getId).collect(Collectors.toSet());
+                        var ptDocIds = Arrays.stream(ptResponse.getHits().getHits()).map(SearchHit::getId).collect(Collectors.toSet());
+                        assertEquals(motDocIds, ptDocIds);
+                    });
+                });
             }
         }
+        System.out.println("num queries with results: " + numQueriesWithResults[0] + ", total: " + totalQueries[0]);
     }
 
     public List<QueryBuilder> generateQueries(String field, List<String> queryTerms) {

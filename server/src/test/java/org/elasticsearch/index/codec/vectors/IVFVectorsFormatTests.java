@@ -22,8 +22,10 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.LeafReader;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.VectorEncoding;
 import org.apache.lucene.index.VectorSimilarityFunction;
+import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.BaseKnnVectorsFormatTestCase;
 import org.apache.lucene.tests.util.TestUtil;
@@ -141,6 +143,30 @@ public class IVFVectorsFormatTests extends BaseKnnVectorsFormatTestCase {
                     var offHeap = OffHeapByteSizeUtils.getOffHeapByteSize(knnVectorsReader, fieldInfo);
                     assertEquals(0, offHeap.size());
                 }
+            }
+        }
+    }
+
+    public void testSameVectorManyTimes() throws IOException {
+        float[] vector = randomVector(random().nextInt(12, 500));
+        try (Directory dir = newDirectory(); IndexWriter w = new IndexWriter(dir, newIndexWriterConfig())) {
+            for (int i = 0; i < 10_000; i++) {
+                Document doc = new Document();
+                doc.add(new KnnFloatVectorField("f", vector, VectorSimilarityFunction.EUCLIDEAN));
+                w.addDocument(doc);
+            }
+            w.commit();
+            if (rarely()) {
+                w.forceMerge(1);
+            }
+            try (IndexReader reader = DirectoryReader.open(w)) {
+                List<LeafReaderContext> subReaders = reader.leaves();
+                for (LeafReaderContext r : subReaders) {
+                    LeafReader leafReader = r.reader();
+                    TopDocs topDocs = leafReader.searchNearestVectors("f", vector, 10, leafReader.getLiveDocs(), Integer.MAX_VALUE);
+                    assertEquals(Math.min(leafReader.maxDoc(), 10), topDocs.scoreDocs.length);
+                }
+
             }
         }
     }

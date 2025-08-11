@@ -77,11 +77,9 @@ public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
             }
         }
 
-        int maxPostingListSize = 0;
         int[][] assignmentsByCluster = new int[centroidSupplier.size()][];
         for (int c = 0; c < centroidSupplier.size(); c++) {
             int size = centroidVectorCount[c];
-            maxPostingListSize = Math.max(maxPostingListSize, size);
             assignmentsByCluster[c] = new int[size];
         }
         Arrays.fill(centroidVectorCount, 0);
@@ -97,11 +95,8 @@ public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
                 }
             }
         }
-        // write the max posting list size
-        postingsOutput.writeVInt(maxPostingListSize);
         // write the posting lists
         final PackedLongValues.Builder offsets = PackedLongValues.monotonicBuilder(PackedInts.COMPACT);
-        DocIdsWriter docIdsWriter = new DocIdsWriter();
         DiskBBQBulkWriter bulkWriter = new DiskBBQBulkWriter.OneBitDiskBBQBulkWriter(ES91OSQVectorsScorer.BULK_SIZE, postingsOutput);
         OnHeapQuantizedVectors onHeapQuantizedVectors = new OnHeapQuantizedVectors(
             floatVectorValues,
@@ -125,9 +120,8 @@ public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
             // TODO we might want to consider putting the docIds in a separate file
             // to aid with only having to fetch vectors from slower storage when they are required
             // keeping them in the same file indicates we pull the entire file into cache
-            docIdsWriter.writeDocIds(j -> floatVectorValues.ordToDoc(cluster[j]), size, postingsOutput);
             // write vectors
-            bulkWriter.writeVectors(onHeapQuantizedVectors);
+            bulkWriter.writeVectors(onHeapQuantizedVectors, j -> floatVectorValues.ordToDoc(cluster[j]));
         }
 
         if (logger.isDebugEnabled()) {
@@ -203,12 +197,10 @@ public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
             }
         }
 
-        int maxPostingListSize = 0;
         int[][] assignmentsByCluster = new int[centroidSupplier.size()][];
         boolean[][] isOverspillByCluster = new boolean[centroidSupplier.size()][];
         for (int c = 0; c < centroidSupplier.size(); c++) {
             int size = centroidVectorCount[c];
-            maxPostingListSize = Math.max(maxPostingListSize, size);
             assignmentsByCluster[c] = new int[size];
             isOverspillByCluster[c] = new boolean[size];
         }
@@ -233,11 +225,8 @@ public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
                 quantizedVectorsInput,
                 fieldInfo.getVectorDimension()
             );
-            DocIdsWriter docIdsWriter = new DocIdsWriter();
             DiskBBQBulkWriter bulkWriter = new DiskBBQBulkWriter.OneBitDiskBBQBulkWriter(ES91OSQVectorsScorer.BULK_SIZE, postingsOutput);
             final ByteBuffer buffer = ByteBuffer.allocate(fieldInfo.getVectorDimension() * Float.BYTES).order(ByteOrder.LITTLE_ENDIAN);
-            // write the max posting list size
-            postingsOutput.writeVInt(maxPostingListSize);
             // write the posting lists
             for (int c = 0; c < centroidSupplier.size(); c++) {
                 float[] centroid = centroidSupplier.centroid(c);
@@ -256,9 +245,8 @@ public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
                 // TODO we might want to consider putting the docIds in a separate file
                 // to aid with only having to fetch vectors from slower storage when they are required
                 // keeping them in the same file indicates we pull the entire file into cache
-                docIdsWriter.writeDocIds(j -> floatVectorValues.ordToDoc(cluster[j]), size, postingsOutput);
                 // write vectors
-                bulkWriter.writeVectors(offHeapQuantizedVectors);
+                bulkWriter.writeVectors(offHeapQuantizedVectors, j -> floatVectorValues.ordToDoc(cluster[j]));
             }
 
             if (logger.isDebugEnabled()) {
@@ -342,7 +330,7 @@ public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
             osq,
             globalCentroid
         );
-        bulkWriter.writeVectors(parentQuantizeCentroid);
+        bulkWriter.writeVectors(parentQuantizeCentroid, null);
         int offset = 0;
         for (int i = 0; i < centroidGroups.centroids().length; i++) {
             centroidOutput.writeInt(offset);
@@ -359,7 +347,7 @@ public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
         for (int i = 0; i < centroidGroups.centroids().length; i++) {
             final int[] centroidAssignments = centroidGroups.vectors()[i];
             childrenQuantizeCentroid.reset(idx -> centroidAssignments[idx], centroidAssignments.length);
-            bulkWriter.writeVectors(childrenQuantizeCentroid);
+            bulkWriter.writeVectors(childrenQuantizeCentroid, null);
         }
         // write the centroid offsets at the end of the file
         for (int i = 0; i < centroidGroups.centroids().length; i++) {
@@ -389,7 +377,7 @@ public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
             osq,
             globalCentroid
         );
-        bulkWriter.writeVectors(quantizedCentroids);
+        bulkWriter.writeVectors(quantizedCentroids, null);
         // write the centroid offsets at the end of the file
         for (int i = 0; i < centroidSupplier.size(); i++) {
             centroidOutput.writeLong(offsets.get(i));

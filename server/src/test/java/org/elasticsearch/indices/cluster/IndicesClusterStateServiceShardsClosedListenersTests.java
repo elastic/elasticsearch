@@ -46,14 +46,14 @@ public class IndicesClusterStateServiceShardsClosedListenersTests extends Abstra
 
     public void testRunnablesExecuteAfterAllPreviousListenersComplete() throws Exception {
         AtomicInteger clusterStateAppliedRound = new AtomicInteger();
-//        int totalClusterStateAppliedRounds = randomIntBetween(10, 100);
-        int totalClusterStateAppliedRounds = 100;
+        int totalClusterStateAppliedRounds = randomIntBetween(10, 100);
         Map<Integer, List<Runnable>> runnablesOnShardsClosedForRoundMap = new ConcurrentHashMap<>();
         Map<Integer, List<ActionListener<Void>>> shardsClosedListenersForRoundMap = new ConcurrentHashMap<>();
         List<ActionListener<Void>> allShardsClosedListeners = Collections.synchronizedList(new ArrayList<>());
+        DeterministicTaskQueue deterministicTaskQueue = new DeterministicTaskQueue();
         try (
             TestIndicesClusterStateService testIndicesClusterStateService = new TestIndicesClusterStateService(
-                new DeterministicTaskQueue().getThreadPool(),
+                deterministicTaskQueue.getThreadPool(),
                     // the apply cluster state hook
                     (indicesClusterStateService, clusterChangedEvent) -> {
                     final int round = clusterStateAppliedRound.get();
@@ -86,6 +86,7 @@ public class IndicesClusterStateServiceShardsClosedListenersTests extends Abstra
             )
         ) {
             int round = clusterStateAppliedRound.get();
+            int runnablesDoneUpToRound = 0;
             while (round < totalClusterStateAppliedRounds || allShardsClosedListeners.isEmpty() == false) {
                 if (round < totalClusterStateAppliedRounds) {
                     runnablesOnShardsClosedForRoundMap.put(round, Collections.synchronizedList(new ArrayList<>()));
@@ -102,23 +103,29 @@ public class IndicesClusterStateServiceShardsClosedListenersTests extends Abstra
                     }));
                 }
 
-                // pick random listeners and complete it
+                // complete one random listener
                 if ((round >= totalClusterStateAppliedRounds || randomBoolean()) && allShardsClosedListeners.isEmpty() == false) {
-                    // complete one random listener
                     randomFrom(allShardsClosedListeners).onResponse(null);
-                    int runnablesDoneUpToRound = 0;
-                    for (int i = 0; i <= round; i++) {
-                        if (shardsClosedListenersForRoundMap.get(i).isEmpty() == false) {
-                            break;
-                        }
-                        runnablesDoneUpToRound++;
+                    deterministicTaskQueue.runAllTasksInTimeOrder();
+                }
+
+                // find the "oldest" applied cluster state that still has unfinished listeners
+                for (int i = runnablesDoneUpToRound; i < totalClusterStateAppliedRounds; i++) {
+                    if (shardsClosedListenersForRoundMap.get(i) != null && shardsClosedListenersForRoundMap.get(i).isEmpty()) {
+                        runnablesDoneUpToRound = i + 1;
+                    } else {
+                        break;
                     }
-                    for (int i = 0; i < runnablesDoneUpToRound; i++) {
-                        for (var runnable : runnablesOnShardsClosedForRoundMap.get(i)) {
-                            verify(runnable).run();
-                        }
+                }
+                // assert older runnables executed
+                for (int i = 0; i < runnablesDoneUpToRound; i++) {
+                    for (var runnable : runnablesOnShardsClosedForRoundMap.get(i)) {
+                        verify(runnable, times(1)).run();
                     }
-                    for (int i = runnablesDoneUpToRound; i <= round; i++) {
+                }
+                // assert any newer runnables not yet executed
+                for (int i = runnablesDoneUpToRound; i < totalClusterStateAppliedRounds; i++) {
+                    if (runnablesOnShardsClosedForRoundMap.get(i) != null) {
                         for (var runable : runnablesOnShardsClosedForRoundMap.get(i)) {
                             verify(runable, times(0)).run();
                         }

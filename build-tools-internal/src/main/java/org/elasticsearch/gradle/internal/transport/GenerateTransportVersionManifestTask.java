@@ -42,7 +42,7 @@ public abstract class GenerateTransportVersionManifestTask extends DefaultTask {
             return;
         }
         Path constantsDir = getDefinitionsDirectory().get().getAsFile().toPath();
-
+        
         try (var writer = Files.newBufferedWriter(manifestFile)) {
             try (var stream = Files.list(constantsDir)) {
                 for (String filename : stream.map(p -> p.getFileName().toString()).toList()) {

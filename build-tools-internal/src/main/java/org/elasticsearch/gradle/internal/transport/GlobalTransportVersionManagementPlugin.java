@@ -55,7 +55,10 @@ public class GlobalTransportVersionManagementPlugin implements Plugin<Project> {
             .register("generateTransportVersionManifest", GenerateTransportVersionManifestTask.class, t -> {
                 t.setGroup("Transport Versions");
                 t.setDescription("Generate a manifest resource for all the known transport version definitions");
-                t.getDefinitionsDirectory().set(TransportVersionUtils.getDefinitionsDirectory(project));
+                Directory definitionsDir = TransportVersionUtils.getDefinitionsDirectory(project);
+                if (definitionsDir.getAsFile().exists()) {
+                    t.getDefinitionsDirectory().set(definitionsDir);
+                }
                 t.getManifestFile().set(project.getLayout().getBuildDirectory().file("generated-resources/manifest.txt"));
             });
         project.getTasks().named(JavaPlugin.PROCESS_RESOURCES_TASK_NAME, Copy.class).configure(t -> {

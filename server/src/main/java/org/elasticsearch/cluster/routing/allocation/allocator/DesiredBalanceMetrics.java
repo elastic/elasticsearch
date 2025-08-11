@@ -399,7 +399,7 @@ public class DesiredBalanceMetrics {
 
     private List<LongWithAttributes> getIfPublishing(ToLongFunction<AllocationStats> value) {
         var currentStats = lastReconciliationAllocationStats;
-        if (currentStats != EMPTY_ALLOCATION_STATS) {
+        if (nodeIsMaster && currentStats != EMPTY_ALLOCATION_STATS) {
             return List.of(new LongWithAttributes(value.applyAsLong(currentStats)));
         }
         return List.of();
@@ -407,7 +407,7 @@ public class DesiredBalanceMetrics {
 
     private List<DoubleWithAttributes> getUndesiredAllocationsRatioMetrics() {
         var currentStats = lastReconciliationAllocationStats;
-        if (currentStats != EMPTY_ALLOCATION_STATS) {
+        if (nodeIsMaster && currentStats != EMPTY_ALLOCATION_STATS) {
             return List.of(new DoubleWithAttributes(currentStats.undesiredAllocationsRatio()));
         }
         return List.of();

@@ -53,15 +53,14 @@ public final class PhaseCacheManagement {
     ) {
         IndexMetadata idxMeta = projectMetadata.index(index);
         ProjectMetadata.Builder projectMetadataBuilder = ProjectMetadata.builder(projectMetadata);
-        refreshPhaseDefinition(projectMetadataBuilder, idxMeta, updatedPolicy);
+        projectMetadataBuilder.put(prepareRefreshPhaseDefinition(idxMeta, updatedPolicy));
         return projectMetadataBuilder.build();
     }
 
     /**
      * Rereads the phase JSON for the given index, and updates the provided metadata.
      */
-    public static void refreshPhaseDefinition(
-        final ProjectMetadata.Builder projectMetadataBuilder,
+    public static IndexMetadata.Builder prepareRefreshPhaseDefinition(
         final IndexMetadata idxMeta,
         final LifecyclePolicyMetadata updatedPolicy
     ) {
@@ -83,7 +82,7 @@ public final class PhaseCacheManagement {
             .setPhaseDefinition(Strings.toString(pei, false, false))
             .build();
 
-        projectMetadataBuilder.put(IndexMetadata.builder(idxMeta).putCustom(ILM_CUSTOM_METADATA_KEY, newExState.asMap()));
+        return IndexMetadata.builder(idxMeta).putCustom(ILM_CUSTOM_METADATA_KEY, newExState.asMap());
     }
 
     /**
@@ -157,14 +156,18 @@ public final class PhaseCacheManagement {
             .filter(meta -> isIndexPhaseDefinitionUpdatable(xContentRegistry, client, meta, newPolicy.getPolicy(), licenseState))
             .toList();
 
-        final List<String> refreshedIndices = new ArrayList<>(indicesThatCanBeUpdated.size());
+        final List<IndexMetadata.Builder> refreshedIndices = new ArrayList<>(indicesThatCanBeUpdated.size());
         for (IndexMetadata index : indicesThatCanBeUpdated) {
             try {
-                refreshPhaseDefinition(projectMetadataBuilder, index, newPolicy);
-                refreshedIndices.add(index.getIndex().getName());
+                var idxBuilder = prepareRefreshPhaseDefinition(index, newPolicy);
+                refreshedIndices.add(idxBuilder);
             } catch (Exception e) {
                 logger.warn(() -> format("[%s] unable to refresh phase definition for updated policy [%s]", index, newPolicy.getName()), e);
             }
+        }
+        // Apply new index metadata all at once to avoid half-applications
+        for (IndexMetadata.Builder refreshedIndex : refreshedIndices) {
+            projectMetadataBuilder.put(refreshedIndex);
         }
         logger.debug("refreshed policy [{}] phase definition for [{}] indices", newPolicy.getName(), refreshedIndices.size());
         return refreshedIndices.size() > 0;

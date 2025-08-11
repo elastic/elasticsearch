@@ -155,7 +155,7 @@ public class ElasticInferenceServiceAuthorizationResponseEntity implements Infer
 
     @Override
     public String toString() {
-        return String.join(", ", authorizedModels.stream().map(AuthorizedModel::toString).toList());
+        return authorizedModels.stream().map(AuthorizedModel::toString).collect(Collectors.joining(", "));
     }
 
     @Override

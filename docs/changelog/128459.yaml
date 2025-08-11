@@ -1,0 +1,5 @@
+pr: 128459
+summary: "[8.19] Remove forgotten `tsdb_doc_values_optimized_merge` feature flag that caused an optimization to be disabled that should have been enabled"
+area: Codec
+type: bug
+issues: []

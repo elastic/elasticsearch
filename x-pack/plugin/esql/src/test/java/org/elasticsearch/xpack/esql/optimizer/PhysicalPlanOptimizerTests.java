@@ -7955,10 +7955,11 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             | LIMIT %d
             """, limit));
         Tuple<PhysicalPlan, PhysicalPlan> plans = PlannerUtils.breakPlanBetweenCoordinatorAndDataNode(plan, config);
-        PhysicalPlan reduction = PlannerUtils.reductionPlan(plans.v2()).v1();
-        TopNExec reductionTopN = as(reduction, TopNExec.class);
-        assertThat(reductionTopN.estimatedRowSize(), equalTo(allFieldRowSize));
-        assertThat(reductionTopN.limit().fold(FoldContext.small()), equalTo(limit));
+        throw new AssertionError("TODO(gal) NOCOMMIT");
+        // PhysicalPlan reduction = PlannerUtils.reductionPlan(plans.v2());
+        // TopNExec reductionTopN = as(reduction, TopNExec.class);
+        // assertThat(reductionTopN.estimatedRowSize(), equalTo(allFieldRowSize));
+        // assertThat(reductionTopN.limit().fold(FoldContext.small()), equalTo(limit));
     }
 
     public void testReductionPlanForAggs() {
@@ -7967,7 +7968,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             | stats x = sum(salary) BY first_name
             """);
         Tuple<PhysicalPlan, PhysicalPlan> plans = PlannerUtils.breakPlanBetweenCoordinatorAndDataNode(plan, config);
-        PhysicalPlan reduction = PlannerUtils.reductionPlan(plans.v2()).v1();
+        PhysicalPlan reduction = ((PlannerUtils.ReducedPlan) PlannerUtils.reductionPlan(plans.v2())).plan();
         AggregateExec reductionAggs = as(reduction, AggregateExec.class);
         assertThat(reductionAggs.estimatedRowSize(), equalTo(58)); // double and keyword
     }
@@ -7975,7 +7976,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
     public void testReductionPlanForLimit() {
         var plan = physicalPlan("FROM test | LIMIT 10");
         Tuple<PhysicalPlan, PhysicalPlan> plans = PlannerUtils.breakPlanBetweenCoordinatorAndDataNode(plan, config);
-        PhysicalPlan reduction = PlannerUtils.reductionPlan(plans.v2()).v1();
+        PhysicalPlan reduction = ((PlannerUtils.ReducedPlan) PlannerUtils.reductionPlan(plans.v2())).plan();
         LimitExec limitExec = as(reduction, LimitExec.class);
         assertThat(limitExec.estimatedRowSize(), equalTo(328));
     }

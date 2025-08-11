@@ -560,7 +560,7 @@ public class ComputeService {
         ActionListener<DriverCompletionInfo> listener,
         boolean shouldReduceDecRef // FIXME(gal, NOCOMMIT) yuck
     ) {
-        var shardContexts = context.searchContexts().map(MySearchContext::shardContext);
+        var shardContexts = context.searchContexts().map(ComputeSearchContext::shardContext);
         EsPhysicalOperationProviders physicalOperationProviders = new EsPhysicalOperationProviders(
             context.foldCtx(),
             shardContexts,
@@ -665,15 +665,15 @@ public class ComputeService {
             return plan.replaceChild(source);
         }
 
-        Tuple<PhysicalPlan, PlannerUtils.PlanReduction> res = PlannerUtils.reductionPlan(plan);
-        PhysicalPlan newPlan = switch (res.v2()) {
-            case PlannerUtils.PlanReduction.TOP_N ->
+        PlannerUtils.PlanReduction res = PlannerUtils.reductionPlan(plan);
+        PhysicalPlan newPlan = switch (res) {
+            case PlannerUtils.SimplePlanReduction.NO_REDUCTION -> source;
+            case PlannerUtils.SimplePlanReduction.TOP_N ->
                 // In the case of TopN, the source output type is replaced since we're pulling the FieldExtractExec to the reduction node.
                 // FIXME(gal, NOCOMMIT) Explain TopN better
                 // FIXME(gal, NOCOMMIT) Remove duplication with below
-                getChild(flags, configuration, foldCtx, (ExchangeSinkExec) res.v1()).orElse(res.v1().replaceChildren(List.of(source)));
-            case PlannerUtils.PlanReduction.REGULAR, PlannerUtils.PlanReduction.AGGREGATE -> res.v1().replaceChildren(List.of(source));
-            case NO_REDUCTION -> source;
+                getChild(flags, configuration, foldCtx, plan).orElse(plan.replaceChildren(List.of(source)));
+            case PlannerUtils.ReducedPlan(var p) -> p.replaceChildren(List.of(source));
         };
         return plan.replaceChild(newPlan);
     }

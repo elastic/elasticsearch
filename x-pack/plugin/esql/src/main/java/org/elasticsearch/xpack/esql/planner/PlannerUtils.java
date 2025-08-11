@@ -114,33 +114,38 @@ public class PlannerUtils {
         return new Tuple<>(coordinatorPlan, dataNodePlan.get());
     }
 
-    public enum PlanReduction {
+    public sealed interface PlanReduction {}
+
+    public enum SimplePlanReduction implements PlanReduction {
         NO_REDUCTION,
-        REGULAR,
-        AGGREGATE,
-        TOP_N,
+        TOP_N;
     }
 
-    // FIXME(gal, NOCOMMIT) reduce duplication, document, whatever. This is a silly hack.
-    public static Tuple<PhysicalPlan, PlanReduction> reductionPlan(PhysicalPlan plan) {
+    public record ReducedPlan(PhysicalPlan plan) implements PlanReduction {}
+
+    public static PlanReduction reductionPlan(PhysicalPlan plan) {
         // find the logical fragment
         var fragments = plan.collectFirstChildren(p -> p instanceof FragmentExec);
         if (fragments.isEmpty()) {
-            return Tuple.tuple(null, PlanReduction.NO_REDUCTION);
+            return SimplePlanReduction.NO_REDUCTION;
         }
         final FragmentExec fragment = (FragmentExec) fragments.getFirst();
         List<LogicalPlan> pipelineBreakers = fragment.fragment().collectFirstChildren(p -> p instanceof PipelineBreaker);
         if (pipelineBreakers.isEmpty()) {
-            return Tuple.tuple(null, PlanReduction.NO_REDUCTION);
+            return SimplePlanReduction.NO_REDUCTION;
         }
         final LogicalPlan pipelineBreaker = pipelineBreakers.getFirst();
         final LocalMapper mapper = new LocalMapper();
-        var res = switch (mapper.map(pipelineBreaker)) {
-            case AggregateExec aggExec -> Tuple.tuple(aggExec.withMode(AggregatorMode.INTERMEDIATE), PlanReduction.AGGREGATE);
-            case TopNExec unused -> Tuple.tuple(plan, PlanReduction.TOP_N);
-            case PhysicalPlan p -> Tuple.tuple(p, PlanReduction.REGULAR);
+        int estimatedRowSize = fragment.estimatedRowSize();
+        return switch (mapper.map(pipelineBreaker)) {
+            case TopNExec unused -> SimplePlanReduction.TOP_N;
+            case AggregateExec aggExec -> getPhysicalPlanReduction(estimatedRowSize, aggExec.withMode(AggregatorMode.INTERMEDIATE));
+            case PhysicalPlan p -> getPhysicalPlanReduction(estimatedRowSize, p);
         };
-        return Tuple.tuple(EstimatesRowSize.estimateRowSize(fragment.estimatedRowSize(), res.v1()), res.v2());
+    }
+
+    private static ReducedPlan getPhysicalPlanReduction(int estimatedRowSize, PhysicalPlan plan) {
+        return new ReducedPlan(EstimatesRowSize.estimateRowSize(estimatedRowSize, plan));
     }
 
     /**

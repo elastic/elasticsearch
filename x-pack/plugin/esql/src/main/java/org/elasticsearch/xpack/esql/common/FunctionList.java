@@ -15,8 +15,7 @@ import java.util.function.Function;
 /**
  * A special {@link List} wrapper which can mapped lazily, i.e., it can apply a function to future elements (as opposed to
  * {@code stream.map()}, which only maps the current list elements). While the entire point of this class is that it assumes the underlying
- * list can add new elements, it does actually assume that this is the *only* source of change to the list, since it caches the values it
- * maps.
+ * list can add new elements, it also assumes that this is the *only* source of change to the list, since it caches the values it maps.
  */
 public abstract class FunctionList<T> extends AbstractList<T> {
     public abstract <S> FunctionList<S> map(Function<T, S> mapper);
@@ -86,7 +85,7 @@ public abstract class FunctionList<T> extends AbstractList<T> {
                 }
 
                 for (int i = mapped.size(); i <= index; i++) {
-                    mapped.add((S) null);
+                    mapped.add(null);
                 }
                 return getNewValue(index);
             }

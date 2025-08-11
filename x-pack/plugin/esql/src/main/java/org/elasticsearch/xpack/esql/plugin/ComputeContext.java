@@ -22,7 +22,7 @@ record ComputeContext(
     String description,
     String clusterAlias,
     EsqlFlags flags,
-    FunctionList<MySearchContext> searchContexts,
+    FunctionList<ComputeSearchContext> searchContexts,
     Configuration configuration,
     FoldContext foldCtx,
     Supplier<ExchangeSource> exchangeSourceSupplier,

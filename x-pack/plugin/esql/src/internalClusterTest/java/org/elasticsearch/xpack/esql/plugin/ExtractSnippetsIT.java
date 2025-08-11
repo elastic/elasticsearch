@@ -31,6 +31,7 @@ public class ExtractSnippetsIT extends AbstractEsqlIntegTestCase {
         var query = """
             FROM test
             | EVAL x = extract_snippets(content, "fox", 1, 10)
+            | SORT x
             | KEEP x
             """;
 

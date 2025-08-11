@@ -583,19 +583,19 @@ public class IndexRoutingTests extends ESTestCase {
 
     public void testRoutingPathNumbersInSource() throws IOException {
         int shards = between(2, 1000);
-        IndexRouting routing = indexRoutingForRoutingPath(IndexVersions.MATCH_ONLY_TEXT_STORED_AS_BYTES, shards, "foo");
+        IndexRouting routing = indexRoutingForPath(IndexVersions.MATCH_ONLY_TEXT_STORED_AS_BYTES, shards, "foo");
         long randomLong = randomLong();
-        assertIndexShard(routing, Map.of("foo", randomLong), List.of("foo", Long.toString(randomLong)), shards);
+        assertIndexShard(routing, Map.of("foo", randomLong), List.of("foo", randomLong), shards);
         double randomDouble = randomDouble();
-        assertIndexShard(routing, Map.of("foo", randomDouble), List.of("foo", Double.toString(randomDouble)), shards);
+        assertIndexShard(routing, Map.of("foo", randomDouble), List.of("foo", randomDouble), shards);
         assertIndexShard(routing, Map.of("foo", 123), List.of("foo", 123), shards);
     }
 
     public void testRoutingPathBooleansInSource() throws IOException {
         int shards = between(2, 1000);
         IndexRouting routing = indexRoutingForPath(shards, "foo");
-        assertIndexShard(routing, Map.of("foo", true), List.of("foo", "true"), shards);
-        assertIndexShard(routing, Map.of("foo", false), List.of("foo", "false"), shards);
+        assertIndexShard(routing, Map.of("foo", true), List.of("foo", true), shards);
+        assertIndexShard(routing, Map.of("foo", false), List.of("foo", false), shards);
     }
 
     public void testRoutingPathArraysInSource() throws IOException {
@@ -720,11 +720,15 @@ public class IndexRoutingTests extends ESTestCase {
     }
 
     private IndexRouting indexRoutingForPath(int shards, String path) {
+        return indexRoutingForPath(IndexVersion.current(), shards, path);
+    }
+
+    private IndexRouting indexRoutingForPath(IndexVersion indexVersion, int shards, String path) {
         return randomBoolean()
             // old way of routing paths created during routing
-            ? indexRoutingForRoutingPath(IndexVersion.current(), shards, path)
+            ? indexRoutingForRoutingPath(indexVersion, shards, path)
             // current way of routing paths created during routing via tsid
-            : indexRoutingForDimensions(IndexVersion.current(), shards, path);
+            : indexRoutingForDimensions(indexVersion, shards, path);
     }
 
     private IndexRouting indexRoutingForRoutingPath(IndexVersion createdVersion, int shards, String path) {
@@ -862,6 +866,10 @@ public class IndexRoutingTests extends ESTestCase {
                 tsidBuilder.addBooleanDimension(key, bValue);
             } else if (value instanceof Integer iValue) {
                 tsidBuilder.addIntDimension(key, iValue);
+            } else if (value instanceof Long lValue) {
+                tsidBuilder.addLongDimension(key, lValue);
+            } else if (value instanceof Double dValue) {
+                tsidBuilder.addDoubleDimension(key, dValue);
             } else {
                 throw new IllegalArgumentException("Unsupported value type for TSID routing: " + value.getClass());
             }

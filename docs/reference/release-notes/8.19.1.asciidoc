@@ -145,7 +145,18 @@ This caused unintended timeouts or cancellations during subsequent phases under 
 Engine::
 * Available disk space is now recorded when merge tasks are scheduled, helping to diagnose issues caused by running merges despite low disk space on nodes. This information appears in heap dumps and can inform adjustments to `indices.merge.disk.watermark.high` or inspire future enhancements such as aborting already running merges. {es-pull}131711[#131711]
 
+[discrete]
+[[known-issues-8.19.1]]
+=== Known issues
 
+* An [optimization](https://github.com/elastic/elasticsearch/pull/125403) introduced in 8.19.0 contains a [bug](https://github.com/elastic/elasticsearch/pull/132597) that causes merges to fail for shrunk TSDB and LogsDB indices.
+  
+  Possible *temporary* workarounds include:
+  * Configure the ILM policy to not perform force merges after shrinking TSDB or LogsDB indices.
+  * Add `-Dorg.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesConsumer.enableOptimizedMerge=false` as a Java system property to all data nodes in the cluster and perform a rolling restart.
+    * *Important:* Remove this property when upgrading to the fixed version to re-enable merge optimization. Otherwise, merges will be slower.  
+
+The bug is addressed in version 8.19.2. 
 
 
 

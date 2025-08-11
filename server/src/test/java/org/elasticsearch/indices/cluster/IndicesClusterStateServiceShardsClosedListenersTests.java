@@ -44,7 +44,7 @@ import static org.mockito.Mockito.verify;
 
 public class IndicesClusterStateServiceShardsClosedListenersTests extends AbstractIndicesClusterStateServiceTestCase {
 
-    public void testRunnablesExecuteAfterAllPreviousListenersComplete() throws Exception {
+    public void testRunnablesAreExecutedOnlyAfterAllPreviousListenersComplete() {
         AtomicInteger clusterStateAppliedRound = new AtomicInteger();
         int totalClusterStateAppliedRounds = randomIntBetween(10, 100);
         Map<Integer, List<Runnable>> runnablesOnShardsClosedForRoundMap = new ConcurrentHashMap<>();

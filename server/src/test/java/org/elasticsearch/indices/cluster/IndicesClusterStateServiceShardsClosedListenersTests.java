@@ -54,8 +54,8 @@ public class IndicesClusterStateServiceShardsClosedListenersTests extends Abstra
         try (
             TestIndicesClusterStateService testIndicesClusterStateService = new TestIndicesClusterStateService(
                 deterministicTaskQueue.getThreadPool(),
-                    // the apply cluster state hook
-                    (indicesClusterStateService, clusterChangedEvent) -> {
+                // the apply cluster state hook
+                (indicesClusterStateService, clusterChangedEvent) -> {
                     final int round = clusterStateAppliedRound.get();
                     // maybe register runnable for when all the shards in the currently applied cluster states are closed
                     if (randomBoolean()) {

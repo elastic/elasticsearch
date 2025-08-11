@@ -9,8 +9,6 @@
 
 package org.elasticsearch.common.util.concurrent;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
@@ -38,8 +36,6 @@ import java.util.concurrent.atomic.AtomicInteger;
  * A collection of static methods to help create different ES Executor types.
  */
 public class EsExecutors {
-
-    private static final Logger logger = LogManager.getLogger(EsExecutors.class);
 
     // although the available processors may technically change, for node sizing we use the number available at launch
     private static final int MAX_NUM_PROCESSORS = Runtime.getRuntime().availableProcessors();

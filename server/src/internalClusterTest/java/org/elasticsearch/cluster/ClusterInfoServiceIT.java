@@ -402,7 +402,7 @@ public class ClusterInfoServiceIT extends ESIntegTestCase {
     }
 
     /**
-     * The {@link TransportNodeUsageStatsForThreadPoolsAction} returns the max value of two kinds of queue latency:
+     * The {@link TransportNodeUsageStatsForThreadPoolsAction} returns the max value of two kinds of queue latencies:
      * {@link TaskExecutionTimeTrackingEsThreadPoolExecutor#getMaxQueueLatencyMillisSinceLastPollAndReset()} and
      * {@link TaskExecutionTimeTrackingEsThreadPoolExecutor#peekMaxQueueLatencyInQueue()}. The latter looks at currently queued tasks, and
      * the former tracks the queue latency of tasks when they are taken off of the queue to start execution.
@@ -422,10 +422,11 @@ public class ClusterInfoServiceIT extends ESIntegTestCase {
         assertNotEquals(internalCluster().getMasterName(), dataNodeName);
         logger.info("---> master node: " + masterName + ", data node: " + dataNodeName);
 
-        // Block indexing on the data node by submitting write thread pool tasks to equal the number of write threads.
+        // Block indexing on the data node by submitting write thread pool tasks equal to the number of write threads.
         var barrier = blockDataNodeIndexing(dataNodeName);
         try {
-            // Arbitrary number of tasks to queue greater than one (only strictly need a single task to occupy the queue).
+            // Arbitrary number of tasks, which will queue because all the write threads are occupied already, greater than one: only
+            // strictly need a single task to occupy the queue.
             int randomInt = randomIntBetween(1, 5);
             Thread[] threadsToJoin = new Thread[randomInt];
             for (int i = 0; i < randomInt; ++i) {
@@ -447,23 +448,23 @@ public class ClusterInfoServiceIT extends ESIntegTestCase {
             );
 
             // Ensure that some amount of time has passed on the thread pool.
-            long queuedElapsedMillis = 100;
+            long queuedElapsedMillis = 1;
             ESIntegTestCase.waitForTimeToElapse(queuedElapsedMillis);
 
-            // Force a refresh of the ClusterInfo state to collect fresh info from the data nodes.
+            // Force a refresh of the ClusterInfo state to collect fresh info from the data node.
             final InternalClusterInfoService masterClusterInfoService = asInstanceOf(
                 InternalClusterInfoService.class,
                 internalCluster().getCurrentMasterNodeInstance(ClusterInfoService.class)
             );
             final ClusterInfo clusterInfo = ClusterInfoServiceUtils.refresh(masterClusterInfoService);
 
-            // Since tasks are actively queued right now, #peekMaxQueueLatencyInQueue called from the
-            // TransportNodeUsageStatsForThreadPoolsAction that ClusterInfoService refresh initiated should have returned a max queue
+            // Since tasks are actively queued right now, #peekMaxQueueLatencyInQueue, which is called from the
+            // TransportNodeUsageStatsForThreadPoolsAction that a ClusterInfoService refresh initiates, should have returned a max queue
             // latency >= queuedElapsedMillis.
             {
                 final Map<String, NodeUsageStatsForThreadPools> usageStatsForThreadPools = clusterInfo.getNodeUsageStatsForThreadPools();
                 logger.info("---> Thread pool usage stats reported by data nodes to the master: " + usageStatsForThreadPools);
-                assertThat(usageStatsForThreadPools.size(), equalTo(1)); // only stats from data nodes should be collected
+                assertThat(usageStatsForThreadPools.size(), equalTo(1)); // only stats from data node should be collected
                 var dataNodeId = getNodeId(dataNodeName);
                 var nodeUsageStatsForThreadPool = usageStatsForThreadPools.get(dataNodeId);
                 assertNotNull(nodeUsageStatsForThreadPool);
@@ -489,8 +490,9 @@ public class ClusterInfoServiceIT extends ESIntegTestCase {
             }
             assertBusy(
                 // Wait for any other tasks that might have been queued.
-                // NB: cannot assert that the queue is immediately empty because of other ambient node activity and potentially a single
-                // write thread available due to a limited number of processors available on test machines.
+                // NB: cannot assert here that the queue is immediately empty because there could be other ambient node activity. This test
+                // could be running data nodes with a single write pool thread due to a limited number of processors available on test
+                // machines, and it's reasonable to queue a little in that situation.
                 () -> assertThat(
                     "Write thread pool dump: " + trackingWriteExecutor,
                     trackingWriteExecutor.peekMaxQueueLatencyInQueue(),
@@ -516,7 +518,8 @@ public class ClusterInfoServiceIT extends ESIntegTestCase {
                 assertThat(writeThreadPoolStats.maxThreadPoolQueueLatencyMillis(), greaterThanOrEqualTo(queuedElapsedMillis));
             }
         } finally {
-            // Ensure that the write threads have been released by signalling an interrupt on any callers waiting on the barrier.
+            // Ensure that the write threads have been released by signalling an interrupt on any callers waiting on the barrier. If the
+            // callers have already all been successfully released, then there will be nothing left to interrupt.
             logger.info("---> Ensuring release of the barrier on write thread pool tasks");
             barrier.reset();
         }

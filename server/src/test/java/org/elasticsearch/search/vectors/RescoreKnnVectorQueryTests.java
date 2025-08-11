@@ -37,6 +37,8 @@ import org.elasticsearch.index.codec.vectors.ES813Int8FlatVectorFormat;
 import org.elasticsearch.index.codec.vectors.ES814HnswScalarQuantizedVectorsFormat;
 import org.elasticsearch.index.codec.vectors.es818.ES818BinaryQuantizedVectorsFormat;
 import org.elasticsearch.index.codec.vectors.es818.ES818HnswBinaryQuantizedVectorsFormat;
+import org.elasticsearch.index.codec.vectors.es92.ES92BinaryQuantizedBFloat16VectorsFormat;
+import org.elasticsearch.index.codec.vectors.es92.ES92HnswBinaryQuantizedBFloat16VectorsFormat;
 import org.elasticsearch.index.codec.zstd.Zstd814StoredFieldsFormat;
 import org.elasticsearch.index.mapper.vectors.VectorSimilarityFloatValueSource;
 import org.elasticsearch.search.profile.query.QueryProfiler;
@@ -215,6 +217,8 @@ public class RescoreKnnVectorQueryTests extends ESTestCase {
         IndexWriterConfig iwc = new IndexWriterConfig();
         // Pick codec from quantized vector formats to ensure scores use real scores when using knn rescore
         KnnVectorsFormat format = randomFrom(
+            new ES92BinaryQuantizedBFloat16VectorsFormat(),
+            new ES92HnswBinaryQuantizedBFloat16VectorsFormat(),
             new ES818BinaryQuantizedVectorsFormat(),
             new ES818HnswBinaryQuantizedVectorsFormat(),
             new ES813Int8FlatVectorFormat(),

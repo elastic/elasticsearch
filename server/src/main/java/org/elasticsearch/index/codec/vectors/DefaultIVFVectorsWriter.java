@@ -112,6 +112,7 @@ public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
         int[] docIds = null;
         int[] docDeltas = null;
         int[] clusterOrds = null;
+        DocIdsWriter idsWriter = new DocIdsWriter();
         for (int c = 0; c < centroidSupplier.size(); c++) {
             float[] centroid = centroidSupplier.centroid(c);
             int[] cluster = assignmentsByCluster[c];
@@ -141,11 +142,12 @@ public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
             for (int j = 0; j < size; j++) {
                 docDeltas[j] = j == 0 ? finalDocs[finalOrds[j]] : finalDocs[finalOrds[j]] - finalDocs[finalOrds[j - 1]];
             }
+            final int[] finalDocDeltas = docDeltas;
             onHeapQuantizedVectors.reset(centroid, size, ord -> cluster[finalOrds[ord]]);
             // TODO we might want to consider putting the docIds in a separate file
             // to aid with only having to fetch vectors from slower storage when they are required
             // keeping them in the same file indicates we pull the entire file into cache
-            postingsOutput.writeGroupVInts(docDeltas, size);
+            idsWriter.writeDocIds(i -> finalDocDeltas[i], size, postingsOutput);
             // write vectors
             bulkWriter.writeVectors(onHeapQuantizedVectors);
         }
@@ -261,6 +263,7 @@ public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
             int[] docIds = null;
             int[] docDeltas = null;
             int[] clusterOrds = null;
+            DocIdsWriter idsWriter = new DocIdsWriter();
             for (int c = 0; c < centroidSupplier.size(); c++) {
                 float[] centroid = centroidSupplier.centroid(c);
                 int[] cluster = assignmentsByCluster[c];
@@ -291,11 +294,12 @@ public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
                 for (int j = 0; j < size; j++) {
                     docDeltas[j] = j == 0 ? finalDocs[finalOrds[j]] : finalDocs[finalOrds[j]] - finalDocs[finalOrds[j - 1]];
                 }
+                final int[] finalDocDeltas = docDeltas;
                 offHeapQuantizedVectors.reset(size, ord -> isOverspill[finalOrds[ord]], ord -> cluster[finalOrds[ord]]);
                 // TODO we might want to consider putting the docIds in a separate file
                 // to aid with only having to fetch vectors from slower storage when they are required
                 // keeping them in the same file indicates we pull the entire file into cache
-                postingsOutput.writeGroupVInts(docDeltas, size);
+                idsWriter.writeDocIds(i -> finalDocDeltas[i], size, postingsOutput);
                 // write vectors
                 bulkWriter.writeVectors(offHeapQuantizedVectors);
             }

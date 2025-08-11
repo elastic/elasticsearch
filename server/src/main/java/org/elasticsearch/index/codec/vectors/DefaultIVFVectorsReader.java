@@ -16,7 +16,6 @@ import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.search.KnnCollector;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.ArrayUtil;
-import org.apache.lucene.util.GroupVIntUtil;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.VectorUtil;
 import org.apache.lucene.util.hnsw.NeighborQueue;
@@ -332,6 +331,7 @@ public class DefaultIVFVectorsReader extends IVFVectorsReader implements OffHeap
         final int[] quantizationScratch;
         final byte[] quantizedQueryScratch;
         final OptimizedScalarQuantizer quantizer;
+        final DocIdsWriter idsWriter = new DocIdsWriter();
         final float[] correctiveValues = new float[3];
         final long quantizedVectorByteSize;
 
@@ -369,7 +369,7 @@ public class DefaultIVFVectorsReader extends IVFVectorsReader implements OffHeap
             vectors = indexInput.readVInt();
             // read the doc ids
             assert vectors <= docIdsScratch.length;
-            GroupVIntUtil.readGroupVInts(indexInput, docIdsScratch, vectors);
+            idsWriter.readInts(indexInput, vectors, docIdsScratch);
             // reconstitute from the deltas
             int sum = 0;
             for (int i = 0; i < vectors; i++) {

@@ -14,7 +14,6 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.ESTestCase.WithoutSecurityManager;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
@@ -42,7 +41,6 @@ import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.not;
 
-@WithoutSecurityManager
 public class JvmOptionsParserTests extends ESTestCase {
 
     private static final Map<String, String> TEST_SYSPROPS = Map.of("os.name", "Linux", "os.arch", "aarch64");

@@ -41,6 +41,7 @@ include::important-settings/discovery-settings.asciidoc[]
 
 include::important-settings/heap-size.asciidoc[]
 
+[[heap-dump-path]]
 include::important-settings/heap-dump-path.asciidoc[]
 
 include::important-settings/gc-logging.asciidoc[]

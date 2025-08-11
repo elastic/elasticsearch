@@ -63,7 +63,6 @@ public class FullClusterRestartIT extends ParameterizedFullClusterRestartTestCas
         .keystore("xpack.watcher.encryption_key", Resource.fromClasspath("system_key"))
         .keystore("xpack.security.transport.ssl.secure_key_passphrase", "testnode")
         .feature(FeatureFlag.TIME_SERIES_MODE)
-        .feature(FeatureFlag.FAILURE_STORE_ENABLED)
         .build();
 
     public FullClusterRestartIT(@Name("cluster") FullClusterRestartUpgradeStatus upgradeStatus) {

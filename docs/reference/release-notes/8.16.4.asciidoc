@@ -39,4 +39,10 @@ Snapshot/Restore::
 Ingest Node::
 * Improve memory aspects of enrich cache {es-pull}120256[#120256] (issues: {es-issue}96050[#96050], {es-issue}120021[#120021])
 
+[discrete]
+[[known-issues-8.16.4]]
+=== Known issues
 
+{esql}::
+
+* Some valid queries using an `ENRICH` command can fail when a match field is used that is absent from some indices or shards, either with a 500 status code due to `NullPointerException` or `ClassCastException` or with a 400 status code and `IllegalArgumentException`. This is fixed in {es-pull}126187[#126187].

@@ -1,6 +1,0 @@
-pr: 124958
-summary: Catch parsing exception
-area: ES|QL
-type: bug
-issues:
- - 119025

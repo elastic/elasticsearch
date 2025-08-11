@@ -44,6 +44,7 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
@@ -160,7 +161,7 @@ import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
-import static org.elasticsearch.indices.cluster.IndicesClusterStateService.AllocatedIndices.IndexRemovalReason.DELETED;
+import static org.elasticsearch.indices.cluster.IndexRemovalReason.DELETED;
 import static org.elasticsearch.search.SearchService.DEFAULT_SIZE;
 import static org.elasticsearch.search.SearchService.QUERY_PHASE_PARALLEL_COLLECTION_ENABLED;
 import static org.elasticsearch.search.SearchService.SEARCH_WORKER_THREADS_ENABLED;
@@ -693,7 +694,7 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
                                     int from,
                                     Client client
                                 ) {
-                                    return new RankFeaturePhaseRankCoordinatorContext(size, from, DEFAULT_RANK_WINDOW_SIZE) {
+                                    return new RankFeaturePhaseRankCoordinatorContext(size, from, DEFAULT_RANK_WINDOW_SIZE, false) {
                                         @Override
                                         protected void computeScores(RankFeatureDoc[] featureDocs, ActionListener<float[]> scoreListener) {
                                             float[] scores = new float[featureDocs.length];
@@ -837,7 +838,7 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
                                 int from,
                                 Client client
                             ) {
-                                return new RankFeaturePhaseRankCoordinatorContext(size, from, DEFAULT_RANK_WINDOW_SIZE) {
+                                return new RankFeaturePhaseRankCoordinatorContext(size, from, DEFAULT_RANK_WINDOW_SIZE, false) {
                                     @Override
                                     protected void computeScores(RankFeatureDoc[] featureDocs, ActionListener<float[]> scoreListener) {
                                         throw new IllegalStateException("should have failed earlier");
@@ -953,7 +954,7 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
                                     int from,
                                     Client client
                                 ) {
-                                    return new RankFeaturePhaseRankCoordinatorContext(size, from, DEFAULT_RANK_WINDOW_SIZE) {
+                                    return new RankFeaturePhaseRankCoordinatorContext(size, from, DEFAULT_RANK_WINDOW_SIZE, false) {
                                         @Override
                                         protected void computeScores(RankFeatureDoc[] featureDocs, ActionListener<float[]> scoreListener) {
                                             float[] scores = new float[featureDocs.length];
@@ -1081,7 +1082,7 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
                                     int from,
                                     Client client
                                 ) {
-                                    return new RankFeaturePhaseRankCoordinatorContext(size, from, DEFAULT_RANK_WINDOW_SIZE) {
+                                    return new RankFeaturePhaseRankCoordinatorContext(size, from, DEFAULT_RANK_WINDOW_SIZE, false) {
                                         @Override
                                         protected void computeScores(RankFeatureDoc[] featureDocs, ActionListener<float[]> scoreListener) {
                                             float[] scores = new float[featureDocs.length];
@@ -1259,8 +1260,22 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
             TestShardRouting.newShardRouting(
                 new ShardId(indexService.index(), 0),
                 randomAlphaOfLength(5),
-                randomBoolean(),
-                ShardRoutingState.INITIALIZING
+                true,
+                ShardRoutingState.INITIALIZING,
+                RecoverySource.EmptyStoreRecoverySource.INSTANCE
+            ),
+            indexService.getIndexSettings().getSettings()
+        );
+        assertEquals(1, service.getActiveContexts());
+
+        boolean primary = randomBoolean();
+        service.beforeIndexShardCreated(
+            TestShardRouting.newShardRouting(
+                new ShardId(indexService.index(), 0),
+                randomAlphaOfLength(5),
+                primary,
+                ShardRoutingState.INITIALIZING,
+                primary ? RecoverySource.ExistingStoreRecoverySource.INSTANCE : RecoverySource.PeerRecoverySource.INSTANCE
             ),
             indexService.getIndexSettings().getSettings()
         );

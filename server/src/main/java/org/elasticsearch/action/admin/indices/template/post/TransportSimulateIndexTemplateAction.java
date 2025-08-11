@@ -261,8 +261,8 @@ public class TransportSimulateIndexTemplateAction extends TransportMasterNodeRea
                 : indexName;
         List<CompressedXContent> mappings = MetadataCreateIndexService.collectV2Mappings(
             null, // empty request mapping as the user can't specify any explicit mappings via the simulate api
-            simulatedState,
-            matchingTemplate,
+            simulatedState.metadata(),
+            template,
             xContentRegistry,
             simulatedIndexName
         );
@@ -346,7 +346,7 @@ public class TransportSimulateIndexTemplateAction extends TransportMasterNodeRea
         DataStreamLifecycle.Builder lifecycleBuilder = resolveLifecycle(simulatedState.metadata(), matchingTemplate);
         DataStreamLifecycle.Template lifecycle = lifecycleBuilder == null ? null : lifecycleBuilder.buildTemplate();
         if (template.getDataStreamTemplate() != null && lifecycle == null && isDslOnlyMode) {
-            lifecycle = DataStreamLifecycle.Template.DEFAULT;
+            lifecycle = DataStreamLifecycle.Template.DATA_DEFAULT;
         }
         DataStreamOptions.Builder optionsBuilder = resolveDataStreamOptions(simulatedState.metadata(), matchingTemplate);
         return new Template(

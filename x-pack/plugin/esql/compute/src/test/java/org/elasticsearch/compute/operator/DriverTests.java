@@ -49,6 +49,8 @@ import java.util.function.LongSupplier;
 
 import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.sameInstance;
 
 public class DriverTests extends ESTestCase {
     /**
@@ -67,6 +69,7 @@ public class DriverTests extends ESTestCase {
 
         Driver driver = new Driver(
             "unset",
+            "test",
             startEpoch,
             startNanos,
             driverContext,
@@ -116,6 +119,7 @@ public class DriverTests extends ESTestCase {
 
         Driver driver = new Driver(
             "unset",
+            "test",
             startEpoch,
             startNanos,
             driverContext,
@@ -166,6 +170,7 @@ public class DriverTests extends ESTestCase {
 
         Driver driver = new Driver(
             "unset",
+            "test",
             startEpoch,
             startNanos,
             driverContext,
@@ -212,6 +217,7 @@ public class DriverTests extends ESTestCase {
 
         Driver driver = new Driver(
             "unset",
+            "test",
             startEpoch,
             startNanos,
             driverContext,
@@ -248,6 +254,59 @@ public class DriverTests extends ESTestCase {
         assertThat(driver.profile().iterations(), equalTo((long) inPages.size()));
     }
 
+    public void testUnchangedStatus() {
+        DriverContext driverContext = driverContext();
+        List<Page> inPages = randomList(2, 100, DriverTests::randomPage);
+        List<Page> outPages = new ArrayList<>();
+
+        long startEpoch = randomNonNegativeLong();
+        long startNanos = randomLong();
+        long waitTime = randomLongBetween(10000, 100000);
+        long tickTime = randomLongBetween(10000, 100000);
+        long statusInterval = randomLongBetween(1, 10);
+
+        Driver driver = new Driver(
+            "unset",
+            "test",
+            startEpoch,
+            startNanos,
+            driverContext,
+            () -> "unset",
+            new CannedSourceOperator(inPages.iterator()),
+            List.of(),
+            new TestResultPageSinkOperator(outPages::add),
+            TimeValue.timeValueNanos(statusInterval),
+            () -> {}
+        );
+
+        NowSupplier nowSupplier = new NowSupplier(startNanos, waitTime, tickTime);
+
+        int iterationsPerTick = randomIntBetween(1, 10);
+
+        for (int i = 0; i < inPages.size(); i += iterationsPerTick) {
+            DriverStatus initialStatus = driver.status();
+            long completedOperatorsHash = initialStatus.completedOperators().hashCode();
+            long activeOperatorsHash = initialStatus.activeOperators().hashCode();
+            long sleepsHash = initialStatus.sleeps().hashCode();
+
+            driver.run(TimeValue.timeValueDays(10), iterationsPerTick, nowSupplier);
+
+            DriverStatus newStatus = driver.status();
+            assertThat(newStatus, not(sameInstance(initialStatus)));
+            assertThat(
+                newStatus.completedOperators() != initialStatus.completedOperators()
+                    || newStatus.completedOperators().hashCode() == completedOperatorsHash,
+                equalTo(true)
+            );
+            assertThat(
+                newStatus.activeOperators() != initialStatus.activeOperators()
+                    || newStatus.activeOperators().hashCode() == activeOperatorsHash,
+                equalTo(true)
+            );
+            assertThat(newStatus.sleeps() != initialStatus.sleeps() || newStatus.sleeps().hashCode() == sleepsHash, equalTo(true));
+        }
+    }
+
     class NowSupplier implements LongSupplier {
         private final long startNanos;
         private final long waitTime;
@@ -280,7 +339,7 @@ public class DriverTests extends ESTestCase {
             WarningsOperator warning1 = new WarningsOperator(threadPool);
             WarningsOperator warning2 = new WarningsOperator(threadPool);
             CyclicBarrier allPagesProcessed = new CyclicBarrier(2);
-            Driver driver = new Driver(driverContext, new CannedSourceOperator(inPages.iterator()) {
+            Driver driver = new Driver("test", driverContext, new CannedSourceOperator(inPages.iterator()) {
                 @Override
                 public Page getOutput() {
                     assertRunningWithRegularUser(threadPool);
@@ -364,7 +423,7 @@ public class DriverTests extends ESTestCase {
 
                 }
             });
-            Driver driver = new Driver(driverContext, sourceOperator, List.of(delayOperator), sinkOperator, () -> {});
+            Driver driver = new Driver("test", driverContext, sourceOperator, List.of(delayOperator), sinkOperator, () -> {});
             ThreadContext threadContext = threadPool.getThreadContext();
             PlainActionFuture<Void> future = new PlainActionFuture<>();
 
@@ -384,7 +443,7 @@ public class DriverTests extends ESTestCase {
             var sinkHandler = new ExchangeSinkHandler(driverContext.blockFactory(), between(1, 5), System::currentTimeMillis);
             var sourceOperator = new ExchangeSourceOperator(sourceHandler.createExchangeSource());
             var sinkOperator = new ExchangeSinkOperator(sinkHandler.createExchangeSink(() -> {}), Function.identity());
-            Driver driver = new Driver(driverContext, sourceOperator, List.of(), sinkOperator, () -> {});
+            Driver driver = new Driver("test", driverContext, sourceOperator, List.of(), sinkOperator, () -> {});
             PlainActionFuture<Void> future = new PlainActionFuture<>();
             Driver.start(threadPool.getThreadContext(), threadPool.executor("esql"), driver, between(1, 1000), future);
             assertBusy(

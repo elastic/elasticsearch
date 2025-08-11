@@ -25,6 +25,7 @@ import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.repositories.FinalizeSnapshotContext.UpdatedShardGenerations;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.snapshots.SnapshotState;
@@ -405,8 +406,8 @@ public final class RepositoryData {
      *
      * @param snapshotId       Id of the new snapshot
      * @param details          Details of the new snapshot
-     * @param shardGenerations Updated shard generations in the new snapshot. For each index contained in the snapshot an array of new
-     *                         generations indexed by the shard id they correspond to must be supplied.
+     * @param updatedShardGenerations Updated shard generations in the new snapshot, including both indices that are included
+     *                                in the given snapshot and those got deleted while finalizing.
      * @param indexMetaBlobs   Map of index metadata blob uuids
      * @param newIdentifiers   Map of new index metadata blob uuids keyed by the identifiers of the
      *                         {@link IndexMetadata} in them
@@ -414,7 +415,7 @@ public final class RepositoryData {
     public RepositoryData addSnapshot(
         final SnapshotId snapshotId,
         final SnapshotDetails details,
-        final ShardGenerations shardGenerations,
+        final UpdatedShardGenerations updatedShardGenerations,
         @Nullable final Map<IndexId, String> indexMetaBlobs,
         @Nullable final Map<String, String> newIdentifiers
     ) {
@@ -424,12 +425,13 @@ public final class RepositoryData {
             // the new master, so we make the operation idempotent
             return this;
         }
+        final var liveIndexIds = updatedShardGenerations.liveIndices().indices();
         Map<String, SnapshotId> snapshots = new HashMap<>(snapshotIds);
         snapshots.put(snapshotId.getUUID(), snapshotId);
         Map<String, SnapshotDetails> newSnapshotDetails = new HashMap<>(snapshotsDetails);
         newSnapshotDetails.put(snapshotId.getUUID(), details);
         Map<IndexId, List<SnapshotId>> allIndexSnapshots = new HashMap<>(indexSnapshots);
-        for (final IndexId indexId : shardGenerations.indices()) {
+        for (final IndexId indexId : liveIndexIds) {
             final List<SnapshotId> snapshotIds = allIndexSnapshots.get(indexId);
             if (snapshotIds == null) {
                 allIndexSnapshots.put(indexId, List.of(snapshotId));
@@ -445,11 +447,8 @@ public final class RepositoryData {
                 : "Index meta generations should have been empty but was [" + indexMetaDataGenerations + "]";
             newIndexMetaGenerations = IndexMetaDataGenerations.EMPTY;
         } else {
-            assert indexMetaBlobs.isEmpty() || shardGenerations.indices().equals(indexMetaBlobs.keySet())
-                : "Shard generations contained indices "
-                    + shardGenerations.indices()
-                    + " but indexMetaData was given for "
-                    + indexMetaBlobs.keySet();
+            assert indexMetaBlobs.isEmpty() || liveIndexIds.equals(indexMetaBlobs.keySet())
+                : "Shard generations contained indices " + liveIndexIds + " but indexMetaData was given for " + indexMetaBlobs.keySet();
             newIndexMetaGenerations = indexMetaDataGenerations.withAddedSnapshot(snapshotId, indexMetaBlobs, newIdentifiers);
         }
 
@@ -459,7 +458,7 @@ public final class RepositoryData {
             snapshots,
             newSnapshotDetails,
             allIndexSnapshots,
-            ShardGenerations.builder().putAll(this.shardGenerations).putAll(shardGenerations).build(),
+            ShardGenerations.builder().putAll(this.shardGenerations).update(updatedShardGenerations).build(),
             newIndexMetaGenerations,
             clusterUUID
         );

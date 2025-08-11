@@ -1310,8 +1310,26 @@ See <<index-wait-for-active-shards>>.
 end::wait_for_active_shards[]
 
 tag::rrf-retrievers[]
+
+[NOTE]
+====
+Either `query` or `retrievers` must be specified.
+Combining `query` and `retrievers` is not supported.
+====
+
+`query`::
+(Optional, String)
++
+The query to use when using the <<multi-field-query-format, multi-field query format>>.
+
+`fields`::
+(Optional, array of strings)
++
+The fields to query when using the <<multi-field-query-format, multi-field query format>>.
+If not specified, uses the index's default fields from the `index.query.default_field` index setting, which is `*` by default.
+
 `retrievers`::
-(Required, array of retriever objects)
+(Optional, array of retriever objects)
 +
 A list of child retrievers to specify which sets of returned top documents
 will have the RRF formula applied to them. Each child retriever carries an
@@ -1337,7 +1355,7 @@ This value determines the size of the individual result sets per
 query. A higher value will improve result relevance at the cost of performance. The final
 ranked result set is pruned down to the search request's <<search-size-param, size>>.
 `rank_window_size` must be greater than or equal to `size` and greater than or equal to `1`.
-Defaults to the `size` parameter.
+Defaults to 10.
 end::compound-retriever-rank-window-size[]
 
 tag::compound-retriever-filter[]
@@ -1349,39 +1367,68 @@ according to each retriever's specifications.
 end::compound-retriever-filter[]
 
 tag::linear-retriever-components[]
+
+[NOTE]
+====
+Either `query` or `retrievers` must be specified.
+Combining `query` and `retrievers` is not supported.
+====
+
+`query`::
+(Optional, String)
++
+The query to use when using the <<multi-field-query-format, multi-field query format>>.
+
+`fields`::
+(Optional, array of strings)
++
+The fields to query when using the <<multi-field-query-format, multi-field query format>>.
+Fields can include boost values using the `^` notation (e.g., `"field^2"`).
+If not specified, uses the index's default fields from the `index.query.default_field` index setting, which is `*` by default.
+
+`normalizer`::
+(Optional, String)
++
+The normalizer to use when using the <<multi-field-query-format, multi-field query format>>.
+See <<linear-retriever-normalizers, normalizers>> for supported values.
+Required when `query` is specified.
++
+[WARNING]
+====
+Avoid using `none` as that will disable normalization and may bias the result set towards lexical matches.
+See <<multi-field-field-grouping, field grouping>> for more information.
+====
+
 `retrievers`::
-(Required, array of objects)
+(Optional, array of objects)
 +
 A list of the sub-retrievers' configuration, that we will take into account and whose result sets
 we will merge through a weighted sum. Each configuration can have a different weight and normalization depending
 on the specified retriever.
 
-Each entry specifies the following parameters:
+include::common-parms.asciidoc[tag=compound-retriever-rank-window-size]
 
-* `retriever`::
+include::common-parms.asciidoc[tag=compound-retriever-filter]
+
+Each entry in the `retrievers` array specifies the following parameters:
+
+`retriever`::
 (Required, a <<retriever, retriever>> object)
 +
 Specifies the retriever for which we will compute the top documents for. The retriever will produce `rank_window_size`
 results, which will later be merged based on the specified `weight` and `normalizer`.
 
-* `weight`::
+`weight`::
 (Optional, float)
 +
 The weight that each score of this retriever's top docs will be multiplied with. Must be greater or equal to 0. Defaults to 1.0.
 
-* `normalizer`::
+`normalizer`::
 (Optional, String)
 +
-Specifies how we will normalize the retriever's scores, before applying the specified `weight`.
-Available values are: `minmax`, and `none`. Defaults to `none`.
-
-** `none`
-** `minmax` :
-A `MinMaxScoreNormalizer` that normalizes scores based on the following formula
-+
-```
-score = (score - min) / (max - min)
-```
+Specifies how the retriever’s score will be normalized before applying the specified `weight`.
+See <<linear-retriever-normalizers, normalizers>> for supported values.
+Defaults to `none`.
 
 See also <<retrievers-examples-linear-retriever, this hybrid search example>> using a linear retriever on how to
 independently configure and apply normalizers to retrievers.

@@ -58,13 +58,13 @@ public class DataStreamLifecycleWithRetentionWarningsTests extends ESTestCase {
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
         HeaderWarning.setThreadContext(threadContext);
 
-        DataStreamLifecycle noRetentionLifecycle = DataStreamLifecycle.builder().downsampling(randomDownsampling()).build();
+        DataStreamLifecycle noRetentionLifecycle = DataStreamLifecycle.dataLifecycleBuilder().downsampling(randomDownsampling()).build();
         noRetentionLifecycle.addWarningHeaderIfDataRetentionNotEffective(null, randomBoolean());
         Map<String, List<String>> responseHeaders = threadContext.getResponseHeaders();
         assertThat(responseHeaders.isEmpty(), is(true));
 
         TimeValue dataStreamRetention = TimeValue.timeValueDays(randomIntBetween(5, 100));
-        DataStreamLifecycle lifecycleWithRetention = DataStreamLifecycle.builder()
+        DataStreamLifecycle lifecycleWithRetention = DataStreamLifecycle.dataLifecycleBuilder()
             .dataRetention(dataStreamRetention)
             .downsampling(randomDownsampling())
             .build();
@@ -81,7 +81,7 @@ public class DataStreamLifecycleWithRetentionWarningsTests extends ESTestCase {
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
         HeaderWarning.setThreadContext(threadContext);
 
-        DataStreamLifecycle noRetentionLifecycle = DataStreamLifecycle.builder().downsampling(randomDownsampling()).build();
+        DataStreamLifecycle noRetentionLifecycle = DataStreamLifecycle.dataLifecycleBuilder().downsampling(randomDownsampling()).build();
         DataStreamGlobalRetention globalRetention = new DataStreamGlobalRetention(
             randomTimeValue(2, 10, TimeUnit.DAYS),
             randomBoolean() ? null : TimeValue.timeValueDays(20)
@@ -103,7 +103,7 @@ public class DataStreamLifecycleWithRetentionWarningsTests extends ESTestCase {
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
         HeaderWarning.setThreadContext(threadContext);
         TimeValue maxRetention = randomTimeValue(2, 100, TimeUnit.DAYS);
-        DataStreamLifecycle lifecycle = DataStreamLifecycle.builder()
+        DataStreamLifecycle lifecycle = DataStreamLifecycle.dataLifecycleBuilder()
             .dataRetention(randomBoolean() ? null : TimeValue.timeValueDays(maxRetention.days() + 1))
             .downsampling(randomDownsampling())
             .build();
@@ -144,10 +144,14 @@ public class DataStreamLifecycleWithRetentionWarningsTests extends ESTestCase {
             DataStreamGlobalRetentionSettings.create(ClusterSettings.createBuiltInClusterSettings(settingsWithDefaultRetention))
         );
 
-        ClusterState after = metadataDataStreamsService.updateDataLifecycle(before, List.of(dataStream), DataStreamLifecycle.DEFAULT);
+        ClusterState after = metadataDataStreamsService.updateDataLifecycle(
+            before,
+            List.of(dataStream),
+            DataStreamLifecycle.DEFAULT_DATA_LIFECYCLE
+        );
         DataStream updatedDataStream = after.metadata().dataStreams().get(dataStream);
         assertNotNull(updatedDataStream);
-        assertThat(updatedDataStream.getLifecycle(), equalTo(DataStreamLifecycle.DEFAULT));
+        assertThat(updatedDataStream.getDataLifecycle(), equalTo(DataStreamLifecycle.DEFAULT_DATA_LIFECYCLE));
         Map<String, List<String>> responseHeaders = threadContext.getResponseHeaders();
         assertThat(responseHeaders.size(), is(1));
         assertThat(
@@ -168,7 +172,7 @@ public class DataStreamLifecycleWithRetentionWarningsTests extends ESTestCase {
             Metadata.builder().build(),
             randomAlphaOfLength(10),
             ComposableIndexTemplate.builder()
-                .template(Template.builder().lifecycle(DataStreamLifecycle.Template.DEFAULT))
+                .template(Template.builder().lifecycle(DataStreamLifecycle.Template.DATA_DEFAULT))
                 .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
                 .indexPatterns(List.of(randomAlphaOfLength(10)))
                 .build(),
@@ -194,7 +198,7 @@ public class DataStreamLifecycleWithRetentionWarningsTests extends ESTestCase {
             Metadata.builder().build(),
             randomAlphaOfLength(10),
             ComposableIndexTemplate.builder()
-                .template(Template.builder().lifecycle(DataStreamLifecycle.Template.DEFAULT))
+                .template(Template.builder().lifecycle(DataStreamLifecycle.Template.DATA_DEFAULT))
                 .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
                 .indexPatterns(List.of("." + randomAlphaOfLength(10)))
                 .build(),
@@ -218,7 +222,7 @@ public class DataStreamLifecycleWithRetentionWarningsTests extends ESTestCase {
                         "component-template",
                         new ComponentTemplate(
                             Template.builder()
-                                .lifecycle(DataStreamLifecycle.builder().dataRetention(randomTimeValue(2, 100, TimeUnit.DAYS)))
+                                .lifecycle(DataStreamLifecycle.dataLifecycleBuilder().dataRetention(randomTimeValue(2, 100, TimeUnit.DAYS)))
                                 .build(),
                             null,
                             null
@@ -228,7 +232,7 @@ public class DataStreamLifecycleWithRetentionWarningsTests extends ESTestCase {
                 .build(),
             randomAlphaOfLength(10),
             ComposableIndexTemplate.builder()
-                .template(Template.builder().lifecycle(DataStreamLifecycle.Template.DEFAULT))
+                .template(Template.builder().lifecycle(DataStreamLifecycle.Template.DATA_DEFAULT))
                 .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
                 .indexPatterns(List.of(randomAlphaOfLength(10)))
                 .componentTemplates(List.of("component-template"))
@@ -281,7 +285,7 @@ public class DataStreamLifecycleWithRetentionWarningsTests extends ESTestCase {
         Template template = Template.builder()
             .settings(ComponentTemplateTests.randomSettings())
             .aliases(ComponentTemplateTests.randomAliases())
-            .lifecycle(DataStreamLifecycle.Template.DEFAULT)
+            .lifecycle(DataStreamLifecycle.Template.DATA_DEFAULT)
             .build();
         ComponentTemplate componentTemplate = new ComponentTemplate(template, 1L, new HashMap<>());
         state = metadataIndexTemplateService.addComponentTemplate(state, false, "foo", componentTemplate);

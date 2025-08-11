@@ -54,7 +54,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.BiFunction;
-import java.util.stream.StreamSupport;
 
 import static org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata.Type.REPLACE;
 import static org.elasticsearch.cluster.routing.ExpectedShardSizeEstimator.getExpectedShardSize;
@@ -1206,7 +1205,13 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             return AllocateUnassignedDecision.fromDecision(decision, minNode != null ? minNode.routingNode.node() : null, nodeDecisions);
         }
 
-        private static final Comparator<ShardRouting> BY_DESCENDING_SHARD_ID = Comparator.comparing(ShardRouting::shardId).reversed();
+        private static final Comparator<ShardRouting> BY_DESCENDING_SHARD_ID = (s1, s2) -> Integer.compare(s2.id(), s1.id());
+
+        /**
+         * Scratch space for accumulating/sorting the {@link ShardRouting} instances when contemplating moving the shards away from a node
+         * in {@link #tryRelocateShard} - re-used to avoid extraneous allocations etc.
+         */
+        private ShardRouting[] shardRoutingsOnMaxWeightNode;
 
         /**
          * Tries to find a relocation from the max node to the minimal node for an arbitrary shard of the given index on the
@@ -1217,13 +1222,24 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             final ModelIndex index = maxNode.getIndex(idx);
             if (index != null) {
                 logger.trace("Try relocating shard of [{}] from [{}] to [{}]", idx, maxNode.getNodeId(), minNode.getNodeId());
-                final Iterable<ShardRouting> shardRoutings = StreamSupport.stream(index.spliterator(), false)
-                    .filter(ShardRouting::started) // cannot rebalance unassigned, initializing or relocating shards anyway
-                    .sorted(BY_DESCENDING_SHARD_ID) // check in descending order of shard id so that the decision is deterministic
-                ::iterator;
+                if (shardRoutingsOnMaxWeightNode == null || shardRoutingsOnMaxWeightNode.length < index.numShards()) {
+                    shardRoutingsOnMaxWeightNode = new ShardRouting[index.numShards() * 2]; // oversized so reuse is more likely
+                }
+
+                int startedShards = 0;
+                for (final var shardRouting : index) {
+                    if (shardRouting.started()) { // cannot rebalance unassigned, initializing or relocating shards anyway
+                        shardRoutingsOnMaxWeightNode[startedShards] = shardRouting;
+                        startedShards += 1;
+                    }
+                }
+                // check in descending order of shard id so that the decision is deterministic
+                ArrayUtil.timSort(shardRoutingsOnMaxWeightNode, 0, startedShards, BY_DESCENDING_SHARD_ID);
 
                 final AllocationDeciders deciders = allocation.deciders();
-                for (ShardRouting shard : shardRoutings) {
+                for (int shardIndex = 0; shardIndex < startedShards; shardIndex++) {
+                    final ShardRouting shard = shardRoutingsOnMaxWeightNode[shardIndex];
+
                     final Decision rebalanceDecision = deciders.canRebalance(shard, allocation);
                     if (rebalanceDecision.type() == Type.NO) {
                         continue;

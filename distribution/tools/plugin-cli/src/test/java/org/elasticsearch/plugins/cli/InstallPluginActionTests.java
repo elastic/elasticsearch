@@ -41,14 +41,15 @@ import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.PathUtilsForTesting;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.entitlement.runtime.policy.PolicyUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
-import org.elasticsearch.jdk.RuntimeVersionFeature;
 import org.elasticsearch.plugin.scanner.NamedComponentScanner;
 import org.elasticsearch.plugins.Platforms;
 import org.elasticsearch.plugins.PluginDescriptor;
@@ -57,6 +58,8 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.PosixPermissionsResetter;
 import org.elasticsearch.test.compiler.InMemoryJavaCompiler;
 import org.elasticsearch.test.jar.JarUtils;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.yaml.YamlXContent;
 import org.junit.After;
 import org.junit.Before;
 
@@ -102,6 +105,7 @@ import java.util.stream.Stream;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
+import static org.elasticsearch.entitlement.runtime.policy.PolicyManager.ALL_UNNAMED;
 import static org.elasticsearch.snapshots.AbstractSnapshotIntegTestCase.forEachFileRecursively;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -137,8 +141,6 @@ public class InstallPluginActionTests extends ESTestCase {
 
     @SuppressForbidden(reason = "sets java.io.tmpdir")
     public InstallPluginActionTests(FileSystem fs, Function<String, Path> temp) {
-        assert "false".equals(System.getProperty("tests.security.manager")) : "-Dtests.security.manager=false has to be set";
-
         this.temp = temp;
         this.isPosix = fs.supportedFileAttributeViews().contains("posix");
         this.isReal = fs == PathUtils.getDefaultFileSystem();
@@ -309,15 +311,20 @@ public class InstallPluginActionTests extends ESTestCase {
         ).flatMap(Function.identity()).toArray(String[]::new);
     }
 
-    static void writePluginSecurityPolicy(Path pluginDir, String... permissions) throws IOException {
-        StringBuilder securityPolicyContent = new StringBuilder("grant {\n  ");
-        for (String permission : permissions) {
-            securityPolicyContent.append("permission java.lang.RuntimePermission \"");
-            securityPolicyContent.append(permission);
-            securityPolicyContent.append("\";");
+    static void writePluginEntitlementPolicy(Path pluginDir, String moduleName, CheckedConsumer<XContentBuilder, IOException> policyBuilder)
+        throws IOException {
+        try (var builder = YamlXContent.contentBuilder()) {
+            builder.startObject();
+            builder.field(moduleName);
+            builder.startArray();
+
+            policyBuilder.accept(builder);
+            builder.endArray();
+            builder.endObject();
+
+            String policy = org.elasticsearch.common.Strings.toString(builder);
+            Files.writeString(pluginDir.resolve(PolicyUtils.POLICY_FILE_NAME), policy);
         }
-        securityPolicyContent.append("\n};\n");
-        Files.writeString(pluginDir.resolve("plugin-security.policy"), securityPolicyContent.toString());
     }
 
     static InstallablePlugin createStablePlugin(String name, Path structure, boolean hasNamedComponentFile, String... additionalProps)
@@ -892,9 +899,8 @@ public class InstallPluginActionTests extends ESTestCase {
     }
 
     public void testBatchFlag() throws Exception {
-        assumeTrue("security policy validation only available with SecurityManager", RuntimeVersionFeature.isSecurityManagerAvailable());
         installPlugin(true);
-        assertThat(terminal.getErrorOutput(), containsString("WARNING: plugin requires additional permissions"));
+        assertThat(terminal.getErrorOutput(), containsString("WARNING: plugin requires additional entitlements"));
         assertThat(terminal.getOutput(), containsString("-> Downloading"));
         // No progress bar in batch mode
         assertThat(terminal.getOutput(), not(containsString("100%")));
@@ -942,12 +948,12 @@ public class InstallPluginActionTests extends ESTestCase {
         assertThat(e.getMessage(), equalTo("Expected downloaded plugin to have ID [other-fake] but found [fake]"));
     }
 
-    private void installPlugin(boolean isBatch, String... additionalProperties) throws Exception {
-        // if batch is enabled, we also want to add a security policy
+    private void installPlugin(boolean isBatch) throws Exception {
+        // if batch is enabled, we also want to add an entitlement policy
         if (isBatch) {
-            writePluginSecurityPolicy(pluginDir, "setFactory");
+            writePluginEntitlementPolicy(pluginDir, ALL_UNNAMED, builder -> builder.value("manage_threads"));
         }
-        InstallablePlugin pluginZip = createPlugin("fake", pluginDir, additionalProperties);
+        InstallablePlugin pluginZip = createPlugin("fake", pluginDir);
         skipJarHellAction.setEnvironment(env.v2());
         skipJarHellAction.setBatch(isBatch);
         skipJarHellAction.execute(List.of(pluginZip));
@@ -1531,11 +1537,13 @@ public class InstallPluginActionTests extends ESTestCase {
     }
 
     public void testPolicyConfirmation() throws Exception {
-        assumeTrue("security policy parsing only available with SecurityManager", RuntimeVersionFeature.isSecurityManagerAvailable());
-        writePluginSecurityPolicy(pluginDir, "getClassLoader", "setFactory");
+        writePluginEntitlementPolicy(pluginDir, "test.plugin.module", builder -> {
+            builder.value("manage_threads");
+            builder.value("outbound_network");
+        });
         InstallablePlugin pluginZip = createPluginZip("fake", pluginDir);
 
-        assertPolicyConfirmation(env, pluginZip, "plugin requires additional permissions");
+        assertPolicyConfirmation(env, pluginZip, "plugin requires additional entitlements");
         assertPlugin("fake", pluginDir, env.v2());
     }
 

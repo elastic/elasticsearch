@@ -98,4 +98,9 @@ public class MultiMatchQuery extends Query {
     protected String innerToString() {
         return fields + ":" + query;
     }
+
+    @Override
+    public boolean containsPlan() {
+        return false;
+    }
 }

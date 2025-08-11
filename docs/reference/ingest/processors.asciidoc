@@ -85,11 +85,14 @@ Adds information about the geographical location of an IPv4 or IPv6 address from
 <<network-direction-processor, `network_direction` processor>>::
 Calculates the network direction given a source IP address, destination IP address, and a list of internal networks.
 
+<<normalize-for-stream-processor, `normalize_for_stream` processor>>::
+Normalizes non-OpenTelemetry documents to be OpenTelemetry-compliant.
+
 <<registered-domain-processor, `registered_domain` processor>>::
 Extracts the registered domain (also known as the effective top-level domain or eTLD), sub-domain, and top-level domain from a fully qualified domain name (FQDN).
 
 <<ingest-node-set-security-user-processor, `set_security_user` processor>>::
-Sets user-related details (such as `username`,  `roles`, `email`, `full_name`,`metadata`, `api_key`, `realm` and `authentication_type`) from the current authenticated user to the current document by pre-processing the ingest.
+Sets user-related details (such as `username`,  `roles`, `email`, `full_name`,`metadata`, `api_key`, `realm` and `authentication_type`) from the current authenticated user.
 
 <<uri-parts-processor, `uri_parts` processor>>::
 Parses a Uniform Resource Identifier (URI) string and extracts its components as an object.
@@ -144,7 +147,7 @@ Extracts a single line of CSV data from a text field.
 <<date-processor, `date` processor>>::
 Extracts and converts date fields.
 
-<<dot-expand-processor, `dot_expand`>> processor::
+<<dot-expand-processor, `dot_expand` processor>>::
 Expands a field with dots into an object field.
 
 <<htmlstrip-processor, `html_strip` processor>>::
@@ -254,6 +257,7 @@ include::processors/json.asciidoc[]
 include::processors/kv.asciidoc[]
 include::processors/lowercase.asciidoc[]
 include::processors/network-direction.asciidoc[]
+include::processors/normalize-for-stream.asciidoc[]
 include::processors/pipeline.asciidoc[]
 include::processors/redact.asciidoc[]
 include::processors/registered-domain.asciidoc[]

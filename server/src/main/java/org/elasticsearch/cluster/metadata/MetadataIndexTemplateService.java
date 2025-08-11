@@ -37,8 +37,6 @@ import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.index.CloseUtils;
-import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettingProvider;
 import org.elasticsearch.index.IndexSettingProviders;
@@ -82,7 +80,6 @@ import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyMap;
 import static org.elasticsearch.cluster.metadata.MetadataCreateDataStreamService.validateTimestampFieldMapping;
-import static org.elasticsearch.indices.cluster.IndicesClusterStateService.AllocatedIndices.IndexRemovalReason.NO_LONGER_ASSIGNED;
 
 /**
  * Service responsible for submitting index templates updates
@@ -91,6 +88,9 @@ public class MetadataIndexTemplateService {
 
     public static final String DEFAULT_TIMESTAMP_FIELD = "@timestamp";
     public static final CompressedXContent DEFAULT_TIMESTAMP_MAPPING_WITHOUT_ROUTING;
+    // Names used for validating templates when we do not know the index or data stream name
+    public static final String VALIDATE_INDEX_NAME = "validate-index-name";
+    public static final String VALIDATE_DATA_STREAM_NAME = "validate-data-stream-name";
 
     private static final CompressedXContent DEFAULT_TIMESTAMP_MAPPING_WITH_ROUTING;
 
@@ -341,9 +341,14 @@ public class MetadataIndexTemplateService {
                         tempStateWithComponentTemplateAdded.metadata(),
                         composableTemplateName,
                         composableTemplate,
-                        globalRetentionSettings.get()
+                        globalRetentionSettings.get(false)
                     );
-                    validateDataStreamOptions(tempStateWithComponentTemplateAdded.metadata(), composableTemplateName, composableTemplate);
+                    validateDataStreamOptions(
+                        tempStateWithComponentTemplateAdded.metadata(),
+                        composableTemplateName,
+                        composableTemplate,
+                        globalRetentionSettings.get(true)
+                    );
                     validateIndexTemplateV2(composableTemplateName, composableTemplate, tempStateWithComponentTemplateAdded);
                 } catch (Exception e) {
                     if (validationFailure == null) {
@@ -370,7 +375,7 @@ public class MetadataIndexTemplateService {
             finalComponentTemplate.template()
                 .lifecycle()
                 .toDataStreamLifecycle()
-                .addWarningHeaderIfDataRetentionNotEffective(globalRetentionSettings.get(), false);
+                .addWarningHeaderIfDataRetentionNotEffective(globalRetentionSettings.get(false), false);
         }
 
         logger.info("{} component template [{}]", existing == null ? "adding" : "updating", name);
@@ -703,8 +708,8 @@ public class MetadataIndexTemplateService {
         var finalSettings = Settings.builder();
         for (var provider : indexSettingProviders) {
             var newAdditionalSettings = provider.getAdditionalIndexSettings(
-                "validate-index-name",
-                indexTemplate.getDataStreamTemplate() != null ? "validate-data-stream-name" : null,
+                VALIDATE_INDEX_NAME,
+                indexTemplate.getDataStreamTemplate() != null ? VALIDATE_DATA_STREAM_NAME : null,
                 metadata.retrieveIndexModeFromTemplate(indexTemplate),
                 currentState.getMetadata(),
                 now,
@@ -725,8 +730,8 @@ public class MetadataIndexTemplateService {
 
         validate(name, templateToValidate);
         validateDataStreamsStillReferenced(currentState, name, templateToValidate);
-        validateLifecycle(currentState.metadata(), name, templateToValidate, globalRetentionSettings.get());
-        validateDataStreamOptions(currentState.metadata(), name, templateToValidate);
+        validateLifecycle(currentState.metadata(), name, templateToValidate, globalRetentionSettings.get(false));
+        validateDataStreamOptions(currentState.metadata(), name, templateToValidate, globalRetentionSettings.get(true));
 
         if (templateToValidate.isDeprecated() == false) {
             validateUseOfDeprecatedComponentTemplates(name, templateToValidate, currentState.metadata().componentTemplates());
@@ -821,7 +826,12 @@ public class MetadataIndexTemplateService {
     }
 
     // Visible for testing
-    static void validateDataStreamOptions(Metadata metadata, String indexTemplateName, ComposableIndexTemplate template) {
+    static void validateDataStreamOptions(
+        Metadata metadata,
+        String indexTemplateName,
+        ComposableIndexTemplate template,
+        DataStreamGlobalRetention globalRetention
+    ) {
         DataStreamOptions.Builder dataStreamOptionsBuilder = resolveDataStreamOptions(template, metadata.componentTemplates());
         if (dataStreamOptionsBuilder != null) {
             if (template.getDataStreamTemplate() == null) {
@@ -830,6 +840,17 @@ public class MetadataIndexTemplateService {
                         + indexTemplateName
                         + "] specifies data stream options that can only be used in combination with a data stream"
                 );
+            }
+            if (globalRetention != null) {
+                // We cannot know for sure if the template will apply to internal data streams, so we use a simpler heuristic:
+                // If all the index patterns start with a dot, we consider that all the connected data streams are internal.
+                boolean isInternalDataStream = template.indexPatterns().stream().allMatch(indexPattern -> indexPattern.charAt(0) == '.');
+                DataStreamOptions dataStreamOptions = dataStreamOptionsBuilder.build();
+                if (dataStreamOptions.failureStore() != null && dataStreamOptions.failureStore().lifecycle() != null) {
+                    dataStreamOptions.failureStore()
+                        .lifecycle()
+                        .addWarningHeaderIfDataRetentionNotEffective(globalRetention, isInternalDataStream);
+                }
             }
         }
     }
@@ -841,7 +862,13 @@ public class MetadataIndexTemplateService {
      * addition/update time
      */
     private static void validateDataStreamsStillReferenced(ClusterState state, String templateName, ComposableIndexTemplate newTemplate) {
-        final Set<String> dataStreams = state.metadata().dataStreams().keySet();
+        final Set<String> dataStreams = state.metadata()
+            .dataStreams()
+            .entrySet()
+            .stream()
+            .filter(entry -> entry.getValue().isSystem() == false)
+            .map(Map.Entry::getKey)
+            .collect(Collectors.toSet());
 
         Function<Metadata, Set<String>> findUnreferencedDataStreams = meta -> {
             final Set<String> unreferenced = new HashSet<>();
@@ -1824,53 +1851,35 @@ public class MetadataIndexTemplateService {
         });
     }
 
-    private static void validateTemplate(Settings validateSettings, CompressedXContent mappings, IndicesService indicesService)
-        throws Exception {
+    static void validateTemplate(Settings validateSettings, CompressedXContent mappings, IndicesService indicesService) throws Exception {
         // Hard to validate settings if they're non-existent, so used empty ones if none were provided
         Settings settings = validateSettings;
         if (settings == null) {
             settings = Settings.EMPTY;
         }
 
-        Index createdIndex = null;
         final String temporaryIndexName = UUIDs.randomBase64UUID();
-        try {
-            // use the provided values, otherwise just pick valid dummy values
-            int dummyPartitionSize = IndexMetadata.INDEX_ROUTING_PARTITION_SIZE_SETTING.get(settings);
-            int dummyShards = settings.getAsInt(
-                IndexMetadata.SETTING_NUMBER_OF_SHARDS,
-                dummyPartitionSize == 1 ? 1 : dummyPartitionSize + 1
-            );
-            int shardReplicas = settings.getAsInt(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0);
+        int dummyPartitionSize = IndexMetadata.INDEX_ROUTING_PARTITION_SIZE_SETTING.get(settings);
+        int dummyShards = settings.getAsInt(IndexMetadata.SETTING_NUMBER_OF_SHARDS, dummyPartitionSize == 1 ? 1 : dummyPartitionSize + 1);
+        int shardReplicas = settings.getAsInt(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0);
 
-            // create index service for parsing and validating "mappings"
-            Settings dummySettings = Settings.builder()
-                .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
-                .put(settings)
-                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, dummyShards)
-                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, shardReplicas)
-                .put(IndexMetadata.SETTING_INDEX_UUID, UUIDs.randomBase64UUID())
-                .build();
+        // create index service for parsing and validating "mappings"
+        Settings dummySettings = Settings.builder()
+            .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
+            .put(settings)
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, dummyShards)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, shardReplicas)
+            .put(IndexMetadata.SETTING_INDEX_UUID, UUIDs.randomBase64UUID())
+            .build();
 
-            final IndexMetadata tmpIndexMetadata = IndexMetadata.builder(temporaryIndexName).settings(dummySettings).build();
-            IndexService dummyIndexService = indicesService.createIndex(tmpIndexMetadata, Collections.emptyList(), false);
-            createdIndex = dummyIndexService.index();
+        final IndexMetadata tmpIndexMetadata = IndexMetadata.builder(temporaryIndexName).settings(dummySettings).build();
 
+        indicesService.withTempIndexService(tmpIndexMetadata, dummyIndexService -> {
             if (mappings != null) {
                 dummyIndexService.mapperService().merge(MapperService.SINGLE_MAPPING_NAME, mappings, MergeReason.INDEX_TEMPLATE);
             }
-
-        } finally {
-            if (createdIndex != null) {
-                indicesService.removeIndex(
-                    createdIndex,
-                    NO_LONGER_ASSIGNED,
-                    " created for parsing template mapping",
-                    CloseUtils.NO_SHARDS_CREATED_EXECUTOR,
-                    ActionListener.noop()
-                );
-            }
-        }
+            return null;
+        });
     }
 
     private void validate(String name, ComponentTemplate template) {

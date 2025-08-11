@@ -40,11 +40,11 @@ public final class Expressions {
             return AttributeMap.emptyAttributeMap();
         }
 
-        AttributeMap<Expression> map = new AttributeMap<>();
+        AttributeMap.Builder<Expression> mapBuilder = AttributeMap.builder();
         for (NamedExpression exp : named) {
-            map.add(exp.toAttribute(), exp);
+            mapBuilder.put(exp.toAttribute(), exp);
         }
-        return map;
+        return mapBuilder.build();
     }
 
     public static boolean anyMatch(List<? extends Expression> exps, Predicate<? super Expression> predicate) {
@@ -121,11 +121,11 @@ public final class Expressions {
             return AttributeSet.EMPTY;
         }
 
-        AttributeSet set = new AttributeSet();
+        var setBuilder = AttributeSet.builder();
         for (Expression exp : exps) {
-            set.addAll(exp.references());
+            setBuilder.addAll(exp.references());
         }
-        return set;
+        return setBuilder.build();
     }
 
     public static String name(Expression e) {

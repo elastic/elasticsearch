@@ -1579,7 +1579,7 @@ public class Security extends Plugin
             return Arrays.asList(usageAction, infoAction);
         }
 
-        return Stream.of(
+        return List.of(
             new ActionHandler<>(ClearRealmCacheAction.INSTANCE, TransportClearRealmCacheAction.class),
             new ActionHandler<>(ClearRolesCacheAction.INSTANCE, TransportClearRolesCacheAction.class),
             new ActionHandler<>(ClearPrivilegesCacheAction.INSTANCE, TransportClearPrivilegesCacheAction.class),
@@ -1648,7 +1648,7 @@ public class Security extends Plugin
             new ActionHandler<>(UpdateIndexMigrationVersionAction.INSTANCE, UpdateIndexMigrationVersionAction.TransportAction.class),
             usageAction,
             infoAction
-        ).filter(Objects::nonNull).toList();
+        );
     }
 
     @Override

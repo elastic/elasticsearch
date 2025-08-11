@@ -252,7 +252,7 @@ the backup of its contents. If {es} writes any data to the repository during
 the backup then the contents of the backup may not be consistent and it may not
 be possible to recover any data from it in future. Prevent writes to the
 repository by unregistering the repository from the cluster which has write
-access to it.
+access to it, or by registering it with `readonly: true`.
 
 Alternatively, if your repository supports it, you may take an atomic snapshot
 of the underlying filesystem and then take a backup of this filesystem

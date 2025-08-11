@@ -9,8 +9,8 @@
 
 package org.elasticsearch.index.mapper.blockloader;
 
+import org.elasticsearch.datageneration.FieldType;
 import org.elasticsearch.index.mapper.BlockLoaderTestCase;
-import org.elasticsearch.logsdb.datageneration.FieldType;
 
 import java.util.List;
 import java.util.Map;
@@ -23,7 +23,7 @@ public class BooleanFieldBlockLoaderTests extends BlockLoaderTestCase {
 
     @Override
     @SuppressWarnings("unchecked")
-    protected Object expected(Map<String, Object> fieldMapping, Object value) {
+    protected Object expected(Map<String, Object> fieldMapping, Object value, TestContext testContext) {
         var rawNullValue = fieldMapping.get("null_value");
 
         Boolean nullValue;

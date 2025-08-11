@@ -35,7 +35,6 @@ public class Kql extends FullTextFunction {
 
     @FunctionInfo(
         returnType = "boolean",
-        preview = true,
         description = "Performs a KQL query. Returns true if the provided KQL query string matches the row.",
         examples = { @Example(file = "kql-function", tag = "kql-with-field") }
     )

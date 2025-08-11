@@ -42,6 +42,9 @@
         "jobtype": {
           "type": "keyword"
         },
+        "scheduled_report_id": {
+          "type": "keyword"
+        },
         "payload": {
           "type": "object",
           "enabled": false
@@ -80,6 +83,9 @@
           "type": "keyword"
         },
         "status": {
+          "type": "keyword"
+        },
+        "space_id": {
           "type": "keyword"
         },
         "parent_id": {

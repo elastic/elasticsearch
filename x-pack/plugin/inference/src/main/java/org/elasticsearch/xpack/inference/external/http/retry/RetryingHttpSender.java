@@ -121,7 +121,7 @@ public class RetryingHttpSender implements RequestSender {
                         } else {
                             r.readFullResponse(l.delegateFailureAndWrap((ll, httpResult) -> {
                                 try {
-                                    responseHandler.validateResponse(throttlerManager, logger, request, httpResult);
+                                    responseHandler.validateResponse(throttlerManager, logger, request, httpResult, true);
                                     InferenceServiceResults inferenceResults = responseHandler.parseResult(request, httpResult);
                                     ll.onResponse(inferenceResults);
                                 } catch (Exception e) {
@@ -134,7 +134,7 @@ public class RetryingHttpSender implements RequestSender {
                 } else {
                     httpClient.send(request.createHttpRequest(), context, retryableListener.delegateFailure((l, r) -> {
                         try {
-                            responseHandler.validateResponse(throttlerManager, logger, request, r);
+                            responseHandler.validateResponse(throttlerManager, logger, request, r, false);
                             InferenceServiceResults inferenceResults = responseHandler.parseResult(request, r);
 
                             l.onResponse(inferenceResults);

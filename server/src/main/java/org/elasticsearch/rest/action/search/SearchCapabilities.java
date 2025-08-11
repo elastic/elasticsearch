@@ -43,6 +43,14 @@ public final class SearchCapabilities {
     private static final String OPTIMIZED_SCALAR_QUANTIZATION_BBQ = "optimized_scalar_quantization_bbq";
     private static final String KNN_QUANTIZED_VECTOR_RESCORE_OVERSAMPLE = "knn_quantized_vector_rescore_oversample";
 
+    private static final String INDEX_SELECTOR_SYNTAX = "index_expression_selectors";
+
+    private static final String SIGNIFICANT_TERMS_BACKGROUND_FILTER_AS_SUB = "significant_terms_background_filter_as_sub";
+    private static final String SIGNIFICANT_TERMS_ON_NESTED_FIELDS = "significant_terms_on_nested_fields";
+    private static final String EXCLUDE_VECTORS_PARAM = "exclude_vectors_param";
+    private static final String DENSE_VECTOR_UPDATABLE_BBQ = "dense_vector_updatable_bbq";
+    private static final String BUCKET_SCRIPT_PARENT_MULTI_BUCKET_ERROR = "bucket_script_parent_multi_bucket_error";
+
     public static final Set<String> CAPABILITIES;
     static {
         HashSet<String> capabilities = new HashSet<>();
@@ -58,6 +66,12 @@ public final class SearchCapabilities {
         capabilities.add(K_DEFAULT_TO_SIZE);
         capabilities.add(KQL_QUERY_SUPPORTED);
         capabilities.add(RRF_WINDOW_SIZE_SUPPORT_DEPRECATED);
+        capabilities.add(INDEX_SELECTOR_SYNTAX);
+        capabilities.add(SIGNIFICANT_TERMS_BACKGROUND_FILTER_AS_SUB);
+        capabilities.add(SIGNIFICANT_TERMS_ON_NESTED_FIELDS);
+        capabilities.add(EXCLUDE_VECTORS_PARAM);
+        capabilities.add(DENSE_VECTOR_UPDATABLE_BBQ);
+        capabilities.add(BUCKET_SCRIPT_PARENT_MULTI_BUCKET_ERROR);
         CAPABILITIES = Set.copyOf(capabilities);
     }
 }

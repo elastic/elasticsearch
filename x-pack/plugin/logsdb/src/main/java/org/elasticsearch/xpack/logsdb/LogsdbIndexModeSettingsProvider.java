@@ -13,6 +13,7 @@ import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.regex.Regex;
@@ -100,7 +101,9 @@ final class LogsdbIndexModeSettingsProvider implements IndexSettingProvider {
     ) {
         Settings.Builder settingsBuilder = null;
         boolean isLogsDB = templateIndexMode == IndexMode.LOGSDB;
-        boolean isTemplateValidation = "validate-index-name".equals(indexName);
+        // This index name is used when validating component and index templates, we should skip this check in that case.
+        // (See MetadataIndexTemplateService#validateIndexTemplateV2(...) method)
+        boolean isTemplateValidation = MetadataIndexTemplateService.VALIDATE_INDEX_NAME.equals(indexName);
 
         // Inject logsdb index mode, based on the logs pattern.
         if (isLogsdbEnabled
@@ -118,8 +121,6 @@ final class LogsdbIndexModeSettingsProvider implements IndexSettingProvider {
         if (mappingHints.hasSyntheticSourceUsage
             && supportFallbackToStoredSource.get()
             && minNodeVersion.get().get().onOrAfter(Version.V_8_17_0)) {
-            // This index name is used when validating component and index templates, we should skip this check in that case.
-            // (See MetadataIndexTemplateService#validateIndexTemplateV2(...) method)
             boolean legacyLicensedUsageOfSyntheticSourceAllowed = isLegacyLicensedUsageOfSyntheticSourceAllowed(
                 templateIndexMode,
                 indexName,
@@ -216,7 +217,7 @@ final class LogsdbIndexModeSettingsProvider implements IndexSettingProvider {
         Settings indexTemplateAndCreateRequestSettings,
         List<CompressedXContent> combinedTemplateMappings
     ) {
-        if ("validate-index-name".equals(indexName)) {
+        if (MetadataIndexTemplateService.VALIDATE_INDEX_NAME.equals(indexName)) {
             // This index name is used when validating component and index templates, we should skip this check in that case.
             // (See MetadataIndexTemplateService#validateIndexTemplateV2(...) method)
             return MappingHints.EMPTY;

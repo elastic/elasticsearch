@@ -9,15 +9,20 @@
 
 package org.elasticsearch.search.vectors;
 
+import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.join.BitSetProducer;
 import org.apache.lucene.search.join.DiversifyingChildrenFloatKnnVectorQuery;
 import org.elasticsearch.search.profile.query.QueryProfiler;
 
+import java.io.IOException;
+
 public class ESDiversifyingChildrenFloatKnnVectorQuery extends DiversifyingChildrenFloatKnnVectorQuery implements QueryProfilerProvider {
     private final Integer kParam;
     private long vectorOpsCount;
+    private final int k;
 
     public ESDiversifyingChildrenFloatKnnVectorQuery(
         String field,
@@ -29,6 +34,18 @@ public class ESDiversifyingChildrenFloatKnnVectorQuery extends DiversifyingChild
     ) {
         super(field, query, childFilter, numCands, parentsFilter);
         this.kParam = k;
+        this.k = numCands;
+    }
+
+    @Override
+    public Query rewrite(IndexSearcher searcher) throws IOException {
+        Query rewrittenQuery = super.rewrite(searcher);
+        if (rewrittenQuery instanceof MatchNoDocsQuery) {
+            // If the rewritten query is a MatchNoDocsQuery, we can return it directly.
+            return rewrittenQuery;
+        }
+        // We don't rewrite this query, so we return it as is.
+        return KnnScoreDocQuery.fromQuery(rewrittenQuery, kParam == null ? k : kParam, searcher);
     }
 
     @Override

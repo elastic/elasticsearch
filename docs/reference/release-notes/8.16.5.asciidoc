@@ -1,0 +1,55 @@
+[[release-notes-8.16.5]]
+== {es} version 8.16.5
+
+
+Also see <<breaking-changes-8.16,Breaking changes in 8.16>>.
+
+[[bug-8.16.5]]
+[float]
+=== Bug fixes
+
+Allocation::
+* Deduplicate allocation stats calls {es-pull}123246[#123246]
+
+Authentication::
+* Improve jwt logging on failed auth {es-pull}122247[#122247]
+
+CRUD::
+* Reduce license checks in `LicensedWriteLoadForecaster` {es-pull}123346[#123346] (issue: {es-issue}123247[#123247])
+
+Data streams::
+* Add `_metric_names_hash` field to OTel metric mappings {es-pull}120952[#120952]
+
+EQL::
+* Fix JOIN command validation (not supported) {es-pull}122011[#122011]
+
+ES|QL::
+* Fix ENRICH validation for use of wildcards {es-pull}121911[#121911]
+* Speed up VALUES for many buckets {es-pull}123073[#123073]
+
+Ingest::
+* Fix `ArrayIndexOutOfBoundsException` in `ShardBulkInferenceActionFilter` {es-pull}122538[#122538]
+
+Ingest Node::
+* Canonicalize processor names and types in `IngestStats` {es-pull}122610[#122610]
+* Deduplicate `IngestStats` and `IngestStats.Stats` identity records when deserializing {es-pull}122496[#122496]
+* Fix redact processor arraycopy bug {es-pull}122640[#122640]
+* Register `IngestGeoIpMetadata` as a NamedXContent {es-pull}123079[#123079]
+
+Mapping::
+* fix stale data in synthetic source for string stored field {es-pull}123105[#123105] (issue: {es-issue}123110[#123110])
+
+[[upgrade-8.16.5]]
+[float]
+=== Upgrades
+
+Authentication::
+* Bump json-smart and oauth2-oidc-sdk {es-pull}122737[#122737]
+
+[discrete]
+[[known-issues-8.16.5]]
+=== Known issues
+
+{esql}::
+
+* Some valid queries using an `ENRICH` command can fail when a match field is used that is absent from some indices or shards, either with a 500 status code due to `NullPointerException` or `ClassCastException` or with a 400 status code and `IllegalArgumentException`. This is fixed in {es-pull}126187[#126187].

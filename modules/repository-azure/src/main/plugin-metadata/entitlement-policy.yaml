@@ -8,6 +8,8 @@ io.netty.common:
       mode: "read"
     - path: "/proc/sys/net/core/somaxconn"
       mode: read
+io.netty.transport:
+  - outbound_network
 com.azure.identity:
   - outbound_network
   - files:
@@ -16,3 +18,5 @@ com.azure.identity:
       mode: read
 reactor.core:
   - manage_threads
+reactor.netty.core:
+  - manage_threads # https://github.com/elastic/elasticsearch/issues/128046

@@ -15,6 +15,7 @@ import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.IndexComponentSelector;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.action.support.UnsupportedSelectorException;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexAbstraction.Type;
 import org.elasticsearch.common.Strings;
@@ -57,9 +58,11 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.SortedMap;
 import java.util.function.BiFunction;
+import java.util.function.BiPredicate;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
 import java.util.function.Predicate;
+import java.util.function.Supplier;
 
 /**
  * This class main focus is to resolve multi-syntax target expressions to resources or concrete indices. This resolution is influenced
@@ -76,6 +79,13 @@ public class IndexNameExpressionResolver {
 
     public static final String EXCLUDED_DATA_STREAMS_KEY = "es.excluded_ds";
     public static final IndexVersion SYSTEM_INDEX_ENFORCEMENT_INDEX_VERSION = IndexVersions.V_8_0_0;
+
+    private static final BiPredicate<DataStreamAlias, Boolean> ALL_DATA_STREAM_ALIASES = (ignoredAlias, ignoredIsData) -> true;
+    // Alias filters are not applied against indices in an abstraction's failure component.
+    // They do not match the mapping of the data stream nor are the documents mapped for searching.
+    private static final BiPredicate<DataStreamAlias, Boolean> ONLY_FILTERING_DATA_STREAM_ALIASES = (
+        dataStreamAlias,
+        isData) -> dataStreamAlias.filteringRequired() && isData;
 
     private final ThreadContext threadContext;
     private final SystemIndices systemIndices;
@@ -916,7 +926,16 @@ public class IndexNameExpressionResolver {
      * <b>NOTE</b>: The provided expressions must have been resolved already via {@link #resolveExpressionsToResources(Context, String...)}.
      */
     public String[] filteringAliases(ClusterState state, String index, Set<ResolvedExpression> resolvedExpressions) {
-        return indexAliases(state, index, AliasMetadata::filteringRequired, DataStreamAlias::filteringRequired, false, resolvedExpressions);
+        return indexAliases(state, index, AliasMetadata::filteringRequired, ONLY_FILTERING_DATA_STREAM_ALIASES, false, resolvedExpressions);
+    }
+
+    /**
+     * Iterates through the list of indices and selects the effective list of all aliases for the
+     * given index. Aliases are returned even if the index is included in the resolved expressions.
+     * <b>NOTE</b>: The provided expressions must have been resolved already via {@link #resolveExpressions}.
+     */
+    public String[] allIndexAliases(ClusterState state, String index, Set<ResolvedExpression> resolvedExpressions) {
+        return indexAliases(state, index, Predicates.always(), ALL_DATA_STREAM_ALIASES, true, resolvedExpressions);
     }
 
     /**
@@ -940,7 +959,7 @@ public class IndexNameExpressionResolver {
         ClusterState state,
         String index,
         Predicate<AliasMetadata> requiredAlias,
-        Predicate<DataStreamAlias> requiredDataStreamAlias,
+        BiPredicate<DataStreamAlias, Boolean> requiredDataStreamAlias,
         boolean skipIdentity,
         Set<ResolvedExpression> resolvedExpressions
     ) {
@@ -967,13 +986,8 @@ public class IndexNameExpressionResolver {
         IndexAbstraction ia = state.metadata().getIndicesLookup().get(index);
         DataStream dataStream = ia.getParentDataStream();
         if (dataStream != null) {
-            if (dataStream.getFailureComponent().containsIndex(index)) {
-                // Alias filters are not applied against indices in an abstraction's failure component.
-                // They do not match the mapping of the data stream nor are the documents mapped for searching.
-                return null;
-            }
-
-            if (skipIdentity == false && resolvedExpressionsContainsAbstraction(resolvedExpressions, dataStream.getName())) {
+            boolean isData = dataStream.isFailureStoreIndex(index) == false;
+            if (skipIdentity == false && resolvedExpressionsContainsAbstraction(resolvedExpressions, dataStream.getName(), isData)) {
                 // skip the filters when the request targets the data stream name + selector directly
                 return null;
             }
@@ -982,12 +996,14 @@ public class IndexNameExpressionResolver {
             if (iterateIndexAliases(dataStreamAliases.size(), resolvedExpressions.size())) {
                 aliasesForDataStream = dataStreamAliases.values()
                     .stream()
-                    .filter(dataStreamAlias -> resolvedExpressionsContainsAbstraction(resolvedExpressions, dataStreamAlias.getName()))
+                    .filter(
+                        dataStreamAlias -> resolvedExpressionsContainsAbstraction(resolvedExpressions, dataStreamAlias.getName(), isData)
+                    )
                     .filter(dataStreamAlias -> dataStreamAlias.getDataStreams().contains(dataStream.getName()))
                     .toList();
             } else {
                 aliasesForDataStream = resolvedExpressions.stream()
-                    .filter(expression -> expression.selector() == null || expression.selector().shouldIncludeData())
+                    .filter(expression -> (expression.selector() == null || expression.selector().shouldIncludeData()) == isData)
                     .map(ResolvedExpression::resource)
                     .map(dataStreamAliases::get)
                     .filter(dataStreamAlias -> dataStreamAlias != null && dataStreamAlias.getDataStreams().contains(dataStream.getName()))
@@ -996,11 +1012,14 @@ public class IndexNameExpressionResolver {
 
             List<String> requiredAliases = null;
             for (DataStreamAlias dataStreamAlias : aliasesForDataStream) {
-                if (requiredDataStreamAlias.test(dataStreamAlias)) {
+                if (requiredDataStreamAlias.test(dataStreamAlias, isData)) {
                     if (requiredAliases == null) {
                         requiredAliases = new ArrayList<>(aliasesForDataStream.size());
                     }
-                    requiredAliases.add(dataStreamAlias.getName());
+                    String alias = isData
+                        ? dataStreamAlias.getName()
+                        : combineSelector(dataStreamAlias.getName(), IndexComponentSelector.FAILURES);
+                    requiredAliases.add(alias);
                 } else {
                     // we have a non-required alias for this data stream so no need to check further
                     return null;
@@ -1018,7 +1037,7 @@ public class IndexNameExpressionResolver {
                 aliasCandidates = indexAliases.values()
                     .stream()
                     // Indices can only be referenced with a data selector, or a null selector if selectors are disabled
-                    .filter(aliasMetadata -> resolvedExpressionsContainsAbstraction(resolvedExpressions, aliasMetadata.alias()))
+                    .filter(aliasMetadata -> resolvedExpressionsContainsAbstraction(resolvedExpressions, aliasMetadata.alias(), true))
                     .toArray(AliasMetadata[]::new);
             } else {
                 // faster to iterate resolvedExpressions
@@ -1049,9 +1068,16 @@ public class IndexNameExpressionResolver {
         }
     }
 
-    private static boolean resolvedExpressionsContainsAbstraction(Set<ResolvedExpression> resolvedExpressions, String abstractionName) {
-        return resolvedExpressions.contains(new ResolvedExpression(abstractionName))
-            || resolvedExpressions.contains(new ResolvedExpression(abstractionName, IndexComponentSelector.DATA));
+    private static boolean resolvedExpressionsContainsAbstraction(
+        Set<ResolvedExpression> resolvedExpressions,
+        String abstractionName,
+        boolean isData
+    ) {
+        if (isData) {
+            return resolvedExpressions.contains(new ResolvedExpression(abstractionName))
+                || resolvedExpressions.contains(new ResolvedExpression(abstractionName, IndexComponentSelector.DATA));
+        }
+        return resolvedExpressions.contains(new ResolvedExpression(abstractionName, IndexComponentSelector.FAILURES));
     }
 
     /**
@@ -1263,7 +1289,7 @@ public class IndexNameExpressionResolver {
     /**
      * Identifies if this expression list is *,-* which effectively means a request that requests no indices.
      */
-    static boolean isNoneExpression(String[] expressions) {
+    public static boolean isNoneExpression(String[] expressions) {
         return expressions.length == 2 && "*".equals(expressions[0]) && "-*".equals(expressions[1]);
     }
 
@@ -2126,32 +2152,40 @@ public class IndexNameExpressionResolver {
             int lastDoubleColon = expression.lastIndexOf(SELECTOR_SEPARATOR);
             if (lastDoubleColon >= 0) {
                 String suffix = expression.substring(lastDoubleColon + SELECTOR_SEPARATOR.length());
-                IndexComponentSelector selector = IndexComponentSelector.getByKey(suffix);
-                if (selector == null) {
-                    throw new InvalidIndexNameException(
-                        expression,
-                        "invalid usage of :: separator, [" + suffix + "] is not a recognized selector"
-                    );
-                }
+                IndexComponentSelector selector = resolveAndValidateSelectorString(() -> expression, suffix);
                 String expressionBase = expression.substring(0, lastDoubleColon);
                 ensureNoMoreSelectorSeparators(expressionBase, expression);
+                ensureNotMixingRemoteClusterExpressionWithSelectorSeparator(expressionBase, selector, expression);
                 return bindFunction.apply(expressionBase, suffix);
             }
             // Otherwise accept the default
             return bindFunction.apply(expression, null);
         }
 
+        public static void validateIndexSelectorString(String indexName, String suffix) {
+            resolveAndValidateSelectorString(() -> indexName + SELECTOR_SEPARATOR + suffix, suffix);
+        }
+
+        private static IndexComponentSelector resolveAndValidateSelectorString(Supplier<String> expression, String suffix) {
+            IndexComponentSelector selector = IndexComponentSelector.getByKey(suffix);
+            if (selector == null) {
+                throw new InvalidIndexNameException(
+                    expression.get(),
+                    "invalid usage of :: separator, [" + suffix + "] is not a recognized selector"
+                );
+            }
+            return selector;
+        }
+
         /**
          * Checks the selectors that have been returned from splitting an expression and throws an exception if any were present.
          * @param expression Original expression
          * @param selector Selectors to validate
-         * @throws IllegalArgumentException if selectors are present
+         * @throws UnsupportedSelectorException if selectors are present
          */
         private static void ensureNoSelectorsProvided(String expression, IndexComponentSelector selector) {
             if (selector != null) {
-                throw new IllegalArgumentException(
-                    "Index component selectors are not supported in this context but found selector in expression [" + expression + "]"
-                );
+                throw new UnsupportedSelectorException(expression);
             }
         }
 
@@ -2167,6 +2201,22 @@ public class IndexNameExpressionResolver {
                     originalExpression,
                     "Invalid usage of :: separator, only one :: separator is allowed per expression"
                 );
+            }
+        }
+
+        /**
+         * Checks the expression for remote cluster pattern and throws an exception if it is combined with :: selectors.
+         * @throws InvalidIndexNameException if remote cluster pattern is detected after parsing the selector expression
+         */
+        private static void ensureNotMixingRemoteClusterExpressionWithSelectorSeparator(
+            String expressionWithoutSelector,
+            IndexComponentSelector selector,
+            String originalExpression
+        ) {
+            if (selector != null) {
+                if (RemoteClusterAware.isRemoteIndexName(expressionWithoutSelector)) {
+                    throw new InvalidIndexNameException(originalExpression, "Selectors are not yet supported on remote cluster patterns");
+                }
             }
         }
     }

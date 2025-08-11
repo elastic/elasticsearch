@@ -9,8 +9,9 @@
 
 package org.elasticsearch.repositories.s3;
 
-import com.amazonaws.ClientConfiguration;
-import com.amazonaws.Protocol;
+import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
+import software.amazon.awssdk.auth.credentials.AwsCredentials;
+import software.amazon.awssdk.auth.credentials.AwsSessionCredentials;
 
 import org.elasticsearch.common.settings.SecureSetting;
 import org.elasticsearch.common.settings.SecureString;
@@ -76,11 +77,18 @@ final class S3ClientSettings {
         key -> new Setting<>(key, "", s -> s.toLowerCase(Locale.ROOT), Property.NodeScope)
     );
 
-    /** The protocol to use to connect to s3. */
-    static final Setting.AffixSetting<Protocol> PROTOCOL_SETTING = Setting.affixKeySetting(
+    /** The protocol to use to connect to s3, now only used if {@link #endpoint} is not a proper URI that starts with {@code http://} or
+     * {@code https://}. */
+    static final Setting.AffixSetting<HttpScheme> PROTOCOL_SETTING = Setting.affixKeySetting(
         PREFIX,
         "protocol",
-        key -> new Setting<>(key, "https", s -> Protocol.valueOf(s.toUpperCase(Locale.ROOT)), Property.NodeScope)
+        key -> new Setting<>(
+            key,
+            "https",
+            s -> HttpScheme.valueOf(s.toUpperCase(Locale.ROOT)),
+            Property.NodeScope,
+            Property.DeprecatedWarning
+        )
     );
 
     /** The host name of a proxy to connect to s3 through. */
@@ -98,10 +106,10 @@ final class S3ClientSettings {
     );
 
     /** The proxy scheme for connecting to S3 through a proxy. */
-    static final Setting.AffixSetting<Protocol> PROXY_SCHEME_SETTING = Setting.affixKeySetting(
+    static final Setting.AffixSetting<HttpScheme> PROXY_SCHEME_SETTING = Setting.affixKeySetting(
         PREFIX,
         "proxy.scheme",
-        key -> new Setting<>(key, "http", s -> Protocol.valueOf(s.toUpperCase(Locale.ROOT)), Property.NodeScope)
+        key -> new Setting<>(key, "http", s -> HttpScheme.valueOf(s.toUpperCase(Locale.ROOT)), Property.NodeScope)
     );
 
     /** The username of a proxy to connect to s3 through. */
@@ -139,11 +147,11 @@ final class S3ClientSettings {
         key -> Setting.intSetting(key, Defaults.RETRY_COUNT, 0, Property.NodeScope)
     );
 
-    /** Whether retries should be throttled (ie use backoff). */
-    static final Setting.AffixSetting<Boolean> USE_THROTTLE_RETRIES_SETTING = Setting.affixKeySetting(
+    /** Formerly whether retries should be throttled (ie use backoff), now unused. V2 AWS SDK always uses throttling. */
+    static final Setting.AffixSetting<Boolean> UNUSED_USE_THROTTLE_RETRIES_SETTING = Setting.affixKeySetting(
         PREFIX,
         "use_throttle_retries",
-        key -> Setting.boolSetting(key, Defaults.THROTTLE_RETRIES, Property.NodeScope)
+        key -> Setting.boolSetting(key, true, Property.NodeScope, Property.DeprecatedWarning)
     );
 
     /** Whether the s3 client should use path style access. */
@@ -167,21 +175,28 @@ final class S3ClientSettings {
         key -> new Setting<>(key, "", Function.identity(), Property.NodeScope)
     );
 
-    /** An override for the signer to use. */
-    static final Setting.AffixSetting<String> SIGNER_OVERRIDE = Setting.affixKeySetting(
+    /** Formerly an override for the signer to use, now unused. V2 AWS SDK only supports AWS v4 signatures. */
+    static final Setting.AffixSetting<String> UNUSED_SIGNER_OVERRIDE = Setting.affixKeySetting(
         PREFIX,
         "signer_override",
-        key -> new Setting<>(key, "", Function.identity(), Property.NodeScope)
+        key -> Setting.simpleString(key, Property.NodeScope, Property.DeprecatedWarning)
+    );
+
+    /** Whether to include the {@code x-purpose} custom query parameter in all requests. */
+    static final Setting.AffixSetting<Boolean> ADD_PURPOSE_CUSTOM_QUERY_PARAMETER = Setting.affixKeySetting(
+        PREFIX,
+        "add_purpose_custom_query_parameter",
+        key -> Setting.boolSetting(key, false, Property.NodeScope)
     );
 
     /** Credentials to authenticate with s3. */
-    final S3BasicCredentials credentials;
+    final AwsCredentials credentials;
+
+    /** The scheme (HTTP or HTTPS) for talking to the endpoint, for use only if the endpoint doesn't contain an explicit scheme */
+    final HttpScheme protocol;
 
     /** The s3 endpoint the client should talk to, or empty string to use the default. */
     final String endpoint;
-
-    /** The protocol to use to talk to s3. Defaults to https. */
-    final Protocol protocol;
 
     /** An optional proxy host that requests to s3 should be made through. */
     final String proxyHost;
@@ -190,7 +205,7 @@ final class S3ClientSettings {
     final int proxyPort;
 
     /** The proxy scheme to use for connecting to s3 through a proxy. */
-    final Protocol proxyScheme;
+    final HttpScheme proxyScheme;
 
     // these should be "secure" yet the api for the s3 client only takes String, so storing them
     // as SecureString here won't really help with anything
@@ -209,42 +224,38 @@ final class S3ClientSettings {
     /** The number of retries to use for the s3 client. */
     final int maxRetries;
 
-    /** Whether the s3 client should use an exponential backoff retry policy. */
-    final boolean throttleRetries;
-
     /** Whether the s3 client should use path style access. */
     final boolean pathStyleAccess;
 
     /** Whether chunked encoding should be disabled or not. */
     final boolean disableChunkedEncoding;
 
+    /** Whether to add the {@code x-purpose} custom query parameter to all requests. */
+    final boolean addPurposeCustomQueryParameter;
+
     /** Region to use for signing requests or empty string to use default. */
     final String region;
 
-    /** Signer override to use or empty string to use default. */
-    final String signerOverride;
-
     private S3ClientSettings(
-        S3BasicCredentials credentials,
+        AwsCredentials credentials,
+        HttpScheme protocol,
         String endpoint,
-        Protocol protocol,
         String proxyHost,
         int proxyPort,
-        Protocol proxyScheme,
+        HttpScheme proxyScheme,
         String proxyUsername,
         String proxyPassword,
         int readTimeoutMillis,
         int maxConnections,
         int maxRetries,
-        boolean throttleRetries,
         boolean pathStyleAccess,
         boolean disableChunkedEncoding,
-        String region,
-        String signerOverride
+        boolean addPurposeCustomQueryParameter,
+        String region
     ) {
         this.credentials = credentials;
-        this.endpoint = endpoint;
         this.protocol = protocol;
+        this.endpoint = endpoint;
         this.proxyHost = proxyHost;
         this.proxyPort = proxyPort;
         this.proxyScheme = proxyScheme;
@@ -253,11 +264,10 @@ final class S3ClientSettings {
         this.readTimeoutMillis = readTimeoutMillis;
         this.maxConnections = maxConnections;
         this.maxRetries = maxRetries;
-        this.throttleRetries = throttleRetries;
         this.pathStyleAccess = pathStyleAccess;
         this.disableChunkedEncoding = disableChunkedEncoding;
+        this.addPurposeCustomQueryParameter = addPurposeCustomQueryParameter;
         this.region = region;
-        this.signerOverride = signerOverride;
     }
 
     /**
@@ -272,52 +282,54 @@ final class S3ClientSettings {
             .put(repositorySettings)
             .normalizePrefix(PREFIX + PLACEHOLDER_CLIENT + '.')
             .build();
+        final HttpScheme newProtocol = getRepoSettingOrDefault(PROTOCOL_SETTING, normalizedSettings, protocol);
         final String newEndpoint = getRepoSettingOrDefault(ENDPOINT_SETTING, normalizedSettings, endpoint);
 
-        final Protocol newProtocol = getRepoSettingOrDefault(PROTOCOL_SETTING, normalizedSettings, protocol);
         final String newProxyHost = getRepoSettingOrDefault(PROXY_HOST_SETTING, normalizedSettings, proxyHost);
         final int newProxyPort = getRepoSettingOrDefault(PROXY_PORT_SETTING, normalizedSettings, proxyPort);
-        final Protocol newProxyScheme = getRepoSettingOrDefault(PROXY_SCHEME_SETTING, normalizedSettings, proxyScheme);
+        final HttpScheme newProxyScheme = getRepoSettingOrDefault(PROXY_SCHEME_SETTING, normalizedSettings, proxyScheme);
         final int newReadTimeoutMillis = Math.toIntExact(
             getRepoSettingOrDefault(READ_TIMEOUT_SETTING, normalizedSettings, TimeValue.timeValueMillis(readTimeoutMillis)).millis()
         );
         final int newMaxConnections = getRepoSettingOrDefault(MAX_CONNECTIONS_SETTING, normalizedSettings, maxConnections);
         final int newMaxRetries = getRepoSettingOrDefault(MAX_RETRIES_SETTING, normalizedSettings, maxRetries);
-        final boolean newThrottleRetries = getRepoSettingOrDefault(USE_THROTTLE_RETRIES_SETTING, normalizedSettings, throttleRetries);
         final boolean newPathStyleAccess = getRepoSettingOrDefault(USE_PATH_STYLE_ACCESS, normalizedSettings, pathStyleAccess);
         final boolean newDisableChunkedEncoding = getRepoSettingOrDefault(
             DISABLE_CHUNKED_ENCODING,
             normalizedSettings,
             disableChunkedEncoding
         );
-        final S3BasicCredentials newCredentials;
+        final boolean newAddPurposeCustomQueryParameter = getRepoSettingOrDefault(
+            ADD_PURPOSE_CUSTOM_QUERY_PARAMETER,
+            normalizedSettings,
+            addPurposeCustomQueryParameter
+        );
+        final AwsCredentials newCredentials;
         if (checkDeprecatedCredentials(repositorySettings)) {
             newCredentials = loadDeprecatedCredentials(repositorySettings);
         } else {
             newCredentials = credentials;
         }
         final String newRegion = getRepoSettingOrDefault(REGION, normalizedSettings, region);
-        final String newSignerOverride = getRepoSettingOrDefault(SIGNER_OVERRIDE, normalizedSettings, signerOverride);
-        if (Objects.equals(endpoint, newEndpoint)
-            && protocol == newProtocol
+        if (Objects.equals(protocol, newProtocol)
+            && Objects.equals(endpoint, newEndpoint)
             && Objects.equals(proxyHost, newProxyHost)
             && proxyPort == newProxyPort
             && proxyScheme == newProxyScheme
             && newReadTimeoutMillis == readTimeoutMillis
             && maxConnections == newMaxConnections
             && maxRetries == newMaxRetries
-            && newThrottleRetries == throttleRetries
             && Objects.equals(credentials, newCredentials)
             && newPathStyleAccess == pathStyleAccess
             && newDisableChunkedEncoding == disableChunkedEncoding
-            && Objects.equals(region, newRegion)
-            && Objects.equals(signerOverride, newSignerOverride)) {
+            && newAddPurposeCustomQueryParameter == addPurposeCustomQueryParameter
+            && Objects.equals(region, newRegion)) {
             return this;
         }
         return new S3ClientSettings(
             newCredentials,
-            newEndpoint,
             newProtocol,
+            newEndpoint,
             newProxyHost,
             newProxyPort,
             newProxyScheme,
@@ -326,11 +338,10 @@ final class S3ClientSettings {
             newReadTimeoutMillis,
             newMaxConnections,
             newMaxRetries,
-            newThrottleRetries,
             newPathStyleAccess,
             newDisableChunkedEncoding,
-            newRegion,
-            newSignerOverride
+            newAddPurposeCustomQueryParameter,
+            newRegion
         );
     }
 
@@ -377,18 +388,18 @@ final class S3ClientSettings {
         return false;
     }
 
-    // backcompat for reading keys out of repository settings (clusterState)
-    private static S3BasicCredentials loadDeprecatedCredentials(Settings repositorySettings) {
+    // Ancient BWC for reading creds stored unsafely in plaintext in RepositoryMetadata#settings - really dangerous but still in use
+    private static AwsCredentials loadDeprecatedCredentials(Settings repositorySettings) {
         assert checkDeprecatedCredentials(repositorySettings);
         try (
             SecureString key = S3Repository.ACCESS_KEY_SETTING.get(repositorySettings);
             SecureString secret = S3Repository.SECRET_KEY_SETTING.get(repositorySettings)
         ) {
-            return new S3BasicCredentials(key.toString(), secret.toString());
+            return AwsBasicCredentials.create(key.toString(), secret.toString());
         }
     }
 
-    private static S3BasicCredentials loadCredentials(Settings settings, String clientName) {
+    private static AwsCredentials loadCredentials(Settings settings, String clientName) {
         try (
             SecureString accessKey = getConfigValue(settings, clientName, ACCESS_KEY_SETTING);
             SecureString secretKey = getConfigValue(settings, clientName, SECRET_KEY_SETTING);
@@ -397,9 +408,9 @@ final class S3ClientSettings {
             if (accessKey.length() != 0) {
                 if (secretKey.length() != 0) {
                     if (sessionToken.length() != 0) {
-                        return new S3BasicSessionCredentials(accessKey.toString(), secretKey.toString(), sessionToken.toString());
+                        return AwsSessionCredentials.create(accessKey.toString(), secretKey.toString(), sessionToken.toString());
                     } else {
-                        return new S3BasicCredentials(accessKey.toString(), secretKey.toString());
+                        return AwsBasicCredentials.create(accessKey.toString(), secretKey.toString());
                     }
                 } else {
                     throw new IllegalArgumentException("Missing secret key for s3 client [" + clientName + "]");
@@ -425,8 +436,8 @@ final class S3ClientSettings {
         ) {
             return new S3ClientSettings(
                 S3ClientSettings.loadCredentials(settings, clientName),
-                getConfigValue(settings, clientName, ENDPOINT_SETTING),
                 getConfigValue(settings, clientName, PROTOCOL_SETTING),
+                getConfigValue(settings, clientName, ENDPOINT_SETTING),
                 getConfigValue(settings, clientName, PROXY_HOST_SETTING),
                 getConfigValue(settings, clientName, PROXY_PORT_SETTING),
                 getConfigValue(settings, clientName, PROXY_SCHEME_SETTING),
@@ -435,11 +446,10 @@ final class S3ClientSettings {
                 Math.toIntExact(getConfigValue(settings, clientName, READ_TIMEOUT_SETTING).millis()),
                 getConfigValue(settings, clientName, MAX_CONNECTIONS_SETTING),
                 getConfigValue(settings, clientName, MAX_RETRIES_SETTING),
-                getConfigValue(settings, clientName, USE_THROTTLE_RETRIES_SETTING),
                 getConfigValue(settings, clientName, USE_PATH_STYLE_ACCESS),
                 getConfigValue(settings, clientName, DISABLE_CHUNKED_ENCODING),
-                getConfigValue(settings, clientName, REGION),
-                getConfigValue(settings, clientName, SIGNER_OVERRIDE)
+                getConfigValue(settings, clientName, ADD_PURPOSE_CUSTOM_QUERY_PARAMETER),
+                getConfigValue(settings, clientName, REGION)
             );
         }
     }
@@ -457,25 +467,24 @@ final class S3ClientSettings {
             && readTimeoutMillis == that.readTimeoutMillis
             && maxConnections == that.maxConnections
             && maxRetries == that.maxRetries
-            && throttleRetries == that.throttleRetries
             && Objects.equals(credentials, that.credentials)
+            && Objects.equals(protocol, that.protocol)
             && Objects.equals(endpoint, that.endpoint)
-            && protocol == that.protocol
             && Objects.equals(proxyHost, that.proxyHost)
             && proxyScheme == that.proxyScheme
             && Objects.equals(proxyUsername, that.proxyUsername)
             && Objects.equals(proxyPassword, that.proxyPassword)
             && Objects.equals(disableChunkedEncoding, that.disableChunkedEncoding)
-            && Objects.equals(region, that.region)
-            && Objects.equals(signerOverride, that.signerOverride);
+            && Objects.equals(addPurposeCustomQueryParameter, that.addPurposeCustomQueryParameter)
+            && Objects.equals(region, that.region);
     }
 
     @Override
     public int hashCode() {
         return Objects.hash(
             credentials,
-            endpoint,
             protocol,
+            endpoint,
             proxyHost,
             proxyPort,
             proxyScheme,
@@ -484,10 +493,9 @@ final class S3ClientSettings {
             readTimeoutMillis,
             maxRetries,
             maxConnections,
-            throttleRetries,
             disableChunkedEncoding,
-            region,
-            signerOverride
+            addPurposeCustomQueryParameter,
+            region
         );
     }
 
@@ -504,9 +512,8 @@ final class S3ClientSettings {
     }
 
     static final class Defaults {
-        static final TimeValue READ_TIMEOUT = TimeValue.timeValueMillis(ClientConfiguration.DEFAULT_SOCKET_TIMEOUT);
-        static final int MAX_CONNECTIONS = ClientConfiguration.DEFAULT_MAX_CONNECTIONS;
-        static final int RETRY_COUNT = ClientConfiguration.DEFAULT_RETRY_POLICY.getMaxErrorRetry();
-        static final boolean THROTTLE_RETRIES = ClientConfiguration.DEFAULT_THROTTLE_RETRIES;
+        static final TimeValue READ_TIMEOUT = TimeValue.timeValueSeconds(50);
+        static final int MAX_CONNECTIONS = 50;
+        static final int RETRY_COUNT = 3;
     }
 }

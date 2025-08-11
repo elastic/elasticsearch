@@ -24,7 +24,7 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockFactoryProvider;
 import org.elasticsearch.compute.lucene.LuceneOperator;
-import org.elasticsearch.compute.lucene.ValuesSourceReaderOperator;
+import org.elasticsearch.compute.lucene.read.ValuesSourceReaderOperatorStatus;
 import org.elasticsearch.compute.operator.AbstractPageMappingOperator;
 import org.elasticsearch.compute.operator.AbstractPageMappingToIteratorOperator;
 import org.elasticsearch.compute.operator.AggregationOperator;
@@ -67,7 +67,10 @@ import org.elasticsearch.xpack.esql.enrich.EnrichLookupOperator;
 import org.elasticsearch.xpack.esql.enrich.LookupFromIndexOperator;
 import org.elasticsearch.xpack.esql.execution.PlanExecutor;
 import org.elasticsearch.xpack.esql.expression.ExpressionWritables;
+import org.elasticsearch.xpack.esql.io.stream.ExpressionQueryBuilder;
+import org.elasticsearch.xpack.esql.io.stream.PlanStreamWrapperQueryBuilder;
 import org.elasticsearch.xpack.esql.plan.PlanWritables;
+import org.elasticsearch.xpack.esql.planner.PhysicalSettings;
 import org.elasticsearch.xpack.esql.querydsl.query.SingleValueQuery;
 import org.elasticsearch.xpack.esql.querylog.EsqlQueryLog;
 import org.elasticsearch.xpack.esql.session.IndexResolver;
@@ -105,7 +108,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin {
 
     public static final Setting<Boolean> QUERY_ALLOW_PARTIAL_RESULTS = Setting.boolSetting(
         "esql.query.allow_partial_results",
-        false,
+        true,
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
     );
@@ -150,6 +153,29 @@ public class EsqlPlugin extends Plugin implements ActionPlugin {
         "esql.querylog.include.user",
         false,
         Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
+    /**
+     * Tuning parameter for deciding when to use the "merge" stored field loader.
+     * Think of it as "how similar to a sequential block of documents do I have to
+     * be before I'll use the merge reader?" So a value of {@code 1} means I have to
+     * be <strong>exactly</strong> a sequential block, like {@code 0, 1, 2, 3, .. 1299, 1300}.
+     * A value of {@code .2} means we'll use the sequential reader even if we only
+     * need one in ten documents.
+     * <p>
+     *     The default value of this was experimentally derived using a
+     *     <a href="https://gist.github.com/nik9000/ac6857de10745aad210b6397915ff846">script</a>.
+     *     And a little paranoia. A lower default value was looking good locally, but
+     *     I'm concerned about the implications of effectively using this all the time.
+     * </p>
+     */
+    public static final Setting<Double> STORED_FIELDS_SEQUENTIAL_PROPORTION = Setting.doubleSetting(
+        "index.esql.stored_fields_sequential_proportion",
+        0.20,
+        0,
+        1,
+        Setting.Property.IndexScope,
         Setting.Property.Dynamic
     );
 
@@ -215,7 +241,11 @@ public class EsqlPlugin extends Plugin implements ActionPlugin {
             ESQL_QUERYLOG_THRESHOLD_DEBUG_SETTING,
             ESQL_QUERYLOG_THRESHOLD_INFO_SETTING,
             ESQL_QUERYLOG_THRESHOLD_WARN_SETTING,
-            ESQL_QUERYLOG_INCLUDE_USER_SETTING
+            ESQL_QUERYLOG_INCLUDE_USER_SETTING,
+            PhysicalSettings.DEFAULT_DATA_PARTITIONING,
+            PhysicalSettings.VALUES_LOADING_JUMBO_SIZE,
+            STORED_FIELDS_SEQUENTIAL_PROPORTION,
+            EsqlFlags.ESQL_STRING_LIKE_ON_INDEX
         );
     }
 
@@ -268,11 +298,13 @@ public class EsqlPlugin extends Plugin implements ActionPlugin {
         entries.add(LuceneOperator.Status.ENTRY);
         entries.add(TopNOperatorStatus.ENTRY);
         entries.add(MvExpandOperator.Status.ENTRY);
-        entries.add(ValuesSourceReaderOperator.Status.ENTRY);
+        entries.add(ValuesSourceReaderOperatorStatus.ENTRY);
         entries.add(SingleValueQuery.ENTRY);
         entries.add(AsyncOperator.Status.ENTRY);
         entries.add(EnrichLookupOperator.Status.ENTRY);
         entries.add(LookupFromIndexOperator.Status.ENTRY);
+        entries.add(ExpressionQueryBuilder.ENTRY);
+        entries.add(PlanStreamWrapperQueryBuilder.ENTRY);
 
         entries.addAll(ExpressionWritables.getNamedWriteables());
         entries.addAll(PlanWritables.getNamedWriteables());

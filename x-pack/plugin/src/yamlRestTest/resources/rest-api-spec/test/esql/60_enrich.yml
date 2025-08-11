@@ -191,3 +191,27 @@ teardown:
   - match: { values.1: [ "Bob", "New York", "nyc", "USA" ] }
   - match: { values.2: [ "Denise", "Tan Son Nhat", null, null ] }
   - match: { values.3: [ "Mario", "Rome", "rom", "Italy" ] }
+
+
+---
+"Enrich with brackets in policy name":
+  - requires:
+      test_runner_features: [capabilities, allowed_warnings_regex]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [ no_brackets_in_unquoted_index_names ]
+      reason: "Change in the grammar"
+
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'from test | enrich "city_codes_policy)" on city_id | keep name, city, country | sort name'
+      catch: "bad_request"
+
+  - match: { status: 400 }
+  - match: { error.type: verification_exception }
+  - match: { error.reason: "/.*cannot.find.enrich.policy.*/" }

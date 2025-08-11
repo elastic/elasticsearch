@@ -18,6 +18,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.inference.ChunkInferenceInput;
 import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.InferenceServiceConfiguration;
@@ -61,6 +62,7 @@ import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
+import static org.elasticsearch.xpack.core.inference.results.TextEmbeddingFloatResultsTests.buildExpectationFloat;
 import static org.elasticsearch.xpack.inference.Utils.getInvalidModel;
 import static org.elasticsearch.xpack.inference.Utils.getPersistedConfigMap;
 import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityPool;
@@ -69,7 +71,6 @@ import static org.elasticsearch.xpack.inference.chunking.ChunkingSettingsTests.c
 import static org.elasticsearch.xpack.inference.chunking.ChunkingSettingsTests.createRandomChunkingSettingsMap;
 import static org.elasticsearch.xpack.inference.external.http.Utils.entityAsMap;
 import static org.elasticsearch.xpack.inference.external.http.Utils.getUrl;
-import static org.elasticsearch.xpack.inference.results.TextEmbeddingResultsTests.buildExpectationFloat;
 import static org.elasticsearch.xpack.inference.services.ServiceComponentsTests.createWithEmptySettings;
 import static org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettingsTests.getSecretSettingsMap;
 import static org.hamcrest.CoreMatchers.is;
@@ -246,7 +247,7 @@ public class VoyageAIServiceTests extends ESTestCase {
 
             var failureListener = getModelListenerForException(
                 ElasticsearchStatusException.class,
-                "Model configuration contains settings [{extra_key=value}] unknown to the [voyageai] service"
+                "Configuration contains settings [{extra_key=value}] unknown to the [voyageai] service"
             );
             service.parseRequestConfig("id", TaskType.TEXT_EMBEDDING, config, failureListener);
         }
@@ -265,7 +266,7 @@ public class VoyageAIServiceTests extends ESTestCase {
 
             var failureListener = getModelListenerForException(
                 ElasticsearchStatusException.class,
-                "Model configuration contains settings [{extra_key=value}] unknown to the [voyageai] service"
+                "Configuration contains settings [{extra_key=value}] unknown to the [voyageai] service"
             );
             service.parseRequestConfig("id", TaskType.TEXT_EMBEDDING, config, failureListener);
         }
@@ -284,7 +285,7 @@ public class VoyageAIServiceTests extends ESTestCase {
 
             var failureListener = getModelListenerForException(
                 ElasticsearchStatusException.class,
-                "Model configuration contains settings [{extra_key=value}] unknown to the [voyageai] service"
+                "Configuration contains settings [{extra_key=value}] unknown to the [voyageai] service"
             );
             service.parseRequestConfig("id", TaskType.TEXT_EMBEDDING, config, failureListener);
 
@@ -304,7 +305,7 @@ public class VoyageAIServiceTests extends ESTestCase {
 
             var failureListener = getModelListenerForException(
                 ElasticsearchStatusException.class,
-                "Model configuration contains settings [{extra_key=value}] unknown to the [voyageai] service"
+                "Configuration contains settings [{extra_key=value}] unknown to the [voyageai] service"
             );
             service.parseRequestConfig("id", TaskType.TEXT_EMBEDDING, config, failureListener);
         }
@@ -722,6 +723,8 @@ public class VoyageAIServiceTests extends ESTestCase {
             service.infer(
                 mockModel,
                 null,
+                null,
+                null,
                 List.of(""),
                 false,
                 new HashMap<>(),
@@ -768,6 +771,8 @@ public class VoyageAIServiceTests extends ESTestCase {
                 () -> service.infer(
                     model,
                     null,
+                    null,
+                    null,
                     List.of(""),
                     false,
                     new HashMap<>(),
@@ -788,175 +793,6 @@ public class VoyageAIServiceTests extends ESTestCase {
         verify(sender, times(1)).close();
         verifyNoMoreInteractions(factory);
         verifyNoMoreInteractions(sender);
-    }
-
-    public void testCheckModelConfig_UpdatesDimensions() throws IOException {
-        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
-
-        try (var service = new VoyageAIService(senderFactory, createWithEmptySettings(threadPool))) {
-
-            String responseJson = """
-                {
-                    "model": "voyage-3-large",
-                    "object": "list",
-                    "usage": {
-                        "total_tokens": 5
-                    },
-                    "data": [
-                        {
-                            "object": "embedding",
-                            "index": 0,
-                            "embedding": [
-                                0.123,
-                                -0.123
-                            ]
-                        }
-                    ]
-                }
-                """;
-            webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
-
-            var model = VoyageAIEmbeddingsModelTests.createModel(
-                getUrl(webServer),
-                "secret",
-                VoyageAIEmbeddingsTaskSettings.EMPTY_SETTINGS,
-                10,
-                1,
-                "voyage-3-large"
-            );
-            PlainActionFuture<Model> listener = new PlainActionFuture<>();
-            service.checkModelConfig(model, listener);
-            var result = listener.actionGet(TIMEOUT);
-
-            MatcherAssert.assertThat(
-                result,
-                // the dimension is set to 2 because there are 2 embeddings returned from the mock server
-                is(
-                    VoyageAIEmbeddingsModelTests.createModel(
-                        getUrl(webServer),
-                        "secret",
-                        VoyageAIEmbeddingsTaskSettings.EMPTY_SETTINGS,
-                        10,
-                        2,
-                        "voyage-3-large"
-                    )
-                )
-            );
-        }
-    }
-
-    public void testCheckModelConfig_UpdatesSimilarityToDotProduct_WhenItIsNull() throws IOException {
-        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
-
-        try (var service = new VoyageAIService(senderFactory, createWithEmptySettings(threadPool))) {
-
-            String responseJson = """
-                {
-                    "model": "voyage-3-large",
-                    "object": "list",
-                    "usage": {
-                        "total_tokens": 5
-                    },
-                    "data": [
-                        {
-                            "object": "embedding",
-                            "index": 0,
-                            "embedding": [
-                                0.123,
-                                -0.123
-                            ]
-                        }
-                    ]
-                }
-                """;
-            webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
-
-            var model = VoyageAIEmbeddingsModelTests.createModel(
-                getUrl(webServer),
-                "secret",
-                VoyageAIEmbeddingsTaskSettings.EMPTY_SETTINGS,
-                10,
-                1,
-                "voyage-3-large",
-                (SimilarityMeasure) null
-            );
-            PlainActionFuture<Model> listener = new PlainActionFuture<>();
-            service.checkModelConfig(model, listener);
-            var result = listener.actionGet(TIMEOUT);
-
-            MatcherAssert.assertThat(
-                result,
-                // the dimension is set to 2 because there are 2 embeddings returned from the mock server
-                is(
-                    VoyageAIEmbeddingsModelTests.createModel(
-                        getUrl(webServer),
-                        "secret",
-                        VoyageAIEmbeddingsTaskSettings.EMPTY_SETTINGS,
-                        10,
-                        2,
-                        "voyage-3-large",
-                        SimilarityMeasure.DOT_PRODUCT
-                    )
-                )
-            );
-        }
-    }
-
-    public void testCheckModelConfig_DoesNotUpdateSimilarity_WhenItIsSpecifiedAsCosine() throws IOException {
-        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
-
-        try (var service = new VoyageAIService(senderFactory, createWithEmptySettings(threadPool))) {
-
-            String responseJson = """
-                {
-                    "model": "voyage-3-large",
-                    "object": "list",
-                    "usage": {
-                        "total_tokens": 5
-                    },
-                    "data": [
-                        {
-                            "object": "embedding",
-                            "index": 0,
-                            "embedding": [
-                                0.123,
-                                -0.123
-                            ]
-                        }
-                    ]
-                }
-                """;
-            webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
-
-            var model = VoyageAIEmbeddingsModelTests.createModel(
-                getUrl(webServer),
-                "secret",
-                VoyageAIEmbeddingsTaskSettings.EMPTY_SETTINGS,
-                10,
-                1,
-                "voyage-3-large",
-                SimilarityMeasure.COSINE
-            );
-            PlainActionFuture<Model> listener = new PlainActionFuture<>();
-            service.checkModelConfig(model, listener);
-            var result = listener.actionGet(TIMEOUT);
-
-            MatcherAssert.assertThat(
-                result,
-                // the dimension is set to 2 because there are 2 embeddings returned from the mock server
-                is(
-                    VoyageAIEmbeddingsModelTests.createModel(
-                        getUrl(webServer),
-                        "secret",
-                        VoyageAIEmbeddingsTaskSettings.EMPTY_SETTINGS,
-                        10,
-                        2,
-                        "voyage-3-large",
-                        SimilarityMeasure.COSINE
-                    )
-                )
-            );
-        }
     }
 
     public void testUpdateModelWithEmbeddingDetails_NullSimilarityInOriginalModel() throws IOException {
@@ -1017,6 +853,8 @@ public class VoyageAIServiceTests extends ESTestCase {
             service.infer(
                 model,
                 null,
+                null,
+                null,
                 List.of("abc"),
                 false,
                 new HashMap<>(),
@@ -1049,6 +887,8 @@ public class VoyageAIServiceTests extends ESTestCase {
             service.infer(
                 model,
                 "query",
+                null,
+                null,
                 List.of("candidate1", "candidate2"),
                 false,
                 new HashMap<>(),
@@ -1102,6 +942,8 @@ public class VoyageAIServiceTests extends ESTestCase {
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             service.infer(
                 model,
+                null,
+                null,
                 null,
                 List.of("abc"),
                 false,
@@ -1183,6 +1025,8 @@ public class VoyageAIServiceTests extends ESTestCase {
             service.infer(
                 model,
                 null,
+                null,
+                null,
                 List.of("abc"),
                 false,
                 new HashMap<>(),
@@ -1260,7 +1104,18 @@ public class VoyageAIServiceTests extends ESTestCase {
                 (SimilarityMeasure) null
             );
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            service.infer(model, null, List.of("abc"), false, new HashMap<>(), null, InferenceAction.Request.DEFAULT_TIMEOUT, listener);
+            service.infer(
+                model,
+                null,
+                null,
+                null,
+                List.of("abc"),
+                false,
+                new HashMap<>(),
+                null,
+                InferenceAction.Request.DEFAULT_TIMEOUT,
+                listener
+            );
 
             var result = listener.actionGet(TIMEOUT);
 
@@ -1315,6 +1170,8 @@ public class VoyageAIServiceTests extends ESTestCase {
             service.infer(
                 model,
                 "query",
+                null,
+                null,
                 List.of("candidate1", "candidate2", "candidate3"),
                 false,
                 new HashMap<>(),
@@ -1401,6 +1258,8 @@ public class VoyageAIServiceTests extends ESTestCase {
             service.infer(
                 model,
                 "query",
+                null,
+                null,
                 List.of("candidate1", "candidate2", "candidate3", "candidate4"),
                 false,
                 new HashMap<>(),
@@ -1493,6 +1352,8 @@ public class VoyageAIServiceTests extends ESTestCase {
             service.infer(
                 model,
                 "query",
+                null,
+                null,
                 List.of("candidate1", "candidate2", "candidate3"),
                 false,
                 new HashMap<>(),
@@ -1569,6 +1430,8 @@ public class VoyageAIServiceTests extends ESTestCase {
             service.infer(
                 model,
                 "query",
+                null,
+                null,
                 List.of("candidate1", "candidate2", "candidate3", "candidate4"),
                 false,
                 new HashMap<>(),
@@ -1662,6 +1525,8 @@ public class VoyageAIServiceTests extends ESTestCase {
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             service.infer(
                 model,
+                null,
+                null,
                 null,
                 List.of("abc"),
                 false,
@@ -1771,7 +1636,7 @@ public class VoyageAIServiceTests extends ESTestCase {
             service.chunkedInfer(
                 model,
                 null,
-                List.of("a", "bb"),
+                List.of(new ChunkInferenceInput("a"), new ChunkInferenceInput("bb")),
                 new HashMap<>(),
                 InputType.UNSPECIFIED,
                 InferenceAction.Request.DEFAULT_TIMEOUT,
@@ -1784,11 +1649,12 @@ public class VoyageAIServiceTests extends ESTestCase {
                 assertThat(results.get(0), CoreMatchers.instanceOf(ChunkedInferenceEmbedding.class));
                 var floatResult = (ChunkedInferenceEmbedding) results.get(0);
                 assertThat(floatResult.chunks(), hasSize(1));
+
                 assertEquals(new ChunkedInference.TextOffset(0, 1), floatResult.chunks().get(0).offset());
-                assertThat(floatResult.chunks().get(0), CoreMatchers.instanceOf(TextEmbeddingFloatResults.Chunk.class));
+                assertThat(floatResult.chunks().get(0).embedding(), CoreMatchers.instanceOf(TextEmbeddingFloatResults.Embedding.class));
                 assertArrayEquals(
                     new float[] { 0.123f, -0.123f },
-                    ((TextEmbeddingFloatResults.Chunk) floatResult.chunks().get(0)).embedding(),
+                    ((TextEmbeddingFloatResults.Embedding) floatResult.chunks().get(0).embedding()).values(),
                     0.0f
                 );
             }
@@ -1797,10 +1663,10 @@ public class VoyageAIServiceTests extends ESTestCase {
                 var floatResult = (ChunkedInferenceEmbedding) results.get(1);
                 assertThat(floatResult.chunks(), hasSize(1));
                 assertEquals(new ChunkedInference.TextOffset(0, 2), floatResult.chunks().get(0).offset());
-                assertThat(floatResult.chunks().get(0), CoreMatchers.instanceOf(TextEmbeddingFloatResults.Chunk.class));
+                assertThat(floatResult.chunks().get(0).embedding(), CoreMatchers.instanceOf(TextEmbeddingFloatResults.Embedding.class));
                 assertArrayEquals(
                     new float[] { 0.223f, -0.223f },
-                    ((TextEmbeddingFloatResults.Chunk) floatResult.chunks().get(0)).embedding(),
+                    ((TextEmbeddingFloatResults.Embedding) floatResult.chunks().get(0).embedding()).values(),
                     0.0f
                 );
             }

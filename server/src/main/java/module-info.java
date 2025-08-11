@@ -23,7 +23,6 @@ module org.elasticsearch.server {
     requires org.elasticsearch.nativeaccess;
     requires org.elasticsearch.geo;
     requires org.elasticsearch.lz4;
-    requires org.elasticsearch.securesm;
     requires org.elasticsearch.xcontent;
     requires org.elasticsearch.logging;
     requires org.elasticsearch.plugin;
@@ -433,6 +432,7 @@ module org.elasticsearch.server {
             org.elasticsearch.index.IndexFeatures,
             org.elasticsearch.ingest.IngestGeoIpFeatures,
             org.elasticsearch.search.SearchFeatures,
+            org.elasticsearch.synonyms.SynonymFeatures,
             org.elasticsearch.script.ScriptFeatures,
             org.elasticsearch.search.retriever.RetrieversFeatures,
             org.elasticsearch.reservedstate.service.FileSettingsFeatures,
@@ -447,7 +447,10 @@ module org.elasticsearch.server {
             org.elasticsearch.index.codec.bloomfilter.ES85BloomFilterPostingsFormat,
             org.elasticsearch.index.codec.bloomfilter.ES87BloomFilterPostingsFormat,
             org.elasticsearch.index.codec.postings.ES812PostingsFormat;
-    provides org.apache.lucene.codecs.DocValuesFormat with org.elasticsearch.index.codec.tsdb.ES87TSDBDocValuesFormat;
+    provides org.apache.lucene.codecs.DocValuesFormat
+        with
+            org.elasticsearch.index.codec.tsdb.ES87TSDBDocValuesFormat,
+            org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormat;
     provides org.apache.lucene.codecs.KnnVectorsFormat
         with
             org.elasticsearch.index.codec.vectors.ES813FlatVectorFormat,
@@ -474,6 +477,8 @@ module org.elasticsearch.server {
             org.elasticsearch.serverless.apifiltering;
     exports org.elasticsearch.lucene.spatial;
     exports org.elasticsearch.inference.configuration;
+    exports org.elasticsearch.inference.validation;
     exports org.elasticsearch.monitor.metrics;
     exports org.elasticsearch.plugins.internal.rewriter to org.elasticsearch.inference;
+    exports org.elasticsearch.index.codec.perfield;
 }

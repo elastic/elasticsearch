@@ -19,7 +19,6 @@ import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.function.Function;
 import java.util.function.Supplier;
 
 public class ToDegreesTests extends AbstractScalarFunctionTestCase {
@@ -30,12 +29,10 @@ public class ToDegreesTests extends AbstractScalarFunctionTestCase {
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
         // TODO multivalue fields
-        Function<String, String> evaluatorName = eval -> "ToDegreesEvaluator[field=" + eval + "[field=Attribute[channel=0]]]";
         List<TestCaseSupplier> suppliers = new ArrayList<>();
-
         TestCaseSupplier.forUnaryInt(
             suppliers,
-            evaluatorName.apply("ToDoubleFromIntEvaluator"),
+            evaluatorName("ToDoubleFromIntEvaluator", "i"),
             DataType.DOUBLE,
             Math::toDegrees,
             Integer.MIN_VALUE,
@@ -44,7 +41,7 @@ public class ToDegreesTests extends AbstractScalarFunctionTestCase {
         );
         TestCaseSupplier.forUnaryLong(
             suppliers,
-            evaluatorName.apply("ToDoubleFromLongEvaluator"),
+            evaluatorName("ToDoubleFromLongEvaluator", "l"),
             DataType.DOUBLE,
             Math::toDegrees,
             Long.MIN_VALUE,
@@ -53,14 +50,14 @@ public class ToDegreesTests extends AbstractScalarFunctionTestCase {
         );
         TestCaseSupplier.forUnaryUnsignedLong(
             suppliers,
-            evaluatorName.apply("ToDoubleFromUnsignedLongEvaluator"),
+            evaluatorName("ToDoubleFromUnsignedLongEvaluator", "l"),
             DataType.DOUBLE,
             ul -> Math.toDegrees(ul.doubleValue()),
             BigInteger.ZERO,
             UNSIGNED_LONG_MAX,
             List.of()
         );
-        TestCaseSupplier.forUnaryDouble(suppliers, "ToDegreesEvaluator[field=Attribute[channel=0]]", DataType.DOUBLE, d -> {
+        TestCaseSupplier.forUnaryDouble(suppliers, "ToDegreesEvaluator[deg=Attribute[channel=0]]", DataType.DOUBLE, d -> {
             double deg = Math.toDegrees(d);
             return Double.isNaN(deg) || Double.isInfinite(deg) ? null : deg;
         }, Double.NEGATIVE_INFINITY, Double.POSITIVE_INFINITY, d -> {
@@ -74,7 +71,7 @@ public class ToDegreesTests extends AbstractScalarFunctionTestCase {
         });
         TestCaseSupplier.unary(
             suppliers,
-            "ToDegreesEvaluator[field=Attribute[channel=0]]",
+            "ToDegreesEvaluator[deg=Attribute[channel=0]]",
             List.of(
                 new TestCaseSupplier.TypedDataSupplier("Double.MAX_VALUE", () -> Double.MAX_VALUE, DataType.DOUBLE),
                 new TestCaseSupplier.TypedDataSupplier("-Double.MAX_VALUE", () -> -Double.MAX_VALUE, DataType.DOUBLE),
@@ -90,6 +87,10 @@ public class ToDegreesTests extends AbstractScalarFunctionTestCase {
         );
 
         return parameterSuppliersFromTypedDataWithDefaultChecksNoErrors(true, suppliers);
+    }
+
+    private static String evaluatorName(String inner, String next) {
+        return "ToDegreesEvaluator[deg=" + inner + "[" + next + "=Attribute[channel=0]]]";
     }
 
     @Override

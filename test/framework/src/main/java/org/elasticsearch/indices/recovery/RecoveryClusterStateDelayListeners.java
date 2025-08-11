@@ -64,7 +64,7 @@ public class RecoveryClusterStateDelayListeners implements Releasable {
                 refCounted.decRef();
             }
         } else {
-            return SubscribableListener.newSucceeded(null);
+            return SubscribableListener.nullSuccess();
         }
     }
 

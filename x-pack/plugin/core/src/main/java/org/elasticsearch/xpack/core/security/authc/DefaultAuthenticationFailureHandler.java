@@ -11,7 +11,7 @@ import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.http.HttpPreRequest;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.transport.TransportMessage;
+import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.XPackField;
 
 import java.util.ArrayList;
@@ -98,7 +98,7 @@ public class DefaultAuthenticationFailureHandler implements AuthenticationFailur
 
     @Override
     public ElasticsearchSecurityException failedAuthentication(
-        TransportMessage message,
+        TransportRequest message,
         AuthenticationToken token,
         String action,
         ThreadContext context
@@ -118,7 +118,7 @@ public class DefaultAuthenticationFailureHandler implements AuthenticationFailur
 
     @Override
     public ElasticsearchSecurityException exceptionProcessingRequest(
-        TransportMessage message,
+        TransportRequest message,
         String action,
         Exception e,
         ThreadContext context
@@ -137,7 +137,7 @@ public class DefaultAuthenticationFailureHandler implements AuthenticationFailur
     }
 
     @Override
-    public ElasticsearchSecurityException missingToken(TransportMessage message, String action, ThreadContext context) {
+    public ElasticsearchSecurityException missingToken(TransportRequest message, String action, ThreadContext context) {
         return createAuthenticationError("missing authentication credentials for action [{}]", null, action);
     }
 

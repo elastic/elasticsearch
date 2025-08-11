@@ -49,12 +49,15 @@ import org.elasticsearch.xpack.esql.enrich.EnrichLookupService;
 import org.elasticsearch.xpack.esql.enrich.EnrichPolicyResolver;
 import org.elasticsearch.xpack.esql.enrich.LookupFromIndexService;
 import org.elasticsearch.xpack.esql.execution.PlanExecutor;
+import org.elasticsearch.xpack.esql.inference.InferenceRunner;
 import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.session.EsqlSession.PlanRunner;
 import org.elasticsearch.xpack.esql.session.Result;
 
 import java.io.IOException;
 import java.time.ZoneOffset;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -112,29 +115,23 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             .fromSearchService(searchService);
         this.enrichLookupService = new EnrichLookupService(
             clusterService,
+            searchService.getIndicesService(),
             lookupLookupShardContextFactory,
             transportService,
+            indexNameExpressionResolver,
             bigArrays,
             blockFactoryProvider.blockFactory()
         );
         this.lookupFromIndexService = new LookupFromIndexService(
             clusterService,
+            searchService.getIndicesService(),
             lookupLookupShardContextFactory,
             transportService,
+            indexNameExpressionResolver,
             bigArrays,
             blockFactoryProvider.blockFactory()
         );
-        this.computeService = new ComputeService(
-            searchService,
-            transportService,
-            exchangeService,
-            enrichLookupService,
-            lookupFromIndexService,
-            clusterService,
-            threadPool,
-            bigArrays,
-            blockFactoryProvider.blockFactory()
-        );
+
         this.asyncTaskManagementService = new AsyncTaskManagementService<>(
             XPackPlugin.ASYNC_RESULTS_INDEX,
             client,
@@ -157,11 +154,23 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             exchangeService,
             clusterService,
             indexNameExpressionResolver,
-            usageService
+            usageService,
+            new InferenceRunner(client, threadPool)
         );
+
+        this.computeService = new ComputeService(
+            services,
+            enrichLookupService,
+            lookupFromIndexService,
+            threadPool,
+            bigArrays,
+            blockFactoryProvider.blockFactory()
+        );
+
         defaultAllowPartialResults = EsqlPlugin.QUERY_ALLOW_PARTIAL_RESULTS.get(clusterService.getSettings());
         clusterService.getClusterSettings()
             .addSettingsUpdateConsumer(EsqlPlugin.QUERY_ALLOW_PARTIAL_RESULTS, v -> defaultAllowPartialResults = v);
+
     }
 
     @Override
@@ -201,6 +210,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
         if (request.allowPartialResults() == null) {
             request.allowPartialResults(defaultAllowPartialResults);
         }
+        EsqlFlags flags = computeService.createFlags();
         Configuration configuration = new Configuration(
             ZoneOffset.UTC,
             request.locale() != null ? request.locale() : Locale.US,
@@ -224,6 +234,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
         PlanRunner planRunner = (plan, resultListener) -> computeService.execute(
             sessionId,
             (CancellableTask) task,
+            flags,
             plan,
             configuration,
             foldCtx,
@@ -314,8 +325,20 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
     }
 
     private EsqlQueryResponse toResponse(Task task, EsqlQueryRequest request, Configuration configuration, Result result) {
-        List<ColumnInfoImpl> columns = result.schema().stream().map(c -> new ColumnInfoImpl(c.name(), c.dataType().outputType())).toList();
-        EsqlQueryResponse.Profile profile = configuration.profile() ? new EsqlQueryResponse.Profile(result.profiles()) : null;
+        List<ColumnInfoImpl> columns = result.schema().stream().map(c -> {
+            List<String> originalTypes;
+            if (c.originalTypes() == null) {
+                originalTypes = null;
+            } else {
+                // Sort the original types so they are easier to test against and prettier.
+                originalTypes = new ArrayList<>(c.originalTypes());
+                Collections.sort(originalTypes);
+            }
+            return new ColumnInfoImpl(c.name(), c.dataType().outputType(), originalTypes);
+        }).toList();
+        EsqlQueryResponse.Profile profile = configuration.profile()
+            ? new EsqlQueryResponse.Profile(result.completionInfo().driverProfiles(), result.completionInfo().planProfiles())
+            : null;
         threadPool.getThreadContext().addResponseHeader(AsyncExecutionId.ASYNC_EXECUTION_IS_RUNNING_HEADER, "?0");
         if (task instanceof EsqlQueryTask asyncTask && request.keepOnCompletion()) {
             String asyncExecutionId = asyncTask.getExecutionId().getEncoded();
@@ -323,6 +346,8 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             return new EsqlQueryResponse(
                 columns,
                 result.pages(),
+                result.completionInfo().documentsFound(),
+                result.completionInfo().valuesLoaded(),
                 profile,
                 request.columnar(),
                 asyncExecutionId,
@@ -331,7 +356,16 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
                 result.executionInfo()
             );
         }
-        return new EsqlQueryResponse(columns, result.pages(), profile, request.columnar(), request.async(), result.executionInfo());
+        return new EsqlQueryResponse(
+            columns,
+            result.pages(),
+            result.completionInfo().documentsFound(),
+            result.completionInfo().valuesLoaded(),
+            profile,
+            request.columnar(),
+            request.async(),
+            result.executionInfo()
+        );
     }
 
     /**
@@ -383,6 +417,8 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
         return new EsqlQueryResponse(
             List.of(),
             List.of(),
+            0,
+            0,
             null,
             false,
             asyncExecutionId,

@@ -819,4 +819,37 @@ public class DataStreamAutoShardingServiceTests extends ESTestCase {
         return builder.build();
     }
 
+    public void testCalculateReturnsNotApplicableForLookupIndexMode() {
+        Metadata.Builder builder = Metadata.builder();
+        DataStream dataStream = createLookupModeDataStream(builder);
+        ClusterState state = createClusterStateWithDataStream(builder);
+
+        AutoShardingResult autoShardingResult = service.calculate(state, dataStream, 1.0);
+        assertThat(autoShardingResult, is(NOT_APPLICABLE_RESULT));
+    }
+
+    public void testCalculateReturnsNotApplicableForLookupIndexModeWithNullWriteLoad() {
+        Metadata.Builder builder = Metadata.builder();
+        DataStream dataStream = createLookupModeDataStream(builder);
+        ClusterState state = createClusterStateWithDataStream(builder);
+
+        AutoShardingResult autoShardingResult = service.calculate(state, dataStream, null);
+        assertThat(autoShardingResult, is(NOT_APPLICABLE_RESULT));
+    }
+
+    private DataStream createLookupModeDataStream(Metadata.Builder builder) {
+        DataStream dataStream = DataStream.builder(dataStreamName, List.of(new Index("test-index", randomUUID())))
+            .setGeneration(1)
+            .setIndexMode(IndexMode.LOOKUP)
+            .build();
+        builder.put(dataStream);
+        return dataStream;
+    }
+
+    private ClusterState createClusterStateWithDataStream(Metadata.Builder builder) {
+        return ClusterState.builder(ClusterName.DEFAULT)
+            .nodes(DiscoveryNodes.builder().add(DiscoveryNodeUtils.create("n1")))
+            .metadata(builder.build())
+            .build();
+    }
 }

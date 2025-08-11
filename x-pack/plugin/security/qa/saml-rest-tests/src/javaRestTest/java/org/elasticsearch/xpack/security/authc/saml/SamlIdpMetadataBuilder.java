@@ -13,6 +13,7 @@ import org.elasticsearch.common.ssl.PemUtils;
 import org.opensaml.saml.common.xml.SAMLConstants;
 import org.opensaml.saml.saml2.metadata.EntityDescriptor;
 import org.opensaml.saml.saml2.metadata.KeyDescriptor;
+import org.opensaml.saml.saml2.metadata.SingleSignOnService;
 import org.opensaml.saml.saml2.metadata.impl.EntityDescriptorBuilder;
 import org.opensaml.saml.saml2.metadata.impl.IDPSSODescriptorBuilder;
 import org.opensaml.saml.saml2.metadata.impl.KeyDescriptorBuilder;
@@ -42,6 +43,7 @@ public class SamlIdpMetadataBuilder {
     private boolean wantSignedAuthnRequests;
     private List<X509Certificate> signingCertificates;
     private String entityId;
+    private String idpUrl;
 
     public SamlIdpMetadataBuilder() {
         try {
@@ -55,6 +57,11 @@ public class SamlIdpMetadataBuilder {
 
     public SamlIdpMetadataBuilder entityId(String entityId) {
         this.entityId = entityId;
+        return this;
+    }
+
+    public SamlIdpMetadataBuilder idpUrl(String idpUrl) {
+        this.idpUrl = idpUrl;
         return this;
     }
 
@@ -91,6 +98,13 @@ public class SamlIdpMetadataBuilder {
         roleDescriptor.removeAllSupportedProtocols();
         roleDescriptor.addSupportedProtocol(SAMLConstants.SAML20P_NS);
         roleDescriptor.setWantAuthnRequestsSigned(wantSignedAuthnRequests);
+
+        if (idpUrl != null) {
+            final SingleSignOnService sso = SamlUtils.buildObject(SingleSignOnService.class, SingleSignOnService.DEFAULT_ELEMENT_NAME);
+            sso.setLocation(idpUrl);
+            sso.setBinding(SAMLConstants.SAML2_REDIRECT_BINDING_URI);
+            roleDescriptor.getSingleSignOnServices().add(sso);
+        }
 
         for (X509Certificate k : this.signingCertificates) {
             final KeyDescriptor keyDescriptor = new KeyDescriptorBuilder().buildObject();

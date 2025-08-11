@@ -112,7 +112,14 @@ POST _tasks/<task_id>/_cancel
 [[hybrid-search-perform-search]]
 ==== Perform hybrid search
 
-After reindexing the data into the `semantic-embeddings` index, you can perform hybrid search by using <<rrf,reciprocal rank fusion (RRF)>>. RRF is a technique that merges the rankings from both semantic and lexical queries, giving more weight to results that rank high in either search. This ensures that the final results are balanced and relevant.
+After reindexing the data into the `semantic-embeddings` index, you can perform hybrid search. You can use retrievers syntax or {esql} syntax to perform the search.
+
+[discrete]
+[[hybrid-search-retrievers-syntax]]
+===== Retrievers syntax
+
+This approach uses the <<rrf,reciprocal rank fusion (RRF)>> algorithm. RRF is a technique that merges the rankings from both semantic and lexical queries, giving more weight to results that rank high in either search. This ensures that the final results are balanced and relevant.
+
 To extract the most relevant fragments from the original text and query, you can use the <<highlighting,highlight parameter>>:
 
 [source,console]
@@ -201,3 +208,32 @@ After performing the hybrid search, the query will return the top 10 documents t
 }
 ------------------------------------------------------------
 // NOTCONSOLE
+
+[discrete]
+[[hybrid-search-esql-syntax]]
+===== {esql} syntax
+
+The <<esql,{esql}>> approach uses a combination of the match operator `:` and the match function `match()` to perform hybrid search.
+
+[source,console]
+----
+POST /_query?format=txt
+{
+  "query": """
+    FROM semantic-embeddings METADATA _score <1>
+    | WHERE content: "muscle soreness running?" OR match(semantic_text, "How to avoid muscle soreness while running?", { "boost": 0.75 }) <2> <3>
+    | SORT _score DESC <4>
+    | LIMIT 1000
+  """
+}
+----
+// TEST[skip:uses ML]
+<1> The `METADATA _score` clause is used to return the score of each document
+<2> The <<esql-search-operators,match (`:`) operator>> is used on the `content` field for standard keyword matching
+<3> Semantic search using the `match()` function on the `semantic_text` field with a boost of `0.75`
+<4> Sorts by descending score and limits to 1000 results
+
+[TIP]
+====
+Refer to <<esql-for-search, Using {esql} for search>> for more information on using the {esql} language for search use cases.
+====

@@ -2,38 +2,26 @@
 [[esql-lookup-join]]
 === `LOOKUP JOIN`
 
-[WARNING]
-==== 
-This functionality is in technical preview and may be
-changed or removed in a future release. Elastic will work to fix any
-issues, but features in technical preview are not subject to the support
-SLA of official GA features.
-====
 `LOOKUP JOIN` enables you to add data from another index, AKA a 'lookup'
 index, to your {esql} query results, simplifying data enrichment
 and analysis workflows.
 
-*Syntax*
+See <<esql-lookup-join-landing-page,the high-level landing page>> for an overview of the `LOOKUP JOIN` command, including use cases, prerequisites, and current limitations.
 
-....
-FROM <source_index>
-| LOOKUP JOIN <lookup_index> ON <field_name>
-....
+*Syntax*
 
 [source,esql]
 ----
-FROM firewall_logs
-| LOOKUP JOIN threat_list ON source.IP
-| WHERE threat_level IS NOT NULL
+FROM <source_index>
+| LOOKUP JOIN <lookup_index> ON <field_name>
 ----
 
 *Parameters*
 
 `lookup_index`::
-The name of the lookup index. This must be a specific index name - wildcards, aliases, and remote cluster
-references are not supported.
+The name of the lookup index. This must be a specific index name - wildcards, aliases, and remote cluster references are not supported. Indices used for lookups must be configured with the `lookup` <<index-mode-setting,index mode setting>>.
 
-`field_name`:: 
+`field_name`::
 The field to join on. This field must exist
 in both your current query results and in the lookup index. If the field
 contains multi-valued entries, those entries will not match anything
@@ -52,12 +40,12 @@ added as new columns to that row.
 If multiple documents in the lookup index match a single row in your
 results, the output will contain one row for each matching combination.
 
-*Examples*
-
 [TIP]
 ====
-In case of name collisions, the newly created columns will override existing columns.
+For important information about using `LOOKUP JOIN`, refer to <<esql-lookup-join-usage-notes,Usage notes>>.
 ====
+
+*Examples*
 
 *IP Threat correlation*: This query would allow you to see if any source
 IPs match known malicious addresses.
@@ -66,6 +54,15 @@ IPs match known malicious addresses.
 ----
 FROM firewall_logs
 | LOOKUP JOIN threat_list ON source.IP
+----
+
+To filter only for those rows that have a matching `threat_list` entry, use `WHERE ... IS NOT NULL` with a field from the lookup index:
+
+[source,esql]
+----
+FROM firewall_logs
+| LOOKUP JOIN threat_list ON source.IP
+| WHERE threat_level IS NOT NULL
 ----
 
 *Host metadata correlation*: This query pulls in environment or
@@ -107,5 +104,5 @@ FROM Left
 ----
 FROM Left
 | LOOKUP JOIN Right ON Key
-| WHERE Language IS NOT NULL 
+| WHERE Language IS NOT NULL
 ----

@@ -23,7 +23,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.tasks.TaskManager;
-import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.junit.annotations.TestLogging;
@@ -235,8 +234,7 @@ public class PeerFinderTests extends ESTestCase {
             boundTransportAddress -> localNode,
             null,
             connectionManager,
-            new TaskManager(settings, threadPool, emptySet()),
-            Tracer.NOOP
+            new TaskManager(settings, threadPool, emptySet())
         );
 
         transportService.start();

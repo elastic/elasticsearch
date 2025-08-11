@@ -10,6 +10,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -39,7 +40,7 @@ public class MapExpression extends Expression {
 
     private final Map<Expression, Expression> map;
 
-    private final Map<Object, Expression> keyFoldedMap;
+    private final Map<String, Expression> keyFoldedMap;
 
     public MapExpression(Source source, List<Expression> entries) {
         super(source, entries);
@@ -54,7 +55,7 @@ public class MapExpression extends Expression {
             entryExpressions.add(new EntryExpression(key.source(), key, value));
             map.put(key, value);
             if (key instanceof Literal l) {
-                this.keyFoldedMap.put(l.value(), value);
+                this.keyFoldedMap.put(BytesRefs.toString(l.value()), value);
             }
         }
     }
@@ -95,7 +96,7 @@ public class MapExpression extends Expression {
         return map;
     }
 
-    public Map<Object, Expression> keyFoldedMap() {
+    public Map<String, Expression> keyFoldedMap() {
         return keyFoldedMap;
     }
 

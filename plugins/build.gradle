@@ -7,10 +7,6 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-subprojects {
-  apply plugin: 'elasticsearch.internal-testclusters'
-}
-
 configurations {
   allPlugins
 }

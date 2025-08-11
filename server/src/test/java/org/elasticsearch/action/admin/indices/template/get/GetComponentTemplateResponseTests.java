@@ -66,7 +66,7 @@ public class GetComponentTemplateResponseTests extends AbstractWireSerializingTe
         Settings settings = null;
         CompressedXContent mappings = null;
         Map<String, AliasMetadata> aliases = null;
-        DataStreamLifecycle.Template lifecycle = DataStreamLifecycle.Template.DEFAULT;
+        DataStreamLifecycle.Template lifecycle = DataStreamLifecycle.Template.DATA_DEFAULT;
         ResettableValue<DataStreamOptions.Template> dataStreamOptions = ResettableValue.undefined();
         if (randomBoolean()) {
             settings = randomSettings();

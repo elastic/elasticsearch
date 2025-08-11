@@ -24,6 +24,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
@@ -49,11 +50,13 @@ public class TextSimilarityRankRetrieverBuilder extends CompoundRetrieverBuilder
         "text_similarity_reranker_alias_handling_fix",
         true
     );
+    public static final NodeFeature TEXT_SIMILARITY_RERANKER_MINSCORE_FIX = new NodeFeature("text_similarity_reranker_minscore_fix");
 
     public static final ParseField RETRIEVER_FIELD = new ParseField("retriever");
     public static final ParseField INFERENCE_ID_FIELD = new ParseField("inference_id");
     public static final ParseField INFERENCE_TEXT_FIELD = new ParseField("inference_text");
     public static final ParseField FIELD_FIELD = new ParseField("field");
+    public static final ParseField FAILURES_ALLOWED_FIELD = new ParseField("allow_rerank_failures");
 
     public static final ConstructingObjectParser<TextSimilarityRankRetrieverBuilder, RetrieverParserContext> PARSER =
         new ConstructingObjectParser<>(TextSimilarityRankBuilder.NAME, args -> {
@@ -62,8 +65,16 @@ public class TextSimilarityRankRetrieverBuilder extends CompoundRetrieverBuilder
             String inferenceText = (String) args[2];
             String field = (String) args[3];
             int rankWindowSize = args[4] == null ? DEFAULT_RANK_WINDOW_SIZE : (int) args[4];
+            boolean failuresAllowed = args[5] != null && (Boolean) args[5];
 
-            return new TextSimilarityRankRetrieverBuilder(retrieverBuilder, inferenceId, inferenceText, field, rankWindowSize);
+            return new TextSimilarityRankRetrieverBuilder(
+                retrieverBuilder,
+                inferenceId,
+                inferenceText,
+                field,
+                rankWindowSize,
+                failuresAllowed
+            );
         });
 
     static {
@@ -76,6 +87,7 @@ public class TextSimilarityRankRetrieverBuilder extends CompoundRetrieverBuilder
         PARSER.declareString(constructorArg(), INFERENCE_TEXT_FIELD);
         PARSER.declareString(constructorArg(), FIELD_FIELD);
         PARSER.declareInt(optionalConstructorArg(), RANK_WINDOW_SIZE_FIELD);
+        PARSER.declareBoolean(optionalConstructorArg(), FAILURES_ALLOWED_FIELD);
 
         RetrieverBuilder.declareBaseParserFields(TextSimilarityRankBuilder.NAME, PARSER);
     }
@@ -102,18 +114,21 @@ public class TextSimilarityRankRetrieverBuilder extends CompoundRetrieverBuilder
     private final String inferenceId;
     private final String inferenceText;
     private final String field;
+    private final boolean failuresAllowed;
 
     public TextSimilarityRankRetrieverBuilder(
         RetrieverBuilder retrieverBuilder,
         String inferenceId,
         String inferenceText,
         String field,
-        int rankWindowSize
+        int rankWindowSize,
+        boolean failuresAllowed
     ) {
-        super(List.of(new RetrieverSource(retrieverBuilder, null)), rankWindowSize);
+        super(List.of(RetrieverSource.from(retrieverBuilder)), rankWindowSize);
         this.inferenceId = inferenceId;
         this.inferenceText = inferenceText;
         this.field = field;
+        this.failuresAllowed = failuresAllowed;
     }
 
     public TextSimilarityRankRetrieverBuilder(
@@ -123,6 +138,7 @@ public class TextSimilarityRankRetrieverBuilder extends CompoundRetrieverBuilder
         String field,
         int rankWindowSize,
         Float minScore,
+        boolean failuresAllowed,
         String retrieverName,
         List<QueryBuilder> preFilterQueryBuilders
     ) {
@@ -134,6 +150,7 @@ public class TextSimilarityRankRetrieverBuilder extends CompoundRetrieverBuilder
         this.inferenceText = inferenceText;
         this.field = field;
         this.minScore = minScore;
+        this.failuresAllowed = failuresAllowed;
         this.retrieverName = retrieverName;
         this.preFilterQueryBuilders = preFilterQueryBuilders;
     }
@@ -150,6 +167,7 @@ public class TextSimilarityRankRetrieverBuilder extends CompoundRetrieverBuilder
             field,
             rankWindowSize,
             minScore,
+            failuresAllowed,
             retrieverName,
             newPreFilterQueryBuilders
         );
@@ -159,29 +177,27 @@ public class TextSimilarityRankRetrieverBuilder extends CompoundRetrieverBuilder
     protected RankDoc[] combineInnerRetrieverResults(List<ScoreDoc[]> rankResults, boolean explain) {
         assert rankResults.size() == 1;
         ScoreDoc[] scoreDocs = rankResults.get(0);
-        TextSimilarityRankDoc[] textSimilarityRankDocs = new TextSimilarityRankDoc[scoreDocs.length];
+        List<TextSimilarityRankDoc> filteredDocs = new ArrayList<>();
+        // Filtering by min_score must be done here, after reranking.
+        // Applying min_score in the child retriever could prematurely exclude documents that would receive high scores from the reranker.
         for (int i = 0; i < scoreDocs.length; i++) {
             ScoreDoc scoreDoc = scoreDocs[i];
             assert scoreDoc.score >= 0;
-            if (explain) {
-                textSimilarityRankDocs[i] = new TextSimilarityRankDoc(
-                    scoreDoc.doc,
-                    scoreDoc.score,
-                    scoreDoc.shardIndex,
-                    inferenceId,
-                    field
-                );
-            } else {
-                textSimilarityRankDocs[i] = new TextSimilarityRankDoc(scoreDoc.doc, scoreDoc.score, scoreDoc.shardIndex);
+            if (minScore == null || scoreDoc.score >= minScore) {
+                if (explain) {
+                    filteredDocs.add(new TextSimilarityRankDoc(scoreDoc.doc, scoreDoc.score, scoreDoc.shardIndex, inferenceId, field));
+                } else {
+                    filteredDocs.add(new TextSimilarityRankDoc(scoreDoc.doc, scoreDoc.score, scoreDoc.shardIndex));
+                }
             }
         }
-        return textSimilarityRankDocs;
+        return filteredDocs.toArray(new TextSimilarityRankDoc[0]);
     }
 
     @Override
     protected SearchSourceBuilder finalizeSourceBuilder(SearchSourceBuilder sourceBuilder) {
         sourceBuilder.rankBuilder(
-            new TextSimilarityRankBuilder(this.field, this.inferenceId, this.inferenceText, this.rankWindowSize, this.minScore)
+            new TextSimilarityRankBuilder(field, inferenceId, inferenceText, rankWindowSize, minScore, failuresAllowed)
         );
         return sourceBuilder;
     }
@@ -195,8 +211,8 @@ public class TextSimilarityRankRetrieverBuilder extends CompoundRetrieverBuilder
         return inferenceId;
     }
 
-    public int rankWindowSize() {
-        return rankWindowSize;
+    public boolean failuresAllowed() {
+        return failuresAllowed;
     }
 
     @Override
@@ -206,6 +222,9 @@ public class TextSimilarityRankRetrieverBuilder extends CompoundRetrieverBuilder
         builder.field(INFERENCE_TEXT_FIELD.getPreferredName(), inferenceText);
         builder.field(FIELD_FIELD.getPreferredName(), field);
         builder.field(RANK_WINDOW_SIZE_FIELD.getPreferredName(), rankWindowSize);
+        if (failuresAllowed) {
+            builder.field(FAILURES_ALLOWED_FIELD.getPreferredName(), failuresAllowed);
+        }
     }
 
     @Override
@@ -215,12 +234,13 @@ public class TextSimilarityRankRetrieverBuilder extends CompoundRetrieverBuilder
             && Objects.equals(inferenceId, that.inferenceId)
             && Objects.equals(inferenceText, that.inferenceText)
             && Objects.equals(field, that.field)
-            && Objects.equals(rankWindowSize, that.rankWindowSize)
-            && Objects.equals(minScore, that.minScore);
+            && rankWindowSize == that.rankWindowSize
+            && Objects.equals(minScore, that.minScore)
+            && failuresAllowed == that.failuresAllowed;
     }
 
     @Override
     public int doHashCode() {
-        return Objects.hash(inferenceId, inferenceText, field, rankWindowSize, minScore);
+        return Objects.hash(inferenceId, inferenceText, field, rankWindowSize, minScore, failuresAllowed);
     }
 }

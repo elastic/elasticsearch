@@ -52,9 +52,13 @@ processingCommand
     | enrichCommand
     | mvExpandCommand
     | joinCommand
+    | changePointCommand
+    | completionCommand
+    | sampleCommand
     // in development
     | {this.isDevVersion()}? inlinestatsCommand
     | {this.isDevVersion()}? lookupCommand
+    | {this.isDevVersion()}? rerankCommand
     ;
 
 whereCommand
@@ -73,8 +77,9 @@ booleanExpression
     ;
 
 regexBooleanExpression
-    : valueExpression (NOT)? kind=LIKE pattern=string
-    | valueExpression (NOT)? kind=RLIKE pattern=string
+    : valueExpression (NOT)? LIKE string                               #likeExpression
+    | valueExpression (NOT)? RLIKE string                              #rlikeExpression
+    | valueExpression (NOT)? LIKE LP string  (COMMA string )* RP       #likeListExpression
     ;
 
 matchBooleanExpression
@@ -133,17 +138,34 @@ field
     : (qualifiedName ASSIGN)? booleanExpression
     ;
 
+rerankFields
+    : rerankField (COMMA rerankField)*
+    ;
+
+rerankField
+    : qualifiedName (ASSIGN booleanExpression)?
+    ;
+
 fromCommand
     : FROM indexPattern (COMMA indexPattern)* metadata?
     ;
 
 indexPattern
-    : (clusterString COLON)? indexString
+    : clusterString COLON unquotedIndexString
+    | unquotedIndexString CAST_OP selectorString
+    | indexString
     ;
 
 clusterString
     : UNQUOTED_SOURCE
-    | QUOTED_STRING
+    ;
+
+selectorString
+    : UNQUOTED_SOURCE
+    ;
+
+unquotedIndexString
+    : UNQUOTED_SOURCE
     ;
 
 indexString
@@ -204,7 +226,7 @@ identifier
 identifierPattern
     : ID_PATTERN
     | parameter
-    | {this.isDevVersion()}? doubleParameter
+    | doubleParameter
     ;
 
 constant
@@ -233,11 +255,11 @@ doubleParameter
 identifierOrParameter
     : identifier
     | parameter
-    | {this.isDevVersion()}? doubleParameter
+    | doubleParameter
     ;
 
 limitCommand
-    : LIMIT INTEGER_LITERAL
+    : LIMIT constant
     ;
 
 sortCommand
@@ -262,6 +284,7 @@ renameCommand
 
 renameClause:
     oldName=qualifiedNamePattern AS newName=qualifiedNamePattern
+    | newName=qualifiedNamePattern ASSIGN oldName=qualifiedNamePattern
     ;
 
 dissectCommand
@@ -322,11 +345,24 @@ showCommand
     ;
 
 enrichCommand
-    : ENRICH policyName=ENRICH_POLICY_NAME (ON matchField=qualifiedNamePattern)? (WITH enrichWithClause (COMMA enrichWithClause)*)?
+    : ENRICH policyName=enrichPolicyName (ON matchField=qualifiedNamePattern)? (WITH enrichWithClause (COMMA enrichWithClause)*)?
+    ;
+
+enrichPolicyName
+    : ENRICH_POLICY_NAME
+    | QUOTED_STRING
     ;
 
 enrichWithClause
     : (newName=qualifiedNamePattern ASSIGN)? enrichField=qualifiedNamePattern
+    ;
+
+changePointCommand
+    : CHANGE_POINT value=qualifiedName (ON key=qualifiedName)? (AS targetType=qualifiedName COMMA targetPvalue=qualifiedName)?
+    ;
+
+sampleCommand
+    : SAMPLE probability=constant
     ;
 
 //
@@ -354,4 +390,25 @@ joinCondition
 
 joinPredicate
     : valueExpression
+    ;
+
+inferenceCommandOptions
+    : inferenceCommandOption (COMMA inferenceCommandOption)*
+    ;
+
+inferenceCommandOption
+    : identifier ASSIGN inferenceCommandOptionValue
+    ;
+
+inferenceCommandOptionValue
+    : constant
+    | identifier
+    ;
+
+rerankCommand
+    : DEV_RERANK queryText=constant ON rerankFields (WITH inferenceCommandOptions)?
+    ;
+
+completionCommand
+    : COMPLETION (targetField=qualifiedName ASSIGN)? prompt=primaryExpression WITH inferenceId=identifierOrParameter
     ;

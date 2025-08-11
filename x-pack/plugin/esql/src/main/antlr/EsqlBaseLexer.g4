@@ -57,6 +57,7 @@ options {
  * they have on the UI (auto-completion, etc...)
  */
 
+COMPLETION : 'completion'     -> pushMode(EXPRESSION_MODE);
 DISSECT : 'dissect'           -> pushMode(EXPRESSION_MODE);
 DROP : 'drop'                 -> pushMode(PROJECT_MODE);
 ENRICH : 'enrich'             -> pushMode(ENRICH_MODE);
@@ -69,11 +70,13 @@ LIMIT : 'limit'               -> pushMode(EXPRESSION_MODE);
 MV_EXPAND : 'mv_expand'       -> pushMode(MVEXPAND_MODE);
 RENAME : 'rename'             -> pushMode(RENAME_MODE);
 ROW : 'row'                   -> pushMode(EXPRESSION_MODE);
+SAMPLE : 'sample'             -> pushMode(EXPRESSION_MODE);
 SHOW : 'show'                 -> pushMode(SHOW_MODE);
 SORT : 'sort'                 -> pushMode(EXPRESSION_MODE);
 STATS : 'stats'               -> pushMode(EXPRESSION_MODE);
 WHERE : 'where'               -> pushMode(EXPRESSION_MODE);
 JOIN_LOOKUP : 'lookup'        -> pushMode(JOIN_MODE);
+CHANGE_POINT : 'change_point' -> pushMode(CHANGE_POINT_MODE);
 //
 // in development
 //
@@ -85,13 +88,15 @@ JOIN_LOOKUP : 'lookup'        -> pushMode(JOIN_MODE);
 // Once the command has been stabilized, remove the DEV_ prefix and the {}? conditional and move the command to the
 // main section while preserving alphabetical order:
 // MYCOMMAND : 'mycommand' -> ...
-DEV_INLINESTATS : {this.isDevVersion()}? 'inlinestats'   -> pushMode(EXPRESSION_MODE);
-DEV_LOOKUP :      {this.isDevVersion()}? 'lookup_🐔'      -> pushMode(LOOKUP_MODE);
-DEV_METRICS :     {this.isDevVersion()}? 'metrics'       -> pushMode(METRICS_MODE);
+DEV_INLINESTATS :  {this.isDevVersion()}? 'inlinestats'   -> pushMode(EXPRESSION_MODE);
+DEV_LOOKUP :       {this.isDevVersion()}? 'lookup_🐔'     -> pushMode(LOOKUP_MODE);
+DEV_METRICS :      {this.isDevVersion()}? 'metrics'       -> pushMode(METRICS_MODE);
+DEV_RERANK :       {this.isDevVersion()}? 'rerank'        -> pushMode(EXPRESSION_MODE);
+
 // list of all JOIN commands
-DEV_JOIN_FULL :   {this.isDevVersion()}? 'full'          -> pushMode(JOIN_MODE);
-DEV_JOIN_LEFT :   {this.isDevVersion()}? 'left'          -> pushMode(JOIN_MODE);
-DEV_JOIN_RIGHT :  {this.isDevVersion()}? 'right'         -> pushMode(JOIN_MODE);
+DEV_JOIN_FULL :    {this.isDevVersion()}? 'full'          -> pushMode(JOIN_MODE);
+DEV_JOIN_LEFT :    {this.isDevVersion()}? 'left'          -> pushMode(JOIN_MODE);
+DEV_JOIN_RIGHT :   {this.isDevVersion()}? 'right'         -> pushMode(JOIN_MODE);
 
 
 //
@@ -175,11 +180,11 @@ DECIMAL_LITERAL
     | DOT DIGIT+ EXPONENT
     ;
 
-BY : 'by';
 
 AND : 'and';
 ASC : 'asc';
 ASSIGN : '=';
+BY : 'by';
 CAST_OP : '::';
 COLON : ':';
 COMMA : ',';
@@ -195,11 +200,13 @@ LP : '(';
 NOT : 'not';
 NULL : 'null';
 NULLS : 'nulls';
+ON: 'on';
 OR : 'or';
 PARAM: '?';
 RLIKE: 'rlike';
 RP : ')';
 TRUE : 'true';
+WITH: 'with';
 
 EQ  : '==';
 CIEQ  : '=~';
@@ -218,7 +225,7 @@ PERCENT : '%';
 LEFT_BRACES : '{';
 RIGHT_BRACES : '}';
 
-DOUBLE_PARAMS: {this.isDevVersion()}? '??';
+DOUBLE_PARAMS: '??';
 
 NESTED_WHERE : WHERE -> type(WHERE);
 
@@ -285,6 +292,7 @@ FROM_PIPE : PIPE -> type(PIPE), popMode;
 FROM_OPENING_BRACKET : OPENING_BRACKET -> type(OPENING_BRACKET);
 FROM_CLOSING_BRACKET : CLOSING_BRACKET -> type(CLOSING_BRACKET);
 FROM_COLON : COLON -> type(COLON);
+FROM_SELECTOR : CAST_OP -> type(CAST_OP);
 FROM_COMMA : COMMA -> type(COMMA);
 FROM_ASSIGN : ASSIGN -> type(ASSIGN);
 METADATA : 'metadata';
@@ -292,7 +300,7 @@ METADATA : 'metadata';
 // in 8.14 ` were not allowed
 // this has been relaxed in 8.15 since " is used for quoting
 fragment UNQUOTED_SOURCE_PART
-    : ~[:"=|,[\]/ \t\r\n]
+    : ~[:"=|,[\]/() \t\r\n]
     | '/' ~[*/] // allow single / but not followed by another / or * which would start a comment -- used in index pattern date spec
     ;
 
@@ -323,8 +331,8 @@ PROJECT_DOT: DOT -> type(DOT);
 PROJECT_COMMA : COMMA -> type(COMMA);
 PROJECT_PARAM : PARAM -> type(PARAM);
 PROJECT_NAMED_OR_POSITIONAL_PARAM : NAMED_OR_POSITIONAL_PARAM -> type(NAMED_OR_POSITIONAL_PARAM);
-PROJECT_DOUBLE_PARAMS : {this.isDevVersion()}? DOUBLE_PARAMS -> type(DOUBLE_PARAMS);
-PROJECT_NAMED_OR_POSITIONAL_DOUBLE_PARAMS : {this.isDevVersion()}? NAMED_OR_POSITIONAL_DOUBLE_PARAMS -> type(NAMED_OR_POSITIONAL_DOUBLE_PARAMS);
+PROJECT_DOUBLE_PARAMS : DOUBLE_PARAMS -> type(DOUBLE_PARAMS);
+PROJECT_NAMED_OR_POSITIONAL_DOUBLE_PARAMS : NAMED_OR_POSITIONAL_DOUBLE_PARAMS -> type(NAMED_OR_POSITIONAL_DOUBLE_PARAMS);
 
 fragment UNQUOTED_ID_BODY_WITH_PATTERN
     : (LETTER | DIGIT | UNDERSCORE | ASTERISK)
@@ -360,10 +368,10 @@ RENAME_COMMA : COMMA -> type(COMMA);
 RENAME_DOT: DOT -> type(DOT);
 RENAME_PARAM : PARAM -> type(PARAM);
 RENAME_NAMED_OR_POSITIONAL_PARAM : NAMED_OR_POSITIONAL_PARAM -> type(NAMED_OR_POSITIONAL_PARAM);
-RENAME_DOUBLE_PARAMS : {this.isDevVersion()}? DOUBLE_PARAMS -> type(DOUBLE_PARAMS);
-RENAME_NAMED_OR_POSITIONAL_DOUBLE_PARAMS : {this.isDevVersion()}? NAMED_OR_POSITIONAL_DOUBLE_PARAMS -> type(NAMED_OR_POSITIONAL_DOUBLE_PARAMS);
+RENAME_DOUBLE_PARAMS : DOUBLE_PARAMS -> type(DOUBLE_PARAMS);
+RENAME_NAMED_OR_POSITIONAL_DOUBLE_PARAMS : NAMED_OR_POSITIONAL_DOUBLE_PARAMS -> type(NAMED_OR_POSITIONAL_DOUBLE_PARAMS);
 
-AS : 'as';
+AS: 'as';
 
 RENAME_ID_PATTERN
     : ID_PATTERN -> type(ID_PATTERN)
@@ -386,13 +394,13 @@ mode ENRICH_MODE;
 ENRICH_PIPE : PIPE -> type(PIPE), popMode;
 ENRICH_OPENING_BRACKET : OPENING_BRACKET -> type(OPENING_BRACKET), pushMode(SETTING_MODE);
 
-ON : 'on'     -> pushMode(ENRICH_FIELD_MODE);
-WITH : 'with' -> pushMode(ENRICH_FIELD_MODE);
+ENRICH_ON : ON -> type(ON), pushMode(ENRICH_FIELD_MODE);
+ENRICH_WITH : WITH -> type(WITH), pushMode(ENRICH_FIELD_MODE);
 
 // similar to that of an index
 // see https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-create-index.html#indices-create-api-path-params
 fragment ENRICH_POLICY_NAME_BODY
-    : ~[\\/?"<>| ,#\t\r\n:]
+    : ~[\\/?"<>| ,#\t\r\n:()]
     ;
 
 ENRICH_POLICY_NAME
@@ -403,6 +411,8 @@ ENRICH_POLICY_NAME
 ENRICH_MODE_UNQUOTED_VALUE
     : ENRICH_POLICY_NAME -> type(ENRICH_POLICY_NAME)
     ;
+
+ENRICH_QUOTED_POLICY_NAME : QUOTED_STRING -> type(QUOTED_STRING);
 
 ENRICH_LINE_COMMENT
     : LINE_COMMENT -> channel(HIDDEN)
@@ -435,8 +445,8 @@ ENRICH_FIELD_QUOTED_IDENTIFIER
 
 ENRICH_FIELD_PARAM : PARAM -> type(PARAM);
 ENRICH_FIELD_NAMED_OR_POSITIONAL_PARAM : NAMED_OR_POSITIONAL_PARAM -> type(NAMED_OR_POSITIONAL_PARAM);
-ENRICH_FIELD_DOUBLE_PARAMS : {this.isDevVersion()}? DOUBLE_PARAMS -> type(DOUBLE_PARAMS);
-ENRICH_FIELD_NAMED_OR_POSITIONAL_DOUBLE_PARAMS : {this.isDevVersion()}? NAMED_OR_POSITIONAL_DOUBLE_PARAMS -> type(NAMED_OR_POSITIONAL_DOUBLE_PARAMS);
+ENRICH_FIELD_DOUBLE_PARAMS : DOUBLE_PARAMS -> type(DOUBLE_PARAMS);
+ENRICH_FIELD_NAMED_OR_POSITIONAL_DOUBLE_PARAMS : NAMED_OR_POSITIONAL_DOUBLE_PARAMS -> type(NAMED_OR_POSITIONAL_DOUBLE_PARAMS);
 
 ENRICH_FIELD_LINE_COMMENT
     : LINE_COMMENT -> channel(HIDDEN)
@@ -455,8 +465,8 @@ MVEXPAND_PIPE : PIPE -> type(PIPE), popMode;
 MVEXPAND_DOT: DOT -> type(DOT);
 MVEXPAND_PARAM : PARAM -> type(PARAM);
 MVEXPAND_NAMED_OR_POSITIONAL_PARAM : NAMED_OR_POSITIONAL_PARAM -> type(NAMED_OR_POSITIONAL_PARAM);
-MVEXPAND_DOUBLE_PARAMS : {this.isDevVersion()}? DOUBLE_PARAMS -> type(DOUBLE_PARAMS);
-MVEXPAND_NAMED_OR_POSITIONAL_DOUBLE_PARAMS : {this.isDevVersion()}? NAMED_OR_POSITIONAL_DOUBLE_PARAMS -> type(NAMED_OR_POSITIONAL_DOUBLE_PARAMS);
+MVEXPAND_DOUBLE_PARAMS : DOUBLE_PARAMS -> type(DOUBLE_PARAMS);
+MVEXPAND_NAMED_OR_POSITIONAL_DOUBLE_PARAMS : NAMED_OR_POSITIONAL_DOUBLE_PARAMS -> type(NAMED_OR_POSITIONAL_DOUBLE_PARAMS);
 
 MVEXPAND_QUOTED_IDENTIFIER
     : QUOTED_IDENTIFIER -> type(QUOTED_IDENTIFIER)
@@ -622,6 +632,10 @@ CLOSING_METRICS_COLON
     : COLON -> type(COLON), popMode, pushMode(METRICS_MODE)
     ;
 
+CLOSING_METRICS_SELECTOR
+    : CAST_OP -> type(CAST_OP), popMode, pushMode(METRICS_MODE)
+    ;
+
 CLOSING_METRICS_COMMA
     : COMMA -> type(COMMA), popMode, pushMode(METRICS_MODE)
     ;
@@ -653,3 +667,19 @@ CLOSING_METRICS_BY
 CLOSING_METRICS_PIPE
     : PIPE -> type(PIPE), popMode
     ;
+
+///
+/// CHANGE_POINT command
+///
+mode CHANGE_POINT_MODE;
+
+CHANGE_POINT_PIPE : PIPE -> type(PIPE), popMode;
+CHANGE_POINT_ON : ON -> type(ON);
+CHANGE_POINT_AS : AS -> type(AS);
+CHANGE_POINT_DOT: DOT -> type(DOT);
+CHANGE_POINT_COMMA: COMMA -> type(COMMA);
+CHANGE_POINT_QUOTED_IDENTIFIER: QUOTED_IDENTIFIER -> type(QUOTED_IDENTIFIER);
+CHANGE_POINT_UNQUOTED_IDENTIFIER: UNQUOTED_IDENTIFIER -> type(UNQUOTED_IDENTIFIER);
+CHANGE_POINT_LINE_COMMENT: LINE_COMMENT -> channel(HIDDEN);
+CHANGE_POINT_MULTILINE_COMMENT: MULTILINE_COMMENT -> channel(HIDDEN);
+CHANGE_POINT_WS: WS -> channel(HIDDEN);

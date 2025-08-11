@@ -13,6 +13,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.core.LoggerContext;
 import org.apache.logging.log4j.core.config.Configurator;
+import org.apache.lucene.util.Constants;
 import org.apache.lucene.util.StringHelper;
 import org.apache.lucene.util.VectorUtil;
 import org.elasticsearch.Build;
@@ -40,7 +41,6 @@ import org.elasticsearch.entitlement.runtime.policy.entitlements.LoadNativeLibra
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.jdk.JarHell;
-import org.elasticsearch.jdk.RuntimeVersionFeature;
 import org.elasticsearch.monitor.jvm.HotThreads;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.monitor.os.OsProbe;
@@ -50,20 +50,23 @@ import org.elasticsearch.node.Node;
 import org.elasticsearch.node.NodeValidationException;
 import org.elasticsearch.plugins.PluginBundle;
 import org.elasticsearch.plugins.PluginsLoader;
+import org.elasticsearch.rest.MethodHandlers;
+import org.elasticsearch.transport.RequestHandlerRegistry;
 
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.PrintStream;
 import java.lang.invoke.MethodHandles;
+import java.lang.management.ManagementFactory;
 import java.lang.reflect.InvocationTargetException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.security.Permission;
 import java.security.Security;
-import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -72,7 +75,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import static org.elasticsearch.bootstrap.BootstrapSettings.SECURITY_FILTER_BAD_DEFAULTS_SETTING;
 import static org.elasticsearch.nativeaccess.WindowsFunctions.ConsoleCtrlHandler.CTRL_CLOSE_EVENT;
 
 /**
@@ -82,6 +84,7 @@ class Elasticsearch {
 
     private static final String POLICY_PATCH_PREFIX = "es.entitlements.policy.";
     private static final String SERVER_POLICY_PATCH_NAME = POLICY_PATCH_PREFIX + "server";
+    private static final String APM_AGENT_PACKAGE_NAME = "co.elastic.apm.agent";
 
     /**
      * Main entry point for starting elasticsearch.
@@ -124,23 +127,8 @@ class Elasticsearch {
         final PrintStream err = getStderr();
         final ServerArgs args;
 
-        final boolean useEntitlements = true;
         try {
             initSecurityProperties();
-
-            /*
-             * We want the JVM to think there is a security manager installed so that if internal policy decisions that would be based on
-             * the presence of a security manager or lack thereof act as if there is a security manager present (e.g., DNS cache policy).
-             * This forces such policies to take effect immediately.
-             */
-            if (useEntitlements == false && RuntimeVersionFeature.isSecurityManagerAvailable()) {
-                org.elasticsearch.bootstrap.Security.setSecurityManager(new SecurityManager() {
-                    @Override
-                    public void checkPermission(Permission perm) {
-                        // grant all permissions so that we can later set the security manager to the one that we want
-                    }
-                });
-            }
             LogConfigurator.registerErrorListener();
 
             BootstrapInfo.init();
@@ -166,7 +154,7 @@ class Elasticsearch {
             return null; // unreachable, to satisfy compiler
         }
 
-        return new Bootstrap(out, err, args, useEntitlements);
+        return new Bootstrap(out, err, args);
     }
 
     /**
@@ -175,6 +163,9 @@ class Elasticsearch {
      * <p> Phase 2 consists of everything that must occur up to and including security manager initialization.
      */
     private static void initPhase2(Bootstrap bootstrap) throws IOException {
+        // always start by dumping what we know about the process to the log
+        logSystemInfo();
+
         final ServerArgs args = bootstrap.args();
         final SecureSettings secrets = args.secrets();
         bootstrap.setSecureSettings(secrets);
@@ -220,7 +211,11 @@ class Elasticsearch {
             SubscribableListener.class,
             RunOnce.class,
             // We eagerly initialize to work around log4j permissions & JDK-8309727
-            VectorUtil.class
+            VectorUtil.class,
+            // RequestHandlerRegistry and MethodHandlers classes do nontrivial static initialization which should always succeed but load
+            // it now (before SM) to be sure
+            RequestHandlerRegistry.class,
+            MethodHandlers.class
         );
 
         // load the plugin Java modules and layers now for use in entitlements
@@ -229,63 +224,86 @@ class Elasticsearch {
 
         final PluginsLoader pluginsLoader;
 
-        if (bootstrap.useEntitlements()) {
-            LogManager.getLogger(Elasticsearch.class).info("Bootstrapping Entitlements");
+        LogManager.getLogger(Elasticsearch.class).info("Bootstrapping Entitlements");
 
-            var pluginData = Stream.concat(
-                modulesBundles.stream()
-                    .map(bundle -> new PolicyUtils.PluginData(bundle.getDir(), bundle.pluginDescriptor().isModular(), false)),
-                pluginsBundles.stream()
-                    .map(bundle -> new PolicyUtils.PluginData(bundle.getDir(), bundle.pluginDescriptor().isModular(), true))
-            ).toList();
+        var pluginData = Stream.concat(
+            modulesBundles.stream()
+                .map(bundle -> new PolicyUtils.PluginData(bundle.getDir(), bundle.pluginDescriptor().isModular(), false)),
+            pluginsBundles.stream().map(bundle -> new PolicyUtils.PluginData(bundle.getDir(), bundle.pluginDescriptor().isModular(), true))
+        ).toList();
 
-            var pluginPolicyPatches = collectPluginPolicyPatches(modulesBundles, pluginsBundles, logger);
-            var pluginPolicies = PolicyUtils.createPluginPolicies(pluginData, pluginPolicyPatches, Build.current().version());
-            var serverPolicyPatch = PolicyUtils.parseEncodedPolicyIfExists(
-                System.getProperty(SERVER_POLICY_PATCH_NAME),
-                Build.current().version(),
-                false,
-                "server",
-                PolicyManager.SERVER_LAYER_MODULES.stream().map(Module::getName).collect(Collectors.toUnmodifiableSet())
-            );
+        var pluginPolicyPatches = collectPluginPolicyPatches(modulesBundles, pluginsBundles, logger);
+        var pluginPolicies = PolicyUtils.createPluginPolicies(pluginData, pluginPolicyPatches, Build.current().version());
+        var serverPolicyPatch = PolicyUtils.parseEncodedPolicyIfExists(
+            System.getProperty(SERVER_POLICY_PATCH_NAME),
+            Build.current().version(),
+            false,
+            "server",
+            PolicyManager.SERVER_LAYER_MODULES.stream().map(Module::getName).collect(Collectors.toUnmodifiableSet())
+        );
 
-            pluginsLoader = PluginsLoader.createPluginsLoader(modulesBundles, pluginsBundles, findPluginsWithNativeAccess(pluginPolicies));
+        pluginsLoader = PluginsLoader.createPluginsLoader(modulesBundles, pluginsBundles, findPluginsWithNativeAccess(pluginPolicies));
 
-            var pluginsResolver = PluginsResolver.create(pluginsLoader);
-            Map<String, Path> sourcePaths = Stream.concat(modulesBundles.stream(), pluginsBundles.stream())
-                .collect(Collectors.toUnmodifiableMap(bundle -> bundle.pluginDescriptor().getName(), PluginBundle::getDir));
-            EntitlementBootstrap.bootstrap(
-                serverPolicyPatch,
-                pluginPolicies,
-                pluginsResolver::resolveClassToPluginName,
-                nodeEnv.settings()::getValues,
-                nodeEnv.dataDirs(),
-                nodeEnv.repoDirs(),
-                nodeEnv.configDir(),
-                nodeEnv.libDir(),
-                nodeEnv.modulesDir(),
-                nodeEnv.pluginsDir(),
-                sourcePaths,
-                nodeEnv.logsDir(),
-                nodeEnv.tmpDir(),
-                args.pidFile(),
-                Set.of(EntitlementSelfTester.class)
-            );
-            EntitlementSelfTester.entitlementSelfTest();
-        } else {
-            assert RuntimeVersionFeature.isSecurityManagerAvailable();
-            // no need to explicitly enable native access for legacy code
-            pluginsLoader = PluginsLoader.createPluginsLoader(modulesBundles, pluginsBundles, Map.of());
-            // install SM after natives, shutdown hooks, etc.
-            LogManager.getLogger(Elasticsearch.class).info("Bootstrapping java SecurityManager");
-            org.elasticsearch.bootstrap.Security.configure(
-                nodeEnv,
-                SECURITY_FILTER_BAD_DEFAULTS_SETTING.get(args.nodeSettings()),
-                args.pidFile()
-            );
-        }
+        var scopeResolver = ScopeResolver.create(pluginsLoader.pluginLayers(), APM_AGENT_PACKAGE_NAME);
+        Map<String, Collection<Path>> pluginSourcePaths = Stream.concat(modulesBundles.stream(), pluginsBundles.stream())
+            .collect(Collectors.toUnmodifiableMap(bundle -> bundle.pluginDescriptor().getName(), bundle -> List.of(bundle.getDir())));
+        EntitlementBootstrap.bootstrap(
+            serverPolicyPatch,
+            pluginPolicies,
+            scopeResolver::resolveClassToScope,
+            nodeEnv.settings()::getValues,
+            nodeEnv.dataDirs(),
+            nodeEnv.sharedDataDir(),
+            nodeEnv.repoDirs(),
+            nodeEnv.configDir(),
+            nodeEnv.libDir(),
+            nodeEnv.modulesDir(),
+            nodeEnv.pluginsDir(),
+            pluginSourcePaths,
+            nodeEnv.logsDir(),
+            nodeEnv.tmpDir(),
+            args.pidFile(),
+            Set.of(EntitlementSelfTester.class.getPackage())
+        );
+        entitlementSelfTest();
 
         bootstrap.setPluginsLoader(pluginsLoader);
+    }
+
+    private static void logSystemInfo() {
+        final Logger logger = LogManager.getLogger(Elasticsearch.class);
+        logger.info(
+            "version[{}], pid[{}], build[{}/{}/{}], OS[{}/{}/{}], JVM[{}/{}/{}/{}]",
+            Build.current().qualifiedVersion(),
+            ProcessHandle.current().pid(),
+            Build.current().type().displayName(),
+            Build.current().hash(),
+            Build.current().date(),
+            Constants.OS_NAME,
+            Constants.OS_VERSION,
+            Constants.OS_ARCH,
+            Constants.JVM_VENDOR,
+            Constants.JVM_NAME,
+            System.getProperty("java.version"),
+            Runtime.version().toString()
+        );
+        boolean isBundledJdk = System.getProperty("es.java.type", "").equals("bundled JDK");
+        logger.info("JVM home [{}], using bundled JDK [{}]", System.getProperty("java.home"), isBundledJdk);
+        logger.info("JVM arguments {}", ManagementFactory.getRuntimeMXBean().getInputArguments());
+        logger.info("Default Locale [{}]", Locale.getDefault());
+        if (Build.current().isProductionRelease() == false) {
+            logger.warn(
+                "version [{}] is a pre-release version of Elasticsearch and is not suitable for production",
+                Build.current().qualifiedVersion()
+            );
+        }
+    }
+
+    /**
+     * @throws IllegalStateException if entitlements aren't functioning properly.
+     */
+    static void entitlementSelfTest() {
+        EntitlementSelfTester.entitlementSelfTest();
     }
 
     private static Map<String, String> collectPluginPolicyPatches(
@@ -388,11 +406,7 @@ class Elasticsearch {
                 final BoundTransportAddress boundTransportAddress,
                 List<BootstrapCheck> checks
             ) throws NodeValidationException {
-                var additionalChecks = new ArrayList<>(checks);
-                if (bootstrap.useEntitlements() == false) {
-                    additionalChecks.add(new BootstrapChecks.AllPermissionCheck());
-                }
-                BootstrapChecks.check(context, boundTransportAddress, additionalChecks);
+                BootstrapChecks.check(context, boundTransportAddress, checks);
             }
         };
         INSTANCE = new Elasticsearch(bootstrap.spawner(), node);
@@ -554,9 +568,6 @@ class Elasticsearch {
                 }
             }
         }
-
-        // policy file codebase declarations in security.policy rely on property expansion, see PolicyUtil.readPolicy
-        Security.setProperty("policy.expandProperties", "true");
     }
 
     private static Environment createEnvironment(Path configDir, Settings initialSettings, SecureSettings secureSettings) {

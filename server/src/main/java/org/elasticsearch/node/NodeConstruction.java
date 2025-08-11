@@ -12,9 +12,7 @@ package org.elasticsearch.node;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.util.Constants;
 import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.Build;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionModule;
@@ -229,7 +227,6 @@ import java.util.Collection;
 import java.util.IdentityHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
@@ -410,30 +407,6 @@ class NodeConstruction {
         DeprecationLogger.initialize(envSettings);
 
         JvmInfo jvmInfo = JvmInfo.jvmInfo();
-        logger.info(
-            "version[{}], pid[{}], build[{}/{}/{}], OS[{}/{}/{}], JVM[{}/{}/{}/{}]",
-            Build.current().qualifiedVersion(),
-            jvmInfo.pid(),
-            Build.current().type().displayName(),
-            Build.current().hash(),
-            Build.current().date(),
-            Constants.OS_NAME,
-            Constants.OS_VERSION,
-            Constants.OS_ARCH,
-            Constants.JVM_VENDOR,
-            Constants.JVM_NAME,
-            Constants.JAVA_VERSION,
-            Constants.JVM_VERSION
-        );
-        logger.info("JVM home [{}], using bundled JDK [{}]", System.getProperty("java.home"), jvmInfo.getUsingBundledJdk());
-        logger.info("JVM arguments {}", Arrays.toString(jvmInfo.getInputArguments()));
-        logger.info("Default Locale [{}]", Locale.getDefault());
-        if (Build.current().isProductionRelease() == false) {
-            logger.warn(
-                "version [{}] is a pre-release version of Elasticsearch and is not suitable for production",
-                Build.current().qualifiedVersion()
-            );
-        }
         if (Environment.PATH_SHARED_DATA_SETTING.exists(envSettings)) {
             // NOTE: this must be done with an explicit check here because the deprecation property on a path setting will
             // cause ES to fail to start since logging is not yet initialized on first read of the setting
@@ -696,6 +669,8 @@ class NodeConstruction {
 
         modules.bindToInstance(DocumentParsingProvider.class, documentParsingProvider);
 
+        FeatureService featureService = new FeatureService(pluginsService.loadServiceProviders(FeatureSpecification.class));
+
         FailureStoreMetrics failureStoreMetrics = new FailureStoreMetrics(telemetryProvider.getMeterRegistry());
         final IngestService ingestService = new IngestService(
             clusterService,
@@ -707,7 +682,8 @@ class NodeConstruction {
             client,
             IngestService.createGrokThreadWatchdog(environment, threadPool),
             documentParsingProvider,
-            failureStoreMetrics
+            failureStoreMetrics,
+            featureService
         );
 
         SystemIndices systemIndices = createSystemIndices(settings);
@@ -786,8 +762,6 @@ class NodeConstruction {
         modules.add(loadPersistedClusterStateService(clusterService.getClusterSettings(), threadPool, compatibilityVersions));
 
         final MetaStateService metaStateService = new MetaStateService(nodeEnvironment, xContentRegistry);
-
-        FeatureService featureService = new FeatureService(pluginsService.loadServiceProviders(FeatureSpecification.class));
 
         if (DiscoveryNode.isMasterNode(settings)) {
             clusterService.addListener(new SystemIndexMappingUpdateService(systemIndices, client));
@@ -935,6 +909,8 @@ class NodeConstruction {
             metadataCreateIndexService
         );
 
+        final IndexingPressure indexingLimits = new IndexingPressure(settings);
+
         PluginServiceInstances pluginServices = new PluginServiceInstances(
             client,
             clusterService,
@@ -956,7 +932,8 @@ class NodeConstruction {
             dataStreamGlobalRetentionSettings,
             documentParsingProvider,
             taskManager,
-            slowLogFieldProvider
+            slowLogFieldProvider,
+            indexingLimits
         );
 
         Collection<?> pluginComponents = pluginsService.flatMap(plugin -> {
@@ -989,7 +966,6 @@ class NodeConstruction {
             .map(TerminationHandlerProvider::handler);
         terminationHandler = getSinglePlugin(terminationHandlers, TerminationHandler.class).orElse(null);
 
-        final IndexingPressure indexingLimits = new IndexingPressure(settings);
         final IncrementalBulkService incrementalBulkService = new IncrementalBulkService(client, indexingLimits);
 
         ActionModule actionModule = new ActionModule(

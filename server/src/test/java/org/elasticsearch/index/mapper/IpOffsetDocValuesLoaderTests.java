@@ -35,7 +35,7 @@ public class IpOffsetDocValuesLoaderTests extends OffsetDocValuesLoaderTestCase 
     }
 
     @Override
-    protected String randomValue() {
+    protected Object randomValue() {
         return NetworkAddress.format(randomIp(true));
     }
 }

@@ -224,16 +224,12 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
             .put(indexBuilder(securityIndexName).settings(settings));
 
         // Only add the failure indices if the failure store flag is enabled
-        if (DataStream.isFailureStoreFeatureFlagEnabled()) {
-            metadataBuilder.put(dataStreamFailureStore1, true).put(dataStreamFailureStore2, true);
-        }
+        metadataBuilder.put(dataStreamFailureStore1, true).put(dataStreamFailureStore2, true);
         metadataBuilder.put(
             newInstance(
                 dataStreamName,
                 List.of(dataStreamIndex1.getIndex(), dataStreamIndex2.getIndex()),
-                DataStream.isFailureStoreFeatureFlagEnabled()
-                    ? List.of(dataStreamFailureStore1.getIndex(), dataStreamFailureStore2.getIndex())
-                    : List.of()
+                List.of(dataStreamFailureStore1.getIndex(), dataStreamFailureStore2.getIndex())
             )
         );
         if (withAlias) {
@@ -2673,6 +2669,6 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
     }
 
     private boolean runFailureStore() {
-        return DataStream.isFailureStoreFeatureFlagEnabled() && randomBoolean();
+        return randomBoolean();
     }
 }

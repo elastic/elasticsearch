@@ -15,6 +15,7 @@ import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.util.LazyInitializable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.InferenceServiceConfiguration;
@@ -30,7 +31,6 @@ import org.elasticsearch.inference.configuration.SettingsConfigurationFieldType;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.inference.chunking.ChunkingSettingsBuilder;
 import org.elasticsearch.xpack.inference.chunking.EmbeddingRequestChunker;
-import org.elasticsearch.xpack.inference.external.action.cohere.CohereActionCreator;
 import org.elasticsearch.xpack.inference.external.http.sender.EmbeddingsInput;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.InferenceInputs;
@@ -39,6 +39,7 @@ import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.SenderService;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
+import org.elasticsearch.xpack.inference.services.cohere.action.CohereActionCreator;
 import org.elasticsearch.xpack.inference.services.cohere.completion.CohereCompletionModel;
 import org.elasticsearch.xpack.inference.services.cohere.embeddings.CohereEmbeddingType;
 import org.elasticsearch.xpack.inference.services.cohere.embeddings.CohereEmbeddingsModel;
@@ -46,7 +47,6 @@ import org.elasticsearch.xpack.inference.services.cohere.embeddings.CohereEmbedd
 import org.elasticsearch.xpack.inference.services.cohere.rerank.CohereRerankModel;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
-import org.elasticsearch.xpack.inference.services.validation.ModelValidatorBuilder;
 
 import java.util.EnumSet;
 import java.util.HashMap;
@@ -166,24 +166,14 @@ public class CohereService extends SenderService {
         return switch (taskType) {
             case TEXT_EMBEDDING -> new CohereEmbeddingsModel(
                 inferenceEntityId,
-                taskType,
-                NAME,
                 serviceSettings,
                 taskSettings,
                 chunkingSettings,
                 secretSettings,
                 context
             );
-            case RERANK -> new CohereRerankModel(inferenceEntityId, taskType, NAME, serviceSettings, taskSettings, secretSettings, context);
-            case COMPLETION -> new CohereCompletionModel(
-                inferenceEntityId,
-                taskType,
-                NAME,
-                serviceSettings,
-                taskSettings,
-                secretSettings,
-                context
-            );
+            case RERANK -> new CohereRerankModel(inferenceEntityId, serviceSettings, taskSettings, secretSettings, context);
+            case COMPLETION -> new CohereCompletionModel(inferenceEntityId, serviceSettings, secretSettings, context);
             default -> throw new ElasticsearchStatusException(failureMessage, RestStatus.BAD_REQUEST);
         };
     }
@@ -298,7 +288,7 @@ public class CohereService extends SenderService {
         CohereModel cohereModel = (CohereModel) model;
         var actionCreator = new CohereActionCreator(getSender(), getServiceComponents());
 
-        List<EmbeddingRequestChunker.BatchRequestAndListener> batchedRequests = new EmbeddingRequestChunker(
+        List<EmbeddingRequestChunker.BatchRequestAndListener> batchedRequests = new EmbeddingRequestChunker<>(
             inputs.getInputs(),
             EMBEDDING_MAX_BATCH_SIZE,
             cohereModel.getConfigurations().getChunkingSettings()
@@ -306,21 +296,8 @@ public class CohereService extends SenderService {
 
         for (var request : batchedRequests) {
             var action = cohereModel.accept(actionCreator, taskSettings);
-            action.execute(new EmbeddingsInput(request.batch().inputs(), inputType), timeout, request.listener());
+            action.execute(EmbeddingsInput.fromStrings(request.batch().inputs().get(), inputType), timeout, request.listener());
         }
-    }
-
-    /**
-     * For text embedding models get the embedding size and
-     * update the service settings.
-     *
-     * @param model The new model
-     * @param listener The listener
-     */
-    @Override
-    public void checkModelConfig(Model model, ActionListener<Model> listener) {
-        // TODO: Remove this function once all services have been updated to use the new model validators
-        ModelValidatorBuilder.buildModelValidator(model.getTaskType()).validate(this, model, listener);
     }
 
     @Override
@@ -337,7 +314,8 @@ public class CohereService extends SenderService {
                     embeddingSize,
                     serviceSettings.getCommonSettings().maxInputTokens(),
                     serviceSettings.getCommonSettings().modelId(),
-                    serviceSettings.getCommonSettings().rateLimitSettings()
+                    serviceSettings.getCommonSettings().rateLimitSettings(),
+                    serviceSettings.getCommonSettings().apiVersion()
                 ),
                 serviceSettings.getEmbeddingType()
             );
@@ -349,19 +327,18 @@ public class CohereService extends SenderService {
     }
 
     /**
-     * Return the default similarity measure for the embedding type.
-     * Cohere embeddings are normalized to unit vectors therefor Dot
-     * Product similarity can be used and is the default for all Cohere
-     * models.
+     * Returns the default similarity measure for the embedding type.
+     * Cohere embeddings are expected to be normalized to unit vectors, but due to floating point precision issues,
+     * our check ({@link DenseVectorFieldMapper#isNotUnitVector(float)}) often fails.
+     * Therefore, we use cosine similarity to ensure compatibility.
      *
-     * @return The default similarity.
+     * @return The default similarity measure.
      */
     static SimilarityMeasure defaultSimilarity(CohereEmbeddingType embeddingType) {
         if (embeddingType == CohereEmbeddingType.BIT || embeddingType == CohereEmbeddingType.BINARY) {
             return SimilarityMeasure.L2_NORM;
         }
-
-        return SimilarityMeasure.DOT_PRODUCT;
+        return SimilarityMeasure.COSINE;
     }
 
     @Override

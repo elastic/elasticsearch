@@ -8,6 +8,7 @@ When something goes wrong during ingestion it is often not an isolated event. In
 When a document fails in an ingest pipeline it can be difficult to figure out exactly what went wrong and where. When these failures are captured by the failure store during this part of the ingestion process, they will contain additional debugging information. Failed documents will note the type of processor and which pipeline was executing when the failure occurred. Failed documents will also contain a pipeline trace which keeps track of any nested pipeline calls that the document was in at time of failure.
 
 To demonstrate this, we will follow a failed document through an unfamiliar data stream and ingest pipeline:
+
 [source,console]
 ----
 POST my-datastream-ingest/_doc
@@ -18,6 +19,7 @@ POST my-datastream-ingest/_doc
     }
 }
 ----
+
 [source,console-result]
 ----
 {
@@ -38,10 +40,12 @@ POST my-datastream-ingest/_doc
 <1> The document was sent to the failure store.
 
 Now we search the failure store to check the failure document to see what went wrong.
+
 [source,console]
 ----
 GET my-datastream-ingest::failures/_search
 ----
+
 [source,console-result]
 ----
 {
@@ -129,10 +133,12 @@ GET _ingest/pipeline/ingest-step-2
 <2> This field was missing from the document at this point.
 
 There is only a set processor in the `ingest-step-2` pipeline so this is likely not where the root problem is. Remembering the `pipeline_trace` field on the failure we find that `ingest-step-1` was the original pipeline called for this document. It is likely the data stream's default pipeline. Pulling its definition we find the following:
+
 [source,console]
 ----
 GET _ingest/pipeline/ingest-step-1
 ----
+
 [source,console-result]
 ----
 {
@@ -214,6 +220,7 @@ PUT _ingest/pipeline/complicated-processor
 ----
 
 We ingest some data and find that it was sent to the failure store.
+
 [source,console]
 ----
 POST my-datastream-ingest/_doc?pipeline=complicated-processor
@@ -222,6 +229,7 @@ POST my-datastream-ingest/_doc?pipeline=complicated-processor
     "counter_name": "test"
 }
 ----
+
 [source,console-result]
 ----
 {
@@ -240,10 +248,12 @@ POST my-datastream-ingest/_doc?pipeline=complicated-processor
 }
 ----
 On checking the failure, we can quickly identify the tagged processor that caused the problem.
+
 [source,console]
 ----
 GET my-datastream-ingest::failures/_search
 ----
+
 [source,console-result]
 ----
 {
@@ -357,6 +367,7 @@ Failures that occurred during ingest processing will be stored as they were befo
 
 ====== Step 1: Separate out which failures to replay
 Start off by constructing a query that can be used to consistently identify which failures will be remediated.
+
 [source,console]
 ----
 POST my-datastream-ingest-example::failures/_search
@@ -459,6 +470,7 @@ Take note of the documents that are returned. We can use these to simulate that 
 
 ====== Step 2: Fix the original problem
 Because ingest pipeline failures need to be reprocessed by their original pipelines, any problems with those pipelines should be fixed before remediating failures. Investigating the pipeline mentioned in the example above shows that there is a processor that expects a field to be present that is not always present.
+
 [source,console-result]
 ----
 {

@@ -11,7 +11,6 @@ import org.elasticsearch.Build;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.admin.indices.template.put.TransportPutComposableIndexTemplateAction;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
-import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -59,11 +58,12 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class GenerativeTSIT extends AbstractEsqlIntegTestCase {
 
+    private static final Long NUM_DOCS = 1000L;
     private static final String DATASTREAM_NAME = "tsit_ds";
     private List<XContentBuilder> documents = null;
     private DataGenerationHelper dataGenerationHelper;
 
-    static final class DataGenerationHelper {
+    private static final class DataGenerationHelper {
 
         private static Object randomDimensionValue(String dimensionName) {
             // We use dimensionName to determine the type of the value.
@@ -78,13 +78,14 @@ public class GenerativeTSIT extends AbstractEsqlIntegTestCase {
             }
         }
 
-        DataGenerationHelper() {
+        DataGenerationHelper(long numDocs) {
             // Metrics coming into our system have a pre-set group of attributes.
             // Making a list-to-set-to-list to ensure uniqueness.
+            this.numDocs = numDocs;
             attributesForMetrics = List.copyOf(
-                Set.copyOf(ESTestCase.randomList(1, 300, () -> ESTestCase.randomAlphaOfLengthBetween(1, 30)))
+                Set.copyOf(ESTestCase.randomList(1, 300, () -> ESTestCase.randomAlphaOfLengthBetween(2, 30)))
             );
-            numTimeSeries = ESTestCase.randomIntBetween(10, 50); // TODO: Larger size of timeseries
+            numTimeSeries = ESTestCase.randomIntBetween(10, (int) Math.sqrt(numDocs));
             // System.out.println("Total of time series: " + numTimeSeries);
             // allTimeSeries contains the list of dimension-values for each time series.
             List<List<Tuple<String, Object>>> allTimeSeries = IntStream.range(0, numTimeSeries).mapToObj(tsIdx -> {
@@ -157,6 +158,7 @@ public class GenerativeTSIT extends AbstractEsqlIntegTestCase {
         final Template template;
         final Mapping mapping;
         final int numTimeSeries;
+        final long numDocs;
         final List<String> attributesForMetrics;
 
         XContentBuilder generateDocument(Map<String, Object> additionalFields) throws IOException {
@@ -188,14 +190,29 @@ public class GenerativeTSIT extends AbstractEsqlIntegTestCase {
                 .filter(val -> val.v2().isEmpty() == false) // Filter out empty values
                 .map(tup -> tup.v1() + ":" + tup.v2())
                 .toList();
-            // TODO: Verify that this window start calculation is correct.
-            long timeBucketStart = Instant.parse(((String) docMap.get("@timestamp"))).toEpochMilli() / 1000 / secondsInWindow
-                * secondsInWindow;
+            long timeBucketStart = windowStart(docMap.get("@timestamp"), secondsInWindow);
             var keyList = new ArrayList<>(groupingPairs);
             keyList.add(Long.toString(timeBucketStart));
             groupedMap.computeIfAbsent(keyList, k -> new ArrayList<>()).add(docMap);
         }
         return groupedMap;
+    }
+
+    static Long windowStart(Object timestampCell, int secondsInWindow) {
+        // The timestamp is in the 4th column (index 3)
+        return Instant.parse((String) timestampCell).toEpochMilli() / 1000 / secondsInWindow * secondsInWindow;
+    }
+
+    static List<String> getRowKey(List<Object> row, List<String> groupingAttributes) {
+        List<String> rowKey = new ArrayList<>();
+        for (int i = 0; i < groupingAttributes.size(); i++) {
+            Object value = row.get(i + 4); // Skip the first four columns
+            if (value != null) {
+                rowKey.add(groupingAttributes.get(i) + ":" + value);
+            }
+        }
+        rowKey.add(Long.toString(Instant.parse((String) row.get(3)).toEpochMilli() / 1000));
+        return rowKey;
     }
 
     @Override
@@ -215,31 +232,21 @@ public class GenerativeTSIT extends AbstractEsqlIntegTestCase {
         );
     }
 
-    void putTSDBIndexTemplate(
-        String id,
-        List<String> patterns,
-        @Nullable Settings settings,
-        @Nullable String mappingString,
-        @Nullable DataStreamLifecycle.Template lifecycle,
-        @Nullable Map<String, Object> metadata
-    ) throws IOException {
+    void putTSDBIndexTemplate(List<String> patterns, @Nullable String mappingString) throws IOException {
         Settings.Builder settingsBuilder = Settings.builder();
-        if (settings != null) {
-            settingsBuilder.put(settings);
-        }
         // Ensure it will be a TSDB data stream
         settingsBuilder.put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES);
         settingsBuilder.putList("index.routing_path", List.of("attributes.*"));
         CompressedXContent mappings = mappingString == null ? null : CompressedXContent.fromJSON(mappingString);
         // print the mapping
-        TransportPutComposableIndexTemplateAction.Request request = new TransportPutComposableIndexTemplateAction.Request(id);
+        TransportPutComposableIndexTemplateAction.Request request = new TransportPutComposableIndexTemplateAction.Request(
+            GenerativeTSIT.DATASTREAM_NAME
+        );
         request.indexTemplate(
             ComposableIndexTemplate.builder()
                 .indexPatterns(patterns)
-                .template(
-                    org.elasticsearch.cluster.metadata.Template.builder().settings(settingsBuilder).mappings(mappings).lifecycle(lifecycle)
-                )
-                .metadata(metadata)
+                .template(org.elasticsearch.cluster.metadata.Template.builder().settings(settingsBuilder).mappings(mappings))
+                .metadata(null)
                 .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
                 .build()
         );
@@ -248,16 +255,14 @@ public class GenerativeTSIT extends AbstractEsqlIntegTestCase {
 
     @Before
     public void populateIndex() throws IOException {
-        dataGenerationHelper = new DataGenerationHelper();
+        dataGenerationHelper = new DataGenerationHelper(NUM_DOCS);
         final XContentBuilder builder = XContentFactory.jsonBuilder();
         builder.map(dataGenerationHelper.mapping.raw());
-        // print the mapping
-        // System.out.println("PABLO Data stream mapping: " + Strings.toString(builder));
         final String jsonMappings = Strings.toString(builder);
 
-        putTSDBIndexTemplate(DATASTREAM_NAME, List.of(DATASTREAM_NAME + "*"), null, jsonMappings, null, null);
+        putTSDBIndexTemplate(List.of(DATASTREAM_NAME + "*"), jsonMappings);
         // Now we can push data into the data stream.
-        for (int i = 0; i < 1000; i++) {
+        for (int i = 0; i < NUM_DOCS; i++) {
             var document = dataGenerationHelper.generateDocument(Map.of());
             if (documents == null) {
                 documents = new ArrayList<>();
@@ -287,14 +292,8 @@ public class GenerativeTSIT extends AbstractEsqlIntegTestCase {
                 rowIter.forEach(row::add);
                 rows.add(row);
             });
-            // Print rows for now
             for (List<Object> row : rows) {
-                var rowGroupingAttributes = row.subList(4, row.size());
-                var rowKey = IntStream.range(0, dimensions.size())
-                    .filter(idx -> rowGroupingAttributes.get(idx) != null)
-                    .mapToObj(idx -> (dimensions.get(idx) + ":" + rowGroupingAttributes.get(idx)))
-                    .collect(Collectors.toList());
-                rowKey.add(Long.toString(Instant.parse((String) row.get(3)).toEpochMilli() / 1000));
+                var rowKey = getRowKey(row, dimensions);
                 var pointsInGroup = groups.get(rowKey);
                 @SuppressWarnings("unchecked")
                 var docValues = pointsInGroup.stream()
@@ -333,7 +332,7 @@ public class GenerativeTSIT extends AbstractEsqlIntegTestCase {
             });
             var groups = groupedRows(documents, List.of(), 60);
             for (List<Object> row : rows) {
-                var windowStart = Instant.parse((String) row.getLast()).toEpochMilli() / 1000 / 60 * 60;
+                var windowStart = windowStart(row.get(3), 60);
                 var windowDataPoints = groups.get(List.of(Long.toString(windowStart)));
                 @SuppressWarnings("unchecked")
                 var docValues = windowDataPoints.stream()

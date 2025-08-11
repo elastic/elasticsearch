@@ -108,89 +108,59 @@ public abstract class SemanticQueryRewriteInterceptor implements QueryRewriteInt
         Collection<IndexMetadata> indexMetadataCollection = resolvedIndices.getConcreteLocalIndicesMetadata().values();
 
         Map<String, Map<String, InferenceFieldMetadata>> inferenceFieldsPerIndex = new HashMap<>();
-        Map<String, Map<String, Float>> nonInferenceFieldsPerIndex = new HashMap<>();
-        Map<String, Float> globalResolvedInferenceFieldBoosts = new HashMap<>();
+        Map<String, Set<String>> nonInferenceFieldsPerIndex = new HashMap<>();
+        Map<String, Float> fieldBoosts = new HashMap<>();
 
         for (IndexMetadata indexMetadata : indexMetadataCollection) {
             String indexName = indexMetadata.getIndex().getName();
             Map<String, InferenceFieldMetadata> indexInferenceFields = new HashMap<>();
-            Map<String, Float> indexNonInferenceFields = new HashMap<>();
-
             Map<String, InferenceFieldMetadata> indexInferenceMetadata = indexMetadata.getInferenceFields();
 
-            // Expand wildcards for inference fields only (following RRF pattern)
-            Map<String, Float> resolvedInferenceFields = new HashMap<>();
+            // Resolve wildcards for inference fields and store boosts
             for (Map.Entry<String, Float> entry : fieldsWithWeights.entrySet()) {
                 String field = entry.getKey();
-                Float weight = entry.getValue();
+                Float boost = entry.getValue();
 
                 if (Regex.isMatchAllPattern(field)) {
-                    // Handle "*" - match all inference fields
-                    indexInferenceMetadata.keySet().forEach(f ->
-                        addToInferenceFieldsMap(resolvedInferenceFields, f, weight));
+                    indexInferenceMetadata.keySet().forEach(f -> {
+                        indexInferenceFields.put(f, indexInferenceMetadata.get(f));
+                        fieldBoosts.put(f, boost);
+                    });
                 } else if (Regex.isSimpleMatchPattern(field)) {
-                    // Handle wildcards like "text*", "*field", etc.
                     indexInferenceMetadata.keySet()
                         .stream()
                         .filter(f -> Regex.simpleMatch(field, f))
-                        .forEach(f -> addToInferenceFieldsMap(resolvedInferenceFields, f, weight));
-                } else {
-                    // No wildcards in field name - exact match
-                    if (indexInferenceMetadata.containsKey(field)) {
-                        addToInferenceFieldsMap(resolvedInferenceFields, field, weight);
-                    }
+                        .forEach(f -> {
+                            indexInferenceFields.put(f, indexInferenceMetadata.get(f));
+                            fieldBoosts.put(f, boost);
+                        });
+                } else if (indexInferenceMetadata.containsKey(field)) {
+                    indexInferenceFields.put(field, indexInferenceMetadata.get(field));
+                    fieldBoosts.put(field, boost);
                 }
             }
 
-            // Copy resolved inference fields to metadata map and aggregate global boosts
-            for (String fieldName : resolvedInferenceFields.keySet()) {
-                indexInferenceFields.put(fieldName, indexInferenceMetadata.get(fieldName));
-                // Store the resolved boost globally (same field should have same boost across indices)
-                globalResolvedInferenceFieldBoosts.put(fieldName, resolvedInferenceFields.get(fieldName));
+            // Non-inference fields: original fields minus resolved inference fields
+            Set<String> indexNonInferenceFields = new HashSet<>(fieldsWithWeights.keySet());
+            indexNonInferenceFields.removeAll(indexInferenceFields.keySet());
+            
+            // Store boosts for non-inference fields in global fieldBoosts map
+            for (String nonInferenceField : indexNonInferenceFields) {
+                fieldBoosts.put(nonInferenceField, fieldsWithWeights.get(nonInferenceField));
             }
 
-            // Non-inference fields: start with all original patterns, remove only resolved inference field names
-            // This preserves wildcard patterns that MultiMatchQueryBuilder will expand itself
-            indexNonInferenceFields = new HashMap<>(fieldsWithWeights);
-            indexNonInferenceFields.keySet().removeAll(resolvedInferenceFields.keySet());
-
-            // Store inference fields if any exist
             if (indexInferenceFields.isEmpty() == false) {
                 inferenceFieldsPerIndex.put(indexName, indexInferenceFields);
             }
 
-            // Store non-inference fields if any exist
             if (indexNonInferenceFields.isEmpty() == false) {
                 nonInferenceFieldsPerIndex.put(indexName, indexNonInferenceFields);
             }
         }
 
-        return new InferenceIndexInformationForField(inferenceFieldsPerIndex, nonInferenceFieldsPerIndex, globalResolvedInferenceFieldBoosts);
+        return new InferenceIndexInformationForField(inferenceFieldsPerIndex, nonInferenceFieldsPerIndex, fieldBoosts);
     }
 
-    /**
-     * Helper method to add inference fields with weight handling like in RRF
-     */
-    private void addToInferenceFieldsMap(Map<String, Float> inferenceFields, String fieldName, Float weight) {
-        inferenceFields.compute(fieldName, (k, v) -> v == null ? weight : v * weight);
-    }
-
-    private InferenceIndexInformationForField resolveIndicesForField(String fieldName, ResolvedIndices resolvedIndices) {
-        Collection<IndexMetadata> indexMetadataCollection = resolvedIndices.getConcreteLocalIndicesMetadata().values();
-        Map<String, InferenceFieldMetadata> inferenceIndicesMetadata = new HashMap<>();
-        List<String> nonInferenceIndices = new ArrayList<>();
-        for (IndexMetadata indexMetadata : indexMetadataCollection) {
-            String indexName = indexMetadata.getIndex().getName();
-            InferenceFieldMetadata inferenceFieldMetadata = indexMetadata.getInferenceFields().get(fieldName);
-            if (inferenceFieldMetadata != null) {
-                inferenceIndicesMetadata.put(indexName, inferenceFieldMetadata);
-            } else {
-                nonInferenceIndices.add(indexName);
-            }
-        }
-
-        return new InferenceIndexInformationForField(fieldName, inferenceIndicesMetadata, nonInferenceIndices);
-    }
 
     protected QueryBuilder createSubQueryForIndices(Collection<String> indices, QueryBuilder queryBuilder) {
         BoolQueryBuilder boolQueryBuilder = new BoolQueryBuilder();
@@ -212,29 +182,11 @@ public abstract class SemanticQueryRewriteInterceptor implements QueryRewriteInt
     public record InferenceIndexInformationForField(
         // Map: IndexName -> (FieldName -> InferenceFieldMetadata)
         Map<String, Map<String, InferenceFieldMetadata>> inferenceFieldsPerIndex,
-        // Map: IndexName -> (FieldName -> Boost)
-        Map<String, Map<String, Float>> nonInferenceFieldsPerIndex,
-        // Map: FieldName -> ResolvedBoost - stores resolved wildcard boosts for inference fields
-        Map<String, Float> resolvedInferenceFieldBoosts
+        // Map: IndexName -> Set<FieldName> - non-inference fields per index (boosts stored in fieldBoosts)
+        Map<String, Set<String>> nonInferenceFieldsPerIndex,
+        // Map: FieldName -> Boost - stores boosts for all fields (both inference and non-inference)
+        Map<String, Float> fieldBoosts
     ) {
-
-        // Backward compatibility for single-field queries
-        public InferenceIndexInformationForField(
-            String fieldName,
-            Map<String, InferenceFieldMetadata> inferenceIndicesMetadata,
-            List<String> nonInferenceIndices
-        ) {
-            this(
-                // Convert single field metadata to multi-field structure
-                inferenceIndicesMetadata.entrySet()
-                    .stream()
-                    .collect(Collectors.toMap(Map.Entry::getKey, entry -> Map.of(fieldName, entry.getValue()))),
-                // Convert non-inference indices to multi-field structure with default boost
-                nonInferenceIndices.stream().collect(Collectors.toMap(indexName -> indexName, indexName -> Map.of(fieldName, 1.0f))),
-                // Default boost for single-field (no wildcards)
-                Map.of(fieldName, 1.0f)
-            );
-        }
 
         public Set<String> getAllInferenceFields() {
             return inferenceFieldsPerIndex.values().stream().flatMap(fields -> fields.keySet().stream()).collect(Collectors.toSet());
@@ -283,14 +235,14 @@ public abstract class SemanticQueryRewriteInterceptor implements QueryRewriteInt
         }
 
         /**
-         * Returns the resolved boost for an inference field.
+         * Returns the resolved boost for a field (inference or non-inference).
          * This accounts for wildcard expansion boosts.
          *
          * @param fieldName the field name
          * @return the resolved boost for the field
          */
-        public float getInferenceFieldBoost(String fieldName) {
-            return resolvedInferenceFieldBoosts.getOrDefault(fieldName, AbstractQueryBuilder.DEFAULT_BOOST);
+        public float getFieldBoost(String fieldName) {
+            return fieldBoosts.getOrDefault(fieldName, AbstractQueryBuilder.DEFAULT_BOOST);
         }
 
     }

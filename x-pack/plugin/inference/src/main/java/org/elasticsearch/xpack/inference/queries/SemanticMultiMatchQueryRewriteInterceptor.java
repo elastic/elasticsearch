@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.inference.queries;
 
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.features.NodeFeature;
-import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.DisMaxQueryBuilder;
 import org.elasticsearch.index.query.MultiMatchQueryBuilder;
@@ -19,6 +18,7 @@ import org.elasticsearch.inference.MinimalServiceSettings;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.inference.registry.ModelRegistry;
 
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -63,7 +63,6 @@ public class SemanticMultiMatchQueryRewriteInterceptor extends SemanticQueryRewr
     @Override
     protected QueryBuilder buildInferenceQuery(QueryBuilder queryBuilder, InferenceIndexInformationForField indexInformation) {
         MultiMatchQueryBuilder originalQuery = (MultiMatchQueryBuilder) queryBuilder;
-        Map<String, Float> fieldsBoosts = getFieldsWithWeights(queryBuilder);
         String queryValue = getQuery(queryBuilder);
         Set<String> inferenceFields = indexInformation.getAllInferenceFields();
 
@@ -73,11 +72,8 @@ public class SemanticMultiMatchQueryRewriteInterceptor extends SemanticQueryRewr
             String fieldName = inferenceFields.iterator().next();
             SemanticQueryBuilder semanticQuery = new SemanticQueryBuilder(fieldName, queryValue, false);
 
-            // Apply per-field boost
-            float fieldBoost = indexInformation.getInferenceFieldBoost(fieldName);
-
             // Apply top-level query boost with per field and name
-            semanticQuery.boost(fieldBoost * originalQuery.boost());
+            semanticQuery.boost(indexInformation.getFieldBoost(fieldName) * originalQuery.boost());
             semanticQuery.queryName(originalQuery.queryName());
             return semanticQuery;
         } else {
@@ -93,7 +89,6 @@ public class SemanticMultiMatchQueryRewriteInterceptor extends SemanticQueryRewr
         InferenceIndexInformationForField indexInformation
     ) {
         MultiMatchQueryBuilder originalQuery = (MultiMatchQueryBuilder) queryBuilder;
-        Map<String, Float> fieldsBoosts = getFieldsWithWeights(queryBuilder);
         String queryValue = getQuery(queryBuilder);
 
         validateQueryTypeSupported(originalQuery.type());
@@ -160,9 +155,7 @@ public class SemanticMultiMatchQueryRewriteInterceptor extends SemanticQueryRewr
      */
     private SemanticQueryBuilder createSemanticQuery(String fieldName, String queryValue, InferenceIndexInformationForField inferenceInfo) {
         SemanticQueryBuilder semanticQuery = new SemanticQueryBuilder(fieldName, queryValue, false);
-        // Use resolved wildcard boost from inference info
-        float fieldBoost = inferenceInfo.getInferenceFieldBoost(fieldName);
-        semanticQuery.boost(fieldBoost);
+        semanticQuery.boost(inferenceInfo.getFieldBoost(fieldName));
         return semanticQuery;
     }
 
@@ -216,16 +209,20 @@ public class SemanticMultiMatchQueryRewriteInterceptor extends SemanticQueryRewr
         for (String fieldName : inferenceInfo.getAllInferenceFields()) {
             Set<String> semanticIndices = inferenceInfo.getInferenceIndicesForField(fieldName);
             if (semanticIndices.isEmpty() == false) {
-                // Create semantic query with resolved wildcard boost
-                float fieldBoost = inferenceInfo.getInferenceFieldBoost(fieldName);
-                disMaxQuery.add(createSemanticSubQuery(semanticIndices, fieldName, queryValue).boost(fieldBoost));
+                disMaxQuery.add(createSemanticSubQuery(semanticIndices, fieldName, queryValue).boost(inferenceInfo.getFieldBoost(fieldName)));
             }
         }
 
         // Add one multi_match query per index containing all non-inference fields in that index
-        for (Map.Entry<String, Map<String, Float>> entry : inferenceInfo.nonInferenceFieldsPerIndex().entrySet()) {
+        for (Map.Entry<String, Set<String>> entry : inferenceInfo.nonInferenceFieldsPerIndex().entrySet()) {
             String indexName = entry.getKey();
-            Map<String, Float> indexFields = entry.getValue();
+            Set<String> indexFieldNames = entry.getValue();
+
+            // Build field map with boosts from fieldBoosts Map
+            Map<String, Float> indexFields = new HashMap<>();
+            for (String fieldName : indexFieldNames) {
+                indexFields.put(fieldName, inferenceInfo.getFieldBoost(fieldName));
+            }
 
             MultiMatchQueryBuilder indexQuery = new MultiMatchQueryBuilder(originalQuery.value());
             indexQuery.fields(indexFields);
@@ -253,16 +250,20 @@ public class SemanticMultiMatchQueryRewriteInterceptor extends SemanticQueryRewr
         for (String fieldName : inferenceInfo.getAllInferenceFields()) {
             Set<String> semanticIndices = inferenceInfo.getInferenceIndicesForField(fieldName);
             if (semanticIndices.isEmpty() == false) {
-                // Create semantic query with resolved wildcard boost
-                float fieldBoost = inferenceInfo.getInferenceFieldBoost(fieldName);
-                boolQuery.should(createSemanticSubQuery(semanticIndices, fieldName, queryValue).boost(fieldBoost));
+                boolQuery.should(createSemanticSubQuery(semanticIndices, fieldName, queryValue).boost(inferenceInfo.getFieldBoost(fieldName)));
             }
         }
 
         // Add one multi_match query per index containing all non-inference fields in that index
-        for (Map.Entry<String, Map<String, Float>> entry : inferenceInfo.nonInferenceFieldsPerIndex().entrySet()) {
+        for (Map.Entry<String, Set<String>> entry : inferenceInfo.nonInferenceFieldsPerIndex().entrySet()) {
             String indexName = entry.getKey();
-            Map<String, Float> indexFields = entry.getValue();
+            Set<String> indexFieldNames = entry.getValue();
+
+            // Build field map with boosts from global fieldBoosts
+            Map<String, Float> indexFields = new HashMap<>();
+            for (String fieldName : indexFieldNames) {
+                indexFields.put(fieldName, inferenceInfo.getFieldBoost(fieldName));
+            }
 
             MultiMatchQueryBuilder indexQuery = new MultiMatchQueryBuilder(originalQuery.value());
             indexQuery.fields(indexFields);

@@ -58,13 +58,13 @@ public class ES87TSDBDocValuesFormatTests extends BaseDocValuesFormatTestCase {
         LogConfigurator.configureESLogging();
     }
 
-    static class TestES87TSDBDocValuesFormat extends ES87TSDBDocValuesFormat {
+    public static class TestES87TSDBDocValuesFormat extends ES87TSDBDocValuesFormat {
 
         TestES87TSDBDocValuesFormat() {
             super();
         }
 
-        TestES87TSDBDocValuesFormat(int skipIndexIntervalSize) {
+        public TestES87TSDBDocValuesFormat(int skipIndexIntervalSize) {
             super(skipIndexIntervalSize);
         }
 

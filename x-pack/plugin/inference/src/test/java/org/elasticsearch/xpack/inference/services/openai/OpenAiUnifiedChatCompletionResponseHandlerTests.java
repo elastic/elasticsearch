@@ -106,8 +106,7 @@ public class OpenAiUnifiedChatCompletionResponseHandlerTests extends ESTestCase 
                 mock(),
                 mock(),
                 mockRequest(),
-                new HttpResult(mock500Response(), responseJson.getBytes(StandardCharsets.UTF_8)),
-                true
+                new HttpResult(mock500Response(), responseJson.getBytes(StandardCharsets.UTF_8))
             )
         );
     }

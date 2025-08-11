@@ -251,7 +251,7 @@ public class WaitForRolloverReadyStepTests extends AbstractStepTestCase<WaitForR
         assertEquals(true, conditionsMet.get());
 
         verify(client).projectClient(state.projectId());
-        verify(client).admin();
+        verify(projectClient).admin();
         verifyNoMoreInteractions(client);
         verify(adminClient, Mockito.only()).indices();
         verify(indicesClient, Mockito.only()).rolloverIndex(Mockito.any(), Mockito.any());
@@ -310,7 +310,7 @@ public class WaitForRolloverReadyStepTests extends AbstractStepTestCase<WaitForR
         assertEquals(true, conditionsMet.get());
 
         verify(client).projectClient(state.projectId());
-        verify(client).admin();
+        verify(projectClient).admin();
         verifyNoMoreInteractions(client);
         verify(adminClient, Mockito.only()).indices();
 
@@ -605,7 +605,7 @@ public class WaitForRolloverReadyStepTests extends AbstractStepTestCase<WaitForR
         assertEquals(false, actionCompleted.get());
 
         verify(client).projectClient(state.projectId());
-        verify(client).admin();
+        verify(projectClient).admin();
         verifyNoMoreInteractions(client);
         verify(adminClient, Mockito.only()).indices();
         verify(indicesClient, Mockito.only()).rolloverIndex(Mockito.any(), Mockito.any());
@@ -651,7 +651,7 @@ public class WaitForRolloverReadyStepTests extends AbstractStepTestCase<WaitForR
         assertEquals(true, exceptionThrown.get());
 
         verify(client).projectClient(state.projectId());
-        verify(client).admin();
+        verify(projectClient).admin();
         verifyNoMoreInteractions(client);
         verify(adminClient, Mockito.only()).indices();
         verify(indicesClient, Mockito.only()).rolloverIndex(Mockito.any(), Mockito.any());

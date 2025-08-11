@@ -171,6 +171,11 @@ public class UnknownTypeRepository extends AbstractLifecycleComponent implements
 
     @Override
     public LongWithAttributes getShardSnapshotsInProgress() {
+        /*
+         * The presence of a misconfigured repository shouldn't interfere with
+         * the collection of metrics from the other repositories. We just return
+         * null here to indicate we have nothing to contribute.
+         */
         return null;
     }
 

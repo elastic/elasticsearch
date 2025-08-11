@@ -118,8 +118,12 @@ public class RemoteClusterSettingsTests extends ESTestCase {
         );
 
         // Ensure we can still get the set value in non-stateless environment.
-        assertFalse(
-            skipUnavailableSetting.get(Settings.builder().put(proxyEnabledSettings).put(skipUnavailableSetting.getKey(), false).build())
+        final var randomSkipUnavailableSettingValue = randomBoolean();
+        assertThat(
+            skipUnavailableSetting.get(
+                Settings.builder().put(proxyEnabledSettings).put(skipUnavailableSetting.getKey(), randomSkipUnavailableSettingValue).build()
+            ),
+            equalTo(randomSkipUnavailableSettingValue)
         );
 
         // Check the validator rejects the skip_unavailable setting if present when stateless is enabled.
@@ -129,7 +133,7 @@ public class RemoteClusterSettingsTests extends ESTestCase {
                 Settings.builder()
                     .put(statelessEnabledSettings)
                     .put(proxyEnabledSettings)
-                    .put(skipUnavailableSetting.getKey(), false)
+                    .put(skipUnavailableSetting.getKey(), randomBoolean())
                     .build()
             )
         );

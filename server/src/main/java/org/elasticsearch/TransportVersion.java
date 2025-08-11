@@ -123,6 +123,53 @@ public record TransportVersion(String name, int id, TransportVersion nextPatchVe
         }
     }
 
+    public static Map<String, TransportVersion> fromInputStreams(
+        String component,
+        Function<String, InputStream> nameToStream,
+        int latestId
+    ) {
+        String[] baseLocations = new String[] { "/transport/generated/", "/transport/defined/" };
+        Map<String, TransportVersion> transportVersions = new HashMap<>();
+
+        for (String baseLocation : baseLocations) {
+            String manifestLocation = baseLocation + "manifest.txt";
+            List<String> versionFileNames = null;
+            try (InputStream inputStream = nameToStream.apply(baseLocation)) {
+                if (inputStream != null) {
+                    BufferedReader reader = new BufferedReader(new InputStreamReader(inputStream, StandardCharsets.UTF_8));
+                    versionFileNames = reader.lines().filter(line -> line.isBlank() == false).toList();
+                }
+            } catch (IOException ioe) {
+                throw new UncheckedIOException(
+                    "transport version manifest file not found at [" + component + ":" + manifestLocation + "]",
+                    ioe
+                );
+            }
+
+            if (versionFileNames != null) {
+                for (String versionFileName : versionFileNames) {
+                    String versionLocation = baseLocation + versionFileName;
+                    try (InputStream inputStream = nameToStream.apply(versionLocation)) {
+                        if (inputStream == null) {
+                            throw new IllegalStateException("transport version file not found [" + component + ":" + versionLocation + "]");
+                        }
+                        TransportVersion transportVersion = TransportVersion.fromInputStream(versionLocation, false, inputStream, latestId);
+                        if (transportVersion != null) {
+                            transportVersions.put(transportVersion.name(), transportVersion);
+                        }
+                    } catch (IOException ioe) {
+                        throw new UncheckedIOException(
+                            "transport version file not found at [" + component + ":" + versionLocation + "]",
+                            ioe
+                        );
+                    }
+                }
+            }
+        }
+
+        return transportVersions;
+    }
+
     public static TransportVersion readVersion(StreamInput in) throws IOException {
         return fromId(in.readVInt());
     }
@@ -374,8 +421,6 @@ public record TransportVersion(String name, int id, TransportVersion nextPatchVe
         }
 
         private static Map<String, TransportVersion> loadTransportVersionsByName() {
-            Map<String, TransportVersion> transportVersions = new HashMap<>();
-
             String latestLocation = "/transport/latest/" + Version.CURRENT.major + "." + Version.CURRENT.minor + ".csv";
             int latestId = -1;
             try (InputStream inputStream = TransportVersion.class.getResourceAsStream(latestLocation)) {
@@ -396,40 +441,10 @@ public record TransportVersion(String name, int id, TransportVersion nextPatchVe
                     latestId = latest.id();
                 }
             } catch (IOException ioe) {
-                throw new UncheckedIOException("latest transport version file not found at [" + latestLocation + "]", ioe);
+                throw new UncheckedIOException("latest transport version file not found at [<server>/" + latestLocation + "]", ioe);
             }
 
-            String manifestLocation = "/transport/defined/manifest.txt";
-            List<String> versionFileNames = null;
-            if (latestId > -1) {
-                try (InputStream inputStream = TransportVersion.class.getResourceAsStream(manifestLocation)) {
-                    if (inputStream != null) {
-                        BufferedReader reader = new BufferedReader(new InputStreamReader(inputStream, StandardCharsets.UTF_8));
-                        versionFileNames = reader.lines().filter(line -> line.isBlank() == false).toList();
-                    }
-                } catch (IOException ioe) {
-                    throw new UncheckedIOException("transport version manifest file not found at [" + manifestLocation + "]", ioe);
-                }
-            }
-
-            if (versionFileNames != null) {
-                for (String name : versionFileNames) {
-                    String versionLocation = "/transport/defined/" + name;
-                    try (InputStream inputStream = TransportVersion.class.getResourceAsStream(versionLocation)) {
-                        if (inputStream == null) {
-                            throw new IllegalStateException("transport version file not found at [" + versionLocation + "]");
-                        }
-                        TransportVersion transportVersion = TransportVersion.fromInputStream(versionLocation, false, inputStream, latestId);
-                        if (transportVersion != null) {
-                            transportVersions.put(transportVersion.name(), transportVersion);
-                        }
-                    } catch (IOException ioe) {
-                        throw new UncheckedIOException("transport version file not found at [ " + versionLocation + "]", ioe);
-                    }
-                }
-            }
-
-            return transportVersions;
+            return TransportVersion.fromInputStreams("server", TransportVersion.class::getResourceAsStream, latestId);
         }
 
         private static List<TransportVersion> addTransportVersions(Collection<TransportVersion> addFrom, List<TransportVersion> addTo) {

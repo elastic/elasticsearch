@@ -935,6 +935,7 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
             .put(IndexMetadata.INDEX_DOWNSAMPLE_INTERVAL.getKey(), downsampleInterval)
             .put(IndexSettings.MODE.getKey(), sourceIndexMetadata.getIndexMode())
             .putList(IndexMetadata.INDEX_ROUTING_PATH.getKey(), sourceIndexMetadata.getRoutingPaths())
+            .putList(IndexMetadata.INDEX_DIMENSIONS.getKey(), sourceIndexMetadata.getDimensions())
             .put(
                 IndexSettings.TIME_SERIES_START_TIME.getKey(),
                 sourceIndexMetadata.getSettings().get(IndexSettings.TIME_SERIES_START_TIME.getKey())

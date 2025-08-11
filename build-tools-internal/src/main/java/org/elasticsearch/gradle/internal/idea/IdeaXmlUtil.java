@@ -10,7 +10,7 @@
 package org.elasticsearch.gradle.internal.idea;
 
 import groovy.util.Node;
-import groovy.util.XmlParser;
+import groovy.xml.XmlParser;
 import groovy.xml.XmlNodePrinter;
 
 import org.gradle.api.Action;

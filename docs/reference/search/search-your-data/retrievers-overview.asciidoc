@@ -69,7 +69,7 @@ Applies <<query-rules,query rules>> to the query before returning results.
 * <<text-similarity-reranker-retriever,*Text Similarity Re-ranker Retriever*>>.
 Used for <<semantic-reranking,semantic reranking>>.
 Requires first creating a `rerank` task using the <<put-inference-api,{es} Inference API>>.
-* <<retrievers-overview-pinned-retriever-parameters,*Pinned Retriever*>>.
+* <<pinned-retriever,*Pinned Retriever*>>.
 Returns top documents by always placing specific documents at the top of the results, with the remaining hits provided by a secondary retriever.
 
 [discrete]

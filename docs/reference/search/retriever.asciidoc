@@ -976,7 +976,7 @@ Either `ids` or `docs` must be specified.
 
 [discrete]
 [[pinned-retriever-example]]
-==== Example: Pinned retriever
+==== Example: Pinned retriever using `docs
 
 [source,console]
 ----

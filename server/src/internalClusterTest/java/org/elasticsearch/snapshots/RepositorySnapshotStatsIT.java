@@ -21,18 +21,33 @@ import org.elasticsearch.test.ESIntegTestCase;
 
 import java.util.Collections;
 
+import static org.elasticsearch.threadpool.ThreadPool.ESTIMATED_TIME_INTERVAL_SETTING;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 @ESIntegTestCase.ClusterScope(numDataNodes = 0, scope = ESIntegTestCase.Scope.TEST)
-public class RepositoryThrottlingStatsIT extends AbstractSnapshotIntegTestCase {
+public class RepositorySnapshotStatsIT extends AbstractSnapshotIntegTestCase {
 
-    public void testRepositoryThrottlingStats() throws Exception {
+    @Override
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
+        return Settings.builder()
+            .put(super.nodeSettings(nodeOrdinal, otherSettings))
+            // Make upload time more accurate
+            .put(ESTIMATED_TIME_INTERVAL_SETTING.getKey(), "0s")
+            .build();
+    }
+
+    public void testRepositorySnapshotStats() {
 
         logger.info("--> starting a node");
         internalCluster().startNode();
 
         logger.info("--> create index");
-        createIndexWithRandomDocs("test-idx", 100);
+        final int numberOfShards = randomIntBetween(2, 6);
+        createIndex("test-idx", numberOfShards, 0);
+        ensureGreen();
+        indexRandomDocs("test-idx", 100);
 
         IndicesStatsResponse indicesStats = indicesAdmin().prepareStats("test-idx").get();
         IndexStats indexStats = indicesStats.getIndex("test-idx");
@@ -70,9 +85,18 @@ public class RepositoryThrottlingStatsIT extends AbstractSnapshotIntegTestCase {
         NodesStatsResponse response = clusterAdmin().prepareNodesStats().setRepositoryStats(true).get();
         RepositoriesStats stats = response.getNodes().get(0).getRepositoriesStats();
 
-        assertTrue(stats.getRepositoryThrottlingStats().containsKey("test-repo"));
-        assertTrue(stats.getRepositoryThrottlingStats().get("test-repo").totalWriteThrottledNanos() > 0);
-        assertTrue(stats.getRepositoryThrottlingStats().get("test-repo").totalReadThrottledNanos() > 0);
-
+        // These are just broad sanity checks on the values. There are more detailed checks in SnapshotMetricsIT
+        assertTrue(stats.getRepositorySnapshotStats().containsKey("test-repo"));
+        RepositoriesStats.SnapshotStats snapshotStats = stats.getRepositorySnapshotStats().get("test-repo");
+        assertThat(snapshotStats.totalWriteThrottledNanos(), greaterThan(0L));
+        assertThat(snapshotStats.totalReadThrottledNanos(), greaterThan(0L));
+        assertThat(snapshotStats.shardSnapshotsStarted(), equalTo((long) numberOfShards));
+        assertThat(snapshotStats.shardSnapshotsCompleted(), equalTo((long) numberOfShards));
+        assertThat(snapshotStats.shardSnapshotsInProgress(), equalTo(0L));
+        assertThat(snapshotStats.numberOfBlobsUploaded(), greaterThan(0L));
+        assertThat(snapshotStats.numberOfBytesUploaded(), greaterThan(0L));
+        assertThat(snapshotStats.totalUploadTimeInMillis(), greaterThan(0L));
+        assertThat(snapshotStats.totalUploadReadTimeInMillis(), greaterThan(0L));
+        assertThat(snapshotStats.totalUploadReadTimeInMillis(), lessThanOrEqualTo(snapshotStats.totalUploadTimeInMillis()));
     }
 }

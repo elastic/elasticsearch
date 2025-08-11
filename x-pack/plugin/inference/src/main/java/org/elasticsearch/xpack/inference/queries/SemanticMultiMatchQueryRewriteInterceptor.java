@@ -40,6 +40,7 @@ public class SemanticMultiMatchQueryRewriteInterceptor extends SemanticQueryRewr
 
     @Override
     protected String getFieldName(QueryBuilder queryBuilder) {
+        assert (queryBuilder instanceof MultiMatchQueryBuilder);
         MultiMatchQueryBuilder multiMatchQuery = (MultiMatchQueryBuilder) queryBuilder;
         Map<String, Float> fields = multiMatchQuery.fields();
         if (fields.size() > 1) {
@@ -50,18 +51,21 @@ public class SemanticMultiMatchQueryRewriteInterceptor extends SemanticQueryRewr
 
     @Override
     protected Map<String, Float> getFieldsWithWeights(QueryBuilder queryBuilder) {
+        assert (queryBuilder instanceof MultiMatchQueryBuilder);
         MultiMatchQueryBuilder multiMatchQuery = (MultiMatchQueryBuilder) queryBuilder;
         return multiMatchQuery.fields();
     }
 
     @Override
     protected String getQuery(QueryBuilder queryBuilder) {
+        assert (queryBuilder instanceof MultiMatchQueryBuilder);
         MultiMatchQueryBuilder multiMatchQuery = (MultiMatchQueryBuilder) queryBuilder;
         return (String) multiMatchQuery.value();
     }
 
     @Override
     protected QueryBuilder buildInferenceQuery(QueryBuilder queryBuilder, InferenceIndexInformationForField indexInformation) {
+        assert (queryBuilder instanceof MultiMatchQueryBuilder);
         MultiMatchQueryBuilder originalQuery = (MultiMatchQueryBuilder) queryBuilder;
         String queryValue = getQuery(queryBuilder);
         Set<String> inferenceFields = indexInformation.getAllInferenceFields();
@@ -88,6 +92,7 @@ public class SemanticMultiMatchQueryRewriteInterceptor extends SemanticQueryRewr
         QueryBuilder queryBuilder,
         InferenceIndexInformationForField indexInformation
     ) {
+        assert (queryBuilder instanceof MultiMatchQueryBuilder);
         MultiMatchQueryBuilder originalQuery = (MultiMatchQueryBuilder) queryBuilder;
         String queryValue = getQuery(queryBuilder);
 

@@ -1933,6 +1933,160 @@ setup:
   - match: { docs.0.doc.error.type: "document_parsing_exception" }
 
 ---
+"Test ingest simulate with mapping addition on subobjects":
+
+  - skip:
+      features:
+        - headers
+        - allowed_warnings
+
+  - do:
+      indices.put_index_template:
+        name: subobject-template
+        body:
+          index_patterns: subobject-index*
+          template:
+            mappings:
+              properties:
+                a.b:
+                  type: match_only_text
+
+  - do:
+      headers:
+        Content-Type: application/json
+      simulate.ingest:
+        body: >
+          {
+            "docs": [
+              {
+                "_index": "subobject-index-1",
+                "_id": "AZgsHA0B41JjTOmNiBKC",
+                "_source": {
+                  "a.b": "some text"
+                }
+              }
+            ],
+            "mapping_addition": {
+              "properties": {
+                "a.b": {
+                  "type": "keyword"
+                }
+              }
+            }
+          }
+  - length: { docs: 1 }
+  - match: { docs.0.doc._index: "subobject-index-1" }
+  - match: { docs.0.doc._source.a\.b: "some text" }
+  - match: { docs.0.doc.error.type: "mapper_parsing_exception" }
+
+  # Here we provide a mapping_substitution to the subobject, and make sure that it is applied rather than throwing an
+  # exception.
+  - do:
+      headers:
+        Content-Type: application/json
+      simulate.ingest:
+        merge_type: "template"
+        body: >
+          {
+            "docs": [
+              {
+                "_index": "subobject-index-1",
+                "_id": "AZgsHA0B41JjTOmNiBKC",
+                "_source": {
+                  "a.b": "some text"
+                }
+              }
+            ],
+            "mapping_addition": {
+              "properties": {
+                "a.b": {
+                  "type": "keyword"
+                }
+              }
+            }
+          }
+  - length: { docs: 1 }
+  - match: { docs.0.doc._index: "subobject-index-1" }
+  - match: { docs.0.doc._source.a\.b: "some text" }
+  - not_exists: docs.0.doc.error
+
+  # Now we run the same test but with index_template_substitutions rather than mapping_addition. In this case though,
+  # the mappings are _substituted_, not merged. That is, the original template and its mappings are completely replaced
+  # with the new one. So the merge_type has no impact.
+  - do:
+      headers:
+        Content-Type: application/json
+      simulate.ingest:
+        merge_type: "index"
+        body: >
+          {
+            "docs": [
+              {
+                "_index": "subobject-index-1",
+                "_id": "AZgsHA0B41JjTOmNiBKC",
+                "_source": {
+                  "a.b": "some text"
+                }
+              }
+            ],
+            "index_template_substitutions": {
+              "subobject-template": {
+                "index_patterns": ["subobject-index*"],
+                "template": {
+                  "mappings": {
+                    "properties": {
+                      "a.b": {
+                        "type": "keyword"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+  - length: { docs: 1 }
+  - match: { docs.0.doc._index: "subobject-index-1" }
+  - match: { docs.0.doc._source.a\.b: "some text" }
+  - not_exists: docs.0.doc.error
+
+  # This makes sure that we get the same result for merge_type "template" for index_template_substitutions
+  - do:
+      headers:
+        Content-Type: application/json
+      simulate.ingest:
+        merge_type: "template"
+        body: >
+          {
+            "docs": [
+              {
+                "_index": "subobject-index-1",
+                "_id": "AZgsHA0B41JjTOmNiBKC",
+                "_source": {
+                  "a.b": "some text"
+                }
+              }
+            ],
+            "index_template_substitutions": {
+              "subobject-template": {
+                "index_patterns": ["subobject-index*"],
+                "template": {
+                  "mappings": {
+                    "properties": {
+                      "a.b": {
+                        "type": "keyword"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+  - length: { docs: 1 }
+  - match: { docs.0.doc._index: "subobject-index-1" }
+  - match: { docs.0.doc._source.a\.b: "some text" }
+  - not_exists: docs.0.doc.error
+
+---
 "Simulate ingest with data stream with mapping overrides":
   - skip:
       features: headers

@@ -1,6 +1,0 @@
-pr: 123290
-summary: Fix Driver status iterations and `cpuTime`
-area: ES|QL
-type: enhancement
-issues:
- - 122967

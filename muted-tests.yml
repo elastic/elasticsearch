@@ -455,9 +455,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.ccq.MultiClustersIT
   method: testLookupJoinAliasesSkipOld
   issue: https://github.com/elastic/elasticsearch/issues/131697
-- class: org.elasticsearch.indices.cluster.RemoteSearchForceConnectTimeoutIT
-  method: testTimeoutSetting
-  issue: https://github.com/elastic/elasticsearch/issues/131656
 - class: org.elasticsearch.packaging.test.DockerTests
   method: test151MachineDependentHeapWithSizeOverride
   issue: https://github.com/elastic/elasticsearch/issues/123437
@@ -473,9 +470,6 @@ tests:
 - class: org.elasticsearch.index.engine.MergeWithLowDiskSpaceIT
   method: testRelocationWhileForceMerging
   issue: https://github.com/elastic/elasticsearch/issues/131789
-- class: org.elasticsearch.indices.cluster.FieldCapsForceConnectTimeoutIT
-  method: testTimeoutSetting
-  issue: https://github.com/elastic/elasticsearch/issues/132179
 - class: org.elasticsearch.test.rest.yaml.MDPYamlTestSuiteIT
   method: test {yaml=mdp/10_basic/Index using shared data path}
   issue: https://github.com/elastic/elasticsearch/issues/132223

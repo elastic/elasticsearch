@@ -146,6 +146,7 @@ public abstract class QueryList {
         if (aliasFilter != null && aliasFilter != AliasFilter.EMPTY) {
             try {
                 builder.add(aliasFilter.getQueryBuilder().toQuery(searchExecutionContext), BooleanClause.Occur.FILTER);
+                builderHasClauses = true;
             } catch (IOException e) {
                 throw new UncheckedIOException("Error while building query for alias filter", e);
             }

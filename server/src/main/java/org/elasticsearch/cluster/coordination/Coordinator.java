@@ -94,7 +94,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Optional;
 import java.util.Random;
 import java.util.Set;
@@ -675,41 +674,40 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
                     ActionListener
                         .runBefore(
                             joinListener,
-                            () -> Releasables.close(response)
-//                            () -> {
-//                                /*
-//                                    This prevents a corner case, explained in #ES-11449, occurring as follows:
-//                                    - Master M is in term T and has cluster state (T, V).
-//                                    - Node N tries to join the cluster.
-//                                    - M proposes cluster state (T, V+1) with N in the cluster.
-//                                    - M accepts its own proposal and commits it to disk.
-//                                    - M receives no responses. M doesn't know whether the state was accepted by a majority of nodes, rejected, or did not reach any nodes.
-//                                    - There is a re-election and M wins. M publishes cluster state (T+1, V+2).
-//                                      Since it's built from the cluster state on disk, N is still in the cluster.
-//                                    - Since (T, V+1) failed, N's connection is dropped, even though its inclusion in the cluster may have been committed on a majority of master nodes.
-//                                    - It can rejoin, but this throws a WARN log since it did not restart.
-//
-//                                    To mitigate this, we listen for any cluster state update:
-//                                    1. (T, V+1) is accepted -> NodeConnectionsService now stores an open connection to N. It can be closed.
-//                                    2. (T, V+1) is rejected -> A new cluster state is published without N in it. It is right to close the connection and retry.
-//                                    3. The above scenario occurs. We do not close the connection after (T, V+1) fails and keep it open:
-//                                        3.1 (T+1, V+2) is accepted -> By waiting, we did not close the connection to N unnecessarily
-//                                        3.2 (T+1, V+2) is rejected -> A new cluster state is published without N in it. Closing is correct here.
-//                                 */
-//                                logger.info("inside callback, node is is {}", clusterService.state().nodes().getLocalNode().getName());
-//                                ClusterStateListener listener = new ClusterStateListener() {
-//                                    @Override
-//                                    public void clusterChanged(ClusterChangedEvent event) {
-//                                        logger.info("inside cluster change event, added nodes are {}", event.nodesDelta().addedNodes());
-//                                        // Now it's safe to close the connection
-//                                        Releasables.close(response);
-//                                        // Remove this listener to avoid memory leaks
-//                                        clusterService.removeListener(this);
-//                                    }
-//                                };
-//
-//                                clusterService.addListener(listener);
-//                            }
+                            () -> {
+                                /*
+                                    This prevents a corner case, explained in #ES-11449, occurring as follows:
+                                    - Master M is in term T and has cluster state (T, V).
+                                    - Node N tries to join the cluster.
+                                    - M proposes cluster state (T, V+1) with N in the cluster.
+                                    - M accepts its own proposal and commits it to disk.
+                                    - M receives no responses. M doesn't know whether the state was accepted by a majority of nodes, rejected, or did not reach any nodes.
+                                    - There is a re-election and M wins. M publishes cluster state (T+1, V+2).
+                                      Since it's built from the cluster state on disk, N is still in the cluster.
+                                    - Since (T, V+1) failed, N's connection is dropped, even though its inclusion in the cluster may have been committed on a majority of master nodes.
+                                    - It can rejoin, but this throws a WARN log since it did not restart.
+
+                                    To mitigate this, we listen for any cluster state update:
+                                    1. (T, V+1) is accepted -> NodeConnectionsService now stores an open connection to N. It can be closed.
+                                    2. (T, V+1) is rejected -> A new cluster state is published without N in it. It is right to close the connection and retry.
+                                    3. The above scenario occurs. We do not close the connection after (T, V+1) fails and keep it open:
+                                        3.1 (T+1, V+2) is accepted -> By waiting, we did not close the connection to N unnecessarily
+                                        3.2 (T+1, V+2) is rejected -> A new cluster state is published without N in it. Closing is correct here.
+                                 */
+                                logger.info("inside callback, node is is {}, source node is {}", clusterService.state().nodes().getLocalNode().getName(), joinRequest.getSourceNode().getName());
+                                ClusterStateListener listener = new ClusterStateListener() {
+                                    @Override
+                                    public void clusterChanged(ClusterChangedEvent event) {
+                                        logger.info("inside cluster change event, source node is {}, added nodes are {}", joinRequest.getSourceNode().getName(), event.nodesDelta().addedNodes());
+                                        // Now it's safe to close the connection
+                                        Releasables.close(response);
+                                        // Remove this listener to avoid memory leaks
+                                        clusterService.removeListener(this);
+                                    }
+                                };
+
+                                clusterService.addListener(listener);
+                            }
                         )
                         .delegateFailure((l, ignored) -> processJoinRequest(joinRequest, l))
                 );
@@ -1463,6 +1461,7 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
 
     // exposed for tests
     boolean missingJoinVoteFrom(DiscoveryNode node) {
+        logger.info("Missing vote from: {}", node.getName());
         return node.isMasterNode() && coordinationState.get().containsJoinVoteFor(node) == false;
     }
 

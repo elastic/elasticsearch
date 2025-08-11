@@ -83,6 +83,7 @@ public abstract class MasterElectionTestCase extends ESIntegTestCase {
             DiscoveryNode masterNode = event.state().nodes().getMasterNode();
             long currentTerm = event.state().coordinationMetadata().term();
             if (masterNode != null && masterNode.getName().equals(masterNodeName) && currentTerm > originalTerm) {
+                logger.info("Carrot: Master knows it's reelected. term:{}, version:{}", currentTerm, event.state().getVersion());
                 masterKnowsItIsReElectedLatch.countDown();
             }
         };

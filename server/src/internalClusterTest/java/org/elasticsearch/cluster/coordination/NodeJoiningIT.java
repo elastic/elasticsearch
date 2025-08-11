@@ -15,12 +15,15 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateApplier;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.service.ClusterApplierService;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.MockTransportService;
@@ -31,7 +34,6 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -60,23 +62,35 @@ public class NodeJoiningIT extends MasterElectionTestCase {
 
         try {
             ensureSufficientMasterEligibleNodes();
+            String masterNodeName = internalCluster().getMasterName();
+            DiscoveryNode masterNode = internalCluster().clusterService(masterNodeName).state().nodes().getMasterNode();
+            int numberOfNodesOriginallyInCluster = internalCluster().clusterService(masterNodeName).state().getNodes().size();
+            List<String> namesOfDataNodesInOriginalCluster = getListOfDataNodeNamesFromCluster(masterNodeName);
 
-            int numberOfNodesOriginallyInCluster = internalCluster().clusterService().state().getNodes().size();
-            List<String> namesOfDataNodesInOriginalCluster = getListOfDataNodeNamesFromCluster();
+            // Ensure the logging is as expected
+            try (var mockLog = MockLog.capture(NodeJoinExecutor.class)) {
+                assert masterNode != null;
+                String expectedNewNodeAsString = generateNodeDescriptionForNewDiscoveryNode(numberOfNodesOriginallyInCluster, masterNode);
 
-            // Attempt to add new node
-            String newNodeName = internalCluster().startDataOnlyNode();
+                // We expect to see a node join message from the new node
+                addNodeJoinExpectation(mockLog, expectedNewNodeAsString);
 
-            // Assert the new data node was added
-            ClusterState state = internalCluster().clusterService().state();
-            assertEquals(numberOfNodesOriginallyInCluster + 1, state.nodes().getSize());
-            assertEquals(namesOfDataNodesInOriginalCluster.size() + 1, state.nodes().getDataNodes().size());
-            assertEquals(5, state.nodes().getMasterNodes().size());
+                // Attempt to add new node
+                String newNodeName = internalCluster().startDataOnlyNode();
 
-            List<String> namesOfDataNodesInNewCluster = getListOfDataNodeNamesFromCluster();
-            assertTrue(namesOfDataNodesInNewCluster.contains(newNodeName));
-            for (String nodeName : namesOfDataNodesInOriginalCluster) {
-                assertTrue(namesOfDataNodesInNewCluster.contains(nodeName));
+                mockLog.assertAllExpectationsMatched();
+
+                // Assert the new data node was added
+                ClusterState state = internalCluster().clusterService(masterNodeName).state();
+                assertEquals(numberOfNodesOriginallyInCluster + 1, state.nodes().getSize());
+                assertEquals(namesOfDataNodesInOriginalCluster.size() + 1, state.nodes().getDataNodes().size());
+                assertEquals(5, state.nodes().getMasterNodes().size());
+
+                List<String> namesOfDataNodesInNewCluster = getListOfDataNodeNamesFromCluster(masterNodeName);
+                assertTrue(namesOfDataNodesInNewCluster.contains(newNodeName));
+                for (String nodeName : namesOfDataNodesInOriginalCluster) {
+                    assertTrue(namesOfDataNodesInNewCluster.contains(nodeName));
+                }
             }
         } finally {
             Releasables.closeExpectNoException(Releasables.wrap(cleanupTasks));
@@ -92,22 +106,21 @@ public class NodeJoiningIT extends MasterElectionTestCase {
 
         try {
             // Set up master nodes and determine upfront who we want the next master to be
-            final var newMaster = ensureSufficientMasterEligibleNodes();
-
-            String originalMasterName = internalCluster().getMasterName();
-            int numberOfNodesOriginallyInCluster = internalCluster().clusterService().state().getNodes().size();
-            List<String> namesOfDataNodesInOriginalCluster = getListOfDataNodeNamesFromCluster();
-            DiscoveryNode masterNode = internalCluster().clusterService().state().getNodes().getMasterNode();
+            final var newMasterNodeName = ensureSufficientMasterEligibleNodes();
+            String originalMasterNodeName = internalCluster().getMasterName();
+            int numberOfNodesOriginallyInCluster = internalCluster().clusterService(originalMasterNodeName).state().getNodes().size();
+            List<String> namesOfDataNodesInOriginalCluster = getListOfDataNodeNamesFromCluster(originalMasterNodeName);
+            DiscoveryNode masterNode = internalCluster().clusterService(originalMasterNodeName).state().getNodes().getMasterNode();
 
             // A CountDownLatch that only gets decremented when the first master acknowledges the second master
-            final var previousMasterKnowsNewMasterIsElectedLatch = configureElectionLatchForNewMaster(newMaster, cleanupTasks);
+            final var previousMasterKnowsNewMasterIsElectedLatch = configureElectionLatchForNewMaster(newMasterNodeName, cleanupTasks);
 
             // Sets MockTransportService behaviour
             for (final var transportService : internalCluster().getInstances(TransportService.class)) {
                 final var mockTransportService = asInstanceOf(MockTransportService.class, transportService);
                 cleanupTasks.add(mockTransportService::clearAllRules);
 
-                if (mockTransportService.getLocalNode().getName().equals(newMaster) == false) {
+                if (mockTransportService.getLocalNode().getName().equals(newMasterNodeName) == false) {
                     mockTransportService.addSendBehavior((connection, requestId, action, request, options) -> {
                         if (
                             // This disables pre-voting on all nodes except the new master, forcing it to win the election
@@ -125,19 +138,24 @@ public class NodeJoiningIT extends MasterElectionTestCase {
 
             // Ensure the logging is as expected
             try (var mockLog = MockLog.capture(NodeJoinExecutor.class)) {
+                assert masterNode != null;
+                String expectedNewNodeAsString = generateNodeDescriptionForNewDiscoveryNode(numberOfNodesOriginallyInCluster, masterNode);
 
                 // We expect to see a node join message from the new node
-                setNodeJoinMockLog(mockLog, numberOfNodesOriginallyInCluster, masterNode);
+                addNodeJoinExpectation(mockLog, expectedNewNodeAsString);
+
+                // We do not expect to see the WARN log
+                addJoiningNodeDisconnectedWarnLogExpectation(mockLog, expectedNewNodeAsString);
 
                 // We haven't changed master nodes yet
-                assertEquals(originalMasterName, internalCluster().getMasterName());
+                assertEquals(originalMasterNodeName, internalCluster().getMasterName());
 
                 // Sends a node join request to the original master node. This will fail, and cause a master failover
                 String newNodeName = internalCluster().startDataOnlyNode();
 
                 // Wait until the old master has acknowledged the new master's election
                 safeAwait(previousMasterKnowsNewMasterIsElectedLatch);
-                assertNotEquals(originalMasterName, internalCluster().getMasterName());
+                assertNotEquals(originalMasterNodeName, internalCluster().getMasterName());
                 logger.info("New master is elected");
 
                 mockLog.assertAllExpectationsMatched();
@@ -148,7 +166,7 @@ public class NodeJoiningIT extends MasterElectionTestCase {
                 assertEquals(namesOfDataNodesInOriginalCluster.size() + 1, state.nodes().getDataNodes().size());
                 assertEquals(5, state.nodes().getMasterNodes().size());
 
-                List<String> namesOfDataNodesInNewCluster = getListOfDataNodeNamesFromCluster();
+                List<String> namesOfDataNodesInNewCluster = getListOfDataNodeNamesFromCluster(newMasterNodeName);
                 assertTrue(namesOfDataNodesInNewCluster.contains(newNodeName));
                 for (String nodeName : namesOfDataNodesInOriginalCluster) {
                     assertTrue(namesOfDataNodesInNewCluster.contains(nodeName));
@@ -162,52 +180,49 @@ public class NodeJoiningIT extends MasterElectionTestCase {
     // Tests whether a WARN log is thrown when a node attempts to join a cluster, and then the same master node is re-elected (#126192)
     @TestLogging(
             reason = "test includes assertions about logging",
-            value = "org.elasticsearch.cluster.coordination.NodeJoinExecutor:WARN,org.elasticsearch.cluster.coordination.NodeJoinExecutor:INFO"
+            value = "org.elasticsearch.cluster.coordination.NodeJoinExecutor:WARN,org.elasticsearch.cluster.coordination.NodeJoinExecutor:INFO,org.elasticsearch.cluster.coordination.MasterService:WARN,org.elasticsearch.cluster.coordination.MasterService:INFO,org.elasticsearch.cluster.coordination.ClusterApplierService:WARN"
     )
-    public void testNodeTriesToJoinClusterAndThenSameMasterIsElected() {
+    public void testNodeTriesToJoinClusterAndThenSameMasterIsElected_DoesNotIncludeWarnLog() {
         final var cleanupTasks = new ArrayList<Releasable>();
 
         try {
             ensureSufficientMasterEligibleNodes();
-            DiscoveryNode masterNode = internalCluster().clusterService().state().nodes().getMasterNode();
-            String originalMasterName = internalCluster().getMasterName();
+            String masterNodeName = internalCluster().getMasterName();
+            DiscoveryNode masterNode = internalCluster().clusterService(masterNodeName).state().nodes().getMasterNode();
 
-            long originalTerm = internalCluster().clusterService().state().coordinationMetadata().term();
-            int numberOfNodesOriginallyInCluster = internalCluster().clusterService().state().getNodes().size();
-            List<String> namesOfDataNodesInOriginalCluster = getListOfDataNodeNamesFromCluster();
+            long originalTerm = internalCluster().clusterService(masterNodeName).state().coordinationMetadata().term();
+            long originalVersion = internalCluster().clusterService(masterNodeName).state().version();
+            int numberOfNodesOriginallyInCluster = internalCluster().clusterService(masterNodeName).state().getNodes().size();
+            List<String> namesOfDataNodesInOriginalCluster = getListOfDataNodeNamesFromCluster(masterNodeName);
+            String[] namesOfAllNodesInOriginalCluster = internalCluster().getNodeNames();
+
+            final var masterNodeTransportService = MockTransportService.getInstance(masterNodeName);
+            cleanupTasks.add(masterNodeTransportService::clearAllRules);
+
+            // Mocks behaviour to force the master to step down
+            masterNodeTransportService.addSendBehavior((connection, requestId, action, request, options) -> {
+                // This makes the master fail, forcing a re-election
+                if (action.equals(PublicationTransportHandler.PUBLISH_STATE_ACTION_NAME)) {
+                    throw new ElasticsearchException("[{}] for [{}] denied", action, connection.getNode());
+                } else {
+                    connection.sendRequest(requestId, action, request, options);
+                }
+            });
+
+            // Latch to remove publishing ban to allow re-election
+            CountDownLatch publishingBanRemovedLatch = removeMockTransportServicePublishBanWhenMasterHasSteppedDown(masterNodeName, masterNodeTransportService, cleanupTasks);
 
             // A CountDownLatch that only gets decremented when the first master node is re-elected
-            final var masterKnowsItHasBeenReElectedLatch = configureElectionLatchForReElectedMaster(originalMasterName, originalTerm, cleanupTasks);
+            final var masterKnowsItHasBeenReElectedLatch = configureElectionLatchForReElectedMaster(masterNodeName, originalTerm, cleanupTasks);
 
-            // A list of CountDownLatches, one for each node, that only gets decremented when it recieves a cluster state update containing the new node N
-            List<CountDownLatch> newNodeIsPresentInClusterStateLatchList = new ArrayList<>();
-
-            for (final var transportService : internalCluster().getInstances(TransportService.class)) {
-                final var mockTransportService = asInstanceOf(MockTransportService.class, transportService);
+            for (String nodeName : internalCluster().getNodeNames()) {
+                final var mockTransportService = MockTransportService.getInstance(nodeName);
                 cleanupTasks.add(mockTransportService::clearAllRules);
 
-                String nodeName = mockTransportService.getLocalNode().getName();
-                newNodeIsPresentInClusterStateLatchList.add(waitUntilNewNodeIsPresentInClusterStateUpdate(nodeName, numberOfNodesOriginallyInCluster, cleanupTasks));
-
-                if (nodeName.equals(originalMasterName)) {
+                if (nodeName.equals(masterNodeName) == false) {
                     mockTransportService.addSendBehavior((connection, requestId, action, request, options) -> {
-                        // This makes the master fail, forcing a re-election
-                        if (action.equals(PublicationTransportHandler.PUBLISH_STATE_ACTION_NAME)) {
-                            throw new ElasticsearchException("[{}] for [{}] denied", action, connection.getNode());
-                        } else {
-                            connection.sendRequest(requestId, action, request, options);
-                        }
-                    });
-
-                    // This removes the PUBLISH_STATE_ACTION_NAME mocking set above once we have triggered an election to allow the master node to be re-elected
-                    removeMockTransportServicePublishBanWhenMasterHasSteppedDown(originalMasterName, originalTerm, mockTransportService, cleanupTasks);
-                } else {
-                    mockTransportService.addSendBehavior((connection, requestId, action, request, options) -> {
-                        if (
-                            // This disables pre-voting on all nodes except the master, forcing it to win the election
-                            action.equals(StatefulPreVoteCollector.REQUEST_PRE_VOTE_ACTION_NAME)
-                                || action.equals(PublicationTransportHandler.PUBLISH_STATE_ACTION_NAME)
-                        ) {
+                        // This disables pre-voting on all nodes except the master, forcing it to win the election
+                        if (action.equals(StatefulPreVoteCollector.REQUEST_PRE_VOTE_ACTION_NAME)) {
                             throw new ElasticsearchException("[{}] for [{}] denied", action, connection.getNode());
                         } else {
                             connection.sendRequest(requestId, action, request, options);
@@ -217,75 +232,73 @@ public class NodeJoiningIT extends MasterElectionTestCase {
             }
 
             // Ensure the logging is as expected
-            try (var mockLog = MockLog.capture(NodeJoinExecutor.class)) {
+            try (var mockLog = MockLog.capture(NodeJoinExecutor.class, MasterService.class, ClusterApplierService.class)) {
+                long firstNodeJoinVersion = originalVersion + 1;
+                assert masterNode != null;
+                String expectedNewNodeAsString = generateNodeDescriptionForNewDiscoveryNode(numberOfNodesOriginallyInCluster, masterNode);
 
-                // We expect to see a node join message from the new node
-//                setNodeJoinMockLog(mockLog, numberOfNodesOriginallyInCluster, masterNode);
+                /*
+                     We expect to see a node join event as the master tries to process the join,
+                     but cannot commit the cluster state due to a lack of quorum.
+                     This means the join is not successful in this term.
+                 */
+                addMasterServiceUpdateTaskNodeJoinExpectation(mockLog, expectedNewNodeAsString, originalTerm, firstNodeJoinVersion);
 
-                // We expect to see a WARN log emitted when a node attempts to rejoin a cluster without restarting
-                mockLog.addExpectation(new MockLog.LoggingExpectation() {
-                    boolean matched = false;
+                // The node join fails
+                addFailedToCommitClusterStateVersionExpectation(mockLog, expectedNewNodeAsString, firstNodeJoinVersion);
 
-                    @Override
-                    public void match(LogEvent event) {
-                        if (event.getLevel() != Level.WARN) {
-                            return;
-                        }
-                        if (event.getLoggerName().equals(NodeJoinExecutor.class.getCanonicalName()) == false) {
-                            return;
-                        }
+                /*
+                    We expect the cluster to reuse the connection to N and not disconnect it
+                    Therefore, this WARN log should not be thrown
+                 */
+                addJoiningNodeDisconnectedWarnLogExpectation(mockLog, expectedNewNodeAsString);
 
-                        String regexToMatchAnyCharacterExceptClosingBrace = "([^}]+)";
-                        assert masterNode != null;
-                        // Since we declare this log message before we add a node, we need to predict what the node description will be
-                        Pattern pattern = Pattern.compile(
-                            "node-join: \\["
-                                + generateNodeDescriptionForNewNode(numberOfNodesOriginallyInCluster, masterNode)
-                                + "] "
-                                + "with reason \\[joining, removed \\["
-                                + regexToMatchAnyCharacterExceptClosingBrace
-                                + "] ago with reason \\[disconnected]]; "
-                                + "for troubleshooting guidance, see https://www.elastic.co/docs/troubleshoot/elasticsearch/troubleshooting-unstable-cluster\\?version=master"
-                        );
-                        Matcher matcher = pattern.matcher(event.getMessage().getFormattedMessage());
+                /*
+                    We expect node N to join the cluster.
+                    However, we expect no explicit `node-join: [{node_s5} ...]` log to be emitted by the master in this new term
+                    as the join is processed as part of the new election and cluster state publication, rather than a separate event
+                 */
+                addNodeJoinProcessedDuringNewElectionAndClusterStatePublicationExpectation(mockLog, expectedNewNodeAsString);
 
-                        if (matcher.find()) {
-                            matched = true;
-                        }
-                    }
-
-                    @Override
-                    public void assertMatched() {
-                        assertTrue(matched);
-                    }
-                });
-
-                // We haven't changed master nodes yet
-                assertEquals(originalMasterName, internalCluster().getMasterName());
+                // Before we add the new node, assert we haven't changed master nodes yet
+                assertEquals(masterNodeName, internalCluster().getMasterName());
 
                 // Sends a node join request to the original master node. This will fail, and cause a master failover
+                logger.info("Sending node join request");
                 String newNodeName = internalCluster().startDataOnlyNode();
+
+                // Wait until the master has stepped down before removing the publishing ban
+                safeAwait(publishingBanRemovedLatch);
+                logger.info("Master publishing ban removed");
 
                 // Wait until the master acknowledges its re-election. The master is only re-elected once it's publishing ban is lifted
                 safeAwait(masterKnowsItHasBeenReElectedLatch);
-                assertEquals(originalMasterName, internalCluster().getMasterName());
-
+                assertEquals(masterNodeName, internalCluster().getMasterName());
                 logger.info("Master has been re-elected");
 
-                // Wait for the cluster state update containing the new node N to propagate to all nodes. This gives times for the WARN log to be emitted
-                for (CountDownLatch countDownLatch : newNodeIsPresentInClusterStateLatchList) {
-                    safeAwait(countDownLatch);
+                try {
+                    // Await for N to be in the cluster state of all nodes
+                    for (String nodeName : namesOfAllNodesInOriginalCluster) {
+                        ClusterServiceUtils.awaitClusterState(
+                                logger,
+                                clusterState -> clusterState.nodes().nodeExistsWithName(newNodeName),
+                                internalCluster().clusterService(nodeName)
+                        );
+                    }
+                } catch (Exception e) {
+                    throw new RuntimeException(e);
                 }
 
+                // If the WARN log was thrown, then the connection to N was disconnected so fail the test
                 mockLog.assertAllExpectationsMatched();
 
                 // Assert the new data node was added
-                ClusterState state = internalCluster().clusterService().state();
+                ClusterState state = internalCluster().clusterService(masterNodeName).state();
                 assertEquals(numberOfNodesOriginallyInCluster + 1, state.nodes().getSize());
                 assertEquals(namesOfDataNodesInOriginalCluster.size() + 1, state.nodes().getDataNodes().size());
                 assertEquals(5, state.nodes().getMasterNodes().size());
 
-                List<String> namesOfDataNodesInNewCluster = getListOfDataNodeNamesFromCluster();
+                List<String> namesOfDataNodesInNewCluster = getListOfDataNodeNamesFromCluster(masterNodeName);
                 assertTrue(namesOfDataNodesInNewCluster.contains(newNodeName));
                 for (String nodeName : namesOfDataNodesInOriginalCluster) {
                     assertTrue(namesOfDataNodesInNewCluster.contains(nodeName));
@@ -296,9 +309,10 @@ public class NodeJoiningIT extends MasterElectionTestCase {
         }
     }
 
-    private List<String> getListOfDataNodeNamesFromCluster(){
+
+    private List<String> getListOfDataNodeNamesFromCluster(String nodeName){
         return internalCluster()
-            .clusterService()
+            .clusterService(nodeName)
             .state()
             .getNodes()
             .getDataNodes()
@@ -308,7 +322,7 @@ public class NodeJoiningIT extends MasterElectionTestCase {
             .toList();
     }
 
-    private void setNodeJoinMockLog(MockLog mockLog, int numberOfNodesOriginallyInCluster, DiscoveryNode masterNode) {
+    private void addNodeJoinExpectation(MockLog mockLog, String expectedNewNodeAsString) {
         // This matches with the node join message from the new node only
         mockLog.addExpectation(new MockLog.LoggingExpectation() {
             boolean matched = false;
@@ -322,11 +336,9 @@ public class NodeJoiningIT extends MasterElectionTestCase {
                     return;
                 }
 
-                // Since we declare this log message before we add a node, we need to predict what the node description will be
-                assert masterNode != null;
                 Pattern pattern = Pattern.compile(
                         "node-join: \\["
-                                + generateNodeDescriptionForNewNode(numberOfNodesOriginallyInCluster, masterNode)
+                                + expectedNewNodeAsString
                                 + "] "
                                 + "with reason \\[joining]"
                 );
@@ -344,7 +356,145 @@ public class NodeJoiningIT extends MasterElectionTestCase {
         });
     }
 
-    private String generateNodeDescriptionForNewNode(int numberOfNodesOriginallyInCluster, DiscoveryNode masterNode) {
+    private void addMasterServiceUpdateTaskNodeJoinExpectation(MockLog mockLog, String expectedNewNodeAsString, long term, long version) {
+        mockLog.addExpectation(new MockLog.LoggingExpectation() {
+            boolean matched = false;
+
+            @Override
+            public void match(LogEvent event) {
+                if (event.getLevel() != Level.INFO) {
+                    return;
+                }
+                if (event.getLoggerName().equals(MasterService.class.getCanonicalName()) == false) {
+                    return;
+                }
+
+                Pattern pattern = Pattern.compile(
+                        "node-join\\["
+                        + expectedNewNodeAsString
+                        + " joining],"
+                        + " term: " + term + ","
+                        + " version: " + version + ","
+                        + " delta: added \\{"
+                        + expectedNewNodeAsString
+                        + "}"
+                );
+                Matcher matcher = pattern.matcher(event.getMessage().getFormattedMessage());
+
+                if (matcher.find()) {
+                    matched = true;
+                }
+            }
+
+            @Override
+            public void assertMatched() {
+                assertTrue(matched);
+            }
+        });
+    }
+
+    private void addFailedToCommitClusterStateVersionExpectation(MockLog mockLog, String expectedNewNodeAsString, long version) {
+        mockLog.addExpectation(new MockLog.LoggingExpectation() {
+            boolean matched = false;
+
+            @Override
+            public void match(LogEvent event) {
+                if (event.getLevel() != Level.WARN) {
+                    return;
+                }
+                if (event.getLoggerName().equals(MasterService.class.getCanonicalName()) == false) {
+                    return;
+                }
+
+                Pattern pattern = Pattern.compile(
+                        "failing \\[node-join\\["
+                                + expectedNewNodeAsString
+                                + " joining]]: failed to commit cluster state version \\[" + version +"]"
+                );
+                Matcher matcher = pattern.matcher(event.getMessage().getFormattedMessage());
+
+                if (matcher.find()) {
+                    matched = true;
+                }
+            }
+
+            @Override
+            public void assertMatched() {
+                assertTrue(matched);
+            }
+        });
+    }
+
+    private void addJoiningNodeDisconnectedWarnLogExpectation(MockLog mockLog, String expectedNewNodeAsString) {
+        mockLog.addExpectation(new MockLog.LoggingExpectation() {
+            boolean matched = false;
+
+            @Override
+            public void match(LogEvent event) {
+                if (event.getLevel() != Level.WARN) {
+                    return;
+                }
+                if (event.getLoggerName().equals(NodeJoinExecutor.class.getCanonicalName()) == false) {
+                    return;
+                }
+
+                String regexToMatchAnyCharacterExceptClosingBrace = "([^}]+)";
+                Pattern pattern = Pattern.compile(
+                        "node-join: \\["
+                                + expectedNewNodeAsString
+                                + "] "
+                                + "with reason \\[joining, removed \\["
+                                + regexToMatchAnyCharacterExceptClosingBrace
+                                + "] ago with reason \\[disconnected]]; "
+                                + "for troubleshooting guidance, see https://www.elastic.co/docs/troubleshoot/elasticsearch/troubleshooting-unstable-cluster\\?version=master"
+                );
+                Matcher matcher = pattern.matcher(event.getMessage().getFormattedMessage());
+
+                if (matcher.find()) {
+                    matched = true;
+                }
+            }
+
+            @Override
+            public void assertMatched() {
+                assertFalse(matched);
+            }
+        });
+    }
+
+    private void addNodeJoinProcessedDuringNewElectionAndClusterStatePublicationExpectation(MockLog mockLog, String expectedNewNodeAsString) {
+        mockLog.addExpectation(new MockLog.LoggingExpectation() {
+            boolean matched = false;
+
+            @Override
+            public void match(LogEvent event) {
+                if (event.getLevel() != Level.INFO) {
+                    return;
+                }
+                if (event.getLoggerName().equals(ClusterApplierService.class.getCanonicalName()) == false) {
+                    return;
+                }
+
+                Pattern pattern = Pattern.compile(
+                        "added \\{"
+                        + expectedNewNodeAsString
+                        + "}"
+                );
+                Matcher matcher = pattern.matcher(event.getMessage().getFormattedMessage());
+
+                if (matcher.find()) {
+                    matched = true;
+                }
+            }
+
+            @Override
+            public void assertMatched() {
+                assertTrue(matched);
+            }
+        });
+    }
+
+    private String generateNodeDescriptionForNewDiscoveryNode(int numberOfNodesOriginallyInCluster, DiscoveryNode masterNode) {
         // Nodes are named `node_s0`, `node_s1` etc ...
         // Therefore, if there are N nodes in the cluster, named `node_s0` ... `node_sN-1`, N+1 will be named `node_sN`
         String newNodeName = "node_s" + numberOfNodesOriginallyInCluster;
@@ -365,66 +515,22 @@ public class NodeJoiningIT extends MasterElectionTestCase {
      * Removes all custom mockTransportService.addSendBehavior so that the original master node can run for election
      *
      * @param masterNodeName The name of the current master node
-     * @param originalTerm The term the current master node was first elected
+     * @param mockTransportService The transport service to remove the `addSendBehavior` from
      * @param cleanupTasks The list of cleanup tasks
      */
-    protected void removeMockTransportServicePublishBanWhenMasterHasSteppedDown(String masterNodeName, long originalTerm, MockTransportService mockTransportService, List<Releasable> cleanupTasks) {
+    protected CountDownLatch removeMockTransportServicePublishBanWhenMasterHasSteppedDown(String masterNodeName, MockTransportService mockTransportService, List<Releasable> cleanupTasks) {
+        CountDownLatch latch = new CountDownLatch(1);
         ClusterStateApplier newMasterMonitor = event -> {
             DiscoveryNode masterNode = event.state().nodes().getMasterNode();
-            long currentTerm = event.state().coordinationMetadata().term();
-            if (masterNode == null && currentTerm == originalTerm) {
+            if (masterNode == null || masterNode.getName().equals(masterNodeName) == false) {
                 // Remove the publishing ban
                 mockTransportService.addSendBehavior(Transport.Connection::sendRequest);
-                logger.info("Removing publishing ban");
+                latch.countDown();
             }
         };
         ClusterService masterClusterService = internalCluster().getInstance(ClusterService.class, masterNodeName);
         masterClusterService.addStateApplier(newMasterMonitor);
         cleanupTasks.add(() -> masterClusterService.removeApplier(newMasterMonitor));
-    }
-
-    /**
-     * Waits until the new node N is in the cluster
-     * As per #126192, the new node is:
-     * 1. Included in cluster state update (T, V) sent to all nodes.
-     * 2. Only M accepts the publication.
-     * 3. After receiving no acknowledgements, M steps down
-     * 4. M is re-elected. M sends out a new cluster state, (T+1, V+1) still with N included. Now N is added to all nodes in the cluster
-     * 5. The connection to N was closed when (T, V) failed
-     * 6. A node-left task is enqueued. This is cluster state update (T+1, V+2). All nodes have N removed from the cluster
-     * 7. Node N rejoins. This is cluster state update (T+1, V+3).
-     * 8. Hence, we wait until N is added, removed, and then added again before releasing the latch
-     *
-     * @param nodeName The name of the current node
-     * @param originalNumberOfNodes The number of nodes the cluster had before we attempted to add node N
-     * @param cleanupTasks The list of cleanup tasks
-     */
-    protected CountDownLatch waitUntilNewNodeIsPresentInClusterStateUpdate(String nodeName, int originalNumberOfNodes, List<Releasable> cleanupTasks) {
-        final AtomicBoolean nodeHasBeenAddedFirstTime = new AtomicBoolean(false);
-        final AtomicBoolean addedNodeHasBeenRemoved = new AtomicBoolean(false);
-        final var nodeHasBeenAddedLatch = new CountDownLatch(1);
-        ClusterStateApplier newMasterMonitor = event -> {
-            long currentNumberOfNodes = event.state().nodes().getAllNodes().size();
-
-            // First time the node has been added
-            if (!nodeHasBeenAddedFirstTime.get() && currentNumberOfNodes > originalNumberOfNodes) {
-                logger.info("node present - 1: {}", nodeName);
-                nodeHasBeenAddedFirstTime.set(true);
-            }
-            // The node has been added and is now removed
-            else if (nodeHasBeenAddedFirstTime.get() && !addedNodeHasBeenRemoved.get() && currentNumberOfNodes <= originalNumberOfNodes) {
-                logger.info("node removed - 2: {}", nodeName);
-                addedNodeHasBeenRemoved.set(true);
-            }
-            // The node has been added again, throwing the WARN log
-            else if (nodeHasBeenAddedFirstTime.get() && addedNodeHasBeenRemoved.get() && currentNumberOfNodes > originalNumberOfNodes) {
-                logger.info("node back - 3: {}", nodeName);
-                nodeHasBeenAddedLatch.countDown();
-            }
-        };
-        ClusterService masterClusterService = internalCluster().getInstance(ClusterService.class, nodeName);
-        masterClusterService.addStateApplier(newMasterMonitor);
-        cleanupTasks.add(() -> masterClusterService.removeApplier(newMasterMonitor));
-        return nodeHasBeenAddedLatch;
+        return latch;
     }
 }

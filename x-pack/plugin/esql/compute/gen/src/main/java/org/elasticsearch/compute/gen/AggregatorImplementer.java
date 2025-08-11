@@ -443,6 +443,9 @@ public class AggregatorImplementer {
                 builder.endControlFlow();
                 combineRawInputForArray(builder, "valuesArray");
             } else {
+                if (first == null && aggState.hasSeen()) {
+                    builder.addStatement("state.seen(true)");
+                }
                 for (AggregationParameter p : aggParams) {
                     builder.addStatement("int $L = $L.getFirstValueIndex(p)", p.startName(), p.blockName());
                     builder.addStatement("int $L = $L + $L.getValueCount(p)", p.endName(), p.startName(), p.blockName());
@@ -469,9 +472,6 @@ public class AggregatorImplementer {
                     }
                     builder.endControlFlow();
                 } else {
-                    if (aggState.hasSeen()) {
-                        builder.addStatement("state.seen(true)");
-                    }
                     combineRawInput(builder, false);
                 }
                 for (AggregationParameter p : aggParams) {

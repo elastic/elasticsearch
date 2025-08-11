@@ -107,11 +107,11 @@ public final class MaxBooleanAggregatorFunction implements AggregatorFunction {
       if (vBlock.isNull(p)) {
         continue;
       }
+      state.seen(true);
       int vStart = vBlock.getFirstValueIndex(p);
       int vEnd = vStart + vBlock.getValueCount(p);
       for (int vOffset = vStart; vOffset < vEnd; vOffset++) {
         boolean vValue = vBlock.getBoolean(vOffset);
-        state.seen(true);
         state.booleanValue(MaxBooleanAggregator.combine(state.booleanValue(), vValue));
       }
     }
@@ -125,11 +125,11 @@ public final class MaxBooleanAggregatorFunction implements AggregatorFunction {
       if (vBlock.isNull(p)) {
         continue;
       }
+      state.seen(true);
       int vStart = vBlock.getFirstValueIndex(p);
       int vEnd = vStart + vBlock.getValueCount(p);
       for (int vOffset = vStart; vOffset < vEnd; vOffset++) {
         boolean vValue = vBlock.getBoolean(vOffset);
-        state.seen(true);
         state.booleanValue(MaxBooleanAggregator.combine(state.booleanValue(), vValue));
       }
     }

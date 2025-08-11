@@ -109,11 +109,11 @@ public final class MaxIntAggregatorFunction implements AggregatorFunction {
       if (vBlock.isNull(p)) {
         continue;
       }
+      state.seen(true);
       int vStart = vBlock.getFirstValueIndex(p);
       int vEnd = vStart + vBlock.getValueCount(p);
       for (int vOffset = vStart; vOffset < vEnd; vOffset++) {
         int vValue = vBlock.getInt(vOffset);
-        state.seen(true);
         state.intValue(MaxIntAggregator.combine(state.intValue(), vValue));
       }
     }
@@ -127,11 +127,11 @@ public final class MaxIntAggregatorFunction implements AggregatorFunction {
       if (vBlock.isNull(p)) {
         continue;
       }
+      state.seen(true);
       int vStart = vBlock.getFirstValueIndex(p);
       int vEnd = vStart + vBlock.getValueCount(p);
       for (int vOffset = vStart; vOffset < vEnd; vOffset++) {
         int vValue = vBlock.getInt(vOffset);
-        state.seen(true);
         state.intValue(MaxIntAggregator.combine(state.intValue(), vValue));
       }
     }

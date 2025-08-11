@@ -1,0 +1,5 @@
+pr: 132622
+summary: Push compute engine value loading for longs down to tsdb codec
+area: "Mapping, Compute Engine, Codec"
+type: enhancement
+issues: []

@@ -34,6 +34,7 @@ import org.elasticsearch.xcontent.XContentType;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -170,27 +171,7 @@ public class IgnoredSourceFieldMapper extends MetadataFieldMapper {
             return;
         }
 
-        if (context.indexSettings().getIndexVersionCreated().before(IndexVersions.IGNORED_SOURCE_FIELDS_PER_ENTRY)) {
-            for (NameValue nameValue : context.getIgnoredFieldValues()) {
-                nameValue.doc().add(new StoredField(NAME, encode(nameValue)));
-            }
-            return;
-        }
-
-        Map<LuceneDocument, Map<String, List<NameValue>>> entriesMap = new HashMap<>();
-
-        for (NameValue nameValue : context.getIgnoredFieldValues()) {
-            String fieldName = ignoredFieldName(nameValue.name());
-            entriesMap.computeIfAbsent(nameValue.doc(), d -> new HashMap<>())
-                .computeIfAbsent(fieldName, n -> new ArrayList<>())
-                .add(nameValue);
-        }
-
-        for (var docEntry : entriesMap.entrySet()) {
-            for (var fieldEntry : docEntry.getValue().entrySet()) {
-                docEntry.getKey().add(new StoredField(fieldEntry.getKey(), encodeMulti(fieldEntry.getValue())));
-            }
-        }
+        ignoredSourceFormat(context.indexSettings().getIndexVersionCreated()).writeIgnoredFields(context.getIgnoredFieldValues());
     }
 
     public static String ignoredFieldName(String fieldName) {
@@ -288,6 +269,11 @@ public class IgnoredSourceFieldMapper extends MetadataFieldMapper {
             ) {
                 return Map.of();
             }
+
+            @Override
+            public void writeIgnoredFields(Collection<NameValue> ignoredFieldValues) {
+                throw new UnsupportedOperationException();
+            }
         },
         SINGLE_IGNORED_SOURCE {
             @Override
@@ -330,6 +316,13 @@ public class IgnoredSourceFieldMapper extends MetadataFieldMapper {
                     }
                 }
                 return valuesForFieldAndParents;
+            }
+
+            @Override
+            public void writeIgnoredFields(Collection<NameValue> ignoredFieldValues) {
+                for (NameValue nameValue : ignoredFieldValues) {
+                    nameValue.doc().add(new StoredField(NAME, encode(nameValue)));
+                }
             }
         },
         PER_FIELD_IGNORED_SOURCE {
@@ -387,6 +380,24 @@ public class IgnoredSourceFieldMapper extends MetadataFieldMapper {
 
                 return valuesForFieldAndParents;
             }
+
+            @Override
+            public void writeIgnoredFields(Collection<NameValue> ignoredFieldValues) {
+                Map<LuceneDocument, Map<String, List<NameValue>>> entriesMap = new HashMap<>();
+
+                for (NameValue nameValue : ignoredFieldValues) {
+                    String fieldName = ignoredFieldName(nameValue.name());
+                    entriesMap.computeIfAbsent(nameValue.doc(), d -> new HashMap<>())
+                        .computeIfAbsent(fieldName, n -> new ArrayList<>())
+                        .add(nameValue);
+                }
+
+                for (var docEntry : entriesMap.entrySet()) {
+                    for (var fieldEntry : docEntry.getValue().entrySet()) {
+                        docEntry.getKey().add(new StoredField(fieldEntry.getKey(), encodeMulti(fieldEntry.getValue())));
+                    }
+                }
+            }
         };
 
         public abstract Map<String, List<IgnoredSourceFieldMapper.NameValue>> loadAllIgnoredFields(
@@ -398,6 +409,8 @@ public class IgnoredSourceFieldMapper extends MetadataFieldMapper {
             Set<String> fieldPaths,
             Map<String, List<Object>> storedFields
         );
+
+        public abstract void writeIgnoredFields(Collection<NameValue> ignoredFieldValues);
     }
 
     public IgnoredSourceFormat ignoredSourceFormat() {

@@ -14,7 +14,7 @@ Known issues are significant defects or limitations that may impact your impleme
 
 **How do I know if my index vector type is `bbq_hnsw`?**
 
-* Prior to 9.1, the vector type had to be explicitely set to `bbq_hnsw`. Starting with 9.1, `bbq_hnsw` is the default vector type for all new indices, unless another type is specified.
+* Prior to 9.1, the vector type had to be explicitly set to `bbq_hnsw`. Starting with 9.1, `bbq_hnsw` is the default vector type for all new indices, unless another type is specified.
 
 ## 9.0.3 [elasticsearch-9.0.3-known-issues]
 

@@ -27,6 +27,7 @@ import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentString;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xcontent.provider.OptimizedTextCapable;
 import org.elasticsearch.xcontent.provider.XContentParserConfigurationImpl;
 import org.elasticsearch.xcontent.support.AbstractXContentParser;
 
@@ -151,8 +152,8 @@ public class JsonXContentParser extends AbstractXContentParser {
         if (parser instanceof FilteringParserDelegate delegate) {
             parser = delegate.delegate();
         }
-        if (parser instanceof ESUTF8StreamJsonParser esParser) {
-            var bytesRef = esParser.getValueAsText();
+        if (parser instanceof OptimizedTextCapable optimizedTextCapableParser) {
+            var bytesRef = optimizedTextCapableParser.getValueAsText();
             if (bytesRef != null) {
                 return bytesRef;
             }

@@ -10,7 +10,6 @@
 package org.elasticsearch.indices.cluster;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.cluster.node.tasks.TransportTasksActionTests;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.ClusterChangedEvent;
@@ -18,6 +17,7 @@ import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.index.seqno.RetentionLeaseSyncer;
 import org.elasticsearch.index.shard.PrimaryReplicaSyncer;
 import org.elasticsearch.indices.IndicesService;
@@ -28,46 +28,32 @@ import org.elasticsearch.search.SearchService;
 import org.elasticsearch.snapshots.SnapshotShardsService;
 import org.elasticsearch.test.transport.MockTransport;
 import org.elasticsearch.test.transport.MockTransportService;
-import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.junit.After;
-import org.junit.Before;
 
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
 
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 
 public class IndicesClusterStateServiceShardsClosedListenersTests extends AbstractIndicesClusterStateServiceTestCase {
 
-    protected ThreadPool threadPool;
-
-    @Before
-    public void setupThreadPool() {
-        threadPool = new TestThreadPool(TransportTasksActionTests.class.getSimpleName());
-    }
-
-    @After
-    public final void shutdownThreadPool() {
-        ThreadPool.terminate(threadPool, 30, TimeUnit.SECONDS);
-        threadPool = null;
-    }
-
-    public void testRunnablesExecuteAfterAllPreviousListenersComplete() {
+    public void testRunnablesExecuteAfterAllPreviousListenersComplete() throws Exception {
         AtomicInteger clusterStateAppliedRound = new AtomicInteger();
-        int totalClusterStateAppliedRounds = randomIntBetween(10, 100);
-        Map<Integer, List<Runnable>> runnablesOnShardsClosedPerRound = new ConcurrentHashMap<>();
-        Map<Integer, List<ActionListener<Void>>> shardsClosedListenersPerRound = new ConcurrentHashMap<>();
+//        int totalClusterStateAppliedRounds = randomIntBetween(10, 100);
+        int totalClusterStateAppliedRounds = 100;
+        Map<Integer, List<Runnable>> runnablesOnShardsClosedForRoundMap = new ConcurrentHashMap<>();
+        Map<Integer, List<ActionListener<Void>>> shardsClosedListenersForRoundMap = new ConcurrentHashMap<>();
         List<ActionListener<Void>> allShardsClosedListeners = Collections.synchronizedList(new ArrayList<>());
         try (
             TestIndicesClusterStateService testIndicesClusterStateService = new TestIndicesClusterStateService(
-                threadPool,
+                new DeterministicTaskQueue().getThreadPool(),
                     // the apply cluster state hook
                     (indicesClusterStateService, clusterChangedEvent) -> {
                     final int round = clusterStateAppliedRound.get();
@@ -75,17 +61,18 @@ public class IndicesClusterStateServiceShardsClosedListenersTests extends Abstra
                     if (randomBoolean()) {
                         Runnable mockRunnable = mock(Runnable.class);
                         indicesClusterStateService.onClusterStateShardsClosed(mockRunnable);
-                        runnablesOnShardsClosedPerRound.get(round).add(mockRunnable);
+                        runnablesOnShardsClosedForRoundMap.get(round).add(mockRunnable);
                     }
                     // maybe get some listeners as if asynchronously closing some shards
                     int listenersCount = randomIntBetween(0, 2);
                     for (int i = 0; i < listenersCount; i++) {
                         var shardsClosedListener = new SubscribableListener<Void>();
                         shardsClosedListener.addListener(indicesClusterStateService.getShardsClosedListener());
-                        shardsClosedListenersPerRound.get(round).add(shardsClosedListener);
+                        shardsClosedListenersForRoundMap.get(round).add(shardsClosedListener);
                         allShardsClosedListeners.add(shardsClosedListener);
                         shardsClosedListener.andThen(l -> {
-                            shardsClosedListenersPerRound.get(round).remove(shardsClosedListener);
+                            // the listeners auto-removes itself form the map, for testing purposes
+                            shardsClosedListenersForRoundMap.get(round).remove(shardsClosedListener);
                             allShardsClosedListeners.remove(shardsClosedListener);
                         });
                     }
@@ -93,30 +80,51 @@ public class IndicesClusterStateServiceShardsClosedListenersTests extends Abstra
                     if (randomBoolean()) {
                         Runnable mockRunnable = mock(Runnable.class);
                         indicesClusterStateService.onClusterStateShardsClosed(mockRunnable);
-                        runnablesOnShardsClosedPerRound.get(round).add(mockRunnable);
+                        runnablesOnShardsClosedForRoundMap.get(round).add(mockRunnable);
                     }
                 }
             )
         ) {
-            while (clusterStateAppliedRound.getAndIncrement() < totalClusterStateAppliedRounds) {
-                final int round = clusterStateAppliedRound.get();
-                runnablesOnShardsClosedPerRound.put(round, Collections.synchronizedList(new ArrayList<>()));
-                shardsClosedListenersPerRound.put(round, Collections.synchronizedList(new ArrayList<>()));
+            int round = clusterStateAppliedRound.get();
+            while (round < totalClusterStateAppliedRounds || allShardsClosedListeners.isEmpty() == false) {
+                if (round < totalClusterStateAppliedRounds) {
+                    runnablesOnShardsClosedForRoundMap.put(round, Collections.synchronizedList(new ArrayList<>()));
+                    shardsClosedListenersForRoundMap.put(round, Collections.synchronizedList(new ArrayList<>()));
 
-                // apply cluster state this round
-                testIndicesClusterStateService.applyClusterState(mock(ClusterChangedEvent.class));
+                    // apply cluster state this round
+                    testIndicesClusterStateService.applyClusterState(mock(ClusterChangedEvent.class));
 
-                // maybe register runnable for when all the shards in the previously applied cluster states are closed
-                runnablesOnShardsClosedPerRound.get(round).addAll(randomList(0, 2, () -> {
-                    Runnable mockRunnable = mock(Runnable.class);
-                    testIndicesClusterStateService.onClusterStateShardsClosed(mockRunnable);
-                    return mockRunnable;
-                }));
-
-                // TODO pick random listeners and complete them
-                if (randomBoolean() && allShardsClosedListeners.isEmpty() == false) {
-                    randomFrom(allShardsClosedListeners).onResponse(null);
+                    // maybe register runnable for when all the shards in the previously applied cluster states are closed
+                    runnablesOnShardsClosedForRoundMap.get(round).addAll(randomList(0, 2, () -> {
+                        Runnable mockRunnable = mock(Runnable.class);
+                        testIndicesClusterStateService.onClusterStateShardsClosed(mockRunnable);
+                        return mockRunnable;
+                    }));
                 }
+
+                // pick random listeners and complete it
+                if ((round >= totalClusterStateAppliedRounds || randomBoolean()) && allShardsClosedListeners.isEmpty() == false) {
+                    // complete one random listener
+                    randomFrom(allShardsClosedListeners).onResponse(null);
+                    int runnablesDoneUpToRound = 0;
+                    for (int i = 0; i <= round; i++) {
+                        if (shardsClosedListenersForRoundMap.get(i).isEmpty() == false) {
+                            break;
+                        }
+                        runnablesDoneUpToRound++;
+                    }
+                    for (int i = 0; i < runnablesDoneUpToRound; i++) {
+                        for (var runnable : runnablesOnShardsClosedForRoundMap.get(i)) {
+                            verify(runnable).run();
+                        }
+                    }
+                    for (int i = runnablesDoneUpToRound; i <= round; i++) {
+                        for (var runable : runnablesOnShardsClosedForRoundMap.get(i)) {
+                            verify(runable, times(0)).run();
+                        }
+                    }
+                }
+                round = clusterStateAppliedRound.incrementAndGet();
             }
         }
     }

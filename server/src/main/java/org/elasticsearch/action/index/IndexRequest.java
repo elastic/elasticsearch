@@ -363,9 +363,9 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
     }
 
     /**
-     * For time series indices created after {@link org.elasticsearch.index.IndexVersions#TSID_CREATED_DURING_ROUTING},
+     * When {@link org.elasticsearch.cluster.metadata.IndexMetadata#INDEX_DIMENSIONS} is populated,
      * the coordinating node will calculate _tsid during routing and set it on the request.
-     * For time series indices created before that version, the _tsid will be created in the data node during document parsing.
+     * For time series indices where the setting is not populated, the _tsid will be created in the data node during document parsing.
      * <p>
      * The _tsid can not be directly set by a user, it is set by the coordinating node.
      */

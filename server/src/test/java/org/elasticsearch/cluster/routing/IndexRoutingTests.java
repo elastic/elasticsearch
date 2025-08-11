@@ -626,8 +626,7 @@ public class IndexRoutingTests extends ESTestCase {
     }
 
     public void testRoutingPathBwc() throws IOException {
-        IndexVersion version = IndexVersionUtils.randomPreviousCompatibleVersion(random(), IndexVersions.TSID_CREATED_DURING_ROUTING);
-        IndexRouting routing = indexRoutingForRoutingPath(version, 8, "dim.*,other.*,top");
+        IndexRouting routing = indexRoutingForRoutingPath(IndexVersion.current(), 8, "dim.*,other.*,top");
         /*
          * These are the expected shards when we first added routing_path. If these values change
          * time series will be routed to unexpected shards. You may modify

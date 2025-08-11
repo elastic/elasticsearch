@@ -425,7 +425,7 @@ public class MustacheTests extends ESTestCase {
         assertScript(
             "{{#url}}prefix_{{s}}{{/url}}",
             singletonMap("s", random),
-            equalTo("prefix_" + URLEncoder.encode(random, StandardCharsets.UTF_8.name()))
+            equalTo("prefix_" + URLEncoder.encode(random, StandardCharsets.UTF_8))
         );
     }
 

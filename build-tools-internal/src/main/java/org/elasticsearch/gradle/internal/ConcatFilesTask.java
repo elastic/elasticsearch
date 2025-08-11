@@ -8,6 +8,8 @@
  */
 package org.elasticsearch.gradle.internal;
 
+import com.google.common.collect.Iterables;
+
 import org.gradle.api.DefaultTask;
 import org.gradle.api.file.FileCollection;
 import org.gradle.api.tasks.Input;
@@ -85,7 +87,7 @@ public class ConcatFilesTask extends DefaultTask {
     public void concatFiles() throws IOException {
         if (getHeaderLine() != null) {
             getTarget().getParentFile().mkdirs();
-            Files.write(getTarget().toPath(), (getHeaderLine() + '\n').getBytes(StandardCharsets.UTF_8));
+            Files.writeString(getTarget().toPath(), getHeaderLine() + '\n');
         }
 
         // To remove duplicate lines
@@ -95,11 +97,12 @@ public class ConcatFilesTask extends DefaultTask {
                 uniqueLines.addAll(Files.readAllLines(f.toPath(), StandardCharsets.UTF_8));
             }
         }
-        Files.write(getTarget().toPath(), uniqueLines, StandardCharsets.UTF_8, StandardOpenOption.APPEND);
-
-        for (String additionalLine : additionalLines) {
-            Files.write(getTarget().toPath(), (additionalLine + '\n').getBytes(StandardCharsets.UTF_8), StandardOpenOption.APPEND);
-        }
+        Files.write(
+            getTarget().toPath(),
+            Iterables.concat(uniqueLines, additionalLines),
+            StandardCharsets.UTF_8,
+            StandardOpenOption.APPEND
+        );
     }
 
 }

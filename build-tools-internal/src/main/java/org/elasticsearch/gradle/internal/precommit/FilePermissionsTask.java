@@ -103,7 +103,7 @@ public abstract class FilePermissionsTask extends DefaultTask {
         }
 
         outputMarker.getParentFile().mkdirs();
-        Files.write(outputMarker.toPath(), "done".getBytes("UTF-8"));
+        Files.writeString(outputMarker.toPath(), "done");
     }
 
     @OutputFile

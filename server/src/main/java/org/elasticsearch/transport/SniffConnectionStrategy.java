@@ -69,7 +69,12 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
             // validate seed address
             parsePort(s);
             return s;
-        }, new StrategyValidator<>(ns, key, ConnectionStrategy.SNIFF), Setting.Property.Dynamic, Setting.Property.NodeScope, Setting.Property.ProjectScope)
+        },
+            new StrategyValidator<>(ns, key, ConnectionStrategy.SNIFF),
+            Setting.Property.Dynamic,
+            Setting.Property.NodeScope,
+            Setting.Property.ProjectScope
+        )
     );
 
     /**

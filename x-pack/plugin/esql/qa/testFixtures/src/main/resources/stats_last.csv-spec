@@ -76,3 +76,16 @@ last_network_cost:double | pod:keyword
                     null | three
                     null | two
 ;
+
+skips_null
+required_capability: agg_first_last
+ROW v = ["null", "1", "2"]
+| MV_EXPAND v
+| EVAL v = CASE(v == "null", null, v::INTEGER)
+| EVAL @timestamp = CONCAT("2025-08-0", COALESCE(v::KEYWORD, "3"))::DATE
+| STATS LAST(v, @timestamp)
+;
+
+LAST(v, @timestamp):integer
+            2
+;

@@ -288,8 +288,8 @@ public class PutLifecycleMetadataService {
             }
             IndexLifecycleMetadata newMetadata = new IndexLifecycleMetadata(newPolicies, currentILMMode(projectState.metadata()));
             ProjectMetadata newProjectMetadata = ProjectMetadata.builder(projectState.metadata())
-                    .putCustom(IndexLifecycleMetadata.TYPE, newMetadata)
-                    .build();
+                .putCustom(IndexLifecycleMetadata.TYPE, newMetadata)
+                .build();
             ClusterState nonRefreshedState = ClusterState.builder(currentState).putProjectMetadata(newProjectMetadata).build();
             if (oldPolicy == null) {
                 return nonRefreshedState;

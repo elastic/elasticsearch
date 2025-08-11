@@ -9,7 +9,8 @@
 
 package org.elasticsearch.ingest;
 
-import org.elasticsearch.common.io.stream.StreamInput;
+import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.xcontent.DeprecationHandler;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.Text;
@@ -292,23 +293,20 @@ public class ESONXContentParser extends AbstractXContentParser {
     public XContentString optimizedText() throws IOException {
         // For strings, try to access raw bytes directly without materializing the string
         if (currentType instanceof ESONSource.VariableValue varValue && varValue.type() == ESONEntry.STRING) {
-            // Return XContentString with direct byte access (lazy string conversion)
-            byte[] rawBytes;
-            int offset;
-            int length = varValue.length();
-            if (values.data().hasArray()) {
-                rawBytes = values.data().array();
-                offset = values.data().arrayOffset() + varValue.position();
-            } else {
-                rawBytes = new byte[Math.toIntExact(length)];
-                offset = 0;
-                StreamInput streamInput = values.data().streamInput();
-                streamInput.skip(varValue.position());
-                streamInput.read(rawBytes);
-            }
+            BytesReference slice = values.data().slice(varValue.position(), varValue.length());
 
+            final byte[] bytes;
+            final int offset;
+            if (slice.hasArray()) {
+                bytes = slice.array();
+                offset = slice.arrayOffset();
+            } else {
+                BytesRef bytesRef = slice.toBytesRef();
+                bytes = bytesRef.bytes;
+                offset = bytesRef.offset;
+            }
             // TODO: Fix Length
-            return new Text(new XContentString.UTF8Bytes(rawBytes, offset, length), length);
+            return new Text(new XContentString.UTF8Bytes(bytes, offset, varValue.length()), varValue.length());
         }
 
         // Fallback: materialize value and convert to bytes

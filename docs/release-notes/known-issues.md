@@ -2,7 +2,6 @@
 navigation_title: "Known issues"
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/8.19/es-release-notes.html
-  - https://www.elastic.co/guide/en/elasticsearch/reference/current/es-connectors-known-issues.html
 ---
 
 # Elasticsearch known issues [elasticsearch-known-issues]

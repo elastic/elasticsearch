@@ -515,8 +515,9 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
                 params.getId(),
                 Strings.format(
                     "Failed while starting Transform. Automatically retrying every [%s] seconds. "
-                        + "To cancel retries, force stop this transform. Failure: [%s]",
+                        + "To cancel retries, use [_transform/%s/_stop?force] to force stop this transform. Failure: [%s]",
                     retryTimer.seconds(),
+                    params.getId(),
                     e.getMessage()
                 )
             );

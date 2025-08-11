@@ -12,13 +12,15 @@ Failure stores do not capture failures caused by backpressure or document versio
 
 On this page, you'll learn how to set up, use, and manage a failure store, as well as the structure of failure store documents.
 
-For examples of how to use failure stores to identify and fix errors in ingest pipelines and your data, refer to <<failure-store-recipes,Failure store recipes>>.
+For examples of how to use failure stores to identify and fix errors in ingest pipelines and your data, refer to <<failure-store-recipes,Using failure stores to address ingestion issues>>.
 
+[discrete]
 === Set up a data stream failure store [[set-up-failure-store]]
 
 Each data stream has its own failure store that can be enabled to accept failed documents. By default, this failure store is disabled and any ingestion problems are raised in the response to write operations.
 
-=== Set up for new data streams [[set-up-failure-store-new]]
+[discrete]
+==== Set up for new data streams [[set-up-failure-store-new]]
 
 You can specify in a data stream's <<index-templates,index templates>> if it should enable the failure store when it is first created.
 
@@ -49,6 +51,7 @@ PUT _index_template/my-index-template
 
 After a matching data stream is created, its failure store will be enabled.
 
+[discrete]
 ==== Set up for existing data streams [[set-up-failure-store-existing]]
 
 Enabling the failure store via <<index-templates,index templates>> can only affect data streams that are newly created. Existing data streams that use a template are not affected by changes to the template's `data_stream_options` field.
@@ -78,9 +81,10 @@ PUT _data_stream/my-datastream-existing/_options
 ----
 <1> Redirecting failed documents into the failure store will now be disabled.
 
+[discrete]
 ==== Enable failure store via cluster setting [[set-up-failure-store-cluster-setting]]
 
-If you have a large number of existing data streams you may want to enable their failure stores in one place. Instead of updating each of their options individually, set `data_streams.failure_store.enabled` to a list of index patterns in the xref:https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-cluster-put-settings[cluster settings]. Any data streams that match one of these patterns will operate with their failure store enabled.
+If you have a large number of existing data streams you may want to enable their failure stores in one place. Instead of updating each of their options individually, set `data_streams.failure_store.enabled` to a list of index patterns in the https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-cluster-put-settings[cluster settings]. Any data streams that match one of these patterns will operate with their failure store enabled.
 
 [source,console]
 ----
@@ -106,19 +110,21 @@ PUT _data_stream/my-datastream-1/_options
 ----
 <1> The failure store for `my-datastream-1` is disabled even though it matches `my-datastream-*`. The data stream options override the cluster setting.
 
-== Using a failure store [[use-failure-store]]
+[discrete]
+=== Using a failure store [[use-failure-store]]
 
 The failure store is meant to ease the burden of detecting and handling failures when ingesting data to {es}. Clients are less likely to encounter unrecoverable failures when writing documents, and developers are more easily able to troubleshoot faulty pipelines and mappings.
 
-For examples of how to use failure stores to identify and fix errors in ingest pipelines and your data, refer to <<failure-store-recipes,Failure store recipes>>.
+For examples of how to use failure stores to identify and fix errors in ingest pipelines and your data, refer to <<failure-store-recipes,Using failure stores to address ingestion issues>>.
 
-=== Failure redirection [[use-failure-store-redirect]]
+[discrete]
+==== Failure redirection [[use-failure-store-redirect]]
 
 Once a failure store is enabled for a data stream it will begin redirecting documents that fail due to common ingestion problems instead of returning errors in write operations. Clients are notified in a non-intrusive way when a document is redirected to the failure store.
 
 Each data stream's failure store is made up of a list of indices that are dedicated to storing failed documents. These failure indices function much like a data stream's normal backing indices: There is a write index that accepts failed documents, the indices can be rolled over, and they're automatically cleaned up over time subject to a lifecycle policy. Failure indices are lazily created the first time they are needed to store a failed document.
 
-When a document bound for a data stream encounters a problem during its ingestion, the response is annotated with the `failure_store` field which describes how {es} responded to that problem. The `failure_store` field is present on both the xref:https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-bulk[bulk] and xref:https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-create[index] API responses when applicable. Clients can use this information to augment their behavior based on the response from {es}.
+When a document bound for a data stream encounters a problem during its ingestion, the response is annotated with the `failure_store` field which describes how {es} responded to that problem. The `failure_store` field is present on both the https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-bulk[bulk] and https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-create[index] API responses when applicable. Clients can use this information to augment their behavior based on the response from {es}.
 
 Here we have a bulk operation that sends two documents. Both are writing to the `id` field which is mapped as a `long` field type. The first document will be accepted, but the second document would cause a failure because the value `invalid_text` cannot be parsed as a `long`. This second document will be redirected to the failure store:
 
@@ -270,7 +276,8 @@ If the document was redirected to a data stream's failure store but that failed 
 <4> The response is annotated with a flag indicating the failure store would have accepted the document, but it was not able to.
 <5> The response status is `400 Bad Request` due to the original mapping problem.
 
-=== Searching failures [[use-failure-store-searching]]
+[discrete]
+==== Searching failures [[use-failure-store-searching]]
 
 Once you have accumulated some failures, the failure store can be searched much like a regular data stream.
 
@@ -287,12 +294,10 @@ Searching a data stream's failure store can be done by making use of the existin
 
 To indicate that the search should be performed on failure store data, use the <<component-selectors,component selector syntax>> to indicate which part of the data stream to target in the search operation. Appending the `::failures` suffix to the name of the data stream indicates that the operation should be performed against that data stream's failure store instead of its regular backing indices.
 
-[cols="1,1",options="header"]
-|===
-| Example
-| Description
+[discrete]
+===== ES|QL
 
-a|
+
 [source,console]
 ----
 POST _query?format=txt
@@ -302,13 +307,83 @@ POST _query?format=txt
 ----
 <1> We drop the `error.stack_trace` field here just to keep the example free of newlines.
 
-a|
+[source,console-result]
+----
+       @timestamp       |    document.id     |document.index |document.routing|                                                            error.message                                                            |error.pipeline |error.pipeline_trace|error.processor_tag|error.processor_type|        error.type
+------------------------+--------------------+---------------+----------------+-------------------------------------------------------------------------------------------------------------------------------------+---------------+--------------------+-------------------+--------------------+--------------------------
+2025-05-01T12:00:00.000Z|Y0vQipYB_ZAKuDfZR4sR|my-datastream  |null            |[1:45] failed to parse field [id] of type [long] in document with id 'Y0vQipYB_ZAKuDfZR4sR'. Preview of field's value: 'invalid_text'|null           |null                |null               |null                |document_parsing_exception
+----
+
+[NOTE]
+====
+Because the `document.source` field is unmapped, it is absent from the ES|SQL results.
+====
+
+[discrete]
+===== Search API
+
 [source,console]
 ----
 GET my-datastream::failures/_search
 ----
 
-a|
+An example of a search result with the failed document present:
+
+[source,console-result]
+----
+{
+  "took": 0,
+  "timed_out": false,
+  "_shards": {
+    "total": 1,
+    "successful": 1,
+    "skipped": 0,
+    "failed": 0
+  },
+  "hits": {
+    "total": {
+      "value": 1,
+      "relation": "eq"
+    },
+    "max_score": 1,
+    "hits": [
+      {
+        "_index": ".fs-my-datastream-2025.05.01-000002",
+        "_id": "lEu8jZYB_ZAKuDfZNouU",
+        "_score": 1,
+        "_source": {
+          "@timestamp": "2025-05-01T12:00:00.000Z",
+          "document": {
+            "id": "Y0vQipYB_ZAKuDfZR4sR",
+            "index": "my-datastream",
+            "source": {
+              "@timestamp": "2025-05-01T00:00:00Z",
+              "id": "invalid_text"
+            }
+          },
+          "error": {
+            "type": "document_parsing_exception",
+            "message": "[1:53] failed to parse field [id] of type [long] in document with id 'Y0vQipYB_ZAKuDfZR4sR'. Preview of field's value: 'invalid_text'",
+            "stack_trace": """o.e.i.m.DocumentParsingException: [1:53] failed to parse field [id] of type [long] in document with id 'Y0vQipYB_ZAKuDfZR4sR'. Preview of field's value: 'invalid_text'
+	at o.e.i.m.FieldMapper.rethrowAsDocumentParsingException(FieldMapper.java:241)
+	at o.e.i.m.FieldMapper.parse(FieldMapper.java:194)
+	... 24 more
+Caused by: j.l.IllegalArgumentException: For input string: "invalid_text"
+	at o.e.x.s.AbstractXContentParser.toLong(AbstractXContentParser.java:189)
+	at o.e.x.s.AbstractXContentParser.longValue(AbstractXContentParser.java:210)
+	... 31 more
+"""
+          }
+        }
+      }
+    ]
+  }
+}
+----
+
+[discrete]
+===== SQL
+
 [source,console]
 ----
 POST _sql?format=txt
@@ -316,14 +391,31 @@ POST _sql?format=txt
     "query": """SELECT * FROM "my-datastream::failures" LIMIT 1"""
 }
 ----
-|===
+
+An example of a search result with the failed document present:
+
+[source,console-result]
+----
+       @timestamp       |    document.id     |document.index |document.routing|                                                            error.message                                                            |error.pipeline |error.pipeline_trace|error.processor_tag|error.processor_type|                                                                                                                                                                                                                                                                            error.stack_trace                                                                                                                                                                                                                                                                            |        error.type
+------------------------+--------------------+---------------+----------------+-------------------------------------------------------------------------------------------------------------------------------------+---------------+--------------------+-------------------+--------------------+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+--------------------------
+2025-05-05T20:49:10.899Z|sXk1opYBL1dfU_1htCAE|my-datastream  |null            |[1:45] failed to parse field [id] of type [long] in document with id 'sXk1opYBL1dfU_1htCAE'. Preview of field's value: 'invalid_text'|null           |null                |null               |null                |o.e.i.m.DocumentParsingException: [1:45] failed to parse field [id] of type [long] in document with id 'sXk1opYBL1dfU_1htCAE'. Preview of field's value: 'invalid_text'
+	at o.e.i.m.FieldMapper.rethrowAsDocumentParsingException(FieldMapper.java:241)
+	at o.e.i.m.FieldMapper.parse(FieldMapper.java:194)
+	... 19 more
+Caused by: j.l.IllegalArgumentException: For input string: "invalid_text"
+	at o.e.x.s.AbstractXContentParser.toLong(AbstractXContentParser.java:189)
+	at o.e.x.s.AbstractXContentParser.longValue(AbstractXContentParser.java:210)
+	... 26 more
+|document_parsing_exception
+----
 
 [NOTE]
 ====
 Because the `document.source` field is unmapped, it is absent from the ES|SQL and SQL results.
 ====
 
-=== Failure document structure [[use-failure-store-document]]
+[discrete]
+==== Failure document structure [[use-failure-store-document]]
 Failure documents have a uniform structure that is handled internally by {es}.
 `@timestamp`:: (`date`) The timestamp at which the document encountered a failure in {es}.
 `document`:: (`object`) The document at time of failure. If the document failed in an ingest pipeline, then the document will be the unprocessed version of the document as it arrived in the original indexing request. If the document failed due to a mapping issue, then the document will be as it was after any ingest pipelines were applied to it.
@@ -345,7 +437,7 @@ Failure documents have a uniform structure that is handled internally by {es}.
 * `error.processor_tag` (`keyword`, optional) If the failure occurred in an ingest processor that is annotated with a tag, the tag contents will be present here.
 * `error.processor_type` (`keyword`, optional) If the failure occurred in an ingest processor, this will contain the processor type. (e.g. `script`, `append`, `enrich`, etc.)
 --
-==== Failure document source [[use-failure-store-document-source]]
+===== Failure document source [[use-failure-store-document-source]]
 The contents of a failure's `document` field is dependent on when the failure occurred in ingestion. When sending data to a data stream, documents can fail in two different phases: during an ingest pipeline and during indexing.
 . Documents that fail during an ingest pipeline will store the source of the document as it was originally sent to {es}. Changes from pipelines are discarded before redirecting the failure.
 . Documents that fail during indexing will store the source of the document as it was during the index operation. Any changes from pipelines will be reflected in the source of the document that is redirected.
@@ -571,10 +663,11 @@ Caused by: j.l.IllegalArgumentException: For input string: "this field is invali
 <2> The document failed to be indexed because of a mapping mismatch.
 The `document` field attempts to show the effective input to whichever process led to the failure occurring. This gives you all the information you need to reproduce the problem.
 
-== Manage a data stream's failure store [[manage-failure-store]]
+[discrete]
+=== Manage a data stream's failure store [[manage-failure-store]]
 Failure data can accumulate in a data stream over time. To help manage this accumulation, most administrative operations that can be done on a data stream can be applied to the data stream's failure store.
-=== Failure store rollover [[manage-failure-store-rollover]]
-A data stream treats its failure store much like a secondary set of <<backing-indices,backing indices>>. Multiple dedicated hidden indices serve search requests for the failure store, while one index acts as the current write index. You can use the xref:https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-indices-rollover[rollover] API to rollover the failure store. Much like the regular indices in a data stream, a new write index will be created in the failure store to accept new failure documents.
+==== Failure store rollover [[manage-failure-store-rollover]]
+A data stream treats its failure store much like a secondary set of <<backing-indices,backing indices>>. Multiple dedicated hidden indices serve search requests for the failure store, while one index acts as the current write index. You can use the https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-indices-rollover[rollover] API to rollover the failure store. Much like the regular indices in a data stream, a new write index will be created in the failure store to accept new failure documents.
 [source,console]
 ----
 POST my-datastream::failures/_rollover
@@ -592,8 +685,10 @@ POST my-datastream::failures/_rollover
   "conditions": {}
 }
 ----
-=== Failure store lifecycle [[manage-failure-store-lifecycle]]
-Failure stores have their retention managed using an internal <<data-stream-lifecycle,data stream lifecycle>>. A thirty day (30d) retention is applied to failure store data. You can view the active lifecycle for a failure store index by calling the xref:https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-indices-get-data-stream[get data stream API]:
+
+[discrete]
+==== Failure store lifecycle [[manage-failure-store-lifecycle]]
+Failure stores have their retention managed using an internal <<data-stream-lifecycle,data stream lifecycle>>. A thirty day (30d) retention is applied to failure store data. You can view the active lifecycle for a failure store index by calling the https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-indices-get-data-stream[get data stream API]:
 [source,console]
 ----
 GET _data_stream/my-datastream
@@ -683,7 +778,9 @@ PUT _data_stream/my-datastream/_options
 ----
 <1> Ensure that the failure store remains enabled.
 <2> Set only this data stream's failure store retention to ten days.
-=== Add and remove from failure store [[manage-failure-store-indices]]
+
+[discrete]
+==== Add and remove from failure store [[manage-failure-store-indices]]
 Failure stores support adding and removing indices from them using the https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-indices-modify-data-stream[Update data streams] API.
 [source,console]
 ----
@@ -714,3 +811,5 @@ POST _data_stream/_modify
 <5> The name of an index that should be added to the failure store.
 <6> Set `failure_store` to true to have the modify API target operate on the data stream's failure store.
 This API gives you fine-grained control over the indices in your failure store, allowing you to manage backup and restoration operations as well as isolate failure data for later remediation.
+
+include::failure-store-recipes.asciidoc[]

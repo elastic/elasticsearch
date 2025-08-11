@@ -949,6 +949,7 @@ GET movies/_search
 <1> The `rule` retriever is the outermost retriever, applying rules to the search results that were previously reranked using the `rrf` retriever.
 <2> The `rrf` retriever returns results from all of its sub-retrievers, and the output of the `rrf` retriever is used as input to the `rule` retriever.
 
+[[pinned-retriever]]
 ==== Pinned retriever
 
 A `pinned` retriever returns top documents by always placing specific documents at the top of the results, with the remaining hits provided by a secondary retriever. This retriever offers similar functionality to the <<query-dsl-pinned-query,pinned query>>, but works seamlessly with other retrievers. This is useful for promoting certain documents for particular queries, regardless of their relevance score.

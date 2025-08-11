@@ -232,10 +232,11 @@ public class ESONSource {
             int offset;
             if (slice.hasArray()) {
                 bytes = slice.array();
-                offset = slice.arrayOffset() + position;
+                offset = slice.arrayOffset();
             } else {
-                bytes = values.readByteArray(position, length);
-                offset = 0;
+                BytesRef bytesRef = slice.toBytesRef();
+                bytes = bytesRef.bytes;
+                offset = bytesRef.offset;
             }
             switch (type) {
                 case ESONEntry.STRING -> builder.utf8Value(bytes, offset, length);
@@ -286,10 +287,11 @@ public class ESONSource {
             final int offset;
             if (slice.hasArray()) {
                 bytes = slice.array();
-                offset = slice.arrayOffset() + position;
+                offset = slice.arrayOffset();
             } else {
-                bytes = readByteArray(position, length);
-                offset = 0;
+                BytesRef bytesRef = slice.toBytesRef();
+                bytes = bytesRef.bytes;
+                offset = bytesRef.offset;
             }
             return new String(bytes, offset, length, java.nio.charset.StandardCharsets.UTF_8);
         }

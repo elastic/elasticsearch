@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceStringCasingW
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.local.InferIsNotNull;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.local.InferNonNullAggConstraint;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.local.LocalPropagateEmptyRelation;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.local.LocalPushDownFiltersRightPastJoin;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.local.ReplaceDateTruncBucketWithRoundTo;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.local.ReplaceFieldWithConstantOrNull;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.local.ReplaceTopNWithLimitAndSort;
@@ -82,6 +83,7 @@ public class LocalLogicalPlanOptimizer extends ParameterizedRuleExecutor<Logical
 
         // add rule that should only apply locally
         newRules.add(new ReplaceStringCasingWithInsensitiveRegexMatch());
+        newRules.add(new LocalPushDownFiltersRightPastJoin());
 
         return operators.with(newRules.toArray(Rule[]::new));
     }

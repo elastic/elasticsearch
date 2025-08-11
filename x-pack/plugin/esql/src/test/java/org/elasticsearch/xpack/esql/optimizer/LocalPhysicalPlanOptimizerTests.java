@@ -1077,6 +1077,60 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
     }
 
     /*
+     * ProjectExec[[emp_no{f}#9, languages{f}#12 AS language_code#6, language_name{f}#21]]
+     * \_LimitExec[1000[INTEGER],58]
+     *   \_ExchangeExec[[emp_no{f}#9, languages{f}#12, language_name{f}#21],false]
+     *     \_ProjectExec[[emp_no{f}#9, languages{f}#12, language_name{f}#21]]
+     *       \_FieldExtractExec[emp_no{f}#9]<[],[]>
+     *         \_LimitExec[1000[INTEGER],74]
+     *           \_FilterExec[language_name{f}#21 == foo[KEYWORD]]
+     *             \_LookupJoinExec[[languages{f}#12],[language_code{f}#20],[language_name{f}#21]]
+     *               |_FieldExtractExec[languages{f}#12]<[],[]>
+     *               | \_EsQueryExec[test], indexMode[standard], query[][_doc{f}#22], limit[], sort[] estimatedRowSize[62]
+     *               \_EsQueryExec[languages_lookup], indexMode[lookup], query[{"esql_single_value":{"field":"language_name",
+     *                      "next":{"term":{"language_name":{"value":"foo","boost":0.0}}},
+     *                      "source":"language_name == \"foo\"@5:9"}}][_doc{f}#23], limit[], sort[] estimatedRowSize[4]
+     */
+    public void testJoinWithFilterOnTheRight() {
+        var plan = plannerOptimizer.plan("""
+            from test
+            | keep emp_no, languages
+            | rename languages AS language_code
+            | lookup join languages_lookup ON language_code
+            | where language_name == "foo"
+            """);
+
+        var project = as(plan, ProjectExec.class);
+        assertThat(Expressions.names(project.projections()), contains("emp_no", "language_code", "language_name"));
+        var limit = as(project.child(), LimitExec.class);
+        var exchange = as(limit.child(), ExchangeExec.class);
+        project = as(exchange.child(), ProjectExec.class);
+        assertThat(Expressions.names(project.projections()), contains("emp_no", "languages", "language_name"));
+        var extract = as(project.child(), FieldExtractExec.class);
+        assertThat(Expressions.names(extract.attributesToExtract()), contains("emp_no"));
+        limit = as(extract.child(), LimitExec.class);
+        var filter = as(limit.child(), FilterExec.class);
+        assertThat(filter.condition().toString(), is("language_name == \"foo\""));
+        var join = as(filter.child(), LookupJoinExec.class);
+        // left
+        extract = as(join.left(), FieldExtractExec.class);
+        assertThat(Expressions.names(extract.attributesToExtract()), contains("languages"));
+        var source = as(extract.child(), EsQueryExec.class);
+        assertThat(source.indexMode(), is(IndexMode.STANDARD));
+        // right
+        source = as(join.right(), EsQueryExec.class);
+        assertThat(source.indexPattern(), is("languages_lookup"));
+        assertThat(source.indexMode(), is(IndexMode.LOOKUP));
+        assertThat(
+            source.query().toString().replaceAll("\\s+", ""),
+            is(
+                "{\"esql_single_value\":{\"field\":\"language_name\",\"next\":{\"term\":{\"language_name\":"
+                    + "{\"value\":\"foo\",\"boost\":0.0}}},\"source\":\"language_name==\\\"foo\\\"@5:9\"}}"
+            )
+        );
+    }
+
+    /*
      * LimitExec[1000[INTEGER]]
      * \_LookupJoinExec[[language_code{r}#6],[language_code{f}#23],[language_name{f}#24]]
      *   |_LimitExec[1000[INTEGER]]

@@ -23,6 +23,7 @@ import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.compute.operator.lookup.QueryList;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
@@ -44,7 +45,7 @@ import java.util.Objects;
 /**
  * {@link LookupFromIndexService} performs lookup against a Lookup index for
  * a given input page. See {@link AbstractLookupService} for how it works
- * where it refers to this process as a {@code LEFT JOIN}. Which is mostly is.
+ * where it refers to this process as a {@code LEFT JOIN}. Which it mostly is.
  */
 public class LookupFromIndexService extends AbstractLookupService<LookupFromIndexService.Request, LookupFromIndexService.TransportRequest> {
     public static final String LOOKUP_ACTION_NAME = EsqlQueryAction.NAME + "/lookup_from_index";
@@ -85,6 +86,7 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
             null,
             request.extractFields,
             request.matchField,
+            request.filterQueryBuilder,
             request.source
         );
     }
@@ -125,9 +127,10 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
             String matchField,
             Page inputPage,
             List<NamedExpression> extractFields,
+            QueryBuilder filterQueryBuilder,
             Source source
         ) {
-            super(sessionId, index, indexPattern, inputDataType, inputPage, extractFields, source);
+            super(sessionId, index, indexPattern, inputDataType, inputPage, extractFields, filterQueryBuilder, source);
             this.matchField = matchField;
         }
     }
@@ -144,9 +147,10 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
             Page toRelease,
             List<NamedExpression> extractFields,
             String matchField,
+            QueryBuilder filterQueryBuilder,
             Source source
         ) {
-            super(sessionId, shardId, indexPattern, inputDataType, inputPage, toRelease, extractFields, source);
+            super(sessionId, shardId, indexPattern, inputDataType, inputPage, toRelease, extractFields, filterQueryBuilder, source);
             this.matchField = matchField;
         }
 
@@ -171,6 +175,9 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
             PlanStreamInput planIn = new PlanStreamInput(in, in.namedWriteableRegistry(), null);
             List<NamedExpression> extractFields = planIn.readNamedWriteableCollectionAsList(NamedExpression.class);
             String matchField = in.readString();
+            QueryBuilder filterQueryBuilder = in.getTransportVersion().onOrAfter(TransportVersions.ESQL_LOOKUP_JOIN_FILTER)
+                ? in.readOptionalNamedWriteable(QueryBuilder.class)
+                : null;
             var source = Source.EMPTY;
             if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_17_0)) {
                 source = Source.readFrom(planIn);
@@ -190,6 +197,7 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
                 inputPage,
                 extractFields,
                 matchField,
+                filterQueryBuilder,
                 source
             );
             result.setParentTask(parentTaskId);
@@ -214,6 +222,9 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
             PlanStreamOutput planOut = new PlanStreamOutput(out, null);
             planOut.writeNamedWriteableCollection(extractFields);
             out.writeString(matchField);
+            if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_LOOKUP_JOIN_FILTER)) {
+                out.writeOptionalNamedWriteable(filterQueryBuilder);
+            }
             if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_17_0)) {
                 source.writeTo(planOut);
             }

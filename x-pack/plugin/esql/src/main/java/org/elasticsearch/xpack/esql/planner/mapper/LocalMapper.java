@@ -111,7 +111,8 @@ public class LocalMapper {
                     join.rightOutputFields()
                 );
             }
-            if (right instanceof EsSourceExec source && source.indexMode() == IndexMode.LOOKUP) {
+            var leaves = right.collectLeaves();
+            if (leaves.size() == 1 && leaves.get(0) instanceof EsSourceExec source && source.indexMode() == IndexMode.LOOKUP) {
                 return new LookupJoinExec(join.source(), left, right, config.leftFields(), config.rightFields(), join.rightOutputFields());
             }
         }

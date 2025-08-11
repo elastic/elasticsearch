@@ -21,6 +21,7 @@ import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.lookup.RightChunkedLeftJoin;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
@@ -48,6 +49,7 @@ public final class LookupFromIndexOperator extends AsyncOperator<LookupFromIndex
         String lookupIndex,
         FieldAttribute.FieldName matchField,
         List<NamedExpression> loadFields,
+        QueryBuilder filterQueryBuilder,
         Source source
     ) implements OperatorFactory {
         @Override
@@ -62,6 +64,8 @@ public final class LookupFromIndexOperator extends AsyncOperator<LookupFromIndex
                 + loadFields
                 + " inputChannel="
                 + inputChannel
+                + " filterQueryBuilder="
+                + filterQueryBuilder
                 + "]";
         }
 
@@ -79,6 +83,7 @@ public final class LookupFromIndexOperator extends AsyncOperator<LookupFromIndex
                 lookupIndex,
                 matchField.string(),
                 loadFields,
+                filterQueryBuilder,
                 source
             );
         }
@@ -93,6 +98,7 @@ public final class LookupFromIndexOperator extends AsyncOperator<LookupFromIndex
     private final String lookupIndex;
     private final String matchField;
     private final List<NamedExpression> loadFields;
+    private final QueryBuilder filterQueryBuilder;
     private final Source source;
     private long totalTerms = 0L;
     /**
@@ -116,6 +122,7 @@ public final class LookupFromIndexOperator extends AsyncOperator<LookupFromIndex
         String lookupIndex,
         String matchField,
         List<NamedExpression> loadFields,
+        QueryBuilder filterQueryBuilder,
         Source source
     ) {
         super(driverContext, lookupService.getThreadContext(), maxOutstandingRequests);
@@ -128,6 +135,7 @@ public final class LookupFromIndexOperator extends AsyncOperator<LookupFromIndex
         this.lookupIndex = lookupIndex;
         this.matchField = matchField;
         this.loadFields = loadFields;
+        this.filterQueryBuilder = filterQueryBuilder;
         this.source = source;
     }
 
@@ -143,6 +151,7 @@ public final class LookupFromIndexOperator extends AsyncOperator<LookupFromIndex
             matchField,
             new Page(inputBlock),
             loadFields,
+            filterQueryBuilder,
             source
         );
         lookupService.lookupAsync(
@@ -200,6 +209,8 @@ public final class LookupFromIndexOperator extends AsyncOperator<LookupFromIndex
             + loadFields
             + " inputChannel="
             + inputChannel
+            + " filterQueryBuilder="
+            + filterQueryBuilder
             + "]";
     }
 

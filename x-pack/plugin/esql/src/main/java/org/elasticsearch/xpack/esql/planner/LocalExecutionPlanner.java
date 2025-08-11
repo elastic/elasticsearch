@@ -731,10 +731,11 @@ public class LocalExecutionPlanner {
         }
         Layout layout = layoutBuilder.build();
 
-        EsQueryExec localSourceExec = (EsQueryExec) join.lookup();
-        if (localSourceExec.indexMode() != IndexMode.LOOKUP) {
+        var lookup = join.lookup();
+        if (lookup instanceof EsQueryExec == false || ((EsQueryExec) lookup).indexMode() != IndexMode.LOOKUP) {
             throw new IllegalArgumentException("can't plan [" + join + "]");
         }
+        EsQueryExec localSourceExec = (EsQueryExec) lookup;
 
         // After enabling remote joins, we can have one of the two situations here:
         // 1. We've just got one entry - this should be the one relevant to the join, and it should be for this cluster
@@ -797,6 +798,7 @@ public class LocalExecutionPlanner {
                 indexName,
                 matchConfig.fieldName(),
                 join.addedFields().stream().map(f -> (NamedExpression) f).toList(),
+                localSourceExec.query(),
                 join.source()
             ),
             layout

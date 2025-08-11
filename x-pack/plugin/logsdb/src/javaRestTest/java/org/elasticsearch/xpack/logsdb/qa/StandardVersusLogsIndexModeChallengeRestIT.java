@@ -55,7 +55,7 @@ public abstract class StandardVersusLogsIndexModeChallengeRestIT extends Abstrac
     protected final DataGenerationHelper dataGenerationHelper;
 
     public StandardVersusLogsIndexModeChallengeRestIT() {
-        this(new DataGenerationHelper());
+        this(new DataGenerationHelper(builder -> builder.withMaxFieldCountPerLevel(30)));
     }
 
     protected StandardVersusLogsIndexModeChallengeRestIT(DataGenerationHelper dataGenerationHelper) {

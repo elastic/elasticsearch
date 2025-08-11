@@ -144,10 +144,34 @@ POST test-index/_search
 ```
 
 1. Specifies the maximum number of fragments to return.
-2. Sorts highlighted fragments by score when set to `score`. By default, fragments will be output in the order they appear in the field (order: none).
+2. Sorts the most relevant highlighted fragments by score when set to `score`. By default,
+   fragments will be output in the order they appear in the field (order: none).
 
+To use the `semantic` highlighter to view chunks in the order which they were indexed with no scoring,
+use the `match_all` query to retrieve them in the order they appear in the document:
 
-Highlighting is supported on fields other than semantic_text. However, if you want to restrict highlighting to the semantic highlighter and return no fragments when the field is not of type semantic_text, you can explicitly enforce the `semantic` highlighter in the query:
+```console
+POST test-index/_search
+{
+    "query": {
+        "match_all": {}
+    },
+    "highlight": {
+        "fields": {
+            "my_semantic_field": {
+                "number_of_fragments": 5  <1>
+            }
+        }
+    }
+}
+```
+
+1. This will return the first 5 chunks, set this number higher to retrieve more chunks.
+
+Highlighting is supported on fields other than semantic_text. However, if you
+want to restrict highlighting to the semantic highlighter and return no
+fragments when the field is not of type semantic_text, you can explicitly
+enforce the `semantic` highlighter in the query:
 
 ```console
 PUT test-index
@@ -231,6 +255,28 @@ PUT test-index
     }
 }
 ```
+
+## Troubleshooting semantic_text fields [troubleshooting-semantic-text-fields]
+
+If you want to verify that your embeddings look correct, you can view the
+inference data that `semantic_text` typically hides using `fields`.
+
+```console
+POST test-index/_search
+{
+    "query": {
+        "match": {
+            "my_semantic_field": "Which country is Paris in?"
+        },
+        "fields": [
+            "_inference_fields"
+          ]
+    }
+}
+```
+
+This will return verbose chunked embeddings content that is used to perform
+semantic search for `semantic_text` fields.
 
 
 ## Limitations [limitations]

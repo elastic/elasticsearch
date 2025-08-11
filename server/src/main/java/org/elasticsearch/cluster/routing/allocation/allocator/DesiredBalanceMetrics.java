@@ -64,11 +64,16 @@ public class DesiredBalanceMetrics {
     public record RoleAllocationStats(long totalAllocations, long undesiredAllocationsExcludingShuttingDownNodes) {
         public static final RoleAllocationStats EMPTY = new RoleAllocationStats(0L, 0L);
 
-        public float undesiredAllocationsRatio() {
+        /**
+         * Return the ratio of undesired allocations to the total number of allocations.
+         *
+         * @return a value in [0.0, 1.0]
+         */
+        public double undesiredAllocationsRatio() {
             if (totalAllocations == 0) {
-                return 0f;
+                return 0.0;
             }
-            return undesiredAllocationsExcludingShuttingDownNodes / (float) totalAllocations;
+            return undesiredAllocationsExcludingShuttingDownNodes / (double) totalAllocations;
         }
     }
 

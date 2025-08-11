@@ -78,15 +78,6 @@ public class OpenAiUnifiedChatCompletionResponseHandler extends OpenAiChatComple
         return chatCompletionErrorResponseHandler.buildChatCompletionError(message, request, result);
     }
 
-    @Override
-    protected void checkForErrorObject(Request request, HttpResult result) {
-        chatCompletionErrorResponseHandler.checkForErrorObject(request, result);
-    }
-
-    protected static String createErrorType(ErrorResponse errorResponse) {
-        return errorResponse != null ? errorResponse.getClass().getSimpleName() : "unknown";
-    }
-
     public static UnifiedChatCompletionException buildMidStreamError(String inferenceEntityId, String message, Exception e) {
         return DEFAULT_CHAT_COMPLETION_ERROR_RESPONSE_HANDLER.buildMidStreamChatCompletionError(inferenceEntityId, message, e);
     }

@@ -45,6 +45,11 @@ public class FirstDoubleByTimestampAggregator {
         return new LongDoubleState(0, 0);
     }
 
+    public static void first(LongDoubleState current, double value, long timestamp) {
+        current.v1(timestamp);
+        current.v2(value);
+    }
+
     public static void combine(LongDoubleState current, double value, long timestamp) {
         if (timestamp < current.v1()) {
             current.v1(timestamp);
@@ -54,8 +59,12 @@ public class FirstDoubleByTimestampAggregator {
 
     public static void combineIntermediate(LongDoubleState current, long timestamp, double value, boolean seen) {
         if (seen) {
-            current.seen(true);
-            combine(current, value, timestamp);
+            if (current.seen()) {
+                combine(current, value, timestamp);
+            } else {
+                first(current, value, timestamp);
+                current.seen(true);
+            }
         }
     }
 

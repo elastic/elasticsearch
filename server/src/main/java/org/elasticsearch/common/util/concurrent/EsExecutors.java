@@ -32,6 +32,8 @@ import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import static org.elasticsearch.cluster.service.MasterService.MASTER_UPDATE_THREAD_NAME;
+
 /**
  * A collection of static methods to help create different ES Executor types.
  */
@@ -121,7 +123,7 @@ public class EsExecutors {
         ThreadContext contextHolder,
         TaskTrackingConfig config
     ) {
-        if (USE_VIRTUAL_THREADS) {
+        if (USE_VIRTUAL_THREADS && name.contains(MASTER_UPDATE_THREAD_NAME) == false && name.contains("cluster_coordination") == false) {
             return EsVirtualThreadExecutorService.create(name, max, -1, rejectAfterShutdown, contextHolder, config);
         }
 

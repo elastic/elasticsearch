@@ -19,28 +19,42 @@ import org.elasticsearch.telemetry.metric.MeterRegistry;
 
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.VarHandle;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
+import java.util.Queue;
 import java.util.concurrent.AbstractExecutorService;
+import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.RejectedExecutionException;
-import java.util.concurrent.Semaphore;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.LongAdder;
 import java.util.stream.Stream;
 
+import static org.elasticsearch.common.util.concurrent.EsAbortPolicy.isForceExecution;
 import static org.elasticsearch.core.Strings.format;
 
 /**
  * Virtual thread executor mimicking the behavior of {@link EsThreadPoolExecutor} with virtual threads.
  *
- * <p>Each task is run in a new virtual thread. Concurrency is limited by the {@link #carrierThreads} {@link Semaphore} with
- * max {@link #threads} permits. Further tasks will be queued and, unless unbound ({@link #queueSize}{@code =-1}), tasks will eventually
- * be rejected if exceeding {@link #queueSize}.
+ * <p>Until the concurrency limit {@link #maxThreads} is reached, each new task is run on a new virtual thread. Otherwise, tasks will be
+ * queued while capacity {@link #maxQueueSize} allows and rejected afterwards. If {@link #maxQueueSize} is negative, the queue is unbounded.
  *
- * <p>{@link AbstractRunnable#isForceExecution()}{@code =true}) allows to bypass the queue limit and execute the task regardless.
+ * <p>{@link AbstractRunnable#isForceExecution()}{@code =true} allows bypassing the queue limit and force queuing of a task regardless
+ * of available capacity.
+ *
+ * <p>On completion of a task, further queued tasks might be executed on the same virtual thread.
+ *
+ * <p>This executor delays shutdown of the underlying virtual thread executor until pending tasks have been completed
+ * to mimic the behavior of the {@link EsThreadPoolExecutor} in combination with {@link EsExecutors.ForceQueuePolicy}
+ * if {@link #rejectAfterShutdown}{@code =false}.
+ *
+ * <p>In that case, if capacity permits, tasks are accepted and executed even after shutdown. Once all pending tasks have been completed,
+ * the underlying virtual thread executor is shutdown. Any attempt to submit new tasks afterwards is silently ignored without
+ * rejecting the tasks.
  *
  * <p>Note: Sharing of expensive resources such as buffers by means of {@link ThreadLocal}s isn't applicable if using virtual threads as
  * there's no point pooling them. If using virtual threads, {@link ThreadLocal}s should be replaced by object pools or similar for sharing
@@ -48,28 +62,32 @@ import static org.elasticsearch.core.Strings.format;
  */
 public class EsVirtualThreadExecutorService extends AbstractExecutorService implements EsExecutorService {
     private static final Logger logger = LogManager.getLogger(EsVirtualThreadExecutorService.class);
-    private static final VarHandle PENDING_HANDLE;
+    private static final VarHandle STATE_HANDLE;
 
     static {
         try {
-            PENDING_HANDLE = MethodHandles.lookup().findVarHandle(EsVirtualThreadExecutorService.class, "pendingTasks", int.class);
+            STATE_HANDLE = MethodHandles.lookup().findVarHandle(EsVirtualThreadExecutorService.class, "state", long.class);
         } catch (ReflectiveOperationException e) {
             throw new ExceptionInInitializerError(e);
         }
     }
 
-    final ExecutorService virtualExecutor;
-
     private final String name;
-    private final RejectionMetrics rejectionMetrics = new RejectionMetrics();
-    private final Semaphore carrierThreads;
-    private final int threads;
-    private final int queueSize;
+    private final int maxThreads;
+    private final int maxQueueSize;
+    private final boolean rejectAfterShutdown;
     private final ThreadContext contextHolder;
+    private final RejectionMetrics rejectionMetrics = new RejectionMetrics();
 
+    private final ExecutorService virtualExecutor;
+    private final CountDownLatch terminated = new CountDownLatch(1);
+    private final Queue<Runnable> queue = new ConcurrentLinkedQueue<>();
     private final LongAdder completed = new LongAdder();
+
+    private volatile boolean shutdown = false;
     private volatile int largestPoolSize = 0;
-    private volatile int pendingTasks = 0;
+    // low: active tasks, high: queued tasks
+    private volatile long state = 0;
 
     public static EsVirtualThreadExecutorService create(
         String name,
@@ -79,24 +97,24 @@ public class EsVirtualThreadExecutorService extends AbstractExecutorService impl
         ThreadContext contextHolder,
         TaskTrackingConfig trackingConfig
     ) {
-        if (rejectAfterShutdown) {
-            return trackingConfig.trackExecutionTime()
-                ? new TaskTrackingEsVirtualThreadExecutorService(name, threads, queueSize, contextHolder, trackingConfig)
-                : new EsVirtualThreadExecutorService(name, threads, queueSize, contextHolder);
-        } else {
-            return trackingConfig.trackExecutionTime()
-                ? new TaskTrackingDelayedShutdownEsVirtualThreadExecutorService(name, threads, queueSize, contextHolder, trackingConfig)
-                : new DelayedShutdownEsVirtualThreadExecutorService(name, threads, queueSize, contextHolder);
-        }
+        return trackingConfig.trackExecutionTime()
+            ? new TaskTrackingEsVirtualThreadExecutorService(name, threads, queueSize, rejectAfterShutdown, contextHolder, trackingConfig)
+            : new EsVirtualThreadExecutorService(name, threads, queueSize, rejectAfterShutdown, contextHolder);
     }
 
     @SuppressForbidden(reason = "internal implementation for EsExecutors")
-    private EsVirtualThreadExecutorService(String name, int threads, int queueSize, ThreadContext contextHolder) {
+    private EsVirtualThreadExecutorService(
+        String name,
+        int maxThreads,
+        int maxQueueSize,
+        boolean rejectAfterShutdown,
+        ThreadContext contextHolder
+    ) {
         this.name = name;
         this.virtualExecutor = Executors.newThreadPerTaskExecutor(virtualThreadFactory(name));
-        this.carrierThreads = new Semaphore(threads, true);
-        this.threads = threads;
-        this.queueSize = queueSize;
+        this.maxThreads = maxThreads;
+        this.maxQueueSize = 10;// maxQueueSize;
+        this.rejectAfterShutdown = rejectAfterShutdown;
         this.contextHolder = contextHolder;
     }
 
@@ -116,7 +134,7 @@ public class EsVirtualThreadExecutorService extends AbstractExecutorService impl
 
     @Override
     public int getActiveCount() {
-        return threads - carrierThreads.availablePermits();
+        return threads(state);
     }
 
     @Override
@@ -131,12 +149,12 @@ public class EsVirtualThreadExecutorService extends AbstractExecutorService impl
 
     @Override
     public int getCurrentQueueSize() {
-        return Math.max(0, pendingTasks - threads);
+        return queueSize(state);
     }
 
     @Override
     public int getMaximumPoolSize() {
-        return threads;
+        return maxThreads;
     }
 
     @Override
@@ -149,39 +167,67 @@ public class EsVirtualThreadExecutorService extends AbstractExecutorService impl
         return largestPoolSize;
     }
 
-    private class ThrottledRunnable implements Runnable {
-        private final Runnable r;
+    private class TaskLoop implements Runnable {
+        private Runnable wrapped;
 
-        ThrottledRunnable(Runnable r) {
-            this.r = r;
+        TaskLoop(Runnable wrapped) {
+            this.wrapped = wrapped;
         }
 
         @Override
         public void run() {
-            try {
-                long creationTimeNanos = System.nanoTime();
-                carrierThreads.acquire();
-                largestPoolSize = Math.max(getActiveCount(), largestPoolSize); // decent estimate
+            largestPoolSize = Math.max(getActiveCount(), largestPoolSize);
+            Throwable ex = null;
+            while (wrapped != null) {
                 try {
-                    doExecute(r, creationTimeNanos);
+                    beforeExecute(wrapped);
+                    try {
+                        wrapped.run();
+                    } catch (Throwable t) {
+                        ex = t;
+                        throw t;
+                    } finally {
+                        completed.increment();
+                        // this is slightly different from EsThreadPoolExecutor, where afterExecute
+                        // might be invoked twice if it throws an exception
+                        afterExecute(wrapped, ex);
+                    }
                 } finally {
-                    carrierThreads.release();
+                    // if a next queued runnable is immediately available, either continue on the same virtual thread
+                    // or fork a new one in case an exception was thrown.
+                    wrapped = nextQueuedRunnable(true);
+                    if (ex != null && wrapped != null) {
+                        newVirtualThread(wrapped); // fork due to exception
+                    }
                 }
-            } catch (InterruptedException e) {
-                assert virtualExecutor.isShutdown();
-                Thread.currentThread().interrupt();
-            } finally {
-                decrementPendingTasks();
-                completed.increment();
             }
+        }
+
+        /** Attempts to immediately execute the next queued task while still claiming an active thread.*/
+        private Runnable nextQueuedRunnable(boolean recheckAfterRelease) {
+            if (Thread.interrupted() || isTerminated()) {
+                releaseThread();
+                return null;
+            }
+            Runnable next = pollFromQueue();
+            if (next != null) {
+                return next;
+            }
+            releaseThread();
+            // check if a task was queued since we released this thread and attempt to process in case reclaiming the thread succeeds.
+            // this is necessary to avoid starvation if there are no active run loops.
+            if (recheckAfterRelease && queueSize(state) > 0 && acquireThread()) {
+                return nextQueuedRunnable(false);
+            }
+            return null;
         }
     }
 
-    // corresponds tp beforeExecute / afterExecute
-    protected void doExecute(Runnable r, long creationTimeNanos) {
-        r.run();
-        EsExecutors.rethrowErrors(unwrap(r));
-        assert assertDefaultContext(r);
+    protected void beforeExecute(Runnable wrapped) {}
+
+    protected void afterExecute(Runnable wrapped, Throwable t) {
+        EsExecutors.rethrowErrors(unwrap(wrapped));
+        assert assertDefaultContext(wrapped);
     }
 
     // FIXME is this needed with virtual threads?
@@ -195,26 +241,29 @@ public class EsVirtualThreadExecutorService extends AbstractExecutorService impl
         return true;
     }
 
+    private void newVirtualThread(Runnable wrapped) {
+        try {
+            virtualExecutor.execute(new TaskLoop(wrapped));
+        } catch (RejectedExecutionException re) {
+            releaseThread();
+            handleRejection(wrapped);
+        } catch (Throwable e) {
+            releaseThread();
+            throw e;
+        }
+    }
+
     @Override
     public void execute(Runnable command) {
-        final Runnable wrappedRunnable = wrapRunnable(command);
+        final Runnable wrapped = wrapRunnable(command);
         try {
-            boolean forceExecution = EsAbortPolicy.isForceExecution(wrappedRunnable);
-            if (virtualExecutor.isShutdown() == false && incrementPendingTasks(forceExecution) > 0) {
-                try {
-                    virtualExecutor.execute(new ThrottledRunnable(wrappedRunnable));
-                } catch (RejectedExecutionException re) {
-                    decrementPendingTasks();
-                    handleRejection(wrappedRunnable);
-                } catch (Exception e) {
-                    decrementPendingTasks();
-                    throw e;
-                }
-            } else {
-                handleRejection(wrappedRunnable);
+            switch (acquireThreadOrQueueCapacity(wrapped)) {
+                case THREAD -> newVirtualThread(wrapped);
+                case QUEUE -> queue.add(wrapped);
+                case REJECTED -> handleRejection(wrapped);
             }
         } catch (Exception e) {
-            if (wrappedRunnable instanceof AbstractRunnable abstractRunnable) {
+            if (wrapped instanceof AbstractRunnable abstractRunnable) {
                 try {
                     // If we are an abstract runnable we can handle the exception
                     // directly and don't need to rethrow it, but we log and assert
@@ -232,34 +281,91 @@ public class EsVirtualThreadExecutorService extends AbstractExecutorService impl
         }
     }
 
-    void handleRejection(Runnable wrappedRunnable) {
+    void handleRejection(Runnable wrapped) {
+        if (rejectAfterShutdown == false && shutdown) {
+            incrementQueueUnbounded();
+            queue.add(wrapped);
+            return;
+        }
         rejectionMetrics.incrementRejections();
-        throw EsRejectedExecutionHandler.newRejectedException(wrappedRunnable, this, isShutdown());
+        throw EsRejectedExecutionHandler.newRejectedException(wrapped, this, isShutdown());
     }
 
-    boolean hasPendingTasks() {
-        return pendingTasks > 0;
-    }
-
-    int incrementPendingTasks(boolean forceExecution) {
-        while (true) {
-            int pending = pendingTasks;
-            if (forceExecution == false && queueSize >= 0 && pending >= queueSize + threads) {
-                return -1;
+    private Runnable pollFromQueue() {
+        if (decrementQueue()) {
+            Runnable runnable;
+            while ((runnable = queue.poll()) == null) {
             }
-            if (PENDING_HANDLE.weakCompareAndSet(this, pending, pending + 1)) {
-                return pending + 1;
-            }
+            return runnable;
         }
+        return null;
     }
 
-    int decrementPendingTasks() {
-        while (true) {
-            int pending = pendingTasks;
-            if (PENDING_HANDLE.weakCompareAndSet(this, pending, pending - 1)) {
-                return pending - 1;
-            }
+    // competes with other consumers for tasks in queue
+    // possibly use ConcurrentLinkedDeque instead of ConcurrentLinkedQueue when drainQueue is necessary,
+    // to use pollLast instead of poll in case order matters
+    private List<Runnable> drainQueueAndCollectTasks() {
+        int size = queueSize(state);
+        if (size == 0) {
+            return Collections.emptyList();
         }
+        List<Runnable> drained = new ArrayList<>(size);
+        Runnable runnable;
+        while ((runnable = pollFromQueue()) != null) {
+            drained.add(runnable);
+        }
+        return drained;
+    }
+
+    @Override
+    public int drainQueue() {
+        return drainQueueAndCollectTasks().size();
+    }
+
+    @Override
+    public Stream<Runnable> getTasks() {
+        return queue.stream().map(this::unwrap);
+    }
+
+    public void shutdown() {
+        shutdown = true;
+        maybeShutdownExecutor();
+    }
+
+    private boolean maybeShutdownExecutor() {
+        if (shutdown && state == 0) {
+            terminated.countDown();
+            virtualExecutor.shutdown();
+            return true;
+        }
+        return false;
+    }
+
+    public boolean isShutdown() {
+        return shutdown;
+    }
+
+    public List<Runnable> shutdownNow() {
+        shutdown = true;
+        virtualExecutor.shutdownNow();
+        terminated.countDown();
+        return drainQueueAndCollectTasks();
+    }
+
+    public boolean isTerminated() {
+        return terminated.getCount() == 0;
+    }
+
+    public boolean awaitTermination(long timeout, TimeUnit unit) throws InterruptedException {
+        return maybeShutdownExecutor() ? true : terminated.await(timeout, unit);
+    }
+
+    protected Runnable wrapRunnable(Runnable runnable) {
+        return contextHolder.preserveContext(runnable);
+    }
+
+    protected Runnable unwrap(Runnable runnable) {
+        return ThreadContext.unwrap(runnable);
     }
 
     // package-visible for testing
@@ -273,8 +379,8 @@ public class EsVirtualThreadExecutorService extends AbstractExecutorService impl
         StringBuilder b = new StringBuilder();
         b.append(getClass().getSimpleName()).append('[');
         b.append("name = ").append(name).append(", ");
-        if (queueSize >= 0) {
-            b.append("queue capacity = ").append(queueSize).append(", ");
+        if (maxQueueSize >= 0) {
+            b.append("queue capacity = ").append(maxQueueSize).append(", ");
         }
         appendExecutorDetails(b);
         // append details similar to ThreadPoolExecutor.toString()
@@ -292,141 +398,107 @@ public class EsVirtualThreadExecutorService extends AbstractExecutorService impl
      */
     protected void appendExecutorDetails(final StringBuilder sb) {}
 
-    public void shutdown() {
-        virtualExecutor.shutdown();
+    private static int threads(long state) {
+        return (int) state; // low bits of state
     }
 
-    public boolean isShutdown() {
-        return virtualExecutor.isShutdown();
+    private static int queueSize(long state) {
+        return (int) (state >>> 32); // high bits of state
     }
 
-    public List<Runnable> shutdownNow() {
-        return virtualExecutor.shutdownNow();
+    private static final byte REJECTED = 0;
+    private static final byte THREAD = 1;
+    private static final byte QUEUE = 2;
+
+    private boolean tryUpdateState(long current, long incr) {
+        assert threads(current + incr) >= 0 : "negative thread count";
+        assert queueSize(current + incr) >= 0 : "negative queue size";
+        return STATE_HANDLE.weakCompareAndSet(this, current, current + incr);
     }
 
-    public boolean isTerminated() {
-        return virtualExecutor.isTerminated();
-    }
-
-    public boolean awaitTermination(long timeout, TimeUnit unit) throws InterruptedException {
-        return virtualExecutor.awaitTermination(timeout, unit);
-    }
-
-    protected Runnable wrapRunnable(Runnable command) {
-        return contextHolder.preserveContext(command);
-    }
-
-    protected Runnable unwrap(Runnable runnable) {
-        return ThreadContext.unwrap(runnable);
-    }
-
-    /**
-     * This ExecutorService delays shutdown of the underlying virtual thread executor until pending tasks have been completed
-     * to mimic the behavior of the {@link EsThreadPoolExecutor} in combination with {@link EsExecutors.ForceQueuePolicy}
-     * if {@code rejectAfterShutdown=false}:
-     *
-     * If capacity (queue size) permits, tasks are accepted and executed even after shutdown. Once all pending tasks have been completed,
-     * the underlying virtual thread executor is shutdown. Any attempt to submit new tasks afterwards is silently ignored without
-     * rejecting these tasks.
-     */
-    private static class DelayedShutdownEsVirtualThreadExecutorService extends EsVirtualThreadExecutorService {
-        private volatile boolean shutdown = false;
-        private final CountDownLatch terminated = new CountDownLatch(1);
-
-        DelayedShutdownEsVirtualThreadExecutorService(String name, int maximumPoolSize, int maximumQueueSize, ThreadContext contextHolder) {
-            super(name, maximumPoolSize, maximumQueueSize, contextHolder);
+    private byte acquireThreadOrQueueCapacity(Runnable wrapped) {
+        if (rejectAfterShutdown && shutdown) {
+            return REJECTED;
         }
-
-        @Override
-        public void shutdown() {
-            shutdown = true;
-            if (hasPendingTasks() == false) {
-                // only forward shutdown to executor if no pending tasks
-                shutdownExecutor();
+        boolean isTerminated = isTerminated();
+        boolean queueUnbounded = maxQueueSize < 0 || isForceExecution(wrapped) || (rejectAfterShutdown == false && shutdown);
+        while (true) {
+            long current = state;
+            if (isTerminated == false && threads(current) < maxThreads) {
+                if (tryUpdateState(current, 1L)) { // increment thread count
+                    return THREAD;
+                }
+            } else if (queueUnbounded || queueSize(current) < maxQueueSize) {
+                if (tryUpdateState(current, 1L << 32)) { // increment queue size
+                    return QUEUE;
+                }
+            } else {
+                return REJECTED;
             }
         }
+    }
 
-        private void shutdownExecutor() {
-            terminated.countDown();
-            virtualExecutor.shutdown();
-        }
-
-        @Override
-        public boolean isShutdown() {
-            return shutdown;
-        }
-
-        @Override
-        public boolean isTerminated() {
-            return terminated.getCount() == 0;
-        }
-
-        @Override
-        public List<Runnable> shutdownNow() {
-            terminated.countDown();
-            return virtualExecutor.shutdownNow();
-        }
-
-        @Override
-        public boolean awaitTermination(long timeout, TimeUnit unit) throws InterruptedException {
-            if (shutdown && hasPendingTasks() == false) {
-                shutdownExecutor();
+    private boolean acquireThread() {
+        while (true) {
+            long current = state;
+            if (threads(current) >= maxThreads) {
+                return false;
+            }
+            if (tryUpdateState(current, 1L)) { // increment thread count
                 return true;
             }
-            return terminated.await(timeout, unit);
         }
+    }
 
-        @Override
-        int decrementPendingTasks() {
-            int tasks = super.decrementPendingTasks();
-            if (tasks == 0 && shutdown) {
-                shutdownExecutor();
-            }
-            return tasks;
-        }
-
-        @Override
-        void handleRejection(Runnable wrappedRunnable) {
-            // if executor not shutdown rejection is due to capacity limit, else ignore silently
-            if (virtualExecutor.isShutdown() == false) {
-                super.handleRejection(wrappedRunnable);
+    private void releaseThread() {
+        while (true) {
+            long current = state;
+            if (tryUpdateState(current, -1L)) { // decrement thread count
+                maybeShutdownExecutor();
+                return;
             }
         }
     }
 
-    private interface TaskTrackerEsExecutorService extends TaskTrackingEsExecutorService {
-        TaskTracker taskTracker();
-
-        default long getMaxQueueLatencyMillisSinceLastPollAndReset() {
-            return taskTracker().getMaxQueueLatencyMillisSinceLastPollAndReset();
+    private boolean decrementQueue() {
+        while (true) {
+            long current = state;
+            if (queueSize(current) <= 0) {
+                return false;
+            }
+            if (tryUpdateState(current, -(1L << 32))) { // decrement queue size
+                return true;
+            }
         }
+    }
 
-        default double getTaskExecutionEWMA() {
-            return taskTracker().getTaskExecutionEWMA();
-        }
-
-        default double pollUtilization(UtilizationTrackingPurpose utilizationTrackingPurpose) {
-            return taskTracker().pollUtilization(utilizationTrackingPurpose);
+    private void incrementQueueUnbounded() {
+        while (true) {
+            if (tryUpdateState(state, 1L << 32)) { // increment queue size
+                return;
+            }
         }
     }
 
     private static class TaskTrackingEsVirtualThreadExecutorService extends EsVirtualThreadExecutorService
         implements
-            TaskTrackerEsExecutorService {
+            TaskTrackingEsExecutorService {
         private final TaskTracker taskTracker;
 
         TaskTrackingEsVirtualThreadExecutorService(
             String name,
             int maximumPoolSize,
             int maximumQueueSize,
+            boolean rejectAfterShutdown,
             ThreadContext contextHolder,
             TaskTrackingConfig trackingConfig
         ) {
-            super(name, maximumPoolSize, maximumQueueSize, contextHolder);
+            super(name, maximumPoolSize, maximumQueueSize, rejectAfterShutdown, contextHolder);
             this.taskTracker = new TaskTracker(trackingConfig, maximumPoolSize);
 
         }
 
+        @Override
         public Stream<Instrument> setupMetrics(MeterRegistry meterRegistry, String threadPoolName) {
             return Stream.concat(
                 super.setupMetrics(meterRegistry, threadPoolName),
@@ -435,15 +507,39 @@ public class EsVirtualThreadExecutorService extends AbstractExecutorService impl
         }
 
         @Override
-        protected void doExecute(Runnable r, long creationTimeNanos) {
-            taskTracker.trackTask(r);
+        public long getMaxQueueLatencyMillisSinceLastPollAndReset() {
+            return taskTracker.getMaxQueueLatencyMillisSinceLastPollAndReset();
+        }
+
+        @Override
+        public double getTaskExecutionEWMA() {
+            return taskTracker.getTaskExecutionEWMA();
+        }
+
+        @Override
+        public double pollUtilization(UtilizationTrackingPurpose utilizationTrackingPurpose) {
+            return taskTracker.pollUtilization(utilizationTrackingPurpose);
+        }
+
+        @Override
+        protected void beforeExecute(Runnable wrapped) {
+            taskTracker.trackTask(wrapped);
+            assert super.unwrap(wrapped) instanceof TimedRunnable : "expected only TimedRunnables in queue";
+            taskTracker.beforeExecute((TimedRunnable) super.unwrap(wrapped));
+        }
+
+        @Override
+        protected void afterExecute(Runnable wrapped, Throwable t) {
             try {
-                long startTimeNanos = System.nanoTime();
-                taskTracker.taskQueueLatency(startTimeNanos - creationTimeNanos);
-                super.doExecute(r, creationTimeNanos);
-                taskTracker.taskExecutionTime(Math.max(System.nanoTime() - startTimeNanos, 1L));
+                super.afterExecute(wrapped, t);
+                // A task has been completed, it has left the building. We should now be able to get the
+                // total time as a combination of the time in the queue and time spent running the task. We
+                // only want runnables that did not throw errors though, because they could be fast-failures
+                // that throw off our timings, so only check when t is null.
+                assert super.unwrap(wrapped) instanceof TimedRunnable : "expected only TimedRunnables in queue";
+                taskTracker.afterExecute((TimedRunnable) super.unwrap(wrapped));
             } finally {
-                taskTracker.untrackTask(r);
+                taskTracker.untrackTask(wrapped);
             }
         }
 
@@ -453,56 +549,18 @@ public class EsVirtualThreadExecutorService extends AbstractExecutorService impl
         }
 
         @Override
-        public TaskTracker taskTracker() {
-            return taskTracker;
-        }
-    }
-
-    private static class TaskTrackingDelayedShutdownEsVirtualThreadExecutorService extends DelayedShutdownEsVirtualThreadExecutorService
-        implements
-            TaskTrackerEsExecutorService {
-        private final TaskTracker taskTracker;
-
-        TaskTrackingDelayedShutdownEsVirtualThreadExecutorService(
-            String name,
-            int maximumPoolSize,
-            int maximumQueueSize,
-            ThreadContext contextHolder,
-            TaskTrackingConfig trackingConfig
-        ) {
-            super(name, maximumPoolSize, maximumQueueSize, contextHolder);
-            this.taskTracker = new TaskTracker(trackingConfig, maximumPoolSize);
-
-        }
-
-        public Stream<Instrument> setupMetrics(MeterRegistry meterRegistry, String threadPoolName) {
-            return Stream.concat(
-                super.setupMetrics(meterRegistry, threadPoolName),
-                taskTracker.setupMetrics(meterRegistry, threadPoolName)
-            );
+        protected Runnable wrapRunnable(Runnable runnable) {
+            return super.wrapRunnable(new TimedRunnable(runnable));
         }
 
         @Override
-        protected void doExecute(Runnable r, long creationTimeNanos) {
-            taskTracker.trackTask(r);
-            try {
-                long startTimeNanos = System.nanoTime();
-                taskTracker.taskQueueLatency(startTimeNanos - creationTimeNanos);
-                super.doExecute(r, creationTimeNanos);
-                taskTracker.taskExecutionTime(Math.max(System.nanoTime() - startTimeNanos, 1L));
-            } finally {
-                taskTracker.untrackTask(r);
+        protected Runnable unwrap(Runnable runnable) {
+            final Runnable unwrapped = super.unwrap(runnable);
+            if (unwrapped instanceof WrappedRunnable) {
+                return ((WrappedRunnable) unwrapped).unwrap();
+            } else {
+                return unwrapped;
             }
-        }
-
-        @Override
-        protected void appendExecutorDetails(StringBuilder sb) {
-            taskTracker.appendTaskExecutionDetails(sb);
-        }
-
-        @Override
-        public TaskTracker taskTracker() {
-            return taskTracker;
         }
     }
 }

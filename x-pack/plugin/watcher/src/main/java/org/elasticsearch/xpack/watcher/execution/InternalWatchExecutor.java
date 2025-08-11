@@ -6,11 +6,10 @@
  */
 package org.elasticsearch.xpack.watcher.execution;
 
-import org.elasticsearch.common.util.concurrent.EsThreadPoolExecutor;
+import org.elasticsearch.common.util.concurrent.EsExecutorService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.XPackField;
 
-import java.util.concurrent.BlockingQueue;
 import java.util.stream.Stream;
 
 public class InternalWatchExecutor implements WatchExecutor {
@@ -24,8 +23,13 @@ public class InternalWatchExecutor implements WatchExecutor {
     }
 
     @Override
-    public BlockingQueue<Runnable> queue() {
-        return executor().getQueue();
+    public int getCurrentQueueSize() {
+        return executor().getCurrentQueueSize();
+    }
+
+    @Override
+    public int drainQueue() {
+        return executor().drainQueue();
     }
 
     @Override
@@ -43,8 +47,8 @@ public class InternalWatchExecutor implements WatchExecutor {
         executor().execute(runnable);
     }
 
-    private EsThreadPoolExecutor executor() {
-        return (EsThreadPoolExecutor) threadPool.executor(THREAD_POOL_NAME);
+    private EsExecutorService executor() {
+        return (EsExecutorService) threadPool.executor(THREAD_POOL_NAME);
     }
 
 }

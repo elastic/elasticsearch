@@ -11,6 +11,7 @@ package org.elasticsearch.common.util.concurrent;
 
 import org.elasticsearch.common.ExponentiallyWeightedMovingAverage;
 import org.elasticsearch.common.metrics.ExponentialBucketHistogram;
+import org.elasticsearch.common.util.concurrent.EsExecutorService.TaskTrackingEsExecutorService.UtilizationTrackingPurpose;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.telemetry.metric.DoubleWithAttributes;
 import org.elasticsearch.telemetry.metric.Instrument;
@@ -82,10 +83,7 @@ class TaskTracker {
                 ThreadPool.THREAD_POOL_METRIC_PREFIX + threadPoolName + THREAD_POOL_METRIC_NAME_UTILIZATION,
                 "fraction of maximum thread time utilized for " + threadPoolName,
                 "fraction",
-                () -> new DoubleWithAttributes(
-                    pollUtilization(EsExecutorService.TaskTrackingEsExecutorService.UtilizationTrackingPurpose.APM),
-                    Map.of()
-                )
+                () -> new DoubleWithAttributes(pollUtilization(UtilizationTrackingPurpose.APM), Map.of())
             )
         );
     }
@@ -113,13 +111,13 @@ class TaskTracker {
 
     /**
      * Returns the fraction of the maximum possible thread time that was actually used since the last time this method was called.
-     * There are two periodic pulling mechanisms that access utilization reporting: {@link TaskTimeTrackingEsThreadPoolExecutor.UtilizationTrackingPurpose} distinguishes the
+     * There are two periodic pulling mechanisms that access utilization reporting: {@link UtilizationTrackingPurpose} distinguishes the
      * caller.
      *
      * @return the utilization as a fraction, in the range [0, 1]. This may return >1 if a task completed in the time range but started
      * earlier, contributing a larger execution time.
      */
-    double pollUtilization(TaskTimeTrackingEsThreadPoolExecutor.UtilizationTrackingPurpose utilizationTrackingPurpose) {
+    double pollUtilization(UtilizationTrackingPurpose utilizationTrackingPurpose) {
         switch (utilizationTrackingPurpose) {
             case APM:
                 return apmUtilizationTracker.pollUtilization();
@@ -155,7 +153,9 @@ class TaskTracker {
         }
     }
 
-    void taskQueueLatency(long taskQueueTimeNanos) {
+    void beforeExecute(TimedRunnable timedRunnable) {
+        timedRunnable.beforeExecute();
+        long taskQueueTimeNanos = timedRunnable.getQueueTimeNanos();
         assert taskQueueTimeNanos >= 0;
         var queueLatencyMillis = TimeUnit.NANOSECONDS.toMillis(taskQueueTimeNanos);
         queueLatencyMillisHistogram.addObservation(queueLatencyMillis);
@@ -165,10 +165,19 @@ class TaskTracker {
         }
     }
 
-    void taskExecutionTime(long taskExecutionNanos) {
-        assert taskExecutionNanos >= 0;
-        executionEWMA.addValue(taskExecutionNanos);
-        totalExecutionTime.add(taskExecutionNanos);
+    void afterExecute(TimedRunnable timedRunnable) {
+        final boolean failedOrRejected = timedRunnable.getFailedOrRejected();
+        final long taskExecutionNanos = timedRunnable.getTotalExecutionNanos();
+        assert taskExecutionNanos >= 0 || (failedOrRejected && taskExecutionNanos == -1)
+            : "expected task to always take longer than 0 nanoseconds or have '-1' failure code, got: "
+                + taskExecutionNanos
+                + ", failedOrRejected: "
+                + failedOrRejected;
+        if (taskExecutionNanos != -1) {
+            // taskExecutionNanos may be -1 if the task threw an exception
+            executionEWMA.addValue(taskExecutionNanos);
+            totalExecutionTime.add(taskExecutionNanos);
+        }
     }
 
     // Used for testing

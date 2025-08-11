@@ -91,7 +91,6 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static java.util.Collections.singletonMap;
@@ -147,7 +146,7 @@ public class ExecutionServiceTests extends ESTestCase {
         historyStore = mock(HistoryStore.class);
 
         executor = mock(WatchExecutor.class);
-        when(executor.queue()).thenReturn(new ArrayBlockingQueue<>(1));
+        // when(executor.queue()).thenReturn(new ArrayBlockingQueue<>(1));
 
         clock = ClockMock.frozen();
         client = mock(Client.class);

@@ -471,7 +471,7 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler, 
      * @param name the name of the executor service to obtain
      * @throws IllegalArgumentException if no executor service with the specified name exists
      */
-    public EsExecutorService executor(String name) {
+    public ExecutorService executor(String name) {
         final ExecutorHolder holder = executors.get(name);
         if (holder == null) {
             final var message = "no executor service found for [" + name + "]";

@@ -13,6 +13,7 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
+import org.elasticsearch.common.util.concurrent.EsExecutorService;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.engine.ThreadPoolMergeExecutorService.MergeTaskPriorityBlockingQueue;
@@ -36,7 +37,6 @@ import java.util.PriorityQueue;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Semaphore;
-import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
@@ -115,7 +115,7 @@ public class ThreadPoolMergeExecutorServiceTests extends ESTestCase {
         threadPoolMergeExecutorService.registerMergeEventListener(countingListener);
         assertThat(threadPoolMergeExecutorService.getMaxConcurrentMerges(), equalTo(mergeExecutorThreadCount));
         Semaphore runMergeSemaphore = new Semaphore(0);
-        ThreadPoolExecutor threadPoolExecutor = (ThreadPoolExecutor) testThreadPool.executor(ThreadPool.Names.MERGE);
+        EsExecutorService threadPoolExecutor = (EsExecutorService) testThreadPool.executor(ThreadPool.Names.MERGE);
         AtomicInteger doneMergesCount = new AtomicInteger(0);
         AtomicInteger reEnqueuedBackloggedMergesCount = new AtomicInteger();
         AtomicInteger abortedMergesCount = new AtomicInteger();
@@ -160,12 +160,14 @@ public class ThreadPoolMergeExecutorServiceTests extends ESTestCase {
             // assert that there are merge tasks running concurrently at the max allowed concurrency rate
             assertThat(threadPoolExecutor.getActiveCount(), is(mergeExecutorThreadCount));
             // with the other merge tasks enqueued
-            assertThat(threadPoolExecutor.getQueue().size(), is(mergesToSubmit - mergeExecutorThreadCount));
+            assertThat(threadPoolExecutor.getCurrentQueueSize(), is(mergesToSubmit - mergeExecutorThreadCount));
         });
         assertBusy(
             () -> assertThat(
                 countingListener.queued.get(),
-                equalTo(threadPoolExecutor.getActiveCount() + threadPoolExecutor.getQueue().size() + reEnqueuedBackloggedMergesCount.get())
+                equalTo(
+                    threadPoolExecutor.getActiveCount() + threadPoolExecutor.getCurrentQueueSize() + reEnqueuedBackloggedMergesCount.get()
+                )
             )
         );
         // shutdown prevents new merge tasks to be enqueued but existing ones should be allowed to continue
@@ -197,7 +199,7 @@ public class ThreadPoolMergeExecutorServiceTests extends ESTestCase {
                 );
                 // with any of the other merges still enqueued
                 assertThat(
-                    threadPoolExecutor.getQueue().size(),
+                    threadPoolExecutor.getCurrentQueueSize(),
                     is(Math.max(mergesToSubmit - mergeExecutorThreadCount - completedMergesCount, 0))
                 );
             });
@@ -291,7 +293,7 @@ public class ThreadPoolMergeExecutorServiceTests extends ESTestCase {
                     }
                     mergesStillToSubmit--;
                 } else {
-                    ThreadPoolExecutor threadPoolExecutor = (ThreadPoolExecutor) testThreadPool.executor(ThreadPool.Names.MERGE);
+                    EsExecutorService threadPoolExecutor = (EsExecutorService) testThreadPool.executor(ThreadPool.Names.MERGE);
                     long completedMerges = threadPoolExecutor.getCompletedTaskCount();
                     runMergeSemaphore.release();
                     // await merge to finish
@@ -325,7 +327,7 @@ public class ThreadPoolMergeExecutorServiceTests extends ESTestCase {
                 nodeEnvironment
             );
             assertThat(threadPoolMergeExecutorService.getMaxConcurrentMerges(), equalTo(mergeExecutorThreadCount));
-            ThreadPoolExecutor threadPoolExecutor = (ThreadPoolExecutor) testThreadPool.executor(ThreadPool.Names.MERGE);
+            EsExecutorService threadPoolExecutor = (EsExecutorService) testThreadPool.executor(ThreadPool.Names.MERGE);
             Semaphore runMergeSemaphore = new Semaphore(0);
             Set<MergeTask> currentlyRunningMergeTasksSet = ConcurrentCollections.newConcurrentSet();
 
@@ -502,7 +504,7 @@ public class ThreadPoolMergeExecutorServiceTests extends ESTestCase {
             // more merge tasks than max concurrent merges allowed to run concurrently
             int totalMergeTasksCount = mergeExecutorThreadCount + randomIntBetween(1, 5);
             Semaphore runMergeSemaphore = new Semaphore(0);
-            ThreadPoolExecutor threadPoolExecutor = (ThreadPoolExecutor) testThreadPool.executor(ThreadPool.Names.MERGE);
+            EsExecutorService threadPoolExecutor = (EsExecutorService) testThreadPool.executor(ThreadPool.Names.MERGE);
             // submit all merge tasks
             for (int i = 0; i < totalMergeTasksCount; i++) {
                 MergeTask mergeTask = mock(MergeTask.class);
@@ -544,7 +546,7 @@ public class ThreadPoolMergeExecutorServiceTests extends ESTestCase {
                     // also check thread-pool stats for the same
                     assertThat(threadPoolExecutor.getActiveCount(), is(mergeExecutorThreadCount));
                     assertThat(
-                        threadPoolExecutor.getQueue().size(),
+                        threadPoolExecutor.getCurrentQueueSize(),
                         is(totalMergeTasksCount - mergeExecutorThreadCount - finalCompletedTasksCount)
                     );
                 });
@@ -561,7 +563,7 @@ public class ThreadPoolMergeExecutorServiceTests extends ESTestCase {
                     assertThat(threadPoolMergeExecutorService.getMergeTasksQueueLength(), is(0));
                     // also check thread-pool stats for the same
                     assertThat(threadPoolExecutor.getActiveCount(), is(finalRemainingMergeTasksCount));
-                    assertThat(threadPoolExecutor.getQueue().size(), is(0));
+                    assertThat(threadPoolExecutor.getCurrentQueueSize(), is(0));
                 });
                 // let one merge task finish running
                 runMergeSemaphore.release();
@@ -591,7 +593,7 @@ public class ThreadPoolMergeExecutorServiceTests extends ESTestCase {
             );
             assertThat(threadPoolMergeExecutorService.getMaxConcurrentMerges(), equalTo(mergeExecutorThreadCount));
             int totalMergeTasksCount = randomIntBetween(1, 10);
-            ThreadPoolExecutor threadPoolExecutor = (ThreadPoolExecutor) testThreadPool.executor(ThreadPool.Names.MERGE);
+            EsExecutorService threadPoolExecutor = (EsExecutorService) testThreadPool.executor(ThreadPool.Names.MERGE);
             List<MergeTask> backloggedMergeTasksList = new ArrayList<>();
             for (int i = 0; i < totalMergeTasksCount; i++) {
                 MergeTask mergeTask = mock(MergeTask.class);
@@ -612,10 +614,10 @@ public class ThreadPoolMergeExecutorServiceTests extends ESTestCase {
                 if (backloggedMergeTasksList.size() >= mergeExecutorThreadCount) {
                     // active tasks waiting for backlogged merge tasks to be re-enqueued
                     assertThat(threadPoolExecutor.getActiveCount(), is(mergeExecutorThreadCount));
-                    assertThat(threadPoolExecutor.getQueue().size(), is(backloggedMergeTasksList.size() - mergeExecutorThreadCount));
+                    assertThat(threadPoolExecutor.getCurrentQueueSize(), is(backloggedMergeTasksList.size() - mergeExecutorThreadCount));
                 } else {
                     assertThat(threadPoolExecutor.getActiveCount(), is(backloggedMergeTasksList.size()));
-                    assertThat(threadPoolExecutor.getQueue().size(), is(0));
+                    assertThat(threadPoolExecutor.getCurrentQueueSize(), is(0));
                 }
                 assertThat(threadPoolMergeExecutorService.getMergeTasksQueueLength(), is(0));
             });
@@ -627,7 +629,7 @@ public class ThreadPoolMergeExecutorServiceTests extends ESTestCase {
                 // all merge tasks should now show as "completed"
                 assertThat(threadPoolExecutor.getCompletedTaskCount(), is((long) totalMergeTasksCount));
                 assertThat(threadPoolExecutor.getActiveCount(), is(0));
-                assertThat(threadPoolExecutor.getQueue().size(), is(0));
+                assertThat(threadPoolExecutor.getCurrentQueueSize(), is(0));
                 assertTrue(threadPoolMergeExecutorService.allDone());
             });
         }

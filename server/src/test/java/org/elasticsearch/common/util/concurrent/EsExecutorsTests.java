@@ -289,9 +289,7 @@ public class EsExecutorsTests extends ESTestCase {
             containsString("on TaskExecutionTimeTrackingEsThreadPoolExecutor[name = " + getName())
         )
             .or(containsString("on EsVirtualThreadExecutorService[name = " + getName()))
-            .or(containsString("on TaskTrackingEsVirtualThreadExecutorService[name = " + getName()))
-            .or(containsString("on DelayedShutdownEsVirtualThreadExecutorService[name = " + getName()))
-            .or(containsString("on TaskTrackingDelayedShutdownEsVirtualThreadExecutorService[name = " + getName()));
+            .or(containsString("on TaskTrackingEsVirtualThreadExecutorService[name = " + getName()));
 
         try {
             for (int i = 0; i < actions; i++) {

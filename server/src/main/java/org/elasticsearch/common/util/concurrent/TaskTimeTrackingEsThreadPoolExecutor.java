@@ -100,9 +100,7 @@ public final class TaskTimeTrackingEsThreadPoolExecutor extends EsThreadPoolExec
     protected void beforeExecute(Thread t, Runnable r) {
         taskTracker.trackTask(r);
         assert super.unwrap(r) instanceof TimedRunnable : "expected only TimedRunnables in queue";
-        final TimedRunnable timedRunnable = (TimedRunnable) super.unwrap(r);
-        timedRunnable.beforeExecute();
-        taskTracker.taskQueueLatency(timedRunnable.getQueueTimeNanos());
+        taskTracker.beforeExecute((TimedRunnable) super.unwrap(r));
     }
 
     @Override
@@ -114,18 +112,7 @@ public final class TaskTimeTrackingEsThreadPoolExecutor extends EsThreadPoolExec
             // only want runnables that did not throw errors though, because they could be fast-failures
             // that throw off our timings, so only check when t is null.
             assert super.unwrap(r) instanceof TimedRunnable : "expected only TimedRunnables in queue";
-            final TimedRunnable timedRunnable = (TimedRunnable) super.unwrap(r);
-            final boolean failedOrRejected = timedRunnable.getFailedOrRejected();
-            final long taskExecutionNanos = timedRunnable.getTotalExecutionNanos();
-            assert taskExecutionNanos >= 0 || (failedOrRejected && taskExecutionNanos == -1)
-                : "expected task to always take longer than 0 nanoseconds or have '-1' failure code, got: "
-                    + taskExecutionNanos
-                    + ", failedOrRejected: "
-                    + failedOrRejected;
-            if (taskExecutionNanos != -1) {
-                // taskExecutionNanos may be -1 if the task threw an exception
-                taskTracker.taskExecutionTime(taskExecutionNanos);
-            }
+            taskTracker.afterExecute((TimedRunnable) super.unwrap(r));
         } finally {
             taskTracker.untrackTask(r);
         }

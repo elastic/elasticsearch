@@ -15,6 +15,7 @@ import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.telemetry.metric.Instrument;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 
+import java.util.ArrayList;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.RejectedExecutionHandler;
 import java.util.concurrent.ThreadFactory;
@@ -163,6 +164,11 @@ public class EsThreadPoolExecutor extends ThreadPoolExecutor implements EsExecut
     @Override
     public int getCurrentQueueSize() {
         return getQueue().size();
+    }
+
+    @Override
+    public int drainQueue() {
+        return getQueue().drainTo(new ArrayList<>());
     }
 
     /**

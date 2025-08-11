@@ -16,6 +16,7 @@ import org.apache.lucene.index.MergeTrigger;
 import org.apache.lucene.store.MergeInfo;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
+import org.elasticsearch.common.util.concurrent.EsExecutorService;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.IndexSettings;
@@ -37,7 +38,6 @@ import java.util.List;
 import java.util.PriorityQueue;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Semaphore;
-import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -480,7 +480,7 @@ public class ThreadPoolMergeSchedulerTests extends ESTestCase {
             ThreadPoolMergeExecutorService threadPoolMergeExecutorService = ThreadPoolMergeExecutorServiceTests
                 .getThreadPoolMergeExecutorService(testThreadPool, settings, nodeEnvironment);
             assertThat(threadPoolMergeExecutorService.getMaxConcurrentMerges(), equalTo(mergeExecutorThreadCount));
-            ThreadPoolExecutor threadPoolExecutor = (ThreadPoolExecutor) testThreadPool.executor(ThreadPool.Names.MERGE);
+            EsExecutorService threadPoolExecutor = (EsExecutorService) testThreadPool.executor(ThreadPool.Names.MERGE);
             try (
                 ThreadPoolMergeScheduler threadPoolMergeScheduler = new ThreadPoolMergeScheduler(
                     new ShardId("index", "_na_", 1),
@@ -531,7 +531,10 @@ public class ThreadPoolMergeSchedulerTests extends ESTestCase {
                         // there are active thread-pool threads waiting for the backlogged merge tasks to be re-enqueued
                         int activeMergeThreads = Math.min(mergeCount - finalCompletedMergesCount, mergeExecutorThreadCount);
                         assertThat(threadPoolExecutor.getActiveCount(), is(activeMergeThreads));
-                        assertThat(threadPoolExecutor.getQueue().size(), is(mergeCount - finalCompletedMergesCount - activeMergeThreads));
+                        assertThat(
+                            threadPoolExecutor.getCurrentQueueSize(),
+                            is(mergeCount - finalCompletedMergesCount - activeMergeThreads)
+                        );
                     });
                     // let one merge task finish running
                     runMergeSemaphore.release();
@@ -550,7 +553,7 @@ public class ThreadPoolMergeSchedulerTests extends ESTestCase {
                         assertThat(threadPoolMergeExecutorService.getMergeTasksQueueLength(), is(0));
                         // also check thread-pool stats for the same
                         assertThat(threadPoolExecutor.getActiveCount(), is(finalRemainingMergesCount));
-                        assertThat(threadPoolExecutor.getQueue().size(), is(0));
+                        assertThat(threadPoolExecutor.getCurrentQueueSize(), is(0));
                     });
                     // let one merge task finish running
                     runMergeSemaphore.release();

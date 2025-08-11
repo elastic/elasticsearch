@@ -24,16 +24,15 @@ public interface EsExecutorService extends ExecutorService {
 
     int getCurrentQueueSize();
 
+    int drainQueue();
+
     int getMaximumPoolSize();
 
     int getPoolSize();
 
     int getLargestPoolSize();
 
-    // FIXME is this required?! Any usage outside of tests? Investigate InternalWatchExecutor?
-    default Stream<Runnable> getTasks() {
-        return Stream.empty();
-    }
+    Stream<Runnable> getTasks();
 
     default Stream<Instrument> setupMetrics(MeterRegistry meterRegistry, String threadPoolName) {
         return Stream.empty();
@@ -54,8 +53,8 @@ public interface EsExecutorService extends ExecutorService {
 
         /**
          * Returns the fraction of the maximum possible thread time that was actually used since the last time this method was called.
-         * There are two periodic pulling mechanisms that access utilization reporting: {@link TaskTimeTrackingEsThreadPoolExecutor.UtilizationTrackingPurpose} distinguishes the
-         * caller.
+         * There are two periodic pulling mechanisms that access utilization reporting: {@link UtilizationTrackingPurpose} distinguishes
+         * the caller.
          *
          * @return the utilization as a fraction, in the range [0, 1]. This may return >1 if a task completed in the time range but started
          * earlier, contributing a larger execution time.

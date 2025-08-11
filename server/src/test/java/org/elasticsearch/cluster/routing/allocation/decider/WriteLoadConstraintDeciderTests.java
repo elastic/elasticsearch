@@ -36,27 +36,20 @@ import static org.elasticsearch.common.settings.ClusterSettings.createBuiltInClu
 
 public class WriteLoadConstraintDeciderTests extends ESAllocationTestCase {
 
-    // NOMERGE: I wonder if we don't want a node utilization percent, but rather a total node execution time used and a total node execution
-    // time possible. The math would be a whole lot easier on us...
-    public void testWriteLoadDeciderIsDisabled() {
+    public void testWriteLoadDecider() {
         String indexName = "test-index";
 
-        // Set up multiple nodes and an index with multiple shards.
-        // DiscoveryNode discoveryNode1 = newNode("node1");
-        // DiscoveryNode discoveryNode2 = newNode("node2");
-        // ShardId shardId1 = new ShardId(indexName, IndexMetadata.INDEX_UUID_NA_VALUE, 0);
-        // ShardId shardId2 = new ShardId(indexName, IndexMetadata.INDEX_UUID_NA_VALUE, 1);
-
         /**
-         * Create the ClusterState
+         * Create the ClusterState for multiple nodes and multiple index shards.
          */
 
-        ClusterState clusterState = ClusterStateCreationUtils.stateWithAssignedPrimariesAndReplicas(new String[] { indexName }, 3, 0);
-        assertEquals(2, clusterState.nodes().size());
+        ClusterState clusterState = ClusterStateCreationUtils.stateWithAssignedPrimariesAndReplicas(new String[] { indexName }, 3, 1);
+        // The number of data nodes the util method above creates is numberOfReplicas+1.
+        assertEquals(3, clusterState.nodes().size());
         assertEquals(1, clusterState.metadata().getTotalNumberOfIndices());
 
         /**
-         * Fetch the nodes and index shards from the generated ClusterState.
+         * Fetch references to the nodes and index shards from the generated ClusterState, so the ClusterInfo can be created from them.
          */
 
         var discoveryNodeIterator = clusterState.nodes().iterator();
@@ -64,6 +57,8 @@ public class WriteLoadConstraintDeciderTests extends ESAllocationTestCase {
         var exceedingThresholdDiscoveryNode = discoveryNodeIterator.next();
         assertTrue(discoveryNodeIterator.hasNext());
         var belowThresholdDiscoveryNode2 = discoveryNodeIterator.next();
+        assertTrue(discoveryNodeIterator.hasNext());
+        var nearThresholdDiscoveryNode3 = discoveryNodeIterator.next();
         assertFalse(discoveryNodeIterator.hasNext());
 
         var indexIterator = clusterState.metadata().indicesAllProjects().iterator();
@@ -74,10 +69,10 @@ public class WriteLoadConstraintDeciderTests extends ESAllocationTestCase {
         assertEquals(3, testIndexMetadata.getNumberOfShards());
         ShardId testShardId1 = new ShardId(testIndex, 0);
         ShardId testShardId2 = new ShardId(testIndex, 1);
-        ShardId testShardId3NoWriteLoad = new ShardId(testIndex, 1);
+        ShardId testShardId3NoWriteLoad = new ShardId(testIndex, 2);
 
         /**
-         * Create the ClusterInfo that includes the node and shard level write load estimates.
+         * Create a ClusterInfo that includes the node and shard level write load estimates for a variety of node capacity situations.
          */
 
         var nodeThreadPoolStatsWithWriteExceedingThreshold = createNodeUsageStatsForThreadPools(
@@ -87,15 +82,18 @@ public class WriteLoadConstraintDeciderTests extends ESAllocationTestCase {
             0
         );
         var nodeThreadPoolStatsWithWriteBelowThreshold = createNodeUsageStatsForThreadPools(belowThresholdDiscoveryNode2, 8, 0.50f, 0);
+        var nodeThreadPoolStatsWithWriteNearThreshold = createNodeUsageStatsForThreadPools(nearThresholdDiscoveryNode3, 8, 0.89f, 0);
 
         // Create a map of usage per node.
         var nodeIdToNodeUsageStatsForThreadPools = new HashMap<String, NodeUsageStatsForThreadPools>();
         nodeIdToNodeUsageStatsForThreadPools.put(exceedingThresholdDiscoveryNode.getId(), nodeThreadPoolStatsWithWriteExceedingThreshold);
         nodeIdToNodeUsageStatsForThreadPools.put(belowThresholdDiscoveryNode2.getId(), nodeThreadPoolStatsWithWriteBelowThreshold);
+        nodeIdToNodeUsageStatsForThreadPools.put(nearThresholdDiscoveryNode3.getId(), nodeThreadPoolStatsWithWriteNearThreshold);
 
+        // Create a map of usage per shard.
         var shardIdToWriteLoadEstimate = new HashMap<ShardId, Double>();
-        shardIdToWriteLoadEstimate.put(testShardId1, 1.5);
-        shardIdToWriteLoadEstimate.put(testShardId2, 1.5);
+        shardIdToWriteLoadEstimate.put(testShardId1, 0.5);
+        shardIdToWriteLoadEstimate.put(testShardId2, 0.5);
         shardIdToWriteLoadEstimate.put(testShardId3NoWriteLoad, 0d);
 
         ClusterInfo clusterInfo = ClusterInfo.builder()
@@ -104,7 +102,7 @@ public class WriteLoadConstraintDeciderTests extends ESAllocationTestCase {
             .build();
 
         /**
-         * Create the RoutingAllocation
+         * Create the RoutingAllocation from the ClusterState and ClusterInfo above, and set up the other input for the WriteLoadDecider.
          */
 
         var routingAllocation = new RoutingAllocation(
@@ -138,32 +136,36 @@ public class WriteLoadConstraintDeciderTests extends ESAllocationTestCase {
             ShardRoutingState.STARTED
         );
 
-        assertTrue(discoveryNodeIterator.hasNext());
         RoutingNode exceedingThresholdRoutingNode = RoutingNodesHelper.routingNode(
             exceedingThresholdDiscoveryNode.getId(),
-            discoveryNodeIterator.next(),
+            exceedingThresholdDiscoveryNode,
             shardRouting1
         );
-        assertTrue(discoveryNodeIterator.hasNext());
         RoutingNode belowThresholdRoutingNode = RoutingNodesHelper.routingNode(
             belowThresholdDiscoveryNode2.getId(),
-            discoveryNodeIterator.next(),
+            belowThresholdDiscoveryNode2,
             shardRouting2
         );
-        assertFalse(discoveryNodeIterator.hasNext());
+        RoutingNode nearThresholdRoutingNode = RoutingNodesHelper.routingNode(
+            nearThresholdDiscoveryNode3.getId(),
+            nearThresholdDiscoveryNode3,
+            new ShardRouting[] {}
+        );
 
         /**
          * Test the write load decider
          */
 
         // The write load decider is disabled by default.
-        var writeLoadDecider = createWriteLoadConstraintDecider(Settings.builder().build());
 
-        assertEquals(Decision.YES, writeLoadDecider.canAllocate(shardRouting2, exceedingThresholdRoutingNode, routingAllocation));
-        assertEquals(Decision.YES, writeLoadDecider.canAllocate(shardRouting1, belowThresholdRoutingNode, routingAllocation));
-        assertEquals(Decision.YES, writeLoadDecider.canAllocate(thirdRoutingNoWriteLoad, exceedingThresholdRoutingNode, routingAllocation));
+        var writeLoadDecider = createWriteLoadConstraintDecider(Settings.builder().build());
+        assertEquals(Decision.Type.YES, writeLoadDecider.canAllocate(shardRouting2, exceedingThresholdRoutingNode, routingAllocation).type());
+        assertEquals(Decision.Type.YES, writeLoadDecider.canAllocate(shardRouting1, belowThresholdRoutingNode, routingAllocation).type());
+        assertEquals(Decision.Type.YES, writeLoadDecider.canAllocate(shardRouting1, nearThresholdRoutingNode, routingAllocation).type());
+        assertEquals(Decision.Type.YES, writeLoadDecider.canAllocate(thirdRoutingNoWriteLoad, exceedingThresholdRoutingNode, routingAllocation).type());
 
         // Check that the answers change when enabled.
+
         writeLoadDecider = createWriteLoadConstraintDecider(
             Settings.builder()
                 .put(
@@ -172,27 +174,26 @@ public class WriteLoadConstraintDeciderTests extends ESAllocationTestCase {
                 )
                 .build()
         );
-
-        assertEquals(Decision.NO, writeLoadDecider.canAllocate(shardRouting2, exceedingThresholdRoutingNode, routingAllocation));
-        assertEquals(Decision.YES, writeLoadDecider.canAllocate(shardRouting1, belowThresholdRoutingNode, routingAllocation));
-        assertEquals(Decision.YES, writeLoadDecider.canAllocate(thirdRoutingNoWriteLoad, exceedingThresholdRoutingNode, routingAllocation));
-
-        // NOMERGE: test that adding a shard is rejected if it would overflow the utilization threshold?
-        // Need to implement the logic in the decider, I don't check right now.
-    }
-
-    public void testShardWithNoWriteLoadEstimateIsAlwaysYES() {
-        Settings writeLoadConstraintSettings = Settings.builder()
-            .put(
-                WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_ENABLED_SETTING.getKey(),
-                WriteLoadConstraintSettings.WriteLoadDeciderStatus.ENABLED
-            )
-            .build();
-        // TODO
-    }
-
-    public void testShardWithWriteLoadEstimate() {
-        // TODO: test successful re-assignment and rejected re-assignment due to threshold
+        assertEquals(
+            "Assigning a new shard to a node that is above the threshold should fail",
+            Decision.Type.NO,
+            writeLoadDecider.canAllocate(shardRouting2, exceedingThresholdRoutingNode, routingAllocation).type()
+        );
+        assertEquals(
+            "Assigning a new shard to a node that has capacity should succeed",
+            Decision.Type.YES,
+            writeLoadDecider.canAllocate(shardRouting1, belowThresholdRoutingNode, routingAllocation).type()
+        );
+        assertEquals(
+            "Assigning a new shard without a write load estimate should _not_ be blocked by lack of capacity",
+            Decision.Type.YES,
+            writeLoadDecider.canAllocate(thirdRoutingNoWriteLoad, exceedingThresholdRoutingNode, routingAllocation).type()
+        );
+        assertEquals(
+            "Assigning a new shard that would cause the node to exceed capacity should fail",
+            Decision.Type.NO,
+            writeLoadDecider.canAllocate(shardRouting1, nearThresholdRoutingNode, routingAllocation).type()
+        );
     }
 
     private WriteLoadConstraintDecider createWriteLoadConstraintDecider(Settings settings) {

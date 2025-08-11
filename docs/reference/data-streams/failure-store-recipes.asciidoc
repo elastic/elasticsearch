@@ -310,23 +310,31 @@ Since failure stores can be searched just like a normal data stream, we can use 
 If you want to use KQL or Lucene query types, you should first create a data view for your failure store data.
 If you plan to use {esql} or the Query DSL query types, this step is not required.
 Navigate to the data view page in Kibana and add a new data view. Set the index pattern to your failure store using the selector syntax.
+
 image::images/data-streams/failure_store_alerting_create_data_view.png[create a data view using the failure store syntax in the index name]
 
 ===== Step 2: Create new rule
 Navigate to Management / Alerts and Insights / Rules. Create a new rule. Choose the {es} query option.
+
 image::images/data-streams/failure_store_alerting_create_rule.png[create a new alerting rule and select the elasticsearch query option]
 
 ===== Step 3: Pick your query type
 Choose which query type you wish to use
 For KQL/Lucene queries, reference the data view that contains your failure store.
+
 image::images/data-streams/failure_store_alerting_kql.png[use the data view created in the previous step as the input to the kql query]
+
 For Query DSL queries, use the `::failures` suffix on your data stream name.
+
 image::images/data-streams/failure_store_alerting_dsl.png[use the ::failures suffix in the data stream name in the query dsl]
+
 For {esql} queries, use the `::failures` suffix on your data stream name in the `FROM` command.
+
 image::images/data-streams/failure_store_alerting_esql.png[use the ::failures suffix in the data stream name in the from command]
 
 ===== Step 4: Test
 Configure schedule, actions, and details of the alert before saving the rule.
+
 image::images/data-streams/failure_store_alerting_finish.png[complete the rule configuration and save it]
 
 [[data-remediation]]

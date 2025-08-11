@@ -107,6 +107,8 @@ These modifications can impact usage of `text` fields:
 * Reordering text fields can have an effect on [phrase](/reference/query-languages/query-dsl/query-dsl-match-query-phrase.md) and [span](/reference/query-languages/query-dsl/span-queries.md) queries. See the discussion about [`position_increment_gap`](/reference/elasticsearch/mapping-reference/position-increment-gap.md) for more details. You can avoid this by making sure the `slop` parameter on the phrase queries is lower than the `position_increment_gap`. This is the default.
 * Handling of `null` values is different. `text` fields ignore `null` values, but `keyword` fields support replacing `null` values with a value specified in the `null_value` parameter. This replacement is represented in synthetic source.
 
+% In 9.0, this does not work as designed due to a bug, described in https://github.com/elastic/elasticsearch/issues/126427.
+
 For example:
 
 $$$synthetic-source-text-example-multi-field$$$

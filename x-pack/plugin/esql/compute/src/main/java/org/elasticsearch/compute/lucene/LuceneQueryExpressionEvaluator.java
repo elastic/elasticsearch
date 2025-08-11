@@ -13,9 +13,9 @@ import org.apache.lucene.search.Scorable;
 import org.apache.lucene.search.ScoreMode;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BooleanVector;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.compute.data.Vector;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
 
@@ -27,7 +27,7 @@ import java.io.IOException;
  * a {@link BooleanVector}.
  * @see LuceneQueryScoreEvaluator
  */
-public class LuceneQueryExpressionEvaluator extends LuceneQueryEvaluator<BooleanVector.Builder>
+public class LuceneQueryExpressionEvaluator extends LuceneQueryEvaluator<BooleanBlock.Builder>
     implements
         EvalOperator.ExpressionEvaluator {
 
@@ -46,22 +46,22 @@ public class LuceneQueryExpressionEvaluator extends LuceneQueryEvaluator<Boolean
     }
 
     @Override
-    protected Vector createNoMatchVector(BlockFactory blockFactory, int size) {
-        return blockFactory.newConstantBooleanVector(false, size);
+    protected Block createNoMatchBlock(BlockFactory blockFactory, int size) {
+        return blockFactory.newConstantBooleanBlockWith(false, size);
     }
 
     @Override
-    protected BooleanVector.Builder createVectorBuilder(BlockFactory blockFactory, int size) {
-        return blockFactory.newBooleanVectorFixedBuilder(size);
+    protected BooleanBlock.Builder createBlockBuilder(BlockFactory blockFactory, int size) {
+        return blockFactory.newBooleanBlockBuilder(size);
     }
 
     @Override
-    protected void appendNoMatch(BooleanVector.Builder builder) {
+    protected void appendNoMatch(BooleanBlock.Builder builder) {
         builder.appendBoolean(false);
     }
 
     @Override
-    protected void appendMatch(BooleanVector.Builder builder, Scorable scorer, int docId, LeafReaderContext leafReaderContext, Query query)
+    protected void appendMatch(BooleanBlock.Builder builder, Scorable scorer, int docId, LeafReaderContext leafReaderContext, Query query)
         throws IOException {
         builder.appendBoolean(true);
     }

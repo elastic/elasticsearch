@@ -8,8 +8,9 @@
 package org.elasticsearch.compute.lucene;
 
 import org.apache.lucene.search.Scorable;
+import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
-import org.elasticsearch.compute.data.BooleanVector;
+import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.lucene.LuceneQueryEvaluator.DenseCollector;
 import org.elasticsearch.compute.operator.EvalOperator;
@@ -17,18 +18,20 @@ import org.elasticsearch.compute.operator.Operator;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class LuceneQueryExpressionEvaluatorTests extends LuceneQueryEvaluatorTests<BooleanVector, BooleanVector.Builder> {
+public class LuceneQueryExpressionEvaluatorTests extends LuceneQueryEvaluatorTests<BooleanBlock, BooleanBlock.Builder> {
 
     private final boolean useScoring = randomBoolean();
 
     @Override
-    protected DenseCollector<BooleanVector.Builder> createDenseCollector(int min, int max) {
+    protected DenseCollector<BooleanBlock.Builder> createDenseCollector(int min, int max) {
         return new LuceneQueryEvaluator.DenseCollector<>(
             min,
             max,
-            blockFactory().newBooleanVectorFixedBuilder(max - min + 1),
+            blockFactory().newBooleanBlockBuilder(max - min + 1),
+            null,
             b -> b.appendBoolean(false),
-            (b, s, d) -> b.appendBoolean(true)
+            (b, s, d, lr, q) -> b.appendBoolean(true),
+            null
         );
     }
 
@@ -54,12 +57,12 @@ public class LuceneQueryExpressionEvaluatorTests extends LuceneQueryEvaluatorTes
     }
 
     @Override
-    protected void assertCollectedResultMatch(BooleanVector resultVector, int position, boolean isMatch) {
+    protected void assertCollectedResultMatch(BooleanBlock resultVector, int position, boolean isMatch) {
         assertThat(resultVector.getBoolean(position), equalTo(isMatch));
     }
 
     @Override
-    protected void assertTermResultMatch(BooleanVector resultVector, int position, boolean isMatch) {
+    protected void assertTermResultMatch(BooleanBlock resultVector, int position, boolean isMatch) {
         assertThat(resultVector.getBoolean(position), equalTo(isMatch));
     }
 }

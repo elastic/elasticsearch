@@ -14,9 +14,8 @@ import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
-import org.elasticsearch.compute.data.BytesRefVector;
+import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.compute.data.Vector;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.index.fieldvisitor.LeafStoredFieldLoader;
@@ -43,7 +42,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.function.Supplier;
 
-public class HighlighterExpressionEvaluator extends LuceneQueryEvaluator<BytesRefVector.Builder>
+public class HighlighterExpressionEvaluator extends LuceneQueryEvaluator<BytesRefBlock.Builder>
     implements
         EvalOperator.ExpressionEvaluator {
 
@@ -73,17 +72,17 @@ public class HighlighterExpressionEvaluator extends LuceneQueryEvaluator<BytesRe
     }
 
     @Override
-    protected Vector createNoMatchVector(BlockFactory blockFactory, int size) {
-        return blockFactory.newConstantBytesRefVector(new BytesRef(), size);
+    protected Block createNoMatchBlock(BlockFactory blockFactory, int size) {
+        return blockFactory.newConstantNullBlock(size);
     }
 
     @Override
-    protected BytesRefVector.Builder createVectorBuilder(BlockFactory blockFactory, int size) {
-        return blockFactory.newBytesRefVectorBuilder(size * numFragments);
+    protected BytesRefBlock.Builder createBlockBuilder(BlockFactory blockFactory, int size) {
+        return blockFactory.newBytesRefBlockBuilder(size * numFragments);
     }
 
     @Override
-    protected void appendMatch(BytesRefVector.Builder builder, Scorable scorer, int docId, LeafReaderContext leafReaderContext, Query query)
+    protected void appendMatch(BytesRefBlock.Builder builder, Scorable scorer, int docId, LeafReaderContext leafReaderContext, Query query)
         throws IOException {
 
         // TODO: Can we build a custom highlighter directly here, so we don't have to rely on fetch phase classes?
@@ -115,10 +114,15 @@ public class HighlighterExpressionEvaluator extends LuceneQueryEvaluator<BytesRe
         Highlighter highlighter = new DefaultHighlighter();
         HighlightField highlight = highlighter.highlight(highlightContext);
 
-        // TODO: Even when I have 2 fragments coming back, it's only ever returning the first bytes ref vector. Is this the appropriate data
-        // structure?
+        boolean multivalued = highlight.fragments().length > 1;
+        if (multivalued) {
+            builder.beginPositionEntry();
+        }
         for (Text highlightText : highlight.fragments()) {
             builder.appendBytesRef(new BytesRef(highlightText.bytes().bytes()));
+        }
+        if (multivalued) {
+            builder.endPositionEntry();
         }
     }
 
@@ -136,8 +140,8 @@ public class HighlighterExpressionEvaluator extends LuceneQueryEvaluator<BytesRe
     }
 
     @Override
-    protected void appendNoMatch(BytesRefVector.Builder builder) {
-        // builder.appendBytesRef(new BytesRef());
+    protected void appendNoMatch(BytesRefBlock.Builder builder) {
+        builder.appendNull();
     }
 
     @Override

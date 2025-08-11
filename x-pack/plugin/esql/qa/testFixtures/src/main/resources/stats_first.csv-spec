@@ -42,9 +42,37 @@ FROM date_nanos
 row
 required_capability: agg_first_last
 ROW a = 100, @timestamp = "2025-01-01"::DATETIME
-| STATS LAST(a, @timestamp)
+| STATS FIRST(a, @timestamp)
 ;
 
-LAST(a, @timestamp):integer
+FIRST(a, @timestamp):integer
 100
+;
+
+double_by_null
+required_capability: agg_first_last
+FROM k8s
+| EVAL @timestamp = @timestamp + null
+| STATS first_network_cost = FIRST(network.cost, @timestamp) BY pod
+| SORT pod ASC
+;
+
+first_network_cost:double | pod:keyword
+                     null | one
+                     null | three
+                     null | two
+;
+
+null_by_timestamp
+required_capability: agg_first_last
+FROM k8s
+| EVAL network.cost = network.cost + null
+| STATS first_network_cost = FIRST(network.cost, @timestamp) BY pod
+| SORT pod ASC
+;
+
+first_network_cost:double | pod:keyword
+                     null | one
+                     null | three
+                     null | two
 ;

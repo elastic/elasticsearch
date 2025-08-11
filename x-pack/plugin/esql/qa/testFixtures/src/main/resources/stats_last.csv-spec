@@ -48,3 +48,31 @@ ROW a = 100, @timestamp = "2025-01-01"::DATETIME
 LAST(a, @timestamp):integer
 100
 ;
+
+double_by_null
+required_capability: agg_first_last
+FROM k8s
+| EVAL @timestamp = @timestamp + null
+| STATS last_network_cost = LAST(network.cost, @timestamp) BY pod
+| SORT pod ASC
+;
+
+last_network_cost:double | pod:keyword
+                    null | one
+                    null | three
+                    null | two
+;
+
+double_by_null
+required_capability: agg_first_last
+FROM k8s
+| EVAL network.cost = network.cost + null
+| STATS last_network_cost = LAST(network.cost, @timestamp) BY pod
+| SORT pod ASC
+;
+
+last_network_cost:double | pod:keyword
+                    null | one
+                    null | three
+                    null | two
+;

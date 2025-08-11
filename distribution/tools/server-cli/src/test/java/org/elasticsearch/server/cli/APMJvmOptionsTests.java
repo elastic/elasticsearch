@@ -190,7 +190,7 @@ public class APMJvmOptionsTests extends ESTestCase {
         Path tempFile = createTempFile();
         Path apmPathDir = tempFile.getParent().resolve("modules").resolve("apm");
         Files.createDirectories(apmPathDir);
-        Path apmAgentFile = apmPathDir.resolve("elastic-apm-agent-0.0.0.jar");
+        Path apmAgentFile = apmPathDir.resolve("elastic-apm-agent-java8-0.0.0.jar");
         Files.move(tempFile, apmAgentFile);
 
         return tempFile.getParent();

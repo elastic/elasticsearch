@@ -26,6 +26,7 @@ import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilegeRes
 import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivileges;
 import org.elasticsearch.xpack.core.security.support.MetadataUtils;
+import org.elasticsearch.action.admin.indices.mapping.put.TransportAutoPutMappingAction;
 
 import java.util.Map;
 import java.util.Set;

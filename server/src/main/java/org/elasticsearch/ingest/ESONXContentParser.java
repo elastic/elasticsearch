@@ -64,15 +64,10 @@ public class ESONXContentParser extends AbstractXContentParser {
      * Tracks the state of containers (objects/arrays) as we parse
      */
     private static class ContainerContext {
-        enum Type {
-            OBJECT,
-            ARRAY
-        }
-
-        final Type type;
+        final byte type;
         int fieldsRemaining;
 
-        ContainerContext(Type type, int fieldCount) {
+        ContainerContext(byte type, int fieldCount) {
             this.type = type;
             this.fieldsRemaining = fieldCount;
         }
@@ -118,7 +113,7 @@ public class ESONXContentParser extends AbstractXContentParser {
         if (currentToken == null) {
             assert size >= currentIndex;
             ESONEntry.ObjectEntry rootEntry = (ESONEntry.ObjectEntry) keyArray.get(currentIndex);
-            containerStack.push(new ContainerContext(ContainerContext.Type.OBJECT, rootEntry.offsetOrCount()));
+            containerStack.push(new ContainerContext(ESONEntry.TYPE_OBJECT, rootEntry.offsetOrCount()));
             currentIndex++;
             currentToken = Token.START_OBJECT;
             return currentToken;
@@ -131,7 +126,7 @@ public class ESONXContentParser extends AbstractXContentParser {
 
         if (containerStack.peek().fieldsRemaining == 0) {
             ContainerContext ctx = containerStack.pop();
-            currentToken = ctx.type == ContainerContext.Type.OBJECT ? Token.END_OBJECT : Token.END_ARRAY;
+            currentToken = ctx.type == ESONEntry.TYPE_OBJECT ? Token.END_OBJECT : Token.END_ARRAY;
             return currentToken;
         }
 
@@ -143,7 +138,7 @@ public class ESONXContentParser extends AbstractXContentParser {
         assert currentContainer != null;
 
         // Handle based on container type
-        if (currentContainer.type == ContainerContext.Type.OBJECT && currentToken != Token.FIELD_NAME) {
+        if (currentContainer.type == ESONEntry.TYPE_OBJECT && currentToken != Token.FIELD_NAME) {
             currentFieldName = entry.key();
             currentToken = Token.FIELD_NAME;
             return currentToken;
@@ -153,67 +148,30 @@ public class ESONXContentParser extends AbstractXContentParser {
         }
     }
 
-    private Token emitValue(ESONEntry entry) throws IOException {
+    private Token emitValue(ESONEntry entry) {
         ContainerContext currentContainer = containerStack.peek();
         assert currentContainer != null;
         currentContainer.fieldsRemaining--;
         currentIndex++;
 
+        if (entry.type() == ESONEntry.TYPE_OBJECT || entry.type() == ESONEntry.TYPE_ARRAY) {
+            containerStack.push(new ContainerContext(entry.type(), entry.offsetOrCount()));
+        } else {
+            currentType = ((ESONEntry.FieldEntry) entry).value;
+        }
+
         currentToken = switch (entry.type()) {
-            case ESONEntry.TYPE_OBJECT -> {
-                // Starting a nested object
-                containerStack.push(new ContainerContext(ContainerContext.Type.OBJECT, entry.offsetOrCount()));
-                yield Token.START_OBJECT;
-            }
-            case ESONEntry.TYPE_ARRAY -> {
-                // Starting a nested array
-                containerStack.push(new ContainerContext(ContainerContext.Type.ARRAY, entry.offsetOrCount()));
-                yield Token.START_ARRAY;
-            }
-            case ESONEntry.TYPE_NULL -> {
-                currentType = ((ESONEntry.FieldEntry) entry).value;
-                yield Token.VALUE_NULL;
-            }
-            case ESONEntry.TYPE_TRUE, ESONEntry.TYPE_FALSE -> {
-                currentType = ((ESONEntry.FieldEntry) entry).value;
-                yield Token.VALUE_BOOLEAN;
-            }
+            case ESONEntry.TYPE_OBJECT -> Token.START_OBJECT;
+            case ESONEntry.TYPE_ARRAY -> Token.START_ARRAY;
+            case ESONEntry.TYPE_NULL -> Token.VALUE_NULL;
+            case ESONEntry.TYPE_TRUE, ESONEntry.TYPE_FALSE -> Token.VALUE_BOOLEAN;
             case ESONEntry.TYPE_INT, ESONEntry.TYPE_LONG, ESONEntry.TYPE_FLOAT, ESONEntry.TYPE_DOUBLE, ESONEntry.BIG_INTEGER,
-                ESONEntry.BIG_DECIMAL -> {
-                currentType = ((ESONEntry.FieldEntry) entry).value;
-                yield Token.VALUE_NUMBER;
-            }
-            case ESONEntry.STRING -> {
-                currentType = ((ESONEntry.FieldEntry) entry).value;
-                yield Token.VALUE_STRING;
-            }
-            case ESONEntry.BINARY -> {
-                currentType = ((ESONEntry.FieldEntry) entry).value;
-                yield Token.VALUE_EMBEDDED_OBJECT;
-            }
-            default -> {
-                currentType = ((ESONEntry.FieldEntry) entry).value;
-                yield determineTokenFromObject(((ESONSource.Mutation) currentType).object());
-            }
+                ESONEntry.BIG_DECIMAL -> Token.VALUE_NUMBER;
+            case ESONEntry.STRING -> Token.VALUE_STRING;
+            case ESONEntry.BINARY -> Token.VALUE_EMBEDDED_OBJECT;
+            default -> throw new IllegalStateException("Unexpected entry type: " + entry.type());
         };
         return currentToken;
-    }
-
-    private static Token determineTokenFromObject(Object obj) {
-        if (obj == null) {
-            return Token.VALUE_NULL;
-        } else if (obj instanceof String) {
-            return Token.VALUE_STRING;
-        } else if (obj instanceof Number) {
-            return Token.VALUE_NUMBER;
-        } else if (obj instanceof Boolean) {
-            return Token.VALUE_BOOLEAN;
-        } else if (obj instanceof byte[]) {
-            return Token.VALUE_EMBEDDED_OBJECT;
-        } else {
-            // TODO: Fix. This is because we have a variety of custom writers. We would need to expose those.
-            return Token.VALUE_STRING;
-        }
     }
 
     // Helper method to materialize the current value on demand
@@ -277,7 +235,7 @@ public class ESONXContentParser extends AbstractXContentParser {
         }
         // When on a value token, return the field name if in an object
         ContainerContext ctx = containerStack.peek();
-        if (ctx != null && ctx.type == ContainerContext.Type.OBJECT && currentFieldName != null) {
+        if (ctx != null && ctx.type == ESONEntry.TYPE_OBJECT && currentFieldName != null) {
             return currentFieldName;
         }
         return null;

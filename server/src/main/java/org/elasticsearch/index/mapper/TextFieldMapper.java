@@ -710,6 +710,20 @@ public final class TextFieldMapper extends TextFamilyFieldMapper {
             );
         }
 
+        public TextFieldType(String name, boolean isSyntheticSource, KeywordFieldMapper.KeywordFieldType syntheticSourceDelegate) {
+            this(
+                    name,
+                    true,
+                    false,
+                    new TextSearchInfo(Defaults.FIELD_TYPE, null, Lucene.STANDARD_ANALYZER, Lucene.STANDARD_ANALYZER),
+                    isSyntheticSource,
+                    syntheticSourceDelegate,
+                    Collections.emptyMap(),
+                    false,
+                    false
+            );
+        }
+
         public boolean fielddata() {
             return fielddata;
         }
@@ -1337,7 +1351,8 @@ public final class TextFieldMapper extends TextFamilyFieldMapper {
         assert mappedFieldType.getTextSearchInfo().isTokenized();
         assert mappedFieldType.hasDocValues() == false;
 
-        if (fieldType.indexOptions() == IndexOptions.NONE && fieldType().fielddata()) {
+        final boolean isIndexed = fieldType.indexOptions() != IndexOptions.NONE;
+        if (isIndexed == false && fieldType().fielddata()) {
             throw new IllegalArgumentException("Cannot enable fielddata on a [text] field that is not indexed: [" + fullPath() + "]");
         }
 
@@ -1390,7 +1405,7 @@ public final class TextFieldMapper extends TextFamilyFieldMapper {
             return;
         }
 
-        if (fieldType.indexOptions() != IndexOptions.NONE || fieldType.stored()) {
+        if (isIndexed() || fieldType.stored()) {
             Field field = new Field(fieldType().name(), value.string(), fieldType);
             context.doc().add(field);
             if (fieldType.omitNorms()) {
@@ -1577,6 +1592,10 @@ public final class TextFieldMapper extends TextFamilyFieldMapper {
         b.indexPhrases.toXContent(builder, includeDefaults);
     }
 
+    private boolean isIndexed() {
+        return fieldType.indexOptions() != IndexOptions.NONE;
+    }
+
     @Override
     protected SyntheticSourceSupport syntheticSourceSupport() {
         if (store) {
@@ -1588,7 +1607,7 @@ public final class TextFieldMapper extends TextFamilyFieldMapper {
             });
         }
 
-        if (fieldType.indexOptions() != IndexOptions.NONE) {
+        if (isIndexed()) {
             return super.syntheticSourceSupport();
         }
 

@@ -327,6 +327,8 @@ public class MatchOnlyTextFieldMapperTests extends MapperTestCase {
         }
     }
 
+    // TODO: add tests when string length is exceeding, same for TextFieldMapper
+
     public void testStoreParameterDefaultsSyntheticSourceTextFieldIsMultiField() throws IOException {
         var indexSettingsBuilder = getIndexSettingsBuilder();
         indexSettingsBuilder.put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), "synthetic");

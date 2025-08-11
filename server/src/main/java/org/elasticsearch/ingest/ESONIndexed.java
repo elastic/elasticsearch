@@ -35,6 +35,10 @@ import java.util.Set;
 
 public class ESONIndexed {
 
+    public static ESONObject fromFlat(ESONFlat esonFlat) {
+        return new ESONObject(0, esonFlat);
+    }
+
     public static class ESONObject implements ESONSource.Value, Map<String, Object>, ToXContent {
         private final int keyArrayIndex;
         private final ESONEntry.ObjectEntry objEntry;
@@ -533,7 +537,8 @@ public class ESONIndexed {
     }
 
     public static ESONIndexed.ESONObject flatten(ESONIndexed.ESONObject original) {
-        BytesStreamOutput newValuesOut = new BytesStreamOutput();
+        // TODO: Add a better estimate of the size to be added
+        BytesStreamOutput newValuesOut = new BytesStreamOutput(128);
         List<ESONEntry> flatKeyArray = new ArrayList<>(original.esonFlat.keys().size());
         BytesReference originalData = original.esonFlat.values().data();
 

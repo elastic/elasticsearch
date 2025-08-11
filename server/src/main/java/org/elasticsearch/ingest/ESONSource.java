@@ -226,12 +226,13 @@ public class ESONSource {
         }
 
         public void writeToXContent(XContentBuilder builder, Values values) throws IOException {
+            BytesReference slice = values.data.slice(position, length);
+
             byte[] bytes;
             int offset;
-            if (values.data().hasArray()) {
-                BytesRef bytesRef = values.data().toBytesRef();
-                bytes = bytesRef.bytes;
-                offset = bytesRef.offset + position;
+            if (slice.hasArray()) {
+                bytes = slice.array();
+                offset = slice.arrayOffset() + position;
             } else {
                 bytes = values.readByteArray(position, length);
                 offset = 0;
@@ -279,12 +280,13 @@ public class ESONSource {
         }
 
         public String readString(int position, int length) {
+            BytesReference slice = data.slice(position, length);
+
             final byte[] bytes;
             final int offset;
-            // TODO: Maybe slice to improve chance of backing array
-            if (data.hasArray()) {
-                bytes = data.array();
-                offset = data.arrayOffset() + position;
+            if (slice.hasArray()) {
+                bytes = slice.array();
+                offset = slice.arrayOffset() + position;
             } else {
                 bytes = readByteArray(position, length);
                 offset = 0;

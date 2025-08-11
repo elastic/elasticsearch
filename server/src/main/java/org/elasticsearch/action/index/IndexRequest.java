@@ -38,6 +38,7 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.ingest.ESONFlat;
 import org.elasticsearch.ingest.ESONIndexed;
 import org.elasticsearch.ingest.ESONSource;
 import org.elasticsearch.ingest.ESONXContentSerializer;
@@ -105,7 +106,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
     private String routing;
 
     private BytesReference source;
-    private ESONIndexed.ESONObject structuredSource;
+    private ESONFlat structuredSource;
     private boolean useStructuredSource = false;
 
     private OpType opType = OpType.INDEX;
@@ -425,7 +426,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
 
     public void setStructuredSource(ESONIndexed.ESONObject esonSource) {
         this.useStructuredSource = true;
-        this.structuredSource = esonSource;
+        this.structuredSource = esonSource.esonFlat();
         try (XContentBuilder builder = XContentFactory.contentBuilder(contentType)) {
             ESONXContentSerializer.flattenToXContent(esonSource.esonFlat(), builder, ToXContent.EMPTY_PARAMS);
             source = BytesReference.bytes(builder);
@@ -444,7 +445,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
     private void createStructuredSource() {
         ESONSource.Builder builder = new ESONSource.Builder((int) (source.length() * 0.70));
         try (XContentParser parser = XContentHelper.createParser(XContentParserConfiguration.EMPTY, source, contentType)) {
-            structuredSource = builder.parse(parser);
+            structuredSource = builder.parse(parser).esonFlat();
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
@@ -455,13 +456,13 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
     }
 
     public ESONIndexed.ESONObject structuredSource() {
-        return structuredSource;
+        return ESONIndexed.fromFlat(structuredSource);
     }
 
     public Map<String, Object> sourceAsMap() {
         if (useStructuredSource) {
             assert structuredSource != null;
-            return structuredSource;
+            return ESONIndexed.fromFlat(structuredSource);
         } else {
             return XContentHelper.convertToMap(source, false, contentType).v2();
         }

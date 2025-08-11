@@ -100,7 +100,10 @@ public abstract class AbstractHnswVectorsFormat extends KnnVectorsFormat {
 
     @Override
     public String toString() {
-        return getName() + "(name=" + getName() + ", maxConn="
+        return getName()
+            + "(name="
+            + getName()
+            + ", maxConn="
             + maxConn
             + ", beamWidth="
             + beamWidth

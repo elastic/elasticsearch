@@ -31,8 +31,6 @@ import org.elasticsearch.index.codec.vectors.AbstractFlatVectorsFormat;
 
 import java.io.IOException;
 
-import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.MAX_DIMS_COUNT;
-
 /**
  * Copied from Lucene, replace with Lucene's implementation sometime after Lucene 10
  */

@@ -34,7 +34,7 @@ POST my-datastream-ingest/_doc
   },
   "_seq_no": 2,
   "_primary_term": 1,
-  "failure_store": "used" // <1>
+  "failure_store": "used" <1>
 }
 ----
 <1> The document was sent to the failure store.
@@ -72,27 +72,24 @@ GET my-datastream-ingest::failures/_search
           "@timestamp": "2025-05-09T06:24:48.381Z",
           "document": {
             "index": "my-datastream-ingest",
-            "source": { // <1>
+            "source": { <1>
               "important": {
-                "info": "The rain in Spain falls mainly on the plain" // <2>
+                "info": "The rain in Spain falls mainly on the plain" <2>
               },
               "@timestamp": "2025-04-21T00:00:00Z"
             }
           },
           "error": {
             "type": "illegal_argument_exception",
-            "message": "field [info] not present as part of path [important.info]", // <3>
-            "stack_trace": """j.l.IllegalArgumentException: field [info] not present as part of path [important.info]
-	at o.e.i.IngestDocument.getFieldValue(IngestDocument.java:202)
-	at o.e.i.c.SetProcessor.execute(SetProcessor.java:86)
-	... 19 more
+            "message": "field [info] not present as part of path [important.info]", <3>
+            "stack_trace": """j.l.IllegalArgumentException: field [info] not present as part of path [important.info] at o.e.i.IngestDocument.getFieldValue(IngestDocument.java:202) at o.e.i.c.SetProcessor.execute(SetProcessor.java:86) ... 19 more
 """,
-            "pipeline_trace": [ // <4>
+            "pipeline_trace": [ <4>
               "ingest-step-1",
               "ingest-step-2"
             ],
-            "pipeline": "ingest-step-2", // <5>
-            "processor_type": "set" // <6>
+            "pipeline": "ingest-step-2", <5>
+            "processor_type": "set" <6>
           }
         }
       }
@@ -120,9 +117,9 @@ GET _ingest/pipeline/ingest-step-2
   "ingest-step-2": {
     "processors": [
       {
-        "set": { // <1>
+        "set": { <1>
           "field": "copy.info",
-          "copy_from": "important.info" // <2>
+          "copy_from": "important.info" <2>
         }
       }
     ]
@@ -146,12 +143,12 @@ GET _ingest/pipeline/ingest-step-1
     "processors": [
       {
         "remove": {
-          "field": "important.info" // <1>
+          "field": "important.info" <1>
         }
       },
       {
         "pipeline": {
-          "name": "ingest-step-2" // <2>
+          "name": "ingest-step-2" <2>
         }
       }
     ]
@@ -288,17 +285,14 @@ GET my-datastream-ingest::failures/_search
           "error": {
             "type": "illegal_argument_exception",
             "message": "field [counter] not present as part of path [counter]",
-            "stack_trace": """j.l.IllegalArgumentException: field [counter] not present as part of path [counter]
-	at o.e.i.IngestDocument.getFieldValue(IngestDocument.java:202)
-	at o.e.i.c.SetProcessor.execute(SetProcessor.java:86)
-	... 14 more
+            "stack_trace": """j.l.IllegalArgumentException: field [counter] not present as part of path [counter] at o.e.i.IngestDocument.getFieldValue(IngestDocument.java:202) at o.e.i.c.SetProcessor.execute(SetProcessor.java:86) ... 14 more
 """,
             "pipeline_trace": [
               "complicated-processor"
             ],
             "pipeline": "complicated-processor",
-            "processor_type": "set", // <1>
-            "processor_tag": "copy to new counter again" // <2>
+            "processor_type": "set", <1>
+            "processor_tag": "copy to new counter again" <2>
           }
         }
       }
@@ -433,28 +427,25 @@ Take note of the documents that are returned. We can use these to simulate that 
         "_id": "cOnR2ZYByIwDXH-g6GpR",
         "_score": 2.575364,
         "_source": {
-          "@timestamp": "2025-05-01T15:58:53.522Z", // <1>
+          "@timestamp": "2025-05-01T15:58:53.522Z", <1>
           "document": {
             "index": "my-datastream-ingest-example",
             "source": {
               "@timestamp": "2025-05-01T00:00:00Z",
               "data": {
-                "counter": 42 // <2>
+                "counter": 42 <2>
               }
             }
           },
           "error": {
             "type": "illegal_argument_exception",
-            "message": "field [id] not present as part of path [data.id]", // <3>
-            "stack_trace": """j.l.IllegalArgumentException: field [id] not present as part of path [data.id]
-	at o.e.i.IngestDocument.getFieldValue(IngestDocument.java:202)
-	at o.e.i.c.SetProcessor.execute(SetProcessor.java:86)
-	... 14 more
+            "message": "field [id] not present as part of path [data.id]", <3>
+            "stack_trace": """j.l.IllegalArgumentException: field [id] not present as part of path [data.id] at o.e.i.IngestDocument.getFieldValue(IngestDocument.java:202) at o.e.i.c.SetProcessor.execute(SetProcessor.java:86) ... 14 more
 """,
             "pipeline_trace": [
               "my-datastream-default-pipeline"
             ],
-            "pipeline": "my-datastream-default-pipeline", // <4>
+            "pipeline": "my-datastream-default-pipeline", <4>
             "processor_type": "set"
           }
         }
@@ -499,7 +490,7 @@ PUT _ingest/pipeline/my-datastream-default-pipeline
       "set": {
         "field": "identifier",
         "copy_from": "data.id",
-        "if": "ctx.data?.id != null" // <1>
+        "if": "ctx.data?.id != null" <1>
       }
     }
   ]
@@ -519,18 +510,18 @@ PUT _ingest/pipeline/my-datastream-remediation-pipeline
       "script": {
         "lang": "painless",
         "source": """
-          ctx._index = ctx.document.index; // <1>
+          ctx._index = ctx.document.index; <1>
           ctx._routing = ctx.document.routing;
-          def s = ctx.document.source; // <2>
-          ctx.remove("error"); // <3>
-          ctx.remove("document"); // <4>
-          for (e in s.entrySet()) { // <5>
+          def s = ctx.document.source; <2>
+          ctx.remove("error"); <3>
+          ctx.remove("document"); <4>
+          for (e in s.entrySet()) { <5>
             ctx[e.key] = e.value;
           }"""
       }
     },
     {
-      "reroute": { // <6>
+      "reroute": { <6>
         "destination": "my-datastream-ingest-example"
       }
     }
@@ -592,10 +583,7 @@ POST _ingest/pipeline/_simulate
         "error": {
           "type": "illegal_argument_exception",
           "message": "field [id] not present as part of path [data.id]",
-          "stack_trace": """j.l.IllegalArgumentException: field [id] not present as part of path [data.id]
-	at o.e.i.IngestDocument.getFieldValue(IngestDocument.java:202)
-	at o.e.i.c.SetProcessor.execute(SetProcessor.java:86)
-	... 14 more
+          "stack_trace": """j.l.IllegalArgumentException: field [id] not present as part of path [data.id] at o.e.i.IngestDocument.getFieldValue(IngestDocument.java:202) at o.e.i.c.SetProcessor.execute(SetProcessor.java:86) ... 14 more
 """,
           "pipeline_trace": [
             "my-datastream-default-pipeline"
@@ -617,10 +605,10 @@ POST _ingest/pipeline/_simulate
   "docs": [
     {
       "doc": {
-        "_index": "my-datastream-ingest-example", // <1>
+        "_index": "my-datastream-ingest-example", <1>
         "_version": "-3",
-        "_id": "cOnR2ZYByIwDXH-g6GpR", // <2>
-        "_source": { // <3>
+        "_id": "cOnR2ZYByIwDXH-g6GpR", <2>
+        "_source": { <3>
           "data": {
             "counter": 42
           },
@@ -642,10 +630,10 @@ Now that the remediation pipeline has been tested, be sure to test the end-to-en
 
 [source,console]
 ----
-POST _ingest/_simulate?pipeline=my-datastream-remediation-pipeline // <1>
+POST _ingest/_simulate?pipeline=my-datastream-remediation-pipeline <1>
 {
   "pipeline_substitutions": {
-    "my-datastream-remediation-pipeline": { // <2>
+    "my-datastream-remediation-pipeline": { <2>
       "processors": [
         {
           "script": {
@@ -669,7 +657,7 @@ POST _ingest/_simulate?pipeline=my-datastream-remediation-pipeline // <1>
       ]
     }
   },
-  "docs": [ // <3>
+  "docs": [ <3>
     {
       "_index": ".fs-my-datastream-ingest-example-2025.05.16-000001",
       "_id": "cOnR2ZYByIwDXH-g6GpR",
@@ -687,10 +675,7 @@ POST _ingest/_simulate?pipeline=my-datastream-remediation-pipeline // <1>
         "error": {
           "type": "illegal_argument_exception",
           "message": "field [id] not present as part of path [data.id]",
-          "stack_trace": """j.l.IllegalArgumentException: field [id] not present as part of path [data.id]
-	at o.e.i.IngestDocument.getFieldValue(IngestDocument.java:202)
-	at o.e.i.c.SetProcessor.execute(SetProcessor.java:86)
-	... 14 more
+          "stack_trace": """j.l.IllegalArgumentException: field [id] not present as part of path [data.id] at o.e.i.IngestDocument.getFieldValue(IngestDocument.java:202) at o.e.i.c.SetProcessor.execute(SetProcessor.java:86) ... 14 more
 """,
           "pipeline_trace": [
             "my-datastream-default-pipeline"
@@ -714,15 +699,15 @@ POST _ingest/_simulate?pipeline=my-datastream-remediation-pipeline // <1>
     {
       "doc": {
         "_id": "cOnR2ZYByIwDXH-g6GpR",
-        "_index": "my-datastream-ingest-example", // <1>
+        "_index": "my-datastream-ingest-example", <1>
         "_version": -3,
-        "_source": { // <2>
+        "_source": { <2>
           "@timestamp": "2025-05-01T00:00:00Z",
           "data": {
             "counter": 42
           }
         },
-        "executed_pipelines": [ // <3>
+        "executed_pipelines": [ <3>
           "my-datastream-remediation-pipeline",
           "my-datastream-default-pipeline"
         ]
@@ -743,9 +728,9 @@ Combine the remediation pipeline with the failure store query together in a http
 POST _reindex
 {
   "source": {
-    "index": "my-datastream-ingest-example::failures", // <1>
+    "index": "my-datastream-ingest-example::failures", <1>
     "query": {
-      "bool": { // <2>
+      "bool": { <2>
         "must": [
           {
             "exists": {
@@ -775,9 +760,9 @@ POST _reindex
     }
   },
   "dest": {
-    "index": "my-datastream-ingest-example", // <3>
+    "index": "my-datastream-ingest-example", <3>
     "op_type": "create",
-    "pipeline": "my-datastream-remediation-pipeline" // <4>
+    "pipeline": "my-datastream-remediation-pipeline" <4>
   }
 }
 ----
@@ -793,7 +778,7 @@ POST _reindex
   "timed_out": false,
   "total": 1,
   "updated": 0,
-  "created": 1, // <1>
+  "created": 1, <1>
   "deleted": 0,
   "batches": 1,
   "version_conflicts": 0,
@@ -839,24 +824,24 @@ POST my-datastream-indexing-example::failures/_search
     "bool": {
       "must_not": [
         {
-          "exists": { // <1>
+          "exists": { <1>
             "field": "error.pipeline"
           }
         }
       ],
       "must": [
         {
-          "match": { // <2>
+          "match": { <2>
             "document.index": "my-datastream-indexing-example"
           }
         },
         {
-          "match": { // <3>
+          "match": { <3>
             "error.type": "document_parsing_exception"
           }
         },
         {
-          "range": { // <4>
+          "range": { <4>
             "@timestamp": {
               "gt": "2025-05-01T00:00:00Z",
               "lte": "2025-05-02T00:00:00Z"
@@ -897,29 +882,23 @@ Take note of the documents that are returned. We can use these to simulate that 
         "_index": ".fs-my-datastream-indexing-example-2025.05.16-000002",
         "_id": "_lA-GJcBHLe506UUGL0I",
         "_score": 1.5753641,
-        "_source": { // <1>
+        "_source": { <1>
           "@timestamp": "2025-05-02T18:53:31.153Z",
           "document": {
             "id": "_VA-GJcBHLe506UUFL2i",
             "index": "my-datastream-indexing-example",
             "source": {
-              "processed": true, // <2>
+              "processed": true, <2>
               "data": {
                 "counter": 37
               }
             }
           },
           "error": {
-            "type": "document_parsing_exception", // <3>
+            "type": "document_parsing_exception", <3>
             "message": "[1:40] failed to parse: data stream timestamp field [@timestamp] is missing",
-            "stack_trace": """o.e.i.m.DocumentParsingException: [1:40] failed to parse: data stream timestamp field [@timestamp] is missing
-	at o.e.i.m.DocumentParser.wrapInDocumentParsingException(DocumentParser.java:265)
-	at o.e.i.m.DocumentParser.internalParseDocument(DocumentParser.java:162)
-	... 19 more
-Caused by: j.l.IllegalArgumentException: data stream timestamp field [@timestamp] is missing
-	at o.e.i.m.DataStreamTimestampFieldMapper.extractTimestampValue(DataStreamTimestampFieldMapper.java:210)
-	at o.e.i.m.DataStreamTimestampFieldMapper.postParse(DataStreamTimestampFieldMapper.java:223)
-	... 20 more
+            "stack_trace": """o.e.i.m.DocumentParsingException: [1:40] failed to parse: data stream timestamp field [@timestamp] is missing at o.e.i.m.DocumentParser.wrapInDocumentParsingException(DocumentParser.java:265) at o.e.i.m.DocumentParser.internalParseDocument(DocumentParser.java:162) ... 19 more
+Caused by: j.l.IllegalArgumentException: data stream timestamp field [@timestamp] is missing at o.e.i.m.DataStreamTimestampFieldMapper.extractTimestampValue(DataStreamTimestampFieldMapper.java:210) at o.e.i.m.DataStreamTimestampFieldMapper.postParse(DataStreamTimestampFieldMapper.java:223) ... 20 more
 """
           }
         }
@@ -951,12 +930,12 @@ PUT _ingest/pipeline/my-datastream-remediation-pipeline
       "script": {
       "lang": "painless",
       "source": """
-          ctx._index = ctx.document.index; // <1>
+          ctx._index = ctx.document.index; <1>
           ctx._routing = ctx.document.routing;
-          def s = ctx.document.source; // <2>
-          ctx.remove("error"); // <3>
-          ctx.remove("document"); // <4>
-          for (e in s.entrySet()) { // <5>
+          def s = ctx.document.source; <2>
+          ctx.remove("error"); <3>
+          ctx.remove("document"); <4>
+          for (e in s.entrySet()) { <5>
             ctx[e.key] = e.value;
           }"""
       }
@@ -983,7 +962,7 @@ Before sending data off to be reindexed, be sure to test the remedial pipeline w
 ----
 POST _ingest/pipeline/_simulate
 {
-  "pipeline": { // <1>
+  "pipeline": { <1>
     "processors": [
       {
         "script": {
@@ -1001,7 +980,7 @@ POST _ingest/pipeline/_simulate
       }
     ]
   },
-  "docs": [ // <2>
+  "docs": [ <2>
     {
         "_index": ".fs-my-datastream-indexing-example-2025.05.16-000002",
         "_id": "_lA-GJcBHLe506UUGL0I",
@@ -1021,14 +1000,8 @@ POST _ingest/pipeline/_simulate
           "error": {
             "type": "document_parsing_exception",
             "message": "[1:40] failed to parse: data stream timestamp field [@timestamp] is missing",
-            "stack_trace": """o.e.i.m.DocumentParsingException: [1:40] failed to parse: data stream timestamp field [@timestamp] is missing
-	at o.e.i.m.DocumentParser.wrapInDocumentParsingException(DocumentParser.java:265)
-	at o.e.i.m.DocumentParser.internalParseDocument(DocumentParser.java:162)
-	... 19 more
-Caused by: j.l.IllegalArgumentException: data stream timestamp field [@timestamp] is missing
-	at o.e.i.m.DataStreamTimestampFieldMapper.extractTimestampValue(DataStreamTimestampFieldMapper.java:210)
-	at o.e.i.m.DataStreamTimestampFieldMapper.postParse(DataStreamTimestampFieldMapper.java:223)
-	... 20 more
+            "stack_trace": """o.e.i.m.DocumentParsingException: [1:40] failed to parse: data stream timestamp field [@timestamp] is missing at o.e.i.m.DocumentParser.wrapInDocumentParsingException(DocumentParser.java:265) at o.e.i.m.DocumentParser.internalParseDocument(DocumentParser.java:162) ... 19 more
+Caused by: j.l.IllegalArgumentException: data stream timestamp field [@timestamp] is missing at o.e.i.m.DataStreamTimestampFieldMapper.extractTimestampValue(DataStreamTimestampFieldMapper.java:210) at o.e.i.m.DataStreamTimestampFieldMapper.postParse(DataStreamTimestampFieldMapper.java:223) ... 20 more
 """
           }
         }
@@ -1045,12 +1018,12 @@ Caused by: j.l.IllegalArgumentException: data stream timestamp field [@timestamp
   "docs": [
     {
       "doc": {
-        "_index": "my-datastream-indexing-example", // <1>
+        "_index": "my-datastream-indexing-example", <1>
         "_version": "-3",
         "_id": "_lA-GJcBHLe506UUGL0I",
-        "_source": { // <2>
+        "_source": { <2>
           "processed": true,
-          "@timestamp": "2025-05-28T18:53:31.153Z", // <3>
+          "@timestamp": "2025-05-28T18:53:31.153Z", <3>
           "data": {
             "counter": 37
           }
@@ -1076,9 +1049,9 @@ Combine the remediation pipeline with the failure store query together in a http
 POST _reindex
 {
   "source": {
-    "index": "my-datastream-indexing-example::failures", // <1>
+    "index": "my-datastream-indexing-example::failures", <1>
     "query": {
-      "bool": { // <2>
+      "bool": { <2>
         "must_not": [
           {
             "exists": {
@@ -1110,9 +1083,9 @@ POST _reindex
     }
   },
   "dest": {
-    "index": "my-datastream-indexing-example", // <3>
+    "index": "my-datastream-indexing-example", <3>
     "op_type": "create",
-    "pipeline": "my-datastream-remediation-pipeline" // <4>
+    "pipeline": "my-datastream-remediation-pipeline" <4>
   }
 }
 ----
@@ -1128,7 +1101,7 @@ POST _reindex
   "timed_out": false,
   "total": 1,
   "updated": 0,
-  "created": 1, // <1>
+  "created": 1, <1>
   "deleted": 0,
   "batches": 1,
   "version_conflicts": 0,

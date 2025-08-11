@@ -314,7 +314,7 @@ POST _query?format=txt
 ----
 <1> We drop the `error.stack_trace` field here just to keep the example free of newlines.
 
-[source,console-result]
+[source,txt]
 ----
        @timestamp       |    document.id     |document.index |document.routing|                                                            error.message                                                            |error.pipeline |error.pipeline_trace|error.processor_tag|error.processor_type|        error.type
 ------------------------+--------------------+---------------+----------------+-------------------------------------------------------------------------------------------------------------------------------------+---------------+--------------------+-------------------+--------------------+--------------------------
@@ -401,7 +401,7 @@ POST _sql?format=txt
 
 An example of a search result with the failed document present:
 
-[source,console-result]
+[source,txt]
 ----
        @timestamp       |    document.id     |document.index |document.routing|                                                            error.message                                                            |error.pipeline |error.pipeline_trace|error.processor_tag|error.processor_type|                                                                                                                                                                                                                                                                            error.stack_trace                                                                                                                                                                                                                                                                            |        error.type
 ------------------------+--------------------+---------------+----------------+-------------------------------------------------------------------------------------------------------------------------------------+---------------+--------------------+-------------------+--------------------+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+--------------------------
@@ -529,9 +529,11 @@ POST my-datastream-ingest/_doc
   },
   "_seq_no": 0,
   "_primary_term": 1,
-  "failure_store": "used" // The document failed and went to the failure store.
+  "failure_store": "used" <1>
 }
 ----
+
+<1> The document failed and went to the failure store.
 
 Inspecting the corresponding failure document will show the document in its original form as it was sent to {es}.
 

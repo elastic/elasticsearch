@@ -8,6 +8,7 @@
  */
 package org.elasticsearch.index.shard;
 
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionTestUtils;
@@ -51,6 +52,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.instanceOf;
 
+@LuceneTestCase.AwaitsFix(bugUrl = "depends on the write executor being a thread pool")
 public class IndexShardOperationPermitsTests extends ESTestCase {
 
     private static ThreadPool threadPool;

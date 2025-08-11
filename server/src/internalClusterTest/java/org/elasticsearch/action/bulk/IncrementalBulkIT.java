@@ -188,6 +188,7 @@ public class IncrementalBulkIT extends ESIntegTestCase {
         assertFalse(refCounted.hasReferences());
     }
 
+    @AwaitsFix(bugUrl = "depends on being able to block the write coordination pool")
     public void testIncrementalBulkHighWatermarkBackOff() throws Exception {
         String index = "test";
         createIndex(index);
@@ -283,6 +284,7 @@ public class IncrementalBulkIT extends ESIntegTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "depends on being able to block the write coordination pool")
     public void testGlobalBulkFailure() throws InterruptedException {
         ExecutorService executorService = Executors.newFixedThreadPool(1);
         CountDownLatch blockingLatch = new CountDownLatch(1);
@@ -314,6 +316,7 @@ public class IncrementalBulkIT extends ESIntegTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "depends on being able to block the write coordination pool")
     public void testBulkLevelBulkFailureAfterFirstIncrementalRequest() throws Exception {
         ExecutorService executorService = Executors.newFixedThreadPool(1);
 

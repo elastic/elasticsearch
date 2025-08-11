@@ -27,8 +27,6 @@ import org.apache.lucene.document.KnnByteVectorField;
 import org.apache.lucene.document.KnnFloatVectorField;
 import org.apache.lucene.document.StoredField;
 import org.apache.lucene.index.ConcurrentMergeScheduler;
-import org.apache.lucene.index.DirectoryReader;
-import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.MergePolicy;
@@ -92,14 +90,6 @@ class KnnIndexer {
         this.similarityFunction = similarityFunction;
         this.numDocs = numDocs;
         this.mergePolicy = mergePolicy;
-    }
-
-    void numSegments(KnnIndexTester.Results result) {
-        try (FSDirectory dir = FSDirectory.open(indexPath); IndexReader reader = DirectoryReader.open(dir)) {
-            result.numSegments = reader.leaves().size();
-        } catch (IOException e) {
-            throw new UncheckedIOException("Failed to get segment count for index at " + indexPath, e);
-        }
     }
 
     void createIndex(KnnIndexTester.Results result) throws IOException, InterruptedException, ExecutionException {
@@ -206,6 +196,9 @@ class KnnIndexer {
         long elapsed = System.nanoTime() - start;
         logger.debug("Indexing took {} ms for {} docs", TimeUnit.NANOSECONDS.toMillis(elapsed), numDocs);
         result.indexTimeMS = TimeUnit.NANOSECONDS.toMillis(elapsed);
+
+        // report numDocsIndexed here in case we have less than the total numDocs
+        result.numDocs = numDocsIndexed.get();
     }
 
     void forceMerge(KnnIndexTester.Results results) throws Exception {
@@ -277,9 +270,11 @@ class KnnIndexer {
 
         private void _run() throws IOException {
             while (true) {
-                int id = numDocsIndexed.getAndIncrement();
-                if (id >= numDocsToIndex) {
+                int id = numDocsIndexed.get();
+                if (id == numDocsToIndex) {
                     break;
+                } else if (numDocsIndexed.compareAndSet(id, id + 1) == false) {
+                    continue;
                 }
 
                 Document doc = new Document();

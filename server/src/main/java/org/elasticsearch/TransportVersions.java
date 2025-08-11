@@ -359,6 +359,7 @@ public class TransportVersions {
     public static final TransportVersion TRANSPORT_NODE_USAGE_STATS_FOR_THREAD_POOLS_ACTION = def(9_135_0_00);
     public static final TransportVersion INDEX_TEMPLATE_TRACKING_INFO = def(9_136_0_00);
     public static final TransportVersion EXTENDED_SNAPSHOT_STATS_IN_NODE_INFO = def(9_137_0_00);
+    public static final TransportVersion SIMULATE_INGEST_MAPPING_MERGE_TYPE = def(9_138_0_00);
 
     /*
      * STOP! READ THIS FIRST! No, really,

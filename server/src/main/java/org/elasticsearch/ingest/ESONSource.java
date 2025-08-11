@@ -113,8 +113,9 @@ public class ESONSource {
             return switch (token) {
                 case VALUE_STRING -> {
                     XContentString.UTF8Bytes stringBytes = parser.optimizedText().bytes();
+                    bytes.writeVInt(stringBytes.length());
                     bytes.write(stringBytes.bytes(), stringBytes.offset(), stringBytes.length());
-                    yield new VariableValue((int) position, stringBytes.length(), ESONEntry.STRING);
+                    yield new VariableValue((int) position, ESONEntry.STRING);
                 }
                 case VALUE_NUMBER -> {
                     XContentParser.NumberType numberType = parser.numberType();
@@ -138,8 +139,9 @@ public class ESONSource {
                         case BIG_INTEGER, BIG_DECIMAL -> {
                             byte type = numberType == XContentParser.NumberType.BIG_INTEGER ? ESONEntry.BIG_INTEGER : ESONEntry.BIG_DECIMAL;
                             byte[] numberBytes = parser.text().getBytes(StandardCharsets.UTF_8);
+                            bytes.writeVInt(numberBytes.length);
                             bytes.write(numberBytes);
-                            yield new VariableValue((int) position, numberBytes.length, type);
+                            yield new VariableValue((int) position, type);
                         }
                     };
                 }
@@ -147,8 +149,9 @@ public class ESONSource {
                 case VALUE_NULL -> ConstantValue.NULL;
                 case VALUE_EMBEDDED_OBJECT -> {
                     byte[] binaryValue = parser.binaryValue();
+                    bytes.writeVInt(binaryValue.length);
                     bytes.write(binaryValue);
-                    yield new VariableValue((int) position, binaryValue.length, ESONEntry.BINARY);
+                    yield new VariableValue((int) position, ESONEntry.BINARY);
                 }
                 default -> throw new IllegalArgumentException("Unexpected token: " + token);
             };
@@ -214,42 +217,36 @@ public class ESONSource {
         }
     }
 
-    public record VariableValue(int position, int length, byte type) implements Value {
+    public record VariableValue(int position, byte type) implements Value {
         public Object getValue(Values source) {
             return switch (type) {
-                case ESONEntry.STRING -> source.readString(position, length);
-                case ESONEntry.BINARY -> source.readByteArray(position, length);
-                case ESONEntry.BIG_INTEGER -> new BigInteger(source.readString(position, length));
-                case ESONEntry.BIG_DECIMAL -> new BigDecimal(source.readString(position, length));
+                case ESONEntry.STRING -> source.readString(position);
+                case ESONEntry.BINARY -> source.readByteArray(position);
+                case ESONEntry.BIG_INTEGER -> new BigInteger(source.readString(position));
+                case ESONEntry.BIG_DECIMAL -> new BigDecimal(source.readString(position));
                 default -> throw new IllegalArgumentException("Invalid value type: " + type);
             };
         }
 
         public void writeToXContent(XContentBuilder builder, Values values) throws IOException {
-            BytesReference slice = values.data.slice(position, length);
-
-            byte[] bytes;
-            int offset;
-            if (slice.hasArray()) {
-                bytes = slice.array();
-                offset = slice.arrayOffset();
-            } else {
-                BytesRef bytesRef = slice.toBytesRef();
-                bytes = bytesRef.bytes;
-                offset = bytesRef.offset;
-            }
+            BytesRef bytesRef = Values.readByteSlice(values.data, position);
             switch (type) {
-                case ESONEntry.STRING -> builder.utf8Value(bytes, offset, length);
-                case ESONEntry.BINARY -> builder.value(bytes, offset, length);
+                case ESONEntry.STRING -> builder.utf8Value(bytesRef.bytes, bytesRef.offset, bytesRef.length);
+                case ESONEntry.BINARY -> builder.value(bytesRef.bytes, bytesRef.offset, bytesRef.length);
                 // TODO: Improve?
-                case ESONEntry.BIG_INTEGER -> builder.value(new BigInteger(new String(bytes, offset, length, StandardCharsets.UTF_8)));
-                case ESONEntry.BIG_DECIMAL -> builder.value(new BigDecimal(new String(bytes, offset, length, StandardCharsets.UTF_8)));
+                case ESONEntry.BIG_INTEGER -> builder.value(
+                    new BigInteger(new String(bytesRef.bytes, bytesRef.offset, bytesRef.length, StandardCharsets.UTF_8))
+                );
+                case ESONEntry.BIG_DECIMAL -> builder.value(
+                    new BigDecimal(new String(bytesRef.bytes, bytesRef.offset, bytesRef.length, StandardCharsets.UTF_8))
+                );
                 default -> throw new IllegalArgumentException("Invalid value type: " + type);
             }
         }
     }
 
     public record Values(BytesReference data) {
+
         public int readInt(int position) {
             return data.getInt(position);
         }
@@ -272,28 +269,45 @@ public class ESONSource {
             return data.get(position) != 0;
         }
 
-        private byte[] readByteArray(int position, int length) {
-            byte[] result = new byte[length];
-            for (int i = 0; i < length; i++) {
-                result[i] = data.get(position + i);
-            }
-            return result;
+        private byte[] readByteArray(int position) {
+            BytesRef bytesRef = readByteSlice(data, position);
+            byte[] bytes = new byte[bytesRef.length];
+            System.arraycopy(bytesRef.bytes, bytesRef.offset, bytes, 0, bytesRef.length);
+            return bytes;
         }
 
-        public String readString(int position, int length) {
-            BytesReference slice = data.slice(position, length);
+        public String readString(int position) {
+            BytesRef bytesRef = readByteSlice(data, position);
+            return new String(bytesRef.bytes, bytesRef.offset, bytesRef.length, java.nio.charset.StandardCharsets.UTF_8);
+        }
 
-            final byte[] bytes;
-            final int offset;
-            if (slice.hasArray()) {
-                bytes = slice.array();
-                offset = slice.arrayOffset();
-            } else {
-                BytesRef bytesRef = slice.toBytesRef();
-                bytes = bytesRef.bytes;
-                offset = bytesRef.offset;
+        public static BytesRef readByteSlice(BytesReference data, int position) {
+            byte b = data.get(position);
+            if (b >= 0) {
+                return data.slice(position + 1, b).toBytesRef();
             }
-            return new String(bytes, offset, length, java.nio.charset.StandardCharsets.UTF_8);
+            int i = b & 0x7F;
+            b = data.get(position + 1);
+            i |= (b & 0x7F) << 7;
+            if (b >= 0) {
+                return data.slice(position + 2, i).toBytesRef();
+            }
+            b = data.get(position + 2);
+            i |= (b & 0x7F) << 14;
+            if (b >= 0) {
+                return data.slice(position + 3, i).toBytesRef();
+            }
+            b = data.get(position + 3);
+            i |= (b & 0x7F) << 21;
+            if (b >= 0) {
+                return data.slice(position + 4, i).toBytesRef();
+            }
+            b = data.get(position + 4);
+            i |= (b & 0x0F) << 28;
+            if ((b & 0xF0) != 0) {
+                throw new RuntimeException("Invalid vInt ((" + Integer.toHexString(b) + " & 0x7f) << 28) | " + Integer.toHexString(i));
+            }
+            return data.slice(position + 5, i).toBytesRef();
         }
     }
 }

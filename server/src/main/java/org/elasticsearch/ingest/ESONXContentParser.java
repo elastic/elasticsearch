@@ -10,7 +10,6 @@
 package org.elasticsearch.ingest;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.xcontent.DeprecationHandler;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.Text;
@@ -251,20 +250,9 @@ public class ESONXContentParser extends AbstractXContentParser {
     public XContentString optimizedText() throws IOException {
         // For strings, try to access raw bytes directly without materializing the string
         if (currentType instanceof ESONSource.VariableValue varValue && varValue.type() == ESONEntry.STRING) {
-            BytesReference slice = values.data().slice(varValue.position(), varValue.length());
-
-            final byte[] bytes;
-            final int offset;
-            if (slice.hasArray()) {
-                bytes = slice.array();
-                offset = slice.arrayOffset();
-            } else {
-                BytesRef bytesRef = slice.toBytesRef();
-                bytes = bytesRef.bytes;
-                offset = bytesRef.offset;
-            }
+            BytesRef bytesRef = ESONSource.Values.readByteSlice(values.data(), varValue.position());
             // TODO: Fix Length
-            return new Text(new XContentString.UTF8Bytes(bytes, offset, varValue.length()), varValue.length());
+            return new Text(new XContentString.UTF8Bytes(bytesRef.bytes, bytesRef.offset, bytesRef.length), bytesRef.length);
         }
 
         // Fallback: materialize value and convert to bytes
@@ -277,14 +265,10 @@ public class ESONXContentParser extends AbstractXContentParser {
         // For strings, try to write raw bytes directly without materializing the string
         if (currentType instanceof ESONSource.VariableValue varValue && varValue.type() == ESONEntry.STRING) {
             try {
+                BytesRef bytesRef = ESONSource.Values.readByteSlice(values.data(), varValue.position());
+                out.write(bytesRef.bytes, bytesRef.offset, bytesRef.length);
                 // TODO: Can optimize more. Just not sure if this method needs to stay.
-                if (values.data().hasArray()) {
-                    // Write directly from the raw bytes
-                    byte[] rawBytes = values.data().array();
-                    int offset = values.data().arrayOffset() + varValue.position();
-                    out.write(rawBytes, offset, varValue.length());
-                    return true;
-                }
+                return true;
             } catch (Exception e) {
                 // Fall back to materialized string
             }

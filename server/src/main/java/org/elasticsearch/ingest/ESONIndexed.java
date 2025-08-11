@@ -779,30 +779,35 @@ public class ESONIndexed {
                 }
                 case BigInteger bigInteger -> {
                     byte[] numberBytes = bigInteger.toString().getBytes(StandardCharsets.UTF_8);
+                    newValuesOut.writeVInt(numberBytes.length);
                     newValuesOut.write(numberBytes);
-                    yield new ESONSource.VariableValue(position, numberBytes.length, ESONEntry.BIG_INTEGER);
+                    yield new ESONSource.VariableValue(position, ESONEntry.BIG_INTEGER);
                 }
                 case BigDecimal bigDecimal -> {
                     byte[] numberBytes = bigDecimal.toString().getBytes(StandardCharsets.UTF_8);
+                    newValuesOut.writeVInt(numberBytes.length);
                     newValuesOut.write(numberBytes);
-                    yield new ESONSource.VariableValue(position, numberBytes.length, ESONEntry.BIG_DECIMAL);
+                    yield new ESONSource.VariableValue(position, ESONEntry.BIG_DECIMAL);
                 }
                 default -> {
-                    byte[] numberBytes = num.toString().getBytes(StandardCharsets.UTF_8);
-                    newValuesOut.write(numberBytes);
-                    yield new ESONSource.VariableValue(position, numberBytes.length, ESONEntry.STRING);
+                    byte[] utf8Bytes = num.toString().getBytes(StandardCharsets.UTF_8);
+                    newValuesOut.writeVInt(utf8Bytes.length);
+                    newValuesOut.write(utf8Bytes);
+                    yield new ESONSource.VariableValue(position, ESONEntry.STRING);
                 }
             };
         } else if (obj instanceof Boolean bool) {
             value = bool ? ESONSource.ConstantValue.TRUE : ESONSource.ConstantValue.FALSE;
         } else if (obj instanceof byte[] bytes) {
+            newValuesOut.writeVInt(bytes.length);
             newValuesOut.writeBytes(bytes);
-            value = new ESONSource.VariableValue(position, bytes.length, ESONEntry.BINARY);
+            value = new ESONSource.VariableValue(position, ESONEntry.BINARY);
         } else {
             String str = obj.toString();
             byte[] bytes = str.getBytes(StandardCharsets.UTF_8);
+            newValuesOut.writeVInt(bytes.length);
             newValuesOut.writeBytes(bytes);
-            value = new ESONSource.VariableValue(position, bytes.length, ESONEntry.STRING);
+            value = new ESONSource.VariableValue(position, ESONEntry.STRING);
         }
 
         return value;

@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.esql.expression.function.aggregate;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
@@ -30,12 +29,10 @@ import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.FromAggregateMetricDouble;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvSum;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Mul;
-import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 
 import java.io.IOException;
 import java.util.List;
 
-import static java.util.Collections.emptyList;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
 import static org.elasticsearch.xpack.esql.core.type.DataType.AGGREGATE_METRIC_DOUBLE;
@@ -75,16 +72,11 @@ public class Sum extends NumericAggregate implements SurrogateExpression {
     }
 
     private static Sum readFrom(StreamInput in) throws IOException {
-        Source source = Source.readFrom((PlanStreamInput) in);
-        Expression field = in.readNamedWriteable(Expression.class);
-        Expression filter = in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)
-            ? in.readNamedWriteable(Expression.class)
-            : Literal.TRUE;
-        List<Expression> parameters = in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)
-            ? in.readNamedWriteableCollectionAsList(Expression.class)
-            : emptyList();
-        Expression summationMode = parameters.isEmpty() ? SummationMode.COMPENSATED_LITERAL : parameters.getFirst();
-        return new Sum(source, field, filter, summationMode);
+        // For BWC and to ensure parameters always include the summation mode, first read a generic AggregateFunction, then convert to SUM.
+        var fn = readGenericAggregateFunction(in);
+        var parameters = fn.parameters();
+        var summationMode = parameters.isEmpty() ? SummationMode.COMPENSATED_LITERAL : parameters.getFirst();
+        return new Sum(fn.source(), fn.field(), fn.filter(), summationMode);
     }
 
     @Override

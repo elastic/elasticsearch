@@ -202,6 +202,9 @@ public class ExtractSnippets extends EsqlScalarFunction implements OptionalArgum
         List<EsPhysicalOperationProviders.ShardContext> shardContexts = toEvaluator.shardContexts();
         LuceneQueryEvaluator.ShardConfig[] shardConfigs = new LuceneQueryEvaluator.ShardConfig[shardContexts.size()];
 
+        Integer numSnippets = this.numSnippets == null ?DEFAULT_NUM_SNIPPETS : (Integer) this.numSnippets.fold(FoldContext.small());
+        Integer snippedSize = this.snippetLength == null ? DEFAULT_SNIPPET_LENGTH : (Integer) this.snippetLength.fold(FoldContext.small());
+
         int i = 0;
         for (EsPhysicalOperationProviders.ShardContext shardContext : shardContexts) {
             SearchExecutionContext searchExecutionContext = shardContext.searchExecutionContext();
@@ -209,6 +212,7 @@ public class ExtractSnippets extends EsqlScalarFunction implements OptionalArgum
             if (searchContext == null) {
                 throw new IllegalStateException("Missing search context, cannot extract snippets");
             }
+
 
             try {
                 // TODO: Reduce duplication between this method and TextSimilarityRerankingRankFeaturePhaseRankShardContext#prepareForFetch
@@ -220,9 +224,10 @@ public class ExtractSnippets extends EsqlScalarFunction implements OptionalArgum
                 highlightBuilder.field(field.sourceText()).preTags("").postTags("");
                 // Return highest scoring fragments
                 highlightBuilder.order(HighlightBuilder.Order.SCORE);
-                highlightBuilder.numOfFragments(Integer.parseInt(numSnippets.sourceText()));
-                highlightBuilder.fragmentSize(Integer.parseInt(snippetLength.sourceText()));
-                highlightBuilder.noMatchSize(Integer.parseInt(snippetLength.sourceText()));
+
+                highlightBuilder.numOfFragments(numSnippets);
+                highlightBuilder.fragmentSize(snippedSize);
+                highlightBuilder.noMatchSize(snippedSize);
 
                 SearchHighlightContext highlightContext = highlightBuilder.build(searchExecutionContext);
                 searchContext.highlight(highlightContext);
@@ -234,9 +239,9 @@ public class ExtractSnippets extends EsqlScalarFunction implements OptionalArgum
                         + "], str ["
                         + str.sourceText()
                         + "], numSnippets: ["
-                        + Integer.parseInt(numSnippets.sourceText())
+                        + numSnippets
                         + "], snippetLength: ["
-                        + Integer.parseInt(snippetLength.sourceText())
+                        + snippetLength
                         + "]",
                     e
                 );
@@ -246,10 +251,8 @@ public class ExtractSnippets extends EsqlScalarFunction implements OptionalArgum
         }
         // Get field name and search context from the first shard context
         String fieldNameStr = field.sourceText();
-        int numFragments = numSnippets == null ? DEFAULT_NUM_SNIPPETS : Integer.parseInt(numSnippets.sourceText());
-        int fragmentSize = snippetLength == null ? DEFAULT_SNIPPET_LENGTH : Integer.parseInt(snippetLength.sourceText());
         SearchContext firstSearchContext = shardContexts.isEmpty() ? null : shardContexts.get(0).searchContext();
-        return new HighlighterExpressionEvaluator.Factory(shardConfigs, fieldNameStr, numFragments, fragmentSize, firstSearchContext);
+        return new HighlighterExpressionEvaluator.Factory(shardConfigs, fieldNameStr, numSnippets, snippedSize, firstSearchContext);
     }
 
     @Override

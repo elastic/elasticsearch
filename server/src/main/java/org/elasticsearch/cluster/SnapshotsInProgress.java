@@ -846,7 +846,6 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
          * ({@link ShardState#INIT} or {@link ShardState#ABORTED}) or about to write to it in state {@link ShardState#WAITING} or
          * {@link ShardState#PAUSED_FOR_NODE_REMOVAL}.
          */
-        // TODO: review its usage again
         public boolean isActive() {
             return switch (state) {
                 case INIT, ABORTED, WAITING, PAUSED_FOR_NODE_REMOVAL -> true;
@@ -856,6 +855,10 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
 
         public boolean isActiveOrAssignedQueued() {
             return isActive() || isAssignedQueued();
+        }
+
+        public boolean isAbortedAssignedQueued() {
+            return state == ShardState.ABORTED && reason != null && reason.startsWith("assigned-queued aborted");
         }
 
         @Override

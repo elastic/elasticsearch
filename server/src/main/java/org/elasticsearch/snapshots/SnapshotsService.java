@@ -3835,9 +3835,8 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                 if (previous.state() == ShardState.INIT) {
                     return current.state().completed() || current.state() == ShardState.PAUSED_FOR_NODE_REMOVAL;
                 }
-                // TODO find a better to check for abort on data nodes
-                if (previous.state() == ShardState.ABORTED
-                    && (previous.reason() == null || previous.reason().startsWith("assigned-queued aborted") == false)) {
+                // Aborted shard snapshot releases data node capacity unless it was assigned-queued, i.e. never actually started
+                if (previous.state() == ShardState.ABORTED && previous.isAbortedAssignedQueued() == false) {
                     return current.state().completed();
                 }
                 return false;

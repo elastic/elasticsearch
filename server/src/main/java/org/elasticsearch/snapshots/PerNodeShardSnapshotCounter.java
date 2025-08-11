@@ -53,13 +53,6 @@ public class PerNodeShardSnapshotCounter {
         }
     }
 
-    private static boolean isRunningOnDataNode(SnapshotsInProgress.ShardSnapshotStatus shardSnapshotStatus) {
-        return shardSnapshotStatus.state() == SnapshotsInProgress.ShardState.INIT
-            || (shardSnapshotStatus.state() == SnapshotsInProgress.ShardState.ABORTED && shardSnapshotStatus.reason() != null
-            // TODO: find a better way to check for abort on data nodes
-                && shardSnapshotStatus.reason().startsWith("assigned-queued aborted") == false);
-    }
-
     public boolean tryStartShardSnapshotOnNode(String nodeId) {
         if (enabled() == false) {
             return true;
@@ -95,18 +88,6 @@ public class PerNodeShardSnapshotCounter {
         return enabled() == false || perNodeCounts.values().stream().anyMatch(count -> count < shardSnapshotPerNodeLimit);
     }
 
-    public boolean hasCapacityOnNode(String nodeId) {
-        if (enabled() == false) {
-            return true;
-        }
-        final Integer count = perNodeCounts.get(nodeId);
-        return count != null && count < shardSnapshotPerNodeLimit;
-    }
-
-    private boolean enabled() {
-        return shardSnapshotPerNodeLimit > 0;
-    }
-
     @Override
     public String toString() {
         return "PerNodeShardSnapshotCounter{"
@@ -115,5 +96,16 @@ public class PerNodeShardSnapshotCounter {
             + ", perNodeCounts="
             + perNodeCounts
             + '}';
+    }
+
+    private boolean enabled() {
+        return shardSnapshotPerNodeLimit > 0;
+    }
+
+    private static boolean isRunningOnDataNode(SnapshotsInProgress.ShardSnapshotStatus shardSnapshotStatus) {
+        return shardSnapshotStatus.state() == SnapshotsInProgress.ShardState.INIT
+            // Aborted shard snapshot may still be running on the data node unless it was assigned-queued, i.e. never actually started
+            || (shardSnapshotStatus.state() == SnapshotsInProgress.ShardState.ABORTED
+                && shardSnapshotStatus.isAbortedAssignedQueued() == false);
     }
 }

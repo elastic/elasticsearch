@@ -22,10 +22,13 @@ import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.xpack.esql.capabilities.RewriteableAware;
 import org.elasticsearch.xpack.esql.capabilities.TranslationAware;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.util.Check;
+import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.OptionalArgument;
@@ -35,10 +38,12 @@ import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdownPredicates;
 import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders;
 import org.elasticsearch.xpack.esql.planner.TranslatorHandler;
+import org.elasticsearch.xpack.esql.querydsl.query.MatchQuery;
 import org.elasticsearch.xpack.esql.querydsl.query.TranslationAwareExpressionQuery;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
@@ -47,11 +52,13 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.Param
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.THIRD;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isString;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
+import static org.elasticsearch.xpack.esql.expression.function.fulltext.FullTextFunction.fieldAsFieldAttribute;
+import static org.elasticsearch.xpack.esql.expression.function.fulltext.FullTextFunction.getNameFromFieldAttribute;
 
 /**
  * Extract snippets function, that extracts the most relevant snippets from a given input string
  */
-public class ExtractSnippets extends EsqlScalarFunction implements OptionalArgument, RewriteableAware, TranslationAware {
+public class ExtractSnippets extends EsqlScalarFunction implements OptionalArgument, RewriteableAware, TranslationAware, EvaluatorMapper {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
         "ExtractSnippets",
@@ -257,15 +264,24 @@ public class ExtractSnippets extends EsqlScalarFunction implements OptionalArgum
 
     @Override
     public Translatable translatable(LucenePushdownPredicates pushdownPredicates) {
-        return Translatable.YES;
+        // We don't want pushdown for this function, as it is not a filter query
+        return Translatable.NO;
     }
 
     @Override
     public Query asQuery(LucenePushdownPredicates pushdownPredicates, TranslatorHandler handler) {
-        if (queryBuilder != null) {
-            return new TranslationAwareExpressionQuery(source(), queryBuilder);
-        }
-        throw new IllegalStateException("Missing queryBuilder");
+        return queryBuilder != null
+            ? new TranslationAwareExpressionQuery(source(), queryBuilder())
+            : translate(pushdownPredicates, handler);
+    }
+
+    private Query translate(LucenePushdownPredicates pushdownPredicates, TranslatorHandler handler) {
+        var fieldAttribute = fieldAsFieldAttribute(field());
+        Check.notNull(fieldAttribute, "Highlight must have a field attribute as the first argument");
+        String fieldName = getNameFromFieldAttribute(fieldAttribute);
+        Object query = str().fold(FoldContext.small());
+        // Make query lenient so mixed field types can be queried when a field type is incompatible with the value provided
+        return new MatchQuery(source(), fieldName, query, Map.of(MatchQueryBuilder.LENIENT_FIELD.getPreferredName(), true));
     }
 
     Expression field() {

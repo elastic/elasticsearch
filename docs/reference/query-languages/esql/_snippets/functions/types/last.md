@@ -2,7 +2,7 @@
 
 **Supported types**
 
-| field | field | result |
+| value | sort | result |
 | --- | --- | --- |
 | double | date | double |
 | double | date_nanos | double |

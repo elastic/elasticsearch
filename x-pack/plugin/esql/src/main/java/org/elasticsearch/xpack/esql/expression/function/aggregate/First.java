@@ -51,8 +51,8 @@ public class First extends AggregateFunction implements ToAggregator {
     )
     public First(
         Source source,
-        @Param(name = "field", type = { "long", "integer", "double" }) Expression field,
-        @Param(name = "field", type = { "date", "date_nanos" }) Expression sort
+        @Param(name = "value", type = { "long", "integer", "double" }, description = "Values to return") Expression field,
+        @Param(name = "sort", type = { "date", "date_nanos" }, description = "Sort key") Expression sort
     ) {
         this(source, field, Literal.TRUE, sort);
     }

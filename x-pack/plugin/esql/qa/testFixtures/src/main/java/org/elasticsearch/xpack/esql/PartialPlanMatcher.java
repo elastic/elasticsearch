@@ -34,63 +34,62 @@ public class PartialPlanMatcher extends TypeSafeMatcher<LogicalPlan> {
 
     @Override
     protected boolean matchesSafely(LogicalPlan actual) {
-        return matches(expected, actual);
+        return matches(expected, actual) == null;
     }
 
     @Override
     public void describeTo(Description description) {
-
+        description.appendText(expected.toString());
     }
 
-    static boolean matches(LogicalPlan expected, LogicalPlan actual) {
+    @Override
+    protected void describeMismatchSafely(LogicalPlan item, Description mismatchDescription) {
+        super.describeMismatchSafely(item, mismatchDescription);
+        mismatchDescription.appendText(System.lineSeparator()).appendText(matches(expected, item));
+    }
+
+    static String matches(LogicalPlan expected, LogicalPlan actual) {
         if (expected.getClass() != actual.getClass()) {
-            assert false : "Mismatch in plan types: Expected [" + expected.getClass() + "], found [" + actual.getClass() + "]";
-            return false;
+            return "Mismatch in plan types: Expected [" + expected.getClass() + "], found [" + actual.getClass() + "]";
         }
 
-        List<Object> leftProperties = expected.nodeProperties();
-        List<Object> rightProperties = actual.nodeProperties();
+        List<Object> expectedProperties = expected.nodeProperties();
+        List<Object> actualProperties = actual.nodeProperties();
 
-        for (int i = 0; i < leftProperties.size(); i++) {
-            Object leftProperty = leftProperties.get(i);
-            Object rightProperty = rightProperties.get(i);
+        for (int i = 0; i < expectedProperties.size(); i++) {
+            Object expectedProperty = expectedProperties.get(i);
+            Object actualProperty = actualProperties.get(i);
 
-            // Only check equality if left is not null. This way we can be lenient by simply
+            // Only check equality if expected is not null. This way we can be lenient by simply
             // leaving out properties.
-            if (leftProperty == null || leftProperty instanceof PlanBuilder.Ignore) {
+            if (expectedProperty == null || expectedProperty instanceof PlanBuilder.Ignore) {
                 continue;
             }
 
-            if (rightProperty == null) {
-                assert false : "Expected [" + leftProperty.getClass() + "], found null.";
-                return false;
+            if (actualProperty == null) {
+                return "Expected [" + expectedProperty.getClass() + "], found null.";
             }
 
-            if (leftProperty instanceof LogicalPlan l) {
-                if (rightProperty instanceof LogicalPlan rightPlan) {
-                    if (matches(l, rightPlan) == false) {
-                        return false;
+            if (expectedProperty instanceof LogicalPlan l) {
+                if (actualProperty instanceof LogicalPlan rightPlan) {
+                    String subMatch = matches(l, rightPlan);
+                    if (subMatch != null) {
+                        return subMatch;
                     }
-                } else {
-                    assert false
-                        : "Mismatch in types: Expected [" + leftProperty.getClass() + "], found [" + rightProperty.getClass() + "]";
-                    return false;
-                }
-            } else if (leftProperty instanceof Expression e) {
-                if (rightProperty instanceof Expression rightExpr) {
+                } else {}
+            } else if (expectedProperty instanceof Expression e) {
+                if (actualProperty instanceof Expression rightExpr) {
                     if (e.semanticEquals(rightExpr) == false) {
-                        assert false : "Mismatch in expressions: Expected [" + e + "], found [" + rightExpr + "]";
-                        return false;
+                        return "Mismatch in expressions: Expected [" + e + "], found [" + rightExpr + "]";
                     }
                 } else {
-                    return false;
+                    return "Mismatch in types: Expected [" + expectedProperty.getClass() + "], found [" + actualProperty.getClass() + "]";
                 }
-            } else if (leftProperty.equals(rightProperty) == false) {
-                assert false : "Mismatch in properties: Expected [" + leftProperty + "], found [" + rightProperty + "]";
-                return false;
+            } else if (expectedProperty.equals(actualProperty) == false) {
+                return "Mismatch in properties: Expected [" + expectedProperty + "], found [" + actualProperty + "]";
             }
         }
 
-        return true;
+        return null;
     }
 }

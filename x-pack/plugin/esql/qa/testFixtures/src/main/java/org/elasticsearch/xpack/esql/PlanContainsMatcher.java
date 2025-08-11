@@ -53,6 +53,6 @@ public class PlanContainsMatcher extends TypeSafeMatcher<LogicalPlan> {
 
         // TODO: Deal with multiple matching children case
         LogicalPlan actual = candidates.get(0);
-        return PartialPlanMatcher.matches(expected, actual);
+        return PartialPlanMatcher.matches(expected, actual) == null;
     }
 }

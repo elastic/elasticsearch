@@ -7,8 +7,6 @@
 
 package org.elasticsearch.xpack.gpu.codec;
 
-import com.nvidia.cuvs.CuVSResources;
-
 import org.apache.lucene.codecs.KnnVectorsFormat;
 import org.apache.lucene.codecs.KnnVectorsReader;
 import org.apache.lucene.codecs.KnnVectorsWriter;
@@ -48,18 +46,21 @@ public class GPUVectorsFormat extends KnnVectorsFormat {
         FlatVectorScorerUtil.getLucene99FlatVectorsScorer()
     );
 
+    final CuVSResourceManager cuVSResourceManager;
+
     public GPUVectorsFormat() {
+        this(CuVSResourceManager.pooling());
+    }
+
+    public GPUVectorsFormat(CuVSResourceManager cuVSResourceManager) {
         super(NAME);
+        this.cuVSResourceManager = cuVSResourceManager;
     }
 
     @Override
     public KnnVectorsWriter fieldsWriter(SegmentWriteState state) throws IOException {
-        CuVSResources cuVSResources = cuVSResourcesOrNull(true);
-        if (cuVSResources == null) {
-            throw new IllegalArgumentException("GPU based vector indexing is not supported on this platform or java version");
-        }
         return new GPUToHNSWVectorsWriter(
-            cuVSResources,
+            cuVSResourceManager,
             state,
             DEFAULT_MAX_CONN,
             DEFAULT_BEAM_WIDTH,
@@ -80,31 +81,5 @@ public class GPUVectorsFormat extends KnnVectorsFormat {
     @Override
     public String toString() {
         return NAME + "()";
-    }
-
-    /** Tells whether the platform supports cuvs. */
-    public static CuVSResources cuVSResourcesOrNull(boolean logError) {
-        try {
-            var resources = CuVSResources.create();
-            return resources;
-        } catch (UnsupportedOperationException uoe) {
-            if (logError) {
-                String msg = "";
-                if (uoe.getMessage() == null) {
-                    msg = "Runtime Java version: " + Runtime.version().feature();
-                } else {
-                    msg = ": " + uoe.getMessage();
-                }
-                LOG.warn("GPU based vector indexing is not supported on this platform or java version; " + msg);
-            }
-        } catch (Throwable t) {
-            if (logError) {
-                if (t instanceof ExceptionInInitializerError ex) {
-                    t = ex.getCause();
-                }
-                LOG.warn("Exception occurred during creation of cuvs resources. " + t);
-            }
-        }
-        return null;
     }
 }

@@ -15,6 +15,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.vectors.KnnSearchBuilder;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xpack.gpu.GPUPlugin;
+import org.elasticsearch.xpack.gpu.GPUSupport;
 
 import java.util.Collection;
 import java.util.List;
@@ -32,6 +33,7 @@ public class GPUIndexIT extends ESIntegTestCase {
     }
 
     public void testBasic() {
+        assumeTrue("cuvs not supported", GPUSupport.isSupported(false));
         final int dims = randomIntBetween(4, 128);
         final int[] numDocs = new int[] { randomIntBetween(1, 100), 1, 2, randomIntBetween(1, 100) };
         createIndex(dims);
@@ -45,6 +47,7 @@ public class GPUIndexIT extends ESIntegTestCase {
     }
 
     public void testSearchWithoutGPU() {
+        assumeTrue("cuvs not supported", GPUSupport.isSupported(false));
         final int dims = randomIntBetween(4, 128);
         final int numDocs = randomIntBetween(1, 500);
         createIndex(dims);

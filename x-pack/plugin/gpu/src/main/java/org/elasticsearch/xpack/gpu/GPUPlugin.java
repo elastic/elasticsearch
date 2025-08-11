@@ -6,8 +6,6 @@
  */
 package org.elasticsearch.xpack.gpu;
 
-import com.nvidia.cuvs.CuVSResources;
-
 import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
@@ -34,17 +32,16 @@ public class GPUPlugin extends Plugin implements MapperPlugin {
                                 + "]"
                         );
                     }
-                    CuVSResources resources = GPUVectorsFormat.cuVSResourcesOrNull(true);
-                    if (resources == null) {
+                    if (GPUSupport.isSupported(true) == false) {
                         throw new IllegalArgumentException(
                             "[index.vectors.indexing.use_gpu] was set to [true], but GPU resources are not accessible on the node."
                         );
                     }
                     return new GPUVectorsFormat();
                 }
-                if ((gpuMode == IndexSettings.GpuMode.AUTO)
+                if (gpuMode == IndexSettings.GpuMode.AUTO
                     && vectorIndexTypeSupported(indexOptions.getType())
-                    && GPUVectorsFormat.cuVSResourcesOrNull(false) != null) {
+                    && GPUSupport.isSupported(false)) {
                     return new GPUVectorsFormat();
                 }
             }

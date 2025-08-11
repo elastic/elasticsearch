@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.gpu.codec;
 
 import com.nvidia.cuvs.CagraIndex;
 import com.nvidia.cuvs.CagraIndexParams;
-import com.nvidia.cuvs.CuVSResources;
 import com.nvidia.cuvs.Dataset;
 
 import org.apache.lucene.codecs.CodecUtil;
@@ -68,7 +67,7 @@ final class GPUToHNSWVectorsWriter extends KnnVectorsWriter {
     private static final long SHALLOW_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(GPUToHNSWVectorsWriter.class);
     private static final int LUCENE99_HNSW_DIRECT_MONOTONIC_BLOCK_SHIFT = 16;
 
-    private final CuVSResources cuVSResources;
+    private final CuVSResourceManager cuVSResourceManager;
     private final SegmentWriteState segmentWriteState;
     private final IndexOutput meta, vectorIndex;
     private final int M;
@@ -78,10 +77,15 @@ final class GPUToHNSWVectorsWriter extends KnnVectorsWriter {
     private final List<FieldWriter> fields = new ArrayList<>();
     private boolean finished;
 
-    GPUToHNSWVectorsWriter(CuVSResources cuVSResources, SegmentWriteState state, int M, int beamWidth, FlatVectorsWriter flatVectorWriter)
-        throws IOException {
-        assert cuVSResources != null : "CuVSResources must not be null";
-        this.cuVSResources = cuVSResources;
+    GPUToHNSWVectorsWriter(
+        CuVSResourceManager cuVSResourceManager,
+        SegmentWriteState state,
+        int M,
+        int beamWidth,
+        FlatVectorsWriter flatVectorWriter
+    ) throws IOException {
+        assert cuVSResourceManager != null : "CuVSResources must not be null";
+        this.cuVSResourceManager = cuVSResourceManager;
         this.M = M;
         this.flatVectorWriter = flatVectorWriter;
         this.beamWidth = beamWidth;
@@ -267,42 +271,52 @@ final class GPUToHNSWVectorsWriter extends KnnVectorsWriter {
             .withMetric(distanceType)
             .build();
 
-        // build index on GPU
-        long startTime = System.nanoTime();
-        var index = CagraIndex.newBuilder(cuVSResources).withDataset(dataset).withIndexParams(params).build();
-        if (logger.isDebugEnabled()) {
-            logger.debug("Carga index created in: {} ms; #num vectors: {}", (System.nanoTime() - startTime) / 1_000_000.0, dataset.size());
-        }
-
-        // TODO: do serialization through MemorySegment instead of a temp file
-        // serialize index for CPU consumption to the hnwslib format
-        startTime = System.nanoTime();
-        IndexOutput tempCagraHNSW = null;
-        boolean success = false;
+        var cuVSResources = cuVSResourceManager.acquire(dataset.size(), dataset.dimensions());
         try {
-            tempCagraHNSW = segmentWriteState.directory.createTempOutput(
-                vectorIndex.getName(),
-                "cagra_hnws_temp",
-                segmentWriteState.context
-            );
-            var tempCagraHNSWOutputStream = new IndexOutputOutputStream(tempCagraHNSW);
-            index.serializeToHNSW(tempCagraHNSWOutputStream);
+            long startTime = System.nanoTime();
+            var indexBuilder = CagraIndex.newBuilder(cuVSResources).withDataset(dataset).withIndexParams(params);
+            var index = indexBuilder.build();
+            cuVSResourceManager.finishedComputation(cuVSResources);
             if (logger.isDebugEnabled()) {
-                logger.debug("Carga index serialized to hnswlib format in: {} ms", (System.nanoTime() - startTime) / 1_000_000.0);
+                logger.debug(
+                    "Carga index created in: {} ms; #num vectors: {}",
+                    (System.nanoTime() - startTime) / 1_000_000.0,
+                    dataset.size()
+                );
             }
-            success = true;
-        } finally {
-            index.destroyIndex();
-            if (success) {
-                org.elasticsearch.core.IOUtils.close(tempCagraHNSW);
-            } else {
-                if (tempCagraHNSW != null) {
-                    IOUtils.closeWhileHandlingException(tempCagraHNSW);
-                    org.apache.lucene.util.IOUtils.deleteFilesIgnoringExceptions(segmentWriteState.directory, tempCagraHNSW.getName());
+
+            // TODO: do serialization through MemorySegment instead of a temp file
+            // serialize index for CPU consumption to the hnwslib format
+            startTime = System.nanoTime();
+            IndexOutput tempCagraHNSW = null;
+            boolean success = false;
+            try {
+                tempCagraHNSW = segmentWriteState.directory.createTempOutput(
+                    vectorIndex.getName(),
+                    "cagra_hnws_temp",
+                    segmentWriteState.context
+                );
+                var tempCagraHNSWOutputStream = new IndexOutputOutputStream(tempCagraHNSW);
+                index.serializeToHNSW(tempCagraHNSWOutputStream);
+                if (logger.isDebugEnabled()) {
+                    logger.debug("Carga index serialized to hnswlib format in: {} ms", (System.nanoTime() - startTime) / 1_000_000.0);
+                }
+                success = true;
+            } finally {
+                index.destroyIndex();
+                if (success) {
+                    org.elasticsearch.core.IOUtils.close(tempCagraHNSW);
+                } else {
+                    if (tempCagraHNSW != null) {
+                        IOUtils.closeWhileHandlingException(tempCagraHNSW);
+                        org.apache.lucene.util.IOUtils.deleteFilesIgnoringExceptions(segmentWriteState.directory, tempCagraHNSW.getName());
+                    }
                 }
             }
+            return tempCagraHNSW.getName();
+        } finally {
+            cuVSResourceManager.release(cuVSResources);
         }
-        return tempCagraHNSW.getName();
     }
 
     @SuppressForbidden(reason = "require usage of Lucene's IOUtils#deleteFilesIgnoringExceptions(...)")

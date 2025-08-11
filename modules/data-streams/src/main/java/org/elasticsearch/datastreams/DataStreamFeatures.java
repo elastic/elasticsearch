@@ -30,6 +30,10 @@ public class DataStreamFeatures implements FeatureSpecification {
 
     public static final NodeFeature FAILURE_STORE_IN_LOG_DATA_STREAMS = new NodeFeature("logs_data_streams.failure_store.enabled");
 
+    public static final NodeFeature DOWNSAMPLE_INDEX_LEVEL_DEFAULT_METRIC = new NodeFeature(
+        "data_stream.downsample.index_level_default_metric"
+    );
+
     @Override
     public Set<NodeFeature> getFeatures() {
         return Set.of(DataStream.DATA_STREAM_FAILURE_STORE_FEATURE);
@@ -41,7 +45,8 @@ public class DataStreamFeatures implements FeatureSpecification {
             DATA_STREAM_FAILURE_STORE_TSDB_FIX,
             DOWNSAMPLE_AGGREGATE_DEFAULT_METRIC_FIX,
             LOGS_STREAM_FEATURE,
-            FAILURE_STORE_IN_LOG_DATA_STREAMS
+            FAILURE_STORE_IN_LOG_DATA_STREAMS,
+            DOWNSAMPLE_INDEX_LEVEL_DEFAULT_METRIC
         );
     }
 }

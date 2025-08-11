@@ -647,6 +647,26 @@ public final class IndexSettings {
         Property.Final
     );
 
+    public enum AggregateMetricDoubleDefaultMetric {
+        MIN,
+        MAX,
+        SUM,
+        VALUE_COUNT;
+    }
+
+    public static final Setting<AggregateMetricDoubleDefaultMetric> TIME_SERIES_DEFAULT_METRIC = Setting.enumSetting(
+        AggregateMetricDoubleDefaultMetric.class,
+        "index.time_series.default_metric",
+        AggregateMetricDoubleDefaultMetric.MAX,
+        Property.IndexScope,
+        Property.Final,
+        Property.ServerlessPublic
+    );
+
+    public AggregateMetricDoubleDefaultMetric getDefaultMetric() {
+        return defaultMetric;
+    }
+
     /**
      * Returns <code>true</code> if TSDB encoding is enabled. The default is <code>true</code>
      */
@@ -896,6 +916,7 @@ public final class IndexSettings {
     private final boolean softDeleteEnabled;
     private volatile long softDeleteRetentionOperations;
     private final boolean es87TSDBCodecEnabled;
+    private final AggregateMetricDoubleDefaultMetric defaultMetric;
     private final boolean logsdbRouteOnSortFields;
     private final boolean logsdbSortOnHostName;
     private final boolean logsdbAddHostNameField;
@@ -1116,6 +1137,7 @@ public final class IndexSettings {
         indexRouting = IndexRouting.fromIndexMetadata(indexMetadata);
         sourceKeepMode = scopedSettings.get(Mapper.SYNTHETIC_SOURCE_KEEP_INDEX_SETTING);
         es87TSDBCodecEnabled = scopedSettings.get(TIME_SERIES_ES87TSDB_CODEC_ENABLED_SETTING);
+        defaultMetric = scopedSettings.get(TIME_SERIES_DEFAULT_METRIC);
         logsdbRouteOnSortFields = scopedSettings.get(LOGSDB_ROUTE_ON_SORT_FIELDS);
         logsdbSortOnHostName = scopedSettings.get(LOGSDB_SORT_ON_HOST_NAME);
         logsdbAddHostNameField = scopedSettings.get(LOGSDB_ADD_HOST_NAME_FIELD);

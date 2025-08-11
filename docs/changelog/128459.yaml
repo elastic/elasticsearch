@@ -1,0 +1,5 @@
+pr: 128459
+summary: "[8.19] Remove `tsdb_doc_values_optimized_merge` feature flag"
+area: Codec
+type: bug
+issues: []

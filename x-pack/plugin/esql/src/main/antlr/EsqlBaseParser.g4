@@ -59,11 +59,11 @@ processingCommand
     | completionCommand
     | sampleCommand
     | forkCommand
+    | rerankCommand
     // in development
     | {this.isDevVersion()}? inlinestatsCommand
     | {this.isDevVersion()}? lookupCommand
     | {this.isDevVersion()}? insistCommand
-    | {this.isDevVersion()}? rerankCommand
     | {this.isDevVersion()}? fuseCommand
     ;
 
@@ -297,6 +297,10 @@ forkSubQueryProcessingCommand
     : processingCommand
     ;
 
+rerankCommand
+    : RERANK (targetField=qualifiedName ASSIGN)? queryText=constant ON rerankFields commandNamedParameters
+    ;
+
 completionCommand
     : COMPLETION (targetField=qualifiedName ASSIGN)? prompt=primaryExpression commandNamedParameters
     ;
@@ -318,8 +322,4 @@ insistCommand
 
 fuseCommand
     : DEV_FUSE
-    ;
-
-rerankCommand
-    : DEV_RERANK (targetField=qualifiedName ASSIGN)? queryText=constant ON rerankFields commandNamedParameters
     ;

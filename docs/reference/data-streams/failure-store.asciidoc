@@ -442,9 +442,11 @@ Failure documents have a uniform structure that is handled internally by {es}.
 [[use-failure-store-document-source]]
 ===== Failure document source 
 The contents of a failure's `document` field is dependent on when the failure occurred in ingestion. When sending data to a data stream, documents can fail in two different phases: during an ingest pipeline and during indexing.
+
 . Documents that fail during an ingest pipeline will store the source of the document as it was originally sent to {es}. Changes from pipelines are discarded before redirecting the failure.
 . Documents that fail during indexing will store the source of the document as it was during the index operation. Any changes from pipelines will be reflected in the source of the document that is redirected.
 To help demonstrate the differences between these kinds of failures, we will use the following pipeline and template definition.
+
 [source,console]
 ----
 PUT _ingest/pipeline/my-datastream-example-pipeline
@@ -468,6 +470,7 @@ PUT _ingest/pipeline/my-datastream-example-pipeline
 ----
 <1> We use this processor to add a `@timestamp` to the document if one is missing.
 <2> A simple processor that copies the `data` field to the `published` field.
+
 [source,console]
 ----
 PUT _index_template/my-datastream-example-template
@@ -495,6 +498,7 @@ PUT _index_template/my-datastream-example-template
 ----
 During ingestion, documents are first processed by any applicable ingest pipelines. This process modifies a copy of the document and only saves the changes to the original document after all pipelines have completed. If a document is sent to the failure store because of a failure during an ingest pipeline, any changes to the document made by the pipelines it has been through will be discarded before redirecting the failure. This means that the document will be in the same state as when it was originally sent by the client. This has the benefit of being able to see the document before any pipelines have run on it, and allows for the original document to be used in simulate operations to further troubleshoot any problems in the ingest pipeline.
 Using the pipeline and template defined above, we will send a document that is missing a required field for the pipeline. The document will fail:
+
 [source,console]
 ----
 POST my-datastream-ingest/_doc
@@ -502,6 +506,7 @@ POST my-datastream-ingest/_doc
   "random": 42 // Not the field we're looking for.
 }
 ----
+
 [source,console-result]
 ----
 {
@@ -519,11 +524,14 @@ POST my-datastream-ingest/_doc
   "failure_store": "used" // The document failed and went to the failure store.
 }
 ----
+
 Inspecting the corresponding failure document will show the document in its original form as it was sent to {es}.
+
 [source,console]
 ----
 GET my-datastream-ingest::failures/_search
 ----
+
 [source,console-result]
 ----
 {
@@ -578,7 +586,9 @@ GET my-datastream-ingest::failures/_search
 <2> The pipeline failed after the timestamp would have been added.
 We can see that the document failed on the second processor in the pipeline. The first processor would have added a `@timestamp` field. Since the pipeline failed, we find that it has no `@timestamp` field added because it did not save any changes from before the pipeline failed.
 The second time when failures can occur is during indexing. After the documents have been processed by any applicable pipelines, they are parsed using the index mappings before being indexed into the shard. If a document is sent to the failure store due to a failure in this process, then it will be stored as it was after any ingestion had occurred. This is because, by this point, the original document has already been overwritten by the ingest pipeline changes. This has the benefit of allowing you to see what the document looked like during the mapping and indexing phase of the write operation.
+
 Building on the example above, we send a document that has a text value where we expect a numeric value:
+
 [source,console]
 ----
 POST my-datastream-ingest/_doc
@@ -587,6 +597,7 @@ POST my-datastream-ingest/_doc
 }
 ----
 <1> The mappings above expect this field to have been a numeric value.
+
 [source,console-result]
 ----
 {
@@ -606,10 +617,12 @@ POST my-datastream-ingest/_doc
 ----
 <1> The document failed and was sent to the failure store.
 If we obtain the corresponding failure document, we can see that the document stored has had the default pipeline applied to it.
+
 [source,console]
 ----
 GET my-datastream-ingest::failures/_search
 ----
+
 [source,console-result]
 ----
 {
@@ -662,6 +675,7 @@ Caused by: j.l.IllegalArgumentException: For input string: "this field is invali
   }
 }
 ----
+
 <1> The `document` field reflects the document after the ingest pipeline has run.
 <2> The document failed to be indexed because of a mapping mismatch.
 The `document` field attempts to show the effective input to whichever process led to the failure occurring. This gives you all the information you need to reproduce the problem.
@@ -669,12 +683,15 @@ The `document` field attempts to show the effective input to whichever process l
 [discrete]
 === Manage a data stream's failure store [[manage-failure-store]]
 Failure data can accumulate in a data stream over time. To help manage this accumulation, most administrative operations that can be done on a data stream can be applied to the data stream's failure store.
+
 ==== Failure store rollover [[manage-failure-store-rollover]]
 A data stream treats its failure store much like a secondary set of <<backing-indices,backing indices>>. Multiple dedicated hidden indices serve search requests for the failure store, while one index acts as the current write index. You can use the https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-indices-rollover[rollover] API to rollover the failure store. Much like the regular indices in a data stream, a new write index will be created in the failure store to accept new failure documents.
+
 [source,console]
 ----
 POST my-datastream::failures/_rollover
 ----
+
 [source,console-result]
 ----
 {
@@ -691,11 +708,14 @@ POST my-datastream::failures/_rollover
 
 [discrete]
 ==== Failure store lifecycle [[manage-failure-store-lifecycle]]
+
 Failure stores have their retention managed using an internal <<data-stream-lifecycle,data stream lifecycle>>. A thirty day (30d) retention is applied to failure store data. You can view the active lifecycle for a failure store index by calling the https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-indices-get-data-stream[get data stream API]:
+
 [source,console]
 ----
 GET _data_stream/my-datastream
 ----
+
 [source,console-result]
 ----
 {
@@ -752,11 +772,14 @@ GET _data_stream/my-datastream
 <2> Indices are managed by data stream lifecycles by default.
 <3> An effective retention period of thirty days (30d) is present by default.
 <4> The retention is currently determined by the default.
+
 [NOTE]
 ====
 The default retention respects any maximum retention values. If <<what-is-retention,maximum retention>> is configured lower than thirty days then the maximum retention will be used as the default value.
 ====
+
 You can update the default retention period for failure stores in your deployment by updating the `data_streams.lifecycle.retention.failures_default` cluster setting. New and existing data streams that have no retention configured on their failure stores will use this value to determine their retention period.
+
 [source,console]
 ----
 PUT _cluster/settings
@@ -766,7 +789,9 @@ PUT _cluster/settings
   }
 }
 ----
+
 You can also specify the failure store retention period for a data stream on its data stream options. These can be specified via the index template for new data streams, or via the https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-indices-put-data-stream-options[Update data stream options] API for existing data streams.
+
 [source,console]
 ----
 PUT _data_stream/my-datastream/_options
@@ -784,7 +809,9 @@ PUT _data_stream/my-datastream/_options
 
 [discrete]
 ==== Add and remove from failure store [[manage-failure-store-indices]]
+
 Failure stores support adding and removing indices from them using the https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-indices-modify-data-stream[Update data streams] API.
+
 [source,console]
 ----
 POST _data_stream/_modify

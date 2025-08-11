@@ -23,6 +23,7 @@ import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.Scorable;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
+import org.apache.lucene.search.TwoPhaseIterator;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.Bits;
 import org.elasticsearch.Version;
@@ -263,6 +264,11 @@ public class ScriptScoreQuery extends Query {
         @Override
         public DocIdSetIterator iterator() {
             return subQueryScorer.iterator();
+        }
+
+        @Override
+        public TwoPhaseIterator twoPhaseIterator() {
+            return subQueryScorer.twoPhaseIterator();
         }
 
         @Override

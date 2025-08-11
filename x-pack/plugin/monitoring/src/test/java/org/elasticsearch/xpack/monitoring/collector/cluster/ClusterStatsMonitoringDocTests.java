@@ -30,6 +30,7 @@ import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
@@ -47,7 +48,7 @@ import org.elasticsearch.monitor.jvm.JvmStats;
 import org.elasticsearch.monitor.os.OsInfo;
 import org.elasticsearch.monitor.os.OsStats;
 import org.elasticsearch.monitor.process.ProcessStats;
-import org.elasticsearch.plugins.PluginInfo;
+import org.elasticsearch.plugins.PluginDescriptor;
 import org.elasticsearch.plugins.PluginType;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.transport.TransportInfo;
@@ -317,7 +318,7 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
 
         final PluginsAndModules mockPluginsAndModules = mock(PluginsAndModules.class);
         when(mockNodeInfo.getInfo(PluginsAndModules.class)).thenReturn(mockPluginsAndModules);
-        final PluginInfo pluginInfo = new PluginInfo(
+        final PluginDescriptor pluginDescriptor = new PluginDescriptor(
             "_plugin",
             "_plugin_desc",
             "_plugin_version",
@@ -330,7 +331,7 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
             "",
             false
         );
-        when(mockPluginsAndModules.getPluginInfos()).thenReturn(singletonList(pluginInfo));
+        when(mockPluginsAndModules.getPluginInfos()).thenReturn(singletonList(pluginDescriptor));
 
         final OsInfo mockOsInfo = mock(OsInfo.class);
         when(mockNodeInfo.getInfo(OsInfo.class)).thenReturn(mockOsInfo);
@@ -359,7 +360,7 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
 
         final FsInfo mockFsInfo = mock(FsInfo.class);
         when(mockNodeStats.getFs()).thenReturn(mockFsInfo);
-        when(mockFsInfo.getTotal()).thenReturn(new FsInfo.Path("_fs_path", "_fs_mount", 100L, 49L, 51L));
+        when(mockFsInfo.iterator()).thenReturn(Iterators.single(new FsInfo.Path("_fs_path", "_fs_mount", 100L, 49L, 51L)));
 
         final OsStats mockOsStats = mock(OsStats.class);
         when(mockNodeStats.getOs()).thenReturn(mockOsStats);

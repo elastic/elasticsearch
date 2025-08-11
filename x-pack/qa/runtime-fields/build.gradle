@@ -1,4 +1,4 @@
-apply plugin: 'elasticsearch.build'
+apply plugin: 'elasticsearch.java'
 
 dependencies {
   api project(":test:framework")
@@ -9,7 +9,7 @@ tasks.named("test").configure { enabled = false }
 
 subprojects {
   if (project.name.startsWith('core-with-')) {
-    apply plugin: 'elasticsearch.internal-yaml-rest-test'
+    apply plugin: 'elasticsearch.legacy-yaml-rest-test'
 
     dependencies {
       yamlRestTestImplementation xpackProject(":x-pack:qa:runtime-fields")

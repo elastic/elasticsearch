@@ -170,7 +170,7 @@ class RestResourcesPluginFuncTest extends AbstractRestResourcesFuncTest {
         file("/build/restResources/yamlTests/rest-api-spec/test/" + coreTest).getText("UTF-8") == "replacedWithValue"
 
         when:
-        result = gradleRunner("copyRestApiSpecsTask").build()
+        result = gradleRunner("copyRestApiSpecsTask", '--stacktrace').build()
 
         then:
         result.task(':copyRestApiSpecsTask').outcome == TaskOutcome.UP_TO_DATE

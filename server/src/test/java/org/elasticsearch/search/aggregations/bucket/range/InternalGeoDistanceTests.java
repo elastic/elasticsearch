@@ -98,15 +98,9 @@ public class InternalGeoDistanceTests extends InternalRangeTestCase<InternalGeoD
             case 2:
                 buckets = new ArrayList<>(buckets);
                 double from = randomDouble();
+                double to = from + randomDouble();
                 buckets.add(
-                    new InternalGeoDistance.Bucket(
-                        "range_a",
-                        from,
-                        from + randomDouble(),
-                        randomNonNegativeLong(),
-                        InternalAggregations.EMPTY,
-                        false
-                    )
+                    new InternalGeoDistance.Bucket("range_a", from, to, randomNonNegativeLong(), InternalAggregations.EMPTY, false)
                 );
                 break;
             case 3:

@@ -305,9 +305,8 @@ public class VectorTileRestIT extends ESRestTestCase {
             assertThat(tile.getLayersCount(), Matchers.equalTo(1));
             assertLayer(tile, META_LAYER, 4096, 1, 8);
             final VectorTile.Tile.Layer layer = getLayer(tile, META_LAYER);
-            // edge case: because all points are the same, the bounding box is a point and cannot be expressed as a polygon.
-            // Therefore the feature ends-up without a geometry.
-            assertThat(layer.getFeatures(0).hasType(), Matchers.equalTo(false));
+            // edge case: because all points are the same, the bounding box is a point
+            assertThat(layer.getFeatures(0).getType(), Matchers.equalTo(VectorTile.Tile.GeomType.POINT));
         }
         {
             final Request mvtRequest = new Request(
@@ -654,6 +653,46 @@ public class VectorTileRestIT extends ESRestTestCase {
         final VectorTile.Tile tile = execute(mvtRequest);
         assertThat(tile.getLayersCount(), Matchers.equalTo(3));
         assertLayer(tile, HITS_LAYER, 4096, 1, 4);
+        assertLayer(tile, AGGS_LAYER, 4096, 256 * 256, 2);
+        assertLayer(tile, META_LAYER, 4096, 1, 13);
+    }
+
+    public void testWithNoExistingFields() throws Exception {
+        final Request mvtRequest = new Request(getHttpMethod(), INDEX_POLYGON + "/_mvt/location/" + z + "/" + x + "/" + y);
+        mvtRequest.setJsonEntity("{\"fields\": [\"otherField\"] }");
+        final VectorTile.Tile tile = execute(mvtRequest);
+        assertThat(tile.getLayersCount(), Matchers.equalTo(3));
+        assertLayer(tile, HITS_LAYER, 4096, 1, 2);
+        assertLayer(tile, AGGS_LAYER, 4096, 256 * 256, 2);
+        assertLayer(tile, META_LAYER, 4096, 1, 13);
+    }
+
+    public void testWithNullFields() throws Exception {
+        final Request mvtRequest = new Request(getHttpMethod(), INDEX_POLYGON + "/_mvt/location/" + z + "/" + x + "/" + y);
+        mvtRequest.setJsonEntity("{\"fields\": [\"nullField\"] }");
+        final VectorTile.Tile tile = execute(mvtRequest);
+        assertThat(tile.getLayersCount(), Matchers.equalTo(3));
+        assertLayer(tile, HITS_LAYER, 4096, 1, 2);
+        assertLayer(tile, AGGS_LAYER, 4096, 256 * 256, 2);
+        assertLayer(tile, META_LAYER, 4096, 1, 13);
+    }
+
+    public void testWithIgnoreMalformedValueFields() throws Exception {
+        final Request mvtRequest = new Request(getHttpMethod(), INDEX_POLYGON + "/_mvt/location/" + z + "/" + x + "/" + y);
+        mvtRequest.setJsonEntity("{\"fields\": [ \"ignore_value\"] }");
+        final VectorTile.Tile tile = execute(mvtRequest);
+        assertThat(tile.getLayersCount(), Matchers.equalTo(3));
+        assertLayer(tile, HITS_LAYER, 4096, 1, 2);
+        assertLayer(tile, AGGS_LAYER, 4096, 256 * 256, 2);
+        assertLayer(tile, META_LAYER, 4096, 1, 13);
+    }
+
+    public void testWithFieldsWildCard() throws Exception {
+        final Request mvtRequest = new Request(getHttpMethod(), INDEX_POLYGON + "/_mvt/location/" + z + "/" + x + "/" + y);
+        mvtRequest.setJsonEntity("{\"fields\": [\"*\"] }");
+        final VectorTile.Tile tile = execute(mvtRequest);
+        assertThat(tile.getLayersCount(), Matchers.equalTo(3));
+        assertLayer(tile, HITS_LAYER, 4096, 1, 5);
         assertLayer(tile, AGGS_LAYER, 4096, 256 * 256, 2);
         assertLayer(tile, META_LAYER, 4096, 1, 13);
     }

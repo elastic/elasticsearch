@@ -17,7 +17,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
-import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
@@ -28,7 +28,7 @@ import java.util.Objects;
  * A search request with a point in time will execute using the reader contexts associated with that point time
  * instead of the latest reader contexts.
  */
-public final class PointInTimeBuilder implements Writeable, ToXContentObject {
+public final class PointInTimeBuilder implements Writeable, ToXContentFragment {
     private static final ParseField ID_FIELD = new ParseField("id");
     private static final ParseField KEEP_ALIVE_FIELD = new ParseField("keep_alive");
     private static final ObjectParser<XContentParams, Void> PARSER;
@@ -70,12 +70,10 @@ public final class PointInTimeBuilder implements Writeable, ToXContentObject {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject(SearchSourceBuilder.POINT_IN_TIME.getPreferredName());
         builder.field(ID_FIELD.getPreferredName(), encodedId);
         if (keepAlive != null) {
-            builder.field(KEEP_ALIVE_FIELD.getPreferredName(), keepAlive);
+            builder.field(KEEP_ALIVE_FIELD.getPreferredName(), keepAlive.getStringRep());
         }
-        builder.endObject();
         return builder;
     }
 

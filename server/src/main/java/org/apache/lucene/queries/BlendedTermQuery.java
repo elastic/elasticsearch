@@ -150,7 +150,18 @@ public abstract class BlendedTermQuery extends Query {
             if (prev > current) {
                 actualDf++;
             }
-            contexts[i] = ctx = adjustDF(reader.getContext(), ctx, Math.min(maxDoc, actualDf));
+
+            int docCount = reader.getDocCount(terms[i].field());
+
+            // IMPORTANT: we make two adjustments here to ensure the new document frequency is valid:
+            // 1. We take a minimum with docCount, which is the total number of documents that contain
+            // this field. The document frequency must always be less than the document count.
+            // 2. We also take a minimum with maxDoc. Earlier, maxDoc is adjusted to the minimum of
+            // maxDoc and minTTF. So taking the minimum ensures that the document frequency is never
+            // greater than the total term frequency, which would be illegal.
+            int newDocFreq = Math.min(Math.min(actualDf, docCount), maxDoc);
+
+            contexts[i] = ctx = adjustDF(reader.getContext(), ctx, newDocFreq);
             prev = current;
             sumTTF += ctx.totalTermFreq();
         }

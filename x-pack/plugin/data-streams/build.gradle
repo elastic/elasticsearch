@@ -6,7 +6,9 @@ esplugin {
   classname 'org.elasticsearch.xpack.datastreams.DataStreamsPlugin'
   extendedPlugins = ['x-pack-core']
 }
-archivesBaseName = 'x-pack-data-streams'
+base {
+  archivesName = 'x-pack-data-streams'
+}
 
 dependencies {
   compileOnly project(path: xpackModule('core'))

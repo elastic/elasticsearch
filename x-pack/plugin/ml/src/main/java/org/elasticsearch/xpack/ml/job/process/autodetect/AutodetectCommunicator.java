@@ -28,7 +28,6 @@ import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSizeSta
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSnapshot;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.TimingStats;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
-import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.job.categorization.CategorizationAnalyzer;
 import org.elasticsearch.xpack.ml.job.persistence.StateStreamer;
 import org.elasticsearch.xpack.ml.job.process.CountingInputStream;
@@ -89,8 +88,7 @@ public class AutodetectCommunicator implements Closeable {
         this.onFinishHandler = onFinishHandler;
         this.xContentRegistry = xContentRegistry;
         this.autodetectWorkerExecutor = autodetectWorkerExecutor;
-        this.includeTokensField = MachineLearning.CATEGORIZATION_TOKENIZATION_IN_JAVA
-            && job.getAnalysisConfig().getCategorizationFieldName() != null;
+        this.includeTokensField = job.getAnalysisConfig().getCategorizationFieldName() != null;
     }
 
     public void restoreState(ModelSnapshot modelSnapshot) {

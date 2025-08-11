@@ -97,41 +97,43 @@ public class InboundHandler {
         final Header header = message.getHeader();
         assert header.needsToReadVariableHeader() == false;
 
+        TransportResponseHandler<?> responseHandler = null;
+        final boolean isRequest = message.getHeader().isRequest();
+
         ThreadContext threadContext = threadPool.getThreadContext();
         try (ThreadContext.StoredContext existing = threadContext.stashContext()) {
             // Place the context with the headers from the message
             threadContext.setHeaders(header.getHeaders());
             threadContext.putTransient("_remote_address", remoteAddress);
-            if (header.isRequest()) {
+            if (isRequest) {
                 handleRequest(channel, header, message);
             } else {
                 // Responses do not support short circuiting currently
                 assert message.isShortCircuit() == false;
-                final TransportResponseHandler<?> handler;
                 long requestId = header.getRequestId();
                 if (header.isHandshake()) {
-                    handler = handshaker.removeHandlerForHandshake(requestId);
+                    responseHandler = handshaker.removeHandlerForHandshake(requestId);
                 } else {
-                    TransportResponseHandler<? extends TransportResponse> theHandler = responseHandlers.onResponseReceived(
+                    final TransportResponseHandler<? extends TransportResponse> theHandler = responseHandlers.onResponseReceived(
                         requestId,
                         messageListener
                     );
                     if (theHandler == null && header.isError()) {
-                        handler = handshaker.removeHandlerForHandshake(requestId);
+                        responseHandler = handshaker.removeHandlerForHandshake(requestId);
                     } else {
-                        handler = theHandler;
+                        responseHandler = theHandler;
                     }
                 }
                 // ignore if its null, the service logs it
-                if (handler != null) {
+                if (responseHandler != null) {
                     final StreamInput streamInput;
                     if (message.getContentLength() > 0 || header.getVersion().equals(Version.CURRENT) == false) {
                         streamInput = namedWriteableStream(message.openOrGetStreamInput());
                         assertRemoteVersion(streamInput, header.getVersion());
                         if (header.isError()) {
-                            handlerResponseError(streamInput, handler);
+                            handlerResponseError(streamInput, responseHandler);
                         } else {
-                            handleResponse(remoteAddress, streamInput, handler);
+                            handleResponse(remoteAddress, streamInput, responseHandler);
                         }
                         // Check the entire message has been read
                         final int nextByte = streamInput.read();
@@ -141,7 +143,7 @@ public class InboundHandler {
                                 "Message not fully read (response) for requestId ["
                                     + requestId
                                     + "], handler ["
-                                    + handler
+                                    + responseHandler
                                     + "], error ["
                                     + header.isError()
                                     + "]; resetting"
@@ -149,7 +151,7 @@ public class InboundHandler {
                         }
                     } else {
                         assert header.isError() == false;
-                        handleResponse(remoteAddress, EMPTY_STREAM_INPUT, handler);
+                        handleResponse(remoteAddress, EMPTY_STREAM_INPUT, responseHandler);
                     }
                 }
             }
@@ -157,12 +159,22 @@ public class InboundHandler {
             final long took = threadPool.relativeTimeInMillis() - startTime;
             final long logThreshold = slowLogThresholdMs;
             if (logThreshold > 0 && took > logThreshold) {
-                logger.warn(
-                    "handling inbound transport message [{}] took [{}ms] which is above the warn threshold of [{}ms]",
-                    message,
-                    took,
-                    logThreshold
-                );
+                if (isRequest) {
+                    logger.warn(
+                        "handling request [{}] took [{}ms] which is above the warn threshold of [{}ms]",
+                        message,
+                        took,
+                        logThreshold
+                    );
+                } else {
+                    logger.warn(
+                        "handling response [{}] on handler [{}] took [{}ms] which is above the warn threshold of [{}ms]",
+                        message,
+                        responseHandler,
+                        took,
+                        logThreshold
+                    );
+                }
             }
         }
     }

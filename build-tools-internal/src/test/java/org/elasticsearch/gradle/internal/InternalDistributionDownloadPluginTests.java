@@ -14,11 +14,13 @@ import org.elasticsearch.gradle.VersionProperties;
 import org.elasticsearch.gradle.internal.distribution.InternalElasticsearchDistributionTypes;
 import org.gradle.api.Project;
 import org.gradle.testfixtures.ProjectBuilder;
+import org.junit.Test;
 
 import java.io.File;
 
 public class InternalDistributionDownloadPluginTests extends AbstractDistributionDownloadPluginTests {
 
+    @Test
     public void testLocalCurrentVersionPackages() {
         ElasticsearchDistributionType[] types = { InternalElasticsearchDistributionTypes.RPM, InternalElasticsearchDistributionTypes.DEB };
         for (ElasticsearchDistributionType packageType : types) {
@@ -33,6 +35,7 @@ public class InternalDistributionDownloadPluginTests extends AbstractDistributio
         }
     }
 
+    @Test
     public void testLocalBwcPackages() {
         ElasticsearchDistributionType[] types = { InternalElasticsearchDistributionTypes.RPM, InternalElasticsearchDistributionTypes.DEB };
         for (ElasticsearchDistributionType packageType : types) {

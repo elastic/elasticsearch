@@ -75,7 +75,7 @@ public class TransportResetFeatureStateAction extends TransportMasterNodeAction<
             systemIndices.getFeatures().size()
         );
 
-        for (SystemIndices.Feature feature : systemIndices.getFeatures().values()) {
+        for (SystemIndices.Feature feature : systemIndices.getFeatures()) {
             feature.getCleanUpFunction().apply(clusterService, client, groupedActionListener);
         }
     }

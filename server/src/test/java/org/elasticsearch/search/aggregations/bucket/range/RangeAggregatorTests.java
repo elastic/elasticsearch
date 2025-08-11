@@ -137,6 +137,70 @@ public class RangeAggregatorTests extends AggregatorTestCase {
         );
     }
 
+    public void testFloatRangeFromAndToValues() throws IOException {
+        final String fieldName = "test";
+        MappedFieldType field = new NumberFieldMapper.NumberFieldType(fieldName, NumberType.FLOAT);
+        testCase(
+            new RangeAggregationBuilder("0").field(fieldName).addRange(5, 6).addRange(6, 10.6).keyed(true),
+            new MatchAllDocsQuery(),
+            iw -> {
+                iw.addDocument(singleton(new SortedNumericDocValuesField(fieldName, NumericUtils.floatToSortableInt(10))));
+                iw.addDocument(singleton(new SortedNumericDocValuesField(fieldName, NumericUtils.floatToSortableInt(5.5F))));
+                iw.addDocument(singleton(new SortedNumericDocValuesField(fieldName, NumericUtils.floatToSortableInt(6.7F))));
+            },
+            result -> {
+                InternalRange<?, ?> range = (InternalRange<?, ?>) result;
+                List<? extends InternalRange.Bucket> ranges = range.getBuckets();
+                assertEquals(2, ranges.size());
+                assertEquals("5.0-6.0", ranges.get(0).getKeyAsString());
+                assertEquals("6.0-10.6", ranges.get(1).getKeyAsString());
+                assertEquals(5.0D, ranges.get(0).getFrom());
+                assertEquals(6.0D, ranges.get(0).getTo());
+                assertEquals(6.0D, ranges.get(1).getFrom());
+                assertEquals(10.6D, ranges.get(1).getTo());
+                assertEquals("5.0", ranges.get(0).getFromAsString());
+                assertEquals("6.0", ranges.get(0).getToAsString());
+                assertEquals("6.0", ranges.get(1).getFromAsString());
+                assertEquals("10.6", ranges.get(1).getToAsString());
+                assertEquals(1, ranges.get(0).getDocCount());
+                assertEquals(2, ranges.get(1).getDocCount());
+            },
+            field
+        );
+    }
+
+    public void testDoubleRangeFromAndToValues() throws IOException {
+        final String fieldName = "test";
+        MappedFieldType field = new NumberFieldMapper.NumberFieldType(fieldName, NumberType.DOUBLE);
+        testCase(
+            new RangeAggregationBuilder("0").field(fieldName).addRange(5, 6).addRange(6, 10.6).keyed(true),
+            new MatchAllDocsQuery(),
+            iw -> {
+                iw.addDocument(singleton(new SortedNumericDocValuesField(fieldName, NumericUtils.doubleToSortableLong(10))));
+                iw.addDocument(singleton(new SortedNumericDocValuesField(fieldName, NumericUtils.doubleToSortableLong(5.5D))));
+                iw.addDocument(singleton(new SortedNumericDocValuesField(fieldName, NumericUtils.doubleToSortableLong(6.7D))));
+            },
+            result -> {
+                InternalRange<?, ?> range = (InternalRange<?, ?>) result;
+                List<? extends InternalRange.Bucket> ranges = range.getBuckets();
+                assertEquals(2, ranges.size());
+                assertEquals("5.0-6.0", ranges.get(0).getKeyAsString());
+                assertEquals("6.0-10.6", ranges.get(1).getKeyAsString());
+                assertEquals(5.0D, ranges.get(0).getFrom());
+                assertEquals(6.0D, ranges.get(0).getTo());
+                assertEquals(6.0D, ranges.get(1).getFrom());
+                assertEquals(10.6D, ranges.get(1).getTo());
+                assertEquals("5.0", ranges.get(0).getFromAsString());
+                assertEquals("6.0", ranges.get(0).getToAsString());
+                assertEquals("6.0", ranges.get(1).getFromAsString());
+                assertEquals("10.6", ranges.get(1).getToAsString());
+                assertEquals(1, ranges.get(0).getDocCount());
+                assertEquals(2, ranges.get(1).getDocCount());
+            },
+            field
+        );
+    }
+
     /**
      * Confirm that a non-representable decimal stored as a float correctly follows the half-open interval rule
      */
@@ -146,7 +210,9 @@ public class RangeAggregatorTests extends AggregatorTestCase {
         testCase(
             new RangeAggregationBuilder("range").field(fieldName).addRange("r1", 0, 0.04D).addRange("r2", 0.04D, 1.0D),
             new MatchAllDocsQuery(),
-            iw -> { iw.addDocument(NumberType.FLOAT.createFields(fieldName, 0.04F, false, true, false)); },
+            iw -> {
+                iw.addDocument(NumberType.FLOAT.createFields(fieldName, 0.04F, false, true, false));
+            },
             result -> {
                 InternalRange<?, ?> range = (InternalRange<?, ?>) result;
                 List<? extends InternalRange.Bucket> ranges = range.getBuckets();
@@ -167,7 +233,9 @@ public class RangeAggregatorTests extends AggregatorTestCase {
         testCase(
             new RangeAggregationBuilder("range").field(fieldName).addRange("r1", 0, 0.0152D).addRange("r2", 0.0152D, 1.0D),
             new MatchAllDocsQuery(),
-            iw -> { iw.addDocument(NumberType.HALF_FLOAT.createFields(fieldName, 0.0152F, false, true, false)); },
+            iw -> {
+                iw.addDocument(NumberType.HALF_FLOAT.createFields(fieldName, 0.0152F, false, true, false));
+            },
             result -> {
                 InternalRange<?, ?> range = (InternalRange<?, ?>) result;
                 List<? extends InternalRange.Bucket> ranges = range.getBuckets();
@@ -430,13 +498,9 @@ public class RangeAggregatorTests extends AggregatorTestCase {
 
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> testCase(
-                aggregationBuilder,
-                new MatchAllDocsQuery(),
-                iw -> { iw.addDocument(singleton(new SortedSetDocValuesField("string", new BytesRef("foo")))); },
-                range -> fail("Should have thrown exception"),
-                fieldType
-            )
+            () -> testCase(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
+                iw.addDocument(singleton(new SortedSetDocValuesField("string", new BytesRef("foo"))));
+            }, range -> fail("Should have thrown exception"), fieldType)
         );
         assertEquals("Field [not_a_number] of type [keyword] is not supported for aggregation [range]", e.getMessage());
     }
@@ -551,8 +615,16 @@ public class RangeAggregatorTests extends AggregatorTestCase {
             }
         }, (InternalRange<?, ?> r, Class<? extends Aggregator> impl, Map<String, Map<String, Object>> debug) -> {
             assertThat(
-                r.getBuckets().stream().map(InternalRange.Bucket::getKey).collect(toList()),
+                r.getBuckets().stream().map(InternalRange.Bucket::getKeyAsString).collect(toList()),
                 equalTo(org.elasticsearch.core.List.of("0.0-1.0", "1.0-2.0", "2.0-3.0"))
+            );
+            assertThat(
+                r.getBuckets().stream().map(InternalRange.Bucket::getFrom).collect(toList()),
+                equalTo(org.elasticsearch.core.List.of(0.0, 1.0, 2.0))
+            );
+            assertThat(
+                r.getBuckets().stream().map(InternalRange.Bucket::getTo).collect(toList()),
+                equalTo(org.elasticsearch.core.List.of(1.0, 2.0, 3.0))
             );
             assertThat(
                 r.getBuckets().stream().map(InternalRange.Bucket::getDocCount).collect(toList()),
@@ -597,8 +669,16 @@ public class RangeAggregatorTests extends AggregatorTestCase {
             },
             (InternalRange<?, ?> r, Class<? extends Aggregator> impl, Map<String, Map<String, Object>> debug) -> {
                 assertThat(
-                    r.getBuckets().stream().map(InternalRange.Bucket::getKey).collect(toList()),
+                    r.getBuckets().stream().map(InternalRange.Bucket::getKeyAsString).collect(toList()),
                     equalTo(org.elasticsearch.core.List.of("0.0-1.0", "1.0-2.0", "2.0-3.0"))
+                );
+                assertThat(
+                    r.getBuckets().stream().map(InternalRange.Bucket::getFrom).collect(toList()),
+                    equalTo(org.elasticsearch.core.List.of(0.0, 1.0, 2.0))
+                );
+                assertThat(
+                    r.getBuckets().stream().map(InternalRange.Bucket::getTo).collect(toList()),
+                    equalTo(org.elasticsearch.core.List.of(1.0, 2.0, 3.0))
                 );
                 assertThat(
                     r.getBuckets().stream().map(InternalRange.Bucket::getDocCount).collect(toList()),

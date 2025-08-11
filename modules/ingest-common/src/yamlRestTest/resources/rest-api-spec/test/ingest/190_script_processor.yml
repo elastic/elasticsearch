@@ -27,14 +27,14 @@ teardown:
   - do:
       index:
         index: test
-        id: 1
+        id: "1"
         pipeline: "my_pipeline"
         body: {source_field: "1kb"}
 
   - do:
       get:
         index: test
-        id: 1
+        id: "1"
   - match: { _source.source_field: "1kb" }
   - match: { _source.target_field: 1024 }
 
@@ -60,14 +60,14 @@ teardown:
   - do:
       index:
         index: test
-        id: 1
+        id: "1"
         pipeline: "my_pipeline"
         body: {source_field: "FooBar"}
 
   - do:
       get:
         index: test
-        id: 1
+        id: "1"
   - match: { _source.source_field: "FooBar" }
   - match: { _source.target_field: "foobar" }
 
@@ -93,14 +93,14 @@ teardown:
   - do:
       index:
         index: test
-        id: 1
+        id: "1"
         pipeline: "my_pipeline"
         body: {source_field: "FooBar"}
 
   - do:
       get:
         index: test
-        id: 1
+        id: "1"
   - match: { _source.source_field: "FooBar" }
   - match: { _source.target_field: "FOOBAR" }
 
@@ -126,14 +126,14 @@ teardown:
   - do:
       index:
         index: test
-        id: 1
+        id: "1"
         pipeline: "my_pipeline"
         body: {source_field: "{\"foo\":\"bar\"}"}
 
   - do:
       get:
         index: test
-        id: 1
+        id: "1"
   - match: { _source.source_field: "{\"foo\":\"bar\"}" }
   - match: { _source.target_field.foo: "bar" }
 
@@ -159,14 +159,14 @@ teardown:
   - do:
       index:
         index: test
-        id: 1
+        id: "1"
         pipeline: "my_pipeline"
         body: {source_field: "{\"foo\":\"bar\"}"}
 
   - do:
       get:
         index: test
-        id: 1
+        id: "1"
   - match: { _source.source_field: "{\"foo\":\"bar\"}" }
   - match: { _source.foo: "bar" }
 
@@ -192,14 +192,14 @@ teardown:
   - do:
       index:
         index: test
-        id: 1
+        id: "1"
         pipeline: "my_pipeline"
         body: {source_field: "foo%20bar"}
 
   - do:
       get:
         index: test
-        id: 1
+        id: "1"
   - match: { _source.source_field: "foo%20bar" }
   - match: { _source.target_field: "foo bar" }
 
@@ -231,14 +231,14 @@ teardown:
   - do:
       index:
         index: test
-        id: 1
+        id: "1"
         pipeline: "my_pipeline"
         body: {source_field: "foo"}
 
   - do:
       get:
         index: test
-        id: 1
+        id: "1"
   - match: { _source.source_field: "foo" }
   - match: { _source.target_field1: "1:hTSGlFQnR58UCk+NfKRZzA32dPg=" }
   - match: { _source.target_field2: "1:LQU9qZlK+B5F3KDmev6m5PMibrg=" }
@@ -265,14 +265,14 @@ teardown:
   - do:
       index:
         index: test
-        id: 1
+        id: "1"
         pipeline: "my_pipeline"
         body: {source_field: "http://www.example.com/index.html"}
 
   - do:
       get:
         index: test
-        id: 1
+        id: "1"
   - match: { _source.source_field: "http://www.example.com/index.html" }
   - match: { _source.target_field.scheme: "http" }
   - match: { _source.target_field.domain: "www.example.com" }

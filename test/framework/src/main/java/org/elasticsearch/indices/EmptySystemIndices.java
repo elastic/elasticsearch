@@ -19,6 +19,6 @@ public class EmptySystemIndices extends SystemIndices {
     public static final SystemIndices INSTANCE = new EmptySystemIndices();
 
     private EmptySystemIndices() {
-        super(Collections.emptyMap());
+        super(Collections.emptyList());
     }
 }

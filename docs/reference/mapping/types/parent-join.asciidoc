@@ -8,6 +8,14 @@ The `join` data type is a special field that creates
 parent/child relation within documents of the same index.
 The `relations` section defines a set of possible relations within the documents,
 each relation being a parent name and a child name.
+
+// tag::multi-level-join-warning[]
+WARNING: We don't recommend using multiple levels of relations to replicate a
+relational model. Each level of relation adds an overhead at query time in terms
+of memory and computation. For better search performance, denormalize your data
+instead.
+// end::multi-level-join-warning[]
+
 A parent/child relation can be defined as follows:
 
 [source,console]
@@ -432,9 +440,7 @@ PUT my-index-000001
 
 ==== Multiple levels of parent join
 
-WARNING: Using multiple levels of relations to replicate a relational model is not recommended.
-Each level of relation adds an overhead at query time in terms of memory and computation.
-You should de-normalize your data if you care about performance.
+include::parent-join.asciidoc[tag=multi-level-join-warning]
 
 Multiple levels of parent/child:
 

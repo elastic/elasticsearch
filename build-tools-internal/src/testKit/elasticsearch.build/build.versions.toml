@@ -1,0 +1,2 @@
+[libraries]
+checkstyle = "com.puppycrawl.tools:checkstyle:10.3"

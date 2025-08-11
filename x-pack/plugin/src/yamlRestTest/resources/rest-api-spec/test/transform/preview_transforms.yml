@@ -16,7 +16,7 @@ setup:
   - do:
       index:
         index: airline-data
-        id: 1
+        id: "1"
         body: >
           {
             "time": "2017-02-18T00:00:00Z",
@@ -28,7 +28,7 @@ setup:
   - do:
       index:
         index: airline-data
-        id: 2
+        id: "2"
         body: >
           {
             "time": "2017-02-18T00:30:00Z",
@@ -40,7 +40,7 @@ setup:
   - do:
       index:
         index: airline-data
-        id: 3
+        id: "3"
         body: >
           {
             "time": "2017-02-18T01:00:00Z",
@@ -52,7 +52,7 @@ setup:
   - do:
       index:
         index: airline-data
-        id: 4
+        id: "4"
         body: >
           {
             "time": "2017-02-18T01:01:00Z",
@@ -149,6 +149,26 @@ setup:
   - match: { generated_dest_index.mappings.properties.airline.type: "keyword" }
   - match: { generated_dest_index.mappings.properties.by-hour.type: "date" }
   - match: { generated_dest_index.mappings.properties.avg_response.type: "double" }
+
+---
+"Test preview transform with timeout":
+  - do:
+      transform.preview_transform:
+        timeout: "10s"
+        body: >
+          {
+            "source": { "index": "airline-data" },
+            "pivot": {
+              "group_by": {
+                "airline": {"terms": {"field": "airline"}},
+                "by-hour": {"date_histogram": {"fixed_interval": "1h", "field": "time"}}},
+              "aggs": {
+                "avg_response": {"avg": {"field": "responsetime"}},
+                "time.max": {"max": {"field": "time"}},
+                "time.min": {"min": {"field": "time"}}
+              }
+            }
+          }
 
 ---
 "Test preview transform by id":

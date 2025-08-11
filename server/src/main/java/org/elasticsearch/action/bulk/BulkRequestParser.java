@@ -362,6 +362,7 @@ public final class BulkRequestParser {
                                     .setIfSeqNo(ifSeqNo)
                                     .setIfPrimaryTerm(ifPrimaryTerm)
                                     .source(sliceTrimmingCarriageReturn(data, from, nextMarker, xContentType), xContentType)
+                                    .setDynamicTemplates(dynamicTemplates)
                                     .setRequireAlias(requireAlias)
                             );
                         }
@@ -409,7 +410,7 @@ public final class BulkRequestParser {
                         }
                         IndexRequest upsertRequest = updateRequest.upsertRequest();
                         if (upsertRequest != null) {
-                            upsertRequest.setPipeline(defaultPipeline);
+                            upsertRequest.setPipeline(pipeline);
                         }
 
                         updateRequestConsumer.accept(updateRequest);

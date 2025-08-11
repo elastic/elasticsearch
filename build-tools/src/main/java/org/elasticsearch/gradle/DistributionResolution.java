@@ -15,6 +15,11 @@ public class DistributionResolution {
     private String name;
     private int priority;
 
+    public DistributionResolution(String name, Resolver resolver) {
+        this(name);
+        this.resolver = resolver;
+    }
+
     public DistributionResolution(String name) {
         this.name = name;
     }

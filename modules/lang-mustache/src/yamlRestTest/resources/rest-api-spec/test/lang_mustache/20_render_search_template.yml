@@ -109,12 +109,12 @@
   - do:
       index:
         index:  test
-        id:     1
+        id:     "1"
         body:   { "text": "value1_foo" }
   - do:
       index:
         index:  test
-        id:     2
+        id:     "2"
         body:   { "text": "value2_foo value3_foo" }
   - do:
       indices.refresh: {}

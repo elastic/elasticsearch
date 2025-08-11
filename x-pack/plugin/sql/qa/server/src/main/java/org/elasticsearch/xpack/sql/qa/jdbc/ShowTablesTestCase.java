@@ -29,7 +29,7 @@ public class ShowTablesTestCase extends JdbcIntegrationTestCase {
             for (int i = 0; i < indices; i++) {
                 String index = String.format(Locale.ROOT, "test%02d", i);
                 index(index, builder -> builder.field("name", "bob"));
-                h2.createStatement().executeUpdate("INSERT INTO mock VALUES ('integTest', '" + index + "', 'TABLE', 'INDEX');");
+                h2.createStatement().executeUpdate("INSERT INTO mock VALUES ('javaRestTest', '" + index + "', 'TABLE', 'INDEX');");
             }
 
             ResultSet expected = h2.createStatement().executeQuery("SELECT * FROM mock ORDER BY name");
@@ -43,8 +43,8 @@ public class ShowTablesTestCase extends JdbcIntegrationTestCase {
 
         try (Connection h2 = LocalH2.anonymousDb(); Connection es = esJdbc()) {
             h2.createStatement().executeUpdate("RUNSCRIPT FROM 'classpath:/setup_mock_show_tables.sql'");
-            h2.createStatement().executeUpdate("INSERT INTO mock VALUES ('integTest', 'test_empty', 'TABLE', 'INDEX');");
-            h2.createStatement().executeUpdate("INSERT INTO mock VALUES ('integTest', 'test_empty_again', 'TABLE', 'INDEX');");
+            h2.createStatement().executeUpdate("INSERT INTO mock VALUES ('javaRestTest', 'test_empty', 'TABLE', 'INDEX');");
+            h2.createStatement().executeUpdate("INSERT INTO mock VALUES ('javaRestTest', 'test_empty_again', 'TABLE', 'INDEX');");
 
             ResultSet expected = h2.createStatement().executeQuery("SELECT * FROM mock");
             assertResultSets(expected, es.createStatement().executeQuery("SHOW TABLES"));

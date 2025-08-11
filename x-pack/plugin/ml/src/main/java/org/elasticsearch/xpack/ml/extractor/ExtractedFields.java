@@ -8,12 +8,13 @@ package org.elasticsearch.xpack.ml.extractor;
 
 import org.elasticsearch.action.fieldcaps.FieldCapabilities;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
-import org.elasticsearch.common.document.DocumentField;
+import org.elasticsearch.core.Booleans;
 import org.elasticsearch.index.mapper.BooleanFieldMapper;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.xpack.core.ml.utils.MlStrings;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -235,16 +236,18 @@ public class ExtractedFields {
     /**
      * Makes boolean fields behave as a field of different type.
      */
-    private static final class BooleanMapper<T> extends DocValueField {
+    private static final class BooleanMapper<T> extends AbstractField {
 
         private static final Set<String> TYPES = Collections.singleton(BooleanFieldMapper.CONTENT_TYPE);
 
+        private final ExtractedField field;
         private final T trueValue;
         private final T falseValue;
 
         BooleanMapper(ExtractedField field, T trueValue, T falseValue) {
             super(field.getName(), TYPES);
-            if (field.getMethod() != Method.DOC_VALUE || field.getTypes().contains(BooleanFieldMapper.CONTENT_TYPE) == false) {
+            this.field = field;
+            if (field.getTypes().contains(BooleanFieldMapper.CONTENT_TYPE) == false) {
                 throw new IllegalArgumentException("cannot apply boolean mapping to field [" + field.getName() + "]");
             }
             this.trueValue = trueValue;
@@ -252,22 +255,51 @@ public class ExtractedFields {
         }
 
         @Override
+        public Method getMethod() {
+            return field.getMethod();
+        }
+
+        @Override
         public Object[] value(SearchHit hit) {
-            DocumentField keyValue = hit.field(getName());
-            if (keyValue != null) {
-                return keyValue.getValues().stream().map(v -> Boolean.TRUE.equals(v) ? trueValue : falseValue).toArray();
+            Object[] value = field.value(hit);
+            if (value != null) {
+                return Arrays.stream(value).map(v -> {
+                    boolean asBoolean;
+                    if (v instanceof Boolean) {
+                        asBoolean = (boolean) v;
+                    } else {
+                        asBoolean = Booleans.parseBoolean(v.toString());
+                    }
+                    return asBoolean ? trueValue : falseValue;
+                }).toArray();
             }
             return new Object[0];
         }
 
         @Override
         public boolean supportsFromSource() {
-            return false;
+            return field.supportsFromSource();
         }
 
         @Override
         public ExtractedField newFromSource() {
-            throw new UnsupportedOperationException();
+            return field.newFromSource();
         }
+
+        @Override
+        public boolean isMultiField() {
+            return field.isMultiField();
+        }
+
+        @Override
+        public String getParentField() {
+            return field.getParentField();
+        }
+
+        @Override
+        public String getDocValueFormat() {
+            return field.getDocValueFormat();
+        }
+
     }
 }

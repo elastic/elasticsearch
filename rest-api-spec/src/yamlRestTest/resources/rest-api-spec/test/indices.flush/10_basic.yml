@@ -52,7 +52,7 @@
       index:
         index: test
         type:  doc
-        id:    1
+        id:    "1"
         body:  { "message": "a long message to make a periodic flush happen after this index operation" }
   - do:
       indices.stats: { index: test }

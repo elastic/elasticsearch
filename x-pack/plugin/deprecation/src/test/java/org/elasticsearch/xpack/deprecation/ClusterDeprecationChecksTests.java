@@ -6,14 +6,20 @@
  */
 package org.elasticsearch.xpack.deprecation;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ingest.PutPipelineRequest;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.ComponentTemplate;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.Template;
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
@@ -22,6 +28,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
+import org.elasticsearch.indices.ShardLimitValidator;
 import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -36,21 +43,21 @@ import org.elasticsearch.xpack.core.ilm.Phase;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
+import java.util.UUID;
 
 import static java.util.Collections.singletonList;
-import static org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_INCLUDE_RELOCATIONS_SETTING;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.xpack.core.ilm.LifecycleSettings.LIFECYCLE_POLL_INTERVAL_SETTING;
 import static org.elasticsearch.xpack.deprecation.DeprecationChecks.CLUSTER_SETTINGS_CHECKS;
 import static org.elasticsearch.xpack.deprecation.IndexDeprecationChecksTests.addRandomFields;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.collection.IsIterableContainingInOrder.contains;
 
 public class ClusterDeprecationChecksTests extends ESTestCase {
 
@@ -302,43 +309,6 @@ public class ClusterDeprecationChecksTests extends ESTestCase {
         }
     }
 
-    public void testPollIntervalTooLow() {
-        {
-            final String tooLowInterval = randomTimeValue(1, 999, "ms", "micros", "nanos");
-            Metadata badMetaDtata = Metadata.builder()
-                .persistentSettings(Settings.builder().put(LIFECYCLE_POLL_INTERVAL_SETTING.getKey(), tooLowInterval).build())
-                .build();
-            ClusterState badState = ClusterState.builder(new ClusterName("test")).metadata(badMetaDtata).build();
-
-            DeprecationIssue expected = new DeprecationIssue(
-                DeprecationIssue.Level.CRITICAL,
-                "Index Lifecycle Management poll interval is set too low",
-                "https://ela.st/es-deprecation-7-indices-lifecycle-poll-interval-setting",
-                "The ILM ["
-                    + LIFECYCLE_POLL_INTERVAL_SETTING.getKey()
-                    + "] setting is set to ["
-                    + tooLowInterval
-                    + "]. "
-                    + "Set the interval to at least 1s.",
-                false,
-                null
-            );
-            List<DeprecationIssue> issues = DeprecationChecks.filterChecks(CLUSTER_SETTINGS_CHECKS, c -> c.apply(badState));
-            assertEquals(singletonList(expected), issues);
-        }
-
-        // Test that other values are ok
-        {
-            final String okInterval = randomTimeValue(1, 9999, "d", "h", "s");
-            Metadata okMetadata = Metadata.builder()
-                .persistentSettings(Settings.builder().put(LIFECYCLE_POLL_INTERVAL_SETTING.getKey(), okInterval).build())
-                .build();
-            ClusterState okState = ClusterState.builder(new ClusterName("test")).metadata(okMetadata).build();
-            List<DeprecationIssue> noIssues = DeprecationChecks.filterChecks(CLUSTER_SETTINGS_CHECKS, c -> c.apply(okState));
-            assertThat(noIssues, hasSize(0));
-        }
-    }
-
     public void testIndexTemplatesWithMultipleTypes() throws IOException {
 
         IndexTemplateMetadata multipleTypes = IndexTemplateMetadata.builder("multiple-types")
@@ -389,10 +359,26 @@ public class ClusterDeprecationChecksTests extends ESTestCase {
             .patterns(Collections.singletonList("foo"))
             .putMapping("_doc", "{\"_doc\":{}}")
             .build();
+        // The following 3 have a custom type, but they should be ignored:
+        IndexTemplateMetadata triggeredWatches = IndexTemplateMetadata.builder(".triggered_watches")
+            .patterns(Collections.singletonList("foo"))
+            .putMapping("someType", "{\"type2\":{}}")
+            .build();
+        IndexTemplateMetadata watchHistory9 = IndexTemplateMetadata.builder(".watch-history-9")
+            .patterns(Collections.singletonList("foo"))
+            .putMapping("someType", "{\"type2\":{}}")
+            .build();
+        IndexTemplateMetadata watches = IndexTemplateMetadata.builder(".watches")
+            .patterns(Collections.singletonList("foo"))
+            .putMapping("someType", "{\"type2\":{}}")
+            .build();
         ImmutableOpenMap<String, IndexTemplateMetadata> templates = ImmutableOpenMap.<String, IndexTemplateMetadata>builder()
             .fPut("template1", template1)
             .fPut("template2", template2)
             .fPut("template3", template3)
+            .fPut(".triggered_watches", triggeredWatches)
+            .fPut(".watch-history-9", watchHistory9)
+            .fPut(".watches", watches)
             .build();
         Metadata badMetadata = Metadata.builder().templates(templates).build();
         ClusterState badState = ClusterState.builder(new ClusterName("test")).metadata(badMetadata).build();
@@ -405,45 +391,6 @@ public class ClusterDeprecationChecksTests extends ESTestCase {
                     + "https://ela.st/es-deprecation-7-removal-of-types for alternatives to mapping types."
             )
         );
-    }
-
-    public void testClusterRoutingAllocationIncludeRelocationsSetting() {
-        boolean settingValue = randomBoolean();
-        String settingKey = CLUSTER_ROUTING_ALLOCATION_INCLUDE_RELOCATIONS_SETTING.getKey();
-        final Settings deprecatedSetting = Settings.builder().put(settingKey, settingValue).build();
-
-        Metadata.Builder metadataBuilder = Metadata.builder();
-        if (randomBoolean()) {
-            metadataBuilder.transientSettings(deprecatedSetting);
-        } else {
-            metadataBuilder.persistentSettings(deprecatedSetting);
-        }
-        ClusterState clusterState = ClusterState.builder(new ClusterName("test"))
-            .metadata(metadataBuilder.transientSettings(deprecatedSetting).build())
-            .build();
-
-        final DeprecationIssue expectedIssue = new DeprecationIssue(
-            DeprecationIssue.Level.WARNING,
-            String.format(Locale.ROOT, "Setting [%s] is deprecated", settingKey),
-            "https://ela.st/es-deprecation-7-cluster-routing-allocation-disk-include-relocations-setting",
-            String.format(Locale.ROOT, "Remove the [%s] setting. Relocating shards are always taken into account in 8.0.", settingKey),
-            false,
-            null
-        );
-
-        List<DeprecationIssue> issues = DeprecationChecks.filterChecks(CLUSTER_SETTINGS_CHECKS, c -> c.apply(clusterState));
-
-        assertThat(issues, hasSize(1));
-        assertThat(issues, hasItem(expectedIssue));
-
-        final String expectedWarning = String.format(
-            Locale.ROOT,
-            "[%s] setting was deprecated in Elasticsearch and will be removed in a future release! "
-                + "See the breaking changes documentation for the next major version.",
-            settingKey
-        );
-
-        assertWarnings(expectedWarning);
     }
 
     public void testCheckGeoShapeMappings() throws Exception {
@@ -1652,5 +1599,132 @@ public class ClusterDeprecationChecksTests extends ESTestCase {
             null
         );
         assertEquals(singletonList(expected), issues);
+    }
+
+    public void testEmptyDataTierPreference() {
+        List<String> indexNames = new ArrayList<>();
+        indexNames.add(".some_dotted_index");
+        for (int i = 0; i < 15; i++) {
+            indexNames.add("test-index-name-" + i);
+        }
+
+        List<IndexMetadata> indices = new ArrayList<>();
+        for (String indexName : indexNames) {
+            indices.add(
+                IndexMetadata.builder(indexName)
+                    .settings(settings(Version.CURRENT).put(DataTier.TIER_PREFERENCE_SETTING.getKey(), "  "))
+                    .numberOfShards(randomIntBetween(1, 100))
+                    .numberOfReplicas(randomIntBetween(1, 100))
+                    .build()
+            );
+        }
+
+        {
+            List<DeprecationIssue> issues = DeprecationChecks.filterChecks(CLUSTER_SETTINGS_CHECKS, c -> c.apply(ClusterState.EMPTY_STATE));
+            assertThat(issues, empty());
+        }
+
+        {
+            Metadata.Builder metadata = Metadata.builder();
+            for (IndexMetadata indexMetadata : indices) {
+                metadata.put(indexMetadata, false);
+            }
+            ClusterState clusterState = ClusterState.builder(clusterStateWithoutAllDataRoles()).metadata(metadata).build();
+
+            List<DeprecationIssue> issues = DeprecationChecks.filterChecks(CLUSTER_SETTINGS_CHECKS, c -> c.apply(clusterState));
+            assertThat(
+                issues,
+                contains(
+                    new DeprecationIssue(
+                        DeprecationIssue.Level.WARNING,
+                        "No [index.routing.allocation.include._tier_preference] is set for indices [test-index-name-0, "
+                            + "test-index-name-1, test-index-name-10, test-index-name-11, test-index-name-12, test-index-name-13, "
+                            + "test-index-name-14, test-index-name-2, test-index-name-3, test-index-name-4, test-index-name-5, "
+                            + "test-index-name-6, test-index-name-7, test-index-name-8, ... (16 in total, 2 omitted)].",
+                        "https://ela.st/es-deprecation-7-empty-tier-preference",
+                        "Specify a data tier preference for these indices.",
+                        false,
+                        null
+                    )
+                )
+            );
+        }
+    }
+
+    public void testCheckShards() {
+        /*
+         * This test sets the number of allowed shards per node to 5 and creates 2 nodes. So we have room for 10 shards, which is the
+         * number of shards that checkShards() is making sure we can add. The first time there are no indices, so the check passes. The
+         * next time there is an index with one shard and one replica, leaving room for 8 shards. So the check fails.
+         */
+        final ClusterState state = ClusterState.builder(new ClusterName(randomAlphaOfLength(5)))
+            .metadata(
+                Metadata.builder()
+                    .persistentSettings(Settings.builder().put(ShardLimitValidator.SETTING_CLUSTER_MAX_SHARDS_PER_NODE.getKey(), 5).build())
+                    .build()
+            )
+            .nodes(
+                DiscoveryNodes.builder()
+                    .add(new DiscoveryNode(UUID.randomUUID().toString(), buildNewFakeTransportAddress(), Version.CURRENT))
+                    .add(new DiscoveryNode(UUID.randomUUID().toString(), buildNewFakeTransportAddress(), Version.CURRENT))
+            )
+            .build();
+        List<DeprecationIssue> issues = DeprecationChecks.filterChecks(CLUSTER_SETTINGS_CHECKS, c -> c.apply(state));
+        assertThat(0, equalTo(issues.size()));
+
+        final ClusterState stateWithProblems = ClusterState.builder(new ClusterName(randomAlphaOfLength(5)))
+            .metadata(
+                Metadata.builder()
+                    .persistentSettings(Settings.builder().put(ShardLimitValidator.SETTING_CLUSTER_MAX_SHARDS_PER_NODE.getKey(), 4).build())
+                    .put(
+                        IndexMetadata.builder(randomAlphaOfLength(10))
+                            .settings(settings(Version.CURRENT).put(DataTier.TIER_PREFERENCE_SETTING.getKey(), "  "))
+                            .numberOfShards(1)
+                            .numberOfReplicas(1)
+                            .build(),
+                        false
+                    )
+                    .build()
+            )
+            .nodes(
+                DiscoveryNodes.builder()
+                    .add(new DiscoveryNode(UUID.randomUUID().toString(), buildNewFakeTransportAddress(), Version.CURRENT))
+                    .add(new DiscoveryNode(UUID.randomUUID().toString(), buildNewFakeTransportAddress(), Version.CURRENT))
+            )
+            .build();
+
+        issues = DeprecationChecks.filterChecks(CLUSTER_SETTINGS_CHECKS, c -> c.apply(stateWithProblems));
+
+        DeprecationIssue expected = new DeprecationIssue(
+            DeprecationIssue.Level.WARNING,
+            "The cluster has too many shards to be able to upgrade",
+            "https://ela.st/es-deprecation-7-shard-limit",
+            "Upgrading requires adding a small number of new shards. There is not enough room for 10 more shards. Increase the cluster"
+                + ".max_shards_per_node setting, or remove indices to clear up resources.",
+            false,
+            null
+        );
+        assertEquals(singletonList(expected), issues);
+    }
+
+    private static ClusterState clusterStateWithoutAllDataRoles() {
+        DiscoveryNodes.Builder discoBuilder = DiscoveryNodes.builder();
+        List<DiscoveryNode> nodesList = org.elasticsearch.core.List.of(
+            new DiscoveryNode(
+                "name_0",
+                "node_0",
+                buildNewFakeTransportAddress(),
+                org.elasticsearch.core.Map.of(),
+                org.elasticsearch.core.Set.of(DiscoveryNodeRole.DATA_FROZEN_NODE_ROLE),
+                Version.CURRENT
+            )
+        );
+        for (DiscoveryNode node : nodesList) {
+            discoBuilder = discoBuilder.add(node);
+        }
+        discoBuilder.localNodeId(randomFrom(nodesList).getId());
+        discoBuilder.masterNodeId(randomFrom(nodesList).getId());
+
+        return ClusterState.builder(ClusterState.EMPTY_STATE).nodes(discoBuilder.build()).build();
     }
 }

@@ -82,27 +82,32 @@ enable forced awareness.
 [[forced-awareness]]
 ===== Forced awareness
 
-By default, if one location fails, Elasticsearch assigns all of the missing
-replica shards to the remaining locations. While you might have sufficient
-resources across all locations to host your primary and replica shards, a single
-location might be unable to host *ALL* of the shards.
+By default, if one location fails, {es} spreads its shards across the remaining
+locations. This might be undesirable if the cluster does not have sufficient
+resources to host all its shards when one location is missing.
 
-To prevent a single location from being overloaded in the event of a failure,
-you can set `cluster.routing.allocation.awareness.force` so no replicas are
-allocated until nodes are available in another location.
+To prevent the remaining locations from being overloaded in the event of a
+whole-location failure, specify the attribute values that should exist with the
+`cluster.routing.allocation.awareness.force.*` settings. This will mean that
+{es} will prefer to leave some replicas unassigned in the event of a
+whole-location failure instead of overloading the nodes in the remaining
+locations.
 
-For example, if you have an awareness attribute called `zone` and configure nodes
-in `zone1` and `zone2`, you can use forced awareness to prevent Elasticsearch
-from allocating replicas if only one zone is available:
+For example, if you have an awareness attribute called `zone` and configure
+nodes in `zone1` and `zone2`, you can use forced awareness to make {es} leave
+half of your shard copies unassigned if only one zone is available:
 
 [source,yaml]
 -------------------------------------------------------------------
 cluster.routing.allocation.awareness.attributes: zone
 cluster.routing.allocation.awareness.force.zone.values: zone1,zone2 <1>
 -------------------------------------------------------------------
-<1> Specify all possible values for the awareness attribute.
+<1> Specify all possible `zone` attribute values.
 
-With this example configuration, if you start two nodes with `node.attr.zone` set
-to `zone1` and create an index with 5 shards and 1 replica, Elasticsearch creates
-the index and allocates the 5 primary shards but no replicas. Replicas are
-only allocated once nodes with `node.attr.zone` set to `zone2` are available.
+With this example configuration, if you have two nodes with `node.attr.zone`
+set to `zone1` and an index with `number_of_replicas` set to `1`, {es}
+allocates all the primary shards but none of the replicas. It will assign the
+replica shards once nodes with a different value for `node.attr.zone` join the
+cluster. In contrast, if you do not configure forced awareness, {es} will
+allocate all primaries and replicas to the two nodes even though they are in
+the same zone.

@@ -1,4 +1,4 @@
-apply plugin: 'elasticsearch.internal-yaml-rest-test'
+apply plugin: 'elasticsearch.legacy-yaml-rest-test'
 
 dependencies {
   yamlRestTestImplementation(testArtifact(project(xpackModule('core'))))
@@ -187,6 +187,7 @@ tasks.named("yamlRestTest").configure {
     'ml/jobs_get_result_overall_buckets/Test overall buckets given invalid start param',
     'ml/jobs_get_result_overall_buckets/Test overall buckets given invalid end param',
     'ml/jobs_get_result_overall_buckets/Test overall buckets given bucket_span is smaller than max job bucket_span',
+    'ml/jobs_get_stats/Test closed results index',
     'ml/jobs_get_stats/Test get job stats given missing job',
     'ml/jobs_get_stats/Test no exception on get job stats with missing index',
     'ml/job_groups/Test put job with empty group',

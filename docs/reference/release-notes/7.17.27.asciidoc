@@ -1,0 +1,17 @@
+[[release-notes-7.17.27]]
+== {es} version 7.17.27
+
+Also see <<breaking-changes-7.17,Breaking changes in 7.17>>.
+
+[[bug-7.17.27]]
+[float]
+=== Bug fixes
+
+Data streams::
+* Acquire stats searcher for data stream stats {es-pull}118012[#118012]
+* Acquire stats searcher for data stream stats {es-pull}117953[#117953]
+
+Infra/Scripting::
+* Register mustache size limit setting {es-pull}119291[#119291]
+
+

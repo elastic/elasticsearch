@@ -58,7 +58,10 @@ This API creates a new named collection of
 <<ccr-auto-follow,auto-follow patterns>> against the remote cluster
 specified in the request body. Newly created indices on the remote cluster
 matching any of the specified patterns will be automatically configured as follower
-indices. Additionally, this API can be used to update existing
+indices. Indices on the remote cluster that were created before the auto-follow
+pattern is created won't be auto-followed even if they match the pattern.
+
+This API can also be used to update existing
 <<ccr-auto-follow,auto-follow patterns>>. Note that follower indices that were configured automatically
 before updating an auto-follow pattern will remain unchanged even if they don't match against
 the new patterns.

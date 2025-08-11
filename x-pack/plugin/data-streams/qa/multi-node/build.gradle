@@ -1,6 +1,6 @@
 import org.elasticsearch.gradle.internal.info.BuildParams
 
-apply plugin: 'elasticsearch.internal-java-rest-test'
+apply plugin: 'elasticsearch.legacy-java-rest-test'
 
 File repoDir = file("$buildDir/testclusters/repo")
 
@@ -20,6 +20,10 @@ testClusters.matching { it.name == "javaRestTest" }.configureEach {
   setting 'xpack.license.self_generated.type', 'trial'
   //disabling ILM history as it disturbs testDSXpackUsage test
   setting 'indices.lifecycle.history_index_enabled', 'false'
+}
+
+dependencies {
+  javaRestTestImplementation(testArtifact(project(xpackModule('core'))))
 }
 
 if (BuildParams.inFipsJvm){

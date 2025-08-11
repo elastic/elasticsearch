@@ -29,11 +29,9 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
@@ -150,29 +148,22 @@ public class SnapshotStatus implements ToXContentObject, Writeable {
      * Returns list of snapshot indices
      */
     public Map<String, SnapshotIndexStatus> getIndices() {
-        if (this.indicesStatus != null) {
-            return this.indicesStatus;
+        Map<String, SnapshotIndexStatus> res = this.indicesStatus;
+        if (res != null) {
+            return res;
         }
 
-        Map<String, SnapshotIndexStatus> indicesStatus = new HashMap<>();
-
-        Set<String> indices = new HashSet<>();
+        Map<String, List<SnapshotIndexShardStatus>> indices = new HashMap<>();
         for (SnapshotIndexShardStatus shard : shards) {
-            indices.add(shard.getIndex());
+            indices.computeIfAbsent(shard.getIndex(), k -> new ArrayList<>()).add(shard);
         }
-
-        for (String index : indices) {
-            List<SnapshotIndexShardStatus> shards = new ArrayList<>();
-            for (SnapshotIndexShardStatus shard : this.shards) {
-                if (shard.getIndex().equals(index)) {
-                    shards.add(shard);
-                }
-            }
-            indicesStatus.put(index, new SnapshotIndexStatus(index, shards));
+        Map<String, SnapshotIndexStatus> indicesStatus = new HashMap<>(indices.size());
+        for (Map.Entry<String, List<SnapshotIndexShardStatus>> entry : indices.entrySet()) {
+            indicesStatus.put(entry.getKey(), new SnapshotIndexStatus(entry.getKey(), entry.getValue()));
         }
-        this.indicesStatus = unmodifiableMap(indicesStatus);
-        return this.indicesStatus;
-
+        res = unmodifiableMap(indicesStatus);
+        this.indicesStatus = res;
+        return res;
     }
 
     @Override

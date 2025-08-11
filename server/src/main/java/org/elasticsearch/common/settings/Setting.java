@@ -1941,28 +1941,35 @@ public class Setting<T> implements ToXContentObject {
     }
 
     public static Setting<Double> doubleSetting(String key, double defaultValue, double minValue, double maxValue, Property... properties) {
-        return new Setting<>(key, (s) -> Double.toString(defaultValue), (s) -> {
-            final double d = Double.parseDouble(s);
-            if (d < minValue) {
-                String err = "Failed to parse value"
-                    + (isFiltered(properties) ? "" : " [" + s + "]")
-                    + " for setting ["
-                    + key
-                    + "] must be >= "
-                    + minValue;
-                throw new IllegalArgumentException(err);
-            }
-            if (d > maxValue) {
-                String err = "Failed to parse value"
-                    + (isFiltered(properties) ? "" : " [" + s + "]")
-                    + " for setting ["
-                    + key
-                    + "] must be <= "
-                    + maxValue;
-                throw new IllegalArgumentException(err);
-            }
-            return d;
-        }, properties);
+        return new Setting<>(
+            key,
+            (s) -> Double.toString(defaultValue),
+            (s) -> parseDouble(s, minValue, maxValue, key, properties),
+            properties
+        );
+    }
+
+    public static Double parseDouble(String s, double minValue, double maxValue, String key, Property... properties) {
+        final double d = Double.parseDouble(s);
+        if (d < minValue) {
+            String err = "Failed to parse value"
+                + (isFiltered(properties) ? "" : " [" + s + "]")
+                + " for setting ["
+                + key
+                + "] must be >= "
+                + minValue;
+            throw new IllegalArgumentException(err);
+        }
+        if (d > maxValue) {
+            String err = "Failed to parse value"
+                + (isFiltered(properties) ? "" : " [" + s + "]")
+                + " for setting ["
+                + key
+                + "] must be <= "
+                + maxValue;
+            throw new IllegalArgumentException(err);
+        }
+        return d;
     }
 
     @Override
@@ -2030,7 +2037,7 @@ public class Setting<T> implements ToXContentObject {
         protected final String key;
 
         public SimpleKey(String key) {
-            this.key = key;
+            this.key = Settings.internKeyOrValue(key);
         }
 
         @Override
@@ -2121,7 +2128,7 @@ public class Setting<T> implements ToXContentObject {
                 sb.append('.');
                 sb.append(suffix);
             }
-            keyString = sb.toString();
+            keyString = Settings.internKeyOrValue(sb.toString());
         }
 
         @Override

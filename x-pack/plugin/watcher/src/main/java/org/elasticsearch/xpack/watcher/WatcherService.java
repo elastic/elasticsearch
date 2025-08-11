@@ -135,13 +135,6 @@ public class WatcherService {
      * @return true if everything is good to go, so that the service can be started
      */
     public boolean validate(ClusterState state) {
-        // template check makes only sense for non existing indices, we could refine this
-        boolean hasValidWatcherTemplates = WatcherIndexTemplateRegistry.validate(state);
-        if (hasValidWatcherTemplates == false) {
-            logger.debug("missing watcher index templates, not starting watcher service");
-            return false;
-        }
-
         IndexMetadata watcherIndexMetadata = WatchStoreUtils.getConcreteIndex(Watch.INDEX, state.metadata());
         IndexMetadata triggeredWatchesIndexMetadata = WatchStoreUtils.getConcreteIndex(
             TriggeredWatchStoreField.INDEX_NAME,
@@ -209,7 +202,11 @@ public class WatcherService {
      * Reload the watcher service, does not switch the state from stopped to started, just keep going
      * @param state cluster state, which is needed to find out about local shards
      */
-    void reload(ClusterState state, String reason) {
+    void reload(ClusterState state, String reason, Consumer<Exception> exceptionConsumer) {
+        boolean hasValidWatcherTemplates = WatcherIndexTemplateRegistry.validate(state);
+        if (hasValidWatcherTemplates == false) {
+            logger.warn("missing watcher index templates");
+        }
         // this method contains the only async code block, being called by the cluster state listener
         // the reason for this is, that loading he watches is done in a sync manner and thus cannot be done on the cluster state listener
         // thread
@@ -225,7 +222,10 @@ public class WatcherService {
         int cancelledTaskCount = executionService.clearExecutionsAndQueue(() -> {});
         logger.info("reloading watcher, reason [{}], cancelled [{}] queued tasks", reason, cancelledTaskCount);
 
-        executor.execute(wrapWatcherService(() -> reloadInner(state, reason, false), e -> logger.error("error reloading watcher", e)));
+        executor.execute(wrapWatcherService(() -> reloadInner(state, reason, false), e -> {
+            logger.error("error reloading watcher", e);
+            exceptionConsumer.accept(e);
+        }));
     }
 
     /**
@@ -234,14 +234,17 @@ public class WatcherService {
      * @param state                     the current cluster state
      * @param postWatchesLoadedCallback the callback to be triggered, when watches where loaded successfully
      */
-    public void start(ClusterState state, Runnable postWatchesLoadedCallback) {
+    public void start(ClusterState state, Runnable postWatchesLoadedCallback, Consumer<Exception> exceptionConsumer) {
         executionService.unPause();
         processedClusterStateVersion.set(state.getVersion());
         executor.execute(wrapWatcherService(() -> {
             if (reloadInner(state, "starting", true)) {
                 postWatchesLoadedCallback.run();
             }
-        }, e -> logger.error("error starting watcher", e)));
+        }, e -> {
+            logger.error("error starting watcher", e);
+            exceptionConsumer.accept(e);
+        }));
     }
 
     /**
@@ -315,13 +318,7 @@ public class WatcherService {
         SearchResponse response = null;
         List<Watch> watches = new ArrayList<>();
         try {
-            RefreshResponse refreshResponse = client.admin()
-                .indices()
-                .refresh(new RefreshRequest(INDEX))
-                .actionGet(TimeValue.timeValueSeconds(5));
-            if (refreshResponse.getSuccessfulShards() < indexMetadata.getNumberOfShards()) {
-                throw illegalState("not all required shards have been refreshed");
-            }
+            refreshWatches(indexMetadata);
 
             // find out local shards
             String watchIndexName = indexMetadata.getIndex().getName();
@@ -411,6 +408,17 @@ public class WatcherService {
         logger.debug("Loaded [{}] watches for execution", watches.size());
 
         return watches;
+    }
+
+    // Non private for unit testing purposes
+    void refreshWatches(IndexMetadata indexMetadata) {
+        RefreshResponse refreshResponse = client.admin()
+            .indices()
+            .refresh(new RefreshRequest(INDEX))
+            .actionGet(TimeValue.timeValueSeconds(5));
+        if (refreshResponse.getSuccessfulShards() < indexMetadata.getNumberOfShards()) {
+            throw illegalState("not all required shards have been refreshed");
+        }
     }
 
     /**

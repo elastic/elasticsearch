@@ -149,10 +149,9 @@ public class SingleUseKeyTests extends ESTestCase {
         int nonce = SingleUseKey.MAX_NONCE;
         SingleUseKey singleUseKey = new SingleUseKey(null, null, nonce);
         AtomicReference<SingleUseKey> keyCurrentlyInUse = new AtomicReference<>(singleUseKey);
-        CheckedSupplier<SingleUseKey, IOException> singleUseKeySupplier = SingleUseKey.internalSingleUseKeySupplier(
-            () -> { throw new IOException("expected exception"); },
-            keyCurrentlyInUse
-        );
+        CheckedSupplier<SingleUseKey, IOException> singleUseKeySupplier = SingleUseKey.internalSingleUseKeySupplier(() -> {
+            throw new IOException("expected exception");
+        }, keyCurrentlyInUse);
         expectThrows(IOException.class, () -> singleUseKeySupplier.get());
     }
 }

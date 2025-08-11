@@ -58,7 +58,7 @@ public class InternalDerivativeTests extends InternalAggregationTestCase<Interna
         double normalizationFactor = instance.getNormalizationFactor();
         DocValueFormat formatter = instance.formatter();
         Map<String, Object> metadata = instance.getMetadata();
-        switch (between(0, 2)) {
+        switch (between(0, 3)) {
             case 0:
                 name += randomAlphaOfLength(5);
                 break;

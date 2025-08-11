@@ -8,7 +8,9 @@
 
 apply plugin: 'elasticsearch.build'
 
-archivesBaseName = 'elasticsearch-geoip-cli'
+base {
+  archivesName = 'elasticsearch-geoip-cli'
+}
 
 dependencies {
   compileOnly project(":server")

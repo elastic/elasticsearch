@@ -301,7 +301,6 @@ public abstract class BaseSearchableSnapshotIndexInput extends BufferedIndexInpu
             || threadName.contains('[' + SearchableSnapshots.CACHE_PREWARMING_THREAD_POOL_NAME + ']')
 
             // Unit tests access the blob store on the main test thread; simplest just to permit this rather than have them override this
-            // method somehow.
             || threadName.startsWith("TEST-")
             || threadName.startsWith("LuceneTestCase") : "current thread [" + Thread.currentThread() + "] may not read " + fileInfo;
         return true;

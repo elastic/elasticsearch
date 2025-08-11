@@ -33,14 +33,33 @@ public class RegisteredDomainProcessorTests extends ESTestCase {
         testRegisteredDomainProcessor(buildEvent("."), null, null, null, null);
         testRegisteredDomainProcessor(buildEvent("$"), null, null, null, null);
         testRegisteredDomainProcessor(buildEvent("foo.bar.baz"), null, null, null, null);
+        testRegisteredDomainProcessor(buildEvent("www.books.amazon.co.uk"), "www.books.amazon.co.uk", "amazon.co.uk", "co.uk", "www.books");
+        // Verify "com" is returned as the eTLD, for that FQDN or subdomain
+        testRegisteredDomainProcessor(buildEvent("com"), "com", null, "com", null);
+        testRegisteredDomainProcessor(buildEvent("example.com"), "example.com", "example.com", "com", null);
+        testRegisteredDomainProcessor(buildEvent("googleapis.com"), "googleapis.com", "googleapis.com", "com", null);
+        testRegisteredDomainProcessor(
+            buildEvent("content-autofill.googleapis.com"),
+            "content-autofill.googleapis.com",
+            "googleapis.com",
+            "com",
+            "content-autofill"
+        );
+        // Verify "ssl.fastly.net" is returned as the eTLD, for that FQDN or subdomain
+        testRegisteredDomainProcessor(
+            buildEvent("global.ssl.fastly.net"),
+            "global.ssl.fastly.net",
+            "global.ssl.fastly.net",
+            "ssl.fastly.net",
+            null
+        );
         testRegisteredDomainProcessor(
             buildEvent("1.www.global.ssl.fastly.net"),
             "1.www.global.ssl.fastly.net",
-            "www.global.ssl.fastly.net",
             "global.ssl.fastly.net",
-            "1"
+            "ssl.fastly.net",
+            "1.www"
         );
-        testRegisteredDomainProcessor(buildEvent("www.books.amazon.co.uk"), "www.books.amazon.co.uk", "amazon.co.uk", "co.uk", "www.books");
     }
 
     public void testUseRoot() throws Exception {

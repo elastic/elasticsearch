@@ -266,10 +266,6 @@ public class CertificateGenerateToolTests extends ESTestCase {
     }
 
     public void testGeneratingSignedCertificates() throws Exception {
-        assumeFalse(
-            "JDK bug JDK-8266279, https://github.com/elastic/elasticsearch/issues/72639",
-            "1.8.0_292".equals(System.getProperty("java.version"))
-        );
 
         Path tempDir = initTempDir();
         Path outputFile = tempDir.resolve("out.zip");
@@ -520,8 +516,8 @@ public class CertificateGenerateToolTests extends ESTestCase {
                 assertThat(seq.getObjectAt(1), instanceOf(DLTaggedObject.class));
                 DLTaggedObject taggedName = (DLTaggedObject) seq.getObjectAt(1);
                 assertThat(taggedName.getTagNo(), equalTo(0));
-                assertThat(taggedName.getObject(), instanceOf(ASN1String.class));
-                assertThat(taggedName.getObject().toString(), is(in(certInfo.commonNames)));
+                assertThat(taggedName.getBaseObject(), instanceOf(ASN1String.class));
+                assertThat(taggedName.getBaseObject().toString(), is(in(certInfo.commonNames)));
             } else {
                 fail("unknown general name with tag " + generalName.getTagNo());
             }

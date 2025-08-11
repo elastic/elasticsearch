@@ -1,8 +1,8 @@
 
 include::{docs-root}/shared/versions/stack/{source_branch}.asciidoc[]
 
-:lucene_version:        8.11.1
-:lucene_version_path:   8_11_1
+:lucene_version:        8.11.3
+:lucene_version_path:   8_11_3
 :jdk:                   1.8.0_131
 :jdk_major:             8
 :build_flavor:          default

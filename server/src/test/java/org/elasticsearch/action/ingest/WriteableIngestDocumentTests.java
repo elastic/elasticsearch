@@ -24,7 +24,6 @@ import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.StringJoiner;
@@ -36,67 +35,18 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.sameInstance;
 
 public class WriteableIngestDocumentTests extends AbstractXContentTestCase<WriteableIngestDocument> {
 
-    public void testEqualsAndHashcode() throws Exception {
-        Map<String, Object> sourceAndMetadata = RandomDocumentPicks.randomSource(random());
-        int numFields = randomIntBetween(1, IngestDocument.Metadata.values().length);
-        for (int i = 0; i < numFields; i++) {
-            sourceAndMetadata.put(randomFrom(IngestDocument.Metadata.values()).getFieldName(), randomAlphaOfLengthBetween(5, 10));
-        }
-        Map<String, Object> ingestMetadata = new HashMap<>();
-        numFields = randomIntBetween(1, 5);
-        for (int i = 0; i < numFields; i++) {
-            ingestMetadata.put(randomAlphaOfLengthBetween(5, 10), randomAlphaOfLengthBetween(5, 10));
-        }
-        WriteableIngestDocument ingestDocument = new WriteableIngestDocument(new IngestDocument(sourceAndMetadata, ingestMetadata));
+    @Override
+    protected boolean assertToXContentEquivalence() {
+        return false;
+    }
 
-        boolean changed = false;
-        Map<String, Object> otherSourceAndMetadata;
-        if (randomBoolean()) {
-            otherSourceAndMetadata = RandomDocumentPicks.randomSource(random());
-            changed = true;
-        } else {
-            otherSourceAndMetadata = new HashMap<>(sourceAndMetadata);
-        }
-        if (randomBoolean()) {
-            numFields = randomIntBetween(1, IngestDocument.Metadata.values().length);
-            for (int i = 0; i < numFields; i++) {
-                otherSourceAndMetadata.put(randomFrom(IngestDocument.Metadata.values()).getFieldName(), randomAlphaOfLengthBetween(5, 10));
-            }
-            changed = true;
-        }
-
-        Map<String, Object> otherIngestMetadata;
-        if (randomBoolean()) {
-            otherIngestMetadata = new HashMap<>();
-            numFields = randomIntBetween(1, 5);
-            for (int i = 0; i < numFields; i++) {
-                otherIngestMetadata.put(randomAlphaOfLengthBetween(5, 10), randomAlphaOfLengthBetween(5, 10));
-            }
-            changed = true;
-        } else {
-            otherIngestMetadata = Collections.unmodifiableMap(ingestMetadata);
-        }
-
-        WriteableIngestDocument otherIngestDocument = new WriteableIngestDocument(
-            new IngestDocument(otherSourceAndMetadata, otherIngestMetadata)
-        );
-        if (changed) {
-            assertThat(ingestDocument, not(equalTo(otherIngestDocument)));
-            assertThat(otherIngestDocument, not(equalTo(ingestDocument)));
-        } else {
-            assertThat(ingestDocument, equalTo(otherIngestDocument));
-            assertThat(otherIngestDocument, equalTo(ingestDocument));
-            assertThat(ingestDocument.hashCode(), equalTo(otherIngestDocument.hashCode()));
-            WriteableIngestDocument thirdIngestDocument = new WriteableIngestDocument(
-                new IngestDocument(Collections.unmodifiableMap(sourceAndMetadata), Collections.unmodifiableMap(ingestMetadata))
-            );
-            assertThat(thirdIngestDocument, equalTo(ingestDocument));
-            assertThat(ingestDocument, equalTo(thirdIngestDocument));
-            assertThat(ingestDocument.hashCode(), equalTo(thirdIngestDocument.hashCode()));
-        }
+    @Override
+    protected void assertEqualInstances(WriteableIngestDocument expectedInstance, WriteableIngestDocument newInstance) {
+        assertIngestDocument(expectedInstance.getIngestDocument(), newInstance.getIngestDocument());
     }
 
     public void testSerialization() throws IOException {
@@ -148,7 +98,7 @@ public class WriteableIngestDocumentTests extends AbstractXContentTestCase<Write
         }
 
         IngestDocument serializedIngestDocument = new IngestDocument(toXContentSource, toXContentIngestMetadata);
-        assertThat(serializedIngestDocument, equalTo(serializedIngestDocument));
+        assertIngestDocument(serializedIngestDocument, serializedIngestDocument);
     }
 
     public void testXContentHashSetSerialization() throws Exception {
@@ -167,6 +117,14 @@ public class WriteableIngestDocumentTests extends AbstractXContentTestCase<Write
             Map<String, Object> source = (Map<String, Object>) ((Map) map.get("doc")).get("_source");
             assertThat(source.get("key"), is(Arrays.asList("value")));
         }
+    }
+
+    public void testCopiesTheIngestDocument() {
+        IngestDocument document = createRandomIngestDoc();
+        WriteableIngestDocument wid = new WriteableIngestDocument(document);
+
+        assertIngestDocument(wid.getIngestDocument(), document);
+        assertThat(wid.getIngestDocument(), not(sameInstance(document)));
     }
 
     static IngestDocument createRandomIngestDoc() {

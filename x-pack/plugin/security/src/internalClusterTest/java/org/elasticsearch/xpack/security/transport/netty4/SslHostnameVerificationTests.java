@@ -58,10 +58,9 @@ public class SslHostnameVerificationTests extends SecurityIntegTestCase {
             throw new RuntimeException(e);
         }
 
-        SecuritySettingsSource.addSecureSettings(
-            settingsBuilder,
-            secureSettings -> { secureSettings.setString("xpack.security.transport.ssl.secure_key_passphrase", "testnode-no-subjaltname"); }
-        );
+        SecuritySettingsSource.addSecureSettings(settingsBuilder, secureSettings -> {
+            secureSettings.setString("xpack.security.transport.ssl.secure_key_passphrase", "testnode-no-subjaltname");
+        });
         return settingsBuilder.put("xpack.security.transport.ssl.key", keyPath.toAbsolutePath())
             .put("xpack.security.transport.ssl.certificate", certPath.toAbsolutePath())
             .putList("xpack.security.transport.ssl.certificate_authorities", Arrays.asList(certPath.toString(), nodeCertPath.toString()))

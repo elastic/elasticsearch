@@ -19,6 +19,8 @@ import java.io.IOException;
 import java.util.EnumSet;
 import java.util.Map;
 
+import static org.hamcrest.Matchers.startsWith;
+
 public class PingAndInfoIT extends ESRestHighLevelClientTestCase {
 
     public void testPing() throws IOException {
@@ -71,7 +73,9 @@ public class PingAndInfoIT extends ESRestHighLevelClientTestCase {
         FeatureSet ml = info.getFeatureSetsInfo().getFeatureSets().get("ml");
         assertTrue(ml.available());
         assertTrue(ml.enabled());
-        assertEquals(mainResponse.getVersion().getNumber(), ml.nativeCodeInfo().get("version").toString());
+        // startsWith because since https://github.com/elastic/elasticsearch/pull/89951 the
+        // release-tests CI jobs use ML snapshot builds
+        assertThat(ml.nativeCodeInfo().get("version").toString(), startsWith(mainResponse.getVersion().getNumber()));
     }
 
     public void testXPackInfoEmptyRequest() throws IOException {

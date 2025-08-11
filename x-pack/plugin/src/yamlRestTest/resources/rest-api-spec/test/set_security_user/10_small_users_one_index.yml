@@ -98,7 +98,7 @@ teardown:
       index:
         index: shared_logs
         type: type
-        id: 1
+        id: "1"
         pipeline: "my_pipeline"
         body:  >
           {
@@ -110,7 +110,7 @@ teardown:
       index:
         index: shared_logs
         type: type
-        id: 2
+        id: "2"
         pipeline: "my_pipeline"
         body:  >
           {

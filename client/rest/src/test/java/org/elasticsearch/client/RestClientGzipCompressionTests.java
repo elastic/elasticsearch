@@ -27,6 +27,7 @@ import org.apache.http.HttpEntity;
 import org.apache.http.HttpHost;
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
+import org.apache.http.protocol.HTTP;
 import org.elasticsearch.mocksocket.MockHttpServer;
 import org.junit.AfterClass;
 import org.junit.Assert;
@@ -81,10 +82,9 @@ public class RestClientGzipCompressionTests extends RestClientTestCase {
                 exchange.getResponseHeaders().add("Content-Encoding", "gzip");
             }
 
-            exchange.sendResponseHeaders(200, 0);
-
             // Encode response if needed
-            OutputStream out = exchange.getResponseBody();
+            ByteArrayOutputStream bao = new ByteArrayOutputStream();
+            OutputStream out = bao;
             if (compress) {
                 out = new GZIPOutputStream(out);
             }
@@ -97,6 +97,11 @@ public class RestClientGzipCompressionTests extends RestClientTestCase {
             out.write(bytes);
             out.close();
 
+            bytes = bao.toByteArray();
+
+            exchange.sendResponseHeaders(200, bytes.length);
+
+            exchange.getResponseBody().write(bytes);
             exchange.close();
         }
     }
@@ -120,6 +125,22 @@ public class RestClientGzipCompressionTests extends RestClientTestCase {
             .build();
     }
 
+    public void testUncompressedSync() throws Exception {
+        RestClient restClient = createClient(false);
+
+        // Send non-compressed request, expect non-compressed response
+        Request request = new Request("POST", "/");
+        request.setEntity(new StringEntity("plain request, plain response", ContentType.TEXT_PLAIN));
+
+        Response response = restClient.performRequest(request);
+
+        // Server sends a content-length which should be kept
+        Assert.assertTrue(response.getEntity().getContentLength() > 0);
+        checkResponse("null#null#plain request, plain response", response);
+
+        restClient.close();
+    }
+
     public void testGzipHeaderSync() throws Exception {
         RestClient restClient = createClient(false);
 
@@ -130,9 +151,9 @@ public class RestClientGzipCompressionTests extends RestClientTestCase {
 
         Response response = restClient.performRequest(request);
 
-        HttpEntity entity = response.getEntity();
-        String content = new String(readAll(entity.getContent()), StandardCharsets.UTF_8);
-        Assert.assertEquals("null#gzip#plain request, gzip response", content);
+        // Content-length is unknown because of ungzip. Do not just test -1 as it returns "a negative number if unknown"
+        Assert.assertTrue(response.getEntity().getContentLength() < 0);
+        checkResponse("null#gzip#plain request, gzip response", response);
 
         restClient.close();
     }
@@ -149,9 +170,8 @@ public class RestClientGzipCompressionTests extends RestClientTestCase {
         restClient.performRequestAsync(request, futureResponse);
         Response response = futureResponse.get();
 
-        HttpEntity entity = response.getEntity();
-        String content = new String(readAll(entity.getContent()), StandardCharsets.UTF_8);
-        Assert.assertEquals("null#gzip#plain request, gzip response", content);
+        Assert.assertTrue(response.getEntity().getContentLength() < 0);
+        checkResponse("null#gzip#plain request, gzip response", response);
 
         restClient.close();
     }
@@ -164,9 +184,8 @@ public class RestClientGzipCompressionTests extends RestClientTestCase {
 
         Response response = restClient.performRequest(request);
 
-        HttpEntity entity = response.getEntity();
-        String content = new String(readAll(entity.getContent()), StandardCharsets.UTF_8);
-        Assert.assertEquals("gzip#gzip#compressing client", content);
+        Assert.assertTrue(response.getEntity().getContentLength() < 0);
+        checkResponse("gzip#gzip#compressing client", response);
 
         restClient.close();
     }
@@ -185,9 +204,8 @@ public class RestClientGzipCompressionTests extends RestClientTestCase {
         Response response = futureResponse.get();
 
         // Server should report it had a compressed request and sent back a compressed response
-        HttpEntity entity = response.getEntity();
-        String content = new String(readAll(entity.getContent()), StandardCharsets.UTF_8);
-        Assert.assertEquals("gzip#gzip#compressing client", content);
+        Assert.assertTrue(response.getEntity().getContentLength() < 0);
+        checkResponse("gzip#gzip#compressing client", response);
 
         restClient.close();
     }
@@ -201,6 +219,28 @@ public class RestClientGzipCompressionTests extends RestClientTestCase {
         @Override
         public void onFailure(Exception exception) {
             this.completeExceptionally(exception);
+        }
+    }
+
+    private static void checkResponse(String expected, Response response) throws Exception {
+        HttpEntity entity = response.getEntity();
+        Assert.assertNotNull(entity);
+
+        String content = new String(readAll(entity.getContent()), StandardCharsets.UTF_8);
+        Assert.assertEquals(expected, content);
+
+        // Original Content-Encoding should be removed on both entity and response
+        Assert.assertNull(entity.getContentEncoding());
+        Assert.assertNull(response.getHeader(HTTP.CONTENT_ENCODING));
+
+        // Content-length must be consistent between entity and response
+        long entityContentLength = entity.getContentLength();
+        String headerContentLength = response.getHeader(HTTP.CONTENT_LEN);
+
+        if (entityContentLength < 0) {
+            Assert.assertNull(headerContentLength);
+        } else {
+            Assert.assertEquals(String.valueOf(entityContentLength), headerContentLength);
         }
     }
 }

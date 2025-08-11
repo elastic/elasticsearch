@@ -3,12 +3,12 @@
   - do:
       index:
         index:  test
-        id:     1
+        id:     "1"
         body:   { "text": "test" }
   - do:
       index:
         index:  test
-        id:     2
+        id:     "2"
         body:   { "text": "junk" }
   - do:
       indices.refresh: {}
@@ -41,12 +41,12 @@
   - do:
       index:
         index:  test
-        id:     1
+        id:     "1"
         body:   { "order": 1 }
   - do:
       index:
         index:  test
-        id:     2
+        id:     "2"
         body:   { "order": 2 }
   - do:
       indices.refresh: {}
@@ -88,12 +88,12 @@
   - do:
       index:
         index:  test
-        id:     1
+        id:     "1"
         body:   { "order": 1 }
   - do:
       index:
         index:  test
-        id:     2
+        id:     "2"
         body:   { "order": 2 }
   - do:
       indices.refresh: {}
@@ -132,12 +132,12 @@
   - do:
       index:
         index:  test
-        id:     1
+        id:     "1"
         body:   { "order": 1 }
   - do:
       index:
         index:  test
-        id:     2
+        id:     "2"
         body:   { "order": 2 }
   - do:
       indices.refresh: {}
@@ -179,7 +179,7 @@
   - do:
       index:
         index:  test
-        id:     1
+        id:     "1"
         body:   { "order": 1 }
   - do:
       indices.refresh: {}
@@ -213,12 +213,12 @@
   - do:
       index:
         index:  test
-        id:     1
+        id:     "1"
         body:   { "value": 17 }
   - do:
       index:
         index:  test
-        id:     2
+        id:     "2"
         body:   { "value": 17 }
   - do:
       indices.refresh: {}

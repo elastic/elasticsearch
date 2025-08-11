@@ -12,17 +12,22 @@ import org.apache.lucene.document.TextField;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.vectorhighlight.BoundaryScanner;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.ValueFetcher;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.lookup.SourceLookup;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 
 public class SourceSimpleFragmentsBuilder extends SimpleFragmentsBuilder {
 
     private final SourceLookup sourceLookup;
+    private final ValueFetcher valueFetcher;
 
     public SourceSimpleFragmentsBuilder(
         MappedFieldType fieldType,
+        SearchExecutionContext context,
         boolean fixBrokenAnalysis,
         SourceLookup sourceLookup,
         String[] preTags,
@@ -31,6 +36,7 @@ public class SourceSimpleFragmentsBuilder extends SimpleFragmentsBuilder {
     ) {
         super(fieldType, fixBrokenAnalysis, preTags, postTags, boundaryScanner);
         this.sourceLookup = sourceLookup;
+        this.valueFetcher = fieldType.valueFetcher(context, null);
     }
 
     public static final Field[] EMPTY_FIELDS = new Field[0];
@@ -38,7 +44,7 @@ public class SourceSimpleFragmentsBuilder extends SimpleFragmentsBuilder {
     @Override
     protected Field[] getFields(IndexReader reader, int docId, String fieldName) throws IOException {
         // we know its low level reader, and matching docId, since that's how we call the highlighter with
-        List<Object> values = sourceLookup.extractRawValues(fieldType.name());
+        List<Object> values = valueFetcher.fetchValues(sourceLookup, new ArrayList<>());
         if (values.isEmpty()) {
             return EMPTY_FIELDS;
         }

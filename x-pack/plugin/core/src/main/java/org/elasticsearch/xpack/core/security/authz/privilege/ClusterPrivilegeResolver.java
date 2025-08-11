@@ -15,6 +15,9 @@ import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotAct
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsAction;
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotsStatusAction;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateAction;
+import org.elasticsearch.action.admin.indices.template.get.GetComponentTemplateAction;
+import org.elasticsearch.action.admin.indices.template.get.GetComposableIndexTemplateAction;
+import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesAction;
 import org.elasticsearch.action.ingest.GetPipelineAction;
 import org.elasticsearch.action.ingest.SimulatePipelineAction;
 import org.elasticsearch.common.Strings;
@@ -69,7 +72,12 @@ public class ClusterPrivilegeResolver {
     private static final Set<String> MANAGE_SERVICE_ACCOUNT_PATTERN = Collections.singleton(
         "cluster:admin/xpack/security/service_account/*"
     );
-    private static final Set<String> MONITOR_PATTERN = Collections.singleton("cluster:monitor/*");
+    private static final Set<String> MONITOR_PATTERN = Sets.newHashSet(
+        "cluster:monitor/*",
+        GetIndexTemplatesAction.NAME,
+        GetComponentTemplateAction.NAME,
+        GetComposableIndexTemplateAction.NAME
+    );
     private static final Set<String> MONITOR_TEXT_STRUCTURE_PATTERN = Collections.singleton("cluster:monitor/text_structure/*");
     private static final Set<String> MONITOR_TRANSFORM_PATTERN = Collections.unmodifiableSet(
         Sets.newHashSet("cluster:monitor/data_frame/*", "cluster:monitor/transform/*")

@@ -299,15 +299,25 @@ public class IndexLifecycleService
         if (prevIsMaster != event.localNodeMaster()) {
             this.isMaster = event.localNodeMaster();
             if (this.isMaster) {
+                // we weren't the master, and now we are
                 onMaster(event.state());
             } else {
+                // we were the master, and now we aren't
                 cancelJob();
+                policyRegistry.clear();
             }
         }
 
-        final IndexLifecycleMetadata lifecycleMetadata = event.state().metadata().custom(IndexLifecycleMetadata.TYPE);
-        if (this.isMaster && lifecycleMetadata != null) {
-            triggerPolicies(event.state(), true);
+        // if we're the master, then process deleted indices and trigger policies
+        if (this.isMaster) {
+            for (Index index : event.indicesDeleted()) {
+                policyRegistry.delete(index);
+            }
+
+            final IndexLifecycleMetadata lifecycleMetadata = event.state().metadata().custom(IndexLifecycleMetadata.TYPE);
+            if (lifecycleMetadata != null) {
+                triggerPolicies(event.state(), true);
+            }
         }
     }
 

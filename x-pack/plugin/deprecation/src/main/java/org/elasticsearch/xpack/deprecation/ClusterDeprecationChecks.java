@@ -11,18 +11,21 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.ComponentTemplate;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
+import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.compress.CompressedXContent;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
 import org.elasticsearch.index.mapper.GeoShapeFieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.indices.ShardLimitValidator;
 import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.ingest.PipelineConfiguration;
 import org.elasticsearch.xcontent.XContentType;
@@ -44,10 +47,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
-import static org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_INCLUDE_RELOCATIONS_SETTING;
 import static org.elasticsearch.search.SearchModule.INDICES_MAX_CLAUSE_COUNT_SETTING;
-import static org.elasticsearch.xpack.core.ilm.LifecycleSettings.LIFECYCLE_POLL_INTERVAL_SETTING;
-import static org.elasticsearch.xpack.deprecation.NodeDeprecationChecks.checkRemovedSetting;
 
 public class ClusterDeprecationChecks {
     private static final Logger logger = LogManager.getLogger(ClusterDeprecationChecks.class);
@@ -565,41 +565,11 @@ public class ClusterDeprecationChecks {
         return false;
     }
 
-    static DeprecationIssue checkPollIntervalTooLow(ClusterState state) {
-        String pollIntervalString = state.metadata().settings().get(LIFECYCLE_POLL_INTERVAL_SETTING.getKey());
-        if (Strings.isNullOrEmpty(pollIntervalString)) {
-            return null;
-        }
-
-        TimeValue pollInterval;
-        try {
-            pollInterval = TimeValue.parseTimeValue(pollIntervalString, LIFECYCLE_POLL_INTERVAL_SETTING.getKey());
-        } catch (IllegalArgumentException e) {
-            logger.error("Failed to parse [{}] value: [{}]", LIFECYCLE_POLL_INTERVAL_SETTING.getKey(), pollIntervalString);
-            return null;
-        }
-
-        if (pollInterval.compareTo(TimeValue.timeValueSeconds(1)) < 0) {
-            return new DeprecationIssue(
-                DeprecationIssue.Level.CRITICAL,
-                "Index Lifecycle Management poll interval is set too low",
-                "https://ela.st/es-deprecation-7-indices-lifecycle-poll-interval-setting",
-                String.format(
-                    Locale.ROOT,
-                    "The ILM [%s] setting is set to [%s]. Set the interval to at least 1s.",
-                    LIFECYCLE_POLL_INTERVAL_SETTING.getKey(),
-                    pollIntervalString
-                ),
-                false,
-                null
-            );
-        }
-        return null;
-    }
-
     static DeprecationIssue checkTemplatesWithCustomAndMultipleTypes(ClusterState state) {
         Set<String> templatesWithMultipleTypes = new TreeSet<>();
         Set<String> templatesWithCustomTypes = new TreeSet<>();
+        // See https://github.com/elastic/elasticsearch/issues/82109#issuecomment-1006143687 for details:
+        Set<String> systemTemplatesWithCustomTypes = Sets.newHashSet(".triggered_watches", ".watch-history-9", ".watches");
         state.getMetadata().getTemplates().forEach((templateCursor) -> {
             String templateName = templateCursor.key;
             ImmutableOpenMap<String, CompressedXContent> mappings = templateCursor.value.mappings();
@@ -612,7 +582,9 @@ public class ClusterDeprecationChecks {
                     return MapperService.SINGLE_MAPPING_NAME.equals(typeName) == false;
                 });
                 if (hasCustomType) {
-                    templatesWithCustomTypes.add(templateName);
+                    if (systemTemplatesWithCustomTypes.contains(templateName) == false) {
+                        templatesWithCustomTypes.add(templateName);
+                    }
                 }
             }
         });
@@ -647,16 +619,6 @@ public class ClusterDeprecationChecks {
             );
         }
         return deprecationIssue;
-    }
-
-    static DeprecationIssue checkClusterRoutingAllocationIncludeRelocationsSetting(final ClusterState clusterState) {
-        return checkRemovedSetting(
-            clusterState.metadata().settings(),
-            CLUSTER_ROUTING_ALLOCATION_INCLUDE_RELOCATIONS_SETTING,
-            "https://ela.st/es-deprecation-7-cluster-routing-allocation-disk-include-relocations-setting",
-            "Relocating shards are always taken into account in 8.0.",
-            DeprecationIssue.Level.WARNING
-        );
     }
 
     @SuppressWarnings("unchecked")
@@ -1028,4 +990,78 @@ public class ClusterDeprecationChecks {
         }
         return null;
     }
+
+    /**
+     * Upgrading can require the addition of one ore more small indices. This method checks that based on configuration we have the room
+     * to add a small number of additional shards to the cluster. The goal is to prevent a failure during upgrade.
+     * @param clusterState The cluster state, used to get settings and information about nodes
+     * @return A deprecation issue if there is not enough room in this cluster to add a few more shards, or null otherwise
+     */
+    static DeprecationIssue checkShards(ClusterState clusterState) {
+        // Make sure we have room to add a small non-frozen index if needed
+        final int shardsInFutureNewSmallIndex = 5;
+        final int replicasForFutureIndex = 1;
+        if (ShardLimitValidator.canAddShardsToCluster(shardsInFutureNewSmallIndex, replicasForFutureIndex, clusterState, false)) {
+            return null;
+        } else {
+            final int totalShardsToAdd = shardsInFutureNewSmallIndex * (1 + replicasForFutureIndex);
+            return new DeprecationIssue(
+                DeprecationIssue.Level.WARNING,
+                "The cluster has too many shards to be able to upgrade",
+                "https://ela.st/es-deprecation-7-shard-limit",
+                String.format(
+                    Locale.ROOT,
+                    "Upgrading requires adding a small number of new shards. There is not enough room for %d more "
+                        + "shards. Increase the cluster.max_shards_per_node setting, or remove indices "
+                        + "to clear up resources.",
+                    totalShardsToAdd
+                ),
+                false,
+                null
+            );
+        }
+    }
+
+    static DeprecationIssue emptyDataTierPreferenceCheck(ClusterState clusterState) {
+        if (DataTier.dataNodesWithoutAllDataRoles(clusterState).isEmpty() == false) {
+            List<String> indices = new ArrayList<>();
+            for (IndexMetadata indexMetadata : clusterState.metadata().getIndices().values()) {
+                List<String> tierPreference = DataTier.parseTierList(DataTier.TIER_PREFERENCE_SETTING.get(indexMetadata.getSettings()));
+                if (tierPreference.isEmpty()) {
+                    String indexName = indexMetadata.getIndex().getName();
+                    indices.add(indexName);
+                }
+            }
+
+            if (indices.isEmpty() == false) {
+                // this is a bit of a hassle, but the String sort order puts .someindex before someindex, and we
+                // don't want to give the users a list of only just all .ds-somebackingindex-blah indices -- on the other
+                // hand, if that's all that exists, then we don't have much choice. this next little block splits out
+                // all the leading-dot indices and sorts them *after* all the non-leading-dot indices
+                Map<Boolean, List<String>> groups = indices.stream().collect(Collectors.partitioningBy(s -> s.startsWith(".")));
+                List<String> noLeadingPeriod = new ArrayList<>(groups.get(false));
+                List<String> leadingPeriod = new ArrayList<>(groups.get(true));
+                Collections.sort(noLeadingPeriod);
+                Collections.sort(leadingPeriod);
+                noLeadingPeriod.addAll(leadingPeriod);
+                indices = noLeadingPeriod;
+
+                // if there's more than a few indices, or their names are surprisingly long, then we need to cut off the list.
+                // this is not ideal, but our message here is displayed unmodified in the UA, so we have to think about this.
+                StringBuilder builder = new StringBuilder();
+                Strings.collectionToDelimitedStringWithLimit(indices, ", ", "", "", 256, builder);
+
+                return new DeprecationIssue(
+                    DeprecationIssue.Level.WARNING,
+                    "No [" + DataTier.TIER_PREFERENCE + "] is set for indices [" + builder + "].",
+                    "https://ela.st/es-deprecation-7-empty-tier-preference",
+                    "Specify a data tier preference for these indices.",
+                    false,
+                    null
+                );
+            }
+        }
+        return null;
+    }
+
 }

@@ -21,8 +21,7 @@ PUT _snapshot/my_fs_backup
 {
   "type": "fs",
   "settings": {
-    "location": "/mount/backups/my_fs_backup_location",
-    "compress": true
+    "location": "/mount/backups/my_fs_backup_location"
   }
 }
 ----
@@ -39,8 +38,7 @@ PUT _snapshot/my_fs_backup
 {
   "type": "fs",
   "settings": {
-    "location": "my_fs_backup_location",       <1>
-    "compress": true
+    "location": "my_fs_backup_location"        <1>
   }
 }
 ----
@@ -97,8 +95,7 @@ PUT _snapshot/my_fs_backup
 {
   "type": "fs",
   "settings": {
-    "location": "E:\\Mount\\Backups\\My_fs_backup_location",
-    "compress": true
+    "location": "E:\\Mount\\Backups\\My_fs_backup_location"
   }
 }
 ----
@@ -112,8 +109,7 @@ PUT _snapshot/my_fs_backup
 {
   "type": "fs",
   "settings": {
-    "location": "My_fs_backup_location",       <1>
-    "compress": true
+    "location": "My_fs_backup_location"        <1>
   }
 }
 ----

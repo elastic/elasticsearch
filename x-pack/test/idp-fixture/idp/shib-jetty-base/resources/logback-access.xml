@@ -1,0 +1,10 @@
+<configuration>
+  <statusListener class="ch.qos.logback.core.status.OnConsoleStatusListener" /> 
+  <appender name="FILE" class="ch.qos.logback.core.ConsoleAppender">
+    <encoder>
+      <pattern>combined</pattern>
+    </encoder>
+  </appender>
+  
+  <appender-ref ref="FILE" />
+</configuration>

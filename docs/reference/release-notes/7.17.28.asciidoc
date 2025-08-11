@@ -1,0 +1,8 @@
+[[release-notes-7.17.28]]
+== {es} version 7.17.28
+
+No significant changes since 7.17.27.
+
+Also see <<breaking-changes-7.17,Breaking changes in 7.17>>.
+
+

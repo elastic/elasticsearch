@@ -1,7 +1,0 @@
-pr: 76192
-summary: Change env var prefix in Docker settings support
-area: Packaging
-type: enhancement
-issues:
- - 76148
- - 74327

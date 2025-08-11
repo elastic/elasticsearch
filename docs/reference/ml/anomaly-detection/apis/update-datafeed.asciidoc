@@ -25,8 +25,9 @@ Requires the `manage_ml` cluster privilege. This privilege is included in the
 [[ml-update-datafeed-desc]]
 == {api-description-title}
 
-If you update a {dfeed} property, you must stop and start the {dfeed} for the
-change to be applied.
+You can only update a {dfeed} property while the {dfeed} is stopped.
+However, it is possible to stop a {dfeed}, update one of its properties,
+and restart it without closing the associated job.
 
 IMPORTANT: When {es} {security-features} are enabled, your {dfeed} remembers
 which roles the user who updated it had at the time of update and runs the query

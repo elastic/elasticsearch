@@ -227,12 +227,9 @@ public class TransportPutAutoscalingPolicyActionTests extends AutoscalingTestCas
         final Logger mockLogger = mock(Logger.class);
         expectThrows(
             IllegalArgumentException.class,
-            () -> TransportPutAutoscalingPolicyAction.putAutoscalingPolicy(
-                ClusterState.EMPTY_STATE,
-                request,
-                p -> { throw new IllegalArgumentException(); },
-                mockLogger
-            )
+            () -> TransportPutAutoscalingPolicyAction.putAutoscalingPolicy(ClusterState.EMPTY_STATE, request, p -> {
+                throw new IllegalArgumentException();
+            }, mockLogger)
         );
 
         verifyNoMoreInteractions(mockLogger);

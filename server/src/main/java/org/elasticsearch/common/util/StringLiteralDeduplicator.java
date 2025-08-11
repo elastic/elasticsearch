@@ -7,8 +7,6 @@
  */
 package org.elasticsearch.common.util;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 
 import java.util.Map;
@@ -19,8 +17,6 @@ import java.util.Map;
  * advisable as its performance may deteriorate to slower than outright calls to {@link String#intern()}.
  */
 public final class StringLiteralDeduplicator {
-
-    private static final Logger logger = LogManager.getLogger(StringLiteralDeduplicator.class);
 
     private static final int MAX_SIZE = 1000;
 
@@ -36,7 +32,6 @@ public final class StringLiteralDeduplicator {
         final String interned = string.intern();
         if (map.size() > MAX_SIZE) {
             map.clear();
-            logger.debug("clearing intern cache");
         }
         map.put(interned, interned);
         return interned;

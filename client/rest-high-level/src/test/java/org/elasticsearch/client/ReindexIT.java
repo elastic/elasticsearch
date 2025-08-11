@@ -88,10 +88,9 @@ public class ReindexIT extends ESRestHighLevelClientTestCase {
             reindexRequest.setRefresh(true);
             reindexRequest.setRequireAlias(true);
 
-            ElasticsearchStatusException exception = expectThrows(
-                ElasticsearchStatusException.class,
-                () -> { execute(reindexRequest, highLevelClient()::reindex, highLevelClient()::reindexAsync); }
-            );
+            ElasticsearchStatusException exception = expectThrows(ElasticsearchStatusException.class, () -> {
+                execute(reindexRequest, highLevelClient()::reindex, highLevelClient()::reindexAsync);
+            });
 
             assertEquals(RestStatus.NOT_FOUND, exception.status());
             assertEquals(

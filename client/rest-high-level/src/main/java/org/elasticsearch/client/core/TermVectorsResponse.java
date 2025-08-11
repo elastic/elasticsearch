@@ -240,7 +240,9 @@ public class TermVectorsResponse {
             private static final ConstructingObjectParser<FieldStatistics, Void> PARSER = new ConstructingObjectParser<>(
                 "field_statistics",
                 true,
-                args -> { return new FieldStatistics((long) args[0], (int) args[1], (long) args[2]); }
+                args -> {
+                    return new FieldStatistics((long) args[0], (int) args[1], (long) args[2]);
+                }
             );
 
             static {
@@ -411,11 +413,9 @@ public class TermVectorsResponse {
 
         public static final class Token {
 
-            private static final ConstructingObjectParser<Token, Void> PARSER = new ConstructingObjectParser<>(
-                "token",
-                true,
-                args -> { return new Token((Integer) args[0], (Integer) args[1], (Integer) args[2], (String) args[3]); }
-            );
+            private static final ConstructingObjectParser<Token, Void> PARSER = new ConstructingObjectParser<>("token", true, args -> {
+                return new Token((Integer) args[0], (Integer) args[1], (Integer) args[2], (String) args[3]);
+            });
             static {
                 PARSER.declareInt(optionalConstructorArg(), new ParseField("start_offset"));
                 PARSER.declareInt(optionalConstructorArg(), new ParseField("end_offset"));

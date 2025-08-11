@@ -22,7 +22,7 @@ setup:
   - do:
       create:
           index:  test_1
-          id:     1
+          id:     "1"
           body:
               "nested1" : [ { "foo": "bar" }, { "foo": "bar2" } ]
   - match:   { _version: 1}
@@ -36,6 +36,6 @@ setup:
       catch: /The number of nested documents has exceeded the allowed limit of \[2\]. This limit can be set by changing the \[index.mapping.nested_objects.limit\] index level setting\./
       create:
           index:  test_1
-          id:     1
+          id:     "1"
           body:
               "nested1" : [ { "foo": "bar" }, { "foo": "bar2" }, { "foo": "bar3" } ]

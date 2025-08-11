@@ -13,6 +13,7 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.DataStream;
+import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.core.List;
@@ -145,7 +146,7 @@ public class DeleteStepTests extends AbstractStepTestCase<DeleteStep> {
                 .build();
         }
 
-        DataStream dataStream = new DataStream(
+        DataStream dataStream = DataStreamTestHelper.newInstance(
             dataStreamName,
             createTimestampField("@timestamp"),
             List.of(index1.getIndex(), sourceIndexMetadata.getIndex())

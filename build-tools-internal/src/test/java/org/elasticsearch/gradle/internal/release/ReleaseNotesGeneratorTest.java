@@ -14,15 +14,13 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
+import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
-import static org.junit.Assert.assertThat;
 
 public class ReleaseNotesGeneratorTest {
 
@@ -37,52 +35,36 @@ public class ReleaseNotesGeneratorTest {
             "/org/elasticsearch/gradle/internal/release/ReleaseNotesGeneratorTest.generateFile.asciidoc"
         );
 
-        final Map<QualifiedVersion, Set<ChangelogEntry>> entries = getEntries();
+        final Set<ChangelogEntry> entries = getEntries();
 
         // when:
-        final String actualOutput = ReleaseNotesGenerator.generateFile(template, entries);
+        final String actualOutput = ReleaseNotesGenerator.generateFile(template, QualifiedVersion.of("8.2.0-SNAPSHOT"), entries);
 
         // then:
         assertThat(actualOutput, equalTo(expectedOutput));
     }
 
-    private Map<QualifiedVersion, Set<ChangelogEntry>> getEntries() {
-        final Set<ChangelogEntry> entries_8_2_0 = new HashSet<>();
-        entries_8_2_0.addAll(buildEntries(1, 2));
-        entries_8_2_0.addAll(buildEntries(2, 2));
-        entries_8_2_0.addAll(buildEntries(3, 2));
-
-        final Set<ChangelogEntry> entries_8_1_0 = new HashSet<>();
-        entries_8_1_0.addAll(buildEntries(4, 2));
-        entries_8_1_0.addAll(buildEntries(5, 2));
-        entries_8_1_0.addAll(buildEntries(6, 2));
-
-        final Set<ChangelogEntry> entries_8_0_0 = new HashSet<>();
-        entries_8_0_0.addAll(buildEntries(7, 2));
-        entries_8_0_0.addAll(buildEntries(8, 2));
-        entries_8_0_0.addAll(buildEntries(9, 2));
+    private Set<ChangelogEntry> getEntries() {
+        final Set<ChangelogEntry> entries = new HashSet<>();
+        entries.addAll(buildEntries(1, 2));
+        entries.addAll(buildEntries(2, 2));
+        entries.addAll(buildEntries(3, 2));
 
         // Security issues are presented first in the notes
         final ChangelogEntry securityEntry = new ChangelogEntry();
         securityEntry.setArea("Security");
         securityEntry.setType("security");
         securityEntry.setSummary("Test security issue");
-        entries_8_2_0.add(securityEntry);
+        entries.add(securityEntry);
 
         // known issues are presented after security issues
         final ChangelogEntry knownIssue = new ChangelogEntry();
         knownIssue.setArea("Search");
         knownIssue.setType("known-issue");
         knownIssue.setSummary("Test known issue");
-        entries_8_1_0.add(knownIssue);
+        entries.add(knownIssue);
 
-        final Map<QualifiedVersion, Set<ChangelogEntry>> result = new HashMap<>();
-
-        result.put(QualifiedVersion.of("8.2.0-SNAPSHOT"), entries_8_2_0);
-        result.put(QualifiedVersion.of("8.1.0"), entries_8_1_0);
-        result.put(QualifiedVersion.of("8.0.0"), entries_8_0_0);
-
-        return result;
+        return entries;
     }
 
     private List<ChangelogEntry> buildEntries(int seed, int count) {

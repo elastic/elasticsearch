@@ -31,6 +31,12 @@ public interface RestChannel {
 
     BytesStreamOutput bytesOutput();
 
+    /**
+     * Releases the current output buffer for this channel. Must be called after the buffer derived from {@link #bytesOutput} is no longer
+     * needed.
+     */
+    void releaseOutputBuffer();
+
     RestRequest request();
 
     /**

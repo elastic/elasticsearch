@@ -11,7 +11,7 @@ setup:
   - do:
       index:
         index:  test123
-        id:     1
+        id:     "1"
         body:   { age: 23 }
 
   - do:

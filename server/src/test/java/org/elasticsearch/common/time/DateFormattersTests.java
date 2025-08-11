@@ -324,6 +324,26 @@ public class DateFormattersTests extends ESTestCase {
         assertRoundupFormatter("uuuu-MM-dd'T'HH:mm:ss.SSS||epoch_second", "1234567890", 1234567890999L);
     }
 
+    public void testYearWithoutMonthRoundUp() {
+        assertRoundupFormatter("1500", "1500-01-01T23:59:59.999", "uuuu");
+        assertRoundupFormatter("2022", "2022-01-01T23:59:59.999", "uuuu");
+        assertRoundupFormatter("2022", "2022-01-01T23:59:59.999", "yyyy");
+        assumeFalse(
+            "won't work in jdk8 " + "because SPI mechanism is not looking at classpath - needs ISOCalendarDataProvider in jre's ext/libs",
+            JavaVersion.current().equals(JavaVersion.parse("8"))
+        );
+        // cannot reliably default week based years due to locale changing. This is always using the same locale anyway
+        // See JavaDateFormatter javadocs
+        assertRoundupFormatter("2022", "2022-01-03T23:59:59.999", "YYYY");
+    }
+
+    private void assertRoundupFormatter(String input, String expectedDate, String format) {
+        long expectedMillis = DateFormatters.from(DateFormatter.forPattern("strict_date_optional_time").parse(expectedDate))
+            .toInstant()
+            .toEpochMilli();
+        assertRoundupFormatter(format, input, expectedMillis);
+    }
+
     private void assertRoundupFormatter(String format, String input, long expectedMilliSeconds) {
         JavaDateFormatter dateFormatter = (JavaDateFormatter) DateFormatter.forPattern(format);
         dateFormatter.parse(input);

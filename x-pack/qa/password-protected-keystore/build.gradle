@@ -3,14 +3,13 @@
  * is using a password protected keystore in its nodes.
  */
 
-apply plugin: 'elasticsearch.internal-testclusters'
-apply plugin: 'elasticsearch.standalone-rest-test'
-apply plugin: 'elasticsearch.rest-test'
+apply plugin: 'elasticsearch.legacy-java-rest-test'
+
 dependencies {
-  testImplementation project(path: xpackModule('core'))
+  javaRestTestImplementation project(path: xpackModule('core'))
 }
 
-testClusters.matching { it.name == "integTest" }.configureEach {
+testClusters.matching { it.name == "javaRestTest" }.configureEach {
   testDistribution = 'DEFAULT'
   numberOfNodes = 2
   keystorePassword 'keystore-password'
@@ -23,10 +22,10 @@ testClusters.matching { it.name == "integTest" }.configureEach {
   setting 'xpack.security.transport.ssl.key_passphrase', 'transport-password'
   setting 'xpack.security.transport.ssl.certificate_authorities', 'ca.crt'
 
-  extraConfigFile 'transport.key', file('src/test/resources/ssl/transport.key')
-  extraConfigFile 'transport.crt', file('src/test/resources/ssl/transport.crt')
-  extraConfigFile 'ca.crt', file('src/test/resources/ssl/ca.crt')
-  extraConfigFile 'roles.yml', file('src/test/resources/roles.yml')
+  extraConfigFile 'transport.key', file('src/javaRestTest/resources/ssl/transport.key')
+  extraConfigFile 'transport.crt', file('src/javaRestTest/resources/ssl/transport.crt')
+  extraConfigFile 'ca.crt', file('src/javaRestTest/resources/ssl/ca.crt')
+  extraConfigFile 'roles.yml', file('src/javaRestTest/resources/roles.yml')
 
   user username: 'admin_user', password: 'admin-password'
   user username:'test-user' ,password: 'test-user-password', role: 'user_role'

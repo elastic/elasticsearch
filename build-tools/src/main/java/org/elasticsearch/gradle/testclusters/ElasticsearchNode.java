@@ -38,7 +38,6 @@ import org.gradle.api.file.FileCollection;
 import org.gradle.api.file.FileSystemOperations;
 import org.gradle.api.file.FileTree;
 import org.gradle.api.file.RegularFile;
-import org.gradle.api.internal.artifacts.ArtifactAttributes;
 import org.gradle.api.logging.Logger;
 import org.gradle.api.logging.Logging;
 import org.gradle.api.provider.Provider;
@@ -61,10 +60,14 @@ import java.io.InputStream;
 import java.io.LineNumberReader;
 import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
+import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
+import java.nio.file.SimpleFileVisitor;
 import java.nio.file.StandardCopyOption;
 import java.nio.file.StandardOpenOption;
+import java.nio.file.attribute.BasicFileAttributes;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -145,6 +148,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     private final LazyPropertyMap<String, File> extraConfigFiles = new LazyPropertyMap<>("Extra config files", this, FileEntry::new);
     private final LazyPropertyList<FileCollection> extraJarConfigurations = new LazyPropertyList<>("Extra jar files", this);
     private final List<Map<String, String>> credentials = new ArrayList<>();
+    private final List<File> roleFiles = new ArrayList<>();
     final LinkedHashMap<String, String> defaultConfig = new LinkedHashMap<>();
 
     private final Path confPathRepo;
@@ -152,8 +156,8 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     private final Path confPathLogs;
     private final Path transportPortFile;
     private final Path httpPortsFile;
-    private final Path esLogFile;
-    private final Path esStdinFile;
+    private final Path esOutputFile;
+    private final Path esInputFile;
     private final Path tmpDir;
     private final Provider<File> runtimeJava;
 
@@ -201,8 +205,8 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         confPathLogs = workingDir.resolve("logs");
         transportPortFile = confPathLogs.resolve("transport.ports");
         httpPortsFile = confPathLogs.resolve("http.ports");
-        esLogFile = confPathLogs.resolve(clusterName + ".log");
-        esStdinFile = workingDir.resolve("es.stdin");
+        esOutputFile = confPathLogs.resolve("es.out");
+        esInputFile = workingDir.resolve("es.in");
         tmpDir = workingDir.resolve("tmp");
         waitConditions.put("ports files", this::checkPortsFilesExistWithDelay);
         defaultConfig.put("cluster.name", clusterName);
@@ -244,14 +248,12 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     private void doSetVersion(String version) {
         String distroName = "testclusters" + path.replace(":", "-") + "-" + this.name + "-" + version;
         NamedDomainObjectContainer<ElasticsearchDistribution> container = DistributionDownloadPlugin.getContainer(project);
-        if (container.findByName(distroName) == null) {
-            container.create(distroName);
-        }
-        ElasticsearchDistribution distro = container.getByName(distroName);
-        distro.setVersion(version);
-        distro.setArchitecture(Architecture.current());
-        setDistributionType(distro, testDistribution);
-        distributions.add(distro);
+        // TODO Refactor test using register<> for reducing overhead
+        ElasticsearchDistribution distribution = container.maybeCreate(distroName);
+        distribution.setVersion(version);
+        distribution.setArchitecture(Architecture.current());
+        setDistributionType(distribution, testDistribution);
+        distributions.add(distribution);
     }
 
     @Internal
@@ -336,7 +338,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     private void registerExtractedConfig(Provider<RegularFile> pluginProvider) {
         Dependency pluginDependency = this.project.getDependencies().create(project.files(pluginProvider));
         Configuration extractedConfig = project.getConfigurations().detachedConfiguration(pluginDependency);
-        extractedConfig.getAttributes().attribute(ArtifactAttributes.ARTIFACT_FORMAT, ArtifactTypeDefinition.DIRECTORY_TYPE);
+        extractedConfig.getAttributes().attribute(ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE, ArtifactTypeDefinition.DIRECTORY_TYPE);
         extractedConfig.getAttributes().attribute(bundleAttribute, true);
         pluginAndModuleConfiguration.from(extractedConfig);
     }
@@ -346,10 +348,10 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         project.getDependencies().getArtifactTypes().maybeCreate(ArtifactTypeDefinition.ZIP_TYPE);
         project.getDependencies().registerTransform(UnzipTransform.class, transformSpec -> {
             transformSpec.getFrom()
-                .attribute(ArtifactAttributes.ARTIFACT_FORMAT, ArtifactTypeDefinition.ZIP_TYPE)
+                .attribute(ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE, ArtifactTypeDefinition.ZIP_TYPE)
                 .attribute(bundleAttribute, true);
             transformSpec.getTo()
-                .attribute(ArtifactAttributes.ARTIFACT_FORMAT, ArtifactTypeDefinition.DIRECTORY_TYPE)
+                .attribute(ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE, ArtifactTypeDefinition.DIRECTORY_TYPE)
                 .attribute(bundleAttribute, true);
             transformSpec.getParameters().setAsFiletreeOutput(true);
         });
@@ -473,15 +475,6 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         configurationFrozen.set(true);
     }
 
-    /**
-     * Returns a stream of lines in the generated logs similar to Files.lines
-     *
-     * @return stream of log lines
-     */
-    public Stream<String> logLines() throws IOException {
-        return Files.lines(esLogFile, StandardCharsets.UTF_8);
-    }
-
     @Override
     public synchronized void start() {
         LOGGER.info("Starting `{}`", this);
@@ -572,16 +565,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
             }
         }
 
-        if (credentials.isEmpty() == false) {
-            logToProcessStdout("Setting up " + credentials.size() + " users");
-
-            credentials.forEach(
-                paramMap -> runElasticsearchBinScript(
-                    getVersion().onOrAfter("6.3.0") ? "elasticsearch-users" : "x-pack/users",
-                    paramMap.entrySet().stream().flatMap(entry -> Stream.of(entry.getKey(), entry.getValue())).toArray(String[]::new)
-                )
-            );
-        }
+        configureSecurity();
 
         if (cliSetup.isEmpty() == false) {
             logToProcessStdout("Running " + cliSetup.size() + " setup commands");
@@ -611,11 +595,11 @@ public class ElasticsearchNode implements TestClusterConfiguration {
 
     private void logToProcessStdout(String message) {
         try {
-            if (Files.exists(esLogFile.getParent()) == false) {
-                Files.createDirectories(esLogFile.getParent());
+            if (Files.exists(esOutputFile.getParent()) == false) {
+                Files.createDirectories(esOutputFile.getParent());
             }
             Files.write(
-                esLogFile,
+                esOutputFile,
                 ("[" + Instant.now().toString() + "] [BUILD] " + message + "\n").getBytes(StandardCharsets.UTF_8),
                 StandardOpenOption.CREATE,
                 StandardOpenOption.APPEND
@@ -691,6 +675,39 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         });
     }
 
+    private void configureSecurity() {
+        if (credentials.isEmpty() == false) {
+            logToProcessStdout("Setting up " + credentials.size() + " users");
+
+            credentials.forEach(
+                paramMap -> runElasticsearchBinScript(
+                    getVersion().onOrAfter("6.3.0") ? "elasticsearch-users" : "x-pack/users",
+                    paramMap.entrySet().stream().flatMap(entry -> Stream.of(entry.getKey(), entry.getValue())).toArray(String[]::new)
+                )
+            );
+        }
+        if (roleFiles.isEmpty() == false) {
+            logToProcessStdout("Setting up roles.yml");
+
+            Path dst = configFile.getParent().resolve("roles.yml");
+            roleFiles.forEach(from -> {
+                if (Files.exists(from.toPath()) == false) {
+                    throw new TestClustersException(
+                        "Can't create roles.yml config file from " + from + " for " + this + " as it does not exist"
+                    );
+                }
+                try {
+                    final Path source = from.toPath();
+                    final String content = Files.readString(source, StandardCharsets.UTF_8);
+                    Files.writeString(dst, content + System.lineSeparator(), StandardCharsets.UTF_8, StandardOpenOption.APPEND);
+                    LOGGER.info("Appended roles file {} to {}", source, dst);
+                } catch (IOException e) {
+                    throw new UncheckedIOException("Can't append roles file " + from + " to " + dst, e);
+                }
+            });
+        }
+    }
+
     private void installModules() {
         logToProcessStdout("Installing " + modules.size() + " modules");
         for (Provider<File> module : modules) {
@@ -747,6 +764,11 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         cred.put("-p", userSpec.getOrDefault("password", "x-pack-test-password"));
         cred.put("-r", userSpec.getOrDefault("role", "superuser"));
         credentials.add(cred);
+    }
+
+    @Override
+    public void rolesFile(File rolesYml) {
+        roleFiles.add(rolesYml);
     }
 
     private void runElasticsearchBinScriptWithInput(String input, String tool, CharSequence... args) {
@@ -876,14 +898,15 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         environment.clear();
         environment.putAll(getESEnvironment());
 
-        // Just toss the output since we rely on the normal log file written by Elasticsearch
-        processBuilder.redirectOutput(ProcessBuilder.Redirect.DISCARD);
-        processBuilder.redirectError(ProcessBuilder.Redirect.DISCARD);
+        // Direct the stderr to the ES log file. This should capture any jvm problems to start.
+        // Stdout is discarded because ES duplicates the log file to stdout when run in the foreground.
+        processBuilder.redirectOutput(ProcessBuilder.Redirect.appendTo(esOutputFile.toFile()));
+        processBuilder.redirectErrorStream(true);
 
         if (keystorePassword != null && keystorePassword.length() > 0) {
             try {
-                Files.write(esStdinFile, (keystorePassword + "\n").getBytes(StandardCharsets.UTF_8), StandardOpenOption.CREATE);
-                processBuilder.redirectInput(esStdinFile.toFile());
+                Files.write(esInputFile, (keystorePassword + "\n").getBytes(StandardCharsets.UTF_8), StandardOpenOption.CREATE);
+                processBuilder.redirectInput(esInputFile.toFile());
             } catch (IOException e) {
                 throw new TestClustersException("Failed to set the keystore password for " + this, e);
             }
@@ -975,7 +998,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
-        logFileContents("Log output of node", esLogFile, tailLogs);
+        logFileContents("Log output of node", esOutputFile, tailLogs);
     }
 
     @Override
@@ -1190,34 +1213,46 @@ public class ElasticsearchNode implements TestClusterConfiguration {
 
     private void sync(Path sourceRoot, Path destinationRoot, BiConsumer<Path, Path> syncMethod) {
         assert Files.exists(destinationRoot) == false;
-        try (Stream<Path> stream = Files.walk(sourceRoot)) {
-            stream.forEach(source -> {
-                Path relativeDestination = sourceRoot.relativize(source);
-                if (relativeDestination.getNameCount() <= 1) {
-                    return;
+        try {
+            Files.walkFileTree(sourceRoot, new SimpleFileVisitor<Path>() {
+                @Override
+                public FileVisitResult preVisitDirectory(Path dir, BasicFileAttributes attrs) throws IOException {
+                    Path relativeDestination = sourceRoot.relativize(dir);
+                    if (relativeDestination.getNameCount() <= 1) {
+                        return FileVisitResult.CONTINUE;
+                    }
+                    // Throw away the first name as the archives have everything in a single top level folder we are not interested in
+                    relativeDestination = relativeDestination.subpath(1, relativeDestination.getNameCount());
+                    Path destination = destinationRoot.resolve(relativeDestination);
+                    Files.createDirectories(destination);
+                    return FileVisitResult.CONTINUE;
                 }
-                // Throw away the first name as the archives have everything in a single top level folder we are not interested in
-                relativeDestination = relativeDestination.subpath(1, relativeDestination.getNameCount());
 
-                Path destination = destinationRoot.resolve(relativeDestination);
-                if (Files.isDirectory(source)) {
-                    try {
-                        Files.createDirectories(destination);
-                    } catch (IOException e) {
-                        throw new UncheckedIOException("Can't create directory " + destination.getParent(), e);
+                @Override
+                public FileVisitResult visitFile(Path source, BasicFileAttributes attrs) throws IOException {
+                    Path relativeDestination = sourceRoot.relativize(source);
+                    if (relativeDestination.getNameCount() <= 1) {
+                        return FileVisitResult.CONTINUE;
                     }
-                } else {
-                    // Ignore these files that are sometimes let behind by the JVM
-                    if (relativeDestination.toFile().getName().startsWith(".attach_pid")) {
-                        return;
-                    }
-
-                    try {
-                        Files.createDirectories(destination.getParent());
-                    } catch (IOException e) {
-                        throw new UncheckedIOException("Can't create directory " + destination.getParent(), e);
-                    }
+                    // Throw away the first name as the archives have everything in a single top level folder we are not interested in
+                    relativeDestination = relativeDestination.subpath(1, relativeDestination.getNameCount());
+                    Path destination = destinationRoot.resolve(relativeDestination);
+                    Files.createDirectories(destination.getParent());
                     syncMethod.accept(destination, source);
+                    return FileVisitResult.CONTINUE;
+                }
+
+                @Override
+                public FileVisitResult visitFileFailed(Path file, IOException exc) throws IOException {
+                    if (exc instanceof NoSuchFileException) {
+                        NoSuchFileException noFileException = (NoSuchFileException) exc;
+                        // Ignore these files that are sometimes left behind by the JVM
+                        if (noFileException.getFile() != null && noFileException.getFile().contains(".attach_pid")) {
+                            LOGGER.info("Ignoring file left behind by JVM: {}", noFileException.getFile());
+                            return FileVisitResult.CONTINUE;
+                        }
+                    }
+                    throw exc;
                 }
             });
         } catch (IOException e) {
@@ -1405,6 +1440,12 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         return files;
     }
 
+    @InputFiles
+    @PathSensitive(PathSensitivity.RELATIVE)
+    public List<File> getRoleFiles() {
+        return roleFiles;
+    }
+
     @Nested
     public List<?> getKeystoreSettings() {
         return keystoreSettings.getNormalizedCollection();
@@ -1536,8 +1577,8 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     }
 
     @Internal
-    Path getEsLogFile() {
-        return esLogFile;
+    Path getEsOutputFile() {
+        return esOutputFile;
     }
 
     private static class FileEntry implements Named {

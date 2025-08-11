@@ -99,7 +99,7 @@ stop word.
 ==== `tokenizer` and `ignore_case` are deprecated
 
 The `tokenizer` parameter controls the tokenizers that will be used to
-tokenize the synonym, this parameter is for backwards compatibility for indices that created before 6.0..
+tokenize the synonym, this parameter is for backwards compatibility for indices that created before 6.0.
 The `ignore_case` parameter works with `tokenizer` parameter only.
 
 Two synonym formats are supported: Solr, WordNet.

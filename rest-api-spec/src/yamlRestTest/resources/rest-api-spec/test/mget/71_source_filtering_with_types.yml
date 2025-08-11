@@ -3,13 +3,13 @@ setup:
       index:
         index:  test_1
         type:   test
-        id:     1
+        id:     "1"
         body:   { "include": { "field1": "v1", "field2": "v2" }, "count": 1 }
   - do:
       index:
         index:  test_1
         type:   test
-        id:     2
+        id:     "2"
         body:   { "include": { "field1": "v1", "field2": "v2" }, "count": 1 }
 
 ---

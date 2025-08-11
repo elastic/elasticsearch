@@ -56,6 +56,7 @@ import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.EsThreadPoolExecutor;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.iterable.Iterables;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
@@ -365,6 +366,7 @@ public class IndicesService extends AbstractLifecycleComponent
                 1,
                 0,
                 TimeUnit.MILLISECONDS,
+                true,
                 daemonThreadFactory(nodeName, DANGLING_INDICES_UPDATE_THREAD_NAME),
                 threadPool.getThreadContext()
             )
@@ -605,14 +607,17 @@ public class IndicesService extends AbstractLifecycleComponent
         };
         finalListeners.add(onStoreClose);
         finalListeners.add(oldShardsStats);
-        final IndexService indexService = createIndexService(
-            CREATE_INDEX,
-            indexMetadata,
-            indicesQueryCache,
-            indicesFieldDataCache,
-            finalListeners,
-            indexingMemoryController
-        );
+        IndexService indexService;
+        try (ThreadContext.StoredContext ignored = threadPool.getThreadContext().newStoredContext(false)) {
+            indexService = createIndexService(
+                CREATE_INDEX,
+                indexMetadata,
+                indicesQueryCache,
+                indicesFieldDataCache,
+                finalListeners,
+                indexingMemoryController
+            );
+        }
         boolean success = false;
         try {
             if (writeDanglingIndices && nodeWriteDanglingIndicesInfo) {

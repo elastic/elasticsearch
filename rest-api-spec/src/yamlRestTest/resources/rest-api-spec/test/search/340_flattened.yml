@@ -16,7 +16,7 @@ setup:
   - do:
       index:
         index:  flattened_test
-        id:     1
+        id:     "1"
         body:
           flattened:
             key: some_value
@@ -66,7 +66,7 @@ setup:
   - do:
       index:
         index:  test
-        id:     1
+        id:     "1"
         body:
           headers:
             content-type: application/javascript
@@ -76,7 +76,7 @@ setup:
   - do:
       index:
         index:  test
-        id:     2
+        id:     "2"
         body:
           headers:
             content-type: text/plain
@@ -122,7 +122,7 @@ setup:
   - do:
       index:
         index:  test
-        id:     1
+        id:     "1"
         body:
           flattened:
             some_field: some_value
@@ -164,7 +164,7 @@ setup:
   - do:
       index:
         index:  test
-        id:     1
+        id:     "1"
         body:
           flattened:
             some_field: some_value
@@ -198,7 +198,7 @@ setup:
   - do:
       index:
         index:  test
-        id:     1
+        id:     "1"
         body:
           flattened:
             some_field: some_value

@@ -14,6 +14,7 @@ import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeFormatterBuilder;
+import java.util.Locale;
 
 import static java.time.format.DateTimeFormatter.ISO_LOCAL_DATE;
 import static java.time.format.DateTimeFormatter.ISO_LOCAL_TIME;
@@ -30,7 +31,7 @@ public final class DateUtils {
         .optionalStart()
         .appendZoneOrOffsetId()
         .optionalEnd()
-        .toFormatter()
+        .toFormatter(Locale.ROOT)
         .withZone(UTC);
     private static final DateTimeFormatter DATE_OPTIONAL_TIME_FORMATTER_T_LITERAL = new DateTimeFormatterBuilder().append(ISO_LOCAL_DATE)
         .optionalStart()
@@ -39,7 +40,7 @@ public final class DateUtils {
         .optionalStart()
         .appendZoneOrOffsetId()
         .optionalEnd()
-        .toFormatter()
+        .toFormatter(Locale.ROOT)
         .withZone(UTC);
 
     private DateUtils() {}

@@ -7,14 +7,14 @@
 package org.elasticsearch.xpack.sql.action;
 
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.sql.action.BasicFormatter.FormatOption;
 import org.elasticsearch.xpack.sql.proto.ColumnInfo;
 import org.elasticsearch.xpack.sql.proto.Mode;
+import org.elasticsearch.xpack.sql.proto.formatter.SimpleFormatter.FormatOption;
 
 import java.util.Arrays;
 
-import static org.elasticsearch.xpack.sql.action.BasicFormatter.FormatOption.CLI;
 import static org.elasticsearch.xpack.sql.proto.SqlVersion.DATE_NANOS_SUPPORT_VERSION;
+import static org.elasticsearch.xpack.sql.proto.formatter.SimpleFormatter.FormatOption.CLI;
 import static org.hamcrest.Matchers.arrayWithSize;
 
 public class BasicFormatterTests extends ESTestCase {

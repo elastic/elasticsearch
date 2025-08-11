@@ -104,9 +104,9 @@ public class ClusterBootstrapServiceTests extends ESTestCase {
             settings.put(UNCONFIGURED_BOOTSTRAP_TIMEOUT_SETTING.getKey(), timeout + "ms");
         }
 
-        final AtomicReference<Supplier<Iterable<DiscoveryNode>>> discoveredNodesSupplier = new AtomicReference<>(
-            () -> { throw new AssertionError("should not be called yet"); }
-        );
+        final AtomicReference<Supplier<Iterable<DiscoveryNode>>> discoveredNodesSupplier = new AtomicReference<>(() -> {
+            throw new AssertionError("should not be called yet");
+        });
 
         final AtomicBoolean bootstrapped = new AtomicBoolean();
         ClusterBootstrapService clusterBootstrapService = new ClusterBootstrapService(
@@ -160,13 +160,9 @@ public class ClusterBootstrapServiceTests extends ESTestCase {
     }
 
     private void testDoesNothingWithSettings(Settings.Builder builder) {
-        ClusterBootstrapService clusterBootstrapService = new ClusterBootstrapService(
-            builder.build(),
-            transportService,
-            () -> { throw new AssertionError("should not be called"); },
-            () -> false,
-            vc -> { throw new AssertionError("should not be called"); }
-        );
+        ClusterBootstrapService clusterBootstrapService = new ClusterBootstrapService(builder.build(), transportService, () -> {
+            throw new AssertionError("should not be called");
+        }, () -> false, vc -> { throw new AssertionError("should not be called"); });
         transportService.start();
         clusterBootstrapService.scheduleUnconfiguredBootstrap();
         deterministicTaskQueue.runAllTasks();
@@ -185,7 +181,9 @@ public class ClusterBootstrapServiceTests extends ESTestCase {
             transportService,
             () -> Stream.of(localNode, zen1Node).collect(Collectors.toSet()),
             () -> false,
-            vc -> { throw new AssertionError("should not be called"); }
+            vc -> {
+                throw new AssertionError("should not be called");
+            }
         );
         transportService.start();
         clusterBootstrapService.scheduleUnconfiguredBootstrap();
@@ -199,7 +197,9 @@ public class ClusterBootstrapServiceTests extends ESTestCase {
                 transportService,
                 Collections::emptyList,
                 () -> false,
-                vc -> { throw new AssertionError("should not be called"); }
+                vc -> {
+                    throw new AssertionError("should not be called");
+                }
             );
         });
 
@@ -328,7 +328,9 @@ public class ClusterBootstrapServiceTests extends ESTestCase {
             transportService,
             Collections::emptyList,
             () -> true,
-            vc -> { throw new AssertionError("should not be called"); }
+            vc -> {
+                throw new AssertionError("should not be called");
+            }
         );
 
         transportService.start();
@@ -351,7 +353,9 @@ public class ClusterBootstrapServiceTests extends ESTestCase {
             transportService,
             () -> Stream.of(otherNode1).collect(Collectors.toList()),
             () -> false,
-            vc -> { throw new AssertionError("should not be called"); }
+            vc -> {
+                throw new AssertionError("should not be called");
+            }
         );
 
         transportService.start();
@@ -375,7 +379,9 @@ public class ClusterBootstrapServiceTests extends ESTestCase {
             transportService,
             () -> Stream.of(otherNode1, otherNode2).collect(Collectors.toList()),
             () -> false,
-            vc -> { throw new AssertionError("should not be called"); }
+            vc -> {
+                throw new AssertionError("should not be called");
+            }
         );
 
         transportService.start();
@@ -391,7 +397,9 @@ public class ClusterBootstrapServiceTests extends ESTestCase {
             transportService,
             () -> Stream.of(otherNode1, otherNode2).collect(Collectors.toList()),
             () -> true,
-            vc -> { throw new AssertionError("should not be called"); }
+            vc -> {
+                throw new AssertionError("should not be called");
+            }
         );
 
         transportService.start();
@@ -415,7 +423,9 @@ public class ClusterBootstrapServiceTests extends ESTestCase {
             transportService,
             () -> Stream.of(localNode, otherNode1, otherNode2).collect(Collectors.toList()),
             () -> false,
-            vc -> { throw new AssertionError("should not be called"); }
+            vc -> {
+                throw new AssertionError("should not be called");
+            }
         );
         transportService.start();
         clusterBootstrapService.onFoundPeersUpdated();
@@ -428,7 +438,9 @@ public class ClusterBootstrapServiceTests extends ESTestCase {
             transportService,
             () -> Stream.of(localNode, otherNode1, otherNode2).collect(Collectors.toList()),
             () -> false,
-            vc -> { throw new AssertionError("should not be called"); }
+            vc -> {
+                throw new AssertionError("should not be called");
+            }
         );
         transportService.start();
         clusterBootstrapService.onFoundPeersUpdated();
@@ -441,7 +453,9 @@ public class ClusterBootstrapServiceTests extends ESTestCase {
             transportService,
             () -> Stream.of(localNode, otherNode1, otherNode2).collect(Collectors.toList()),
             () -> false,
-            vc -> { throw new AssertionError("should not be called"); }
+            vc -> {
+                throw new AssertionError("should not be called");
+            }
         );
         transportService.start();
         clusterBootstrapService.scheduleUnconfiguredBootstrap();
@@ -465,7 +479,9 @@ public class ClusterBootstrapServiceTests extends ESTestCase {
             transportService,
             () -> Stream.of(otherNode1, otherNode2, zen1Node).collect(Collectors.toList()),
             () -> false,
-            vc -> { throw new AssertionError("should not be called"); }
+            vc -> {
+                throw new AssertionError("should not be called");
+            }
         );
 
         transportService.start();
@@ -507,7 +523,9 @@ public class ClusterBootstrapServiceTests extends ESTestCase {
             transportService,
             discoveredNodes::get,
             () -> false,
-            vc -> { throw new AssertionError("should not be called"); }
+            vc -> {
+                throw new AssertionError("should not be called");
+            }
         );
 
         transportService.start();
@@ -530,7 +548,9 @@ public class ClusterBootstrapServiceTests extends ESTestCase {
             transportService,
             discoveredNodes::get,
             () -> false,
-            vc -> { throw new AssertionError("should not be called"); }
+            vc -> {
+                throw new AssertionError("should not be called");
+            }
         );
 
         transportService.start();
@@ -616,7 +636,9 @@ public class ClusterBootstrapServiceTests extends ESTestCase {
             transportService,
             Collections::emptyList,
             () -> false,
-            vc -> { throw new AssertionError("should not be called"); }
+            vc -> {
+                throw new AssertionError("should not be called");
+            }
         );
 
         transportService.start();

@@ -5,11 +5,7 @@
  * in compliance with, at your election, the Elastic License 2.0 or the Server
  * Side Public License, v 1.
  */
-
-apply plugin: 'elasticsearch.internal-testclusters'
-apply plugin: 'elasticsearch.standalone-rest-test'
-apply plugin: 'elasticsearch.rest-test'
-apply plugin: 'elasticsearch.rest-resources'
+apply plugin: 'elasticsearch.internal-yaml-rest-test'
 
 restResources {
   restTests {
@@ -17,21 +13,12 @@ restResources {
   }
 }
 
-File repo = file("$buildDir/testclusters/repo")
-testClusters.matching { it.name == "integTest" }.configureEach {
-  numberOfNodes = 2
-  setting 'path.repo', repo.absolutePath
+dependencies {
+  clusterModules project(":modules:mapper-extras")
+  clusterModules project(":modules:ingest-common")
 }
 
-testClusters.configureEach {
-  setting 'xpack.security.enabled', 'false'
-}
-
-tasks.named("integTest").configure {
-  doFirst {
-    project.delete(repo)
-    repo.mkdirs()
-  }
+tasks.named("yamlRestTest").configure {
   systemProperty 'tests.rest.blacklist', [
     'cat.templates/10_basic/No templates',
     'cat.templates/10_basic/Sort templates',

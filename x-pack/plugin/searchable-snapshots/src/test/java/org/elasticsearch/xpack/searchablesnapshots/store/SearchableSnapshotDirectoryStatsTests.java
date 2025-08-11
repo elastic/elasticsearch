@@ -697,7 +697,7 @@ public class SearchableSnapshotDirectoryStatsTests extends AbstractSearchableSna
             DiscoveryNode targetNode = new DiscoveryNode("local", buildNewFakeTransportAddress(), Version.CURRENT);
             RecoveryState recoveryState = new SearchableSnapshotRecoveryState(shardRouting, targetNode, null);
             final PlainActionFuture<Void> future = PlainActionFuture.newFuture();
-            final boolean loaded = directory.loadSnapshot(recoveryState, future);
+            final boolean loaded = directory.loadSnapshot(recoveryState, () -> false, future);
             future.get();
             assertThat("Failed to load snapshot", loaded, is(true));
             assertThat("Snapshot should be loaded", directory.snapshot(), notNullValue());

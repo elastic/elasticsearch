@@ -69,10 +69,10 @@ referenced leader index. When this API returns, the follower index exists, and
 [[ccr-put-follow-request-body]]
 ==== {api-request-body-title}
 
-`leader_index`::
+[[ccr-put-follow-request-body-leader_index]]`leader_index`::
   (Required, string) The name of the index in the leader cluster to follow.
 
-`remote_cluster`::
+[[ccr-put-follow-request-body-remote_cluster]]`remote_cluster`::
   (Required, string) The <<remote-clusters,remote cluster>> containing
   the leader index.
 

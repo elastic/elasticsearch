@@ -88,18 +88,28 @@ public class NodeShutdownAllocationDecider extends AllocationDecider {
         SingleNodeShutdownMetadata thisNodeShutdownMetadata = getNodeShutdownMetadata(allocation.metadata(), node.getId());
 
         if (thisNodeShutdownMetadata == null) {
-            return allocation.decision(Decision.YES, NAME, "node [%s] is not preparing for removal from the cluster");
+            return allocation.decision(Decision.YES, NAME, "node [%s] is not preparing for removal from the cluster", node.getId());
         }
 
         switch (thisNodeShutdownMetadata.getType()) {
             case RESTART:
                 return allocation.decision(
-                    Decision.NO,
+                    Decision.YES,
                     NAME,
-                    "node [%s] is preparing to restart, auto-expansion waiting until it is complete",
+                    "node [%s] is not preparing for removal from the cluster (is restarting)",
                     node.getId()
                 );
             case REPLACE:
+                if (allocation.nodes().hasByName(thisNodeShutdownMetadata.getTargetNodeName()) == false) {
+                    return allocation.decision(
+                        Decision.YES,
+                        NAME,
+                        "node [%s] is preparing to be removed from the cluster, but replacement is not yet present",
+                        node.getId()
+                    );
+                } else {
+                    return allocation.decision(Decision.NO, NAME, "node [%s] is preparing for removal from the cluster", node.getId());
+                }
             case REMOVE:
                 return allocation.decision(Decision.NO, NAME, "node [%s] is preparing for removal from the cluster", node.getId());
             default:

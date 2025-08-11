@@ -39,7 +39,7 @@ public class StringScriptFieldPrefixQueryTests extends AbstractStringScriptField
         String fieldName = orig.fieldName();
         String prefix = orig.prefix();
         boolean caseInsensitive = orig.caseInsensitive();
-        switch (randomInt(2)) {
+        switch (randomInt(3)) {
             case 0:
                 script = randomValueOtherThan(script, this::randomScript);
                 break;

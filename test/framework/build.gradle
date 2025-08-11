@@ -26,8 +26,8 @@ dependencies {
   api "commons-codec:commons-codec:${versions.commonscodec}"
 
   // mockito
-  api 'org.mockito:mockito-core:4.0.0'
-  api 'net.bytebuddy:byte-buddy:1.11.19'
+  api 'org.mockito:mockito-core:4.4.0'
+  api 'net.bytebuddy:byte-buddy:1.12.9'
   api 'org.objenesis:objenesis:3.2'
 
   api "org.elasticsearch:mocksocket:${versions.mocksocket}"
@@ -38,8 +38,15 @@ dependencies {
   api "com.networknt:json-schema-validator:${versions.networknt_json_schema_validator}"
   api "com.fasterxml.jackson.core:jackson-databind:${versions.jackson}"
   api "com.fasterxml.jackson.core:jackson-annotations:${versions.jackson}"
-  api "org.apache.commons:commons-compress:1.19"
+  api "org.apache.commons:commons-compress:1.21"
   api "org.apache.commons:commons-lang3:${versions.commons_lang3}"
+}
+
+sourceSets {
+  integTest {
+    compileClasspath += sourceSets["main"].output + configurations["testRuntimeClasspath"]
+    runtimeClasspath += output + compileClasspath
+  }
 }
 
 // the main files are actually test files, so use the appropriate forbidden api sigs
@@ -50,10 +57,10 @@ tasks.named('forbiddenApisMain').configure {
 // TODO: should we have licenses for our test deps?
 tasks.named("dependencyLicenses").configure { enabled = false }
 tasks.named("dependenciesInfo").configure { enabled = false }
-
 tasks.named("thirdPartyAudit").configure {
   ignoreMissingClasses(
           // classes are missing
+          'com.github.luben.zstd.BufferPool',
           'com.github.luben.zstd.ZstdInputStream',
           'com.github.luben.zstd.ZstdOutputStream',
           'javax.servlet.ServletContextEvent',
@@ -70,26 +77,25 @@ tasks.named("thirdPartyAudit").configure {
           'org.joni.Matcher',
           'org.joni.Regex',
           'org.joni.Syntax',
+          'org.objectweb.asm.AnnotationVisitor',
+          'org.objectweb.asm.Attribute',
+          'org.objectweb.asm.ClassReader',
+          'org.objectweb.asm.ClassVisitor',
+          'org.objectweb.asm.FieldVisitor',
+          'org.objectweb.asm.Label',
+          'org.objectweb.asm.MethodVisitor',
+          'org.objectweb.asm.Type',
           'org.slf4j.Logger',
           'org.slf4j.LoggerFactory',
-          'org.tukaani.xz.ARMOptions',
-          'org.tukaani.xz.ARMThumbOptions',
           'org.tukaani.xz.DeltaOptions',
           'org.tukaani.xz.FilterOptions',
-          'org.tukaani.xz.FinishableWrapperOutputStream',
-          'org.tukaani.xz.IA64Options',
           'org.tukaani.xz.LZMA2InputStream',
           'org.tukaani.xz.LZMA2Options',
           'org.tukaani.xz.LZMAInputStream',
           'org.tukaani.xz.LZMAOutputStream',
           'org.tukaani.xz.MemoryLimitException',
-          'org.tukaani.xz.PowerPCOptions',
-          'org.tukaani.xz.SPARCOptions',
-          'org.tukaani.xz.SingleXZInputStream',
           'org.tukaani.xz.UnsupportedOptionsException',
-          'org.tukaani.xz.X86Options',
           'org.tukaani.xz.XZ',
-          'org.tukaani.xz.XZInputStream',
           'org.tukaani.xz.XZOutputStream',
 
           // mockito
@@ -102,13 +108,6 @@ tasks.named("thirdPartyAudit").configure {
     'org.objenesis.instantiator.sun.UnsafeFactoryInstantiator',
     'org.objenesis.instantiator.util.UnsafeUtils'
   )
-  if (BuildParams.runtimeJavaVersion > JavaVersion.VERSION_12) {
-      ignoreMissingClasses(
-          'java.util.jar.Pack200',
-          'java.util.jar.Pack200$Packer',
-          'java.util.jar.Pack200$Unpacker'
-      )
-  }
 }
 
 tasks.named("test").configure {
@@ -118,7 +117,12 @@ tasks.named("test").configure {
 }
 
 tasks.register("integTest", Test) {
-  include "**/*IT.class"
+  testClassesDirs = sourceSets.integTest.output.classesDirs
+  classpath = sourceSets.integTest.runtimeClasspath
+}
+
+tasks.named('check').configure {
+  dependsOn 'integTest'
 }
 
 tasks.register("verifyVersions") {

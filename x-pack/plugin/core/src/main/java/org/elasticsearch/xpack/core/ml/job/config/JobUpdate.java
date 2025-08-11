@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.core.ml.job.config;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -443,6 +444,11 @@ public class JobUpdate implements Writeable, ToXContentObject {
         }
         builder.endObject();
         return builder;
+    }
+
+    @Override
+    public String toString() {
+        return Strings.toString(this::toXContent);
     }
 
     public Set<String> getUpdateFields() {

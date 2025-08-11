@@ -1086,7 +1086,9 @@ final class RequestConverters {
                     expandWildcards = joiner.toString();
                 }
                 putParam("expand_wildcards", expandWildcards);
-                putParam("ignore_throttled", Boolean.toString(indicesOptions.ignoreThrottled()));
+                if (indicesOptions.ignoreThrottled() == false) {
+                    putParam("ignore_throttled", Boolean.toString(indicesOptions.ignoreThrottled()));
+                }
             }
             return this;
         }

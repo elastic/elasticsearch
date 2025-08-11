@@ -26,15 +26,12 @@ public class GetUsersRequestTests extends ESTestCase {
         final String[] users = randomArray(0, 5, String[]::new, () -> randomAlphaOfLength(5));
         final GetUsersRequest getUsersRequest = new GetUsersRequest(users);
         assertNotNull(getUsersRequest);
-        EqualsHashCodeTestUtils.checkEqualsAndHashCode(
-            getUsersRequest,
-            (original) -> { return new GetUsersRequest(original.getUsernames().toArray(new String[0])); }
-        );
-        EqualsHashCodeTestUtils.checkEqualsAndHashCode(
-            getUsersRequest,
-            (original) -> { return new GetUsersRequest(original.getUsernames().toArray(new String[0])); },
-            GetUsersRequestTests::mutateTestItem
-        );
+        EqualsHashCodeTestUtils.checkEqualsAndHashCode(getUsersRequest, (original) -> {
+            return new GetUsersRequest(original.getUsernames().toArray(new String[0]));
+        });
+        EqualsHashCodeTestUtils.checkEqualsAndHashCode(getUsersRequest, (original) -> {
+            return new GetUsersRequest(original.getUsernames().toArray(new String[0]));
+        }, GetUsersRequestTests::mutateTestItem);
     }
 
     private static GetUsersRequest mutateTestItem(GetUsersRequest original) {

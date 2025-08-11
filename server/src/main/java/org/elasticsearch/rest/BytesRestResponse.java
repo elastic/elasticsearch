@@ -82,6 +82,7 @@ public class BytesRestResponse extends RestResponse {
     }
 
     public BytesRestResponse(RestChannel channel, RestStatus status, Exception e) throws IOException {
+        this.status = status;
         ToXContent.Params params = paramsFromRequest(channel.request());
         if (params.paramAsBoolean(REST_EXCEPTION_SKIP_STACK_TRACE, REST_EXCEPTION_SKIP_STACK_TRACE_DEFAULT) && e != null) {
             // log exception only if it is not returned in the response
@@ -96,7 +97,6 @@ public class BytesRestResponse extends RestResponse {
                 SUPPRESSED_ERROR_LOGGER.warn(messageSupplier, e);
             }
         }
-        this.status = status;
         try (XContentBuilder builder = channel.newErrorBuilder()) {
             build(builder, params, status, channel.detailedErrorsEnabled(), e);
             this.content = BytesReference.bytes(builder);
@@ -131,7 +131,7 @@ public class BytesRestResponse extends RestResponse {
     }
 
     protected boolean skipStackTrace() {
-        return false;
+        return status() == RestStatus.UNAUTHORIZED;
     }
 
     private void build(XContentBuilder builder, ToXContent.Params params, RestStatus status, boolean detailedErrorsEnabled, Exception e)

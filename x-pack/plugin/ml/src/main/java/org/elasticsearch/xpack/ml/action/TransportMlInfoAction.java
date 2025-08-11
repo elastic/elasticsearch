@@ -164,7 +164,6 @@ public class TransportMlInfoAction extends HandledTransportAction<MlInfoAction.R
     static ByteSizeValue calculateEffectiveMaxModelMemoryLimit(ClusterSettings clusterSettings, DiscoveryNodes nodes) {
 
         long maxMlMemory = -1;
-        int numMlNodes = 0;
 
         for (DiscoveryNode node : nodes) {
             OptionalLong limit = NativeMemoryCalculator.allowedBytesForMl(node, clusterSettings);
@@ -172,14 +171,18 @@ public class TransportMlInfoAction extends HandledTransportAction<MlInfoAction.R
                 continue;
             }
             maxMlMemory = Math.max(maxMlMemory, limit.getAsLong());
-            ++numMlNodes;
         }
 
         // It is possible that there is scope for more ML nodes to be added
         // to the cluster, in which case take those into account too
         long maxMlNodeSize = clusterSettings.get(MAX_ML_NODE_SIZE).getBytes();
         int maxLazyNodes = clusterSettings.get(MAX_LAZY_ML_NODES);
-        if (maxMlNodeSize > 0 && numMlNodes < maxLazyNodes) {
+        // Even if all the lazy nodes have been added to the cluster, we make
+        // the assumption that if any were configured they'll be able to grow
+        // to the maximum ML node size. (We are assuming that lazy nodes always
+        // behave like they do with Elastic Cloud autoscaling, where vertical
+        // scaling is possible.)
+        if (maxMlNodeSize > 0 && maxLazyNodes > 0) {
             maxMlMemory = Math.max(
                 maxMlMemory,
                 NativeMemoryCalculator.allowedBytesForMl(

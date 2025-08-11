@@ -582,6 +582,8 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
                 + searchRouting
                 + ",writeIndex="
                 + writeIndex
+                + ",isHidden="
+                + isHidden
                 + ",mustExist="
                 + mustExist
                 + "]";

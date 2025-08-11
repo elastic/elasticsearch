@@ -2280,7 +2280,7 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
             .numberOfShards(1)
             .numberOfReplicas(0)
             .build();
-        DataStream dataStream = new DataStream(
+        DataStream dataStream = DataStreamTestHelper.newInstance(
             dataStreamName,
             new DataStream.TimestampField("@timestamp"),
             Collections.singletonList(indexMetadata.getIndex())

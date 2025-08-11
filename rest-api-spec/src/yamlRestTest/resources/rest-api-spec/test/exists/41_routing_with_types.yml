@@ -19,7 +19,7 @@
       index:
           index:   test_1
           type:    test
-          id:      1
+          id:      "1"
           routing: 5
           body:    { foo: bar }
 
@@ -27,7 +27,7 @@
       exists:
           index:   test_1
           type:    test
-          id:      1
+          id:      "1"
           routing: 5
 
  - is_true: ''
@@ -36,6 +36,6 @@
       exists:
           index:   test_1
           type:    test
-          id:      1
+          id:      "1"
 
  - is_false: ''

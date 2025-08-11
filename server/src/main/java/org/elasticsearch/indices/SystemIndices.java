@@ -66,26 +66,36 @@ public class SystemIndices {
 
     private static final Automaton EMPTY = Automata.makeEmpty();
 
-    private static final Map<String, Feature> SERVER_SYSTEM_INDEX_DESCRIPTORS = singletonMap(
+    /**
+     * This is the source for non-plugin system features.
+     */
+    private static final Map<String, Feature> SERVER_SYSTEM_FEATURE_DESCRIPTORS = singletonMap(
         TASKS_FEATURE_NAME,
         new Feature(TASKS_FEATURE_NAME, "Manages task results", singletonList(TASKS_DESCRIPTOR))
     );
+
+    /**
+     * The node's full list of system features is stored here. The map is keyed
+     * on the value of {@link Feature#getName()}, and is used for fast lookup of
+     * feature objects via {@link #getFeature(String)}.
+     */
+    private final Map<String, Feature> featureDescriptors;
 
     private final CharacterRunAutomaton systemIndexAutomaton;
     private final CharacterRunAutomaton systemDataStreamIndicesAutomaton;
     private final CharacterRunAutomaton netNewSystemIndexAutomaton;
     private final Predicate<String> systemDataStreamAutomaton;
-    private final Map<String, Feature> featureDescriptors;
     private final Map<String, CharacterRunAutomaton> productToSystemIndicesMatcher;
     private final ExecutorSelector executorSelector;
 
     /**
      * Initialize the SystemIndices object
-     * @param pluginAndModulesDescriptors A map of this node's feature names to
-     *                                    feature objects.
+     * @param pluginAndModuleFeatures A list of features from which we will load system indices.
+     *                                These features come from plugins and modules. Non-plugin system
+     *                                features such as Tasks will be added automatically.
      */
-    public SystemIndices(Map<String, Feature> pluginAndModulesDescriptors) {
-        featureDescriptors = buildSystemIndexDescriptorMap(pluginAndModulesDescriptors);
+    public SystemIndices(List<Feature> pluginAndModuleFeatures) {
+        featureDescriptors = buildFeatureMap(pluginAndModuleFeatures);
         checkForOverlappingPatterns(featureDescriptors);
         ensurePatternsAllowSuffix(featureDescriptors);
         checkForDuplicateAliases(this.getSystemIndexDescriptors());
@@ -97,13 +107,12 @@ public class SystemIndices {
         this.executorSelector = new ExecutorSelector(this);
     }
 
-    static void ensurePatternsAllowSuffix(Map<String, Feature> features) {
+    static void ensurePatternsAllowSuffix(Map<String, Feature> featureDescriptors) {
         String suffixPattern = "*" + UPGRADED_INDEX_SUFFIX;
-        final List<String> descriptorsWithNoRoomForSuffix = features.entrySet()
+        final List<String> descriptorsWithNoRoomForSuffix = featureDescriptors.values()
             .stream()
             .flatMap(
-                feature -> feature.getValue()
-                    .getIndexDescriptors()
+                feature -> feature.getIndexDescriptors()
                     .stream()
                     // The below filter & map are inside the enclosing flapMap so we have access to both the feature and the descriptor
                     .filter(descriptor -> overlaps(descriptor.getIndexPattern(), suffixPattern) == false)
@@ -111,7 +120,7 @@ public class SystemIndices {
                         descriptor -> new ParameterizedMessage(
                             "pattern [{}] from feature [{}]",
                             descriptor.getIndexPattern(),
-                            feature.getKey()
+                            feature.getName()
                         ).getFormattedMessage()
                     )
             )
@@ -149,9 +158,9 @@ public class SystemIndices {
         }
     }
 
-    private static Map<String, CharacterRunAutomaton> getProductToSystemIndicesMap(Map<String, Feature> descriptors) {
+    private static Map<String, CharacterRunAutomaton> getProductToSystemIndicesMap(Map<String, Feature> featureDescriptors) {
         Map<String, Automaton> productToSystemIndicesMap = new HashMap<>();
-        for (Feature feature : descriptors.values()) {
+        for (Feature feature : featureDescriptors.values()) {
             feature.getIndexDescriptors().forEach(systemIndexDescriptor -> {
                 if (systemIndexDescriptor.isExternal()) {
                     systemIndexDescriptor.getAllowedElasticProductOrigins()
@@ -363,8 +372,30 @@ public class SystemIndices {
         return automaton::run;
     }
 
-    public Map<String, Feature> getFeatures() {
-        return featureDescriptors;
+    /**
+     * Get a set of feature names. This is useful for checking whether particular
+     * features are present on the node.
+     * @return A set of all feature names
+     */
+    public Set<String> getFeatureNames() {
+        return Collections.unmodifiableSet(featureDescriptors.keySet());
+    }
+
+    /**
+     * Get a feature by name.
+     * @param name Name of a feature.
+     * @return The corresponding feature if it exists on this node, null otherwise.
+     */
+    public Feature getFeature(String name) {
+        return featureDescriptors.get(name);
+    }
+
+    /**
+     * Get a collection of the Features this SystemIndices object is managing.
+     * @return A collection of Features.
+     */
+    public Collection<Feature> getFeatures() {
+        return Collections.unmodifiableCollection(featureDescriptors.values());
     }
 
     private static CharacterRunAutomaton buildIndexCharacterRunAutomaton(Map<String, Feature> descriptors) {
@@ -525,21 +556,19 @@ public class SystemIndices {
      * Given a collection of {@link SystemIndexDescriptor}s and their sources, checks to see if the index patterns of the listed
      * descriptors overlap with any of the other patterns. If any do, throws an exception.
      *
-     * @param sourceToFeature A map of source (plugin) names to the SystemIndexDescriptors they provide.
+     * @param featureDescriptors A map of feature names to the Features that will provide SystemIndexDescriptors
      * @throws IllegalStateException Thrown if any of the index patterns overlaps with another.
      */
-    static void checkForOverlappingPatterns(Map<String, Feature> sourceToFeature) {
-        List<Tuple<String, SystemIndexDescriptor>> sourceDescriptorPair = sourceToFeature.entrySet()
+    static void checkForOverlappingPatterns(Map<String, Feature> featureDescriptors) {
+        List<Tuple<String, SystemIndexDescriptor>> sourceDescriptorPair = featureDescriptors.values()
             .stream()
-            .flatMap(entry -> entry.getValue().getIndexDescriptors().stream().map(descriptor -> new Tuple<>(entry.getKey(), descriptor)))
+            .flatMap(feature -> feature.getIndexDescriptors().stream().map(descriptor -> new Tuple<>(feature.getName(), descriptor)))
             .sorted(Comparator.comparing(d -> d.v1() + ":" + d.v2().getIndexPattern())) // Consistent ordering -> consistent error message
             .collect(Collectors.toList());
-        List<Tuple<String, SystemDataStreamDescriptor>> sourceDataStreamDescriptorPair = sourceToFeature.entrySet()
+        List<Tuple<String, SystemDataStreamDescriptor>> sourceDataStreamDescriptorPair = featureDescriptors.values()
             .stream()
-            .filter(entry -> entry.getValue().getDataStreamDescriptors().isEmpty() == false)
-            .flatMap(
-                entry -> entry.getValue().getDataStreamDescriptors().stream().map(descriptor -> new Tuple<>(entry.getKey(), descriptor))
-            )
+            .filter(feature -> feature.getDataStreamDescriptors().isEmpty() == false)
+            .flatMap(feature -> feature.getDataStreamDescriptors().stream().map(descriptor -> new Tuple<>(feature.getName(), descriptor)))
             .sorted(Comparator.comparing(d -> d.v1() + ":" + d.v2().getDataStreamName())) // Consistent ordering -> consistent error message
             .collect(Collectors.toList());
 
@@ -598,11 +627,11 @@ public class SystemIndices {
         return Operations.isEmpty(Operations.intersection(a1Automaton, a2Automaton)) == false;
     }
 
-    private static Map<String, Feature> buildSystemIndexDescriptorMap(Map<String, Feature> featuresMap) {
-        final Map<String, Feature> map = new HashMap<>(featuresMap.size() + SERVER_SYSTEM_INDEX_DESCRIPTORS.size());
-        map.putAll(featuresMap);
+    private static Map<String, Feature> buildFeatureMap(List<Feature> features) {
+        final Map<String, Feature> map = new HashMap<>(features.size() + SERVER_SYSTEM_FEATURE_DESCRIPTORS.size());
+        features.forEach(feature -> map.put(feature.getName(), feature));
         // put the server items last since we expect less of them
-        SERVER_SYSTEM_INDEX_DESCRIPTORS.forEach((source, feature) -> {
+        SERVER_SYSTEM_FEATURE_DESCRIPTORS.forEach((source, feature) -> {
             if (map.putIfAbsent(source, feature) != null) {
                 throw new IllegalArgumentException(
                     "plugin or module attempted to define the same source [" + source + "] as a built-in system index"

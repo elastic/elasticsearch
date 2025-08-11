@@ -18,6 +18,8 @@ import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.node.Node;
 
+import java.security.AccessController;
+import java.security.PrivilegedAction;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.AbstractExecutorService;
@@ -38,12 +40,15 @@ public class EsExecutors {
 
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(EsExecutors.class);
 
+    // although the available processors may technically change, for node sizing we use the number available at launch
+    private static final int MAX_NUM_PROCESSORS = Runtime.getRuntime().availableProcessors();
+
     /**
      * Setting to manually set the number of available processors. This setting is used to adjust thread pool sizes per node.
      */
     public static final Setting<Integer> PROCESSORS_SETTING = new Setting<>(
         "processors",
-        s -> Integer.toString(Runtime.getRuntime().availableProcessors()),
+        s -> Integer.toString(MAX_NUM_PROCESSORS),
         processorsParser("processors"),
         Property.Deprecated,
         Property.NodeScope
@@ -64,7 +69,7 @@ public class EsExecutors {
     private static Function<String, Integer> processorsParser(final String name) {
         return s -> {
             final int value = Setting.parseInt(s, 1, name);
-            final int availableProcessors = Runtime.getRuntime().availableProcessors();
+            final int availableProcessors = MAX_NUM_PROCESSORS;
             if (value > availableProcessors) {
                 deprecationLogger.critical(
                     DeprecationCategory.SETTINGS,
@@ -116,6 +121,7 @@ public class EsExecutors {
         int max,
         long keepAliveTime,
         TimeUnit unit,
+        boolean rejectAfterShutdown,
         ThreadFactory threadFactory,
         ThreadContext contextHolder
     ) {
@@ -128,7 +134,7 @@ public class EsExecutors {
             unit,
             queue,
             threadFactory,
-            new ForceQueuePolicy(),
+            new ForceQueuePolicy(rejectAfterShutdown),
             contextHolder
         );
         queue.executor = executor;
@@ -334,9 +340,11 @@ public class EsExecutors {
 
         @Override
         public Thread newThread(Runnable r) {
-            Thread t = new Thread(group, r, namePrefix + "[T#" + threadNumber.getAndIncrement() + "]", 0);
-            t.setDaemon(true);
-            return t;
+            return AccessController.doPrivileged((PrivilegedAction<Thread>) () -> {
+                Thread t = new Thread(group, r, namePrefix + "[T#" + threadNumber.getAndIncrement() + "]", 0);
+                t.setDaemon(true);
+                return t;
+            });
         }
 
     }
@@ -374,31 +382,86 @@ public class EsExecutors {
             }
         }
 
+        // Overridden to workaround a JDK bug introduced in JDK 21.0.2
+        // https://bugs.openjdk.org/browse/JDK-8323659
+        @Override
+        public void put(E e) {
+            // As the queue is unbounded, this method will always add to the queue.
+            super.offer(e);
+        }
+
+        // Overridden to workaround a JDK bug introduced in JDK 21.0.2
+        // https://bugs.openjdk.org/browse/JDK-8323659
+        @Override
+        public boolean add(E e) {
+            // As the queue is unbounded, this method will never return false.
+            return super.offer(e);
+        }
+
+        // Overridden to workaround a JDK bug introduced in JDK 21.0.2
+        // https://bugs.openjdk.org/browse/JDK-8323659
+        @Override
+        public boolean offer(E e, long timeout, TimeUnit unit) {
+            // As the queue is unbounded, this method will never return false.
+            return super.offer(e);
+        }
     }
 
     /**
      * A handler for rejected tasks that adds the specified element to this queue,
      * waiting if necessary for space to become available.
      */
-    static class ForceQueuePolicy implements XRejectedExecutionHandler {
+    static class ForceQueuePolicy extends EsRejectedExecutionHandler {
+
+        /**
+         * This flag is used to indicate if {@link Runnable} should be rejected once the thread pool is shutting down, ie once
+         * {@link ThreadPoolExecutor#shutdown()} has been called. Scaling thread pools are expected to always handle tasks rejections, even
+         * after shutdown or termination, but it's not the case of all existing thread pools so this flag allows to keep the previous
+         * behavior.
+         */
+        private final boolean rejectAfterShutdown;
+
+        /**
+         * @param rejectAfterShutdown indicates if {@link Runnable} should be rejected once the thread pool is shutting down
+         */
+        ForceQueuePolicy(boolean rejectAfterShutdown) {
+            this.rejectAfterShutdown = rejectAfterShutdown;
+        }
 
         @Override
-        public void rejectedExecution(Runnable r, ThreadPoolExecutor executor) {
+        public void rejectedExecution(Runnable task, ThreadPoolExecutor executor) {
+            if (rejectAfterShutdown) {
+                if (executor.isShutdown()) {
+                    reject(executor, task);
+                } else {
+                    put(executor, task);
+                    // we need to check again the executor state as it might have been concurrently shut down; in this case
+                    // the executor's workers are shutting down and might have already picked up the task for execution.
+                    if (executor.isShutdown() && executor.remove(task)) {
+                        reject(executor, task);
+                    }
+                }
+            } else {
+                put(executor, task);
+            }
+        }
+
+        private void put(ThreadPoolExecutor executor, Runnable task) {
+            final BlockingQueue<Runnable> queue = executor.getQueue();
+            // force queue policy should only be used with a scaling queue
+            assert queue instanceof ExecutorScalingQueue;
             try {
-                // force queue policy should only be used with a scaling queue
-                assert executor.getQueue() instanceof ExecutorScalingQueue;
-                executor.getQueue().put(r);
+                queue.put(task);
             } catch (final InterruptedException e) {
-                // a scaling queue never blocks so a put to it can never be interrupted
+                assert false : "a scaling queue never blocks so a put to it can never be interrupted";
                 throw new AssertionError(e);
             }
         }
 
-        @Override
-        public long rejected() {
-            return 0;
+        private void reject(ThreadPoolExecutor executor, Runnable task) {
+            incrementRejections();
+            throw newRejectedException(task, executor, true);
         }
-
     }
 
 }

@@ -136,6 +136,7 @@ public class ChunkedDataExtractor implements DataExtractor {
         } else {
             // search is over
             currentEnd = context.end;
+            LOGGER.debug("[{}] Chunked search configured: no data found", context.jobId);
         }
     }
 

@@ -42,7 +42,7 @@ class JvmOption {
     }
 
     public boolean isCommandLineOrigin() {
-        return "command line".equals(this.origin);
+        return this.origin.contains("command line");
     }
 
     private static final Pattern OPTION = Pattern.compile(

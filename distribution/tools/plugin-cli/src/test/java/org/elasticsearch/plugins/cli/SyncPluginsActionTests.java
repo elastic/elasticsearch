@@ -112,7 +112,7 @@ public class SyncPluginsActionTests extends ESTestCase {
      * calculate that the plugin needs to be installed.
      */
     public void test_getPluginChanges_withPluginToInstall_returnsPluginToInstall() throws Exception {
-        config.setPlugins(Collections.singletonList(new PluginDescriptor("my-plugin")));
+        config.setPlugins(Collections.singletonList(new InstallablePlugin("my-plugin")));
 
         final PluginChanges pluginChanges = action.getPluginChanges(config, Optional.empty());
 
@@ -130,7 +130,7 @@ public class SyncPluginsActionTests extends ESTestCase {
      */
     public void test_getPluginChanges_withPluginToUpgrade_returnsNoChanges() throws Exception {
         createPlugin("my-plugin", Version.CURRENT.previousMajor());
-        config.setPlugins(Collections.singletonList(new PluginDescriptor("my-plugin")));
+        config.setPlugins(Collections.singletonList(new InstallablePlugin("my-plugin")));
 
         final PluginChanges pluginChanges = action.getPluginChanges(config, Optional.empty());
 
@@ -143,7 +143,7 @@ public class SyncPluginsActionTests extends ESTestCase {
      */
     public void test_getPluginChanges_withOfficialPluginToUpgrade_returnsPluginToUpgrade() throws Exception {
         createPlugin("analysis-icu", Version.CURRENT.previousMajor());
-        config.setPlugins(Collections.singletonList(new PluginDescriptor("analysis-icu")));
+        config.setPlugins(Collections.singletonList(new InstallablePlugin("analysis-icu")));
 
         final PluginChanges pluginChanges = action.getPluginChanges(config, Optional.empty());
 
@@ -160,10 +160,10 @@ public class SyncPluginsActionTests extends ESTestCase {
      */
     public void test_getPluginChanges_withCachedConfigAndNoChanges_returnsNoChanges() throws Exception {
         createPlugin("my-plugin");
-        config.setPlugins(Collections.singletonList(new PluginDescriptor("my-plugin", "file://plugin.zip")));
+        config.setPlugins(Collections.singletonList(new InstallablePlugin("my-plugin", "file://plugin.zip")));
 
         final PluginsConfig cachedConfig = new PluginsConfig();
-        cachedConfig.setPlugins(Collections.singletonList(new PluginDescriptor("my-plugin", "file://plugin.zip")));
+        cachedConfig.setPlugins(Collections.singletonList(new InstallablePlugin("my-plugin", "file://plugin.zip")));
 
         final PluginChanges pluginChanges = action.getPluginChanges(config, Optional.of(cachedConfig));
 
@@ -176,10 +176,10 @@ public class SyncPluginsActionTests extends ESTestCase {
      */
     public void test_getPluginChanges_withCachedConfigAndChangedLocation_returnsPluginToUpgrade() throws Exception {
         createPlugin("my-plugin");
-        config.setPlugins(Collections.singletonList(new PluginDescriptor("my-plugin", "file:///after.zip")));
+        config.setPlugins(Collections.singletonList(new InstallablePlugin("my-plugin", "file:///after.zip")));
 
         final PluginsConfig cachedConfig = new PluginsConfig();
-        cachedConfig.setPlugins(Collections.singletonList(new PluginDescriptor("my-plugin", "file://before.zip")));
+        cachedConfig.setPlugins(Collections.singletonList(new InstallablePlugin("my-plugin", "file://before.zip")));
 
         final PluginChanges pluginChanges = action.getPluginChanges(config, Optional.of(cachedConfig));
 
@@ -211,13 +211,16 @@ public class SyncPluginsActionTests extends ESTestCase {
     public void test_performSync_withPluginsToRemove_callsRemoveAction() throws Exception {
         final InstallPluginAction installAction = mock(InstallPluginAction.class);
         final RemovePluginAction removeAction = mock(RemovePluginAction.class);
-        final List<PluginDescriptor> pluginDescriptors = Arrays.asList(new PluginDescriptor("plugin1"), new PluginDescriptor("plugin2"));
+        final List<InstallablePlugin> installablePlugins = Arrays.asList(
+            new InstallablePlugin("plugin1"),
+            new InstallablePlugin("plugin2")
+        );
 
-        action.performSync(installAction, removeAction, new PluginChanges(pluginDescriptors, emptyList(), emptyList()));
+        action.performSync(installAction, removeAction, new PluginChanges(installablePlugins, emptyList(), emptyList()));
 
         verify(installAction, never()).execute(anyList());
         verify(removeAction).setPurge(true);
-        verify(removeAction).execute(pluginDescriptors);
+        verify(removeAction).execute(installablePlugins);
     }
 
     /**
@@ -226,11 +229,14 @@ public class SyncPluginsActionTests extends ESTestCase {
     public void test_performSync_withPluginsToInstall_callsInstallAction() throws Exception {
         final InstallPluginAction installAction = mock(InstallPluginAction.class);
         final RemovePluginAction removeAction = mock(RemovePluginAction.class);
-        final List<PluginDescriptor> pluginDescriptors = Arrays.asList(new PluginDescriptor("plugin1"), new PluginDescriptor("plugin2"));
+        final List<InstallablePlugin> installablePlugins = Arrays.asList(
+            new InstallablePlugin("plugin1"),
+            new InstallablePlugin("plugin2")
+        );
 
-        action.performSync(installAction, removeAction, new PluginChanges(emptyList(), pluginDescriptors, emptyList()));
+        action.performSync(installAction, removeAction, new PluginChanges(emptyList(), installablePlugins, emptyList()));
 
-        verify(installAction).execute(pluginDescriptors);
+        verify(installAction).execute(installablePlugins);
         verify(removeAction, never()).execute(anyList());
     }
 
@@ -242,13 +248,16 @@ public class SyncPluginsActionTests extends ESTestCase {
         final RemovePluginAction removeAction = mock(RemovePluginAction.class);
         final InOrder inOrder = Mockito.inOrder(removeAction, installAction);
 
-        final List<PluginDescriptor> pluginDescriptors = Arrays.asList(new PluginDescriptor("plugin1"), new PluginDescriptor("plugin2"));
+        final List<InstallablePlugin> installablePlugins = Arrays.asList(
+            new InstallablePlugin("plugin1"),
+            new InstallablePlugin("plugin2")
+        );
 
-        action.performSync(installAction, removeAction, new PluginChanges(emptyList(), emptyList(), pluginDescriptors));
+        action.performSync(installAction, removeAction, new PluginChanges(emptyList(), emptyList(), installablePlugins));
 
         inOrder.verify(removeAction).setPurge(false);
-        inOrder.verify(removeAction).execute(pluginDescriptors);
-        inOrder.verify(installAction).execute(pluginDescriptors);
+        inOrder.verify(removeAction).execute(installablePlugins);
+        inOrder.verify(installAction).execute(installablePlugins);
     }
 
     /**
@@ -259,9 +268,9 @@ public class SyncPluginsActionTests extends ESTestCase {
         final RemovePluginAction removeAction = mock(RemovePluginAction.class);
         final InOrder inOrder = Mockito.inOrder(removeAction, installAction);
 
-        final List<PluginDescriptor> pluginsToRemove = Collections.singletonList(new PluginDescriptor("plugin1"));
-        final List<PluginDescriptor> pluginsToInstall = Collections.singletonList(new PluginDescriptor("plugin2"));
-        final List<PluginDescriptor> pluginsToUpgrade = Collections.singletonList(new PluginDescriptor("plugin3"));
+        final List<InstallablePlugin> pluginsToRemove = Collections.singletonList(new InstallablePlugin("plugin1"));
+        final List<InstallablePlugin> pluginsToInstall = Collections.singletonList(new InstallablePlugin("plugin2"));
+        final List<InstallablePlugin> pluginsToUpgrade = Collections.singletonList(new InstallablePlugin("plugin3"));
 
         action.performSync(installAction, removeAction, new PluginChanges(pluginsToRemove, pluginsToInstall, pluginsToUpgrade));
 

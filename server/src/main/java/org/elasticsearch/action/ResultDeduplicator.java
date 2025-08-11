@@ -8,7 +8,9 @@
 
 package org.elasticsearch.action;
 
+import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -22,7 +24,12 @@ import java.util.function.BiConsumer;
  */
 public final class ResultDeduplicator<T, R> {
 
+    private final ThreadContext threadContext;
     private final ConcurrentMap<T, CompositeListener> requests = ConcurrentCollections.newConcurrentMap();
+
+    public ResultDeduplicator(ThreadContext threadContext) {
+        this.threadContext = threadContext;
+    }
 
     /**
      * Ensures a given request not executed multiple times when another equal request is already in-flight.
@@ -35,7 +42,8 @@ public final class ResultDeduplicator<T, R> {
      * @param callback Callback to be invoked with request and completion listener the first time the request is added to the deduplicator
      */
     public void executeOnce(T request, ActionListener<R> listener, BiConsumer<T, ActionListener<R>> callback) {
-        ActionListener<R> completionListener = requests.computeIfAbsent(request, CompositeListener::new).addListener(listener);
+        ActionListener<R> completionListener = requests.computeIfAbsent(request, CompositeListener::new)
+            .addListener(ContextPreservingActionListener.wrapPreservingContext(listener, threadContext));
         if (completionListener != null) {
             callback.accept(request, completionListener);
         }

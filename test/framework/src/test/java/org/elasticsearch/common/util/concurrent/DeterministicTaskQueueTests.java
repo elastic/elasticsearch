@@ -317,6 +317,20 @@ public class DeterministicTaskQueueTests extends ESTestCase {
         assertThat(strings, containsInAnyOrder("runnable", "also runnable", "deferred", "not quite so deferred", "further deferred"));
     }
 
+    public void testPrioritizedEsThreadPoolExecutorRunsWrapperAndCommand() {
+        final DeterministicTaskQueue taskQueue = new DeterministicTaskQueue();
+        final AtomicInteger wrapperCallCount = new AtomicInteger();
+        final PrioritizedEsThreadPoolExecutor executor = taskQueue.getPrioritizedEsThreadPoolExecutor(runnable -> () -> {
+            assertThat(wrapperCallCount.incrementAndGet(), lessThanOrEqualTo(2));
+            runnable.run();
+        });
+        final AtomicBoolean commandCalled = new AtomicBoolean();
+        executor.execute(() -> assertTrue(commandCalled.compareAndSet(false, true)));
+        taskQueue.runAllRunnableTasks();
+        assertThat(wrapperCallCount.get(), equalTo(2));
+        assertTrue(commandCalled.get());
+    }
+
     public void testDelayVariabilityAppliesToImmediateTasks() {
         final DeterministicTaskQueue deterministicTaskQueue = new DeterministicTaskQueue();
         advanceToRandomTime(deterministicTaskQueue);

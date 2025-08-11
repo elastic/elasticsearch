@@ -875,7 +875,13 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
             .get();
         disruption.startDisrupting();
         logger.info("-->  restarting data node, which should cause primary shards to be failed");
-        internalCluster().restartNode(dataNode, InternalTestCluster.EMPTY_CALLBACK);
+        internalCluster().restartNode(dataNode, new InternalTestCluster.RestartCallback() {
+            @Override
+            public boolean validateClusterForming() {
+                // skip this step since BusyMasterServiceDisruption prevents the master queue from ever emptying
+                return false;
+            }
+        });
 
         logger.info("-->  wait for shard snapshots to show as failed");
         assertBusy(
@@ -1108,7 +1114,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         createRepository(repoName, "fs");
         createIndex("some-index");
 
-        final SnapshotsService snapshotsService = internalCluster().getMasterNodeInstance(SnapshotsService.class);
+        final SnapshotsService snapshotsService = internalCluster().getAnyMasterNodeInstance(SnapshotsService.class);
         final Snapshot snapshot1 = PlainActionFuture.get(
             f -> snapshotsService.createSnapshotLegacy(new CreateSnapshotRequest(repoName, "snap-1"), f)
         );
@@ -1232,7 +1238,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         assertAcked(admin().indices().prepareDelete(indexName));
 
         for (Future<Void> future : futures) {
-            future.get();
+            future.get(30, TimeUnit.SECONDS);
         }
 
         logger.info("--> restore snapshot 1");

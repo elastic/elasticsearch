@@ -129,6 +129,8 @@ final class ByteSizeCachingDirectory extends FilterDirectory {
             numOpenOutputs++;
         }
         return new FilterIndexOutput(out.toString(), out) {
+            private boolean closed;
+
             @Override
             public void writeBytes(byte[] b, int length) throws IOException {
                 // Don't write to atomicXXX here since it might be called in
@@ -151,8 +153,11 @@ final class ByteSizeCachingDirectory extends FilterDirectory {
                     super.close();
                 } finally {
                     synchronized (ByteSizeCachingDirectory.this) {
-                        numOpenOutputs--;
-                        modCount++;
+                        if (closed == false) {
+                            closed = true;
+                            numOpenOutputs--;
+                            modCount++;
+                        }
                     }
                 }
             }

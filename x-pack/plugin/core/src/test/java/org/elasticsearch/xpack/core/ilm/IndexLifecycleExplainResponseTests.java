@@ -14,6 +14,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.AbstractSerializingTestCase;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ParseField;
@@ -27,16 +28,22 @@ import java.util.Objects;
 import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.startsWith;
 
 public class IndexLifecycleExplainResponseTests extends AbstractSerializingTestCase<IndexLifecycleExplainResponse> {
 
     static IndexLifecycleExplainResponse randomIndexExplainResponse() {
+        final IndexLifecycleExplainResponse indexLifecycleExplainResponse;
         if (frequently()) {
-            return randomManagedIndexExplainResponse();
+            indexLifecycleExplainResponse = randomManagedIndexExplainResponse();
         } else {
-            return randomUnmanagedIndexExplainResponse();
+            indexLifecycleExplainResponse = randomUnmanagedIndexExplainResponse();
         }
+        long now = System.currentTimeMillis();
+        // So that now is the same for the duration of the test. See #84352
+        indexLifecycleExplainResponse.nowSupplier = () -> now;
+        return indexLifecycleExplainResponse;
     }
 
     private static IndexLifecycleExplainResponse randomUnmanagedIndexExplainResponse() {
@@ -92,6 +99,29 @@ public class IndexLifecycleExplainResponseTests extends AbstractSerializingTestC
         );
         assertThat(exception.getMessage(), startsWith("managed index response must have complete step details"));
         assertThat(exception.getMessage(), containsString("=null"));
+    }
+
+    public void testNegativeAge() {
+        IndexLifecycleExplainResponse response = IndexLifecycleExplainResponse.newManagedIndexResponse(
+            "index",
+            "policy",
+            System.currentTimeMillis() + 25000000, // date in the future
+            "phase",
+            "action",
+            "step",
+            null,
+            false,
+            null,
+            randomNonNegativeLong(),
+            randomNonNegativeLong(),
+            randomNonNegativeLong(),
+            "repo",
+            "snapshot",
+            "shrink",
+            null,
+            null
+        );
+        assertThat(response.getAge(System::currentTimeMillis), equalTo(TimeValue.ZERO));
     }
 
     @Override

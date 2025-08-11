@@ -13,32 +13,32 @@ setup:
   - do:
       index:
           index:  test
-          id:     1
+          id:     "1"
           body:   { numeric_group: 1, tag: A, sort: 10 }
   - do:
       index:
           index:  test
-          id:     2
+          id:     "2"
           body:   { numeric_group: 1, tag: B, sort: 6 }
   - do:
       index:
           index:  test
-          id:     3
+          id:     "3"
           body:   { numeric_group: 1, tag: A, sort: 24 }
   - do:
       index:
           index:  test
-          id:     4
+          id:     "4"
           body:   { numeric_group: 25, tag: B, sort: 10 }
   - do:
       index:
           index:  test
-          id:     5
+          id:     "5"
           body:   { numeric_group: 25, tag: A, sort: 5 }
   - do:
       index:
           index:  test
-          id:     6
+          id:     "6"
           body:   { numeric_group: 3, tag: B, sort: 36 }
   - do:
       indices.refresh:
@@ -435,12 +435,12 @@ setup:
   - do:
       index:
         index:  alias-test
-        id:     1
+        id:     "1"
         body:   { other_numeric_group: 1, sort: 6 }
   - do:
       index:
         index:  alias-test
-        id:     2
+        id:     "2"
         body:   { other_numeric_group: 25, sort: 10 }
   - do:
       indices.refresh:

@@ -30,6 +30,10 @@ public class VersionProperties {
         return lucene;
     }
 
+    public static String getBundledJdkMajorVersion() {
+        return bundledJdkMajorVersion;
+    }
+
     public static String getBundledJdkVersion() {
         return bundledJdkVersion;
     }
@@ -45,7 +49,9 @@ public class VersionProperties {
     private static final String elasticsearch;
     private static final String lucene;
     private static final String bundledJdkVersion;
+    private static final String bundledJdkMajorVersion;
     private static final String bundledJdkVendor;
+
     private static final Map<String, String> versions = new HashMap<String, String>();
 
     static {
@@ -54,6 +60,7 @@ public class VersionProperties {
         lucene = props.getProperty("lucene");
         bundledJdkVendor = props.getProperty("bundled_jdk_vendor");
         bundledJdkVersion = props.getProperty("bundled_jdk");
+        bundledJdkMajorVersion = bundledJdkVersion.split("[.+]")[0];
 
         for (String property : props.stringPropertyNames()) {
             versions.put(property, props.getProperty(property));

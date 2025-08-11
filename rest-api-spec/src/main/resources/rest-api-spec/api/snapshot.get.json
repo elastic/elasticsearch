@@ -46,6 +46,38 @@
         "type":"boolean",
         "description":"Whether to include the repository name in the snapshot info. Defaults to true."
       },
+      "sort": {
+        "type": "enum",
+        "default": "start_time",
+        "options": ["start_time", "duration", "name", "repository", "index_count", "shard_count", "failed_shard_count"],
+        "description": "Allows setting a sort order for the result. Defaults to start_time"
+      },
+      "size": {
+        "type": "integer",
+        "description": "Maximum number of snapshots to return. Defaults to 0 which means return all that match without limit."
+      },
+      "order": {
+        "type": "enum",
+        "default": "asc",
+        "options": ["asc", "desc"],
+        "description": "Sort order"
+      },
+      "from_sort_value": {
+        "type": "string",
+        "description": "Value of the current sort column at which to start retrieval."
+      },
+      "after": {
+        "type": "string",
+        "description": "Offset identifier to start pagination from as returned by the 'next' field in the response body."
+      },
+      "offset": {
+        "type": "integer",
+        "description": "Numeric offset to start pagination based on the snapshots matching the request. Defaults to 0"
+      },
+      "slm_policy_filter": {
+        "type": "string",
+        "description": "Filter snapshots by a comma-separated list of SLM policy names that snapshots belong to. Accepts wildcards. Use the special pattern '_none' to match snapshots without an SLM policy"
+      },
       "verbose":{
         "type":"boolean",
         "description":"Whether to show verbose snapshot info or only show the basic info found in the repository index blob"

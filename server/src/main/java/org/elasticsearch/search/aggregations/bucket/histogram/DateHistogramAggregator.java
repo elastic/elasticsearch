@@ -297,32 +297,27 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
 
     @Override
     public InternalAggregation[] buildAggregations(long[] owningBucketOrds) throws IOException {
-        return buildAggregationsForVariableBuckets(
-            owningBucketOrds,
-            bucketOrds,
-            (bucketValue, docCount, subAggregationResults) -> {
-                return new InternalDateHistogram.Bucket(bucketValue, docCount, keyed, formatter, subAggregationResults);
-            },
-            (owningBucketOrd, buckets) -> {
-                // the contract of the histogram aggregation is that shards must return buckets ordered by key in ascending order
-                CollectionUtil.introSort(buckets, BucketOrder.key(true).comparator());
+        return buildAggregationsForVariableBuckets(owningBucketOrds, bucketOrds, (bucketValue, docCount, subAggregationResults) -> {
+            return new InternalDateHistogram.Bucket(bucketValue, docCount, keyed, formatter, subAggregationResults);
+        }, (owningBucketOrd, buckets) -> {
+            // the contract of the histogram aggregation is that shards must return buckets ordered by key in ascending order
+            CollectionUtil.introSort(buckets, BucketOrder.key(true).comparator());
 
-                InternalDateHistogram.EmptyBucketInfo emptyBucketInfo = minDocCount == 0
-                    ? new InternalDateHistogram.EmptyBucketInfo(rounding.withoutOffset(), buildEmptySubAggregations(), extendedBounds)
-                    : null;
-                return new InternalDateHistogram(
-                    name,
-                    buckets,
-                    order,
-                    minDocCount,
-                    rounding.offset(),
-                    emptyBucketInfo,
-                    formatter,
-                    keyed,
-                    metadata()
-                );
-            }
-        );
+            InternalDateHistogram.EmptyBucketInfo emptyBucketInfo = minDocCount == 0
+                ? new InternalDateHistogram.EmptyBucketInfo(rounding.withoutOffset(), buildEmptySubAggregations(), extendedBounds)
+                : null;
+            return new InternalDateHistogram(
+                name,
+                buckets,
+                order,
+                minDocCount,
+                rounding.offset(),
+                emptyBucketInfo,
+                formatter,
+                keyed,
+                metadata()
+            );
+        });
     }
 
     @Override
@@ -415,7 +410,10 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
         protected InternalAggregation adapt(InternalAggregation delegateResult) {
             InternalDateRange range = (InternalDateRange) delegateResult;
             List<InternalDateHistogram.Bucket> buckets = new ArrayList<>(range.getBuckets().size());
-            for (InternalDateRange.Bucket rangeBucket : range.getBuckets()) {
+            // This code below was converted from a regular for loop to a stream forEach to avoid
+            // JDK-8285835. It needs to stay in this form until we upgrade our JDK distribution to
+            // pick up a fix for the compiler crash.
+            range.getBuckets().stream().forEach(rangeBucket -> {
                 if (rangeBucket.getDocCount() > 0) {
                     buckets.add(
                         new InternalDateHistogram.Bucket(
@@ -427,7 +425,8 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
                         )
                     );
                 }
-            }
+            });
+
             CollectionUtil.introSort(buckets, BucketOrder.key(true).comparator());
 
             InternalDateHistogram.EmptyBucketInfo emptyBucketInfo = minDocCount == 0

@@ -31,21 +31,29 @@ The correlation function to execute.
 The configuration to calculate a count correlation. This function is designed for
 determining the correlation of a term value and a given metric. Consequently, it
 needs to meet the following requirements.
++
+--
 
 * The `buckets_path` must point to a `_count` metric.
 * The total count of all the `bucket_path` count values must be less than or equal to `indicator.doc_count`.
 * When utilizing this function, an initial calculation to gather the required `indicator` values is required.
-
+--
++
 .Properties of `count_correlation`
 [%collapsible%open]
 =====
 `indicator`:::
 (Required, object)
 The indicator with which to correlate the configured `bucket_path` values.
-
++
 .Properties of `indicator`
 [%collapsible%open]
-=====
+======
+`doc_count`:::
+(Required, integer)
+The total number of documents that initially created the `expectations`. It's required to be greater than or equal to the sum
+of all values in the `buckets_path` as this is the originating superset of data to which the term values are correlated.
+
 `expectations`:::
 (Required, array)
 An array of numbers with which to correlate the configured `bucket_path` values. The length of this value must always equal
@@ -55,12 +63,7 @@ the number of buckets returned by the `bucket_path`.
 (Optional, array)
 An array of fractions to use when averaging and calculating variance. This should be used if the pre-calculated data and the
 `buckets_path` have known gaps. The length of `fractions`, if provided, must equal `expectations`.
-
-`doc_count`:::
-(Required, integer)
-The total number of documents that initially created the `expectations`. It's required to be greater than or equal to the sum
-of all values in the `buckets_path` as this is the originating superset of data to which the term values are correlated.
-=====
+======
 =====
 ====
 
@@ -75,8 +78,10 @@ A `bucket_correlation` aggregation looks like this in isolation:
     "buckets_path": "range_values>_count", <1>
     "function": {
       "count_correlation": { <2>
-        "expectations": [...],
-        "doc_count": 10000
+        "indicator": {
+          "expectations": [...],
+          "doc_count": 10000
+        }
       }
     }
   }

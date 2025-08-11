@@ -132,17 +132,14 @@ public class EnsembleTests extends AbstractSerializingTestCase<Ensemble> {
         for (int i = 0; i < numberOfModels; i++) {
             models.add(TreeTests.buildRandomTree(featureNames, 6));
         }
-        ElasticsearchException ex = expectThrows(
-            ElasticsearchException.class,
-            () -> {
-                Ensemble.builder()
-                    .setTrainedModels(models)
-                    .setOutputAggregator(outputAggregator)
-                    .setFeatureNames(featureNames)
-                    .build()
-                    .validate();
-            }
-        );
+        ElasticsearchException ex = expectThrows(ElasticsearchException.class, () -> {
+            Ensemble.builder()
+                .setTrainedModels(models)
+                .setOutputAggregator(outputAggregator)
+                .setFeatureNames(featureNames)
+                .build()
+                .validate();
+        });
         assertThat(ex.getMessage(), equalTo("[aggregate_output] expects value array of size [7] but number of models is [5]"));
     }
 
@@ -209,10 +206,9 @@ public class EnsembleTests extends AbstractSerializingTestCase<Ensemble> {
 
     public void testEnsembleWithEmptyModels() {
         List<String> featureNames = Arrays.asList("foo", "bar");
-        ElasticsearchException ex = expectThrows(
-            ElasticsearchException.class,
-            () -> { Ensemble.builder().setTrainedModels(Collections.emptyList()).setFeatureNames(featureNames).build().validate(); }
-        );
+        ElasticsearchException ex = expectThrows(ElasticsearchException.class, () -> {
+            Ensemble.builder().setTrainedModels(Collections.emptyList()).setFeatureNames(featureNames).build().validate();
+        });
         assertThat(ex.getMessage(), equalTo("[trained_models] must not be empty"));
     }
 

@@ -9,6 +9,9 @@ package org.elasticsearch.xpack.security.authc.oidc;
 import com.nimbusds.jose.JWSAlgorithm;
 import com.nimbusds.jose.JWSHeader;
 import com.nimbusds.jose.crypto.RSASSASigner;
+import com.nimbusds.jose.shaded.json.JSONStyle;
+import com.nimbusds.jose.shaded.json.JSONValue;
+import com.nimbusds.jose.shaded.json.reader.JsonWriterI;
 import com.nimbusds.jwt.JWT;
 import com.nimbusds.jwt.JWTClaimsSet;
 import com.nimbusds.jwt.SignedJWT;
@@ -22,6 +25,7 @@ import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.oidc.OpenIdConnectRealmSettings;
+import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -35,6 +39,19 @@ import static java.time.Instant.now;
 import static org.elasticsearch.xpack.core.security.authc.RealmSettings.getFullSettingKey;
 
 public abstract class OpenIdConnectTestCase extends ESTestCase {
+
+    @BeforeClass
+    public static void setupWriters() {
+        // In test code, we sometimes create claims sets with claims that use the `Nonce` class; therefore, we register a writer
+        // for them here; otherwise json-smart tries to use reflection which our security manage prohibits
+        // This only applies to test, not prod code, since we don't create claim sets with "non-default" classes
+        JSONValue.registerWriter(Nonce.class, new JsonWriterI<Nonce>() {
+            @Override
+            public <E extends Nonce> void writeJSONString(E e, Appendable appendable, JSONStyle jsonStyle) throws IOException {
+                appendable.append(e.toJSONString());
+            }
+        });
+    }
 
     protected static final String REALM_NAME = "oidc-realm";
 

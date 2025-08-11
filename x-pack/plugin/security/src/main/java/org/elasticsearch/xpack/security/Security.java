@@ -6,9 +6,15 @@
  */
 package org.elasticsearch.xpack.security;
 
+import io.netty.channel.Channel;
+import io.netty.handler.codec.http.HttpMethod;
+import io.netty.handler.codec.http.HttpUtil;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.ElasticsearchSecurityException;
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
@@ -46,7 +52,11 @@ import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.http.HttpChannel;
+import org.elasticsearch.http.HttpPreRequest;
 import org.elasticsearch.http.HttpServerTransport;
+import org.elasticsearch.http.netty4.internal.HttpHeadersAuthenticatorUtils;
+import org.elasticsearch.http.netty4.internal.HttpValidator;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.indices.ExecutorNames;
 import org.elasticsearch.indices.SystemIndexDescriptor;
@@ -69,6 +79,8 @@ import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.rest.RestHeaderDefinition;
+import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.threadpool.ExecutorBuilder;
@@ -145,6 +157,7 @@ import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField;
+import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.DocumentSubsetBitsetCache;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.SecurityIndexReaderWrapper;
@@ -155,7 +168,6 @@ import org.elasticsearch.xpack.core.security.authz.store.RoleRetrievalResult;
 import org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames;
 import org.elasticsearch.xpack.core.security.support.Automatons;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
-import org.elasticsearch.xpack.core.ssl.SSLConfiguration;
 import org.elasticsearch.xpack.core.ssl.SSLConfigurationSettings;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.core.ssl.TLSLicenseBootstrapCheck;
@@ -236,6 +248,7 @@ import org.elasticsearch.xpack.security.authz.interceptor.ResizeRequestIntercept
 import org.elasticsearch.xpack.security.authz.interceptor.SearchRequestInterceptor;
 import org.elasticsearch.xpack.security.authz.interceptor.ShardSearchRequestInterceptor;
 import org.elasticsearch.xpack.security.authz.interceptor.UpdateRequestInterceptor;
+import org.elasticsearch.xpack.security.authz.interceptor.ValidateRequestInterceptor;
 import org.elasticsearch.xpack.security.authz.store.CompositeRolesStore;
 import org.elasticsearch.xpack.security.authz.store.DeprecationRoleDescriptorConsumer;
 import org.elasticsearch.xpack.security.authz.store.FileRolesStore;
@@ -247,6 +260,7 @@ import org.elasticsearch.xpack.security.operator.FileOperatorUsersStore;
 import org.elasticsearch.xpack.security.operator.OperatorOnlyRegistry;
 import org.elasticsearch.xpack.security.operator.OperatorPrivileges;
 import org.elasticsearch.xpack.security.operator.OperatorPrivileges.OperatorPrivilegesService;
+import org.elasticsearch.xpack.security.rest.RemoteHostHeader;
 import org.elasticsearch.xpack.security.rest.SecurityRestFilter;
 import org.elasticsearch.xpack.security.rest.action.RestAuthenticateAction;
 import org.elasticsearch.xpack.security.rest.action.RestDelegatePkiAuthenticationAction;
@@ -317,6 +331,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
@@ -341,6 +356,7 @@ import static org.elasticsearch.xpack.security.operator.OperatorPrivileges.OPERA
 import static org.elasticsearch.xpack.security.support.SecurityIndexManager.INTERNAL_MAIN_INDEX_FORMAT;
 import static org.elasticsearch.xpack.security.support.SecurityIndexManager.INTERNAL_TOKENS_INDEX_FORMAT;
 import static org.elasticsearch.xpack.security.support.SecurityIndexManager.SECURITY_VERSION_STRING;
+import static org.elasticsearch.xpack.security.transport.SSLEngineUtils.extractClientCertificates;
 
 public class Security extends Plugin
     implements
@@ -436,6 +452,28 @@ public class Security extends Plugin
         null,
         "operator-privileges",
         License.OperationMode.ENTERPRISE
+    );
+
+    /**
+     * 7.17.x only setting to help mitigate any potential issues for how DLS applies to terms aggs + min_doc_count=0.
+     * New versions default to stricter DLS rules and setting this to false will allow to revert to the less strict DLS behavior.
+     */
+    public static final Setting<Boolean> DLS_FORCE_TERMS_AGGS_TO_EXCLUDE_DELETED_DOCS = Setting.boolSetting(
+        "xpack.security.dls.force_terms_aggs_to_exclude_deleted_docs.enabled",
+        true,
+        Property.NodeScope,
+        Property.Deprecated
+    );
+
+    /**
+     * 7.17.x only setting to help mitigate any potential issues for how DLS applies to the validate API + rewrite=true.
+     * New versions default to stricter DLS rules and setting this to false will allow to revert to the less strict DLS behavior.
+     */
+    public static final Setting<Boolean> DLS_ERROR_WHEN_VALIDATE_QUERY_WITH_REWRITE = Setting.boolSetting(
+        "xpack.security.dls.error_when_validate_query_with_rewrite.enabled",
+        true,
+        Property.NodeScope,
+        Property.Deprecated
     );
 
     private static final Logger logger = LogManager.getLogger(Security.class);
@@ -709,6 +747,7 @@ public class Security extends Plugin
         );
         final NativeRolesStore nativeRolesStore = new NativeRolesStore(settings, client, getLicenseState(), securityIndex.get());
         final ReservedRolesStore reservedRolesStore = new ReservedRolesStore();
+        RoleDescriptor.setFieldPermissionsCache(fieldPermissionsCache);
 
         final Map<String, List<BiConsumer<Set<String>, ActionListener<RoleRetrievalResult>>>> customRoleProviders = new LinkedHashMap<>();
         for (SecurityExtension extension : securityExtensions) {
@@ -826,7 +865,8 @@ public class Security extends Plugin
                     new ShardSearchRequestInterceptor(threadPool, getLicenseState(), clusterService),
                     new UpdateRequestInterceptor(threadPool, getLicenseState()),
                     new BulkShardRequestInterceptor(threadPool, getLicenseState()),
-                    new DlsFlsLicenseRequestInterceptor(threadPool.getThreadContext(), getLicenseState())
+                    new DlsFlsLicenseRequestInterceptor(threadPool.getThreadContext(), getLicenseState()),
+                    new ValidateRequestInterceptor(threadPool, getLicenseState(), settings)
                 )
             );
         }
@@ -835,6 +875,7 @@ public class Security extends Plugin
         final AuthorizationService authzService = new AuthorizationService(
             settings,
             allRolesStore,
+            fieldPermissionsCache,
             clusterService,
             auditTrailService,
             failureHandler,
@@ -852,7 +893,11 @@ public class Security extends Plugin
         components.add(allRolesStore); // for SecurityFeatureSet and clear roles cache
         components.add(authzService);
 
-        final SecondaryAuthenticator secondaryAuthenticator = new SecondaryAuthenticator(securityContext.get(), authcService.get());
+        final SecondaryAuthenticator secondaryAuthenticator = new SecondaryAuthenticator(
+            securityContext.get(),
+            authcService.get(),
+            auditTrailService
+        );
         this.secondayAuthc.set(secondaryAuthenticator);
         components.add(secondaryAuthenticator);
 
@@ -1067,6 +1112,8 @@ public class Security extends Plugin
         settingsList.add(CachingServiceAccountTokenStore.CACHE_TTL_SETTING);
         settingsList.add(CachingServiceAccountTokenStore.CACHE_HASH_ALGO_SETTING);
         settingsList.add(CachingServiceAccountTokenStore.CACHE_MAX_TOKENS_SETTING);
+        settingsList.add(DLS_FORCE_TERMS_AGGS_TO_EXCLUDE_DELETED_DOCS);
+        settingsList.add(DLS_ERROR_WHEN_VALIDATE_QUERY_WITH_REWRITE);
 
         // hide settings
         settingsList.add(
@@ -1467,6 +1514,7 @@ public class Security extends Plugin
         NamedXContentRegistry xContentRegistry,
         NetworkService networkService,
         HttpServerTransport.Dispatcher dispatcher,
+        BiConsumer<HttpPreRequest, ThreadContext> perRequestThreadContext,
         ClusterSettings clusterSettings
     ) {
         if (enabled == false) { // don't register anything if we are not enabled
@@ -1474,24 +1522,62 @@ public class Security extends Plugin
         }
 
         Map<String, Supplier<HttpServerTransport>> httpTransports = new HashMap<>();
-        httpTransports.put(
-            SecurityField.NAME4,
-            () -> new SecurityNetty4HttpServerTransport(
+        httpTransports.put(SecurityField.NAME4, () -> {
+            final BiConsumer<Channel, ThreadContext> populateClientCertificate;
+            if (HTTP_SSL_ENABLED.get(settings)
+                && getSslService().isSSLClientAuthEnabled(getSslService().getHttpTransportSSLConfiguration())) {
+                populateClientCertificate = (channel, threadContext) -> extractClientCertificates(logger, threadContext, channel);
+            } else {
+                populateClientCertificate = (channel, threadContext) -> {};
+            }
+            final AuthenticationService authenticationService = this.authcService.get();
+            final ThreadContext threadContext = this.threadContext.get();
+            return getHttpServerTransportWithHeadersValidator(
                 settings,
                 networkService,
                 bigArrays,
-                ipFilter.get(),
-                getSslService(),
                 threadPool,
                 xContentRegistry,
                 dispatcher,
+                ipFilter.get(),
+                getSslService(),
+                getNettySharedGroupFactory(settings),
                 clusterSettings,
-                getNettySharedGroupFactory(settings)
-            )
-        );
-        httpTransports.put(
-            SecurityField.NIO,
-            () -> new SecurityNioHttpServerTransport(
+                (httpRequest, channel, listener) -> {
+                    HttpPreRequest httpPreRequest = HttpHeadersAuthenticatorUtils.asHttpPreRequest(httpRequest);
+                    // step 1: Populate the thread context with credentials and any other HTTP request header values (eg run-as) that the
+                    // authentication process looks for while doing its duty.
+                    perRequestThreadContext.accept(httpPreRequest, threadContext);
+                    populateClientCertificate.accept(channel, threadContext);
+                    RemoteHostHeader.process(channel, threadContext);
+                    // step 2: Run authentication on the now properly prepared thread-context.
+                    // This inspects and modifies the thread context.
+                    authenticationService.authenticate(
+                        httpPreRequest,
+                        ActionListener.wrap(ignored -> listener.onResponse(null), listener::onFailure)
+                    );
+                },
+                (httpRequest, channel, listener) -> {
+                    // allow unauthenticated OPTIONS request through
+                    // this includes CORS preflight, and regular OPTIONS that return permitted methods for a given path
+                    // But still populate the thread context with the usual request headers (as for any other request that is dispatched)
+                    HttpPreRequest httpPreRequest = HttpHeadersAuthenticatorUtils.asHttpPreRequest(httpRequest);
+                    perRequestThreadContext.accept(httpPreRequest, threadContext);
+                    populateClientCertificate.accept(channel, threadContext);
+                    RemoteHostHeader.process(channel, threadContext);
+                    listener.onResponse(null);
+                }
+            );
+        });
+        httpTransports.put(SecurityField.NIO, () -> {
+            final BiConsumer<HttpChannel, ThreadContext> populateClientCertificate;
+            if (HTTP_SSL_ENABLED.get(settings)
+                && getSslService().isSSLClientAuthEnabled(getSslService().getHttpTransportSSLConfiguration())) {
+                populateClientCertificate = (channel, threadContext) -> extractClientCertificates(logger, threadContext, channel);
+            } else {
+                populateClientCertificate = (channel, threadContext) -> {};
+            }
+            return new SecurityNioHttpServerTransport(
                 settings,
                 networkService,
                 bigArrays,
@@ -1503,10 +1589,105 @@ public class Security extends Plugin
                 getSslService(),
                 getNioGroupFactory(settings),
                 clusterSettings
-            )
-        );
+            ) {
+                @Override
+                protected void populatePerRequestThreadContext(RestRequest restRequest, ThreadContext threadContext) {
+                    perRequestThreadContext.accept(restRequest.getHttpRequest(), threadContext);
+                    populateClientCertificate.accept(restRequest.getHttpChannel(), threadContext);
+                    RemoteHostHeader.process(restRequest.getHttpChannel(), threadContext);
+                }
+            };
+        });
 
         return httpTransports;
+    }
+
+    // "public" so it can be used in tests
+    public static SecurityNetty4HttpServerTransport getHttpServerTransportWithHeadersValidator(
+        Settings settings,
+        NetworkService networkService,
+        BigArrays bigArrays,
+        ThreadPool threadPool,
+        NamedXContentRegistry xContentRegistry,
+        HttpServerTransport.Dispatcher dispatcher,
+        IPFilter ipFilter,
+        SSLService sslService,
+        SharedGroupFactory sharedGroupFactory,
+        ClusterSettings clusterSettings,
+        HttpValidator httpValidator,
+        HttpValidator httpOptionsValidator
+    ) {
+        return getHttpServerTransportWithHeadersValidator(
+            settings,
+            networkService,
+            bigArrays,
+            threadPool,
+            xContentRegistry,
+            dispatcher,
+            ipFilter,
+            sslService,
+            sharedGroupFactory,
+            clusterSettings,
+            (httpRequest, channel, listener) -> {
+                if (httpRequest.method() == HttpMethod.OPTIONS) {
+                    if (HttpUtil.getContentLength(httpRequest, -1L) > 1 || HttpUtil.isTransferEncodingChunked(httpRequest)) {
+                        // OPTIONS requests with a body are not supported
+                        listener.onFailure(
+                            new ElasticsearchStatusException(
+                                "OPTIONS requests with a payload body are not supported",
+                                RestStatus.BAD_REQUEST
+                            )
+                        );
+                    } else {
+                        httpOptionsValidator.validate(httpRequest, channel, listener);
+                    }
+                } else {
+                    httpValidator.validate(httpRequest, channel, listener);
+                }
+            }
+        );
+    }
+
+    // "public" so it can be used in tests
+    public static SecurityNetty4HttpServerTransport getHttpServerTransportWithHeadersValidator(
+        Settings settings,
+        NetworkService networkService,
+        BigArrays bigArrays,
+        ThreadPool threadPool,
+        NamedXContentRegistry xContentRegistry,
+        HttpServerTransport.Dispatcher dispatcher,
+        IPFilter ipFilter,
+        SSLService sslService,
+        SharedGroupFactory sharedGroupFactory,
+        ClusterSettings clusterSettings,
+        HttpValidator httpValidator
+    ) {
+        return new SecurityNetty4HttpServerTransport(
+            settings,
+            networkService,
+            bigArrays,
+            ipFilter,
+            sslService,
+            threadPool,
+            xContentRegistry,
+            dispatcher,
+            clusterSettings,
+            sharedGroupFactory,
+            Objects.requireNonNull(httpValidator)
+        ) {
+            @Override
+            protected void populatePerRequestThreadContext(RestRequest restRequest, ThreadContext threadContext) {
+                ThreadContext.StoredContext authenticationThreadContext = HttpHeadersAuthenticatorUtils.extractAuthenticationContext(
+                    restRequest.getHttpRequest()
+                );
+                if (authenticationThreadContext != null) {
+                    authenticationThreadContext.restore();
+                } else {
+                    // this is an unexpected internal error condition where {@code Netty4HttpHeaderValidator} does not work correctly
+                    throw new ElasticsearchSecurityException("Request is not authenticated");
+                }
+            }
+        };
     }
 
     @Override
@@ -1514,20 +1695,12 @@ public class Security extends Plugin
         if (enabled == false || transportClientMode) {
             return null;
         }
-        boolean extractClientCertificate;
-        if (HTTP_SSL_ENABLED.get(settings)) {
-            final SSLConfiguration httpSSLConfig = getSslService().getHttpTransportSSLConfiguration();
-            extractClientCertificate = getSslService().isSSLClientAuthEnabled(httpSSLConfig);
-        } else {
-            extractClientCertificate = false;
-        }
         return handler -> new SecurityRestFilter(
             getLicenseState(),
-            threadContext,
             authcService.get(),
             secondayAuthc.get(),
-            handler,
-            extractClientCertificate
+            auditTrailService.get(),
+            handler
         );
     }
 

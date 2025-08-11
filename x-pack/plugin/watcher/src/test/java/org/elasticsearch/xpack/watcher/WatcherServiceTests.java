@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.watcher;
 
 import org.apache.lucene.search.TotalHits;
+import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.refresh.RefreshAction;
@@ -65,7 +66,10 @@ import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.util.Collections;
 import java.util.List;
+import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicReference;
 
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.ArgumentMatchers.any;
@@ -74,6 +78,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -236,13 +241,52 @@ public class WatcherServiceTests extends ESTestCase {
             return null;
         }).when(client).execute(eq(ClearScrollAction.INSTANCE), any(ClearScrollRequest.class), anyActionListener());
 
-        service.start(clusterState, () -> {});
+        service.start(clusterState, () -> {}, exception -> {});
 
         ArgumentCaptor<List> captor = ArgumentCaptor.forClass(List.class);
         verify(triggerService).start(captor.capture());
         List<Watch> watches = captor.getValue();
         watches.forEach(watch -> assertThat(watch.status().state().isActive(), is(true)));
         assertThat(watches, hasSize(activeWatchCount));
+    }
+
+    public void testExceptionHandling() {
+        /*
+         * This tests that if the WatcherService throws an exception while refreshing indices that the exception is handled by the
+         * exception consumer rather than being propagated higher in the stack.
+         */
+        TriggerService triggerService = mock(TriggerService.class);
+        TriggeredWatchStore triggeredWatchStore = mock(TriggeredWatchStore.class);
+        ExecutionService executionService = mock(ExecutionService.class);
+        WatchParser parser = mock(WatchParser.class);
+        final ElasticsearchTimeoutException exception = new ElasticsearchTimeoutException(new TimeoutException("Artifical timeout"));
+        WatcherService service = new WatcherService(
+            Settings.EMPTY,
+            triggerService,
+            triggeredWatchStore,
+            executionService,
+            parser,
+            client,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
+        ) {
+            @Override
+            void refreshWatches(IndexMetadata indexMetadata) {
+                throw exception;
+            }
+        };
+
+        ClusterState.Builder csBuilder = new ClusterState.Builder(new ClusterName("_name"));
+        Metadata.Builder metadataBuilder = Metadata.builder();
+        Settings indexSettings = settings(Version.CURRENT).put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
+            .build();
+        metadataBuilder.put(IndexMetadata.builder(Watch.INDEX).settings(indexSettings));
+        csBuilder.metadata(metadataBuilder);
+        ClusterState clusterState = csBuilder.build();
+
+        AtomicReference<Exception> exceptionReference = new AtomicReference<>();
+        service.start(clusterState, () -> { fail("Excepted an exception"); }, exceptionReference::set);
+        assertThat(exceptionReference.get(), equalTo(exception));
     }
 
     @SuppressWarnings({ "unchecked", "rawtypes" })
@@ -305,10 +349,36 @@ public class WatcherServiceTests extends ESTestCase {
         ClusterState.Builder csBuilder = new ClusterState.Builder(new ClusterName("_name"));
         csBuilder.metadata(Metadata.builder());
 
-        service.reload(csBuilder.build(), "whatever");
+        service.reload(csBuilder.build(), "whatever", exception -> {});
         verify(executionService).clearExecutionsAndQueue(any());
         verify(executionService, never()).pause(any());
         verify(triggerService).pauseExecution();
+    }
+
+    // the trigger service should not start unless watches are loaded successfully
+    public void testReloadingWatcherDoesNotStartTriggerServiceIfFailingToLoadWatches() {
+        ExecutionService executionService = mock(ExecutionService.class);
+        TriggerService triggerService = mock(TriggerService.class);
+        WatcherService service = new WatcherService(
+            Settings.EMPTY,
+            triggerService,
+            mock(TriggeredWatchStore.class),
+            executionService,
+            mock(WatchParser.class),
+            client,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
+        ) {
+            @Override
+            void stopExecutor() {}
+        };
+
+        ClusterState.Builder csBuilder = new ClusterState.Builder(new ClusterName("_name"));
+        Metadata metadata = spy(Metadata.builder().build());
+        when(metadata.getIndicesLookup()).thenThrow(RuntimeException.class); // simulate exception in WatcherService's private loadWatches()
+
+        service.reload(csBuilder.metadata(metadata).build(), "whatever", exception -> {});
+        verify(triggerService).pauseExecution();
+        verify(triggerService, never()).start(any());
     }
 
     private static DiscoveryNode newNode() {

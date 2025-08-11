@@ -14,6 +14,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.transport.RemoteClusterService;
+import org.elasticsearch.xpack.eql.execution.search.RuntimeUtils;
 
 import java.util.Set;
 import java.util.TreeSet;
@@ -24,6 +25,8 @@ public class RemoteClusterRegistry {
     private final IndicesOptions indicesOptions;
     private final IndexNameExpressionResolver indexNameExpressionResolver;
     private final ClusterService clusterService;
+
+    public static final Version FIRST_COMPATIBLE_VERSION = RuntimeUtils.SWITCH_TO_MULTI_VALUE_FIELDS_VERSION;
 
     public RemoteClusterRegistry(
         RemoteClusterService remoteClusterService,
@@ -41,7 +44,7 @@ public class RemoteClusterRegistry {
         Set<String> incompatibleClusters = new TreeSet<>();
         for (String clusterAlias : clusterAliases(Strings.splitStringByCommaToArray(indexPattern), true)) {
             Version clusterVersion = remoteClusterService.getConnection(clusterAlias).getVersion();
-            if (clusterVersion.equals(Version.CURRENT) == false) { // TODO: should newer clusters be eventually allowed?
+            if (Version.CURRENT.isCompatible(clusterVersion) == false || clusterVersion.before(FIRST_COMPATIBLE_VERSION)) {
                 incompatibleClusters.add(clusterAlias);
             }
         }

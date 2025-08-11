@@ -88,9 +88,9 @@ public class RemovePluginActionTests extends ESTestCase {
     static MockTerminal removePlugin(List<String> pluginIds, Path home, boolean purge) throws Exception {
         Environment env = TestEnvironment.newEnvironment(Settings.builder().put("path.home", home).build());
         MockTerminal terminal = new MockTerminal();
-        final List<PluginDescriptor> plugins = pluginIds == null
+        final List<InstallablePlugin> plugins = pluginIds == null
             ? null
-            : pluginIds.stream().map(PluginDescriptor::new).collect(Collectors.toList());
+            : pluginIds.stream().map(InstallablePlugin::new).collect(Collectors.toList());
         new RemovePluginAction(terminal, env, purge).execute(plugins);
         return terminal;
     }

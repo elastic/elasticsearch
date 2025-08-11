@@ -8,10 +8,11 @@ import org.elasticsearch.gradle.internal.info.BuildParams
  * Side Public License, v 1.
  */
 
-apply plugin: 'nebula.optional-base'
 apply plugin: 'elasticsearch.publish'
 
-archivesBaseName = 'elasticsearch-core'
+base {
+  archivesName = 'elasticsearch-core'
+}
 
 // we want to keep the JDKs in our IDEs set to JDK 8 until minimum JDK is bumped to 11 so we do not include this source set in our IDEs
 if (!isEclipse) {

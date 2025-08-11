@@ -396,7 +396,10 @@ public class MultiSearchRequest extends ActionRequest implements CompositeIndice
         return new CancellableTask(id, type, action, "", parentTaskId, headers) {
             @Override
             public String getDescription() {
-                return requests.stream().map(SearchRequest::buildDescription).collect(Collectors.joining(action + "[", ",", "]"));
+                return "requests["
+                    + requests.size()
+                    + "]: "
+                    + requests.stream().map(SearchRequest::buildDescription).collect(Collectors.joining(" | "));
             }
         };
     }

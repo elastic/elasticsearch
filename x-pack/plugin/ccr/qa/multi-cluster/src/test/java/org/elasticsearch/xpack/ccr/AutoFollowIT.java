@@ -172,14 +172,12 @@ public class AutoFollowIT extends ESCCRRestTestCase {
                 assertThat(indexExists(excludedIndex), is(false));
             });
 
-            assertBusy(() -> {
-                verifyCcrMonitoring("metrics-20210101", "metrics-20210101");
-                verifyAutoFollowMonitoring();
-            }, 30, TimeUnit.SECONDS);
+            assertLongBusy(() -> verifyCcrMonitoring("metrics-20210101", "metrics-20210101"));
+            assertLongBusy(ESCCRRestTestCase::verifyAutoFollowMonitoring);
 
         } finally {
-            cleanUpLeader(org.elasticsearch.core.List.of("metrics-20210101", excludedIndex), emptyList(), emptyList());
             cleanUpFollower(singletonList("metrics-20210101"), emptyList(), singletonList(autoFollowPatternName));
+            cleanUpLeader(org.elasticsearch.core.List.of("metrics-20210101", excludedIndex), emptyList(), emptyList());
         }
     }
 

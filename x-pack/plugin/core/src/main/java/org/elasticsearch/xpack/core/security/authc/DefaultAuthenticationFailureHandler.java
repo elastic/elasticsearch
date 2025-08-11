@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.core.security.authc;
 
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.http.HttpPreRequest;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.transport.TransportMessage;
 import org.elasticsearch.xpack.core.XPackField;
@@ -91,7 +91,7 @@ public class DefaultAuthenticationFailureHandler implements AuthenticationFailur
     }
 
     @Override
-    public ElasticsearchSecurityException failedAuthentication(RestRequest request, AuthenticationToken token, ThreadContext context) {
+    public ElasticsearchSecurityException failedAuthentication(HttpPreRequest request, AuthenticationToken token, ThreadContext context) {
         return createAuthenticationError("unable to authenticate user [{}] for REST request [{}]", null, token.principal(), request.uri());
     }
 
@@ -106,7 +106,7 @@ public class DefaultAuthenticationFailureHandler implements AuthenticationFailur
     }
 
     @Override
-    public ElasticsearchSecurityException exceptionProcessingRequest(RestRequest request, Exception e, ThreadContext context) {
+    public ElasticsearchSecurityException exceptionProcessingRequest(HttpPreRequest request, Exception e, ThreadContext context) {
         return createAuthenticationError("error attempting to authenticate request", e, (Object[]) null);
     }
 
@@ -121,7 +121,7 @@ public class DefaultAuthenticationFailureHandler implements AuthenticationFailur
     }
 
     @Override
-    public ElasticsearchSecurityException missingToken(RestRequest request, ThreadContext context) {
+    public ElasticsearchSecurityException missingToken(HttpPreRequest request, ThreadContext context) {
         return createAuthenticationError("missing authentication credentials for REST request [{}]", null, request.uri());
     }
 

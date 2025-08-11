@@ -823,4 +823,20 @@ public class RecoveryIT extends AbstractRollingTestCase {
         ensureGreen(indexName);
         indexDocs(indexName, randomInt(100), randomInt(100));
     }
+
+    protected static void updateIndexSettings(String index, Settings.Builder settings) throws IOException {
+        Request request = new Request("PUT", "/" + index + "/_settings");
+        request.setJsonEntity(Strings.toString(settings.build()));
+        if (UPGRADE_FROM_VERSION.before(Version.V_7_17_9)) {
+            // There is a bug (fixed in 7.17.9 and 8.7.0 where deprecation warnings could leak into ClusterApplierService#applyChanges)
+            // Below warnings are set (and leaking) from an index in this test case
+            request.setOptions(expectVersionSpecificWarnings(v -> {
+                v.compatible(
+                    "[index.mapper.dynamic] setting was deprecated in Elasticsearch and will be removed in a future release! "
+                        + "See the breaking changes documentation for the next major version."
+                );
+            }));
+        }
+        assertOK(client().performRequest(request));
+    }
 }

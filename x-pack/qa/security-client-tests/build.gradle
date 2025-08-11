@@ -1,9 +1,8 @@
-apply plugin: 'elasticsearch.standalone-rest-test'
-apply plugin: 'elasticsearch.rest-test'
+apply plugin: 'elasticsearch.legacy-java-rest-test'
 
 dependencies {
-  testImplementation project(xpackModule('core'))
-  testImplementation project(xpackProject('transport-client').path)
+  javaRestTestImplementation project(xpackModule('core'))
+  javaRestTestImplementation project(xpackProject('transport-client').path)
 }
 
 String outputDir = "${buildDir}/generated-resources/${project.name}"
@@ -13,13 +12,13 @@ def copyXPackPluginProps = tasks.register("copyXPackPluginProps", Copy) {
   from project(xpackModule('core')).tasks.pluginProperties
   into outputDir
 }
-project.sourceSets.test.output.dir(outputDir, builtBy: copyXPackPluginProps)
+project.sourceSets.javaRestTest.output.dir(outputDir, builtBy: copyXPackPluginProps)
 
-tasks.named("integTest").configure {
+tasks.named("javaRestTest").configure {
   systemProperty 'tests.security.manager', 'false'
 }
 
-testClusters.matching { it.name == "integTest" }.configureEach {
+testClusters.matching { it.name == "javaRestTest" }.configureEach {
   testDistribution = "default"
   setting 'xpack.security.enabled', 'true'
   setting 'xpack.ml.enabled', 'false'

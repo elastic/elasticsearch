@@ -769,7 +769,7 @@ public class DataTiersFeatureSetTests extends ESTestCase {
     }
 
     private static ShardStats shardStat(long byteCount, long docCount, ShardRouting routing) {
-        StoreStats storeStats = new StoreStats(byteCount, 0L, 0L);
+        StoreStats storeStats = new StoreStats(randomNonNegativeLong(), byteCount, 0L);
         DocsStats docsStats = new DocsStats(docCount, 0L, byteCount);
 
         CommonStats commonStats = new CommonStats(CommonStatsFlags.ALL);

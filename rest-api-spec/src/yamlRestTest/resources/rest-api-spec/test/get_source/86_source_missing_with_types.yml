@@ -14,7 +14,7 @@ setup:
       index:
           index:   test_1
           type:    test
-          id:      1
+          id:      "1"
           body:    { foo: bar }
 
 
@@ -26,7 +26,7 @@ setup:
       get_source:
         index: test_1
         type: test
-        id:    1
+        id:    "1"
 
 ---
 "Missing document source with ignore":
@@ -35,5 +35,5 @@ setup:
       get_source:
         index:  test_1
         type: test
-        id:     1
+        id:     "1"
         ignore: 404

@@ -29,6 +29,7 @@ import org.elasticsearch.client.searchable_snapshots.CachesStatsResponse.NodeCac
 import org.elasticsearch.client.searchable_snapshots.MountSnapshotRequest;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.snapshots.RestoreInfo;
@@ -36,9 +37,11 @@ import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
 @SuppressWarnings("removal")
@@ -47,7 +50,9 @@ public class SearchableSnapshotsDocumentationIT extends ESRestHighLevelClientTes
     public void testMountSnapshot() throws IOException, InterruptedException {
         final RestHighLevelClient client = highLevelClient();
         {
-            final CreateIndexRequest request = new CreateIndexRequest("index");
+            final CreateIndexRequest request = new CreateIndexRequest("index").settings(
+                Settings.builder().put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), TimeValue.timeValueHours(1L)).build()
+            );
             final CreateIndexResponse response = client.indices().create(request, RequestOptions.DEFAULT);
             assertTrue(response.isAcknowledged());
         }
@@ -87,7 +92,7 @@ public class SearchableSnapshotsDocumentationIT extends ESRestHighLevelClientTes
             .put("index.number_of_replicas", 0)
             .build();
         request.indexSettings(indexSettings); // <8>
-        request.ignoredIndexSettings(
+        request.ignoreIndexSettings(
             new String[]{"index.refresh_interval"}); // <9>
         // end::searchable-snapshots-mount-snapshot-request
 
@@ -96,6 +101,18 @@ public class SearchableSnapshotsDocumentationIT extends ESRestHighLevelClientTes
             .searchableSnapshots()
             .mountSnapshot(request, RequestOptions.DEFAULT);
         // end::searchable-snapshots-mount-snapshot-execute
+
+        Map<String, Object> settings = getIndexSettings("renamed_index", true);
+        @SuppressWarnings("unchecked")
+        Map<String, Object> renamedIndexSettings = (Map<String, Object>) settings.get("renamed_index");
+        @SuppressWarnings("unchecked")
+        Map<String, Object> defaultIndexSettings = (Map<String, Object>) renamedIndexSettings.get("defaults");
+
+        assertThat(
+            "Original index refresh interval setting should have been ignored when mounting the index: " + settings,
+            defaultIndexSettings.get(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey()),
+            equalTo("1s")
+        );
 
         // tag::searchable-snapshots-mount-snapshot-response
         final RestoreInfo restoreInfo = response.getRestoreInfo(); // <1>

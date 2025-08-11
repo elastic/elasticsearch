@@ -115,10 +115,14 @@ public class LeaderCheckerTests extends ESTestCase {
                 super.onSendRequest(requestId, action, request, node);
 
                 final boolean mustSucceed = leaderCheckRetryCount - 1 <= consecutiveFailedRequestsCount;
-                final long responseDelay = randomLongBetween(0, leaderCheckTimeoutMillis + (mustSucceed ? -1 : 60000));
+                final long responseDelay = randomValueOtherThan(
+                    leaderCheckTimeoutMillis,
+                    () -> randomLongBetween(0, leaderCheckTimeoutMillis + (mustSucceed ? -1 : 60000))
+                );
                 final boolean successResponse = allResponsesFail.get() == false && (mustSucceed || randomBoolean());
 
-                if (responseDelay >= leaderCheckTimeoutMillis) {
+                assert responseDelay != leaderCheckTimeoutMillis;
+                if (responseDelay > leaderCheckTimeoutMillis) {
                     timeoutCount.incrementAndGet();
                     consecutiveFailedRequestsCount += 1;
                 } else if (successResponse == false) {
@@ -204,7 +208,9 @@ public class LeaderCheckerTests extends ESTestCase {
         leaderChecker.updateLeader(leader2);
         {
             checkCount.set(0);
-            final long maxCheckCount = randomLongBetween(2, 1000);
+            // run at least leaderCheckRetryCount iterations to ensure at least one success so that we reset the counters and clear out
+            // anything left over from the previous run
+            final long maxCheckCount = randomLongBetween(leaderCheckRetryCount, 1000);
             logger.info("--> checking again that no failure is detected in {} checks", maxCheckCount);
             while (checkCount.get() < maxCheckCount) {
                 deterministicTaskQueue.runAllRunnableTasks();

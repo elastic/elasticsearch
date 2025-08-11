@@ -5,16 +5,13 @@
  * in compliance with, at your election, the Elastic License 2.0 or the Server
  * Side Public License, v 1.
  */
-apply plugin: 'elasticsearch.internal-testclusters'
-apply plugin: 'elasticsearch.standalone-rest-test'
-apply plugin: 'elasticsearch.rest-test'
-apply plugin: 'elasticsearch.test-with-dependencies'
+apply plugin: 'elasticsearch.legacy-java-rest-test'
 
-testClusters.matching { it.name == "integTest" }.configureEach {
+testClusters.matching { it.name == "javaRestTest" }.configureEach {
   setting 'xpack.security.enabled', 'true'
   user username: 'admin', password: 'admin-password', role: 'superuser'
 }
 
 dependencies {
-  testImplementation project(":client:rest-high-level")
+  javaRestTestImplementation project(":client:rest-high-level")
 }

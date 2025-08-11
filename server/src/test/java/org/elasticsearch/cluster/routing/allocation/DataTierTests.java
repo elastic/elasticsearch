@@ -33,6 +33,7 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.cluster.routing.allocation.DataTier.ALL_DATA_TIERS;
 import static org.elasticsearch.cluster.routing.allocation.DataTier.DATA_COLD;
+import static org.elasticsearch.cluster.routing.allocation.DataTier.DATA_FROZEN;
 import static org.elasticsearch.cluster.routing.allocation.DataTier.DATA_HOT;
 import static org.elasticsearch.cluster.routing.allocation.DataTier.DATA_WARM;
 import static org.elasticsearch.cluster.routing.allocation.DataTier.getPreferredTiersConfiguration;
@@ -149,6 +150,7 @@ public class DataTierTests extends ESTestCase {
         assertThat(getPreferredTiersConfiguration(DATA_HOT), is(DATA_HOT));
         assertThat(getPreferredTiersConfiguration(DATA_WARM), is(DATA_WARM + "," + DATA_HOT));
         assertThat(getPreferredTiersConfiguration(DATA_COLD), is(DATA_COLD + "," + DATA_WARM + "," + DATA_HOT));
+        assertThat(getPreferredTiersConfiguration(DATA_FROZEN), is(DATA_FROZEN));
         IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> getPreferredTiersConfiguration("no_tier"));
         assertThat(exception.getMessage(), is("invalid data tier [no_tier]"));
     }
@@ -252,5 +254,17 @@ public class DataTierTests extends ESTestCase {
         expectThrows(IllegalArgumentException.class, () -> validator.validate(DATA_WARM + " "));
         expectThrows(IllegalArgumentException.class, () -> validator.validate(DATA_WARM + ", "));
         expectThrows(IllegalArgumentException.class, () -> validator.validate(DATA_WARM + ", " + DATA_HOT));
+    }
+
+    public void testCompareDataTiers() {
+        assertThat(DataTier.compare("data_cold", "data_warm"), is(-1));
+        assertThat(DataTier.compare("data_cold", "data_cold"), is(0));
+        assertThat(DataTier.compare("data_warm", "data_cold"), is(1));
+        // data_content is treated as equal to data_hot
+        assertThat(DataTier.compare("data_warm", "data_content"), is(-1));
+        assertThat(DataTier.compare("data_content", "data_content"), is(0));
+        assertThat(DataTier.compare("data_content", "data_hot"), is(0));
+        assertThat(DataTier.compare("data_content", "data_warm"), is(1));
+
     }
 }

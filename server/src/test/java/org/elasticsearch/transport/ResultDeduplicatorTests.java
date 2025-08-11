@@ -10,6 +10,8 @@ package org.elasticsearch.transport;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ResultDeduplicator;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
 
@@ -29,8 +31,11 @@ public class ResultDeduplicatorTests extends ESTestCase {
             @Override
             public void setParentTask(final TaskId taskId) {}
         };
-        final ResultDeduplicator<TransportRequest, Void> deduplicator = new ResultDeduplicator<>();
+        final ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+        final ResultDeduplicator<TransportRequest, Void> deduplicator = new ResultDeduplicator<>(threadContext);
         final SetOnce<ActionListener<Void>> listenerHolder = new SetOnce<>();
+        final String headerName = "thread-context-header";
+        final AtomicInteger headerGenerator = new AtomicInteger();
         int iterationsPerThread = scaledRandomIntBetween(100, 1000);
         Thread[] threads = new Thread[between(1, 4)];
         Phaser barrier = new Phaser(threads.length + 1);
@@ -38,18 +43,24 @@ public class ResultDeduplicatorTests extends ESTestCase {
             threads[i] = new Thread(() -> {
                 barrier.arriveAndAwaitAdvance();
                 for (int n = 0; n < iterationsPerThread; n++) {
-                    deduplicator.executeOnce(request, new ActionListener<Void>() {
-                        @Override
-                        public void onResponse(Void aVoid) {
-                            successCount.incrementAndGet();
-                        }
+                    final String headerValue = Integer.toString(headerGenerator.incrementAndGet());
+                    try (ThreadContext.StoredContext ignored = threadContext.stashContext()) {
+                        threadContext.putHeader(headerName, headerValue);
+                        deduplicator.executeOnce(request, new ActionListener<Void>() {
+                            @Override
+                            public void onResponse(Void aVoid) {
+                                assertThat(threadContext.getHeader(headerName), equalTo(headerValue));
+                                successCount.incrementAndGet();
+                            }
 
-                        @Override
-                        public void onFailure(Exception e) {
-                            assertThat(e, sameInstance(failure));
-                            failureCount.incrementAndGet();
-                        }
-                    }, (req, reqListener) -> listenerHolder.set(reqListener));
+                            @Override
+                            public void onFailure(Exception e) {
+                                assertThat(threadContext.getHeader(headerName), equalTo(headerValue));
+                                assertThat(e, sameInstance(failure));
+                                failureCount.incrementAndGet();
+                            }
+                        }, (req, reqListener) -> listenerHolder.set(reqListener));
+                    }
                 }
             });
             threads[i].start();

@@ -267,8 +267,7 @@ class S3Repository extends MeteredBlobStoreRepository {
             deprecationLogger.critical(
                 DeprecationCategory.SECURITY,
                 "s3_repository_secret_settings",
-                "Using s3 access/secret key from repository settings. Instead "
-                    + "store these in named clients and the elasticsearch keystore for secure settings."
+                INSECURE_CREDENTIALS_DEPRECATION_WARNING
             );
         }
 
@@ -284,6 +283,10 @@ class S3Repository extends MeteredBlobStoreRepository {
             storageClass
         );
     }
+
+    static final String INSECURE_CREDENTIALS_DEPRECATION_WARNING =
+        "This repository's settings include a S3 access key and secret key, but repository settings are stored in plaintext and must not "
+            + "be used for security-sensitive information. Instead, store all secure settings in the keystore.";
 
     private static Map<String, String> buildLocation(RepositoryMetadata metadata) {
         return org.elasticsearch.core.Map.of(

@@ -93,6 +93,7 @@ public class SeedHostsResolverTests extends ESTestCase {
             2,
             60,
             TimeUnit.SECONDS,
+            false,
             threadFactory,
             threadPool.getThreadContext()
         );

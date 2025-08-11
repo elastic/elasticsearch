@@ -1,4 +1,6 @@
-import org.elasticsearch.gradle.VersionProperties
+import org.elasticsearch.gradle.Version
+import org.elasticsearch.gradle.internal.BwcVersions
+import org.elasticsearch.gradle.internal.BwcVersions
 import org.elasticsearch.gradle.internal.info.BuildParams
 import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask
 
@@ -40,6 +42,13 @@ BuildParams.bwcVersions.withWireCompatiple { bwcVersion, baseName ->
     testDistribution = "DEFAULT"
     versions = [oldVersion, project.version]
     numberOfNodes = 3
+
+    systemProperty 'ingest.geoip.downloader.enabled.default', 'true'
+    //we don't want to hit real service from each test
+    systemProperty 'ingest.geoip.downloader.endpoint.default', 'http://invalid.endpoint'
+    if (bwcVersion.onOrAfter('7.14.0')) {
+      setting 'ingest.geoip.downloader.endpoint', 'http://invalid.endpoint'
+    }
 
     setting 'repositories.url.allowed_urls', 'http://snapshot.test*'
     setting 'path.repo', "['${buildDir}/cluster/shared/repo/${baseName}', '${searchableSnapshotRepository}']"
@@ -126,6 +135,13 @@ BuildParams.bwcVersions.withWireCompatiple { bwcVersion, baseName ->
         'old_cluster/90_ml_data_frame_analytics_crud/Put classification job on the old cluster'
       ])
     }
+
+    // Disable ML tests for incompatible systems
+    if (BwcVersions.isMlCompatible(bwcVersion) == false) {
+      systemProperty 'tests.ml.skip', 'true'
+      toBlackList.addAll(['old_cluster/30_ml_jobs_crud/*', 'old_cluster/40_ml_datafeed_crud/*', 'old_cluster/90_ml_data_frame_analytics_crud'])
+    }
+
     if (!toBlackList.empty) {
       systemProperty 'tests.rest.blacklist', toBlackList.join(',')
     }
@@ -177,6 +193,13 @@ BuildParams.bwcVersions.withWireCompatiple { bwcVersion, baseName ->
         'mixed_cluster/90_ml_data_frame_analytics_crud/Get old classification job stats',
       ])
     }
+
+    // Disable ML tests for incompatible systems
+    if (BwcVersions.isMlCompatible(bwcVersion) == false) {
+      systemProperty 'tests.ml.skip', 'true'
+      toBlackList.addAll(['mixed_cluster/30_ml_jobs_crud/*', 'mixed_cluster/40_ml_datafeed_crud/*', 'mixed_cluster/90_ml_data_frame_analytics_crud'])
+    }
+
     systemProperty 'tests.rest.blacklist', toBlackList.join(',')
   }
 
@@ -220,6 +243,13 @@ BuildParams.bwcVersions.withWireCompatiple { bwcVersion, baseName ->
         'mixed_cluster/121_api_key/Create API key with metadata in a mixed cluster'
       ])
     }
+
+    // Disable ML tests for incompatible systems
+    if (BwcVersions.isMlCompatible(bwcVersion) == false) {
+      systemProperty 'tests.ml.skip', 'true'
+      toBlackList.addAll(['mixed_cluster/30_ml_jobs_crud/*', 'mixed_cluster/40_ml_datafeed_crud/*', 'mixed_cluster/90_ml_data_frame_analytics_crud'])
+    }
+
     if (!toBlackList.empty) {
       systemProperty 'tests.rest.blacklist', toBlackList.join(',')
     }
@@ -270,6 +300,12 @@ BuildParams.bwcVersions.withWireCompatiple { bwcVersion, baseName ->
       toBlackList.addAll([
         'upgraded_cluster/121_api_key/Get the mixed API key in the upgraded cluster'
       ])
+    }
+
+    // Disable ML tests for incompatible systems
+    if (BwcVersions.isMlCompatible(bwcVersion) == false) {
+      systemProperty 'tests.ml.skip', 'true'
+      toBlackList.addAll(['upgraded_cluster/30_ml_jobs_crud/*', 'upgraded_cluster/40_ml_datafeed_crud/*', 'upgraded_cluster/90_ml_data_frame_analytics_crud'])
     }
 
     if (!toBlackList.empty) {

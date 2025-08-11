@@ -26,13 +26,11 @@ import java.util.Map;
 
 public class InternalCardinalityTests extends InternalAggregationTestCase<InternalCardinality> {
     private static List<HyperLogLogPlusPlus> algos;
-    private static int p;
 
     @Override
     public void setUp() throws Exception {
         super.setUp();
         algos = new ArrayList<>();
-        p = randomIntBetween(AbstractHyperLogLog.MIN_PRECISION, AbstractHyperLogLog.MAX_PRECISION);
     }
 
     @After // we force @After to have it run before ESTestCase#after otherwise it fails
@@ -46,16 +44,31 @@ public class InternalCardinalityTests extends InternalAggregationTestCase<Intern
 
     @Override
     protected InternalCardinality createTestInstance(String name, Map<String, Object> metadata) {
+        return createTestInstance(name, metadata, randomIntBetween(AbstractHyperLogLog.MIN_PRECISION, AbstractHyperLogLog.MAX_PRECISION));
+    }
+
+    private InternalCardinality createTestInstance(String name, Map<String, Object> metadata, int precision) {
         HyperLogLogPlusPlus hllpp = new HyperLogLogPlusPlus(
-            p,
+            precision,
             new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoneCircuitBreakerService()),
             1
         );
         algos.add(hllpp);
-        for (int i = 0; i < 100; i++) {
-            hllpp.collect(0, BitMixer.mix64(randomIntBetween(1, 100)));
+        int values = between(0, 1000);
+        for (int i = 0; i < values; i++) {
+            hllpp.collect(0, BitMixer.mix64(randomInt()));
         }
         return new InternalCardinality(name, hllpp, metadata);
+    }
+
+    @Override
+    protected List<InternalCardinality> randomResultsToReduce(String name, int size) {
+        int precision = randomIntBetween(AbstractHyperLogLog.MIN_PRECISION, AbstractHyperLogLog.MAX_PRECISION);
+        List<InternalCardinality> result = new ArrayList<>(size);
+        for (int i = 0; i < size; i++) {
+            result.add(createTestInstance(name, createTestMetadata(), precision));
+        }
+        return result;
     }
 
     @Override

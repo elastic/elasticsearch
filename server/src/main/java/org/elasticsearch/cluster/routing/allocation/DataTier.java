@@ -110,10 +110,15 @@ public class DataTier {
         final Map<String, Settings> tmpSettings = new HashMap<>();
         for (int i = 0, ordered_frozen_to_hot_tiersSize = ORDERED_FROZEN_TO_HOT_TIERS.size(); i < ordered_frozen_to_hot_tiersSize; i++) {
             String tier = ORDERED_FROZEN_TO_HOT_TIERS.get(i);
-            final String prefTierString = String.join(",", ORDERED_FROZEN_TO_HOT_TIERS.subList(i, ORDERED_FROZEN_TO_HOT_TIERS.size()))
-                .intern();
-            tmp.put(tier, prefTierString);
-            tmpSettings.put(tier, Settings.builder().put(DataTier.TIER_PREFERENCE, prefTierString).build());
+            if (tier.equals(DATA_FROZEN)) {
+                tmp.put(tier, DATA_FROZEN);
+                tmpSettings.put(DATA_FROZEN, Settings.builder().put(DataTier.TIER_PREFERENCE, DATA_FROZEN).build());
+            } else {
+                final String prefTierString = String.join(",", ORDERED_FROZEN_TO_HOT_TIERS.subList(i, ORDERED_FROZEN_TO_HOT_TIERS.size()))
+                    .intern();
+                tmp.put(tier, prefTierString);
+                tmpSettings.put(tier, Settings.builder().put(DataTier.TIER_PREFERENCE, prefTierString).build());
+            }
         }
         PREFERENCE_TIER_CONFIGURATIONS = org.elasticsearch.core.Map.copyOf(tmp);
         PREFERENCE_TIER_CONFIGURATION_SETTINGS = org.elasticsearch.core.Map.copyOf(tmpSettings);
@@ -198,6 +203,37 @@ public class DataTier {
             return org.elasticsearch.core.List.of();
         } else {
             return org.elasticsearch.core.List.of(tiers.split(","));
+        }
+    }
+
+    /**
+     * Compares the provided tiers for coldness order (eg. warm is colder than hot).
+     *
+     * Similar to {@link java.util.Comparator#compare(Object, Object)} returns
+     *   -1 if tier1 is colder than tier2 (ie. compare("data_cold", "data_hot"))
+     *   0 if tier1 is as cold as tier2 (ie. tier1.equals(tier2) )
+     *   1 if tier1 is warmer than tier2 (ie. compare("data_hot", "data_cold"))
+     *
+     * The provided tiers parameters must be valid data tiers values (ie. {@link #ALL_DATA_TIERS}.
+     * NOTE: `data_content` is treated as "equal to data_hot" in the tiers hierarchy.
+     * If invalid tier names are passed the result is non-deterministic.
+     */
+    public static int compare(String tier1, String tier2) {
+        if (tier1.equals(DATA_CONTENT)) {
+            tier1 = DATA_HOT;
+        }
+        if (tier2.equals(DATA_CONTENT)) {
+            tier2 = DATA_HOT;
+        }
+        int indexOfTier1 = ORDERED_FROZEN_TO_HOT_TIERS.indexOf(tier1);
+        assert indexOfTier1 >= 0 : "expecting a valid tier to compare but got:" + tier1;
+        int indexOfTier2 = ORDERED_FROZEN_TO_HOT_TIERS.indexOf(tier2);
+        assert indexOfTier2 >= 0 : "expecting a valid tier to compare but got:" + tier2;
+
+        if (indexOfTier1 == indexOfTier2) {
+            return 0;
+        } else {
+            return indexOfTier1 < indexOfTier2 ? -1 : 1;
         }
     }
 

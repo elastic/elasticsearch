@@ -4,6 +4,13 @@
 <titleabbrev>cat templates</titleabbrev>
 ++++
 
+[IMPORTANT]
+====
+cat APIs are only intended for human consumption using the command line or {kib} 
+console. They are _not_ intended for use by applications. For application 
+consumption, use the <<indices-get-template,get index template API>>.
+====
+
 Returns information about <<index-templates,index templates>> in a cluster.
 You can use index templates to apply <<index-modules-settings,index settings>>
 and <<mapping,field mappings>> to new indices at creation.

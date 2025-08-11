@@ -20,7 +20,7 @@ setup:
     - do:
         index:
             index: test
-            id: 1
+            id: "1"
             body: {
               "foo": "aaa",
               "date": "2017/01/01",

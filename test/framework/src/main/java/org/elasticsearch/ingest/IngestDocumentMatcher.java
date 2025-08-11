@@ -12,17 +12,32 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
-public class IngestDocumentMatcher {
+public final class IngestDocumentMatcher {
+
+    private IngestDocumentMatcher() {
+        // utility class
+    }
+
     /**
      * Helper method to assert the equivalence between two IngestDocuments.
      *
-     * @param docA first document to compare
-     * @param docB second document to compare
+     * @param expected first document to compare
+     * @param actual second document to compare
      */
-    public static void assertIngestDocument(IngestDocument docA, IngestDocument docB) {
-        if ((deepEquals(docA.getIngestMetadata(), docB.getIngestMetadata(), true)
-            && deepEquals(docA.getSourceAndMetadata(), docB.getSourceAndMetadata(), false)) == false) {
-            throw new AssertionError("Expected [" + docA + "] but received [" + docB + "].");
+    public static void assertIngestDocument(IngestDocument expected, IngestDocument actual) {
+        // trivially true: if they're both null, then all is well
+        if (expected == null && actual == null) {
+            return;
+        }
+
+        // if only one is null, however, then that's not okay
+        if ((expected == null || actual == null)) {
+            throw new AssertionError("Expected [" + expected + "] but received [" + actual + "].");
+        }
+
+        if ((deepEquals(expected.getIngestMetadata(), actual.getIngestMetadata(), true)
+            && deepEquals(expected.getSourceAndMetadata(), actual.getSourceAndMetadata(), false)) == false) {
+            throw new AssertionError("Expected [" + expected + "] but received [" + actual + "].");
         }
     }
 

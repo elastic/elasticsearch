@@ -5,7 +5,7 @@
 ==== Simulate Pipeline Request
 
 A `SimulatePipelineRequest` requires a source and a `XContentType`. The source consists
-of the request body. See the https://www.elastic.co/guide/en/elasticsearch/reference/master/simulate-pipeline-api.html[docs]
+of the request body. See the https://www.elastic.co/guide/en/elasticsearch/reference/{branch}/simulate-pipeline-api.html[docs]
 for more details on the request body.
 
 ["source","java",subs="attributes,callouts,macros"]

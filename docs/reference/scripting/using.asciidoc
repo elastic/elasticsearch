@@ -3,7 +3,7 @@
 
 Wherever scripting is supported in the {es} APIs, the syntax follows the same
 pattern; you specify the language of your script, provide the script logic (or
-source, and add parameters that are passed into the script:
+source), and add parameters that are passed into the script:
 
 [source,js]
 -------------------------------------

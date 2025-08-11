@@ -30,9 +30,11 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.http.HttpPreRequest;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.tasks.Task;
@@ -42,6 +44,7 @@ import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
+import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.action.CreateApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.CreateApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.GrantApiKeyAction;
@@ -83,6 +86,7 @@ import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.Security;
 import org.elasticsearch.xpack.security.audit.AuditLevel;
 import org.elasticsearch.xpack.security.audit.AuditTrail;
+import org.elasticsearch.xpack.security.audit.AuditUtil;
 import org.elasticsearch.xpack.security.authc.ApiKeyService;
 import org.elasticsearch.xpack.security.authc.service.ServiceAccountToken;
 import org.elasticsearch.xpack.security.rest.RemoteHostHeader;
@@ -90,7 +94,6 @@ import org.elasticsearch.xpack.security.transport.filter.IPFilter;
 import org.elasticsearch.xpack.security.transport.filter.SecurityIpFilterRule;
 
 import java.io.IOException;
-import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.util.Arrays;
 import java.util.Collections;
@@ -98,6 +101,7 @@ import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Objects;
@@ -172,6 +176,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
     public static final String TRANSPORT_PROFILE_FIELD_NAME = "transport.profile";
     public static final String RULE_FIELD_NAME = "rule";
     public static final String OPAQUE_ID_FIELD_NAME = "opaque_id";
+    public static final String TRACE_ID_FIELD_NAME = "trace.id";
     public static final String X_FORWARDED_FOR_FIELD_NAME = "x_forwarded_for";
     // the fields below are used exclusively for "security_config_change" type of events, and show the configuration
     // object taking effect; it could be creating a new, or updating an existing configuration
@@ -330,6 +335,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
 
     private final Logger logger;
     private final ThreadContext threadContext;
+    private final SecurityContext securityContext;
     final EventFilterPolicyRegistry eventFilterPolicyRegistry;
     // package for testing
     volatile EnumSet<AuditLevel> events;
@@ -351,6 +357,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
         this.events = parse(INCLUDE_EVENT_SETTINGS.get(settings), EXCLUDE_EVENT_SETTINGS.get(settings));
         this.includeRequestBody = INCLUDE_REQUEST_BODY.get(settings);
         this.threadContext = threadContext;
+        this.securityContext = new SecurityContext(settings, threadContext);
         this.entryCommonFields = new EntryCommonFields(settings, null);
         this.eventFilterPolicyRegistry = new EventFilterPolicyRegistry(settings);
         clusterService.addListener(this);
@@ -372,49 +379,56 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                 INCLUDE_REQUEST_BODY
             )
         );
-        clusterService.getClusterSettings().addAffixUpdateConsumer(FILTER_POLICY_IGNORE_PRINCIPALS, (policyName, filtersList) -> {
-            final Optional<EventFilterPolicy> policy = eventFilterPolicyRegistry.get(policyName);
-            final EventFilterPolicy newPolicy = policy.orElse(new EventFilterPolicy(policyName, settings))
-                .changePrincipalsFilter(filtersList);
-            this.eventFilterPolicyRegistry.set(policyName, newPolicy);
-        }, (policyName, filtersList) -> EventFilterPolicy.parsePredicate(filtersList));
-        clusterService.getClusterSettings().addAffixUpdateConsumer(FILTER_POLICY_IGNORE_REALMS, (policyName, filtersList) -> {
-            final Optional<EventFilterPolicy> policy = eventFilterPolicyRegistry.get(policyName);
-            final EventFilterPolicy newPolicy = policy.orElse(new EventFilterPolicy(policyName, settings)).changeRealmsFilter(filtersList);
-            this.eventFilterPolicyRegistry.set(policyName, newPolicy);
-        }, (policyName, filtersList) -> EventFilterPolicy.parsePredicate(filtersList));
-        clusterService.getClusterSettings().addAffixUpdateConsumer(FILTER_POLICY_IGNORE_ROLES, (policyName, filtersList) -> {
-            final Optional<EventFilterPolicy> policy = eventFilterPolicyRegistry.get(policyName);
-            final EventFilterPolicy newPolicy = policy.orElse(new EventFilterPolicy(policyName, settings)).changeRolesFilter(filtersList);
-            this.eventFilterPolicyRegistry.set(policyName, newPolicy);
-        }, (policyName, filtersList) -> EventFilterPolicy.parsePredicate(filtersList));
-        clusterService.getClusterSettings().addAffixUpdateConsumer(FILTER_POLICY_IGNORE_INDICES, (policyName, filtersList) -> {
-            final Optional<EventFilterPolicy> policy = eventFilterPolicyRegistry.get(policyName);
-            final EventFilterPolicy newPolicy = policy.orElse(new EventFilterPolicy(policyName, settings)).changeIndicesFilter(filtersList);
-            this.eventFilterPolicyRegistry.set(policyName, newPolicy);
-        }, (policyName, filtersList) -> EventFilterPolicy.parsePredicate(filtersList));
-        clusterService.getClusterSettings().addAffixUpdateConsumer(FILTER_POLICY_IGNORE_ACTIONS, (policyName, filtersList) -> {
-            final Optional<EventFilterPolicy> policy = eventFilterPolicyRegistry.get(policyName);
-            final EventFilterPolicy newPolicy = policy.orElse(new EventFilterPolicy(policyName, settings)).changeActionsFilter(filtersList);
-            this.eventFilterPolicyRegistry.set(policyName, newPolicy);
-        }, (policyName, filtersList) -> EventFilterPolicy.parsePredicate(filtersList));
+        clusterService.getClusterSettings()
+            .addAffixGroupUpdateConsumer(
+                org.elasticsearch.core.List.of(
+                    FILTER_POLICY_IGNORE_PRINCIPALS,
+                    FILTER_POLICY_IGNORE_REALMS,
+                    FILTER_POLICY_IGNORE_ROLES,
+                    FILTER_POLICY_IGNORE_INDICES,
+                    FILTER_POLICY_IGNORE_ACTIONS
+                ),
+                (policyName, updatedSettings) -> {
+                    if (updatedSettings.keySet().isEmpty()) {
+                        this.eventFilterPolicyRegistry.remove(policyName);
+                    } else {
+                        this.eventFilterPolicyRegistry.set(policyName, new EventFilterPolicy(policyName, updatedSettings));
+                    }
+                }
+            );
+
         // this log filter ensures that audit events are not filtered out because of the log level
         final LoggerContext ctx = LoggerContext.getContext(false);
         MarkerFilter auditMarkerFilter = MarkerFilter.createFilter(AUDIT_MARKER.getName(), Result.ACCEPT, Result.NEUTRAL);
         ctx.addFilter(auditMarkerFilter);
         ctx.updateLoggers();
-        clusterService.getClusterSettings()
-            .addSettingsUpdateConsumer(
-                ignored -> {
-                    LogManager.getLogger(Security.class)
-                        .warn("Changing log level for [" + LoggingAuditTrail.class.getName() + "] has no effect");
-                },
-                Collections.singletonList(Loggers.LOG_LEVEL_SETTING.getConcreteSettingForNamespace(LoggingAuditTrail.class.getName()))
-            );
+        clusterService.getClusterSettings().addSettingsUpdateConsumer(ignored -> {
+            LogManager.getLogger(Security.class).warn("Changing log level for [" + LoggingAuditTrail.class.getName() + "] has no effect");
+        }, Collections.singletonList(Loggers.LOG_LEVEL_SETTING.getConcreteSettingForNamespace(LoggingAuditTrail.class.getName())));
     }
 
     @Override
-    public void authenticationSuccess(String requestId, Authentication authentication, RestRequest request) {
+    public void authenticationSuccess(RestRequest request) {
+        final String requestId = AuditUtil.extractRequestId(securityContext.getThreadContext());
+        if (requestId == null) {
+            // should never happen
+            throw new ElasticsearchSecurityException("Authenticated context must include request id");
+        }
+        final Authentication authentication;
+        try {
+            authentication = securityContext.getAuthentication();
+        } catch (Exception e) {
+            logger.error(
+                () -> String.format(Locale.ROOT, "caught exception while trying to read authentication from request [%s]", request),
+                e
+            );
+            tamperedRequest(requestId, request.getHttpRequest());
+            throw new ElasticsearchSecurityException("rest request attempted to inject a user", e);
+        }
+        if (authentication == null) {
+            // should never happen
+            throw new ElasticsearchSecurityException("Context is not authenticated");
+        }
         if (events.contains(AUTHENTICATION_SUCCESS)
             && eventFilterPolicyRegistry.ignorePredicate()
                 .test(
@@ -432,13 +446,12 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
             new LogEntryBuilder().with(EVENT_TYPE_FIELD_NAME, REST_ORIGIN_FIELD_VALUE)
                 .with(EVENT_ACTION_FIELD_NAME, "authentication_success")
                 .with(REALM_FIELD_NAME, authnRealm)
-                .withRestUriAndMethod(request)
+                .withRestUriAndMethod(request.getHttpRequest())
                 .withRequestId(requestId)
                 .withAuthentication(authentication)
-                .withRestOrigin(request)
+                .withRestOrigin(threadContext)
                 .withRequestBody(request)
-                .withOpaqueId(threadContext)
-                .withXForwardedFor(threadContext)
+                .withThreadContext(securityContext.getThreadContext())
                 .build();
         }
     }
@@ -466,8 +479,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                     .withAuthentication(authentication)
                     .withRestOrTransportOrigin(transportRequest, threadContext)
                     .with(INDICES_FIELD_NAME, indices.orElse(null))
-                    .withOpaqueId(threadContext)
-                    .withXForwardedFor(threadContext)
+                    .withThreadContext(threadContext)
                     .build();
             }
         }
@@ -486,25 +498,22 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                     .withRequestId(requestId)
                     .withRestOrTransportOrigin(transportRequest, threadContext)
                     .with(INDICES_FIELD_NAME, indices.orElse(null))
-                    .withOpaqueId(threadContext)
-                    .withXForwardedFor(threadContext)
+                    .withThreadContext(threadContext)
                     .build();
             }
         }
     }
 
     @Override
-    public void anonymousAccessDenied(String requestId, RestRequest request) {
+    public void anonymousAccessDenied(String requestId, HttpPreRequest request) {
         if (events.contains(ANONYMOUS_ACCESS_DENIED)
             && eventFilterPolicyRegistry.ignorePredicate().test(AuditEventMetaInfo.EMPTY) == false) {
             new LogEntryBuilder().with(EVENT_TYPE_FIELD_NAME, REST_ORIGIN_FIELD_VALUE)
                 .with(EVENT_ACTION_FIELD_NAME, "anonymous_access_denied")
                 .withRestUriAndMethod(request)
-                .withRestOrigin(request)
-                .withRequestBody(request)
+                .withRestOrigin(threadContext)
                 .withRequestId(requestId)
-                .withOpaqueId(threadContext)
-                .withXForwardedFor(threadContext)
+                .withThreadContext(threadContext)
                 .build();
         }
     }
@@ -523,8 +532,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                     .withRequestId(requestId)
                     .withRestOrTransportOrigin(transportRequest, threadContext)
                     .with(INDICES_FIELD_NAME, indices.orElse(null))
-                    .withOpaqueId(threadContext)
-                    .withXForwardedFor(threadContext);
+                    .withThreadContext(threadContext);
                 if (token instanceof ServiceAccountToken) {
                     logEntryBuilder.with(SERVICE_TOKEN_NAME_FIELD_NAME, ((ServiceAccountToken) token).getTokenName());
                 }
@@ -534,16 +542,14 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
     }
 
     @Override
-    public void authenticationFailed(String requestId, RestRequest request) {
+    public void authenticationFailed(String requestId, HttpPreRequest request) {
         if (events.contains(AUTHENTICATION_FAILED) && eventFilterPolicyRegistry.ignorePredicate().test(AuditEventMetaInfo.EMPTY) == false) {
             new LogEntryBuilder().with(EVENT_TYPE_FIELD_NAME, REST_ORIGIN_FIELD_VALUE)
                 .with(EVENT_ACTION_FIELD_NAME, "authentication_failed")
                 .withRestUriAndMethod(request)
-                .withRestOrigin(request)
-                .withRequestBody(request)
+                .withRestOrigin(threadContext)
                 .withRequestId(requestId)
-                .withOpaqueId(threadContext)
-                .withXForwardedFor(threadContext)
+                .withThreadContext(threadContext)
                 .build();
         }
     }
@@ -561,15 +567,14 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                     .withRequestId(requestId)
                     .withRestOrTransportOrigin(transportRequest, threadContext)
                     .with(INDICES_FIELD_NAME, indices.orElse(null))
-                    .withOpaqueId(threadContext)
-                    .withXForwardedFor(threadContext)
+                    .withThreadContext(threadContext)
                     .build();
             }
         }
     }
 
     @Override
-    public void authenticationFailed(String requestId, AuthenticationToken token, RestRequest request) {
+    public void authenticationFailed(String requestId, AuthenticationToken token, HttpPreRequest request) {
         if (events.contains(AUTHENTICATION_FAILED)
             && eventFilterPolicyRegistry.ignorePredicate()
                 .test(new AuditEventMetaInfo(Optional.of(token), Optional.empty(), Optional.empty(), Optional.empty())) == false) {
@@ -577,11 +582,9 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                 .with(EVENT_ACTION_FIELD_NAME, "authentication_failed")
                 .with(PRINCIPAL_FIELD_NAME, token.principal())
                 .withRestUriAndMethod(request)
-                .withRestOrigin(request)
-                .withRequestBody(request)
+                .withRestOrigin(threadContext)
                 .withRequestId(requestId)
-                .withOpaqueId(threadContext)
-                .withXForwardedFor(threadContext);
+                .withThreadContext(threadContext);
             if (token instanceof ServiceAccountToken) {
                 logEntryBuilder.with(SERVICE_TOKEN_NAME_FIELD_NAME, ((ServiceAccountToken) token).getTokenName());
             }
@@ -610,15 +613,14 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                     .withRequestId(requestId)
                     .withRestOrTransportOrigin(transportRequest, threadContext)
                     .with(INDICES_FIELD_NAME, indices.orElse(null))
-                    .withOpaqueId(threadContext)
-                    .withXForwardedFor(threadContext)
+                    .withThreadContext(threadContext)
                     .build();
             }
         }
     }
 
     @Override
-    public void authenticationFailed(String requestId, String realm, AuthenticationToken token, RestRequest request) {
+    public void authenticationFailed(String requestId, String realm, AuthenticationToken token, HttpPreRequest request) {
         if (events.contains(REALM_AUTHENTICATION_FAILED)
             && eventFilterPolicyRegistry.ignorePredicate()
                 .test(new AuditEventMetaInfo(Optional.of(token), Optional.of(realm), Optional.empty(), Optional.empty())) == false) {
@@ -627,11 +629,9 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                 .with(REALM_FIELD_NAME, realm)
                 .with(PRINCIPAL_FIELD_NAME, token.principal())
                 .withRestUriAndMethod(request)
-                .withRestOrigin(request)
-                .withRequestBody(request)
+                .withRestOrigin(threadContext)
                 .withRequestId(requestId)
-                .withOpaqueId(threadContext)
-                .withXForwardedFor(threadContext)
+                .withThreadContext(threadContext)
                 .build();
         }
     }
@@ -667,8 +667,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                     .withAuthentication(authentication)
                     .withRestOrTransportOrigin(msg, threadContext)
                     .with(INDICES_FIELD_NAME, indices.orElse(null))
-                    .withOpaqueId(threadContext)
-                    .withXForwardedFor(threadContext)
+                    .withThreadContext(threadContext)
                     .with(authorizationInfo.asMap())
                     .build();
             }
@@ -775,8 +774,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                     .withRequestId(requestId)
                     .withAuthentication(authentication)
                     .with(INDICES_FIELD_NAME, indices)
-                    .withOpaqueId(threadContext)
-                    .withXForwardedFor(threadContext)
+                    .withThreadContext(threadContext)
                     .with(authorizationInfo.asMap());
                 final InetSocketAddress restAddress = RemoteHostHeader.restRemoteAddress(threadContext);
                 if (restAddress != null) {
@@ -821,24 +819,21 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                     .withRestOrTransportOrigin(transportRequest, threadContext)
                     .with(INDICES_FIELD_NAME, indices.orElse(null))
                     .with(authorizationInfo.asMap())
-                    .withOpaqueId(threadContext)
-                    .withXForwardedFor(threadContext)
+                    .withThreadContext(threadContext)
                     .build();
             }
         }
     }
 
     @Override
-    public void tamperedRequest(String requestId, RestRequest request) {
+    public void tamperedRequest(String requestId, HttpPreRequest request) {
         if (events.contains(TAMPERED_REQUEST) && eventFilterPolicyRegistry.ignorePredicate().test(AuditEventMetaInfo.EMPTY) == false) {
             new LogEntryBuilder().with(EVENT_TYPE_FIELD_NAME, REST_ORIGIN_FIELD_VALUE)
                 .with(EVENT_ACTION_FIELD_NAME, "tampered_request")
                 .withRestUriAndMethod(request)
-                .withRestOrigin(request)
-                .withRequestBody(request)
+                .withRestOrigin(threadContext)
                 .withRequestId(requestId)
-                .withOpaqueId(threadContext)
-                .withXForwardedFor(threadContext)
+                .withThreadContext(threadContext)
                 .build();
         }
     }
@@ -856,8 +851,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                     .withRequestId(requestId)
                     .withRestOrTransportOrigin(transportRequest, threadContext)
                     .with(INDICES_FIELD_NAME, indices.orElse(null))
-                    .withOpaqueId(threadContext)
-                    .withXForwardedFor(threadContext)
+                    .withThreadContext(threadContext)
                     .build();
             }
         }
@@ -886,15 +880,14 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                     .withRestOrTransportOrigin(transportRequest, threadContext)
                     .withAuthentication(authentication)
                     .with(INDICES_FIELD_NAME, indices.orElse(null))
-                    .withOpaqueId(threadContext)
-                    .withXForwardedFor(threadContext)
+                    .withThreadContext(threadContext)
                     .build();
             }
         }
     }
 
     @Override
-    public void connectionGranted(InetAddress inetAddress, String profile, SecurityIpFilterRule rule) {
+    public void connectionGranted(InetSocketAddress inetAddress, String profile, SecurityIpFilterRule rule) {
         if (events.contains(CONNECTION_GRANTED) && eventFilterPolicyRegistry.ignorePredicate().test(AuditEventMetaInfo.EMPTY) == false) {
             new LogEntryBuilder().with(EVENT_TYPE_FIELD_NAME, IP_FILTER_ORIGIN_FIELD_VALUE)
                 .with(EVENT_ACTION_FIELD_NAME, "connection_granted")
@@ -905,14 +898,13 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                 .with(ORIGIN_ADDRESS_FIELD_NAME, NetworkAddress.format(inetAddress))
                 .with(TRANSPORT_PROFILE_FIELD_NAME, profile)
                 .with(RULE_FIELD_NAME, rule.toString())
-                .withOpaqueId(threadContext)
-                .withXForwardedFor(threadContext)
+                .withThreadContext(threadContext)
                 .build();
         }
     }
 
     @Override
-    public void connectionDenied(InetAddress inetAddress, String profile, SecurityIpFilterRule rule) {
+    public void connectionDenied(InetSocketAddress inetAddress, String profile, SecurityIpFilterRule rule) {
         if (events.contains(CONNECTION_DENIED) && eventFilterPolicyRegistry.ignorePredicate().test(AuditEventMetaInfo.EMPTY) == false) {
             new LogEntryBuilder().with(EVENT_TYPE_FIELD_NAME, IP_FILTER_ORIGIN_FIELD_VALUE)
                 .with(EVENT_ACTION_FIELD_NAME, "connection_denied")
@@ -923,8 +915,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                 .with(ORIGIN_ADDRESS_FIELD_NAME, NetworkAddress.format(inetAddress))
                 .with(TRANSPORT_PROFILE_FIELD_NAME, profile)
                 .with(RULE_FIELD_NAME, rule.toString())
-                .withOpaqueId(threadContext)
-                .withXForwardedFor(threadContext)
+                .withThreadContext(threadContext)
                 .build();
         }
     }
@@ -959,8 +950,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                     .withRestOrTransportOrigin(transportRequest, threadContext)
                     .with(INDICES_FIELD_NAME, indices.orElse(null))
                     .with(authorizationInfo.asMap())
-                    .withOpaqueId(threadContext)
-                    .withXForwardedFor(threadContext)
+                    .withThreadContext(threadContext)
                     .build();
             }
         }
@@ -996,15 +986,14 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                     .withRestOrTransportOrigin(transportRequest, threadContext)
                     .with(INDICES_FIELD_NAME, indices.orElse(null))
                     .with(authorizationInfo.asMap())
-                    .withOpaqueId(threadContext)
-                    .withXForwardedFor(threadContext)
+                    .withThreadContext(threadContext)
                     .build();
             }
         }
     }
 
     @Override
-    public void runAsDenied(String requestId, Authentication authentication, RestRequest request, AuthorizationInfo authorizationInfo) {
+    public void runAsDenied(String requestId, Authentication authentication, HttpPreRequest request, AuthorizationInfo authorizationInfo) {
         if (events.contains(RUN_AS_DENIED)
             && eventFilterPolicyRegistry.ignorePredicate()
                 .test(
@@ -1022,11 +1011,9 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                 .with(authorizationInfo.asMap())
                 .withRestUriAndMethod(request)
                 .withRunAsSubject(authentication)
-                .withRestOrigin(request)
-                .withRequestBody(request)
+                .withRestOrigin(threadContext)
                 .withRequestId(requestId)
-                .withOpaqueId(threadContext)
-                .withXForwardedFor(threadContext)
+                .withThreadContext(threadContext)
                 .build();
         }
     }
@@ -1380,7 +1367,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
             return this;
         }
 
-        LogEntryBuilder withRestUriAndMethod(RestRequest request) {
+        LogEntryBuilder withRestUriAndMethod(HttpPreRequest request) {
             final int queryStringIndex = request.uri().indexOf('?');
             int queryStringLength = request.uri().indexOf('#');
             if (queryStringLength < 0) {
@@ -1408,12 +1395,12 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
             return this;
         }
 
-        LogEntryBuilder withRestOrigin(RestRequest request) {
+        LogEntryBuilder withRestOrigin(ThreadContext threadContext) {
             assert LOCAL_ORIGIN_FIELD_VALUE.equals(logEntry.get(ORIGIN_TYPE_FIELD_NAME)); // this is the default
-            final InetSocketAddress socketAddress = request.getHttpChannel().getRemoteAddress();
-            if (socketAddress != null) {
+            final InetSocketAddress restAddress = RemoteHostHeader.restRemoteAddress(threadContext);
+            if (restAddress != null) {
                 logEntry.with(ORIGIN_TYPE_FIELD_NAME, REST_ORIGIN_FIELD_VALUE)
-                    .with(ORIGIN_ADDRESS_FIELD_NAME, NetworkAddress.format(socketAddress));
+                    .with(ORIGIN_ADDRESS_FIELD_NAME, NetworkAddress.format(restAddress));
             }
             // fall through to local_node default
             return this;
@@ -1453,20 +1440,18 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
             return this;
         }
 
-        LogEntryBuilder withOpaqueId(ThreadContext threadContext) {
-            final String opaqueId = threadContext.getHeader(Task.X_OPAQUE_ID_HTTP_HEADER);
-            if (opaqueId != null) {
-                logEntry.with(OPAQUE_ID_FIELD_NAME, opaqueId);
-            }
+        LogEntryBuilder withThreadContext(ThreadContext threadContext) {
+            setThreadContextField(threadContext, AuditTrail.X_FORWARDED_FOR_HEADER, X_FORWARDED_FOR_FIELD_NAME);
+            setThreadContextField(threadContext, Task.X_OPAQUE_ID_HTTP_HEADER, OPAQUE_ID_FIELD_NAME);
+            setThreadContextField(threadContext, Task.TRACE_ID, TRACE_ID_FIELD_NAME);
             return this;
         }
 
-        LogEntryBuilder withXForwardedFor(ThreadContext threadContext) {
-            final String xForwardedFor = threadContext.getHeader(AuditTrail.X_FORWARDED_FOR_HEADER);
-            if (xForwardedFor != null) {
-                logEntry.with(X_FORWARDED_FOR_FIELD_NAME, xForwardedFor);
+        private void setThreadContextField(ThreadContext threadContext, String threadContextFieldName, String auditLogFieldName) {
+            final String fieldValue = threadContext.getHeader(threadContextFieldName);
+            if (fieldValue != null) {
+                logEntry.with(auditLogFieldName, fieldValue);
             }
-            return this;
         }
 
         LogEntryBuilder withAuthentication(Authentication authentication) {
@@ -1592,92 +1577,21 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
         private final Predicate<String> ignoreIndicesPredicate;
         private final Predicate<String> ignoreActionsPredicate;
 
-        EventFilterPolicy(String name, Settings settings) {
-            this(
-                name,
-                parsePredicate(FILTER_POLICY_IGNORE_PRINCIPALS.getConcreteSettingForNamespace(name).get(settings)),
-                parsePredicate(FILTER_POLICY_IGNORE_REALMS.getConcreteSettingForNamespace(name).get(settings)),
-                parsePredicate(FILTER_POLICY_IGNORE_ROLES.getConcreteSettingForNamespace(name).get(settings)),
-                parsePredicate(FILTER_POLICY_IGNORE_INDICES.getConcreteSettingForNamespace(name).get(settings)),
-                parsePredicate(FILTER_POLICY_IGNORE_ACTIONS.getConcreteSettingForNamespace(name).get(settings))
-            );
-        }
-
         /**
          * An empty filter list for a field will match events with that field missing.
          * An event with an undefined field has the field value the empty string ("") or
          * a singleton list of the empty string ([""]).
          */
-        EventFilterPolicy(
-            String name,
-            Predicate<String> ignorePrincipalsPredicate,
-            Predicate<String> ignoreRealmsPredicate,
-            Predicate<String> ignoreRolesPredicate,
-            Predicate<String> ignoreIndicesPredicate,
-            Predicate<String> ignoreActionsPredicate
-        ) {
+        EventFilterPolicy(String name, Settings settings) {
             this.name = name;
             // "null" values are "unexpected" and should not match any ignore policy
-            this.ignorePrincipalsPredicate = ignorePrincipalsPredicate;
-            this.ignoreRealmsPredicate = ignoreRealmsPredicate;
-            this.ignoreRolesPredicate = ignoreRolesPredicate;
-            this.ignoreIndicesPredicate = ignoreIndicesPredicate;
-            this.ignoreActionsPredicate = ignoreActionsPredicate;
-        }
-
-        private EventFilterPolicy changePrincipalsFilter(List<String> filtersList) {
-            return new EventFilterPolicy(
-                name,
-                parsePredicate(filtersList),
-                ignoreRealmsPredicate,
-                ignoreRolesPredicate,
-                ignoreIndicesPredicate,
-                ignoreActionsPredicate
+            this.ignorePrincipalsPredicate = parsePredicate(
+                FILTER_POLICY_IGNORE_PRINCIPALS.getConcreteSettingForNamespace(name).get(settings)
             );
-        }
-
-        private EventFilterPolicy changeRealmsFilter(List<String> filtersList) {
-            return new EventFilterPolicy(
-                name,
-                ignorePrincipalsPredicate,
-                parsePredicate(filtersList),
-                ignoreRolesPredicate,
-                ignoreIndicesPredicate,
-                ignoreActionsPredicate
-            );
-        }
-
-        private EventFilterPolicy changeRolesFilter(List<String> filtersList) {
-            return new EventFilterPolicy(
-                name,
-                ignorePrincipalsPredicate,
-                ignoreRealmsPredicate,
-                parsePredicate(filtersList),
-                ignoreIndicesPredicate,
-                ignoreActionsPredicate
-            );
-        }
-
-        private EventFilterPolicy changeIndicesFilter(List<String> filtersList) {
-            return new EventFilterPolicy(
-                name,
-                ignorePrincipalsPredicate,
-                ignoreRealmsPredicate,
-                ignoreRolesPredicate,
-                parsePredicate(filtersList),
-                ignoreActionsPredicate
-            );
-        }
-
-        private EventFilterPolicy changeActionsFilter(List<String> filtersList) {
-            return new EventFilterPolicy(
-                name,
-                ignorePrincipalsPredicate,
-                ignoreRealmsPredicate,
-                ignoreRolesPredicate,
-                ignoreIndicesPredicate,
-                parsePredicate(filtersList)
-            );
+            this.ignoreRealmsPredicate = parsePredicate(FILTER_POLICY_IGNORE_REALMS.getConcreteSettingForNamespace(name).get(settings));
+            this.ignoreRolesPredicate = parsePredicate(FILTER_POLICY_IGNORE_ROLES.getConcreteSettingForNamespace(name).get(settings));
+            this.ignoreIndicesPredicate = parsePredicate(FILTER_POLICY_IGNORE_INDICES.getConcreteSettingForNamespace(name).get(settings));
+            this.ignoreActionsPredicate = parsePredicate(FILTER_POLICY_IGNORE_ACTIONS.getConcreteSettingForNamespace(name).get(settings));
         }
 
         static Predicate<String> parsePredicate(List<String> l) {
@@ -1748,12 +1662,14 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
             predicate = buildIgnorePredicate(policyMap);
         }
 
-        private Optional<EventFilterPolicy> get(String policyName) {
-            return Optional.ofNullable(policyMap.get(policyName));
-        }
-
         private synchronized void set(String policyName, EventFilterPolicy eventFilterPolicy) {
             policyMap = MapBuilder.newMapBuilder(policyMap).put(policyName, eventFilterPolicy).immutableMap();
+            // precompute predicate
+            predicate = buildIgnorePredicate(policyMap);
+        }
+
+        private synchronized void remove(String policyName) {
+            policyMap = Maps.copyMapWithRemovedEntry(policyMap, policyName);
             // precompute predicate
             predicate = buildIgnorePredicate(policyMap);
         }

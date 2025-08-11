@@ -208,7 +208,11 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
      *
      * @return true if the snapshot was loaded by executing this method, false otherwise
      */
-    public boolean loadSnapshot(RecoveryState snapshotRecoveryState, ActionListener<Void> preWarmListener) {
+    public boolean loadSnapshot(
+        RecoveryState snapshotRecoveryState,
+        Supplier<Boolean> cancelPreWarming,
+        ActionListener<Void> preWarmListener
+    ) {
         assert snapshotRecoveryState != null;
         assert snapshotRecoveryState instanceof SearchableSnapshotRecoveryState;
         assert snapshotRecoveryState.getRecoverySource().getType() == RecoverySource.Type.SNAPSHOT
@@ -230,7 +234,7 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
                     cleanExistingRegularShardFiles();
                     waitForPendingEvictions();
                     this.recoveryState = (SearchableSnapshotRecoveryState) snapshotRecoveryState;
-                    prewarmCache(preWarmListener);
+                    prewarmCache(preWarmListener, cancelPreWarming);
                 }
             }
         }
@@ -492,8 +496,8 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
         cacheService.waitForCacheFilesEvictionIfNeeded(snapshotId.getUUID(), indexId.getName(), shardId);
     }
 
-    private void prewarmCache(ActionListener<Void> listener) {
-        if (prewarmCache == false) {
+    private void prewarmCache(ActionListener<Void> listener, Supplier<Boolean> cancelPreWarming) {
+        if (prewarmCache == false || cancelPreWarming.get()) {
             recoveryState.setPreWarmComplete();
             listener.onResponse(null);
             return;
@@ -508,6 +512,10 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
         }, listener::onFailure), snapshot().totalFileCount());
 
         for (BlobStoreIndexShardSnapshot.FileInfo file : snapshot().indexFiles()) {
+            if (cancelPreWarming.get()) {
+                completionListener.onResponse(null);
+                continue;
+            }
             boolean hashEqualsContents = file.metadata().hashEqualsContents();
             if (hashEqualsContents || isExcludedFromCache(file.physicalName())) {
                 if (hashEqualsContents) {
@@ -540,11 +548,9 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
                 for (int p = 0; p < numberOfParts; p++) {
                     final int part = p;
                     queue.add(Tuple.tuple(partsListener, () -> {
-                        ensureOpen();
-
                         logger.trace("{} warming cache for [{}] part [{}/{}]", shardId, file.physicalName(), part + 1, numberOfParts);
                         final long startTimeInNanos = statsCurrentTimeNanosSupplier.getAsLong();
-                        final long persistentCacheLength = ((CachedBlobContainerIndexInput) input).prefetchPart(part).v1();
+                        long persistentCacheLength = ((CachedBlobContainerIndexInput) input).prefetchPart(part, cancelPreWarming).v1();
                         if (persistentCacheLength == file.length()) {
                             recoveryState.markIndexFileAsReused(file.physicalName());
                         } else {

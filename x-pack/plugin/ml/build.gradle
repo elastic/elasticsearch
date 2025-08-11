@@ -1,6 +1,9 @@
+import org.elasticsearch.gradle.VersionProperties
+
 apply plugin: 'elasticsearch.internal-es-plugin'
 apply plugin: 'elasticsearch.internal-cluster-test'
 apply plugin: 'elasticsearch.internal-test-artifact'
+apply plugin: 'elasticsearch.dra-artifacts'
 
 esplugin {
   name 'x-pack-ml'
@@ -10,28 +13,43 @@ esplugin {
   extendedPlugins = ['x-pack-autoscaling', 'lang-painless']
 }
 
+def localRepo = providers.systemProperty('build.ml_cpp.repo').orNull
 
-repositories {
-  exclusiveContent {
-    forRepository {
-      ivy {
-        name "ml-cpp"
-        url providers.systemProperty('build.ml_cpp.repo').forUseAtConfigurationTime().orElse('https://prelert-artifacts.s3.amazonaws.com').get()
-        metadataSources {
-          // no repository metadata, look directly for the artifact
-          artifact()
-        }
-        patternLayout {
-          artifact "maven/org/elasticsearch/ml/ml-cpp/[revision]/ml-cpp-[revision].[ext]"
+if (useDra == false) {
+  repositories {
+    exclusiveContent {
+      filter {
+        includeGroup 'org.elasticsearch.ml'
+      }
+      forRepository {
+        ivy {
+          name "ml-cpp"
+          metadataSources {
+            // no repository metadata, look directly for the artifact
+            artifact()
+          }
+          if (localRepo) {
+            url localRepo
+            patternLayout {
+              artifact "maven/[orgPath]/[module]/[revision]/[module]-[revision](-[classifier]).[ext]"
+            }
+          } else {
+            url "https://artifacts-snapshot.elastic.co/"
+            patternLayout {
+              if (VersionProperties.isElasticsearchSnapshot()) {
+                artifact '/ml-cpp/[revision]/downloads/ml-cpp/[module]-[revision](-[classifier]).[ext]'
+              } else {
+                // When building locally we always use snapshot artifacts even if passing `-Dbuild.snapshot=false`.
+                // Release builds are always done with a local repo.
+                artifact '/ml-cpp/[revision]-SNAPSHOT/downloads/ml-cpp/[module]-[revision]-SNAPSHOT(-[classifier]).[ext]'
+              }
+            }
+          }
         }
       }
     }
-    filter {
-      includeGroup 'org.elasticsearch.ml'
-    }
   }
 }
-
 configurations {
   nativeBundle {
     resolutionStrategy.dependencySubstitution {

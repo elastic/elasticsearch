@@ -9,16 +9,15 @@
 import org.elasticsearch.gradle.internal.info.BuildParams
 import static org.elasticsearch.gradle.PropertyNormalization.IGNORE_VALUE
 
-apply plugin: 'elasticsearch.standalone-rest-test'
-apply plugin: 'elasticsearch.rest-test'
+apply plugin: 'elasticsearch.legacy-java-rest-test'
 apply plugin: 'elasticsearch.rest-resources'
 
 final Project fixture = project(':test:fixtures:azure-fixture')
 final Project repositoryPlugin = project(':plugins:repository-azure')
 
 dependencies {
-  testImplementation testArtifact(project(':qa:snapshot-based-recoveries'))
-  testImplementation repositoryPlugin
+  javaRestTestImplementation testArtifact(project(':qa:snapshot-based-recoveries'))
+  javaRestTestImplementation repositoryPlugin
 }
 
 restResources {
@@ -49,12 +48,12 @@ if (useFixture) {
   testFixtures.useFixture(fixture.path, 'azure-fixture-snapshot-based-recoveries')
 }
 
-tasks.named("integTest").configure {
+tasks.named("javaRestTest").configure {
   systemProperty 'test.azure.container', azureContainer
   nonInputProperties.systemProperty 'test.azure.base_path', azureBasePath + "_snapshot_based_recoveries_tests_" + BuildParams.testSeed
 }
 
-testClusters.matching { it.name == "integTest" }.configureEach {
+testClusters.matching { it.name == "javaRestTest" }.configureEach {
   testDistribution = 'DEFAULT'
   numberOfNodes = 3
   plugin repositoryPlugin.path
@@ -85,6 +84,5 @@ testClusters.matching { it.name == "integTest" }.configureEach {
 }
 
 tasks.register("azureThirdPartyTest") {
-  dependsOn "integTest"
+  dependsOn "javaRestTest"
 }
-

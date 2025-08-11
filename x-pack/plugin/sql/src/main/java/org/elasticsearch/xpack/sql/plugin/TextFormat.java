@@ -28,8 +28,8 @@ import java.util.Locale;
 import java.util.Objects;
 import java.util.function.Function;
 
-import static org.elasticsearch.xpack.sql.action.BasicFormatter.FormatOption.TEXT;
 import static org.elasticsearch.xpack.sql.proto.Protocol.URL_PARAM_DELIMITER;
+import static org.elasticsearch.xpack.sql.proto.formatter.SimpleFormatter.FormatOption.TEXT;
 
 /**
  * Templating class for displaying SQL responses in text formats.
@@ -76,6 +76,9 @@ enum TextFormat {
                 return formatter.formatWithoutHeader(response.rows());
             } else if (response.hasId()) {
                 // an async request has no results yet
+                return StringUtils.EMPTY;
+            } else if (response.rows().isEmpty()) {
+                // no data and no headers to return
                 return StringUtils.EMPTY;
             }
             // if this code is reached, it means it's a next page without cursor wrapping

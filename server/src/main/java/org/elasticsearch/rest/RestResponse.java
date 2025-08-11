@@ -10,6 +10,7 @@ package org.elasticsearch.rest;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.Releasable;
 
 import java.util.ArrayList;
@@ -18,6 +19,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+
+import static org.elasticsearch.rest.RestController.ELASTIC_PRODUCT_HTTP_HEADER;
 
 public abstract class RestResponse {
 
@@ -81,6 +84,14 @@ public abstract class RestResponse {
     }
 
     public Map<String, List<String>> filterHeaders(Map<String, List<String>> headers) {
+        if (status() == RestStatus.UNAUTHORIZED || status() == RestStatus.FORBIDDEN) {
+            if (headers.containsKey("Warning")) {
+                headers = Maps.copyMapWithRemovedEntry(headers, "Warning");
+            }
+            if (headers.containsKey(ELASTIC_PRODUCT_HTTP_HEADER)) {
+                headers = Maps.copyMapWithRemovedEntry(headers, ELASTIC_PRODUCT_HTTP_HEADER);
+            }
+        }
         return headers;
     }
 }

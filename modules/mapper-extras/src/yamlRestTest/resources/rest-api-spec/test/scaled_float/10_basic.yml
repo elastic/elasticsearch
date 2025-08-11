@@ -14,25 +14,25 @@ setup:
   - do:
       index:
         index: test
-        id: 1
+        id: "1"
         body: { "number" : 1 }
 
   - do:
       index:
         index: test
-        id: 2
+        id: "2"
         body: { "number" : 1.53 }
 
   - do:
       index:
         index: test
-        id: 3
+        id: "3"
         body: { "number" : -2.1 }
 
   - do:
       index:
         index: test
-        id: 4
+        id: "4"
         body: { "number" : 1.53 }
 
   - do:

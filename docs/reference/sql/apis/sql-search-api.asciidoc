@@ -54,6 +54,12 @@ precedence.
 [[sql-search-api-request-body]]
 ==== {api-request-body-title}
 
+`catalog`::
+(Optional, string) Default catalog (cluster) for queries. If unspecified, the
+queries execute on the data in the local cluster only.
++
+experimental:[] See <<modules-cross-cluster-search,{ccs}>>.
+
 `columnar`::
 (Optional, Boolean) If `true`, returns results in a columnar format. Defaults to
 `false`. The API only supports this parameter for CBOR, JSON, SMILE, and YAML

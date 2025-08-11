@@ -41,7 +41,7 @@ final class ElasticServiceAccounts {
                     .build(),
                 RoleDescriptor.IndicesPrivileges.builder()
                     .indices(".fleet-*")
-                    .privileges("read", "write", "monitor", "create_index", "auto_configure")
+                    .privileges("read", "write", "monitor", "create_index", "auto_configure", "maintenance")
                     .build() },
             new RoleDescriptor.ApplicationResourcePrivileges[] {
                 RoleDescriptor.ApplicationResourcePrivileges.builder()

@@ -233,7 +233,7 @@ public class TaskInfoTests extends AbstractSerializingTestCase<TaskInfo> {
         Task.Status status = randomBoolean() ? randomRawTaskStatus() : null;
         String description = randomBoolean() ? randomAlphaOfLength(5) : null;
         long startTime = randomLong();
-        long runningTimeNanos = randomLong();
+        long runningTimeNanos = randomNonNegativeLong();
         boolean cancellable = randomBoolean();
         boolean cancelled = cancellable && randomBoolean();
         TaskId parentTaskId = randomBoolean() ? TaskId.EMPTY_TASK_ID : randomTaskId();

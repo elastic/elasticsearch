@@ -8,15 +8,17 @@
 
 package org.elasticsearch.gradle.internal.test.rest;
 
-import org.elasticsearch.gradle.internal.test.RestTestBasePlugin;
+import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask;
 import org.elasticsearch.gradle.util.GradleUtils;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
+import org.gradle.api.plugins.JavaBasePlugin;
 import org.gradle.api.tasks.SourceSet;
 import org.gradle.api.tasks.SourceSetContainer;
+import org.gradle.api.tasks.TaskProvider;
 
 import static org.elasticsearch.gradle.internal.test.rest.RestTestUtil.registerTestTask;
-import static org.elasticsearch.gradle.internal.test.rest.RestTestUtil.setupTestDependenciesDefaults;
+import static org.elasticsearch.gradle.internal.test.rest.RestTestUtil.setupJavaRestTestDependenciesDefaults;
 
 /**
  * Apply this plugin to run the Java based REST tests.
@@ -33,11 +35,21 @@ public class InternalJavaRestTestPlugin implements Plugin<Project> {
         SourceSetContainer sourceSets = project.getExtensions().getByType(SourceSetContainer.class);
         SourceSet javaTestSourceSet = sourceSets.create(SOURCE_SET_NAME);
 
+        project.getDependencies().add(javaTestSourceSet.getImplementationConfigurationName(), project.project(":test:test-clusters"));
+
         // setup the javaRestTest task
-        registerTestTask(project, javaTestSourceSet);
+        // we use a StandloneRestIntegTestTask here so that the conventions of RestTestBasePlugin don't create a test cluster
+        TaskProvider<StandaloneRestIntegTestTask> testTask = registerTestTask(
+            project,
+            javaTestSourceSet,
+            SOURCE_SET_NAME,
+            StandaloneRestIntegTestTask.class
+        );
+
+        project.getTasks().named(JavaBasePlugin.CHECK_TASK_NAME).configure(check -> check.dependsOn(testTask));
 
         // setup dependencies
-        setupTestDependenciesDefaults(project, javaTestSourceSet);
+        setupJavaRestTestDependenciesDefaults(project, javaTestSourceSet);
 
         // setup IDE
         GradleUtils.setupIdeForTestSourceSet(project, javaTestSourceSet);

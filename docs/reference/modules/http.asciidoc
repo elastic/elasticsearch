@@ -43,7 +43,14 @@ Configure this setting only if you need the publish port to be different from
 
 `http.max_content_length`::
 (<<static-cluster-setting,Static>>)
-Maximum size of an HTTP request body. Defaults to `100mb`.
+Maximum size of an HTTP request body. Defaults to `100mb`. Configuring this
+setting to greater than `100mb` can cause cluster instability and is not
+recommended. If you hit this limit when sending a request to the <<docs-bulk>>
+API, configure your client to send fewer documents in each bulk request. If you
+wish to index individual documents that exceed `100mb`, pre-process them into
+smaller documents before sending them to {es}. For instance, store the raw data
+in a system outside {es} and include a link to the raw data in the documents
+that {es} indexes.
 
 `http.max_initial_line_length`::
 (<<static-cluster-setting,Static>>)
@@ -110,8 +117,15 @@ Which methods to allow. Defaults to `OPTIONS, HEAD, GET, POST, PUT, DELETE`.
 // tag::http-cors-allow-headers-tag[]
 `http.cors.allow-headers` {ess-icon}::
 (<<static-cluster-setting,Static>>)
-Which headers to allow. Defaults to `X-Requested-With, Content-Type, Content-Length`.
+Which headers to allow. Defaults to `X-Requested-With, Content-Type, Content-Length, Authorization, Accept, User-Agent, X-Elastic-Client-Meta`.
 // end::http-cors-allow-headers-tag[]
+
+[[http-cors-expose-headers]]
+// tag::http-cors-expose-headers-tag[]
+`http.cors.expose-headers` {ess-icon}::
+(<<static-cluster-setting,Static>>)
+Which response headers to expose in the client. Defaults to `X-elastic-product`.
+// end::http-cors-expose-headers-tag[]
 
 [[http-cors-allow-credentials]]
 // tag::http-cors-allow-credentials-tag[]

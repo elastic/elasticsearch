@@ -5,14 +5,14 @@
       index:
           index:   test_1
           type:    test
-          id:      1
+          id:      "1"
           body:    { foo: bar }
 
  - do:
       delete:
           index:   test_1
           type:    test
-          id:      1
+          id:      "1"
 
  - match: { result: deleted }
 
@@ -21,6 +21,6 @@
       delete:
           index:   test_1
           type:    test
-          id:      1
+          id:      "1"
 
  - match: { result: not_found }

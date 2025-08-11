@@ -117,16 +117,9 @@ public class InternalDateRangeTests extends InternalRangeTestCase<InternalDateRa
             case 2:
                 buckets = new ArrayList<>(buckets);
                 double from = randomDouble();
+                double to = from + randomDouble();
                 buckets.add(
-                    new InternalDateRange.Bucket(
-                        "range_a",
-                        from,
-                        from + randomDouble(),
-                        randomNonNegativeLong(),
-                        InternalAggregations.EMPTY,
-                        false,
-                        format
-                    )
+                    new InternalDateRange.Bucket("range_a", from, to, randomNonNegativeLong(), InternalAggregations.EMPTY, false, format)
                 );
                 break;
             case 3:

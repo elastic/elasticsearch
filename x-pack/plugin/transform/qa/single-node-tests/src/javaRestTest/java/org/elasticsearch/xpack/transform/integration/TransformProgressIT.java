@@ -232,10 +232,9 @@ public class TransformProgressIT extends ESRestTestCase {
         try (RestHighLevelClient restClient = new TestRestHighLevelClient()) {
             SearchResponse response = restClient.search(searchRequest, RequestOptions.DEFAULT);
 
-            function.getInitialProgressFromResponse(
-                response,
-                new LatchedActionListener<>(ActionListener.wrap(progressHolder::set, e -> { exceptionHolder.set(e); }), latch)
-            );
+            function.getInitialProgressFromResponse(response, new LatchedActionListener<>(ActionListener.wrap(progressHolder::set, e -> {
+                exceptionHolder.set(e);
+            }), latch));
         }
 
         assertTrue("timed out after 20s", latch.await(20, TimeUnit.SECONDS));

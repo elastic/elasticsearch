@@ -52,7 +52,7 @@ public class InternalRange<B extends InternalRange.Bucket, R extends InternalRan
         ) {
             this.keyed = keyed;
             this.format = format;
-            this.key = key != null ? key : generateKey(from, to, format);
+            this.key = key;
             this.from = from;
             this.to = to;
             this.docCount = docCount;
@@ -66,7 +66,7 @@ public class InternalRange<B extends InternalRange.Bucket, R extends InternalRan
 
         @Override
         public String getKeyAsString() {
-            return key;
+            return this.key == null ? generateKey(this.from, this.to, this.format) : this.key;
         }
 
         @Override
@@ -122,6 +122,7 @@ public class InternalRange<B extends InternalRange.Bucket, R extends InternalRan
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            final String key = getKeyAsString();
             if (keyed) {
                 builder.startObject(key);
             } else {
@@ -155,13 +156,19 @@ public class InternalRange<B extends InternalRange.Bucket, R extends InternalRan
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            if (out.getVersion().onOrAfter(Version.V_6_4_0)) {
-                out.writeString(key);
-            } else {
+            if (out.getVersion().onOrAfter(Version.V_7_17_1)) {
                 out.writeOptionalString(key);
+            } else {
+                out.writeString(key == null ? generateKey(from, to, format) : key);
             }
             out.writeDouble(from);
+            if (out.getVersion().onOrAfter(Version.V_7_17_0)) {
+                out.writeOptionalDouble(from);
+            }
             out.writeDouble(to);
+            if (out.getVersion().onOrAfter(Version.V_7_17_0)) {
+                out.writeOptionalDouble(to);
+            }
             out.writeVLong(docCount);
             aggregations.writeTo(out);
         }
@@ -255,18 +262,28 @@ public class InternalRange<B extends InternalRange.Bucket, R extends InternalRan
         int size = in.readVInt();
         List<B> ranges = new ArrayList<>(size);
         for (int i = 0; i < size; i++) {
-            String key = in.getVersion().onOrAfter(Version.V_6_4_0) ? in.readString() : in.readOptionalString();
-            ranges.add(
-                getFactory().createBucket(
-                    key,
-                    in.readDouble(),
-                    in.readDouble(),
-                    in.readVLong(),
-                    InternalAggregations.readFrom(in),
-                    keyed,
-                    format
-                )
-            );
+            String key = in.getVersion().onOrAfter(Version.V_7_17_1) ? in.readOptionalString() : in.readString();
+            double from = in.readDouble();
+            if (in.getVersion().onOrAfter(Version.V_7_17_0)) {
+                final Double originalFrom = in.readOptionalDouble();
+                if (originalFrom != null) {
+                    from = originalFrom;
+                } else {
+                    from = Double.NEGATIVE_INFINITY;
+                }
+            }
+            double to = in.readDouble();
+            if (in.getVersion().onOrAfter(Version.V_7_17_0)) {
+                final Double originalTo = in.readOptionalDouble();
+                if (originalTo != null) {
+                    to = originalTo;
+                } else {
+                    to = Double.POSITIVE_INFINITY;
+                }
+            }
+            long docCount = in.readVLong();
+            InternalAggregations aggregations = InternalAggregations.readFrom(in);
+            ranges.add(getFactory().createBucket(key, from, to, docCount, aggregations, keyed, format));
         }
         this.ranges = ranges;
     }

@@ -30,6 +30,11 @@ public class RestPutShutdownNodeAction extends BaseRestHandler {
     }
 
     @Override
+    public boolean canTripCircuitBreaker() {
+        return false;
+    }
+
+    @Override
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
         String nodeId = request.param("nodeId");
         try (XContentParser parser = request.contentParser()) {

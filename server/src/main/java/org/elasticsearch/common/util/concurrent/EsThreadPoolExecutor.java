@@ -8,9 +8,13 @@
 
 package org.elasticsearch.common.util.concurrent;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.core.SuppressForbidden;
 
 import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.RejectedExecutionHandler;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
@@ -20,6 +24,8 @@ import java.util.stream.Stream;
  * An extension to thread pool executor, allowing (in the future) to add specific additional stats to it.
  */
 public class EsThreadPoolExecutor extends ThreadPoolExecutor {
+
+    private static final Logger logger = LogManager.getLogger(EsThreadPoolExecutor.class);
 
     private final ThreadContext contextHolder;
     private volatile ShutdownListener listener;
@@ -56,7 +62,7 @@ public class EsThreadPoolExecutor extends ThreadPoolExecutor {
         TimeUnit unit,
         BlockingQueue<Runnable> workQueue,
         ThreadFactory threadFactory,
-        XRejectedExecutionHandler handler,
+        RejectedExecutionHandler handler,
         ThreadContext contextHolder
     ) {
         super(corePoolSize, maximumPoolSize, keepAliveTime, unit, workQueue, threadFactory, handler);
@@ -84,23 +90,33 @@ public class EsThreadPoolExecutor extends ThreadPoolExecutor {
 
     @Override
     public void execute(Runnable command) {
-        command = wrapRunnable(command);
+        final Runnable wrappedRunnable = wrapRunnable(command);
         try {
-            super.execute(command);
-        } catch (EsRejectedExecutionException ex) {
-            if (command instanceof AbstractRunnable) {
-                // If we are an abstract runnable we can handle the rejection
-                // directly and don't need to rethrow it.
+            super.execute(wrappedRunnable);
+        } catch (Exception e) {
+            if (wrappedRunnable instanceof AbstractRunnable) {
+                final AbstractRunnable abstractRunnable = (AbstractRunnable) wrappedRunnable;
                 try {
-                    ((AbstractRunnable) command).onRejection(ex);
+                    // If we are an abstract runnable we can handle the exception
+                    // directly and don't need to rethrow it, but we log and assert
+                    // any unexpected exception first.
+                    if (e instanceof EsRejectedExecutionException == false) {
+                        logException(abstractRunnable, e);
+                    }
+                    abstractRunnable.onRejection(e);
                 } finally {
-                    ((AbstractRunnable) command).onAfter();
-
+                    abstractRunnable.onAfter();
                 }
             } else {
-                throw ex;
+                throw e;
             }
         }
+    }
+
+    // package-visible for testing
+    void logException(AbstractRunnable r, Exception e) {
+        logger.error(() -> new ParameterizedMessage("[{}] unexpected exception when submitting task [{}] for execution", name, r), e);
+        assert false : "executor throws an exception (not a rejected execution exception) before the task has been submitted " + e;
     }
 
     @Override

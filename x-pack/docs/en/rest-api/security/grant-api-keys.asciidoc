@@ -123,7 +123,7 @@ POST /_security/api_key/grant
     "role_descriptors": {
       "role-a": {
         "cluster": ["all"],
-        "index": [
+        "indices": [
           {
           "names": ["index-a*"],
           "privileges": ["read"]
@@ -132,7 +132,7 @@ POST /_security/api_key/grant
       },
       "role-b": {
         "cluster": ["all"],
-        "index": [
+        "indices": [
           {
           "names": ["index-b*"],
           "privileges": ["all"]

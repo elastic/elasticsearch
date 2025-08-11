@@ -302,7 +302,7 @@ plugin configuration file.
 If you run {es} using Docker, you can manage plugins using a declarative configuration file.
 When {es} starts up, it will compare the plugins in the file with those
 that are currently installed, and add or remove plugins as required. {es}
-will also upgrade offical plugins when you upgrade {es} itself.
+will also upgrade official plugins when you upgrade {es} itself.
 
 The file is called `elasticsearch-plugins.yml`, and must be placed in the
 Elasticsearch configuration directory, alongside `elasticsearch.yml`. Here

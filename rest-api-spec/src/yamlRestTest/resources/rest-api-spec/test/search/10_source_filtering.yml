@@ -13,7 +13,7 @@ setup:
   - do:
       index:
         index:  test_1
-        id:     1
+        id:     "1"
         body:   { "include": { "field1": "v1", "field2": "v2" }, "count": 1, "bigint": 72057594037927936, d: 3.14 }
   - do:
       indices.refresh: {}

@@ -6,7 +6,7 @@
       delete:
           index:  test_1
           type:   test
-          id:     1
+          id:     "1"
 
 ---
 "Missing document with ignore":
@@ -15,5 +15,5 @@
       delete:
           index:  test_1
           type:   test
-          id:     1
+          id:     "1"
           ignore: 404

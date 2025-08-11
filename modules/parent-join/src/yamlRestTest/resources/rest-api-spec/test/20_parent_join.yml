@@ -92,7 +92,7 @@ teardown:
             query:
               parent_id:
                 type: child
-                id: 1
+                id: "1"
 
     - match: { hits.total: 2 }
     - match: { hits.hits.0._index: "test" }
@@ -151,4 +151,4 @@ teardown:
           query:
             parent_id:
               type: child
-              id: 1
+              id: "1"

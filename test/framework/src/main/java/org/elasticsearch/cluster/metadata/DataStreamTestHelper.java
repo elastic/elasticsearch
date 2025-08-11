@@ -44,6 +44,31 @@ public final class DataStreamTestHelper {
     private static final int NUMBER_OF_SHARDS = 1;
     private static final int NUMBER_OF_REPLICAS = 1;
 
+    public static DataStream newInstance(String name, DataStream.TimestampField timeStampField, List<Index> indices) {
+        return newInstance(name, timeStampField, indices, indices.size(), null);
+    }
+
+    public static DataStream newInstance(
+        String name,
+        DataStream.TimestampField timeStampField,
+        List<Index> indices,
+        long generation,
+        Map<String, Object> metadata
+    ) {
+        return newInstance(name, timeStampField, indices, generation, metadata, false);
+    }
+
+    public static DataStream newInstance(
+        String name,
+        DataStream.TimestampField timeStampField,
+        List<Index> indices,
+        long generation,
+        Map<String, Object> metadata,
+        boolean replicated
+    ) {
+        return new DataStream(name, timeStampField, indices, generation, metadata, false, replicated, false);
+    }
+
     public static IndexMetadata.Builder createFirstBackingIndex(String dataStreamName) {
         return createBackingIndex(dataStreamName, 1, System.currentTimeMillis());
     }
@@ -181,6 +206,15 @@ public final class DataStreamTestHelper {
         List<String> indexNames,
         int replicas
     ) {
+        return getClusterStateWithDataStreams(dataStreams, indexNames, replicas, false);
+    }
+
+    public static ClusterState getClusterStateWithDataStreams(
+        List<Tuple<String, Integer>> dataStreams,
+        List<String> indexNames,
+        int replicas,
+        boolean replicated
+    ) {
         Metadata.Builder builder = Metadata.builder();
 
         List<IndexMetadata> allIndices = new ArrayList<>();
@@ -191,12 +225,13 @@ public final class DataStreamTestHelper {
             }
             allIndices.addAll(backingIndices);
 
-            DataStream ds = new DataStream(
+            DataStream ds = DataStreamTestHelper.newInstance(
                 dsTuple.v1(),
                 createTimestampField("@timestamp"),
                 backingIndices.stream().map(IndexMetadata::getIndex).collect(Collectors.toList()),
                 dsTuple.v2(),
-                null
+                null,
+                replicated
             );
             builder.put(ds);
         }

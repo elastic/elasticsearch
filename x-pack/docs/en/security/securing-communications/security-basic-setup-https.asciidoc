@@ -146,8 +146,8 @@ xpack.security.http.ssl.keystore.path: http.p12
 
 Browsers send traffic to {kib} and {kib} sends traffic to {es}.
 These communication channels are configured separately to use TLS. You encrypt
-traffic between your browser and {kib}, and then encrypt traffic between
-{kib} and {es}.
+traffic between {kib} and {es}, and then encrypt traffic between your browser
+and {kib}.
 
 [[encrypt-kibana-elasticsearch]]
 ===== Encrypt traffic between {kib} and {es}

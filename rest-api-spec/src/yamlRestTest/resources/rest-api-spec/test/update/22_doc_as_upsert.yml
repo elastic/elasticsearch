@@ -7,7 +7,7 @@
   - do:
       update:
           index:            test_1
-          id:               1
+          id:               "1"
           body:
             doc:            { foo: bar, count: 1 }
             doc_as_upsert:  true
@@ -15,7 +15,7 @@
   - do:
       get:
           index:  test_1
-          id:     1
+          id:     "1"
 
   - match:  { _source.foo:   bar }
   - match:  { _source.count: 1   }
@@ -24,7 +24,7 @@
   - do:
       update:
           index:            test_1
-          id:               1
+          id:               "1"
           body:
             doc:            { count: 2 }
             doc_as_upsert:  true
@@ -32,7 +32,7 @@
   - do:
       get:
           index:  test_1
-          id:     1
+          id:     "1"
 
   - match:  { _source.foo:   bar }
   - match:  { _source.count: 2   }

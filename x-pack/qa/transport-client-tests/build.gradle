@@ -1,22 +1,16 @@
-apply plugin: 'elasticsearch.standalone-rest-test'
-apply plugin: 'elasticsearch.rest-test'
+apply plugin: 'elasticsearch.legacy-java-rest-test'
 
 dependencies {
-  testImplementation project(xpackModule('core'))
-  testImplementation project(path: xpackProject('transport-client').path)
+  javaRestTestImplementation project(xpackModule('core'))
+  javaRestTestImplementation project(path: xpackProject('transport-client').path)
 }
 
-testClusters.matching { it.name == "integTest" }.configureEach {
+testClusters.matching { it.name == "javaRestTest" }.configureEach {
   testDistribution = "DEFAULT"
   setting 'xpack.security.enabled', 'false'
   setting 'xpack.license.self_generated.type', 'trial'
 }
 
-tasks.named("testingConventions").configure {
-  naming.clear()
-  naming {
-    IT {
-      baseClass 'org.elasticsearch.xpack.ESXPackSmokeClientTestCase'
-    }
-  }
+tasks.named('javaRestTestTestingConventions').configure {
+  baseClass 'org.elasticsearch.xpack.ESXPackSmokeClientTestCase'
 }

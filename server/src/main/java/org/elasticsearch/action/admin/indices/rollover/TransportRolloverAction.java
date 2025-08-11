@@ -177,7 +177,7 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
                     // block in that it is single-threaded on the master node
                     clusterService.submitStateUpdateTask(
                         "rollover_index source [" + trialRolloverIndexName + "] to target [" + trialRolloverIndexName + "]",
-                        new ClusterStateUpdateTask() {
+                        new ClusterStateUpdateTask(rolloverRequest.masterNodeTimeout()) {
                             @Override
                             public ClusterState execute(ClusterState currentState) throws Exception {
                                 // Regenerate the rollover names, as a rollover could have happened

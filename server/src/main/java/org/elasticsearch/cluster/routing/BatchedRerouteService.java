@@ -13,6 +13,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.NotMasterException;
@@ -55,6 +56,10 @@ public class BatchedRerouteService implements RerouteService {
      */
     @Override
     public final void reroute(String reason, Priority priority, ActionListener<ClusterState> listener) {
+        final ActionListener<ClusterState> wrappedListener = ContextPreservingActionListener.wrapPreservingContext(
+            listener,
+            clusterService.getClusterApplierService().threadPool().getThreadContext()
+        );
         final List<ActionListener<ClusterState>> currentListeners;
         synchronized (mutex) {
             if (pendingRerouteListeners != null) {
@@ -65,7 +70,7 @@ public class BatchedRerouteService implements RerouteService {
                         reason,
                         priority
                     );
-                    pendingRerouteListeners.add(listener);
+                    pendingRerouteListeners.add(wrappedListener);
                     return;
                 } else {
                     logger.trace(
@@ -75,7 +80,7 @@ public class BatchedRerouteService implements RerouteService {
                         reason
                     );
                     currentListeners = new ArrayList<>(1 + pendingRerouteListeners.size());
-                    currentListeners.add(listener);
+                    currentListeners.add(wrappedListener);
                     currentListeners.addAll(pendingRerouteListeners);
                     pendingRerouteListeners.clear();
                     pendingRerouteListeners = currentListeners;
@@ -84,7 +89,7 @@ public class BatchedRerouteService implements RerouteService {
             } else {
                 logger.trace("no pending reroute, scheduling reroute [{}] at priority [{}]", reason, priority);
                 currentListeners = new ArrayList<>(1);
-                currentListeners.add(listener);
+                currentListeners.add(wrappedListener);
                 pendingRerouteListeners = currentListeners;
                 pendingTaskPriority = priority;
             }

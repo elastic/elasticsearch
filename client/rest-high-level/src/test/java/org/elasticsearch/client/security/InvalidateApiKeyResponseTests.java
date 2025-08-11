@@ -90,27 +90,20 @@ public class InvalidateApiKeyResponseTests extends ESTestCase {
             errors
         );
 
-        EqualsHashCodeTestUtils.checkEqualsAndHashCode(
-            invalidateApiKeyResponse,
-            (original) -> {
-                return new InvalidateApiKeyResponse(
-                    original.getInvalidatedApiKeys(),
-                    original.getPreviouslyInvalidatedApiKeys(),
-                    original.getErrors()
-                );
-            }
-        );
-        EqualsHashCodeTestUtils.checkEqualsAndHashCode(
-            invalidateApiKeyResponse,
-            (original) -> {
-                return new InvalidateApiKeyResponse(
-                    original.getInvalidatedApiKeys(),
-                    original.getPreviouslyInvalidatedApiKeys(),
-                    original.getErrors()
-                );
-            },
-            InvalidateApiKeyResponseTests::mutateTestItem
-        );
+        EqualsHashCodeTestUtils.checkEqualsAndHashCode(invalidateApiKeyResponse, (original) -> {
+            return new InvalidateApiKeyResponse(
+                original.getInvalidatedApiKeys(),
+                original.getPreviouslyInvalidatedApiKeys(),
+                original.getErrors()
+            );
+        });
+        EqualsHashCodeTestUtils.checkEqualsAndHashCode(invalidateApiKeyResponse, (original) -> {
+            return new InvalidateApiKeyResponse(
+                original.getInvalidatedApiKeys(),
+                original.getPreviouslyInvalidatedApiKeys(),
+                original.getErrors()
+            );
+        }, InvalidateApiKeyResponseTests::mutateTestItem);
     }
 
     private static InvalidateApiKeyResponse mutateTestItem(InvalidateApiKeyResponse original) {

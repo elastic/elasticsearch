@@ -115,19 +115,19 @@ public class MountSnapshotRequest implements ToXContentObject, Validatable {
         return this;
     }
 
-    private String[] ignoredIndexSettings;
+    private String[] ignoreIndexSettings;
 
-    public String[] getIgnoredIndexSettings() {
-        return ignoredIndexSettings;
+    public String[] getIgnoreIndexSettings() {
+        return ignoreIndexSettings;
     }
 
-    public MountSnapshotRequest ignoredIndexSettings(final String[] ignoredIndexSettings) {
-        if (ignoredIndexSettings != null) {
-            for (final String ignoredIndexSetting : ignoredIndexSettings) {
-                Objects.requireNonNull(ignoredIndexSetting);
+    public MountSnapshotRequest ignoreIndexSettings(final String[] ignoreIndexSettings) {
+        if (ignoreIndexSettings != null) {
+            for (final String ignoreIndexSetting : ignoreIndexSettings) {
+                Objects.requireNonNull(ignoreIndexSetting);
             }
         }
-        this.ignoredIndexSettings = ignoredIndexSettings;
+        this.ignoreIndexSettings = ignoreIndexSettings;
         return this;
     }
 
@@ -146,8 +146,8 @@ public class MountSnapshotRequest implements ToXContentObject, Validatable {
                 }
                 builder.endObject();
             }
-            if (ignoredIndexSettings != null) {
-                builder.array("ignored_index_settings", ignoredIndexSettings);
+            if (ignoreIndexSettings != null) {
+                builder.array("ignore_index_settings", ignoreIndexSettings);
             }
         }
         builder.endObject();

@@ -253,7 +253,11 @@ public class MovAvgPipelineAggregationBuilder extends AbstractPipelineAggregatio
             return;
         }
         // Validate any model-specific window requirements
-        model.validate(window, name);
+        try {
+            model.validate(window, name);
+        } catch (IllegalArgumentException iae) {
+            context.addValidationError(iae.getMessage());
+        }
         context.validateParentAggSequentiallyOrdered(NAME, name);
     }
 

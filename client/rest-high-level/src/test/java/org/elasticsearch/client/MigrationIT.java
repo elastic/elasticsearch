@@ -33,6 +33,7 @@ import static org.hamcrest.Matchers.is;
 
 public class MigrationIT extends ESRestHighLevelClientTestCase {
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/85743")
     public void testGetDeprecationInfo() throws IOException {
         createIndex("test", Settings.EMPTY);
         DeprecationInfoRequest request = new DeprecationInfoRequest(Collections.singletonList("test"));

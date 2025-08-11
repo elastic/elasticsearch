@@ -114,11 +114,9 @@ public class SecurityActionFilter implements ActionFilter {
                         Version.CURRENT
                     );
                 } else if (AuthorizationUtils.shouldSetUserBasedOnActionOrigin(threadContext)) {
-                    AuthorizationUtils.switchUserBasedOnActionOriginAndExecute(
-                        threadContext,
-                        securityContext,
-                        (original) -> { applyInternal(task, chain, action, request, contextPreservingListener); }
-                    );
+                    AuthorizationUtils.switchUserBasedOnActionOriginAndExecute(threadContext, securityContext, (original) -> {
+                        applyInternal(task, chain, action, request, contextPreservingListener);
+                    });
                 } else {
                     try (ThreadContext.StoredContext ignore = threadContext.newStoredContext(true)) {
                         applyInternal(task, chain, action, request, contextPreservingListener);

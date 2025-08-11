@@ -6,6 +6,38 @@
 
 This section summarizes the changes in each release.
 
+* <<release-notes-7.17.29>>
+* <<release-notes-7.17.28>>
+* <<release-notes-7.17.27>>
+* <<release-notes-7.17.26>>
+* <<release-notes-7.17.25>>
+* <<release-notes-7.17.24>>
+* <<release-notes-7.17.23>>
+* <<release-notes-7.17.22>>
+* <<release-notes-7.17.21>>
+* <<release-notes-7.17.20>>
+* <<release-notes-7.17.19>>
+* <<release-notes-7.17.18>>
+* <<release-notes-7.17.17>>
+* <<release-notes-7.17.16>>
+* <<release-notes-7.17.15>>
+* <<release-notes-7.17.14>>
+* <<release-notes-7.17.13>>
+* <<release-notes-7.17.12>>
+* <<release-notes-7.17.11>>
+* <<release-notes-7.17.10>>
+* <<release-notes-7.17.9>>
+* <<release-notes-7.17.8>>
+* <<release-notes-7.17.7>>
+* <<release-notes-7.17.6>>
+* <<release-notes-7.17.5>>
+* <<release-notes-7.17.4>>
+* <<release-notes-7.17.3>>
+* <<release-notes-7.17.2>>
+* <<release-notes-7.17.1>>
+* <<release-notes-7.17.0>>
+* <<release-notes-7.16.3>>
+* <<release-notes-7.16.2>>
 * <<release-notes-7.16.1>>
 * <<release-notes-7.16.0>>
 * <<release-notes-7.15.2>>
@@ -58,6 +90,36 @@ This section summarizes the changes in each release.
 
 --
 
+include::release-notes/7.17.29.asciidoc[]
+include::release-notes/7.17.28.asciidoc[]
+include::release-notes/7.17.27.asciidoc[]
+include::release-notes/7.17.26.asciidoc[]
+include::release-notes/7.17.25.asciidoc[]
+include::release-notes/7.17.24.asciidoc[]
+include::release-notes/7.17.23.asciidoc[]
+include::release-notes/7.17.22.asciidoc[]
+include::release-notes/7.17.21.asciidoc[]
+include::release-notes/7.17.20.asciidoc[]
+include::release-notes/7.17.19.asciidoc[]
+include::release-notes/7.17.18.asciidoc[]
+include::release-notes/7.17.17.asciidoc[]
+include::release-notes/7.17.16.asciidoc[]
+include::release-notes/7.17.15.asciidoc[]
+include::release-notes/7.17.14.asciidoc[]
+include::release-notes/7.17.13.asciidoc[]
+include::release-notes/7.17.12.asciidoc[]
+include::release-notes/7.17.11.asciidoc[]
+include::release-notes/7.17.10.asciidoc[]
+include::release-notes/7.17.9.asciidoc[]
+include::release-notes/7.17.8.asciidoc[]
+include::release-notes/7.17.7.asciidoc[]
+include::release-notes/7.17.6.asciidoc[]
+include::release-notes/7.17.5.asciidoc[]
+include::release-notes/7.17.4.asciidoc[]
+include::release-notes/7.17.3.asciidoc[]
+include::release-notes/7.17.2.asciidoc[]
+include::release-notes/7.17.1.asciidoc[]
+include::release-notes/7.17.0.asciidoc[]
 include::release-notes/7.16.asciidoc[]
 include::release-notes/7.15.asciidoc[]
 include::release-notes/7.14.asciidoc[]
@@ -80,3 +142,4 @@ include::release-notes/7.0.0-rc1.asciidoc[]
 include::release-notes/7.0.0-beta1.asciidoc[]
 include::release-notes/7.0.0-alpha2.asciidoc[]
 include::release-notes/7.0.0-alpha1.asciidoc[]
+

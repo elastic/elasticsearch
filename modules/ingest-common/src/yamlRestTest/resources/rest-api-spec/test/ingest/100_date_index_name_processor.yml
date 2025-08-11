@@ -27,7 +27,7 @@ teardown:
   - do:
       index:
         index: events
-        id: 1
+        id: "1"
         pipeline: "1"
         body: {
           date: "2016-04-22T16:32:14.968Z"

@@ -1,6 +1,11 @@
 apply plugin: 'elasticsearch.build'
+apply plugin: 'elasticsearch.publish'
+
 group = 'org.elasticsearch.client'
-archivesBaseName = 'x-pack-transport'
+
+base {
+  archivesName = 'x-pack-transport'
+}
 
 dependencies {
   // this "api" dependency looks weird, but it is correct, as it contains
@@ -22,11 +27,6 @@ tasks.named("forbiddenApisTest").configure {
   replaceSignatureFiles 'jdk-signatures', 'es-all-signatures'
 }
 
-tasks.named("testingConventions").configure {
-  naming.clear()
-  naming {
-    Tests {
-      baseClass 'com.carrotsearch.randomizedtesting.RandomizedTest'
-    }
-  }
+tasks.named('testTestingConventions').configure {
+  baseClass 'com.carrotsearch.randomizedtesting.RandomizedTest'
 }

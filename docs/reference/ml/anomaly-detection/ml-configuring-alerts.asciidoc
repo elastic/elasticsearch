@@ -62,7 +62,7 @@ You must select a type of {ml} result. In particular, you can create rules based
 on bucket, record, or influencer results.
 
 [role="screenshot"]
-image::images/ml-anomaly-alert-severity.jpg["Selecting result type, severity, and test interval"]
+image::images/ml-anomaly-alert-severity.jpg["Selecting result type, severity, and test interval", 500]
 
 For each rule, you can configure the `anomaly_score` that triggers the action. 
 The `anomaly_score` indicates the significance of a given anomaly compared to 
@@ -324,7 +324,7 @@ formatting is based on the {kib} settings.
 The peak number of bytes of memory ever used by the model.
 ====
 
-==== _Data delay has occured_
+==== _Data delay has occurred_
 
 `context.message`::
 A preconstructed message for the rule.

@@ -20,7 +20,7 @@ setup:
       index:
         index: test
         type: _doc
-        id: 1
+        id: "1"
         body:
           a_field: "quick brown fox jump lazy dog"
 
@@ -29,7 +29,7 @@ setup:
       index:
         index: test
         type: _doc
-        id: 2
+        id: "2"
         body:
           a_field: "xylophone xylophone xylophone"
 
@@ -42,7 +42,7 @@ setup:
       get:
         index: test
         type: _doc
-        id: 1
+        id: "1"
 
   - is_true: found
   - match: { _source.a_field: "quick brown fox jump lazy dog" }

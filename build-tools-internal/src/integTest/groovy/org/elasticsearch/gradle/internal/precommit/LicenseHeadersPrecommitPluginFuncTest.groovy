@@ -8,19 +8,22 @@
 
 package org.elasticsearch.gradle.internal.precommit
 
-import org.elasticsearch.gradle.fixtures.AbstractGradleFuncTest
+import org.elasticsearch.gradle.fixtures.AbstractGradlePrecommitPluginFuncTest
+import org.elasticsearch.gradle.internal.conventions.precommit.LicenseHeadersPrecommitPlugin
+import org.elasticsearch.gradle.internal.conventions.precommit.PrecommitPlugin
 import org.gradle.testkit.runner.TaskOutcome
 
-class LicenseHeadersPrecommitPluginFuncTest extends AbstractGradleFuncTest {
+class LicenseHeadersPrecommitPluginFuncTest extends AbstractGradlePrecommitPluginFuncTest {
 
+    Class<? extends PrecommitPlugin> pluginClassUnderTest = LicenseHeadersPrecommitPlugin.class
+
+    def setup() {
+        buildFile << """
+        apply plugin:'java'
+        """
+    }
     def "detects invalid files with invalid license header"() {
         given:
-        buildFile << """
-        plugins {
-            id 'java'
-            id 'elasticsearch.internal-licenseheaders'
-        }
-        """
         dualLicensedFile()
         unknownSourceFile()
         unapprovedSourceFile()
@@ -39,11 +42,6 @@ class LicenseHeadersPrecommitPluginFuncTest extends AbstractGradleFuncTest {
     def "can filter source files"() {
         given:
         buildFile << """
-        plugins {
-            id 'java'
-            id 'elasticsearch.internal-licenseheaders'
-        }
-
         tasks.named("licenseHeaders").configure {
             excludes << 'org/acme/filtered/**/*'
         }
@@ -61,12 +59,6 @@ class LicenseHeadersPrecommitPluginFuncTest extends AbstractGradleFuncTest {
 
     def "supports sspl by convention"() {
         given:
-        buildFile << """
-        plugins {
-            id 'java'
-            id 'elasticsearch.internal-licenseheaders'
-        }
-        """
         dualLicensedFile()
 
         when:
@@ -79,11 +71,6 @@ class LicenseHeadersPrecommitPluginFuncTest extends AbstractGradleFuncTest {
     def "sspl default additional license can be overridden"() {
         given:
         buildFile << """
-        plugins {
-            id 'java'
-            id 'elasticsearch.internal-licenseheaders'
-        }
-
         tasks.named("licenseHeaders").configure {
             additionalLicense 'ELAST', 'Elastic License 2.0', '2.0; you may not use this file except in compliance with the Elastic License'
         }
@@ -173,4 +160,5 @@ class LicenseHeadersPrecommitPluginFuncTest extends AbstractGradleFuncTest {
         String normalizedPath = normalized(sourceFile.getPath())
         (normalizedPath.substring(normalizedPath.indexOf("src/main/java")) - "src/main/java/" - ("/" + sourceFile.getName())).replaceAll("/", ".")
     }
+
 }

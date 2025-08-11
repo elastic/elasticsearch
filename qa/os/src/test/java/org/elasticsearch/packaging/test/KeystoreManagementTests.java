@@ -403,10 +403,11 @@ public class KeystoreManagementTests extends PackagingTestCase {
     private void createKeystore(String password) throws Exception {
         Path keystore = installation.config("elasticsearch.keystore");
         final Installation.Executables bin = installation.executables();
-        if (distribution().isDocker() && distribution().packaging != Distribution.Packaging.DOCKER_IRON_BANK) {
-            // The Docker image in 7.x runs as `root` (apart from Iron Bank), but ensures that it creates files as `elasticsearch`, so
-            // we emulate this behaviour here. in `8.0`, the image runs as `elasticsearch` and this special
-            // case goes away.
+        if (distribution().isDocker()
+            && distribution().packaging != Distribution.Packaging.DOCKER_IRON_BANK
+            && distribution().packaging != Distribution.Packaging.DOCKER_UBI) {
+            // The Docker image in 7.x runs as `root` (apart from Iron Bank and UBI), but ensures that it creates files as `elasticsearch`,
+            // so we emulate this behaviour here. in `8.0`, the image runs as `elasticsearch` and this special case goes away.
             sh.run("bash -c 'exec chroot --userspec=1000:0 / " + bin.keystoreTool.path + " create'");
         } else {
             bin.keystoreTool.run("create");

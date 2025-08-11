@@ -13,6 +13,7 @@ import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.engine.InternalEngineFactory;
+import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
@@ -21,10 +22,12 @@ import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.watcher.watch.Watch;
 import org.elasticsearch.xpack.watcher.notification.NotificationService;
 
+import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 
 import static java.util.Collections.emptyMap;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.Mockito.mock;
@@ -124,6 +127,16 @@ public class WatcherPluginTests extends ESTestCase {
 
         watcher.reload(settings);
         verifyNoMoreInteractions(mockService);
+    }
+
+    public void testWatcherSystemIndicesFormat() {
+        Settings settings = Settings.builder().put("xpack.watcher.enabled", false).put("path.home", createTempDir()).build();
+        Watcher watcher = new Watcher(settings);
+
+        Collection<SystemIndexDescriptor> descriptors = watcher.getSystemIndexDescriptors(settings);
+        for (SystemIndexDescriptor descriptor : descriptors) {
+            assertThat(descriptor.getIndexFormat(), equalTo(6));
+        }
     }
 
     private class TestWatcher extends Watcher {

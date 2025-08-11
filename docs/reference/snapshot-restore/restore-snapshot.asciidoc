@@ -455,6 +455,10 @@ POST _snapshot/my_repository/my_snapshot_2099.05.06/_restore
 . When the restore operation is complete, resume indexing and restart any
 features you stopped:
 +
+NOTE: When the snapshot is restored, the license that was in use at the time the snapshot
+was taken will be restored as well. If your license has expired since the snapshot was taken,
+you will need to use the <<update-license,Update License API>> to install a current license.
++
 --
 * GeoIP database downloader
 +
@@ -590,8 +594,7 @@ DELETE _data_stream/logs-my_app-default
 === Restore to a different cluster
 
 TIP: {ess} can help you restore snapshots from other deployments. See
-{cloud}/ec-restoring-snapshots.html#ec-restore-across-clusters[Restore across
-clusters].
+{cloud}/ec-restoring-snapshots.html[Work with snapshots].
 
 Snapshots aren't tied to a particular cluster or a cluster name. You can create
 a snapshot in one cluster and restore it in another

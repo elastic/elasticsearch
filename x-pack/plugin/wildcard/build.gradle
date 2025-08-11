@@ -6,7 +6,10 @@ esplugin {
   classname 'org.elasticsearch.xpack.wildcard.Wildcard'
   extendedPlugins = ['x-pack-core']
 }
-archivesBaseName = 'x-pack-wildcard'
+
+base {
+  archivesName = 'x-pack-wildcard'
+}
 
 dependencies {
   compileOnly project(path: xpackModule('core'))

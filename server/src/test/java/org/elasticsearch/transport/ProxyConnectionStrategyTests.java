@@ -34,6 +34,9 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
+import static org.hamcrest.Matchers.allOf;
+import static org.hamcrest.Matchers.containsString;
+
 public class ProxyConnectionStrategyTests extends ESTestCase {
 
     private final String clusterAlias = "cluster-alias";
@@ -80,7 +83,11 @@ public class ProxyConnectionStrategyTests extends ESTestCase {
                 localService.start();
                 localService.acceptIncomingRequests();
 
-                ClusterConnectionManager connectionManager = new ClusterConnectionManager(profile, localService.transport);
+                final ClusterConnectionManager connectionManager = new ClusterConnectionManager(
+                    profile,
+                    localService.transport,
+                    threadPool.getThreadContext()
+                );
                 int numOfConnections = randomIntBetween(4, 8);
                 try (
                     RemoteConnectionManager remoteConnectionManager = new RemoteConnectionManager(clusterAlias, connectionManager);
@@ -124,7 +131,11 @@ public class ProxyConnectionStrategyTests extends ESTestCase {
                 localService.start();
                 localService.acceptIncomingRequests();
 
-                ClusterConnectionManager connectionManager = new ClusterConnectionManager(profile, localService.transport);
+                final ClusterConnectionManager connectionManager = new ClusterConnectionManager(
+                    profile,
+                    localService.transport,
+                    threadPool.getThreadContext()
+                );
                 int numOfConnections = randomIntBetween(4, 8);
 
                 AtomicBoolean useAddress1 = new AtomicBoolean(true);
@@ -186,7 +197,11 @@ public class ProxyConnectionStrategyTests extends ESTestCase {
                 localService.start();
                 localService.acceptIncomingRequests();
 
-                ClusterConnectionManager connectionManager = new ClusterConnectionManager(profile, localService.transport);
+                final ClusterConnectionManager connectionManager = new ClusterConnectionManager(
+                    profile,
+                    localService.transport,
+                    threadPool.getThreadContext()
+                );
                 int numOfConnections = randomIntBetween(4, 8);
                 try (
                     RemoteConnectionManager remoteConnectionManager = new RemoteConnectionManager(clusterAlias, connectionManager);
@@ -202,7 +217,10 @@ public class ProxyConnectionStrategyTests extends ESTestCase {
 
                     PlainActionFuture<Void> connectFuture = PlainActionFuture.newFuture();
                     strategy.connect(connectFuture);
-                    expectThrows(Exception.class, connectFuture::actionGet);
+                    assertThat(
+                        expectThrows(NoSeedNodeLeftException.class, connectFuture::actionGet).getMessage(),
+                        allOf(containsString("Unable to open any proxy connections"), containsString('[' + clusterAlias + ']'))
+                    );
 
                     assertFalse(connectionManager.getAllConnectedNodes().stream().anyMatch(n -> n.getAddress().equals(address1)));
                     assertEquals(0, connectionManager.size());
@@ -226,7 +244,11 @@ public class ProxyConnectionStrategyTests extends ESTestCase {
                 localService.start();
                 localService.acceptIncomingRequests();
 
-                ClusterConnectionManager connectionManager = new ClusterConnectionManager(profile, localService.transport);
+                final ClusterConnectionManager connectionManager = new ClusterConnectionManager(
+                    profile,
+                    localService.transport,
+                    threadPool.getThreadContext()
+                );
                 int numOfConnections = randomIntBetween(4, 8);
 
                 AtomicBoolean useAddress1 = new AtomicBoolean(true);
@@ -289,7 +311,11 @@ public class ProxyConnectionStrategyTests extends ESTestCase {
                 localService.start();
                 localService.acceptIncomingRequests();
 
-                ClusterConnectionManager connectionManager = new ClusterConnectionManager(profile, localService.transport);
+                final ClusterConnectionManager connectionManager = new ClusterConnectionManager(
+                    profile,
+                    localService.transport,
+                    threadPool.getThreadContext()
+                );
                 int numOfConnections = randomIntBetween(4, 8);
                 try (
                     RemoteConnectionManager remoteConnectionManager = new RemoteConnectionManager(clusterAlias, connectionManager);
@@ -324,7 +350,11 @@ public class ProxyConnectionStrategyTests extends ESTestCase {
                 localService.start();
                 localService.acceptIncomingRequests();
 
-                ClusterConnectionManager connectionManager = new ClusterConnectionManager(profile, localService.transport);
+                final ClusterConnectionManager connectionManager = new ClusterConnectionManager(
+                    profile,
+                    localService.transport,
+                    threadPool.getThreadContext()
+                );
                 int numOfConnections = randomIntBetween(4, 8);
                 try (
                     RemoteConnectionManager remoteConnectionManager = new RemoteConnectionManager(clusterAlias, connectionManager);
@@ -429,7 +459,11 @@ public class ProxyConnectionStrategyTests extends ESTestCase {
 
                 String address = "localhost:" + address1.getPort();
 
-                ClusterConnectionManager connectionManager = new ClusterConnectionManager(profile, localService.transport);
+                final ClusterConnectionManager connectionManager = new ClusterConnectionManager(
+                    profile,
+                    localService.transport,
+                    threadPool.getThreadContext()
+                );
                 int numOfConnections = randomIntBetween(4, 8);
                 try (
                     RemoteConnectionManager remoteConnectionManager = new RemoteConnectionManager(clusterAlias, connectionManager);

@@ -57,6 +57,9 @@ org.apache.lucene.index.NoMergePolicy#INSTANCE @ explicit use of NoMergePolicy r
 org.apache.lucene.search.TimeLimitingCollector#getGlobalTimerThread()
 org.apache.lucene.search.TimeLimitingCollector#getGlobalCounter()
 
+@defaultMessage use @org.elasticsearch.common.lucene.RegExp instead to avoid StackOverflowError
+org.apache.lucene.util.automaton.RegExp
+
 @defaultMessage Don't interrupt threads use FutureUtils#cancel(Future<T>) instead
 java.util.concurrent.Future#cancel(boolean)
 

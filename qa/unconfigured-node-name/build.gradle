@@ -8,19 +8,17 @@ import org.elasticsearch.gradle.OS
  * Side Public License, v 1.
  */
 
-apply plugin: 'elasticsearch.internal-testclusters'
-apply plugin: 'elasticsearch.standalone-rest-test'
-apply plugin: 'elasticsearch.rest-test'
+apply plugin: 'elasticsearch.legacy-java-rest-test'
 
 testClusters.configureEach {
   setting 'xpack.security.enabled', 'false'
 }
 
-testClusters.matching { it.name == "integTest" }.configureEach {
+testClusters.matching { it.name == "javaRestTest" }.configureEach {
   nameCustomization = { null }
 }
 
-tasks.named("integTest").configure {
+tasks.named("javaRestTest").configure {
   nonInputProperties.systemProperty 'tests.logfile',
-    "${-> testClusters.integTest.singleNode().getServerLog()}"
+    "${-> testClusters.javaRestTest.singleNode().getServerLog()}"
 }

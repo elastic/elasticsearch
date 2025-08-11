@@ -1,16 +1,15 @@
 import org.elasticsearch.gradle.internal.info.BuildParams
 import static org.elasticsearch.gradle.PropertyNormalization.IGNORE_VALUE
 
-apply plugin: 'elasticsearch.standalone-rest-test'
-apply plugin: 'elasticsearch.rest-test'
+apply plugin: 'elasticsearch.legacy-java-rest-test'
 apply plugin: 'elasticsearch.rest-resources'
 
 final Project fixture = project(':test:fixtures:azure-fixture')
 final Project repositoryPlugin = project(':plugins:repository-azure')
 
 dependencies {
-  testImplementation(testArtifact(project(xpackModule('searchable-snapshots'))))
-  testImplementation repositoryPlugin
+  javaRestTestImplementation(testArtifact(project(xpackModule('searchable-snapshots'))))
+  javaRestTestImplementation repositoryPlugin
 }
 
 restResources {
@@ -41,12 +40,12 @@ if (useFixture) {
   testFixtures.useFixture(fixture.path, 'azure-fixture-other')
 }
 
-tasks.named("integTest").configure {
+tasks.named("javaRestTest").configure {
   systemProperty 'test.azure.container', azureContainer
   nonInputProperties.systemProperty 'test.azure.base_path', azureBasePath + "_searchable_snapshots_tests_" + BuildParams.testSeed
 }
 
-testClusters.matching { it.name == "integTest" }.configureEach {
+testClusters.matching { it.name == "javaRestTest" }.configureEach {
   testDistribution = 'DEFAULT'
   plugin repositoryPlugin.path
 
@@ -77,9 +76,9 @@ testClusters.matching { it.name == "integTest" }.configureEach {
 
   setting 'xpack.searchable.snapshot.shared_cache.size', '16MB'
   setting 'xpack.searchable.snapshot.shared_cache.region_size', '256KB'
+  setting 'xpack.searchable_snapshots.cache_fetch_async_thread_pool.keep_alive', '0ms'
 }
 
 tasks.register("azureThirdPartyTest") {
-  dependsOn "integTest"
+  dependsOn "javaRestTest"
 }
-

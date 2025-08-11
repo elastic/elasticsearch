@@ -20,19 +20,19 @@ setup:
          body:
            - index:
                _index: test_1
-               _id:    1
+               _id:    "1"
            - int_field: 1
            - index:
                _index: test_1
-               _id:    2
+               _id:    "2"
            - int_field: 2
            - index:
                _index: test_1
-               _id:    3
+               _id:    "3"
            - int_field: 3
            - index:
                _index: test_1
-               _id:    4
+               _id:    "4"
            - int_field: 4
 
 ---

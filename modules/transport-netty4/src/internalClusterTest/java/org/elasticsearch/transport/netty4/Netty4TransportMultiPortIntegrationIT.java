@@ -7,6 +7,7 @@
  */
 package org.elasticsearch.transport.netty4;
 
+import org.apache.lucene.util.Constants;
 import org.elasticsearch.ESNetty4IntegTestCase;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
@@ -24,10 +25,12 @@ import org.elasticsearch.test.ESIntegTestCase.Scope;
 import org.elasticsearch.test.junit.annotations.Network;
 import org.elasticsearch.transport.MockTransportClient;
 import org.elasticsearch.transport.Netty4Plugin;
+import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportInfo;
 
-import java.net.InetAddress;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.List;
 import java.util.Locale;
 
 import static org.elasticsearch.action.admin.cluster.node.info.NodesInfoRequest.Metric.TRANSPORT;
@@ -42,14 +45,16 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
 @ClusterScope(scope = Scope.SUITE, supportsDedicatedMasters = false, numDataNodes = 1, numClientNodes = 0)
 public class Netty4TransportMultiPortIntegrationIT extends ESNetty4IntegTestCase {
 
+    private static final int NUMBER_OF_CLIENT_PORTS = Constants.WINDOWS ? 300 : 10;
+
     private static int randomPort = -1;
     private static String randomPortRange;
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
         if (randomPort == -1) {
-            randomPort = randomIntBetween(49152, 65525);
-            randomPortRange = String.format(Locale.ROOT, "%s-%s", randomPort, randomPort + 10);
+            randomPort = randomIntBetween(49152, 65535 - NUMBER_OF_CLIENT_PORTS);
+            randomPortRange = String.format(Locale.ROOT, "%s-%s", randomPort, randomPort + NUMBER_OF_CLIENT_PORTS);
         }
         Settings.Builder builder = Settings.builder()
             .put(super.nodeSettings(nodeOrdinal, otherSettings))
@@ -61,17 +66,28 @@ public class Netty4TransportMultiPortIntegrationIT extends ESNetty4IntegTestCase
         return builder.build();
     }
 
-    public void testThatTransportClientCanConnect() throws Exception {
+    public void testThatTransportClientCanConnect() {
         Settings settings = Settings.builder()
             .put("cluster.name", internalCluster().getClusterName())
             .put(NetworkModule.TRANSPORT_TYPE_KEY, Netty4Plugin.NETTY_TRANSPORT_NAME)
             .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
             .build();
-        // we have to test all the ports that the data node might be bound to
         try (TransportClient transportClient = new MockTransportClient(settings, Arrays.asList(Netty4Plugin.class))) {
-            for (int i = 0; i <= 10; i++) {
-                transportClient.addTransportAddress(new TransportAddress(InetAddress.getByName("127.0.0.1"), randomPort + i));
+            final List<TransportAddress> addresses = new ArrayList<>();
+            for (final Transport transport : internalCluster().getInstances(Transport.class)) {
+                for (final TransportAddress transportAddress : transport.boundAddress().boundAddresses()) {
+                    addresses.add(transportAddress);
+                }
+                for (final BoundTransportAddress profileAddresses : transport.profileBoundAddresses().values()) {
+                    for (final TransportAddress transportAddress : profileAddresses.boundAddresses()) {
+                        addresses.add(transportAddress);
+                    }
+                }
             }
+            logger.info("--> all addresses: {}", addresses);
+            final TransportAddress[] targetAddresses = randomNonEmptySubsetOf(addresses).toArray(new TransportAddress[0]);
+            logger.info("--> target addresses: {}", Arrays.toString(targetAddresses));
+            transportClient.addTransportAddresses(targetAddresses);
             ClusterHealthResponse response = transportClient.admin().cluster().prepareHealth().get();
             assertThat(response.getStatus(), is(ClusterHealthStatus.GREEN));
         }

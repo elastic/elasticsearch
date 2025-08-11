@@ -17,6 +17,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
+import org.elasticsearch.rest.RestUtils;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 
@@ -31,6 +32,11 @@ class HttpTracer {
 
     private volatile String[] tracerLogInclude;
     private volatile String[] tracerLogExclude;
+
+    // for testing
+    HttpTracer() {
+        tracerLogInclude = tracerLogExclude = new String[0];
+    }
 
     HttpTracer(Settings settings, ClusterSettings clusterSettings) {
 
@@ -54,14 +60,17 @@ class HttpTracer {
     @Nullable
     HttpTracer maybeTraceRequest(RestRequest restRequest, @Nullable Exception e) {
         if (logger.isTraceEnabled() && TransportService.shouldTraceAction(restRequest.uri(), tracerLogInclude, tracerLogExclude)) {
+            // trace.id in the response log is included from threadcontext, which isn't set at request log time
+            // so include it here as part of the message
             logger.trace(
                 new ParameterizedMessage(
-                    "[{}][{}][{}][{}] received request from [{}]",
+                    "[{}][{}][{}][{}] received request from [{}]{}",
                     restRequest.getRequestId(),
                     restRequest.header(Task.X_OPAQUE_ID_HTTP_HEADER),
                     restRequest.method(),
                     restRequest.uri(),
-                    restRequest.getHttpChannel()
+                    restRequest.getHttpChannel(),
+                    RestUtils.extractTraceId(restRequest.header(Task.TRACE_PARENT_HTTP_HEADER)).map(t -> " trace.id: " + t).orElse("")
                 ),
                 e
             );
@@ -88,6 +97,7 @@ class HttpTracer {
         long requestId,
         boolean success
     ) {
+        // trace id is included in the ThreadContext for the response
         logger.trace(
             new ParameterizedMessage(
                 "[{}][{}][{}][{}][{}] sent response to [{}] success [{}]",

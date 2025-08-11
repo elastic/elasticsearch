@@ -323,12 +323,11 @@ public class AutoCreateIndexTests extends ESTestCase {
 
     private AutoCreateIndex newAutoCreateIndex(Settings settings) {
         SystemIndices systemIndices = new SystemIndices(
-            org.elasticsearch.core.Map.of(
-                "plugin",
+            org.elasticsearch.core.List.of(
                 new SystemIndices.Feature(
                     "plugin",
                     "test feature",
-                    singletonList(new SystemIndexDescriptor(TEST_SYSTEM_INDEX_NAME + "*", ""))
+                    org.elasticsearch.core.List.of(new SystemIndexDescriptor(TEST_SYSTEM_INDEX_NAME + "*", ""))
                 )
             )
         );

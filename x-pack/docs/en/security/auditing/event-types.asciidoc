@@ -6,7 +6,7 @@ When you are <<enable-audit-logging,auditing security events>>, a single client
 request might generate multiple audit events, across multiple cluster nodes.
 The common `request.id` attribute can be used to correlate the associated events.
 
-Use the <<xpack-sa-lf-events-include,`xpack.security.audit.logfile.events.include`>> 
+Use the <<xpack-sa-lf-events-include,`xpack.security.audit.logfile.events.include`>>
 setting in `elasticsearch.yml` to specify the kind of events you want to include
 in the auditing output.
 
@@ -188,7 +188,7 @@ Logged when an incoming TCP connection does not pass the
 [source,js]
 {"type":"audit", "timestamp":"2020-12-30T21:47:31,526+0200", "node.id":
 "0RMNyghkQYCc_gVd1G6tZQ", "event.type":"ip_filter", "event.action":
-"connection_denied", "origin.type":"rest", "origin.address":"10.10.0.20",
+"connection_denied", "origin.type":"rest", "origin.address":"10.10.0.20:52314",
 "transport.profile":".http", "rule":"deny 10.10.0.0/16"}
 ====
 
@@ -203,7 +203,7 @@ for a specific profile.
 [source,js]
 {"type":"audit", "timestamp":"2020-12-30T21:47:31,526+0200", "node.id":
 "0RMNyghkQYCc_gVd1G6tZQ", "event.type":"ip_filter", "event.action":
-"connection_granted", "origin.type":"rest", "origin.address":"::1",
+"connection_granted", "origin.type":"rest", "origin.address":"[::1]:52314",
 "transport.profile":".http", "rule":"allow ::1,127.0.0.1"}
 ====
 
@@ -534,8 +534,8 @@ The following list shows attributes that are common to all audit event types:
 In addition, if `event.type` equals <<security-config-change,`security_config_change`>>,
 the `event.action` attribute takes one of the following values:
 `put_user`, `change_password`, `put_role`, `put_role_mapping`,
-`change_enable_user`, `change_disable_user`, `put_privileges`, `create_apikey`, 
-`delete_user`, `delete_role`, `delete_role_mapping`, `invalidate_apikeys` or 
+`change_enable_user`, `change_disable_user`, `put_privileges`, `create_apikey`,
+`delete_user`, `delete_role`, `delete_role_mapping`, `invalidate_apikeys` or
 `delete_privileges`.
 
 `request.id`      ::    A synthetic identifier that can be used to correlate the events
@@ -557,9 +557,12 @@ show more details about the requesting client:
                         `transport` (request was received on the transport channel),
                         or `local_node` (the local node issued the request).
 `opaque_id`       ::    The value of the `X-Opaque-Id` HTTP header (if present) of
-                        the request associated with this event. This header can
-                        be used freely by the client to mark API calls, as it has
-                        no semantics in Elasticsearch.
+                        the request associated with this event.
+                        See more: <<x-opaque-id, `X-Opaque-Id` HTTP header - API conventions>>
+`trace_id`        ::    The identifier extracted from the `traceparent` HTTP header
+                        (if present) of the request associated with this event.
+                        It allows to surface audit logs into the Trace Logs feature
+                        of Elastic APM.
 `x_forwarded_for` ::    The verbatim value of the `X-Forwarded-For` HTTP request
                         header (if present) of the request associated with the
                         audit event. This header is commonly added by proxies

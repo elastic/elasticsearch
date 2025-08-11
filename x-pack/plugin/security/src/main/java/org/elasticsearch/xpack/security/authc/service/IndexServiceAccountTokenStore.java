@@ -239,19 +239,16 @@ public class IndexServiceAccountTokenStore extends CachingServiceAccountTokenSto
                             SECURITY_ORIGIN,
                             ClearSecurityCacheAction.INSTANCE,
                             clearSecurityCacheRequest,
-                            ActionListener.wrap(
-                                clearSecurityCacheResponse -> {
-                                    listener.onResponse(deleteResponse.getResult() == DocWriteResponse.Result.DELETED);
-                                },
-                                e -> {
-                                    final ParameterizedMessage message = new ParameterizedMessage(
-                                        "clearing the cache for service token [{}] failed. please clear the cache manually",
-                                        qualifiedTokenName
-                                    );
-                                    logger.error(message, e);
-                                    listener.onFailure(new ElasticsearchException(message.getFormattedMessage(), e));
-                                }
-                            )
+                            ActionListener.wrap(clearSecurityCacheResponse -> {
+                                listener.onResponse(deleteResponse.getResult() == DocWriteResponse.Result.DELETED);
+                            }, e -> {
+                                final ParameterizedMessage message = new ParameterizedMessage(
+                                    "clearing the cache for service token [{}] failed. please clear the cache manually",
+                                    qualifiedTokenName
+                                );
+                                logger.error(message, e);
+                                listener.onFailure(new ElasticsearchException(message.getFormattedMessage(), e));
+                            })
                         );
                     }, listener::onFailure)
                 );

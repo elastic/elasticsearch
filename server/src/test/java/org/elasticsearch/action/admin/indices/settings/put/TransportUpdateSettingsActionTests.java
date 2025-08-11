@@ -22,7 +22,6 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.List;
-import org.elasticsearch.core.Map;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.test.ESTestCase;
@@ -60,8 +59,7 @@ public class TransportUpdateSettingsActionTests extends ESTestCase {
 
     private static final String SYSTEM_INDEX_NAME = ".my-system";
     private static final SystemIndices SYSTEM_INDICES = new SystemIndices(
-        Map.of(
-            "test-feature",
+        List.of(
             new SystemIndices.Feature("test-feature", "a test feature", List.of(new SystemIndexDescriptor(SYSTEM_INDEX_NAME + "*", "test")))
         )
     );

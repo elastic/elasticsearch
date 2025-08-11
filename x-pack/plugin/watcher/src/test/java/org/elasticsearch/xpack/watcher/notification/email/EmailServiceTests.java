@@ -13,9 +13,18 @@ import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.core.watcher.common.secret.Secret;
 import org.junit.Before;
 
+import java.io.UnsupportedEncodingException;
+import java.time.ZonedDateTime;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Properties;
 
+import javax.mail.MessagingException;
+
+import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.is;
@@ -112,5 +121,211 @@ public class EmailServiceTests extends ESTestCase {
         Properties properties5 = account5.getConfig().smtp.properties;
         assertThat(properties5, hasEntry("mail.smtp.quitwait", "true"));
         assertThat(properties5, hasEntry("mail.smtp.ssl.trust", "host1,host2,host3"));
+    }
+
+    public void testExtractDomains() throws Exception {
+        Email email = new Email(
+            "id",
+            new Email.Address("foo@bar.com", "foo@bar.com"),
+            createAddressList("foo@bar.com", "baz@eggplant.com"),
+            randomFrom(Email.Priority.values()),
+            ZonedDateTime.now(),
+            createAddressList("foo@bar.com", "bar@eggplant.com", "person@example.com"),
+            createAddressList("me@another.com", "other@bar.com"),
+            createAddressList("onemore@bar.com", "private@bcc.com"),
+            "subject",
+            "body",
+            "htmlbody",
+            Collections.emptyMap()
+        );
+        assertThat(
+            EmailService.getRecipientDomains(email),
+            containsInAnyOrder("bar.com", "eggplant.com", "example.com", "another.com", "bcc.com")
+        );
+
+        email = new Email(
+            "id",
+            new Email.Address("foo@bar.com", "foo@bar.com"),
+            createAddressList("foo@bar.com", "baz@potato.com"),
+            randomFrom(Email.Priority.values()),
+            ZonedDateTime.now(),
+            createAddressList("foo@bar.com", "bar@eggplant.com", "person@example.com"),
+            null,
+            null,
+            "subject",
+            "body",
+            "htmlbody",
+            Collections.emptyMap()
+        );
+        assertThat(EmailService.getRecipientDomains(email), containsInAnyOrder("bar.com", "eggplant.com", "example.com"));
+    }
+
+    public void testAllowedDomain() throws Exception {
+        Email email = new Email(
+            "id",
+            new Email.Address("foo@bar.com", "Mr. Foo Man"),
+            createAddressList("foo@bar.com", "baz@potato.com"),
+            randomFrom(Email.Priority.values()),
+            ZonedDateTime.now(),
+            createAddressList("foo@bar.com"),
+            null,
+            null,
+            "subject",
+            "body",
+            "htmlbody",
+            Collections.emptyMap()
+        );
+        assertTrue(EmailService.recipientDomainsInAllowList(email, org.elasticsearch.core.Set.of("*")));
+        assertFalse(EmailService.recipientDomainsInAllowList(email, org.elasticsearch.core.Set.of()));
+        assertFalse(EmailService.recipientDomainsInAllowList(email, org.elasticsearch.core.Set.of("")));
+        assertTrue(EmailService.recipientDomainsInAllowList(email, org.elasticsearch.core.Set.of("other.com", "bar.com")));
+        assertTrue(EmailService.recipientDomainsInAllowList(email, org.elasticsearch.core.Set.of("other.com", "*.com")));
+        assertTrue(EmailService.recipientDomainsInAllowList(email, org.elasticsearch.core.Set.of("*.CoM")));
+
+        // Invalid email in CC doesn't blow up
+        email = new Email(
+            "id",
+            new Email.Address("foo@bar.com", "Mr. Foo Man"),
+            createAddressList("foo@bar.com", "baz@potato.com"),
+            randomFrom(Email.Priority.values()),
+            ZonedDateTime.now(),
+            createAddressList("foo@bar.com"),
+            createAddressList("badEmail"),
+            null,
+            "subject",
+            "body",
+            "htmlbody",
+            Collections.emptyMap()
+        );
+        assertFalse(EmailService.recipientDomainsInAllowList(email, org.elasticsearch.core.Set.of("other.com", "bar.com")));
+
+        // Check CC
+        email = new Email(
+            "id",
+            new Email.Address("foo@bar.com", "Mr. Foo Man"),
+            createAddressList("foo@bar.com", "baz@potato.com"),
+            randomFrom(Email.Priority.values()),
+            ZonedDateTime.now(),
+            createAddressList("foo@bar.com"),
+            createAddressList("thing@other.com"),
+            null,
+            "subject",
+            "body",
+            "htmlbody",
+            Collections.emptyMap()
+        );
+        assertTrue(EmailService.recipientDomainsInAllowList(email, org.elasticsearch.core.Set.of("other.com", "bar.com")));
+        assertFalse(EmailService.recipientDomainsInAllowList(email, org.elasticsearch.core.Set.of("bar.com")));
+
+        // Check BCC
+        email = new Email(
+            "id",
+            new Email.Address("foo@bar.com", "Mr. Foo Man"),
+            createAddressList("foo@bar.com", "baz@potato.com"),
+            randomFrom(Email.Priority.values()),
+            ZonedDateTime.now(),
+            createAddressList("foo@bar.com"),
+            null,
+            createAddressList("thing@other.com"),
+            "subject",
+            "body",
+            "htmlbody",
+            Collections.emptyMap()
+        );
+        assertTrue(EmailService.recipientDomainsInAllowList(email, org.elasticsearch.core.Set.of("other.com", "bar.com")));
+        assertFalse(EmailService.recipientDomainsInAllowList(email, org.elasticsearch.core.Set.of("bar.com")));
+    }
+
+    public void testSendEmailWithDomainNotInAllowList() throws Exception {
+        service.updateAllowedDomains(Collections.singletonList(randomFrom("bar.*", "bar.com", "b*")));
+        Email email = new Email(
+            "id",
+            new Email.Address("foo@bar.com", "Mr. Foo Man"),
+            createAddressList("foo@bar.com", "baz@potato.com"),
+            randomFrom(Email.Priority.values()),
+            ZonedDateTime.now(),
+            createAddressList("foo@bar.com", "non-whitelisted@invalid.com"),
+            null,
+            null,
+            "subject",
+            "body",
+            "htmlbody",
+            Collections.emptyMap()
+        );
+        when(account.name()).thenReturn("account1");
+        Authentication auth = new Authentication("user", new Secret("passwd".toCharArray()));
+        Profile profile = randomFrom(Profile.values());
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> service.send(email, auth, profile, "account1"));
+        assertThat(
+            e.getMessage(),
+            containsString(
+                "failed to send email with subject [subject] and recipient domains "
+                    + "[bar.com, invalid.com], one or more recipients is not specified in the domain allow list setting "
+                    + "[xpack.notification.email.account.domain_allowlist]."
+            )
+        );
+    }
+
+    public void testChangeDomainAllowListSetting() throws UnsupportedEncodingException, MessagingException {
+        Settings settings = Settings.builder()
+            .put("xpack.notification.email.account.account1.foo", "bar")
+            // Setting a random SMTP server name and an invalid port so that sending emails is guaranteed to fail:
+            .put("xpack.notification.email.account.account1.smtp.host", randomAlphaOfLength(10))
+            .put("xpack.notification.email.account.account1.smtp.port", -100)
+            .putList("xpack.notification.email.account.domain_allowlist", "bar.com")
+            .build();
+        ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, new HashSet<>(EmailService.getSettings()));
+        EmailService emailService = new EmailService(settings, null, mock(SSLService.class), clusterSettings);
+        Email email = new Email(
+            "id",
+            new Email.Address("foo@bar.com", "Mr. Foo Man"),
+            createAddressList("foo@bar.com", "baz@potato.com"),
+            randomFrom(Email.Priority.values()),
+            ZonedDateTime.now(),
+            createAddressList("foo@bar.com", "non-whitelisted@invalid.com"),
+            null,
+            null,
+            "subject",
+            "body",
+            "htmlbody",
+            Collections.emptyMap()
+        );
+        when(account.name()).thenReturn("account1");
+        Authentication auth = new Authentication("user", new Secret("passwd".toCharArray()));
+        Profile profile = randomFrom(Profile.values());
+
+        // This send will fail because one of the recipients ("non-whitelisted@invalid.com") is in a domain that is not in the allowed list
+        IllegalArgumentException e1 = expectThrows(
+            IllegalArgumentException.class,
+            () -> emailService.send(email, auth, profile, "account1")
+        );
+        assertThat(
+            e1.getMessage(),
+            containsString(
+                "failed to send email with subject [subject] and recipient domains "
+                    + "[bar.com, invalid.com], one or more recipients is not specified in the domain allow list setting "
+                    + "[xpack.notification.email.account.domain_allowlist]."
+            )
+        );
+
+        // Now dynamically add "invalid.com" to the list of allowed domains:
+        Settings newSettings = Settings.builder()
+            .putList("xpack.notification.email.account.domain_allowlist", "bar.com", "invalid.com")
+            .build();
+        clusterSettings.applySettings(newSettings);
+        // Still expect an exception because we're not actually sending the email, but it's no longer because the domain isn't allowed:
+        IllegalArgumentException e2 = expectThrows(
+            IllegalArgumentException.class,
+            () -> emailService.send(email, auth, profile, "account1")
+        );
+        assertThat(e2.getMessage(), containsString("port out of range"));
+    }
+
+    private static Email.AddressList createAddressList(String... emails) throws UnsupportedEncodingException {
+        List<Email.Address> addresses = new ArrayList<>();
+        for (String email : emails) {
+            addresses.add(new Email.Address(email, randomAlphaOfLength(10)));
+        }
+        return new Email.AddressList(addresses);
     }
 }

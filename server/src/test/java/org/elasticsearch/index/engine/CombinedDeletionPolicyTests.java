@@ -276,8 +276,12 @@ public class CombinedDeletionPolicyTests extends ESTestCase {
     ) {
         return new CombinedDeletionPolicy(logger, translogPolicy, softDeletesPolicy, globalCheckpoint::get) {
             @Override
-            protected int getDocCountOfCommit(IndexCommit indexCommit) {
-                return between(0, 1000);
+            protected int getDocCountOfCommit(IndexCommit indexCommit) throws IOException {
+                if (randomBoolean()) {
+                    throw new IOException("Simulated IO");
+                } else {
+                    return between(0, 1000);
+                }
             }
         };
     }

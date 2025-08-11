@@ -10,7 +10,11 @@ package org.elasticsearch.upgrades;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+
+import java.io.IOException;
 
 public class MappingIT extends AbstractRollingTestCase {
     /**
@@ -48,4 +52,41 @@ public class MappingIT extends AbstractRollingTestCase {
                 break;
         }
     }
+
+    public void testMapperDynamicIndexSetting() throws IOException {
+        assumeTrue("Setting not removed before 7.0", UPGRADE_FROM_VERSION.onOrAfter(Version.V_7_0_0));
+        switch (CLUSTER_TYPE) {
+            case OLD:
+                createIndex("my-index", Settings.EMPTY);
+
+                Request request = new Request("PUT", "/my-index/_settings");
+                request.setJsonEntity(
+                    Strings.toString(Settings.builder().put("index.mapper.dynamic", true).put("index.number_of_replicas", 2).build())
+                );
+                request.setOptions(
+                    expectWarnings(
+                        "[index.mapper.dynamic] setting was deprecated in Elasticsearch and will be removed in a future release! "
+                            + "See the breaking changes documentation for the next major version."
+                    )
+                );
+                assertOK(client().performRequest(request));
+                break;
+            case MIXED:
+                ensureHealth(r -> {
+                    r.addParameter("wait_for_status", "yellow");
+                    r.addParameter("wait_for_no_relocating_shards", "true");
+                });
+                break;
+            case UPGRADED:
+                // During the upgrade my-index shards may be allocated to not upgraded nodes, these then fail to allocate.
+                // If allocation fails more than 5 times, allocation is not retried immediately, this reroute triggers allocation
+                // any failed allocations. So that my-index health will be green.
+                Request rerouteRequest = new Request("POST", "cluster/reroute");
+                rerouteRequest.addParameter("retry_failed", "true");
+                assertOK(client().performRequest(rerouteRequest));
+                ensureGreen("my-index");
+                break;
+        }
+    }
+
 }

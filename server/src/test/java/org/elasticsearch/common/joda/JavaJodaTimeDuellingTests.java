@@ -41,14 +41,15 @@ public class JavaJodaTimeDuellingTests extends ESTestCase {
 
     @BeforeClass
     public static void checkJvmProperties() {
+        String localeProviders = System.getProperty("java.locale.providers", "");
         boolean runtimeJdk8 = JavaVersion.current().getVersion().get(0) == 8;
-        assert (runtimeJdk8 && ("SPI,JRE".equals(System.getProperty("java.locale.providers"))))
-            || (false == runtimeJdk8 && ("SPI,COMPAT".equals(System.getProperty("java.locale.providers"))))
+        assert (runtimeJdk8 && localeProviders.equals("SPI,JRE")) || (false == runtimeJdk8 && localeProviders.contains("SPI"))
             : "`-Djava.locale.providers` needs to be set";
         assumeFalse(
-            "won't work in jdk8 " + "because SPI mechanism is not looking at classpath - needs ISOCalendarDataProvider in jre's ext/libs",
+            "won't work in jdk8 because SPI mechanism is not looking at classpath - needs ISOCalendarDataProvider in jre's ext/libs",
             runtimeJdk8
         );
+        assumeFalse("CLDR messes up several datatime checks, ignore these", localeProviders.contains("CLDR"));
     }
 
     public void testIncorrectFormat() {

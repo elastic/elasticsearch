@@ -16,6 +16,7 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.action.support.GroupedActionListener;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.AcknowledgedTransportMasterNodeAction;
@@ -179,10 +180,16 @@ public class TransportUnfollowAction extends AcknowledgedTransportMasterNodeActi
             ) {
                 logger.trace("{} removing retention lease [{}] while unfollowing leader index", followerShardId, retentionLeaseId);
                 final ThreadContext threadContext = threadPool.getThreadContext();
+                // We're about to stash the thread context for this retention lease removal. The listener will be completed while the
+                // context is stashed. The context needs to be restored in the listener when it is completing or else it is simply wiped.
+                final ActionListener<ActionResponse.Empty> preservedListener = new ContextPreservingActionListener<>(
+                    threadContext.newRestorableContext(true),
+                    listener
+                );
                 try (ThreadContext.StoredContext ignore = threadPool.getThreadContext().stashContext()) {
                     // we have to execute under the system context so that if security is enabled the removal is authorized
                     threadContext.markAsSystemContext();
-                    CcrRetentionLeases.asyncRemoveRetentionLease(leaderShardId, retentionLeaseId, remoteClient, listener);
+                    CcrRetentionLeases.asyncRemoveRetentionLease(leaderShardId, retentionLeaseId, remoteClient, preservedListener);
                 }
             }
 

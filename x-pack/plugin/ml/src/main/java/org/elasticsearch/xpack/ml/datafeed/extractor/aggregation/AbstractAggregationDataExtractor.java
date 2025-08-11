@@ -98,7 +98,15 @@ abstract class AbstractAggregationDataExtractor<T extends ActionRequestBuilder<S
             initAggregationProcessor(aggs);
         }
 
-        return Optional.of(processNextBatch());
+        outputStream.reset();
+        // We can cancel immediately as we process whole date_histogram buckets at a time
+        aggregationToJsonProcessor.writeAllDocsCancellable(_timestamp -> isCancelled, outputStream);
+        // We process the whole search. So, if we are chunking or not, we have nothing more to process given the current query
+        hasNext = false;
+
+        return aggregationToJsonProcessor.getKeyValueCount() > 0
+            ? Optional.of(new ByteArrayInputStream(outputStream.toByteArray()))
+            : Optional.empty();
     }
 
     private Aggregations search() {
@@ -161,16 +169,6 @@ abstract class AbstractAggregationDataExtractor<T extends ActionRequestBuilder<S
         }
 
         return aggs;
-    }
-
-    private InputStream processNextBatch() throws IOException {
-        outputStream.reset();
-
-        // We can cancel immediately as we process whole date_histogram buckets at a time
-        aggregationToJsonProcessor.writeAllDocsCancellable(_timestamp -> isCancelled, outputStream);
-        // We process the whole search. So, if we are chunking or not, we have nothing more to process given the current query
-        hasNext = false;
-        return new ByteArrayInputStream(outputStream.toByteArray());
     }
 
     public AggregationDataExtractorContext getContext() {

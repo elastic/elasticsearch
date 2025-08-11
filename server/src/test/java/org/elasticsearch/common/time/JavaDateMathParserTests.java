@@ -86,6 +86,41 @@ public class JavaDateMathParserTests extends ESTestCase {
         assertDateEquals(gotMillis, "297276785531", "297276785531");
     }
 
+    public void testWeekBasedDate() {
+        DateFormatter formatter = DateFormatter.forPattern("strict_basic_week_date");// YYYY'W'wwe
+        // first week of 2022 is starting on Monday 3rd Jan
+        assertDateMathEquals(formatter.toDateMathParser(), "2022W0101", "2022-01-03T23:59:59.999Z", 0, true, ZoneOffset.UTC);
+
+        /* due to jdk8 returning Sunday,1 for locale.root this testcase cannot reliably pass.
+        but this is fine, we don't really need to support missing day of week
+        // defaulting missing day of week
+        formatter = DateFormatter.forPattern("YYYY'W'ww[e]");// YYYY'W'wwe
+        // second week of 2022 is starting on Monday 10th Jan
+        assertDateMathEquals(formatter.toDateMathParser(), "2022W02", "2022-01-10T23:59:59.999Z", 0, true, ZoneOffset.UTC);
+         */
+    }
+
+    public void testDayOfYear() {
+        DateFormatter formatter = DateFormatter.forPattern("yyyy-DDD'T'HH:mm:ss.SSS");
+        assertDateMathEquals(formatter.toDateMathParser(), "2022-104T14:08:30.293", "2022-04-14T14:08:30.293", 0, true, ZoneOffset.UTC);
+    }
+
+    public void testAMPM() {
+        DateFormatter formatter = DateFormatter.forPattern("MM/dd/yyyy hh:mm a"); // h clock-hour-of-am-pm (1-12)
+        assertDateMathEquals(formatter.toDateMathParser(), "04/30/2020 12:48 AM", "2020-04-30T00:48:59.999Z", 0, true, ZoneOffset.UTC);
+
+        formatter = DateFormatter.forPattern("MM/dd/yyyy KK:mm a"); // K hour-of-am-pm (0-11)
+        assertDateMathEquals(formatter.toDateMathParser(), "04/30/2020 00:48 AM", "2020-04-30T00:48:59.999Z", 0, true, ZoneOffset.UTC);
+    }
+
+    public void testAMPMWithTimeMissing() {
+        DateFormatter formatter = DateFormatter.forPattern("MM/dd/yyyy[ hh:mm a]"); // h clock-hour-of-am-pm (1-12)
+        assertDateMathEquals(formatter.toDateMathParser(), "04/30/2020", "2020-04-30T23:59:59.999Z", 0, true, ZoneOffset.UTC);
+
+        formatter = DateFormatter.forPattern("MM/dd/yyyy[ KK:mm a]"); // K hour-of-am-pm (0-11)
+        assertDateMathEquals(formatter.toDateMathParser(), "04/30/2020", "2020-04-30T23:59:59.999Z", 0, true, ZoneOffset.UTC);
+    }
+
     public void testWeekDates() {
         assumeFalse(
             "won't work in jdk8 " + "because SPI mechanism is not looking at classpath - needs ISOCalendarDataProvider in jre's ext/libs",

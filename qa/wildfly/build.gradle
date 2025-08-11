@@ -65,6 +65,8 @@ tasks.register("integTest", Test) {
   maxParallelForks = '1'
   include '**/*IT.class'
   systemProperty 'tests.security.manager', 'false'
+  classpath = sourceSets.test.runtimeClasspath
+  testClassesDirs = sourceSets.test.output.classesDirs
 }
 
 tasks.named("check").configure {

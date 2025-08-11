@@ -26,8 +26,8 @@
 ################################################################################
 
 ARG BASE_REGISTRY=registry1.dso.mil
-ARG BASE_IMAGE=ironbank/redhat/ubi/ubi8
-ARG BASE_TAG=8.5
+ARG BASE_IMAGE=ironbank/redhat/ubi/ubi9
+ARG BASE_TAG=9.3
 
 FROM ${base_image} AS builder
 
@@ -142,7 +142,7 @@ RUN yes no | dpkg-reconfigure dash && \\
       "      ${package_manager} update && \n" +
       "      ${package_manager} upgrade -y && \n" +
       "      ${package_manager} install -y --no-install-recommends \n" +
-      "        ca-certificates curl netcat p11-kit unzip vim-tiny zip && \n" +
+      "        ca-certificates curl netcat p11-kit unzip zip && \n" +
       "      ${package_manager} clean && \n" +
       "      rm -rf /var/lib/apt/lists/*"
   ) %>
@@ -250,7 +250,7 @@ RUN mkdir /licenses && cp LICENSE.txt /licenses/LICENSE
 COPY LICENSE /licenses/LICENSE.addendum
 <% } %>
 
-<% if (docker_base == 'iron_bank') { %>
+<% if (docker_base == 'ubi' || docker_base == 'iron_bank') { %>
 USER elasticsearch:root
 <% } %>
 

@@ -10,6 +10,7 @@ package org.elasticsearch.gradle.internal.testfixtures;
 import com.avast.gradle.dockercompose.ComposeExtension;
 import com.avast.gradle.dockercompose.DockerComposePlugin;
 import com.avast.gradle.dockercompose.ServiceInfo;
+import com.avast.gradle.dockercompose.tasks.ComposeBuild;
 import com.avast.gradle.dockercompose.tasks.ComposeDown;
 import com.avast.gradle.dockercompose.tasks.ComposePull;
 import com.avast.gradle.dockercompose.tasks.ComposeUp;
@@ -17,7 +18,6 @@ import com.avast.gradle.dockercompose.tasks.ComposeUp;
 import org.elasticsearch.gradle.internal.docker.DockerSupportPlugin;
 import org.elasticsearch.gradle.internal.docker.DockerSupportService;
 import org.elasticsearch.gradle.internal.info.BuildParams;
-import org.elasticsearch.gradle.internal.precommit.TestingConventionsTasks;
 import org.elasticsearch.gradle.test.SystemPropertyCommandLineArgumentProvider;
 import org.elasticsearch.gradle.util.GradleUtils;
 import org.gradle.api.Action;
@@ -26,6 +26,7 @@ import org.gradle.api.Plugin;
 import org.gradle.api.Project;
 import org.gradle.api.Task;
 import org.gradle.api.file.FileSystemOperations;
+import org.gradle.api.logging.LogLevel;
 import org.gradle.api.logging.Logger;
 import org.gradle.api.logging.Logging;
 import org.gradle.api.plugins.BasePlugin;
@@ -40,6 +41,7 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.util.Collections;
+import java.util.EnumSet;
 import java.util.function.BiConsumer;
 
 import javax.inject.Inject;
@@ -108,11 +110,14 @@ public class TestFixturesPlugin implements Plugin<Project> {
             maybeSkipTask(dockerSupport, buildFixture);
 
             ComposeExtension composeExtension = project.getExtensions().getByType(ComposeExtension.class);
-            composeExtension.setUseComposeFiles(Collections.singletonList(DOCKER_COMPOSE_YML));
-            composeExtension.setRemoveContainers(true);
-            composeExtension.setExecutable(
-                project.file("/usr/local/bin/docker-compose").exists() ? "/usr/local/bin/docker-compose" : "/usr/bin/docker-compose"
-            );
+            composeExtension.setProjectName(project.getName());
+            composeExtension.getUseComposeFiles().addAll(Collections.singletonList(DOCKER_COMPOSE_YML));
+            composeExtension.getRemoveContainers().set(true);
+            composeExtension.getCaptureContainersOutput()
+                .set(EnumSet.of(LogLevel.INFO, LogLevel.DEBUG).contains(project.getGradle().getStartParameter().getLogLevel()));
+            composeExtension.getUseDockerComposeV2().set(false);
+            composeExtension.getExecutable()
+                .set(project.file("/usr/local/bin/docker-compose").exists() ? "/usr/local/bin/docker-compose" : "/usr/bin/docker-compose");
 
             tasks.named("composeUp").configure(t -> {
                 // Avoid running docker-compose tasks in parallel in CI due to some issues on certain Linux distributions
@@ -140,9 +145,9 @@ public class TestFixturesPlugin implements Plugin<Project> {
         // Skip docker compose tasks if it is unavailable
         maybeSkipTasks(tasks, dockerSupport, Test.class);
         maybeSkipTasks(tasks, dockerSupport, getTaskClass("org.elasticsearch.gradle.internal.test.RestIntegTestTask"));
-        maybeSkipTasks(tasks, dockerSupport, TestingConventionsTasks.class);
         maybeSkipTasks(tasks, dockerSupport, getTaskClass("org.elasticsearch.gradle.internal.test.AntFixture"));
         maybeSkipTasks(tasks, dockerSupport, ComposeUp.class);
+        maybeSkipTasks(tasks, dockerSupport, ComposeBuild.class);
         maybeSkipTasks(tasks, dockerSupport, ComposePull.class);
         maybeSkipTasks(tasks, dockerSupport, ComposeDown.class);
 

@@ -20,7 +20,7 @@
  - do:
       index:
           index:   test_1
-          id:      1
+          id:      "1"
           body:    { foo: bar }
 
  - do:

@@ -720,11 +720,6 @@ public class Watcher extends Plugin implements SystemIndexPlugin, ScriptPlugin, 
     public UnaryOperator<Map<String, IndexTemplateMetadata>> getIndexTemplateMetadataUpgrader() {
         return map -> {
             map.keySet().removeIf(name -> name.startsWith("watch_history_"));
-            // watcher migrated to using system indices so these legacy templates are not needed anymore
-            map.remove(".watches");
-            map.remove(".triggered_watches");
-            // post 7.x we moved to typeless watch-history-10
-            map.remove(".watch-history-9");
             return map;
         };
     }
@@ -776,6 +771,7 @@ public class Watcher extends Plugin implements SystemIndexPlugin, ScriptPlugin, 
                 .setSettings(getWatchesIndexSettings())
                 .setVersionMetaKey("version")
                 .setOrigin(WATCHER_ORIGIN)
+                .setIndexFormat(6)
                 .build(),
             SystemIndexDescriptor.builder()
                 .setIndexPattern(TriggeredWatchStoreField.INDEX_NAME + "*")
@@ -785,6 +781,7 @@ public class Watcher extends Plugin implements SystemIndexPlugin, ScriptPlugin, 
                 .setSettings(getTriggeredWatchesIndexSettings())
                 .setVersionMetaKey("version")
                 .setOrigin(WATCHER_ORIGIN)
+                .setIndexFormat(6)
                 .build()
         );
     }
@@ -804,14 +801,9 @@ public class Watcher extends Plugin implements SystemIndexPlugin, ScriptPlugin, 
         if (manuallyStopped == false) {
             WatcherServiceRequest serviceRequest = new WatcherServiceRequest();
             serviceRequest.stop();
-            originClient.execute(
-                WatcherServiceAction.INSTANCE,
-                serviceRequest,
-                ActionListener.wrap(
-                    (response) -> { listener.onResponse(Collections.singletonMap("manually_stopped", manuallyStopped)); },
-                    listener::onFailure
-                )
-            );
+            originClient.execute(WatcherServiceAction.INSTANCE, serviceRequest, ActionListener.wrap((response) -> {
+                listener.onResponse(Collections.singletonMap("manually_stopped", manuallyStopped));
+            }, listener::onFailure));
         } else {
             // If Watcher is manually stopped, we don't want to stop it AGAIN, so just call the listener.
             listener.onResponse(Collections.singletonMap("manually_stopped", manuallyStopped));
@@ -830,11 +822,9 @@ public class Watcher extends Plugin implements SystemIndexPlugin, ScriptPlugin, 
         if (manuallyStopped == false) {
             WatcherServiceRequest serviceRequest = new WatcherServiceRequest();
             serviceRequest.start();
-            originClient.execute(
-                WatcherServiceAction.INSTANCE,
-                serviceRequest,
-                ActionListener.wrap((response) -> { listener.onResponse(response.isAcknowledged()); }, listener::onFailure)
-            );
+            originClient.execute(WatcherServiceAction.INSTANCE, serviceRequest, ActionListener.wrap((response) -> {
+                listener.onResponse(response.isAcknowledged());
+            }, listener::onFailure));
         } else {
             // Watcher was manually stopped before we got there, don't start it.
             listener.onResponse(true);

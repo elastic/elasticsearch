@@ -120,7 +120,9 @@ public final class IndexWarmer {
                         IndexFieldData.Global<?> ifd = indexFieldDataService.getForField(
                             fieldType,
                             indexFieldDataService.index().getName(),
-                            () -> { throw new UnsupportedOperationException("search lookup not available when warming an index"); }
+                            () -> {
+                                throw new UnsupportedOperationException("search lookup not available when warming an index");
+                            }
                         );
                         IndexFieldData<?> global = ifd.loadGlobal(reader);
                         if (reader.leaves().isEmpty() == false) {

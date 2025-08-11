@@ -12,13 +12,13 @@ import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.DocWriteRequest;
+import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.RoutingMissingException;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.AutoCreateIndex;
 import org.elasticsearch.action.support.TransportActions;
@@ -54,6 +54,7 @@ import org.elasticsearch.xcontent.XContentType;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.Map;
+import java.util.concurrent.ExecutorService;
 
 import static org.elasticsearch.ExceptionsHelper.unwrapCause;
 import static org.elasticsearch.action.bulk.TransportSingleItemBulkWriteAction.toSingleItemBulkRequest;
@@ -205,7 +206,7 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
                 IndexRequest upsertRequest = result.action();
                 // we fetch it from the index request so we don't generate the bytes twice, its already done in the index request
                 final BytesReference upsertSourceBytes = upsertRequest.source();
-                client.bulk(toSingleItemBulkRequest(upsertRequest), wrapBulkResponse(ActionListener.<IndexResponse>wrap(response -> {
+                client.bulk(toSingleItemBulkRequest(upsertRequest), wrapBulkResponse(ActionListener.<DocWriteResponse>wrap(response -> {
                     UpdateResponse update = new UpdateResponse(
                         response.getShardInfo(),
                         response.getShardId(),
@@ -246,7 +247,7 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
                 IndexRequest indexRequest = result.action();
                 // we fetch it from the index request so we don't generate the bytes twice, its already done in the index request
                 final BytesReference indexSourceBytes = indexRequest.source();
-                client.bulk(toSingleItemBulkRequest(indexRequest), wrapBulkResponse(ActionListener.<IndexResponse>wrap(response -> {
+                client.bulk(toSingleItemBulkRequest(indexRequest), wrapBulkResponse(ActionListener.<DocWriteResponse>wrap(response -> {
                     UpdateResponse update = new UpdateResponse(
                         response.getShardInfo(),
                         response.getShardId(),
@@ -325,20 +326,28 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
         int retryCount
     ) {
         final Throwable cause = unwrapCause(failure);
-        if (cause instanceof VersionConflictEngineException) {
-            if (retryCount < request.retryOnConflict()) {
-                logger.trace(
-                    "Retry attempt [{}] of [{}] on version conflict on [{}][{}][{}]",
-                    retryCount + 1,
-                    request.retryOnConflict(),
-                    request.index(),
-                    request.getShardId(),
-                    request.id()
-                );
-                threadPool.executor(executor(request.getShardId()))
-                    .execute(ActionRunnable.wrap(listener, l -> shardOperation(request, l, retryCount + 1)));
+        if (cause instanceof VersionConflictEngineException && retryCount < request.retryOnConflict()) {
+            VersionConflictEngineException versionConflictEngineException = (VersionConflictEngineException) cause;
+            logger.trace(
+                "Retry attempt [{}] of [{}] on version conflict on [{}][{}][{}]",
+                retryCount + 1,
+                request.retryOnConflict(),
+                request.index(),
+                request.getShardId(),
+                request.id()
+            );
+
+            final ExecutorService executor;
+            try {
+                executor = threadPool.executor(executor(request.getShardId()));
+            } catch (Exception e) {
+                // might fail if shard no longer exists locally, in which case we cannot retry
+                e.addSuppressed(versionConflictEngineException);
+                listener.onFailure(e);
                 return;
             }
+            executor.execute(ActionRunnable.wrap(listener, l -> shardOperation(request, l, retryCount + 1)));
+            return;
         }
         listener.onFailure(cause instanceof Exception ? (Exception) cause : new NotSerializableExceptionWrapper(cause));
     }

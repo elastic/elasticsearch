@@ -11,7 +11,7 @@
   - do:
       index:
         index:   test
-        id:      1
+        id:      "1"
         refresh: true
         body:    { "name": "bob! house" }
 

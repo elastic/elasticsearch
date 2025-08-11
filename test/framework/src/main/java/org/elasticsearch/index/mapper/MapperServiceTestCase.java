@@ -200,7 +200,9 @@ public abstract class MapperServiceTestCase extends ESTestCase {
             xContentRegistry(),
             similarityService,
             mapperRegistry,
-            () -> { throw new UnsupportedOperationException(); },
+            () -> {
+                throw new UnsupportedOperationException();
+            },
             idFieldDataEnabled,
             this::compileScript
         );
@@ -547,6 +549,10 @@ public abstract class MapperServiceTestCase extends ESTestCase {
     }
 
     protected SearchExecutionContext createSearchExecutionContext(MapperService mapperService) {
+        return createSearchExecutionContext(mapperService, null);
+    }
+
+    protected SearchExecutionContext createSearchExecutionContext(MapperService mapperService, IndexSearcher searcher) {
         final SimilarityService similarityService = new SimilarityService(
             mapperService.getIndexSettings(),
             null,
@@ -567,7 +573,7 @@ public abstract class MapperServiceTestCase extends ESTestCase {
             xContentRegistry(),
             writableRegistry(),
             null,
-            null,
+            searcher,
             () -> nowInMillis,
             null,
             null,

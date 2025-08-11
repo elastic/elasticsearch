@@ -70,22 +70,30 @@ public class MountSnapshotStep extends AsyncRetryDuringSnapshotActionStep {
         LifecycleExecutionState lifecycleState = fromIndexMetadata(indexMetadata);
 
         String policyName = indexMetadata.getSettings().get(LifecycleSettings.LIFECYCLE_NAME);
-        final String snapshotRepository = lifecycleState.getSnapshotRepository();
+        String snapshotRepository = lifecycleState.getSnapshotRepository();
+        SearchableSnapshotAction.SearchableSnapshotMetadata searchableSnapshotMetadata = SearchableSnapshotAction
+            .extractSearchableSnapshotFromSettings(indexMetadata);
         if (Strings.hasText(snapshotRepository) == false) {
-            listener.onFailure(
-                new IllegalStateException(
-                    "snapshot repository is not present for policy [" + policyName + "] and index [" + indexName + "]"
-                )
-            );
-            return;
+            if (searchableSnapshotMetadata == null) {
+                listener.onFailure(
+                    new IllegalStateException(
+                        "snapshot repository is not present for policy [" + policyName + "] and index [" + indexName + "]"
+                    )
+                );
+                return;
+            } else {
+                snapshotRepository = searchableSnapshotMetadata.repositoryName();
+            }
         }
 
-        final String snapshotName = lifecycleState.getSnapshotName();
-        if (Strings.hasText(snapshotName) == false) {
+        String snapshotName = lifecycleState.getSnapshotName();
+        if (Strings.hasText(snapshotName) == false && searchableSnapshotMetadata == null) {
             listener.onFailure(
                 new IllegalStateException("snapshot name was not generated for policy [" + policyName + "] and index [" + indexName + "]")
             );
             return;
+        } else if (searchableSnapshotMetadata != null) {
+            snapshotName = searchableSnapshotMetadata.snapshotName();
         }
 
         String mountedIndexName = restoredIndexPrefix + indexName;
@@ -102,16 +110,20 @@ public class MountSnapshotStep extends AsyncRetryDuringSnapshotActionStep {
 
         final String snapshotIndexName = lifecycleState.getSnapshotIndexName();
         if (snapshotIndexName == null) {
-            // This index had its searchable snapshot created prior to a version where we captured
-            // the original index name, so make our best guess at the name
-            indexName = bestEffortIndexNameResolution(indexName);
-            logger.debug(
-                "index [{}] using policy [{}] does not have a stored snapshot index name, "
-                    + "using our best effort guess of [{}] for the original snapshotted index name",
-                indexMetadata.getIndex().getName(),
-                policyName,
-                indexName
-            );
+            if (searchableSnapshotMetadata == null) {
+                // This index had its searchable snapshot created prior to a version where we captured
+                // the original index name, so make our best guess at the name
+                indexName = bestEffortIndexNameResolution(indexName);
+                logger.debug(
+                    "index [{}] using policy [{}] does not have a stored snapshot index name, "
+                        + "using our best effort guess of [{}] for the original snapshotted index name",
+                    indexMetadata.getIndex().getName(),
+                    policyName,
+                    indexName
+                );
+            } else {
+                indexName = searchableSnapshotMetadata.sourceIndex();
+            }
         } else {
             // Use the name of the snapshot as specified in the metadata, because the current index
             // name not might not reflect the name of the index actually in the snapshot

@@ -8,6 +8,8 @@
 
 package org.elasticsearch.search.aggregations.bucket.terms;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.SortedSetDocValues;
@@ -43,6 +45,8 @@ import java.util.function.LongPredicate;
 
 public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
     static Boolean REMAP_GLOBAL_ORDS, COLLECT_SEGMENT_ORDS;
+
+    private static final Logger logger = LogManager.getLogger(TermsAggregatorFactory.class);
 
     static void registerAggregators(ValuesSourceRegistry.Builder builder) {
         builder.register(
@@ -96,7 +100,8 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
                 SubAggCollectionMode subAggCollectMode,
                 boolean showTermDocCountError,
                 CardinalityUpperBound cardinality,
-                Map<String, Object> metadata
+                Map<String, Object> metadata,
+                boolean excludeDeletedDocs
             ) throws IOException {
                 ValuesSource valuesSource = valuesSourceConfig.getValuesSource();
                 ExecutionMode execution = null;
@@ -127,6 +132,7 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
                 }
 
                 // TODO: [Zach] we might want refactor and remove ExecutionMode#create(), moving that logic outside the enum
+                logger.debug("Creating bytes terms aggregator with execution mode [{}]", execution);
                 return execution.create(
                     name,
                     factories,
@@ -139,7 +145,8 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
                     subAggCollectMode,
                     showTermDocCountError,
                     cardinality,
-                    metadata
+                    metadata,
+                    excludeDeletedDocs
                 );
 
             }
@@ -166,7 +173,8 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
                 SubAggCollectionMode subAggCollectMode,
                 boolean showTermDocCountError,
                 CardinalityUpperBound cardinality,
-                Map<String, Object> metadata
+                Map<String, Object> metadata,
+                boolean excludeDeletedDocs
             ) throws IOException {
 
                 if ((includeExclude != null) && (includeExclude.isRegexBased())) {
@@ -210,7 +218,8 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
                     subAggCollectMode,
                     longFilter,
                     cardinality,
-                    metadata
+                    metadata,
+                    excludeDeletedDocs
                 );
             }
         };
@@ -223,6 +232,7 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
     private final SubAggCollectionMode collectMode;
     private final TermsAggregator.BucketCountThresholds bucketCountThresholds;
     private final boolean showTermDocCountError;
+    private final boolean excludeDeletedDocs;
 
     TermsAggregatorFactory(
         String name,
@@ -237,7 +247,8 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
         AggregatorFactory parent,
         AggregatorFactories.Builder subFactoriesBuilder,
         Map<String, Object> metadata,
-        TermsAggregatorSupplier aggregatorSupplier
+        TermsAggregatorSupplier aggregatorSupplier,
+        boolean excludeDeletedDocs
     ) throws IOException {
         super(name, config, context, parent, subFactoriesBuilder, metadata);
         this.aggregatorSupplier = aggregatorSupplier;
@@ -247,6 +258,7 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
         this.collectMode = collectMode;
         this.bucketCountThresholds = bucketCountThresholds;
         this.showTermDocCountError = showTermDocCountError;
+        this.excludeDeletedDocs = excludeDeletedDocs;
     }
 
     @Override
@@ -306,7 +318,8 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
             collectMode,
             showTermDocCountError,
             cardinality,
-            metadata
+            metadata,
+            excludeDeletedDocs
         );
     }
 
@@ -366,7 +379,8 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
                 SubAggCollectionMode subAggCollectMode,
                 boolean showTermDocCountError,
                 CardinalityUpperBound cardinality,
-                Map<String, Object> metadata
+                Map<String, Object> metadata,
+                boolean excludeDeletedDocs
             ) throws IOException {
                 IncludeExclude.StringFilter filter = includeExclude == null
                     ? null
@@ -385,7 +399,8 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
                     subAggCollectMode,
                     showTermDocCountError,
                     cardinality,
-                    metadata
+                    metadata,
+                    excludeDeletedDocs
                 );
             }
         },
@@ -404,7 +419,8 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
                 SubAggCollectionMode subAggCollectMode,
                 boolean showTermDocCountError,
                 CardinalityUpperBound cardinality,
-                Map<String, Object> metadata
+                Map<String, Object> metadata,
+                boolean excludeDeletedDocs
             ) throws IOException {
 
                 assert valuesSourceConfig.getValuesSource() instanceof ValuesSource.Bytes.WithOrdinals;
@@ -412,7 +428,10 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
                     .getValuesSource();
                 SortedSetDocValues values = globalOrdsValues(context, ordinalsValuesSource);
                 long maxOrd = values.getValueCount();
-                if (maxOrd > 0 && maxOrd <= MAX_ORDS_TO_TRY_FILTERS && context.enableRewriteToFilterByFilter()) {
+                if (maxOrd > 0
+                    && maxOrd <= MAX_ORDS_TO_TRY_FILTERS
+                    && context.enableRewriteToFilterByFilter()
+                    && false == excludeDeletedDocs) {
                     StringTermsAggregatorFromFilters adapted = StringTermsAggregatorFromFilters.adaptIntoFiltersOrNull(
                         name,
                         factories,
@@ -443,6 +462,7 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
                          * any more times doing filter-by-filter then we would
                          * doing regular collection.
                          */
+                        logger.debug("Using adapted fiter-by-filter implementation");
                         return adapted;
                     }
                 }
@@ -454,7 +474,7 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
                     && ordinalsValuesSource.supportsGlobalOrdinalsMapping()
                     &&
                 // we use the static COLLECT_SEGMENT_ORDS to allow tests to force specific optimizations
-                (COLLECT_SEGMENT_ORDS != null ? COLLECT_SEGMENT_ORDS.booleanValue() : ratio <= 0.5 && maxOrd <= 2048)) {
+                    (COLLECT_SEGMENT_ORDS != null ? COLLECT_SEGMENT_ORDS.booleanValue() : ratio <= 0.5 && maxOrd <= 2048)) {
                     /*
                      * We can use the low cardinality execution mode iff this aggregator:
                      *  - has no sub-aggregator AND
@@ -464,6 +484,7 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
                      *  - the maximum global ordinal is less than 2048 (LOW_CARDINALITY has additional memory usage,
                      *  which directly linked to maxOrd, so we need to limit).
                      */
+                    logger.debug("Using low cardinality global ordinals implementation");
                     return new GlobalOrdinalsStringTermsAggregator.LowCardinality(
                         name,
                         factories,
@@ -478,7 +499,8 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
                         false,
                         subAggCollectMode,
                         showTermDocCountError,
-                        metadata
+                        metadata,
+                        excludeDeletedDocs
                     );
 
                 }
@@ -507,6 +529,7 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
                         remapGlobalOrds = false;
                     }
                 }
+                logger.debug("Using standard global ordinals implementation.  remap is [{}]", remapGlobalOrds);
                 return new GlobalOrdinalsStringTermsAggregator(
                     name,
                     factories,
@@ -523,7 +546,8 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
                     subAggCollectMode,
                     showTermDocCountError,
                     cardinality,
-                    metadata
+                    metadata,
+                    excludeDeletedDocs
                 );
             }
         };
@@ -557,7 +581,8 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
             SubAggCollectionMode subAggCollectMode,
             boolean showTermDocCountError,
             CardinalityUpperBound cardinality,
-            Map<String, Object> metadata
+            Map<String, Object> metadata,
+            boolean excludeDeletedDocs
         ) throws IOException;
 
         @Override

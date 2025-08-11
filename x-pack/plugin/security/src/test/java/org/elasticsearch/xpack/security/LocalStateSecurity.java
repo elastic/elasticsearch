@@ -10,10 +10,13 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.LicenseService;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
+import org.elasticsearch.xpack.core.security.SecurityExtension;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.monitoring.Monitoring;
 
 import java.nio.file.Path;
+import java.util.Collections;
+import java.util.List;
 
 public class LocalStateSecurity extends LocalStateCompositeXPackPlugin {
 
@@ -36,7 +39,7 @@ public class LocalStateSecurity extends LocalStateCompositeXPackPlugin {
                 return thisVar.getLicenseState();
             }
         });
-        plugins.add(new Security(settings, configPath) {
+        plugins.add(new Security(settings, configPath, thisVar.securityExtensions()) {
             @Override
             protected SSLService getSslService() {
                 return thisVar.getSslService();
@@ -48,4 +51,9 @@ public class LocalStateSecurity extends LocalStateCompositeXPackPlugin {
             }
         });
     }
+
+    protected List<SecurityExtension> securityExtensions() {
+        return Collections.emptyList();
+    }
+
 }

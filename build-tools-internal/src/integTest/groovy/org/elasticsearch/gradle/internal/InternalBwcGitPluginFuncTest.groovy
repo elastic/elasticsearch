@@ -14,6 +14,8 @@ import org.gradle.testkit.runner.TaskOutcome
 class InternalBwcGitPluginFuncTest extends AbstractGitAwareGradleFuncTest {
 
     def setup() {
+        // using LoggedExec is not cc compatible
+        configurationCacheCompatible = false
         internalBuild()
         buildFile << """
             import org.elasticsearch.gradle.Version;

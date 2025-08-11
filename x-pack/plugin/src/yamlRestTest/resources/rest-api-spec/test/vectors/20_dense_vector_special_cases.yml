@@ -26,7 +26,7 @@ setup:
       catch: bad_request
       index:
         index: test-index
-        id: 1
+        id: "1"
         body:
           my_dense_vector: [10, 2]
   - match: { error.type: "mapper_parsing_exception" }
@@ -36,14 +36,14 @@ setup:
   - do:
       index:
         index: test-index
-        id: 1
+        id: "1"
         body:
           my_dense_vector: [10, 10, 10]
 
   - do:
       index:
         index: test-index
-        id: 2
+        id: "2"
         body:
           my_dense_vector: [10.5, 10.9, 10.4]
 
@@ -96,7 +96,7 @@ setup:
   - do:
       index:
         index: test-index
-        id: 1
+        id: "1"
         body:
           my_dense_vector: [1, 2, 3]
 
@@ -138,14 +138,14 @@ setup:
 - do:
     index:
       index: test-index
-      id: 1
+      id: "1"
       body:
         my_dense_vector: [10, 10, 10]
 
 - do:
     index:
       index: test-index
-      id: 2
+      id: "2"
       body:
         some_other_field: "random_value"
 
@@ -196,7 +196,7 @@ setup:
 - do:
     index:
       index: test-index
-      id: 1
+      id: "1"
       body:
         my_dense_vector: [10, 2, 0.15]
 

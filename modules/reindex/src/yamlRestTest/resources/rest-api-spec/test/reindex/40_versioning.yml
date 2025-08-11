@@ -7,19 +7,19 @@
   - do:
       index:
         index:        src
-        id:           1
+        id:           "1"
         body:         { "company": "cat" }
         version:      2
         version_type: external
   - do:
       index:
         index:        src
-        id:           2
+        id:           "2"
         body:         { "company": "cow" }
   - do:
       index:
         index:        dest
-        id:           1
+        id:           "1"
         body:         { "company": "dog" }
   - do:
       indices.refresh: {}
@@ -51,19 +51,19 @@
   - do:
       index:
         index:        src
-        id:           1
+        id:           "1"
         body:         { "company": "cat" }
         version:      2
         version_type: external
   - do:
       index:
         index:        src
-        id:           2
+        id:           "2"
         body:         { "company": "cow" }
   - do:
       index:
         index:        dest
-        id:           1
+        id:           "1"
         body:         { "company": "dog" }
   - do:
       indices.refresh: {}
@@ -97,19 +97,19 @@
   - do:
       index:
         index:        src
-        id:           1
+        id:           "1"
         body:         { "company": "cat" }
         version:      2
         version_type: external
   - do:
       index:
         index:        src
-        id:           2
+        id:           "2"
         body:         { "company": "cow" }
   - do:
       index:
         index:        dest
-        id:           1
+        id:           "1"
         body:         { "company": "dog" }
   - do:
       indices.refresh: {}
@@ -142,17 +142,17 @@
   - do:
       index:
         index:        src
-        id:           1
+        id:           "1"
         body:         { "company": "cat" }
   - do:
       index:
         index:        src
-        id:           2
+        id:           "2"
         body:         { "company": "cow" }
   - do:
       index:
         index:        dest
-        id:           1
+        id:           "1"
         body:         { "company": "dog" }
   - do:
       indices.refresh: {}

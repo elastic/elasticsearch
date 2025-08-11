@@ -13,7 +13,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.MockTerminal;
 import org.elasticsearch.cli.UserException;
-import org.elasticsearch.plugins.PluginInfo;
+import org.elasticsearch.plugins.PluginDescriptor;
 import org.elasticsearch.plugins.PluginType;
 import org.elasticsearch.test.ESTestCase;
 
@@ -29,8 +29,8 @@ public class InstallLicensedPluginTests extends ESTestCase {
      */
     public void testUnlicensedPlugin() throws Exception {
         MockTerminal terminal = new MockTerminal();
-        PluginInfo pluginInfo = buildInfo(false);
-        InstallPluginAction.checkCanInstallationProceed(terminal, Build.Flavor.OSS, pluginInfo);
+        PluginDescriptor pluginDescriptor = buildInfo(false);
+        InstallPluginAction.checkCanInstallationProceed(terminal, Build.Flavor.OSS, pluginDescriptor);
     }
 
     /**
@@ -38,10 +38,10 @@ public class InstallLicensedPluginTests extends ESTestCase {
      */
     public void testInstallPluginActionOnOss() throws Exception {
         MockTerminal terminal = new MockTerminal();
-        PluginInfo pluginInfo = buildInfo(true);
+        PluginDescriptor pluginDescriptor = buildInfo(true);
         final UserException userException = expectThrows(
             UserException.class,
-            () -> InstallPluginAction.checkCanInstallationProceed(terminal, Build.Flavor.OSS, pluginInfo)
+            () -> InstallPluginAction.checkCanInstallationProceed(terminal, Build.Flavor.OSS, pluginDescriptor)
         );
 
         assertThat(userException.exitCode, equalTo(ExitCodes.NOPERM));
@@ -53,10 +53,10 @@ public class InstallLicensedPluginTests extends ESTestCase {
      */
     public void testInstallPluginActionOnUnknownDistribution() throws Exception {
         MockTerminal terminal = new MockTerminal();
-        PluginInfo pluginInfo = buildInfo(true);
+        PluginDescriptor pluginDescriptor = buildInfo(true);
         expectThrows(
             UserException.class,
-            () -> InstallPluginAction.checkCanInstallationProceed(terminal, Build.Flavor.UNKNOWN, pluginInfo)
+            () -> InstallPluginAction.checkCanInstallationProceed(terminal, Build.Flavor.UNKNOWN, pluginDescriptor)
         );
         assertThat(terminal.getErrorOutput(), containsString("ERROR: This is a licensed plugin"));
     }
@@ -66,12 +66,12 @@ public class InstallLicensedPluginTests extends ESTestCase {
      */
     public void testInstallPluginActionOnDefault() throws Exception {
         MockTerminal terminal = new MockTerminal();
-        PluginInfo pluginInfo = buildInfo(true);
-        InstallPluginAction.checkCanInstallationProceed(terminal, Build.Flavor.DEFAULT, pluginInfo);
+        PluginDescriptor pluginDescriptor = buildInfo(true);
+        InstallPluginAction.checkCanInstallationProceed(terminal, Build.Flavor.DEFAULT, pluginDescriptor);
     }
 
-    private PluginInfo buildInfo(boolean isLicensed) {
-        return new PluginInfo(
+    private PluginDescriptor buildInfo(boolean isLicensed) {
+        return new PluginDescriptor(
             "name",
             "description",
             "version",

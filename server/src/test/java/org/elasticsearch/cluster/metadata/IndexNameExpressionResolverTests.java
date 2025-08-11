@@ -25,7 +25,6 @@ import org.elasticsearch.cluster.metadata.IndexMetadata.State;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.core.Map;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexSettings;
@@ -55,6 +54,7 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.backingIndexEqualTo;
 import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.createBackingIndex;
 import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.createTimestampField;
+import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.newInstance;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_HIDDEN_SETTING;
 import static org.elasticsearch.common.util.set.Sets.newHashSet;
 import static org.elasticsearch.indices.SystemIndices.EXTERNAL_SYSTEM_INDEX_ACCESS_CONTROL_HEADER_KEY;
@@ -1676,8 +1676,8 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
         Metadata.Builder mdBuilder = Metadata.builder()
             .put(backingIndex1, false)
             .put(backingIndex2, false)
-            .put(new DataStream(dataStreamName1, createTimestampField("@timestamp"), Collections.singletonList(backingIndex1.getIndex())))
-            .put(new DataStream(dataStreamName2, createTimestampField("@timestamp"), Collections.singletonList(backingIndex2.getIndex())));
+            .put(newInstance(dataStreamName1, createTimestampField("@timestamp"), Collections.singletonList(backingIndex1.getIndex())))
+            .put(newInstance(dataStreamName2, createTimestampField("@timestamp"), Collections.singletonList(backingIndex2.getIndex())));
         mdBuilder.put("logs_foo", dataStreamName1, null, "{ \"term\": \"foo\"}");
         mdBuilder.put("logs", dataStreamName1, null, "{ \"term\": \"logs\"}");
         mdBuilder.put("logs_bar", dataStreamName1, null, null);
@@ -2127,9 +2127,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
 
         Metadata.Builder mdBuilder = Metadata.builder()
             .put(backingIndex, false)
-            .put(
-                new DataStream(dataStreamName, createTimestampField("@timestamp"), org.elasticsearch.core.List.of(backingIndex.getIndex()))
-            );
+            .put(newInstance(dataStreamName, createTimestampField("@timestamp"), org.elasticsearch.core.List.of(backingIndex.getIndex())));
         ClusterState state = ClusterState.builder(new ClusterName("_name")).metadata(mdBuilder).build();
 
         {
@@ -2380,8 +2378,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
             )
             .build();
         SystemIndices systemIndices = new SystemIndices(
-            Map.of(
-                "ml",
+            org.elasticsearch.core.List.of(
                 new Feature(
                     "ml",
                     "ml indices",
@@ -2390,13 +2387,11 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
                         new SystemIndexDescriptor(".ml-stuff*", "other ml")
                     )
                 ),
-                "watcher",
                 new Feature(
                     "watcher",
                     "watcher indices",
                     org.elasticsearch.core.List.of(new SystemIndexDescriptor(".watches*", "watches index"))
                 ),
-                "stack-component",
                 new Feature(
                     "stack-component",
                     "stack component",
@@ -2505,7 +2500,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
             .put(index1, false)
             .put(index2, false)
             .put(
-                new DataStream(
+                newInstance(
                     dataStreamName,
                     createTimestampField("@timestamp"),
                     org.elasticsearch.core.List.of(index1.getIndex(), index2.getIndex())
@@ -2531,7 +2526,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
             .put(index1, false)
             .put(index2, false)
             .put(
-                new DataStream(
+                newInstance(
                     dataStreamName,
                     createTimestampField("@timestamp"),
                     org.elasticsearch.core.List.of(index1.getIndex(), index2.getIndex())
@@ -2637,9 +2632,9 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
             .put(index4, false)
             .put(index5, false)
             .put(index6, false)
-            .put(new DataStream(dataStream1, createTimestampField("@timestamp"), Arrays.asList(index1.getIndex(), index2.getIndex())))
-            .put(new DataStream(dataStream2, createTimestampField("@timestamp"), Arrays.asList(index3.getIndex(), index4.getIndex())))
-            .put(new DataStream(dataStream3, createTimestampField("@timestamp"), Arrays.asList(index5.getIndex(), index6.getIndex())));
+            .put(newInstance(dataStream1, createTimestampField("@timestamp"), Arrays.asList(index1.getIndex(), index2.getIndex())))
+            .put(newInstance(dataStream2, createTimestampField("@timestamp"), Arrays.asList(index3.getIndex(), index4.getIndex())))
+            .put(newInstance(dataStream3, createTimestampField("@timestamp"), Arrays.asList(index5.getIndex(), index6.getIndex())));
         mdBuilder.put(dataStreamAlias1, dataStream1, null, null);
         mdBuilder.put(dataStreamAlias1, dataStream2, true, null);
         mdBuilder.put(dataStreamAlias2, dataStream2, null, null);
@@ -2726,14 +2721,14 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
             .put(index3, false)
             .put(index4, false)
             .put(
-                new DataStream(
+                newInstance(
                     dataStream1,
                     createTimestampField("@timestamp"),
                     org.elasticsearch.core.List.of(index1.getIndex(), index2.getIndex())
                 )
             )
             .put(
-                new DataStream(
+                newInstance(
                     dataStream2,
                     createTimestampField("@timestamp"),
                     org.elasticsearch.core.List.of(index3.getIndex(), index4.getIndex())
@@ -2795,14 +2790,14 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
             .put(index3, false)
             .put(index4, false)
             .put(
-                new DataStream(
+                newInstance(
                     dataStream1,
                     createTimestampField("@timestamp"),
                     org.elasticsearch.core.List.of(index1.getIndex(), index2.getIndex())
                 )
             )
             .put(
-                new DataStream(
+                newInstance(
                     dataStream2,
                     createTimestampField("@timestamp"),
                     org.elasticsearch.core.List.of(index3.getIndex(), index4.getIndex())
@@ -2844,9 +2839,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
                     .put(index1, false)
                     .put(index2, false)
                     .put(justAnIndex, false)
-                    .put(
-                        new DataStream(dataStream1, createTimestampField("@timestamp"), Arrays.asList(index1.getIndex(), index2.getIndex()))
-                    )
+                    .put(newInstance(dataStream1, createTimestampField("@timestamp"), Arrays.asList(index1.getIndex(), index2.getIndex())))
             )
             .build();
 
@@ -2883,6 +2876,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
                             2,
                             Collections.emptyMap(),
                             true,
+                            false,
                             false
                         )
                     )
@@ -2919,12 +2913,8 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
                     .put(index3, false)
                     .put(index4, false)
                     .put(justAnIndex, false)
-                    .put(
-                        new DataStream(dataStream1, createTimestampField("@timestamp"), Arrays.asList(index1.getIndex(), index2.getIndex()))
-                    )
-                    .put(
-                        new DataStream(dataStream2, createTimestampField("@timestamp"), Arrays.asList(index3.getIndex(), index4.getIndex()))
-                    )
+                    .put(newInstance(dataStream1, createTimestampField("@timestamp"), Arrays.asList(index1.getIndex(), index2.getIndex())))
+                    .put(newInstance(dataStream2, createTimestampField("@timestamp"), Arrays.asList(index3.getIndex(), index4.getIndex())))
             )
             .build();
 
@@ -2977,8 +2967,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
             .put(indexBuilder(".ml-stuff", settings).state(State.OPEN).system(true))
             .put(indexBuilder("some-other-index").state(State.OPEN));
         SystemIndices systemIndices = new SystemIndices(
-            Map.of(
-                "ml",
+            org.elasticsearch.core.List.of(
                 new Feature(
                     "ml",
                     "ml indices",
@@ -2987,7 +2976,6 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
                         new SystemIndexDescriptor(".ml-stuff*", "other ml")
                     )
                 ),
-                "watcher",
                 new Feature(
                     "watcher",
                     "watcher indices",

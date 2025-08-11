@@ -321,19 +321,17 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         throws IOException {
 
         SetOnce<List<?>> result = new SetOnce<>();
-        withLuceneIndex(
-            mapperService,
-            iw -> { iw.addDocument(mapperService.documentMapper().parse(source(b -> b.field(ft.name(), sourceValue))).rootDoc()); },
-            iw -> {
-                SearchLookup lookup = new SearchLookup(mapperService::fieldType, fieldDataLookup());
-                ValueFetcher valueFetcher = new DocValueFetcher(format, lookup.getForField(ft));
-                IndexSearcher searcher = newSearcher(iw);
-                LeafReaderContext context = searcher.getIndexReader().leaves().get(0);
-                lookup.source().setSegmentAndDocument(context, 0);
-                valueFetcher.setNextReader(context);
-                result.set(valueFetcher.fetchValues(lookup.source(), new ArrayList<>()));
-            }
-        );
+        withLuceneIndex(mapperService, iw -> {
+            iw.addDocument(mapperService.documentMapper().parse(source(b -> b.field(ft.name(), sourceValue))).rootDoc());
+        }, iw -> {
+            SearchLookup lookup = new SearchLookup(mapperService::fieldType, fieldDataLookup());
+            ValueFetcher valueFetcher = new DocValueFetcher(format, lookup.getForField(ft));
+            IndexSearcher searcher = newSearcher(iw);
+            LeafReaderContext context = searcher.getIndexReader().leaves().get(0);
+            lookup.source().setSegmentAndDocument(context, 0);
+            valueFetcher.setNextReader(context);
+            result.set(valueFetcher.fetchValues(lookup.source(), new ArrayList<>()));
+        });
         return result.get();
     }
 
@@ -591,9 +589,9 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         );
         SearchExecutionContext searchExecutionContext = mock(SearchExecutionContext.class);
         when(searchExecutionContext.sourcePath(field)).thenReturn(Set.of(field));
-        when(searchExecutionContext.getForField(ft)).thenAnswer(
-            inv -> { return fieldDataLookup().apply(ft, () -> { throw new UnsupportedOperationException(); }); }
-        );
+        when(searchExecutionContext.getForField(ft)).thenAnswer(inv -> {
+            return fieldDataLookup().apply(ft, () -> { throw new UnsupportedOperationException(); });
+        });
         ValueFetcher nativeFetcher = ft.valueFetcher(searchExecutionContext, format);
         ParsedDocument doc = mapperService.documentMapper().parse(source);
         withLuceneIndex(mapperService, iw -> iw.addDocuments(doc.docs()), ir -> {

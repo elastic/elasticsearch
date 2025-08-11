@@ -72,13 +72,20 @@ public class ClientYamlTestResponse {
      * Get a list of all of the values of all warning headers returned in the response.
      */
     public List<String> getWarningHeaders() {
-        List<String> warningHeaders = new ArrayList<>();
+        return getHeaders("Warning");
+    }
+
+    /**
+     * Get a list of all the values of a given header returned in the response.
+     */
+    public List<String> getHeaders(String name) {
+        List<String> headers = new ArrayList<>();
         for (Header header : response.getHeaders()) {
-            if (header.getName().equals("Warning")) {
-                warningHeaders.add(header.getValue());
+            if (header.getName().equalsIgnoreCase(name)) {
+                headers.add(header.getValue());
             }
         }
-        return warningHeaders;
+        return headers;
     }
 
     /**

@@ -44,7 +44,7 @@ them. For standard fields, this means that the `fields` option looks in
 
 [discrete]
 [[search-fields-request]]
-==== Search for specific fields
+==== Retrieve specific fields
 The following search request uses the `fields` parameter to retrieve values
 for the `user.id` field, all fields starting with `http.response.`, and the
 `@timestamp` field.
@@ -79,6 +79,11 @@ POST my-index-000001/_search
 <1> Both full field names and wildcard patterns are accepted.
 <2> Use the `format` parameter to apply a custom format for the field's values.
 // end::fields-param-callouts[]
+
+NOTE: By default, document metadata fields like `_id` or `_index` are not
+returned when the requested `fields` option uses wildcard patterns like `*`.
+However, when explicitly requested using the field name, the `_id`, `_routing`,
+`_ignored`, `_index` and `_version` metadata fields can be retrieved.
 
 [discrete]
 [[search-fields-response]]
@@ -136,6 +141,8 @@ fields are returned.
 [[search-fields-nested]]
 ==== Retrieve nested fields
 
+[%collapsible]
+====
 The `fields` response for <<nested,`nested` fields>> is slightly different from that
 of regular object fields. While leaf values inside regular `object` fields are
 returned as a flat list, values inside `nested` fields are grouped to maintain the
@@ -290,10 +297,14 @@ structure of the nested `user` array:
 
 However, when the `fields` pattern targets the nested `user` field directly, no
 values will be returned because the pattern doesn't match any leaf fields.
+====
 
 [discrete]
 [[retrieve-unmapped-fields]]
 ==== Retrieve unmapped fields
+
+[%collapsible]
+====
 By default, the `fields` parameter returns only values of mapped fields.
 However, {es} allows storing fields in `_source` that are unmapped, such as
 setting <<dynamic-field-mapping,dynamic field mapping>> to `false` or by using
@@ -379,23 +390,16 @@ won't be included in the response because `include_unmapped` isn't set to
 // TESTRESPONSE[s/"took" : 2/"took": $body.took/]
 // TESTRESPONSE[s/"max_score" : 1.0/"max_score" : $body.hits.max_score/]
 // TESTRESPONSE[s/"_score" : 1.0/"_score" : $body.hits.hits.0._score/]
+====
 
 [discrete]
-[[retrieve-metadata-fields]]
-==== Retrieving metadata fields
-By default, document metadata fields like `_id` or `_index` are not returned
-when the requested `fields` option uses wildcard patterns like `*`. However,
-when explicitly requested using the fields name, the `_id`, `_routing`,
-`_ignored`, `_index` and `_version` metadata fields can be retrieved.
-In addition, when you define an <<field-alias, alias field>> with a path to one
-of the above metadata fields, this field will also be retrievable using either
-the alias name or via wildcard patterns that match the alias.
-
-[discrete]
-[[Ignored-field values]]
+[[ignored-field-values]]
 ==== Ignored field values
+
+[%collapsible]
+====
 The `fields` section of the response only returns values that were valid when indexed.
-If your search request asks for values from a field that ignored certain
+If your search request asks for values from a field that ignored certain values
 because they were malformed or too large these values are returned
 separately in an `ignored_field_values` section.
 
@@ -480,7 +484,7 @@ returned in the `fields` section.
 // TESTRESPONSE[s/"took" : 2/"took": $body.took/]
 // TESTRESPONSE[s/"max_score" : 1.0/"max_score" : $body.hits.max_score/]
 // TESTRESPONSE[s/"_score" : 1.0/"_score" : $body.hits.hits.0._score/]
-
+====
 
 [discrete]
 [[source-filtering]]

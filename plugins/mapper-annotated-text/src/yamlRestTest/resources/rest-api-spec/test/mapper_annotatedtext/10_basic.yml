@@ -99,13 +99,13 @@
   - do:
       index:
         index: annotated
-        id: 1
+        id: "1"
         body:
             "my_field" : "[A](~MARK0&~MARK0) [B](~MARK1)"
   - do:
       index:
         index: annotated
-        id: 2
+        id: "2"
         body:
             "my_field" : "[A](~MARK0) [C](~MARK2)"
         refresh: true
@@ -165,13 +165,13 @@
   - do:
       index:
         index: annotated
-        id: 1
+        id: "1"
         body:
             "my_field" : "[Jeff Beck](Beck) plays a strat"
   - do:
       index:
         index: annotated
-        id: 2
+        id: "2"
         body:
             "my_field" : "[Kimchy](Beck) plays a strat"
         refresh: true
@@ -198,19 +198,19 @@
   - do:
       index:
         index: annotated
-        id: 1
+        id: "1"
         body:
             "my_field" : "[Apple](Apple+Inc) launched the iphone 12"
   - do:
       index:
         index: annotated
-        id: 2
+        id: "2"
         body:
             "my_field" : "[They](Apple+Inc) make iphone accessories"
   - do:
       index:
         index: annotated
-        id: 3
+        id: "3"
         body:
             "my_field" : "[Apple](Apple+Inc) have a new iphone coming"
         refresh: true

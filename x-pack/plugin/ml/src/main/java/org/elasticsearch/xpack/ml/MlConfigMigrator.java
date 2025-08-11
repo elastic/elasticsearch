@@ -486,17 +486,16 @@ public class MlConfigMigrator {
                     client.threadPool().getThreadContext(),
                     ML_ORIGIN,
                     indexRequest,
-                    ActionListener.<IndexResponse>wrap(
-                        indexResponse -> { listener.onResponse(indexResponse.getResult() == DocWriteResponse.Result.CREATED); },
-                        e -> {
-                            if (ExceptionsHelper.unwrapCause(e) instanceof VersionConflictEngineException) {
-                                // the snapshot already exists
-                                listener.onResponse(Boolean.TRUE);
-                            } else {
-                                listener.onFailure(e);
-                            }
+                    ActionListener.<IndexResponse>wrap(indexResponse -> {
+                        listener.onResponse(indexResponse.getResult() == DocWriteResponse.Result.CREATED);
+                    }, e -> {
+                        if (ExceptionsHelper.unwrapCause(e) instanceof VersionConflictEngineException) {
+                            // the snapshot already exists
+                            listener.onResponse(Boolean.TRUE);
+                        } else {
+                            listener.onFailure(e);
                         }
-                    ),
+                    }),
                     client::index
                 );
             }, listener::onFailure)

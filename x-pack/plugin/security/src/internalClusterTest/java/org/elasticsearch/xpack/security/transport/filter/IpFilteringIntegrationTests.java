@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.security.transport.filter;
 
+import org.apache.lucene.util.Constants;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
@@ -29,11 +30,14 @@ import static org.hamcrest.Matchers.is;
 // no client nodes, no transport clients, as they all get rejected on network connections
 @ClusterScope(scope = Scope.SUITE, numDataNodes = 0, numClientNodes = 0, transportClientRatio = 0.0)
 public class IpFilteringIntegrationTests extends SecurityIntegTestCase {
+
+    private static final int NUMBER_OF_CLIENT_PORTS = Constants.WINDOWS ? 300 : 100;
+
     private static int randomClientPort;
 
     @BeforeClass
     public static void getRandomPort() {
-        randomClientPort = randomIntBetween(49000, 65500); // ephemeral port
+        randomClientPort = randomIntBetween(49152, 65535 - NUMBER_OF_CLIENT_PORTS); // ephemeral port
     }
 
     @Override
@@ -43,7 +47,7 @@ public class IpFilteringIntegrationTests extends SecurityIntegTestCase {
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
-        String randomClientPortRange = randomClientPort + "-" + (randomClientPort + 100);
+        String randomClientPortRange = randomClientPort + "-" + (randomClientPort + NUMBER_OF_CLIENT_PORTS);
         return Settings.builder()
             .put(super.nodeSettings(nodeOrdinal, otherSettings))
             .put("transport.profiles.client.port", randomClientPortRange)

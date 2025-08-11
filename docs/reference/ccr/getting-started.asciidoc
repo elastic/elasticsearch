@@ -99,7 +99,7 @@ example, `cluster.es.eastus2.staging.azure.foundit.no:9400` or
 [%collapsible%open]
 .API example
 ====
-You can also use the <<cluster-update-settings,cluster update settings API>> to 
+You can also use the <<cluster-update-settings,cluster update settings API>> to
 add a remote cluster:
 
 [source,console]
@@ -200,8 +200,8 @@ image::images/ccr-follower-index.png["The Cross-Cluster Replication page in {kib
 [%collapsible%open]
 .API example
 ====
-You can also use the <<ccr-put-follow,create follower API>> to create follower 
-indices. When you create a follower index, you must reference the remote cluster 
+You can also use the <<ccr-put-follow,create follower API>> to create follower
+indices. When you create a follower index, you must reference the remote cluster
 and the leader index that you created in the remote cluster.
 
 When initiating the follower request, the response returns before the
@@ -255,7 +255,9 @@ POST /server-metrics-follower/_ccr/unfollow
 You use <<ccr-auto-follow,auto-follow patterns>> to automatically create new
 followers for rolling time series indices. Whenever the name of a new index on
 the remote cluster matches the auto-follow pattern, a corresponding follower
-index is added to the local cluster.
+index is added to the local cluster. Note that only indices created on the
+remote cluster after the auto-follow pattern is created will be auto-followed:
+existing indices on the remote cluster are ignored even if they match the pattern.
 
 An auto-follow pattern specifies the remote cluster you want to replicate from,
 and one or more index patterns that specify the rolling time series indices you

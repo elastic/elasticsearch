@@ -59,7 +59,7 @@ public class TransportGetEnrichPolicyActionTests extends AbstractEnrichTestCase 
 
         // fail if the state of this is left locked
         EnrichPolicyLocks enrichPolicyLocks = getInstanceFromNode(EnrichPolicyLocks.class);
-        assertFalse(enrichPolicyLocks.captureExecutionState().isAnyPolicyInFlight());
+        assertThat(enrichPolicyLocks.lockedPolices().size(), equalTo(0));
     }
 
     public void testListPolicies() throws InterruptedException {

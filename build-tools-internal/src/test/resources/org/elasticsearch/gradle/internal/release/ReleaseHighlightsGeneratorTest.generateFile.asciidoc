@@ -1,22 +1,36 @@
 [[release-highlights]]
 == What's new in {minor-version}
 
-coming::[{minor-version}]
+// tag::notable-highlights[]
+{es} 7.17 is a compatibility release for the 7.17 Elastic Stack and contains
+no major enhancements.
+// end::notable-highlights[]
 
-Here are the highlights of what's new and improved in {es} {minor-version}!
-ifeval::[\{release-state}\"!=\"unreleased\"]
 For detailed information about this release, see the <<es-release-notes>> and
 <<breaking-changes>>.
-endif::[]
+
 
 // Add previous release to the list
 Other versions:
 
-{ref-bare}/8.4/release-highlights.html[8.4]
-| {ref-bare}/8.3/release-highlights.html[8.3]
-| {ref-bare}/8.2/release-highlights.html[8.2]
-| {ref-bare}/8.1/release-highlights.html[8.1]
-| {ref-bare}/8.0/release-highlights.html[8.0]
+{ref-bare}/7.17/release-highlights.html[7.17]
+| {ref-bare}/7.16/release-highlights.html[7.16]
+| {ref-bare}/7.15/release-highlights.html[7.15]
+| {ref-bare}/7.14/release-highlights.html[7.14]
+| {ref-bare}/7.13/release-highlights.html[7.13]
+| {ref-bare}/7.12/release-highlights.html[7.12]
+| {ref-bare}/7.11/release-highlights.html[7.11]
+| {ref-bare}/7.10/release-highlights.html[7.10]
+| {ref-bare}/7.9/release-highlights.html[7.9]
+| {ref-bare}/7.8/release-highlights.html[7.8]
+| {ref-bare}/7.7/release-highlights.html[7.7]
+| {ref-bare}/7.6/release-highlights-7.6.0.html[7.6]
+| {ref-bare}/7.5/release-highlights-7.5.0.html[7.5]
+| {ref-bare}/7.4/release-highlights-7.4.0.html[7.4]
+| {ref-bare}/7.3/release-highlights-7.3.0.html[7.3]
+| {ref-bare}/7.2/release-highlights-7.2.0.html[7.2]
+| {ref-bare}/7.1/release-highlights-7.1.0.html[7.1]
+| {ref-bare}/7.0/release-highlights-7.0.0.html[7.0]
 
 // tag::notable-highlights[]
 

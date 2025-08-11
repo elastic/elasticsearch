@@ -1,0 +1,311 @@
+// Bun Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`generatePipelines should generate correct pipelines with a non-docs change 1`] = `
+[
+  {
+    "name": "bwc-snapshots",
+    "pipeline": {
+      "steps": [
+        {
+          "group": "bwc-snapshots",
+          "steps": [
+            {
+              "agents": {
+                "buildDirectory": "/dev/shm/bk",
+                "image": "family/elasticsearch-ubuntu-2404",
+                "machineType": "custom-32-98304",
+                "provider": "gcp",
+              },
+              "command": ".ci/scripts/run-gradle.sh -Dignore.tests.seed v{{matrix.BWC_VERSION}}#bwcTest",
+              "env": {
+                "BWC_VERSION": "{{matrix.BWC_VERSION}}",
+              },
+              "label": "{{matrix.BWC_VERSION}} / bwc-snapshots",
+              "matrix": {
+                "setup": {
+                  "BWC_VERSION": [
+                    "7.17.14",
+                    "8.10.3",
+                    "8.11.0",
+                  ],
+                },
+              },
+              "timeout_in_minutes": 300,
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
+    "name": "using-defaults",
+    "pipeline": {
+      "env": {
+        "CUSTOM_ENV_VAR": "value",
+      },
+      "steps": [
+        {
+          "command": "echo 'hello world'",
+          "label": "test-step",
+        },
+      ],
+    },
+  },
+]
+`;
+
+exports[`generatePipelines should generate correct pipelines with only docs changes 1`] = `
+[
+  {
+    "name": "docs-check",
+    "pipeline": {
+      "steps": [
+        {
+          "agents": {
+            "buildDirectory": "/dev/shm/bk",
+            "image": "family/elasticsearch-ubuntu-2404",
+            "machineType": "custom-32-98304",
+            "provider": "gcp",
+          },
+          "command": ".ci/scripts/run-gradle.sh -Dignore.tests.seed precommit :docs:check",
+          "label": "docs-check",
+          "timeout_in_minutes": 300,
+        },
+      ],
+    },
+  },
+]
+`;
+
+exports[`generatePipelines should generate correct pipelines with full BWC expansion 1`] = `
+[
+  {
+    "name": "full-bwc",
+    "pipeline": {
+      "steps": [
+        {
+          "group": "bwc",
+          "steps": [
+            {
+              "agents": {
+                "buildDirectory": "/dev/shm/bk",
+                "image": "family/elasticsearch-ubuntu-2404",
+                "machineType": "custom-32-98304",
+                "provider": "gcp",
+              },
+              "command": ".ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v7.0.0#bwcTest",
+              "env": {
+                "BWC_VERSION": "7.0.0",
+              },
+              "key": "full-bwc:7_0_0",
+              "label": "7.0.0 / bwc",
+              "timeout_in_minutes": 300,
+            },
+            {
+              "agents": {
+                "buildDirectory": "/dev/shm/bk",
+                "image": "family/elasticsearch-ubuntu-2404",
+                "machineType": "custom-32-98304",
+                "provider": "gcp",
+              },
+              "command": ".ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v7.0.1#bwcTest",
+              "env": {
+                "BWC_VERSION": "7.0.1",
+              },
+              "key": "full-bwc:7_0_1",
+              "label": "7.0.1 / bwc",
+              "timeout_in_minutes": 300,
+            },
+            {
+              "agents": {
+                "buildDirectory": "/dev/shm/bk",
+                "image": "family/elasticsearch-ubuntu-2404",
+                "machineType": "custom-32-98304",
+                "provider": "gcp",
+              },
+              "command": ".ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v7.1.0#bwcTest",
+              "env": {
+                "BWC_VERSION": "7.1.0",
+              },
+              "key": "full-bwc:7_1_0",
+              "label": "7.1.0 / bwc",
+              "timeout_in_minutes": 300,
+            },
+            {
+              "agents": {
+                "buildDirectory": "/dev/shm/bk",
+                "image": "family/elasticsearch-ubuntu-2404",
+                "machineType": "custom-32-98304",
+                "provider": "gcp",
+              },
+              "command": ".ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v8.10.0#bwcTest",
+              "env": {
+                "BWC_VERSION": "8.10.0",
+              },
+              "key": "full-bwc:8_10_0",
+              "label": "8.10.0 / bwc",
+              "timeout_in_minutes": 300,
+            },
+            {
+              "agents": {
+                "buildDirectory": "/dev/shm/bk",
+                "image": "family/elasticsearch-ubuntu-2404",
+                "machineType": "custom-32-98304",
+                "provider": "gcp",
+              },
+              "command": ".ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v8.11.0#bwcTest",
+              "env": {
+                "BWC_VERSION": "8.11.0",
+              },
+              "key": "full-bwc:8_11_0",
+              "label": "8.11.0 / bwc",
+              "timeout_in_minutes": 300,
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
+    "name": "using-defaults",
+    "pipeline": {
+      "env": {
+        "CUSTOM_ENV_VAR": "value",
+      },
+      "steps": [
+        {
+          "command": "echo 'hello world'",
+          "label": "test-step",
+        },
+      ],
+    },
+  },
+]
+`;
+
+exports[`generatePipelines should generate correct pipeline when using a trigger comment for it 1`] = `
+[
+  {
+    "name": "using-defaults",
+    "pipeline": {
+      "env": {
+        "CUSTOM_ENV_VAR": "value",
+      },
+      "steps": [
+        {
+          "command": "echo 'hello world'",
+          "label": "test-step",
+        },
+      ],
+    },
+  },
+]
+`;
+
+exports[`generatePipelines should generate correct pipelines with a non-docs change and @elasticmachine 1`] = `
+[
+  {
+    "name": "bwc-snapshots",
+    "pipeline": {
+      "steps": [
+        {
+          "group": "bwc-snapshots",
+          "steps": [
+            {
+              "agents": {
+                "buildDirectory": "/dev/shm/bk",
+                "image": "family/elasticsearch-ubuntu-2404",
+                "machineType": "custom-32-98304",
+                "provider": "gcp",
+              },
+              "command": ".ci/scripts/run-gradle.sh -Dignore.tests.seed v{{matrix.BWC_VERSION}}#bwcTest",
+              "env": {
+                "BWC_VERSION": "{{matrix.BWC_VERSION}}",
+              },
+              "label": "{{matrix.BWC_VERSION}} / bwc-snapshots",
+              "matrix": {
+                "setup": {
+                  "BWC_VERSION": [
+                    "7.17.14",
+                    "8.10.3",
+                    "8.11.0",
+                  ],
+                },
+              },
+              "timeout_in_minutes": 300,
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
+    "name": "using-defaults",
+    "pipeline": {
+      "env": {
+        "CUSTOM_ENV_VAR": "value",
+      },
+      "steps": [
+        {
+          "command": "echo 'hello world'",
+          "label": "test-step",
+        },
+      ],
+    },
+  },
+]
+`;
+
+exports[`generatePipelines should generate correct pipelines with a non-docs change and @elasticsearchmachine 1`] = `
+[
+  {
+    "name": "bwc-snapshots",
+    "pipeline": {
+      "steps": [
+        {
+          "group": "bwc-snapshots",
+          "steps": [
+            {
+              "agents": {
+                "buildDirectory": "/dev/shm/bk",
+                "image": "family/elasticsearch-ubuntu-2404",
+                "machineType": "custom-32-98304",
+                "provider": "gcp",
+              },
+              "command": ".ci/scripts/run-gradle.sh -Dignore.tests.seed v{{matrix.BWC_VERSION}}#bwcTest",
+              "env": {
+                "BWC_VERSION": "{{matrix.BWC_VERSION}}",
+              },
+              "label": "{{matrix.BWC_VERSION}} / bwc-snapshots",
+              "matrix": {
+                "setup": {
+                  "BWC_VERSION": [
+                    "7.17.14",
+                    "8.10.3",
+                    "8.11.0",
+                  ],
+                },
+              },
+              "timeout_in_minutes": 300,
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
+    "name": "using-defaults",
+    "pipeline": {
+      "env": {
+        "CUSTOM_ENV_VAR": "value",
+      },
+      "steps": [
+        {
+          "command": "echo 'hello world'",
+          "label": "test-step",
+        },
+      ],
+    },
+  },
+]
+`;

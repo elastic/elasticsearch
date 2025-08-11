@@ -66,10 +66,9 @@ public class IcuAnalyzerTests extends BaseTokenStreamTestCase {
         Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT).put("mode", "wrong").build();
         IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("index", settings);
 
-        IllegalArgumentException e = expectThrows(
-            IllegalArgumentException.class,
-            () -> { new IcuAnalyzerProvider(idxSettings, null, "icu", settings); }
-        );
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> {
+            new IcuAnalyzerProvider(idxSettings, null, "icu", settings);
+        });
 
         assertThat(e.getMessage(), containsString("Unknown mode [wrong] in analyzer [icu], expected one of [compose, decompose]"));
 

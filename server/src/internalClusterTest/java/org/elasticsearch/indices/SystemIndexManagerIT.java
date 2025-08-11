@@ -13,6 +13,8 @@ import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsRequest;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequest;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
@@ -36,6 +38,7 @@ import static org.elasticsearch.indices.TestSystemIndexDescriptor.PRIMARY_INDEX_
 import static org.elasticsearch.test.XContentTestUtils.convertToXContent;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class SystemIndexManagerIT extends ESIntegTestCase {
@@ -51,7 +54,7 @@ public class SystemIndexManagerIT extends ESIntegTestCase {
     }
 
     /**
-     * Check that if the the SystemIndexManager finds a managed index with out-of-date mappings, then
+     * Check that if the SystemIndexManager finds a managed index with out-of-date mappings, then
      * the manager updates those mappings.
      */
     public void testSystemIndexManagerUpgradesMappings() throws Exception {
@@ -94,6 +97,30 @@ public class SystemIndexManagerIT extends ESIntegTestCase {
 
         // Mappings should be unchanged.
         assertBusy(() -> assertMappingsAndSettings(TestSystemIndexDescriptor.getNewMappings()));
+    }
+
+    /**
+     * Ensures that we can clear any blocks that get set on managed system indices.
+     *
+     * See https://github.com/elastic/elasticsearch/issues/80814
+     */
+    public void testBlocksCanBeClearedFromManagedSystemIndices() throws Exception {
+        internalCluster().startNodes(1);
+
+        // Trigger the creation of the system index
+        assertAcked(prepareCreate(INDEX_NAME));
+        ensureGreen(INDEX_NAME);
+
+        for (IndexMetadata.APIBlock blockType : IndexMetadata.APIBlock.values()) {
+            enableIndexBlock(INDEX_NAME, blockType.settingName());
+
+            AcknowledgedResponse removeBlockResp = client().admin()
+                .indices()
+                .prepareUpdateSettings(INDEX_NAME)
+                .setSettings(Settings.builder().put(blockType.settingName(), false))
+                .get();
+            assertThat(removeBlockResp.isAcknowledged(), is(true));
+        }
     }
 
     /**

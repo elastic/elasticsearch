@@ -1462,6 +1462,14 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
             final Role role = Role.builder()
                 .name("testPutRole")
                 .clusterPrivileges(randomSubsetOf(1, Role.ClusterPrivilegeName.ALL_ARRAY))
+                .indicesPrivileges(IndicesPrivileges.builder()
+                    .indices("my-index-*")
+                    .allowRestrictedIndices(false)
+                    .privileges(Role.IndexPrivilegeName.READ)
+                    .grantedFields("*")
+                    .deniedFields("secret_field")
+                    .query("{ \"term\": { \"public\": true } }")
+                    .build())
                 .build();
             final PutRoleRequest request = new PutRoleRequest(role, RefreshPolicy.NONE);
             // end::put-role-request
@@ -3080,6 +3088,7 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/97756")
     public void testDelegatePkiAuthentication() throws Exception {
         final RestHighLevelClient client = highLevelClient();
         X509Certificate clientCertificate = readCertForPkiDelegation("testClient.crt");

@@ -126,15 +126,12 @@ public class GetUsersResponseTests extends ESTestCase {
         enabledUsers.add(user2);
         final GetUsersResponse getUsersResponse = new GetUsersResponse(users, enabledUsers);
         assertNotNull(getUsersResponse);
-        EqualsHashCodeTestUtils.checkEqualsAndHashCode(
-            getUsersResponse,
-            (original) -> { return new GetUsersResponse(original.getUsers(), original.getEnabledUsers()); }
-        );
-        EqualsHashCodeTestUtils.checkEqualsAndHashCode(
-            getUsersResponse,
-            (original) -> { return new GetUsersResponse(original.getUsers(), original.getEnabledUsers()); },
-            GetUsersResponseTests::mutateTestItem
-        );
+        EqualsHashCodeTestUtils.checkEqualsAndHashCode(getUsersResponse, (original) -> {
+            return new GetUsersResponse(original.getUsers(), original.getEnabledUsers());
+        });
+        EqualsHashCodeTestUtils.checkEqualsAndHashCode(getUsersResponse, (original) -> {
+            return new GetUsersResponse(original.getUsers(), original.getEnabledUsers());
+        }, GetUsersResponseTests::mutateTestItem);
     }
 
     private static GetUsersResponse mutateTestItem(GetUsersResponse original) {

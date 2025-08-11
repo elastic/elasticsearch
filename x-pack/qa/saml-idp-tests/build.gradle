@@ -1,54 +1,39 @@
-import org.elasticsearch.gradle.Architecture
+import org.elasticsearch.gradle.LazyPropertyMap
 
 Project idpFixtureProject = xpackProject("test:idp-fixture")
 
-apply plugin: 'elasticsearch.internal-testclusters'
-apply plugin: 'elasticsearch.standalone-rest-test'
-apply plugin: 'elasticsearch.rest-test'
+apply plugin: 'elasticsearch.legacy-java-rest-test'
 apply plugin: 'elasticsearch.test.fixtures'
 
 dependencies {
-  testImplementation(testArtifact(project(xpackModule('core'))))
-  testImplementation "com.google.jimfs:jimfs:${versions.jimfs}"
+  javaRestTestImplementation testArtifact(project(xpackModule('core')))
+  javaRestTestImplementation "com.google.jimfs:jimfs:${versions.jimfs}"
 }
 
 testFixtures.useFixture ":x-pack:test:idp-fixture"
 
 String outputDir = "${project.buildDir}/generated-resources/${project.name}"
-def copyIdpFiles = tasks.register("copyIdpFiles", Copy) {
+tasks.register("copyIdpFiles", Sync) {
+  dependsOn idpFixtureProject.postProcessFixture
+  // Don't attempt to get ephemeral ports when Docker is not available
+  onlyIf { idpFixtureProject.postProcessFixture.state.skipped == false }
   from idpFixtureProject.files('idp/shibboleth-idp/credentials/idp-browser.pem', 'idp/shibboleth-idp/metadata/idp-metadata.xml',
     'idp/shibboleth-idp/credentials/sp-signing.key', 'idp/shibboleth-idp/credentials/sp-signing.crt');
   into outputDir
-}
-
-def setupPorts = tasks.register("setupPorts") {
-  dependsOn copyIdpFiles, idpFixtureProject.postProcessFixture
-  // Don't attempt to get ephemeral ports when Docker is not available
-  // Also, shibboleth fixture is not available on aarch64
-  onlyIf { idpFixtureProject.postProcessFixture.state.skipped == false && Architecture.current() == Architecture.X64 }
-  doLast {
-    String portString = idpFixtureProject.postProcessFixture.ext."test.fixtures.shibboleth-idp.tcp.4443"
-    int ephemeralPort = Integer.valueOf(portString)
-    File idpMetaFile = file("$outputDir/idp-metadata.xml")
-    List<String> lines = idpMetaFile.readLines("UTF-8")
-    StringBuilder content = new StringBuilder()
-    for (String line : lines) {
-      content.append(line.replace("localhost:4443", "localhost:" + ephemeralPort))
-    }
-    idpMetaFile.delete()
-    idpMetaFile.createNewFile()
-    idpMetaFile.write(content.toString(), "UTF-8")
+  def expandProps = new LazyPropertyMap<>("lazy port config")
+  expandProps.put("port", () -> idpFixtureProject.postProcessFixture.ext."test.fixtures.shibboleth-idp.tcp.4443")
+  inputs.properties(expandProps)
+  filesMatching("idp-metadata.xml") {
+    expand(expandProps)
   }
 }
 
-project.sourceSets.test.output.dir(outputDir, builtBy: [copyIdpFiles])
-
-tasks.named("integTest").configure {
-  dependsOn setupPorts
-  onlyIf { idpFixtureProject.postProcessFixture.state.skipped == false && Architecture.current() == Architecture.X64 }
+tasks.named("javaRestTest").configure {
+  classpath += files(tasks.named("copyIdpFiles"))
+  onlyIf { idpFixtureProject.postProcessFixture.state.skipped == false }
 }
 
-testClusters.matching { it.name == "integTest" }.configureEach {
+testClusters.matching { it.name == "javaRestTest" }.configureEach {
   testDistribution = 'DEFAULT'
   setting 'xpack.license.self_generated.type', 'trial'
   setting 'xpack.security.enabled', 'true'

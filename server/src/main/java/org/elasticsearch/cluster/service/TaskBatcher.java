@@ -52,14 +52,9 @@ public abstract class TaskBatcher {
             : "tasks submitted in a batch should share the same batching key: " + tasks;
         // convert to an identity map to check for dups based on task identity
         final Map<Object, BatchedTask> tasksIdentity = tasks.stream()
-            .collect(
-                Collectors.toMap(
-                    BatchedTask::getTask,
-                    Function.identity(),
-                    (a, b) -> { throw new IllegalStateException("cannot add duplicate task: " + a); },
-                    IdentityHashMap::new
-                )
-            );
+            .collect(Collectors.toMap(BatchedTask::getTask, Function.identity(), (a, b) -> {
+                throw new IllegalStateException("cannot add duplicate task: " + a);
+            }, IdentityHashMap::new));
 
         synchronized (tasksPerBatchingKey) {
             LinkedHashSet<BatchedTask> existingTasks = tasksPerBatchingKey.computeIfAbsent(

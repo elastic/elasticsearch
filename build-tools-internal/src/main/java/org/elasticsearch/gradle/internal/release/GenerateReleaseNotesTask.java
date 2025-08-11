@@ -34,13 +34,13 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
 import javax.inject.Inject;
 
 import static java.util.Comparator.naturalOrder;
-import static java.util.stream.Collectors.toList;
 import static java.util.stream.Collectors.toSet;
 
 /**
@@ -59,7 +59,7 @@ public class GenerateReleaseNotesTask extends DefaultTask {
     private final RegularFileProperty releaseNotesIndexFile;
     private final RegularFileProperty releaseNotesFile;
     private final RegularFileProperty releaseHighlightsFile;
-    private final RegularFileProperty breakingChangesFile;
+    private final RegularFileProperty breakingChangesMigrationFile;
 
     private final GitWrapper gitWrapper;
 
@@ -75,14 +75,16 @@ public class GenerateReleaseNotesTask extends DefaultTask {
         releaseNotesIndexFile = objectFactory.fileProperty();
         releaseNotesFile = objectFactory.fileProperty();
         releaseHighlightsFile = objectFactory.fileProperty();
-        breakingChangesFile = objectFactory.fileProperty();
+        breakingChangesMigrationFile = objectFactory.fileProperty();
 
         gitWrapper = new GitWrapper(execOperations);
     }
 
     @TaskAction
     public void executeTask() throws IOException {
-        if (needsGitTags(VersionProperties.getElasticsearch())) {
+        final String currentVersion = VersionProperties.getElasticsearch();
+
+        if (needsGitTags(currentVersion)) {
             findAndUpdateUpstreamRemote(gitWrapper);
         }
 
@@ -90,7 +92,7 @@ public class GenerateReleaseNotesTask extends DefaultTask {
 
         final Map<QualifiedVersion, Set<File>> filesByVersion = partitionFilesByVersion(
             gitWrapper,
-            VersionProperties.getElasticsearch(),
+            currentVersion,
             this.changelogs.getFiles()
         );
 
@@ -103,7 +105,7 @@ public class GenerateReleaseNotesTask extends DefaultTask {
             changelogsByVersion.put(version, entriesForVersion);
         });
 
-        final Set<QualifiedVersion> versions = getVersions(gitWrapper, VersionProperties.getElasticsearch());
+        final Set<QualifiedVersion> versions = getVersions(gitWrapper, currentVersion);
 
         LOGGER.info("Updating release notes index...");
         ReleaseNotesIndexGenerator.update(
@@ -113,29 +115,34 @@ public class GenerateReleaseNotesTask extends DefaultTask {
         );
 
         LOGGER.info("Generating release notes...");
+        final QualifiedVersion qualifiedVersion = QualifiedVersion.of(currentVersion);
         ReleaseNotesGenerator.update(
             this.releaseNotesTemplate.get().getAsFile(),
             this.releaseNotesFile.get().getAsFile(),
-            changelogsByVersion
+            qualifiedVersion,
+            changelogsByVersion.getOrDefault(qualifiedVersion, Set.of())
         );
 
-        LOGGER.info("Generating release highlights...");
-        ReleaseHighlightsGenerator.update(
-            this.releaseHighlightsTemplate.get().getAsFile(),
-            this.releaseHighlightsFile.get().getAsFile(),
-            entries
-        );
+        // Only update breaking changes and migration guide for new minors
+        if (qualifiedVersion.revision() == 0) {
+            LOGGER.info("Generating release highlights...");
+            ReleaseHighlightsGenerator.update(
+                this.releaseHighlightsTemplate.get().getAsFile(),
+                this.releaseHighlightsFile.get().getAsFile(),
+                entries
+            );
 
-        LOGGER.info("Generating breaking changes / deprecations notes...");
-        BreakingChangesGenerator.update(
-            this.breakingChangesTemplate.get().getAsFile(),
-            this.breakingChangesFile.get().getAsFile(),
-            entries
-        );
+            LOGGER.info("Generating breaking changes / deprecations notes...");
+            BreakingChangesGenerator.update(
+                this.breakingChangesTemplate.get().getAsFile(),
+                this.breakingChangesMigrationFile.get().getAsFile(),
+                entries
+            );
+        }
     }
 
     /**
-     * Find all tags in the `major.minor` series for the supplied version
+     * Find all tags in the major series for the supplied version
      * @param gitWrapper used to call `git`
      * @param currentVersion the version to base the query upon
      * @return all versions in the series
@@ -143,7 +150,8 @@ public class GenerateReleaseNotesTask extends DefaultTask {
     @VisibleForTesting
     static Set<QualifiedVersion> getVersions(GitWrapper gitWrapper, String currentVersion) {
         QualifiedVersion v = QualifiedVersion.of(currentVersion);
-        Set<QualifiedVersion> versions = gitWrapper.listVersions("v" + v.getMajor() + '.' + v.getMinor() + ".*").collect(toSet());
+        final String pattern = "v" + v.major() + ".*";
+        Set<QualifiedVersion> versions = gitWrapper.listVersions(pattern).collect(toSet());
         versions.add(v);
         return versions;
     }
@@ -174,13 +182,16 @@ public class GenerateReleaseNotesTask extends DefaultTask {
         QualifiedVersion currentVersion = QualifiedVersion.of(versionString);
 
         // Find all tags for this minor series, using a wildcard tag pattern.
-        String tagWildcard = "v%d.%d*".formatted(currentVersion.getMajor(), currentVersion.getMinor());
+        String tagWildcard = String.format(Locale.ROOT, "v%d.%d*", currentVersion.major(), currentVersion.minor());
 
         final List<QualifiedVersion> earlierVersions = gitWrapper.listVersions(tagWildcard)
             // Only keep earlier versions, and if `currentVersion` is a prerelease, then only prereleases too.
-            .filter(each -> each.isBefore(currentVersion) && (currentVersion.hasQualifier() == each.hasQualifier()))
+            .filter(
+                each -> each.isBefore(currentVersion)
+                    && (currentVersion.isSnapshot() || (currentVersion.hasQualifier() == each.hasQualifier()))
+            )
             .sorted(naturalOrder())
-            .collect(toList());
+            .toList();
 
         if (earlierVersions.isEmpty()) {
             throw new GradleException("Failed to find git tags prior to [v" + currentVersion + "]");
@@ -339,11 +350,11 @@ public class GenerateReleaseNotesTask extends DefaultTask {
     }
 
     @OutputFile
-    public RegularFileProperty getBreakingChangesFile() {
-        return breakingChangesFile;
+    public RegularFileProperty getBreakingChangesMigrationFile() {
+        return breakingChangesMigrationFile;
     }
 
-    public void setBreakingChangesFile(RegularFile file) {
-        this.breakingChangesFile.set(file);
+    public void setBreakingChangesMigrationFile(RegularFile file) {
+        this.breakingChangesMigrationFile.set(file);
     }
 }

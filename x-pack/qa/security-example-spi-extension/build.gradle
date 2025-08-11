@@ -1,7 +1,5 @@
-import org.elasticsearch.gradle.util.GradleUtils
-
-apply plugin: 'elasticsearch.internal-java-rest-test'
-apply plugin: 'elasticsearch.internal-es-plugin'
+apply plugin: 'elasticsearch.legacy-java-rest-test'
+apply plugin: 'elasticsearch.base-internal-es-plugin'
 
 esplugin {
   name 'spi-extension'
@@ -12,6 +10,7 @@ esplugin {
 
 dependencies {
   compileOnly project(':x-pack:plugin:core')
+  testImplementation project(':x-pack:plugin:core')
   javaRestTestImplementation project(xpackProject('transport-client').path)
   javaRestTestImplementation project(':x-pack:plugin:core')
   javaRestTestImplementation project(':client:rest-high-level')

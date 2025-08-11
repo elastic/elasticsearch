@@ -298,7 +298,7 @@ public class TransportResizeAction extends TransportMasterNodeAction<ResizeReque
                 }
             }
         } else {
-            for (int i = 1; i < num; i++) {
+            for (int i = 1; i <= num; i++) {
                 if (sourceIndexShardsNum % i == 0 && minShardsNum <= i) {
                     return i;
                 }

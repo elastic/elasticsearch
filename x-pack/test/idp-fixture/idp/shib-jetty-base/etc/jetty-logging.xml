@@ -1,0 +1,33 @@
+<?xml version="1.0"?>
+<!DOCTYPE Configure PUBLIC "-//Jetty//Configure//EN" "http://www.eclipse.org/jetty/configure_9_3.dtd">
+
+<!-- =============================================================== -->
+<!-- Configure stderr and stdout to a Jetty rollover log file        -->
+<!-- this configuration file should be used in combination with      -->
+<!-- other configuration files.  e.g.                                -->
+<!--    java -jar start.jar etc/jetty-logging.xml                    -->
+<!-- =============================================================== -->
+<Configure id="logging" class="org.eclipse.jetty.util.log.Log">
+<!-- Logging sent to Console for "docker logs" processing
+    <New id="ServerLog" class="java.io.PrintStream">
+      <Arg>
+        <New class="org.eclipse.jetty.util.RolloverFileOutputStream">
+          <Arg><Property name="jetty.logging.dir" deprecated="jetty.logs" default="./logs"/>/yyyy_mm_dd.stderrout.log</Arg>
+          <Arg type="boolean"><Property name="jetty.logging.append" default="false"/></Arg>
+          <Arg type="int"><Property name="jetty.logging.retainDays" default="90"/></Arg>
+          <Arg>
+              <Call class="java.util.TimeZone" name="getTimeZone"><Arg><Property name="jetty.logging.timezone" default="GMT"/></Arg></Call>
+          </Arg>
+          <Get id="ServerLogName" name="datedFilename"/>
+        </New>
+      </Arg>
+    </New>
+
+    <Get name="rootLogger">
+      <Call name="info"><Arg>Redirecting stderr/stdout to <Ref refid="ServerLogName"/></Arg></Call>
+    </Get>
+    <Call class="java.lang.System" name="setErr"><Arg><Ref refid="ServerLog"/></Arg></Call>
+    <Call class="java.lang.System" name="setOut"><Arg><Ref refid="ServerLog"/></Arg></Call>
+-->
+</Configure>
+

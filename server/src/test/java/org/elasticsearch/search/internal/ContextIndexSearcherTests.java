@@ -16,6 +16,7 @@ import org.apache.lucene.document.IntPoint;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.FilterDirectoryReader;
+import org.apache.lucene.index.FilterLeafReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
@@ -24,6 +25,7 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.PostingsEnum;
 import org.apache.lucene.index.Term;
+import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.BulkScorer;
@@ -268,6 +270,43 @@ public class ContextIndexSearcherTests extends ESTestCase {
         assertEquals(3f, topDocs.scoreDocs[0].score, 0);
 
         IOUtils.close(reader, w, dir);
+    }
+
+    public void testExitableTermsMinAndMax() throws IOException {
+        Directory dir = newDirectory();
+        IndexWriter w = new IndexWriter(dir, newIndexWriterConfig(null));
+        Document doc = new Document();
+        StringField fooField = new StringField("foo", "bar", Field.Store.NO);
+        doc.add(fooField);
+        w.addDocument(doc);
+        w.flush();
+
+        DirectoryReader directoryReader = DirectoryReader.open(w);
+        for (LeafReaderContext lfc : directoryReader.leaves()) {
+            Terms terms = lfc.reader().terms("foo");
+            FilterLeafReader.FilterTerms filterTerms = new ExitableTerms(terms, new ExitableDirectoryReader.QueryCancellation() {
+                @Override
+                public boolean isEnabled() {
+                    return false;
+                }
+
+                @Override
+                public void checkCancelled() {
+
+                }
+            }) {
+                @Override
+                public TermsEnum iterator() {
+                    fail("Retrieving min and max should retrieve values from block tree instead of iterating");
+                    return null;
+                }
+            };
+            assertEquals("bar", filterTerms.getMin().utf8ToString());
+            assertEquals("bar", filterTerms.getMax().utf8ToString());
+        }
+        w.close();
+        directoryReader.close();
+        dir.close();
     }
 
     private SparseFixedBitSet query(LeafReaderContext leaf, String field, String value) throws IOException {

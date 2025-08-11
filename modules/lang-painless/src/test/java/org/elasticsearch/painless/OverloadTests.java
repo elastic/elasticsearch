@@ -14,20 +14,18 @@ public class OverloadTests extends ScriptTestCase {
     public void testMethod() {
         // assertEquals(2, exec("return 'abc123abc'.indexOf('c');"));
         // assertEquals(8, exec("return 'abc123abc'.indexOf('c', 3);"));
-        IllegalArgumentException expected = expectScriptThrows(
-            IllegalArgumentException.class,
-            () -> { exec("return 'abc123abc'.indexOf('c', 3, 'bogus');"); }
-        );
+        IllegalArgumentException expected = expectScriptThrows(IllegalArgumentException.class, () -> {
+            exec("return 'abc123abc'.indexOf('c', 3, 'bogus');");
+        });
         assertTrue(expected.getMessage().contains("[java.lang.String, indexOf/3]"));
     }
 
     public void testMethodDynamic() {
         assertEquals(2, exec("def x = 'abc123abc'; return x.indexOf('c');"));
         assertEquals(8, exec("def x = 'abc123abc'; return x.indexOf('c', 3);"));
-        IllegalArgumentException expected = expectScriptThrows(
-            IllegalArgumentException.class,
-            () -> { exec("def x = 'abc123abc'; return x.indexOf('c', 3, 'bogus');"); }
-        );
+        IllegalArgumentException expected = expectScriptThrows(IllegalArgumentException.class, () -> {
+            exec("def x = 'abc123abc'; return x.indexOf('c', 3, 'bogus');");
+        });
         assertTrue(expected.getMessage().contains("dynamic method [java.lang.String, indexOf/3] not found"));
     }
 

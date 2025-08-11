@@ -1,19 +1,48 @@
+import org.elasticsearch.gradle.internal.toolchain.OracleOpenJdkToolchainResolver
+import org.elasticsearch.gradle.internal.toolchain.ArchivedOracleJdkToolchainResolver
+import org.elasticsearch.gradle.internal.toolchain.AdoptiumJdkToolchainResolver
+
 pluginManagement {
   repositories {
     mavenCentral()
     gradlePluginPortal()
   }
+
+    includeBuild "build-conventions"
+  includeBuild "build-tools"
+  includeBuild "build-tools-internal"
 }
 
 plugins {
-  id "com.gradle.enterprise" version "3.7.1"
+  id "com.gradle.develocity" version "3.18.1"
+  id 'elasticsearch.java-toolchain'
 }
 
-includeBuild "build-conventions"
-includeBuild "build-tools"
-includeBuild "build-tools-internal"
-
 rootProject.name = "elasticsearch"
+
+dependencyResolutionManagement {
+  versionCatalogs {
+    buildLibs {
+      from(files("gradle/build.versions.toml"))
+    }
+  }
+}
+
+toolchainManagement {
+  jvm {
+    javaRepositories {
+      repository('bundledOracleOpendJdk') {
+        resolverClass = OracleOpenJdkToolchainResolver
+      }
+      repository('adoptiumJdks') {
+        resolverClass = AdoptiumJdkToolchainResolver
+      }
+      repository('archivedOracleJdks') {
+        resolverClass = ArchivedOracleJdkToolchainResolver
+      }
+    }
+  }
+}
 
 List projects = [
   'rest-api-spec',
@@ -39,7 +68,6 @@ List projects = [
   'distribution:docker',
   'distribution:docker:docker-aarch64-export',
   'distribution:docker:docker-export',
-  'distribution:docker:ironbank-docker-aarch64-export',
   'distribution:docker:ironbank-docker-export',
   'distribution:docker:ubi-docker-aarch64-export',
   'distribution:docker:ubi-docker-export',
@@ -59,7 +87,6 @@ List projects = [
   'distribution:tools:keystore-cli',
   'distribution:tools:geoip-cli',
   'server',
-  'server:cli',
   'test:framework',
   'test:fixtures:azure-fixture',
   'test:fixtures:gcs-fixture',
@@ -72,7 +99,8 @@ List projects = [
   'test:fixtures:geoip-fixture',
   'test:fixtures:url-fixture',
   'test:fixtures:nginx-fixture',
-  'test:logger-usage'
+  'test:logger-usage',
+  'test:test-clusters'
 ]
 
 /**

@@ -66,7 +66,9 @@ public class SnapshotLifecycleMetadata implements XPackMetadataCustom {
         PARSER.declareNamedObjects(
             ConstructingObjectParser.constructorArg(),
             (p, c, n) -> SnapshotLifecyclePolicyMetadata.parse(p, n),
-            v -> { throw new IllegalArgumentException("ordered " + POLICIES_FIELD.getPreferredName() + " are not supported"); },
+            v -> {
+                throw new IllegalArgumentException("ordered " + POLICIES_FIELD.getPreferredName() + " are not supported");
+            },
             POLICIES_FIELD
         );
         PARSER.declareString(ConstructingObjectParser.constructorArg(), OPERATION_MODE_FIELD);

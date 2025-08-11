@@ -25,12 +25,9 @@ public class CancellableLdapRunnableTests extends ESTestCase {
 
     public void testTimingOutARunnable() {
         AtomicReference<Exception> exceptionAtomicReference = new AtomicReference<>();
-        final CancellableLdapRunnable<Object> runnable = new CancellableLdapRunnable<>(
-            ActionListener.wrap(user -> { throw new AssertionError("onResponse should not be called"); }, exceptionAtomicReference::set),
-            e -> null,
-            () -> { throw new AssertionError("runnable should not be executed"); },
-            logger
-        );
+        final CancellableLdapRunnable<Object> runnable = new CancellableLdapRunnable<>(ActionListener.wrap(user -> {
+            throw new AssertionError("onResponse should not be called");
+        }, exceptionAtomicReference::set), e -> null, () -> { throw new AssertionError("runnable should not be executed"); }, logger);
 
         runnable.maybeTimeout();
         runnable.run();
@@ -61,12 +58,9 @@ public class CancellableLdapRunnableTests extends ESTestCase {
 
     public void testRejectingExecution() {
         AtomicReference<Exception> exceptionAtomicReference = new AtomicReference<>();
-        final CancellableLdapRunnable<Object> runnable = new CancellableLdapRunnable<>(
-            ActionListener.wrap(user -> { throw new AssertionError("onResponse should not be called"); }, exceptionAtomicReference::set),
-            e -> null,
-            () -> { throw new AssertionError("runnable should not be executed"); },
-            logger
-        );
+        final CancellableLdapRunnable<Object> runnable = new CancellableLdapRunnable<>(ActionListener.wrap(user -> {
+            throw new AssertionError("onResponse should not be called");
+        }, exceptionAtomicReference::set), e -> null, () -> { throw new AssertionError("runnable should not be executed"); }, logger);
 
         final Exception e = new RuntimeException("foo");
         runnable.onRejection(e);
@@ -79,10 +73,9 @@ public class CancellableLdapRunnableTests extends ESTestCase {
         final CountDownLatch listenerCalledLatch = new CountDownLatch(1);
         final CountDownLatch timeoutCalledLatch = new CountDownLatch(1);
         final CountDownLatch runningLatch = new CountDownLatch(1);
-        final ActionListener<User> listener = ActionListener.wrap(
-            user -> { listenerCalledLatch.countDown(); },
-            e -> { throw new AssertionError("onFailure should not be executed"); }
-        );
+        final ActionListener<User> listener = ActionListener.wrap(user -> { listenerCalledLatch.countDown(); }, e -> {
+            throw new AssertionError("onFailure should not be executed");
+        });
         final CancellableLdapRunnable<User> runnable = new CancellableLdapRunnable<>(listener, e -> null, () -> {
             runningLatch.countDown();
             try {
@@ -104,17 +97,13 @@ public class CancellableLdapRunnableTests extends ESTestCase {
 
     public void testExceptionInRunnable() {
         AtomicReference<String> resultRef = new AtomicReference<>();
-        final ActionListener<String> listener = ActionListener.wrap(
-            resultRef::set,
-            e -> { throw new AssertionError("onFailure should not be executed"); }
-        );
+        final ActionListener<String> listener = ActionListener.wrap(resultRef::set, e -> {
+            throw new AssertionError("onFailure should not be executed");
+        });
         String defaultValue = randomAlphaOfLengthBetween(2, 10);
-        final CancellableLdapRunnable<String> runnable = new CancellableLdapRunnable<>(
-            listener,
-            e -> defaultValue,
-            () -> { throw new RuntimeException("runnable intentionally failed"); },
-            logger
-        );
+        final CancellableLdapRunnable<String> runnable = new CancellableLdapRunnable<>(listener, e -> defaultValue, () -> {
+            throw new RuntimeException("runnable intentionally failed");
+        }, logger);
 
         runnable.run();
         assertThat(resultRef.get(), equalTo(defaultValue));

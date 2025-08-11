@@ -369,7 +369,7 @@ public class MasterService extends AbstractLifecycleComponent {
                 notificationMillis
             );
         } else {
-            assert false : exception;
+            assert publicationMayFail() : exception;
             clusterStateUpdateStatsTracker.onPublicationFailure(threadPool.rawRelativeTimeInMillis(), clusterStatePublicationEvent, 0L);
             handleException(
                 clusterStatePublicationEvent.getSummary(),
@@ -378,6 +378,10 @@ public class MasterService extends AbstractLifecycleComponent {
                 exception
             );
         }
+    }
+
+    protected boolean publicationMayFail() {
+        return false;
     }
 
     private void handleException(String summary, long startTimeMillis, ClusterState newClusterState, Exception e) {
@@ -868,11 +872,9 @@ public class MasterService extends AbstractLifecycleComponent {
             );
         if (Assertions.ENABLED) {
             ClusterTasksResult<Object> finalClusterTasksResult = clusterTasksResult;
-            taskInputs.updateTasks.forEach(
-                updateTask -> {
-                    assert finalClusterTasksResult.executionResults.containsKey(updateTask.task) : "missing task result for " + updateTask;
-                }
-            );
+            taskInputs.updateTasks.forEach(updateTask -> {
+                assert finalClusterTasksResult.executionResults.containsKey(updateTask.task) : "missing task result for " + updateTask;
+            });
         }
 
         return clusterTasksResult;

@@ -115,7 +115,7 @@ Example usage configuring `@timestamp` as the sort key:
 
 [source,js]
 ----
-"point": {
+"sort": {
   "field": "@timestamp"
 }
 ----

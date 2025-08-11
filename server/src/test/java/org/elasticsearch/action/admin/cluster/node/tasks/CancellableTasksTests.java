@@ -195,6 +195,19 @@ public class CancellableTasksTests extends TaskManagerTestCase {
         }
     }
 
+    /**
+     * Simulates a cancellation listener and sets a flag to true if the task was cancelled
+     */
+    static class CancellableTestCancellationListener implements CancellableTask.CancellationListener {
+
+        final AtomicBoolean calledUponCancellation = new AtomicBoolean(false);
+
+        @Override
+        public void onCancelled() {
+            calledUponCancellation.set(true);
+        }
+    }
+
     private Task startCancellableTestNodesAction(
         boolean waitForActionToStart,
         int runNodesCount,
@@ -279,6 +292,10 @@ public class CancellableTasksTests extends TaskManagerTestCase {
             }
         );
 
+        assert mainTask instanceof CancellableTask;
+        CancellableTestCancellationListener listenerAddedBeforeCancellation = new CancellableTestCancellationListener();
+        ((CancellableTask) mainTask).addListener(listenerAddedBeforeCancellation);
+
         // Cancel main task
         CancelTasksRequest request = new CancelTasksRequest();
         request.setReason("Testing Cancellation");
@@ -289,7 +306,7 @@ public class CancellableTasksTests extends TaskManagerTestCase {
             request
         );
 
-        // Awaiting for the main task to finish
+        // Waiting for the main task to finish
         responseLatch.await();
 
         if (response.getTasks().size() == 0) {
@@ -311,6 +328,13 @@ public class CancellableTasksTests extends TaskManagerTestCase {
             for (TaskInfo taskInfo : response.getTasks()) {
                 assertTrue(taskInfo.isCancellable());
             }
+
+            CancellableTestCancellationListener listenerAddedAfterCancellation = new CancellableTestCancellationListener();
+            ((CancellableTask) mainTask).addListener(listenerAddedAfterCancellation);
+
+            // Verify both cancellation listeners have been notified
+            assertTrue(listenerAddedBeforeCancellation.calledUponCancellation.get());
+            assertTrue(listenerAddedAfterCancellation.calledUponCancellation.get());
         }
 
         // Make sure that tasks are no longer running

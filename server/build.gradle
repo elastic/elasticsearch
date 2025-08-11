@@ -9,7 +9,6 @@ import org.elasticsearch.gradle.internal.info.BuildParams
  */
 
 apply plugin: 'elasticsearch.build'
-apply plugin: 'nebula.optional-base'
 apply plugin: 'elasticsearch.publish'
 apply plugin: 'elasticsearch.internal-cluster-test'
 
@@ -21,7 +20,9 @@ publishing {
   }
 }
 
-archivesBaseName = 'elasticsearch'
+base {
+  archivesName = 'elasticsearch'
+}
 
 // we want to keep the JDKs in our IDEs set to JDK 8 until minimum JDK is bumped to 11 so we do not include this source set in our IDEs
 if (!isEclipse) {
@@ -102,7 +103,7 @@ dependencies {
 
   // logging
   api "org.apache.logging.log4j:log4j-api:${versions.log4j}"
-  api "org.apache.logging.log4j:log4j-core:${versions.log4j}", optional
+  api "org.apache.logging.log4j:log4j-core:${versions.log4j}"
 
   api "net.java.dev.jna:jna:${versions.jna}"
 
@@ -123,17 +124,10 @@ tasks.named("forbiddenPatterns").configure {
     exclude '**/*.st'
 }
 
-tasks.named("testingConventions").configure {
-    naming.clear()
-    naming {
-        Tests {
-            baseClass "org.apache.lucene.util.LuceneTestCase"
-        }
-        IT {
-            baseClass "org.elasticsearch.test.ESIntegTestCase"
-            baseClass "org.elasticsearch.test.ESSingleNodeTestCase"
-        }
-    }
+tasks.named('internalClusterTestTestingConventions').configure {
+    baseClass "org.elasticsearch.test.AbstractMultiClustersTestCase"
+    baseClass "org.elasticsearch.test.ESIntegTestCase"
+    baseClass "org.elasticsearch.test.ESSingleNodeTestCase"
 }
 
 def generateModulesList = tasks.register("generateModulesList") {
@@ -173,7 +167,6 @@ tasks.named("thirdPartyAudit").configure {
             'com.fasterxml.jackson.databind.ObjectMapper',
 
             // from log4j
-            'com.conversantmedia.util.concurrent.DisruptorBlockingQueue',
             'com.conversantmedia.util.concurrent.SpinPolicy',
             'com.fasterxml.jackson.annotation.JsonInclude$Include',
             'com.fasterxml.jackson.databind.DeserializationContext',
@@ -196,8 +189,6 @@ tasks.named("thirdPartyAudit").configure {
             'com.fasterxml.jackson.dataformat.xml.util.DefaultXmlPrettyPrinter',
             'org.fusesource.jansi.Ansi',
             'org.fusesource.jansi.AnsiRenderer$Code',
-            'com.lmax.disruptor.BlockingWaitStrategy',
-            'com.lmax.disruptor.BusySpinWaitStrategy',
             'com.lmax.disruptor.EventFactory',
             'com.lmax.disruptor.EventTranslator',
             'com.lmax.disruptor.EventTranslatorTwoArg',
@@ -207,10 +198,7 @@ tasks.named("thirdPartyAudit").configure {
             'com.lmax.disruptor.RingBuffer',
             'com.lmax.disruptor.Sequence',
             'com.lmax.disruptor.SequenceReportingEventHandler',
-            'com.lmax.disruptor.SleepingWaitStrategy',
-            'com.lmax.disruptor.TimeoutBlockingWaitStrategy',
             'com.lmax.disruptor.WaitStrategy',
-            'com.lmax.disruptor.YieldingWaitStrategy',
             'com.lmax.disruptor.dsl.Disruptor',
             'com.lmax.disruptor.dsl.ProducerType',
             'javax.jms.Connection',
@@ -229,23 +217,17 @@ tasks.named("thirdPartyAudit").configure {
             'javax.mail.Transport',
             'javax.mail.internet.InternetAddress',
             'javax.mail.internet.InternetHeaders',
-            'javax.mail.internet.MimeBodyPart',
             'javax.mail.internet.MimeMessage',
             'javax.mail.internet.MimeMultipart',
             'javax.mail.internet.MimeUtility',
-            'javax.mail.util.ByteArrayDataSource',
             'org.apache.commons.compress.compressors.CompressorStreamFactory',
             'org.apache.commons.compress.utils.IOUtils',
             'org.apache.commons.csv.CSVFormat',
             'org.apache.commons.csv.QuoteMode',
-            'org.apache.kafka.clients.producer.KafkaProducer',
             'org.apache.kafka.clients.producer.Producer',
-            'org.apache.kafka.clients.producer.ProducerRecord',
             'org.apache.kafka.clients.producer.RecordMetadata',
             'org.codehaus.stax2.XMLStreamWriter2',
             'org.jctools.queues.MpscArrayQueue',
-            'org.osgi.framework.AdaptPermission',
-            'org.osgi.framework.AdminPermission',
             'org.osgi.framework.Bundle',
             'org.osgi.framework.BundleActivator',
             'org.osgi.framework.BundleContext',
@@ -268,12 +250,12 @@ tasks.named("thirdPartyAudit").configure {
 
 tasks.named("dependencyLicenses").configure {
     mapping from: /lucene-.*/, to: 'lucene'
-    dependencies = project.configurations.runtimeClasspath.fileCollection {
-        it.group.startsWith('org.elasticsearch') == false ||
-                // keep the following org.elasticsearch jars in
-                (it.name == 'jna' ||
-                        it.name == 'securesm')
-    }
+
+    configureDependencies(
+      project.configurations.runtimeClasspath, project.configurations.resolveableCompileOnly, identifier -> {
+      return identifier instanceof ModuleComponentIdentifier
+        (identifier.moduleIdentifier.name == 'jna' || identifier.moduleIdentifier.name == 'securesm')
+    })
 }
 
 tasks.named("licenseHeaders").configure {
@@ -327,5 +309,6 @@ tasks.named('splitPackagesAudit').configure {
     'org.elasticsearch.cli.KeyStoreAwareCommand',
     'org.elasticsearch.cli.LoggingAwareCommand',
     'org.elasticsearch.cli.LoggingAwareMultiCommand'
-
 }
+
+tasks.withType(Checkstyle.class).configureEach { t -> t.getMaxHeapSize().set("2g") }

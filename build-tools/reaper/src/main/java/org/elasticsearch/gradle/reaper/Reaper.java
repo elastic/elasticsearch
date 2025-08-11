@@ -57,6 +57,8 @@ public class Reaper implements Closeable {
         try (Reaper reaper = new Reaper(inputDir)) {
             System.in.read();
             reaper.reap();
+        } catch (Throwable t) {
+            logFailure("Unexpected error occurred", t);
         }
     }
 
@@ -83,17 +85,17 @@ public class Reaper implements Closeable {
                     delete(inputFile);
                 }
             }
-        } catch (Exception e) {
+        } catch (Throwable e) {
+            failed = true;
             logFailure("Failed to reap inputs", e);
         }
     }
 
-    private void logFailure(String message, Exception e) {
+    private static void logFailure(String message, Throwable e) {
         System.err.println(message);
         if (e != null) {
             e.printStackTrace(System.err);
         }
-        failed = true;
     }
 
     private void delete(Path toDelete) {

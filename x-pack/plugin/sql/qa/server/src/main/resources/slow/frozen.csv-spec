@@ -8,14 +8,14 @@ showTables
 SHOW TABLES INCLUDE FROZEN;
 
  catalog       |       name        | type  |  kind
-integTest      |empty_mapping      |TABLE  |INDEX
-integTest      |frozen_emp         |TABLE  |FROZEN INDEX
-integTest      |logs               |TABLE  |INDEX
-integTest      |logs_nanos         |TABLE  |INDEX
-integTest      |test_alias         |VIEW   |ALIAS
-integTest      |test_alias_emp     |VIEW   |ALIAS
-integTest      |test_emp           |TABLE  |INDEX
-integTest      |test_emp_copy      |TABLE  |INDEX
+javaRestTest      |empty_mapping      |TABLE  |INDEX
+javaRestTest      |frozen_emp         |TABLE  |FROZEN INDEX
+javaRestTest      |logs               |TABLE  |INDEX
+javaRestTest      |logs_nanos         |TABLE  |INDEX
+javaRestTest      |test_alias         |VIEW   |ALIAS
+javaRestTest      |test_alias_emp     |VIEW   |ALIAS
+javaRestTest      |test_emp           |TABLE  |INDEX
+javaRestTest      |test_emp_copy      |TABLE  |INDEX
 ;
 
 columnFromFrozen

@@ -152,7 +152,7 @@ public class Verifier {
 
                 checkFilterConditionType(p, localFailures);
                 checkJoinKeyTypes(p, localFailures);
-                checkRemoteClusterOnSameVersion(p, versionIncompatibleClusters, localFailures);
+                checkRemoteClusterVersion(p, versionIncompatibleClusters, localFailures);
                 // mark the plan as analyzed
                 // if everything checks out
                 if (failures.isEmpty()) {
@@ -294,7 +294,7 @@ public class Verifier {
         }
     }
 
-    private void checkRemoteClusterOnSameVersion(
+    private void checkRemoteClusterVersion(
         LogicalPlan plan,
         Function<String, Collection<String>> versionIncompatibleClusters,
         Collection<Failure> localFailures
@@ -306,7 +306,7 @@ public class Verifier {
                 localFailures.add(
                     fail(
                         esRelation,
-                        "the following remote cluster{} incompatible, being on a version different than local " + "cluster's [{}]: {}",
+                        "the following remote cluster{} incompatible, being on a version incompatible with local cluster's [{}]: {}",
                         incompatibleClusters.size() > 1 ? "s are" : " is",
                         Version.CURRENT,
                         incompatibleClusters

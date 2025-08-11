@@ -7,8 +7,9 @@ import de.thetaphi.forbiddenapis.gradle.CheckForbiddenApis
  * in compliance with, at your election, the Elastic License 2.0 or the Server
  * Side Public License, v 1.
  */
-apply plugin: 'elasticsearch.internal-yaml-rest-test'
+apply plugin: 'elasticsearch.legacy-yaml-rest-test'
 apply plugin: 'elasticsearch.internal-cluster-test'
+apply plugin: 'elasticsearch.publish'
 
 esplugin {
   description 'The ICU Analysis plugin integrates the Lucene ICU module into Elasticsearch, adding ICU-related analysis components.'

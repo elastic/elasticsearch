@@ -37,7 +37,7 @@ import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.jdk.JarHell;
 import org.elasticsearch.plugins.Platforms;
-import org.elasticsearch.plugins.PluginInfo;
+import org.elasticsearch.plugins.PluginDescriptor;
 import org.elasticsearch.plugins.PluginsService;
 
 import java.io.BufferedReader;
@@ -96,7 +96,7 @@ import static org.elasticsearch.cli.Terminal.Verbosity.VERBOSE;
  * </ul>
  * <p>
  * Plugins are packaged as zip files. Each packaged plugin must contain a plugin properties file.
- * See {@link PluginInfo}.
+ * See {@link PluginDescriptor}.
  * <p>
  * The installation process first extracts the plugin files into a temporary
  * directory in order to verify the plugin satisfies the following requirements:
@@ -213,13 +213,13 @@ public class InstallPluginAction implements Closeable {
     }
 
     // pkg private for testing
-    public void execute(List<PluginDescriptor> plugins) throws Exception {
+    public void execute(List<InstallablePlugin> plugins) throws Exception {
         if (plugins.isEmpty()) {
             throw new UserException(ExitCodes.USAGE, "at least one plugin id is required");
         }
 
         final Set<String> uniquePluginIds = new HashSet<>();
-        for (final PluginDescriptor plugin : plugins) {
+        for (final InstallablePlugin plugin : plugins) {
             if (uniquePluginIds.add(plugin.getId()) == false) {
                 throw new UserException(ExitCodes.USAGE, "duplicate plugin id [" + plugin.getId() + "]");
             }
@@ -228,7 +228,7 @@ public class InstallPluginAction implements Closeable {
         final String logPrefix = terminal.isHeadless() ? "" : "-> ";
 
         final Map<String, List<Path>> deleteOnFailures = new LinkedHashMap<>();
-        for (final PluginDescriptor plugin : plugins) {
+        for (final InstallablePlugin plugin : plugins) {
             final String pluginId = plugin.getId();
             terminal.println(logPrefix + "Installing " + pluginId);
             try {
@@ -242,11 +242,11 @@ public class InstallPluginAction implements Closeable {
                 final Path pluginZip = download(plugin, env.tmpFile());
                 final Path extractedZip = unzip(pluginZip, env.pluginsFile());
                 deleteOnFailure.add(extractedZip);
-                final PluginInfo pluginInfo = installPlugin(plugin, extractedZip, deleteOnFailure);
-                terminal.println(logPrefix + "Installed " + pluginInfo.getName());
+                final PluginDescriptor pluginDescriptor = installPlugin(plugin, extractedZip, deleteOnFailure);
+                terminal.println(logPrefix + "Installed " + pluginDescriptor.getName());
                 // swap the entry by plugin id for one with the installed plugin name, it gives a cleaner error message for URL installs
                 deleteOnFailures.remove(pluginId);
-                deleteOnFailures.put(pluginInfo.getName(), deleteOnFailure);
+                deleteOnFailures.put(pluginDescriptor.getName(), deleteOnFailure);
             } catch (final Exception installProblem) {
                 terminal.println(logPrefix + "Failed installing " + pluginId);
                 for (final Map.Entry<String, List<Path>> deleteOnFailureEntry : deleteOnFailures.entrySet()) {
@@ -296,7 +296,7 @@ public class InstallPluginAction implements Closeable {
     /**
      * Downloads the plugin and returns the file it was downloaded to.
      */
-    private Path download(PluginDescriptor plugin, Path tmpDir) throws Exception {
+    private Path download(InstallablePlugin plugin, Path tmpDir) throws Exception {
         final String pluginId = plugin.getId();
 
         final String logPrefix = terminal.isHeadless() ? "" : "-> ";
@@ -823,8 +823,8 @@ public class InstallPluginAction implements Closeable {
     /**
      * Load information about the plugin, and verify it can be installed with no errors.
      */
-    private PluginInfo loadPluginInfo(Path pluginRoot) throws Exception {
-        final PluginInfo info = PluginInfo.readFromProperties(pluginRoot);
+    private PluginDescriptor loadPluginInfo(Path pluginRoot) throws Exception {
+        final PluginDescriptor info = PluginDescriptor.readFromProperties(pluginRoot);
         if (info.hasNativeController()) {
             throw new IllegalStateException("plugins can not have native controllers");
         }
@@ -852,7 +852,7 @@ public class InstallPluginAction implements Closeable {
     /**
      * check a candidate plugin for jar hell before installing it
      */
-    void jarHellCheck(PluginInfo candidateInfo, Path candidateDir, Path pluginsDir, Path modulesDir) throws Exception {
+    void jarHellCheck(PluginDescriptor candidateInfo, Path candidateDir, Path pluginsDir, Path modulesDir) throws Exception {
         // create list of current jars in classpath
         final Set<URL> classpath = JarHell.parseClassPath().stream().filter(url -> {
             try {
@@ -883,8 +883,8 @@ public class InstallPluginAction implements Closeable {
      * Installs the plugin from {@code tmpRoot} into the plugins dir.
      * If the plugin has a bin dir and/or a config dir, those are moved.
      */
-    private PluginInfo installPlugin(PluginDescriptor descriptor, Path tmpRoot, List<Path> deleteOnFailure) throws Exception {
-        final PluginInfo info = loadPluginInfo(tmpRoot);
+    private PluginDescriptor installPlugin(InstallablePlugin descriptor, Path tmpRoot, List<Path> deleteOnFailure) throws Exception {
+        final PluginDescriptor info = loadPluginInfo(tmpRoot);
         checkCanInstallationProceed(terminal, Build.CURRENT.flavor(), info);
         PluginPolicyInfo pluginPolicy = PolicyUtil.getPluginPolicyInfo(tmpRoot, env.tmpFile());
         if (pluginPolicy != null) {
@@ -919,8 +919,13 @@ public class InstallPluginAction implements Closeable {
     /**
      * Moves bin and config directories from the plugin if they exist
      */
-    private void installPluginSupportFiles(PluginInfo info, Path tmpRoot, Path destBinDir, Path destConfigDir, List<Path> deleteOnFailure)
-        throws Exception {
+    private void installPluginSupportFiles(
+        PluginDescriptor info,
+        Path tmpRoot,
+        Path destBinDir,
+        Path destConfigDir,
+        List<Path> deleteOnFailure
+    ) throws Exception {
         Path tmpBinDir = tmpRoot.resolve("bin");
         if (Files.exists(tmpBinDir)) {
             deleteOnFailure.add(destBinDir);
@@ -965,7 +970,7 @@ public class InstallPluginAction implements Closeable {
     /**
      * Copies the files from {@code tmpBinDir} into {@code destBinDir}, along with permissions from dest dirs parent.
      */
-    private void installBin(PluginInfo info, Path tmpBinDir, Path destBinDir) throws Exception {
+    private void installBin(PluginDescriptor info, Path tmpBinDir, Path destBinDir) throws Exception {
         if (Files.isDirectory(tmpBinDir) == false) {
             throw new UserException(PLUGIN_MALFORMED, "bin in plugin " + info.getName() + " is not a directory");
         }
@@ -993,7 +998,7 @@ public class InstallPluginAction implements Closeable {
      * Copies the files from {@code tmpConfigDir} into {@code destConfigDir}.
      * Any files existing in both the source and destination will be skipped.
      */
-    private void installConfig(PluginInfo info, Path tmpConfigDir, Path destConfigDir) throws Exception {
+    private void installConfig(PluginDescriptor info, Path tmpConfigDir, Path destConfigDir) throws Exception {
         if (Files.isDirectory(tmpConfigDir) == false) {
             throw new UserException(PLUGIN_MALFORMED, "config in plugin " + info.getName() + " is not a directory");
         }
@@ -1055,7 +1060,7 @@ public class InstallPluginAction implements Closeable {
         IOUtils.rm(pathsToDeleteOnShutdown.toArray(new Path[0]));
     }
 
-    public static void checkCanInstallationProceed(Terminal terminal, Build.Flavor flavor, PluginInfo info) throws Exception {
+    public static void checkCanInstallationProceed(Terminal terminal, Build.Flavor flavor, PluginDescriptor info) throws Exception {
         if (info.isLicensed() == false) {
             return;
         }

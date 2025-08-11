@@ -269,7 +269,7 @@ public class MockRepository extends FsRepository {
         blockAndFailOnWriteSnapFile = true;
     }
 
-    public void setBlockAndOnWriteShardLevelSnapFiles(String indexId) {
+    public void setBlockOnShardLevelSnapFiles(String indexId) {
         blockedIndexId = indexId;
     }
 

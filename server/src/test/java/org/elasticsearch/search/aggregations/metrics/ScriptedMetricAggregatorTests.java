@@ -557,12 +557,9 @@ public class ScriptedMetricAggregatorTests extends AggregatorTestCase {
             .mapScript(MAP_SCRIPT)
             .combineScript(COMBINE_SCRIPT)
             .reduceScript(REDUCE_SCRIPT);
-        testCase(
-            aggregationBuilder,
-            new MatchAllDocsQuery(),
-            iw -> { iw.addDocument(new Document()); },
-            (InternalScriptedMetric r) -> { assertEquals(1, r.aggregation()); }
-        );
+        testCase(aggregationBuilder, new MatchAllDocsQuery(), iw -> { iw.addDocument(new Document()); }, (InternalScriptedMetric r) -> {
+            assertEquals(1, r.aggregation());
+        });
     }
 
     public void testAsSubAgg() throws IOException {

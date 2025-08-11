@@ -5,7 +5,7 @@
       update:
           index:            test_1
           type:             test
-          id:               1
+          id:               "1"
           body:
             doc:            { foo: bar }
             doc_as_upsert:  true
@@ -17,7 +17,7 @@
       update:
           index:            test_1
           type:             test
-          id:               1
+          id:               "1"
           body:
             doc:            { foo: bar }
             doc_as_upsert:  true
@@ -29,7 +29,7 @@
       update:
           index:            test_1
           type:             test
-          id:               1
+          id:               "1"
           body:
             doc:            { foo: bar }
             doc_as_upsert:  true
@@ -42,7 +42,7 @@
       update:
           index:            test_1
           type:             test
-          id:               1
+          id:               "1"
           body:
             doc:            { foo: baz }
             doc_as_upsert:  true

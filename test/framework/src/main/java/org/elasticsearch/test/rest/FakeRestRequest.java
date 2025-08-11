@@ -149,7 +149,7 @@ public class FakeRestRequest extends RestRequest {
 
         @Override
         public void sendResponse(HttpResponse response, ActionListener<Void> listener) {
-
+            listener.onResponse(null);
         }
 
         @Override

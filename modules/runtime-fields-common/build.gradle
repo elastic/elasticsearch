@@ -7,7 +7,7 @@
  */
 
 apply plugin: 'elasticsearch.validate-rest-spec'
-apply plugin: 'elasticsearch.internal-yaml-rest-test'
+apply plugin: 'elasticsearch.legacy-yaml-rest-test'
 
 esplugin {
   description 'Module for runtime fields features and extensions that have large dependencies'
@@ -20,6 +20,3 @@ dependencies {
   api project(':libs:elasticsearch-grok')
   api project(':libs:elasticsearch-dissect')
 }
-
-//this plugin is here only for the painless extension, there are no unit tests
-tasks.named("testingConventions").configure { enabled = false }

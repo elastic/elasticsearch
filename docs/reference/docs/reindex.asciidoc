@@ -1017,7 +1017,7 @@ ignored, only the host and port are used. For example:
 
 [source,yaml]
 --------------------------------------------------
-reindex.remote.whitelist: "otherhost:9200, another:9200, 127.0.10.*:9200, localhost:*"
+reindex.remote.whitelist: [otherhost:9200, another:9200, 127.0.10.*:9200, localhost:*"]
 --------------------------------------------------
 
 The list of allowed hosts must be configured on any nodes that will coordinate the reindex.

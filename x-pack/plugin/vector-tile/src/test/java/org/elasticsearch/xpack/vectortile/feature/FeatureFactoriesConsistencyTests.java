@@ -61,4 +61,27 @@ public class FeatureFactoriesConsistencyTests extends ESTestCase {
             assertArrayEquals(extent + "", b1, b2);
         }
     }
+
+    public void testDegeneratedRectangle() throws IOException {
+        int z = randomIntBetween(3, 10);
+        int x = randomIntBetween(1, (1 << z) - 1);
+        int y = randomIntBetween(1, (1 << z) - 1);
+        int extent = randomIntBetween(1 << 8, 1 << 14);
+        SimpleFeatureFactory builder = new SimpleFeatureFactory(z, x, y, extent);
+        FeatureFactory factory = new FeatureFactory(z, x, y, extent);
+        {
+            Rectangle r = GeoTileUtils.toBoundingBox(x, y, z);
+            // box is a point
+            byte[] b1 = builder.box(r.getMaxLon(), r.getMaxLon(), r.getMaxLat(), r.getMaxLat());
+            byte[] b2 = factory.getFeatures(new Rectangle(r.getMaxLon(), r.getMaxLon(), r.getMaxLat(), r.getMaxLat())).get(0);
+            assertArrayEquals(extent + "", b1, b2);
+        }
+        {
+            Rectangle r = GeoTileUtils.toBoundingBox(x, y, z);
+            // box is a line
+            byte[] b1 = builder.box(r.getMinLon(), r.getMinLon(), r.getMinLat(), r.getMaxLat());
+            byte[] b2 = factory.getFeatures(new Rectangle(r.getMinLon(), r.getMinLon(), r.getMaxLat(), r.getMinLat())).get(0);
+            assertArrayEquals(extent + "", b1, b2);
+        }
+    }
 }

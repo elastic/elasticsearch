@@ -6,11 +6,15 @@
  */
 import org.elasticsearch.gradle.internal.info.BuildParams
 
-apply plugin: 'elasticsearch.build'
+apply plugin: 'elasticsearch.java'
 
 dependencies {
-  api project(":plugins:repository-s3")
-  testImplementation project(":test:framework")
+  api(project(":plugins:repository-s3")) {
+    exclude group: 'com.fasterxml.jackson.core'
+  }
+  testImplementation(project(":test:framework")) {
+    exclude group: 'com.fasterxml.jackson.core'
+  }
   testImplementation project(':x-pack:snapshot-tool')
   testImplementation files(project(':x-pack:snapshot-tool').sourceSets.test.output)
 }
@@ -44,14 +48,14 @@ def s3ThirdPartyTest = tasks.register("s3ThirdPartyTest", Test) {
   systemProperty 'test.s3.account', s3PermanentAccessKey
   systemProperty 'test.s3.key', s3PermanentSecretKey
   systemProperty 'test.s3.bucket', s3PermanentBucket
+  classpath = sourceSets.test.runtimeClasspath
+  testClassesDirs = sourceSets.test.output.classesDirs
   nonInputProperties.systemProperty 'test.s3.base', s3PermanentBasePath ? s3PermanentBasePath + "_snapshot_tool_tests" + BuildParams.testSeed : 'base_path'
 }
 
 if (useS3Fixture) {
   apply plugin: 'elasticsearch.test.fixtures'
-  tasks.named("testingConventions").configure {
-    it.enabled = false
-  }
+
   testFixtures.useFixture(':test:fixtures:minio-fixture', "minio-fixture-for-snapshot-tool")
 
   def minioAddress = {

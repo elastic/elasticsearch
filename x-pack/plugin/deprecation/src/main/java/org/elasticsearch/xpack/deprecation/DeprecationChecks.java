@@ -47,7 +47,6 @@ public class DeprecationChecks {
         Arrays.asList(
             ClusterDeprecationChecks::checkUserAgentPipelines,
             ClusterDeprecationChecks::checkTemplatesWithTooManyFields,
-            ClusterDeprecationChecks::checkPollIntervalTooLow,
             ClusterDeprecationChecks::checkTemplatesWithFieldNamesDisabled,
             ClusterDeprecationChecks::checkTemplatesWithCustomAndMultipleTypes,
             ClusterDeprecationChecks::checkTemplatesWithChainedMultiFields,
@@ -58,10 +57,11 @@ public class DeprecationChecks {
             ClusterDeprecationChecks::checkComponentTemplatesWithBoostedFields,
             ClusterDeprecationChecks::checkTemplatesWithBoostFieldsInDynamicTemplates,
             ClusterDeprecationChecks::checkComponentTemplatesWithBoostedFieldsInDynamicTemplates,
-            ClusterDeprecationChecks::checkClusterRoutingAllocationIncludeRelocationsSetting,
             ClusterDeprecationChecks::checkGeoShapeTemplates,
             ClusterDeprecationChecks::checkSparseVectorTemplates,
-            ClusterDeprecationChecks::checkILMFreezeActions
+            ClusterDeprecationChecks::checkILMFreezeActions,
+            ClusterDeprecationChecks::emptyDataTierPreferenceCheck,
+            ClusterDeprecationChecks::checkShards
         )
     );
 
@@ -100,29 +100,33 @@ public class DeprecationChecks {
                 NodeDeprecationChecks::checkImplicitlyDisabledBasicRealms,
                 NodeDeprecationChecks::checkReservedPrefixedRealmNames,
                 (settings, pluginsAndModules, clusterState, licenseState) -> NodeDeprecationChecks.checkThreadPoolListenerQueueSize(
-                    settings
+                    settings,
+                    clusterState
                 ),
-                (settings, pluginsAndModules, clusterState, licenseState) -> NodeDeprecationChecks.checkThreadPoolListenerSize(settings),
+                (settings, pluginsAndModules, clusterState, licenseState) -> NodeDeprecationChecks.checkThreadPoolListenerSize(
+                    settings,
+                    clusterState
+                ),
                 NodeDeprecationChecks::checkClusterRemoteConnectSetting,
                 NodeDeprecationChecks::checkNodeLocalStorageSetting,
                 (settings, pluginsAndModules, clusterState, licenseState) -> NodeDeprecationChecks
-                    .checkNodeBasicLicenseFeatureEnabledSetting(settings, XPackSettings.ENRICH_ENABLED_SETTING),
+                    .checkNodeBasicLicenseFeatureEnabledSetting(settings, XPackSettings.ENRICH_ENABLED_SETTING, clusterState),
                 (settings, pluginsAndModules, clusterState, licenseState) -> NodeDeprecationChecks
-                    .checkNodeBasicLicenseFeatureEnabledSetting(settings, XPackSettings.FLATTENED_ENABLED),
+                    .checkNodeBasicLicenseFeatureEnabledSetting(settings, XPackSettings.FLATTENED_ENABLED, clusterState),
                 (settings, pluginsAndModules, clusterState, licenseState) -> NodeDeprecationChecks
-                    .checkNodeBasicLicenseFeatureEnabledSetting(settings, XPackSettings.INDEX_LIFECYCLE_ENABLED),
+                    .checkNodeBasicLicenseFeatureEnabledSetting(settings, XPackSettings.INDEX_LIFECYCLE_ENABLED, clusterState),
                 (settings, pluginsAndModules, clusterState, licenseState) -> NodeDeprecationChecks
-                    .checkNodeBasicLicenseFeatureEnabledSetting(settings, XPackSettings.MONITORING_ENABLED),
+                    .checkNodeBasicLicenseFeatureEnabledSetting(settings, XPackSettings.MONITORING_ENABLED, clusterState),
                 (settings, pluginsAndModules, clusterState, licenseState) -> NodeDeprecationChecks
-                    .checkNodeBasicLicenseFeatureEnabledSetting(settings, XPackSettings.ROLLUP_ENABLED),
+                    .checkNodeBasicLicenseFeatureEnabledSetting(settings, XPackSettings.ROLLUP_ENABLED, clusterState),
                 (settings, pluginsAndModules, clusterState, licenseState) -> NodeDeprecationChecks
-                    .checkNodeBasicLicenseFeatureEnabledSetting(settings, XPackSettings.SNAPSHOT_LIFECYCLE_ENABLED),
+                    .checkNodeBasicLicenseFeatureEnabledSetting(settings, XPackSettings.SNAPSHOT_LIFECYCLE_ENABLED, clusterState),
                 (settings, pluginsAndModules, clusterState, licenseState) -> NodeDeprecationChecks
-                    .checkNodeBasicLicenseFeatureEnabledSetting(settings, XPackSettings.SQL_ENABLED),
+                    .checkNodeBasicLicenseFeatureEnabledSetting(settings, XPackSettings.SQL_ENABLED, clusterState),
                 (settings, pluginsAndModules, clusterState, licenseState) -> NodeDeprecationChecks
-                    .checkNodeBasicLicenseFeatureEnabledSetting(settings, XPackSettings.TRANSFORM_ENABLED),
+                    .checkNodeBasicLicenseFeatureEnabledSetting(settings, XPackSettings.TRANSFORM_ENABLED, clusterState),
                 (settings, pluginsAndModules, clusterState, licenseState) -> NodeDeprecationChecks
-                    .checkNodeBasicLicenseFeatureEnabledSetting(settings, XPackSettings.VECTORS_ENABLED),
+                    .checkNodeBasicLicenseFeatureEnabledSetting(settings, XPackSettings.VECTORS_ENABLED, clusterState),
                 NodeDeprecationChecks::checkMultipleDataPaths,
                 NodeDeprecationChecks::checkDataPathsList,
                 NodeDeprecationChecks::checkBootstrapSystemCallFilterSetting,
@@ -236,7 +240,11 @@ public class DeprecationChecks {
                 NodeDeprecationChecks::checkXpackDataFrameEnabledSetting,
                 NodeDeprecationChecks::checkWatcherHistoryCleanerServiceSetting,
                 NodeDeprecationChecks::checkLifecyleStepMasterTimeoutSetting,
-                NodeDeprecationChecks::checkEqlEnabledSetting
+                NodeDeprecationChecks::checkEqlEnabledSetting,
+                NodeDeprecationChecks::checkNodeAttrData,
+                NodeDeprecationChecks::checkPollIntervalTooLow,
+                NodeDeprecationChecks::checkDLSForceTermsAggsToExcludeDeleteDocsEnabledSetting,
+                NodeDeprecationChecks::checkDLSErrorWhenValidateQueryWithRewrite
             )
         ).collect(Collectors.toList());
     }
@@ -244,12 +252,12 @@ public class DeprecationChecks {
     static List<BiFunction<ClusterState, IndexMetadata, DeprecationIssue>> INDEX_SETTINGS_CHECKS = Collections.unmodifiableList(
         Arrays.asList(
             (clusterState, indexMetadata) -> IndexDeprecationChecks.oldIndicesCheck(indexMetadata),
-            (clusterState, indexMetadata) -> IndexDeprecationChecks.tooManyFieldsCheck(indexMetadata),
             (clusterState, indexMetadata) -> IndexDeprecationChecks.chainedMultiFieldsCheck(indexMetadata),
             (clusterState, indexMetadata) -> IndexDeprecationChecks.chainedMultiFieldsDynamicTemplateCheck(indexMetadata),
             (clusterState, indexMetadata) -> IndexDeprecationChecks.boostMappingCheck(indexMetadata),
             (clusterState, indexMetadata) -> IndexDeprecationChecks.boostDynamicTemplateCheck(indexMetadata),
-            (clusterState, indexMetadata) -> IndexDeprecationChecks.deprecatedDateTimeFormat(indexMetadata),
+            (clusterState, indexMetadata) -> IndexDeprecationChecks.deprecatedJodaDateTimeFormat(indexMetadata),
+            (clusterState, indexMetadata) -> IndexDeprecationChecks.deprecatedCamelCasePattern(indexMetadata),
             (clusterState, indexMetadata) -> IndexDeprecationChecks.translogRetentionSettingCheck(indexMetadata),
             (clusterState, indexMetadata) -> IndexDeprecationChecks.fieldNamesDisabledCheck(indexMetadata),
             (clusterState, indexMetadata) -> IndexDeprecationChecks.checkIndexDataPath(indexMetadata),
@@ -263,8 +271,7 @@ public class DeprecationChecks {
             (clusterState, indexMetadata) -> IndexDeprecationChecks.checkGeoShapeMappings(indexMetadata),
             (clusterState, indexMetadata) -> IndexDeprecationChecks.frozenIndexSettingCheck(indexMetadata),
             (clusterState, indexMetadata) -> IndexDeprecationChecks.httpContentTypeRequiredSettingCheck(indexMetadata),
-            (clusterState, indexMetadata) -> IndexDeprecationChecks.mapperDyamicSettingCheck(indexMetadata),
-            IndexDeprecationChecks::emptyDataTierPreferenceCheck
+            (clusterState, indexMetadata) -> IndexDeprecationChecks.mapperDyamicSettingCheck(indexMetadata)
         )
     );
 

@@ -277,10 +277,9 @@ public class NumericHistogramAggregatorTests extends AggregatorTestCase {
             try (IndexReader reader = w.getReader()) {
                 IndexSearcher searcher = new IndexSearcher(reader);
 
-                expectThrows(
-                    IllegalArgumentException.class,
-                    () -> { searchAndReduce(searcher, new MatchAllDocsQuery(), aggBuilder, keywordField("field")); }
-                );
+                expectThrows(IllegalArgumentException.class, () -> {
+                    searchAndReduce(searcher, new MatchAllDocsQuery(), aggBuilder, keywordField("field"));
+                });
             }
         }
 

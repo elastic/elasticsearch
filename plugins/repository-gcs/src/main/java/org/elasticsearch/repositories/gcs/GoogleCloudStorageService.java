@@ -19,6 +19,7 @@ import com.google.cloud.ServiceOptions;
 import com.google.cloud.http.HttpTransportOptions;
 import com.google.cloud.storage.Storage;
 import com.google.cloud.storage.StorageOptions;
+import com.google.cloud.storage.StorageRetryStrategy;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -172,6 +173,7 @@ public class GoogleCloudStorageService {
         final HttpTransportOptions httpTransportOptions
     ) {
         final StorageOptions.Builder storageOptionsBuilder = StorageOptions.newBuilder()
+            .setStorageRetryStrategy(StorageRetryStrategy.getLegacyStorageRetryStrategy())
             .setTransportOptions(httpTransportOptions)
             .setHeaderProvider(() -> {
                 final MapBuilder<String, String> mapBuilder = MapBuilder.newMapBuilder();
@@ -188,7 +190,7 @@ public class GoogleCloudStorageService {
         } else {
             String defaultProjectId = null;
             try {
-                defaultProjectId = ServiceOptions.getDefaultProjectId();
+                defaultProjectId = SocketAccess.doPrivilegedIOException(ServiceOptions::getDefaultProjectId);
                 if (defaultProjectId != null) {
                     storageOptionsBuilder.setProjectId(defaultProjectId);
                 }
@@ -212,7 +214,7 @@ public class GoogleCloudStorageService {
         }
         if (gcsClientSettings.getCredential() == null) {
             try {
-                storageOptionsBuilder.setCredentials(GoogleCredentials.getApplicationDefault());
+                storageOptionsBuilder.setCredentials(SocketAccess.doPrivilegedIOException(GoogleCredentials::getApplicationDefault));
             } catch (Exception e) {
                 logger.warn("failed to load Application Default Credentials", e);
             }

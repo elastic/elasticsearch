@@ -21,8 +21,7 @@ import java.util.Objects;
 import java.util.stream.Collectors;
 
 /**
- * This class models the contents of a changelog YAML file. We validate it using a
- * JSON Schema, as well as some programmatic checks in {@link ValidateChangelogEntryTask}.
+ * This class models the contents of a changelog YAML file. We validate it using a JSON Schema.
  * <ul>
  *   <li><code>buildSrc/src/main/resources/changelog-schema.json</code></li>
  *   <li><a href="https://json-schema.org/understanding-json-schema/">Understanding JSON Schema</a></li>
@@ -40,6 +39,11 @@ public class ChangelogEntry {
 
     private static final ObjectMapper yamlMapper = new ObjectMapper(new YAMLFactory());
 
+    /**
+     * Create a new instance by parsing the supplied file
+     * @param file the YAML file to parse
+     * @return a new instance
+     */
     public static ChangelogEntry parse(File file) {
         try {
             return yamlMapper.readValue(file, ChangelogEntry.class);
@@ -209,12 +213,17 @@ public class ChangelogEntry {
         }
     }
 
-    public static class Breaking {
+    public static class Breaking extends CompatibilityChange {}
+
+    public static class Deprecation extends CompatibilityChange {}
+
+    abstract static class CompatibilityChange {
         private String area;
         private String title;
         private String details;
         private String impact;
         private boolean notable;
+        private boolean essSettingChange;
 
         public String getArea() {
             return area;
@@ -260,6 +269,14 @@ public class ChangelogEntry {
             return generatedAnchor(this.title);
         }
 
+        public boolean isEssSettingChange() {
+            return essSettingChange;
+        }
+
+        public void setEssSettingChange(boolean essSettingChange) {
+            this.essSettingChange = essSettingChange;
+        }
+
         @Override
         public boolean equals(Object o) {
             if (this == o) {
@@ -268,92 +285,40 @@ public class ChangelogEntry {
             if (o == null || getClass() != o.getClass()) {
                 return false;
             }
-            Breaking breaking = (Breaking) o;
-            return notable == breaking.notable
-                && Objects.equals(area, breaking.area)
-                && Objects.equals(title, breaking.title)
-                && Objects.equals(details, breaking.details)
-                && Objects.equals(impact, breaking.impact);
+            CompatibilityChange breaking = (CompatibilityChange) o;
+            return notable == breaking.isNotable()
+                && Objects.equals(area, breaking.getArea())
+                && Objects.equals(title, breaking.getTitle())
+                && Objects.equals(details, breaking.getDetails())
+                && Objects.equals(impact, breaking.getImpact())
+                && Objects.equals(essSettingChange, breaking.isEssSettingChange());
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(area, title, details, impact, notable);
+            return Objects.hash(area, title, details, impact, notable, essSettingChange);
         }
 
         @Override
         public String toString() {
             return String.format(
-                "Breaking{area='%s', title='%s', details='%s', impact='%s', isNotable=%s}",
+                "%s{area='%s', title='%s', details='%s', impact='%s', notable=%s, essSettingChange=%s}",
+                this.getClass().getSimpleName(),
                 area,
                 title,
                 details,
                 impact,
-                notable
+                notable,
+                essSettingChange
             );
         }
     }
 
-    public static class Deprecation {
-        private String area;
-        private String title;
-        private String body;
-
-        public String getArea() {
-            return area;
-        }
-
-        public void setArea(String area) {
-            this.area = area;
-        }
-
-        public String getTitle() {
-            return title;
-        }
-
-        public void setTitle(String title) {
-            this.title = title;
-        }
-
-        public String getBody() {
-            return body;
-        }
-
-        public void setBody(String body) {
-            this.body = body;
-        }
-
-        public String getAnchor() {
-            return generatedAnchor(this.title);
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) {
-                return true;
-            }
-            if (o == null || getClass() != o.getClass()) {
-                return false;
-            }
-            Deprecation that = (Deprecation) o;
-            return Objects.equals(area, that.area) && Objects.equals(title, that.title) && Objects.equals(body, that.body);
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(area, title, body);
-        }
-
-        @Override
-        public String toString() {
-            return String.format("Deprecation{area='%s', title='%s', body='%s'}", area, title, body);
-        }
-    }
-
     private static String generatedAnchor(String input) {
-        final List<String> excludes = List.of("the", "is", "a");
+        final List<String> excludes = List.of("the", "is", "a", "and", "now", "that");
 
         final String[] words = input.toLowerCase(Locale.ROOT)
+            .replaceAll("'", "")
             .replaceAll("[^\\w]+", "_")
             .replaceFirst("^_+", "")
             .replaceFirst("_+$", "")

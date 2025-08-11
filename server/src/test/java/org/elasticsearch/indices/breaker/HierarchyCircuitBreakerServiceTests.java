@@ -11,6 +11,7 @@ package org.elasticsearch.indices.breaker;
 import org.elasticsearch.common.breaker.ChildMemoryCircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
+import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
@@ -46,6 +47,7 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.oneOf;
 import static org.hamcrest.Matchers.sameInstance;
 
 public class HierarchyCircuitBreakerServiceTests extends ESTestCase {
@@ -340,6 +342,7 @@ public class HierarchyCircuitBreakerServiceTests extends ESTestCase {
         AtomicReference<Consumer<Boolean>> onOverLimit = new AtomicReference<>(leader -> {});
         AtomicLong time = new AtomicLong(randomLongBetween(Long.MIN_VALUE / 2, Long.MAX_VALUE / 2));
         long interval = randomLongBetween(1, 1000);
+        long fullGCInterval = randomLongBetween(500, 2000);
         final HierarchyCircuitBreakerService service = new HierarchyCircuitBreakerService(
             clusterSettings,
             Collections.emptyList(),
@@ -350,6 +353,8 @@ public class HierarchyCircuitBreakerServiceTests extends ESTestCase {
                 HierarchyCircuitBreakerService.createYoungGcCountSupplier(),
                 time::get,
                 interval,
+                fullGCInterval,
+                TimeValue.timeValueSeconds(30),
                 TimeValue.timeValueSeconds(30)
             ) {
 
@@ -475,6 +480,7 @@ public class HierarchyCircuitBreakerServiceTests extends ESTestCase {
         AtomicInteger leaderTriggerCount = new AtomicInteger();
         AtomicInteger nonLeaderTriggerCount = new AtomicInteger();
         long interval = randomLongBetween(1, 1000);
+        long fullGCInterval = randomLongBetween(500, 2000);
         AtomicLong memoryUsage = new AtomicLong();
 
         HierarchyCircuitBreakerService.G1OverLimitStrategy strategy = new HierarchyCircuitBreakerService.G1OverLimitStrategy(
@@ -483,6 +489,8 @@ public class HierarchyCircuitBreakerServiceTests extends ESTestCase {
             () -> 0,
             time::get,
             interval,
+            fullGCInterval,
+            TimeValue.timeValueSeconds(30),
             TimeValue.timeValueSeconds(30)
         ) {
             @Override
@@ -529,6 +537,7 @@ public class HierarchyCircuitBreakerServiceTests extends ESTestCase {
         AtomicInteger leaderTriggerCount = new AtomicInteger();
         AtomicInteger nonLeaderTriggerCount = new AtomicInteger();
         long interval = randomLongBetween(1, 1000);
+        long fullGCInterval = randomLongBetween(500, 2000);
         AtomicLong memoryUsageCounter = new AtomicLong();
         AtomicLong gcCounter = new AtomicLong();
         LongSupplier memoryUsageSupplier = () -> {
@@ -541,6 +550,8 @@ public class HierarchyCircuitBreakerServiceTests extends ESTestCase {
             gcCounter::incrementAndGet,
             time::get,
             interval,
+            fullGCInterval,
+            TimeValue.timeValueSeconds(30),
             TimeValue.timeValueSeconds(30)
         ) {
 
@@ -563,13 +574,15 @@ public class HierarchyCircuitBreakerServiceTests extends ESTestCase {
         assertThat(strategy.overLimit(input), sameInstance(input));
         assertThat(leaderTriggerCount.get(), equalTo(1));
         assertThat(gcCounter.get(), equalTo(2L));
-        assertThat(memoryUsageCounter.get(), equalTo(2L)); // 1 before gc count break and 1 to get resulting memory usage.
+        // 1 before gc count break, 1 for full GC check and 1 to get resulting memory usage.
+        assertThat(memoryUsageCounter.get(), equalTo(3L));
     }
 
     public void testG1OverLimitStrategyThrottling() throws InterruptedException, BrokenBarrierException, TimeoutException {
         AtomicLong time = new AtomicLong(randomLongBetween(Long.MIN_VALUE / 2, Long.MAX_VALUE / 2));
         AtomicInteger leaderTriggerCount = new AtomicInteger();
         long interval = randomLongBetween(1, 1000);
+        long fullGCInterval = randomLongBetween(500, 2000);
         AtomicLong memoryUsage = new AtomicLong();
         HierarchyCircuitBreakerService.G1OverLimitStrategy strategy = new HierarchyCircuitBreakerService.G1OverLimitStrategy(
             JvmInfo.jvmInfo(),
@@ -577,6 +590,8 @@ public class HierarchyCircuitBreakerServiceTests extends ESTestCase {
             () -> 0,
             time::get,
             interval,
+            fullGCInterval,
+            TimeValue.timeValueSeconds(30),
             TimeValue.timeValueSeconds(30)
         ) {
 
@@ -659,6 +674,8 @@ public class HierarchyCircuitBreakerServiceTests extends ESTestCase {
             gcCounter::incrementAndGet,
             () -> 0,
             1,
+            1,
+            TimeValue.timeValueMillis(randomFrom(0, 5, 10)),
             TimeValue.timeValueMillis(randomFrom(0, 5, 10))
         ) {
 
@@ -816,5 +833,78 @@ public class HierarchyCircuitBreakerServiceTests extends ESTestCase {
 
     private static long mb(long size) {
         return new ByteSizeValue(size, ByteSizeUnit.MB).getBytes();
+    }
+
+    public void testBuildParentTripMessage() {
+        class TestChildCircuitBreaker extends NoopCircuitBreaker {
+            private final long used;
+
+            TestChildCircuitBreaker(long used) {
+                super("child");
+                this.used = used;
+            }
+
+            @Override
+            public long getUsed() {
+                return used;
+            }
+
+            @Override
+            public double getOverhead() {
+                return 1.0;
+            }
+        }
+
+        assertThat(
+            HierarchyCircuitBreakerService.buildParentTripMessage(
+                1L,
+                "test",
+                new HierarchyCircuitBreakerService.MemoryUsage(2L, 3L, 4L, 5L),
+                6L,
+                false,
+                org.elasticsearch.core.Map.of("child", new TestChildCircuitBreaker(7L), "otherChild", new TestChildCircuitBreaker(8L))
+            ),
+            oneOf(
+                "[parent] Data too large, data for [test] would be [3/3b], which is larger than the limit of [6/6b], "
+                    + "usages [child=7/7b, otherChild=8/8b]",
+                "[parent] Data too large, data for [test] would be [3/3b], which is larger than the limit of [6/6b], "
+                    + "usages [otherChild=8/8b, child=7/7b]"
+            )
+        );
+
+        assertThat(
+            HierarchyCircuitBreakerService.buildParentTripMessage(
+                1L,
+                "test",
+                new HierarchyCircuitBreakerService.MemoryUsage(2L, 3L, 4L, 5L),
+                6L,
+                true,
+                org.elasticsearch.core.Map.of()
+            ),
+            equalTo(
+                "[parent] Data too large, data for [test] would be [3/3b], which is larger than the limit of [6/6b], "
+                    + "real usage: [2/2b], new bytes reserved: [1/1b], usages []"
+            )
+        );
+
+        try {
+            HierarchyCircuitBreakerService.permitNegativeValues = true;
+            assertThat(
+                HierarchyCircuitBreakerService.buildParentTripMessage(
+                    -1L,
+                    "test",
+                    new HierarchyCircuitBreakerService.MemoryUsage(-2L, -3L, -4L, -5L),
+                    -6L,
+                    true,
+                    org.elasticsearch.core.Map.of("child1", new TestChildCircuitBreaker(-7L))
+                ),
+                equalTo(
+                    "[parent] Data too large, data for [test] would be [-3], which is larger than the limit of [-6], "
+                        + "real usage: [-2], new bytes reserved: [-1/-1b], usages [child1=-7]"
+                )
+            );
+        } finally {
+            HierarchyCircuitBreakerService.permitNegativeValues = false;
+        }
     }
 }

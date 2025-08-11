@@ -5,7 +5,7 @@
       index:
           index:          test_1
           type:           test
-          id:             1
+          id:             "1"
           body:           { foo: bar }
           version_type:   external
           version:        0
@@ -16,7 +16,7 @@
       index:
           index:          test_1
           type:           test
-          id:             1
+          id:             "1"
           body:           { foo: bar }
           version_type:   external
           version:        5
@@ -28,7 +28,7 @@
       index:
           index:          test_1
           type:           test
-          id:             1
+          id:             "1"
           body:           { foo: bar }
           version_type:   external
           version:        5
@@ -38,7 +38,7 @@
       index:
           index:          test_1
           type:           test
-          id:             1
+          id:             "1"
           body:           { foo: bar }
           version_type:   external
           version:        0
@@ -47,7 +47,7 @@
       index:
           index:          test_1
           type:           test
-          id:             1
+          id:             "1"
           body:           { foo: bar }
           version_type:   external
           version:        6

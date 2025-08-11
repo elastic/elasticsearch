@@ -18,10 +18,13 @@ import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.license.MockLicenseState;
 import org.elasticsearch.license.TestUtils;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.threadpool.TestThreadPool;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.xpack.security.Security;
 import org.elasticsearch.xpack.security.audit.AuditTrailService;
 import org.elasticsearch.xpack.security.transport.filter.IPFilter;
+import org.junit.After;
 import org.junit.Before;
 
 import java.net.InetAddress;
@@ -36,6 +39,12 @@ import static org.mockito.Mockito.when;
 
 public class IpFilterRemoteAddressFilterTests extends ESTestCase {
     private IpFilterRemoteAddressFilter handler;
+    private ThreadPool threadPool;
+
+    @After
+    public void terminate() throws Exception {
+        terminate(threadPool);
+    }
 
     @Before
     public void init() throws Exception {
@@ -79,10 +88,11 @@ public class IpFilterRemoteAddressFilterTests extends ESTestCase {
             ipFilter.setBoundHttpTransportAddress(httpTransport.boundAddress());
         }
 
+        this.threadPool = new TestThreadPool(getTestName());
         if (isHttpEnabled) {
-            handler = new IpFilterRemoteAddressFilter(ipFilter, IPFilter.HTTP_PROFILE_NAME);
+            handler = new IpFilterRemoteAddressFilter(ipFilter, IPFilter.HTTP_PROFILE_NAME, threadPool.getThreadContext());
         } else {
-            handler = new IpFilterRemoteAddressFilter(ipFilter, "default");
+            handler = new IpFilterRemoteAddressFilter(ipFilter, "default", threadPool.getThreadContext());
         }
     }
 

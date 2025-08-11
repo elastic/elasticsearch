@@ -22,7 +22,7 @@ import org.elasticsearch.xpack.datastreams.DataStreamsPlugin;
 import java.util.ArrayList;
 import java.util.Collection;
 
-public class AutoscalingStorageIntegTestCase extends DiskUsageIntegTestCase {
+public abstract class AutoscalingStorageIntegTestCase extends DiskUsageIntegTestCase {
     protected static final long HIGH_WATERMARK_BYTES = 10240;
     protected static final long LOW_WATERMARK_BYTES = 2 * HIGH_WATERMARK_BYTES;
 

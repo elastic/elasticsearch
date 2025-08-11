@@ -1,6 +1,6 @@
 import org.elasticsearch.gradle.internal.info.BuildParams
 
-apply plugin: 'elasticsearch.internal-java-rest-test'
+apply plugin: 'elasticsearch.legacy-java-rest-test'
 
 testClusters.configureEach {
   testDistribution = 'DEFAULT'
@@ -11,4 +11,9 @@ testClusters.configureEach {
 if (BuildParams.inFipsJvm){
   // Test clusters run with security disabled
   tasks.named("javaRestTest").configure{enabled = false }
+}
+
+tasks.named('javaRestTestTestingConventions').configure {
+  baseClass "org.elasticsearch.xpack.ml.integration.InferenceTestCase"
+  baseClass "org.elasticsearch.test.rest.ESRestTestCase"
 }

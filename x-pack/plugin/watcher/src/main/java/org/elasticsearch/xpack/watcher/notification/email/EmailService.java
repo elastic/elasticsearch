@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.watcher.notification.email;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.SecureSetting;
 import org.elasticsearch.common.settings.SecureString;
@@ -24,9 +25,17 @@ import org.elasticsearch.xpack.watcher.notification.NotificationService;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Optional;
+import java.util.Set;
+import java.util.function.Predicate;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import javax.mail.MessagingException;
+import javax.mail.internet.InternetAddress;
 import javax.net.ssl.SSLSocketFactory;
 
 import static org.elasticsearch.xpack.core.watcher.WatcherField.EMAIL_NOTIFICATION_SSL_PREFIX;
@@ -46,6 +55,14 @@ public class EmailService extends NotificationService<Account> {
         "xpack.notification.email.account.",
         "profile",
         (key) -> Setting.simpleString(key, Property.Dynamic, Property.NodeScope)
+    );
+
+    private static final Setting<List<String>> SETTING_DOMAIN_ALLOWLIST = Setting.listSetting(
+        "xpack.notification.email.account.domain_allowlist",
+        Collections.singletonList("*"),
+        String::toString,
+        Property.Dynamic,
+        Property.NodeScope
     );
 
     private static final Setting.AffixSetting<Settings> SETTING_EMAIL_DEFAULTS = Setting.affixKeySetting(
@@ -151,6 +168,7 @@ public class EmailService extends NotificationService<Account> {
 
     private final CryptoService cryptoService;
     private final SSLService sslService;
+    private volatile Set<String> allowedDomains;
 
     public EmailService(Settings settings, @Nullable CryptoService cryptoService, SSLService sslService, ClusterSettings clusterSettings) {
         super("email", settings, clusterSettings, EmailService.getDynamicSettings(), EmailService.getSecureSettings());
@@ -174,8 +192,14 @@ public class EmailService extends NotificationService<Account> {
         clusterSettings.addAffixUpdateConsumer(SETTING_SMTP_LOCAL_PORT, (s, o) -> {}, (s, o) -> {});
         clusterSettings.addAffixUpdateConsumer(SETTING_SMTP_SEND_PARTIAL, (s, o) -> {}, (s, o) -> {});
         clusterSettings.addAffixUpdateConsumer(SETTING_SMTP_WAIT_ON_QUIT, (s, o) -> {}, (s, o) -> {});
+        this.allowedDomains = new HashSet<>(SETTING_DOMAIN_ALLOWLIST.get(settings));
+        clusterSettings.addSettingsUpdateConsumer(SETTING_DOMAIN_ALLOWLIST, this::updateAllowedDomains);
         // do an initial load
         reload(settings);
+    }
+
+    void updateAllowedDomains(List<String> newDomains) {
+        this.allowedDomains = new HashSet<>(newDomains);
     }
 
     @Override
@@ -200,7 +224,49 @@ public class EmailService extends NotificationService<Account> {
                 "failed to send email with subject [" + email.subject() + "] via account [" + accountName + "]. account does not exist"
             );
         }
+        if (recipientDomainsInAllowList(email, this.allowedDomains) == false) {
+            throw new IllegalArgumentException(
+                "failed to send email with subject ["
+                    + email.subject()
+                    + "] and recipient domains "
+                    + getRecipientDomains(email)
+                    + ", one or more recipients is not specified in the domain allow list setting ["
+                    + SETTING_DOMAIN_ALLOWLIST.getKey()
+                    + "]."
+            );
+        }
         return send(email, auth, profile, account);
+    }
+
+    // Visible for testing
+    static Set<String> getRecipientDomains(Email email) {
+        return Stream.concat(
+            Optional.ofNullable(email.to()).map(addrs -> Arrays.stream(addrs.toArray())).orElse(Stream.empty()),
+            Stream.concat(
+                Optional.ofNullable(email.cc()).map(addrs -> Arrays.stream(addrs.toArray())).orElse(Stream.empty()),
+                Optional.ofNullable(email.bcc()).map(addrs -> Arrays.stream(addrs.toArray())).orElse(Stream.empty())
+            )
+        )
+            .map(InternetAddress::getAddress)
+            // Pull out only the domain of the email address, so foo@bar.com -> bar.com
+            .map(emailAddress -> emailAddress.substring(emailAddress.lastIndexOf("@") + 1))
+            .collect(Collectors.toSet());
+    }
+
+    // Visible for testing
+    static boolean recipientDomainsInAllowList(Email email, Set<String> allowedDomainSet) {
+        if (allowedDomainSet.size() == 0) {
+            // Nothing is allowed
+            return false;
+        }
+        if (allowedDomainSet.contains("*")) {
+            // Don't bother checking, because there is a wildcard all
+            return true;
+        }
+        final Set<String> domains = getRecipientDomains(email);
+        final Predicate<String> matchesAnyAllowedDomain = domain -> allowedDomainSet.stream()
+            .anyMatch(allowedDomain -> Regex.simpleMatch(allowedDomain, domain, true));
+        return domains.stream().allMatch(matchesAnyAllowedDomain);
     }
 
     private EmailSent send(Email email, Authentication auth, Profile profile, Account account) throws MessagingException {
@@ -238,6 +304,7 @@ public class EmailService extends NotificationService<Account> {
     private static List<Setting<?>> getDynamicSettings() {
         return Arrays.asList(
             SETTING_DEFAULT_ACCOUNT,
+            SETTING_DOMAIN_ALLOWLIST,
             SETTING_PROFILE,
             SETTING_EMAIL_DEFAULTS,
             SETTING_SMTP_AUTH,

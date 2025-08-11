@@ -14,7 +14,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cli.EnvironmentAwareCommand;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.plugins.PluginInfo;
+import org.elasticsearch.plugins.PluginDescriptor;
 
 import java.io.IOException;
 import java.nio.file.DirectoryStream;
@@ -58,7 +58,7 @@ class ListPluginsCommand extends EnvironmentAwareCommand {
 
     private void printPlugin(Environment env, Terminal terminal, Path plugin, String prefix) throws IOException {
         terminal.println(Terminal.Verbosity.SILENT, prefix + plugin.getFileName().toString());
-        PluginInfo info = PluginInfo.readFromProperties(env.pluginsFile().resolve(plugin));
+        PluginDescriptor info = PluginDescriptor.readFromProperties(env.pluginsFile().resolve(plugin));
         terminal.println(Terminal.Verbosity.VERBOSE, info.toString(prefix));
         if (info.getElasticsearchVersion().equals(Version.CURRENT) == false) {
             terminal.errorPrintln(

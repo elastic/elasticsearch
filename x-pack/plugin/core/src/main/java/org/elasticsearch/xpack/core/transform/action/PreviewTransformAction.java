@@ -18,6 +18,9 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.tasks.CancellableTask;
+import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
@@ -135,6 +138,12 @@ public class PreviewTransformAction extends ActionType<PreviewTransformAction.Re
             }
             Request other = (Request) obj;
             return Objects.equals(config, other.config);
+        }
+
+        @Override
+        public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
+            String description = "preview_transform[" + config.getId() + "]";
+            return new CancellableTask(id, type, action, description, parentTaskId, headers);
         }
     }
 

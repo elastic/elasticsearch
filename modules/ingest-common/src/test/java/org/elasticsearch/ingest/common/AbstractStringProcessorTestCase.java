@@ -38,8 +38,14 @@ public abstract class AbstractStringProcessorTestCase<T> extends ESTestCase {
 
     public void testProcessor() throws Exception {
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random());
-        String fieldValue = RandomDocumentPicks.randomString(random());
-        String fieldName = RandomDocumentPicks.addRandomField(random(), ingestDocument, modifyInput(fieldValue));
+        String fieldValue;
+        String fieldName;
+        String modifiedFieldValue;
+        do {
+            fieldValue = RandomDocumentPicks.randomString(random());
+            modifiedFieldValue = modifyInput(fieldValue);
+            fieldName = RandomDocumentPicks.addRandomField(random(), ingestDocument, modifiedFieldValue);
+        } while (isSupportedValue(modifiedFieldValue) == false);
         Processor processor = newProcessor(fieldName, randomBoolean(), fieldName);
         processor.execute(ingestDocument);
         assertThat(ingestDocument.getFieldValue(fieldName, expectedResultType()), equalTo(expectedResult(fieldValue)));
@@ -48,8 +54,13 @@ public abstract class AbstractStringProcessorTestCase<T> extends ESTestCase {
         List<String> fieldValueList = new ArrayList<>();
         List<T> expectedList = new ArrayList<>();
         for (int i = 0; i < numItems; i++) {
-            String randomString = RandomDocumentPicks.randomString(random());
-            fieldValueList.add(modifyInput(randomString));
+            String randomString;
+            String modifiedRandomString;
+            do {
+                randomString = RandomDocumentPicks.randomString(random());
+                modifiedRandomString = modifyInput(randomString);
+            } while (isSupportedValue(modifiedRandomString) == false);
+            fieldValueList.add(modifiedRandomString);
             expectedList.add(expectedResult(randomString));
         }
         String multiValueFieldName = RandomDocumentPicks.addRandomField(random(), ingestDocument, fieldValueList);

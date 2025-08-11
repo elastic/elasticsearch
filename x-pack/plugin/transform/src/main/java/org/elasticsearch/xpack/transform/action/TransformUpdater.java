@@ -175,10 +175,9 @@ public class TransformUpdater {
         }, listener::onFailure);
 
         // <2> Validate source and destination indices
-        ActionListener<Void> checkPrivilegesListener = ActionListener.wrap(
-            aVoid -> { validateTransform(updatedConfig, client, deferValidation, timeout, validateTransformListener); },
-            listener::onFailure
-        );
+        ActionListener<Void> checkPrivilegesListener = ActionListener.wrap(aVoid -> {
+            validateTransform(updatedConfig, client, deferValidation, timeout, validateTransformListener);
+        }, listener::onFailure);
 
         // <1> Early check to verify that the user can create the destination index and can read from the source
         if (checkAccess && licenseState.isSecurityEnabled() && deferValidation == false) {

@@ -529,7 +529,9 @@ public class VariableWidthHistogramAggregatorTests extends AggregatorTestCase {
                 org.elasticsearch.core.List.of(),
                 true,
                 aggregation -> aggregation.field(NUMERIC_FIELD).setNumBuckets(2).setShardSize(2),
-                histogram -> { fail(); }
+                histogram -> {
+                    fail();
+                }
             )
         );
         assertThat(e.getMessage(), equalTo("3/4 of shard_size must be at least buckets but was [1<2] for [_name]"));
@@ -557,7 +559,9 @@ public class VariableWidthHistogramAggregatorTests extends AggregatorTestCase {
                 org.elasticsearch.core.List.of(),
                 true,
                 aggregation -> aggregation.field(NUMERIC_FIELD).setInitialBuffer(1),
-                histogram -> { fail(); }
+                histogram -> {
+                    fail();
+                }
             )
         );
         assertThat(e.getMessage(), equalTo("initial_buffer must be at least buckets but was [1<10] for [_name]"));

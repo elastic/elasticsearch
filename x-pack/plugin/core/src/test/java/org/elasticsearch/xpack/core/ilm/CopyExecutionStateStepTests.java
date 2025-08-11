@@ -39,7 +39,7 @@ public class CopyExecutionStateStepTests extends AbstractStepTestCase<CopyExecut
         BiFunction<String, LifecycleExecutionState, String> indexNameSupplier = instance.getTargetIndexNameSupplier();
         StepKey targetNextStepKey = instance.getTargetNextStepKey();
 
-        switch (between(0, 2)) {
+        switch (between(0, 3)) {
             case 0:
                 key = new StepKey(key.getPhase(), key.getAction(), key.getName() + randomAlphaOfLength(5));
                 break;

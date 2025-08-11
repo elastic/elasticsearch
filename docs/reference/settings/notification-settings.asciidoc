@@ -131,6 +131,13 @@ or specify the email account to use in the <<actions-email,`email`>> action. See
 Specifies account information for sending notifications via email. You
 can specify the following email account attributes:
 +
+
+`xpack.notification.email.account.domain_allowlist`::
+(<<dynamic-cluster-setting,Dynamic>>)
+Specifies domains to which emails are allowed to be sent. Emails with recipients (`To:`, `Cc:`, or
+`Bcc:`) outside of these domains will be rejected and an error thrown. This setting defaults to
+`["*"]` which means all domains are allowed. Simple globbing is supported, such as `*.company.com`
+in the list of allowed domains.
 --
 [[email-account-attributes]]
 
@@ -279,6 +286,13 @@ HTML feature groups>>.
 Set to `false` to completely disable HTML sanitation. Not recommended.
 Defaults to `true`.
 
+`xpack.notification.reporting.warning.kbn-csv-contains-formulas.text`::
+(<<dynamic-cluster-setting,Dynamic>>)
+Specifies a custom message, which is sent if the formula verification criteria
+for CSV files from {kib}'s {kibana-ref}/reporting-settings-kb.html#reporting-csv-settings[`xpack.reporting.csv.checkForFormulas`] is `true`.
+Use `%s` in the message as a placeholder for the filename.
+Defaults to `Warning: The attachment [%s] contains characters which spreadsheet applications may interpret as formulas. Please ensure that the attachment is safe prior to opening.`
+
 [[ssl-notification-smtp-settings]]
 :ssl-prefix:             xpack.notification.email
 :component:              {watcher} Email
@@ -287,12 +301,6 @@ Defaults to `true`.
 :ssl-context:            watcher-email
 
 include::ssl-settings.asciidoc[]
-
-`xpack.notification.reporting.warning.kbn-csv-contains-formulas.text`::
-(<<dynamic-cluster-setting,Dynamic>>) 
-Specifies a custom message to be sent if the formula verification criteria
-for CSV files, from kibana `xpack.reporting.csv.checkForFormulas`, is true.
-Use %s in the message as a placeholder for the filename.  
 
 [[slack-notification-settings]]
 ==== Slack Notification Settings

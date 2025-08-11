@@ -55,7 +55,8 @@ public class ElasticsearchTestBasePlugin implements Plugin<Project> {
         project.getTasks().withType(Test.class).configureEach(test -> {
             File testOutputDir = new File(test.getReports().getJunitXml().getOutputLocation().getAsFile().get(), "output");
 
-            ErrorReportingTestListener listener = new ErrorReportingTestListener(test.getTestLogging(), test.getLogger(), testOutputDir);
+            ErrorReportingTestListener listener = new ErrorReportingTestListener(test, testOutputDir);
+            test.getExtensions().getExtraProperties().set("dumpOutputOnFailure", true);
             test.getExtensions().add("errorReportingTestListener", listener);
             test.addTestOutputListener(listener);
             test.addTestListener(listener);
@@ -86,7 +87,11 @@ public class ElasticsearchTestBasePlugin implements Plugin<Project> {
                     if (BuildParams.getRuntimeJavaVersion() == JavaVersion.VERSION_1_8) {
                         test.systemProperty("java.locale.providers", "SPI,JRE");
                     } else {
-                        test.systemProperty("java.locale.providers", "SPI,COMPAT");
+                        if (BuildParams.getRuntimeJavaVersion().compareTo(JavaVersion.VERSION_22) <= 0) {
+                            test.systemProperty("java.locale.providers", "SPI,COMPAT");
+                        } else {
+                            test.systemProperty("java.locale.providers", "SPI,CLDR");
+                        }
                         test.jvmArgs(
                             "--illegal-access=deny",
                             // TODO: only open these for mockito when it is modularized
@@ -99,12 +104,16 @@ public class ElasticsearchTestBasePlugin implements Plugin<Project> {
                             "--add-opens=java.management/java.lang.management=ALL-UNNAMED"
                         );
                     }
+                    if (BuildParams.getIsRuntimeJavaHomeSet() == false
+                        || BuildParams.getRuntimeJavaVersion().isCompatibleWith(JavaVersion.VERSION_18)) {
+                        test.jvmArgs("-Djava.security.manager=allow");
+                    }
                 }
             });
             test.getJvmArgumentProviders().add(nonInputProperties);
             test.getExtensions().add("nonInputProperties", nonInputProperties);
 
-            test.setWorkingDir(project.file(project.getBuildDir() + "/testrun/" + test.getName()));
+            test.setWorkingDir(project.file(project.getBuildDir() + "/testrun/" + test.getName().replace("#", "_")));
             test.setMaxParallelForks(Integer.parseInt(System.getProperty("tests.jvms", BuildParams.getDefaultParallel().toString())));
 
             test.exclude("**/*$*.class");
@@ -194,7 +203,7 @@ public class ElasticsearchTestBasePlugin implements Plugin<Project> {
                     SourceSetContainer sourceSets = project.getExtensions().getByType(SourceSetContainer.class);
                     FileCollection mainRuntime = sourceSets.getByName(SourceSet.MAIN_SOURCE_SET_NAME).getRuntimeClasspath();
                     // Add any "shadow" dependencies. These are dependencies that are *not* bundled into the shadow JAR
-                    Configuration shadowConfig = project.getConfigurations().getByName(ShadowBasePlugin.getCONFIGURATION_NAME());
+                    Configuration shadowConfig = project.getConfigurations().getByName(ShadowBasePlugin.CONFIGURATION_NAME);
                     // Add the shadow JAR artifact itself
                     FileCollection shadowJar = project.files(project.getTasks().named("shadowJar"));
                     FileCollection testRuntime = sourceSets.getByName(SourceSet.TEST_SOURCE_SET_NAME).getRuntimeClasspath();

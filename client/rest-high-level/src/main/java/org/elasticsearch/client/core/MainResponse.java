@@ -19,7 +19,9 @@ public class MainResponse {
     private static final ConstructingObjectParser<MainResponse, Void> PARSER = new ConstructingObjectParser<>(
         MainResponse.class.getName(),
         true,
-        args -> { return new MainResponse((String) args[0], (Version) args[1], (String) args[2], (String) args[3], (String) args[4]); }
+        args -> {
+            return new MainResponse((String) args[0], (Version) args[1], (String) args[2], (String) args[3], (String) args[4]);
+        }
     );
 
     static {

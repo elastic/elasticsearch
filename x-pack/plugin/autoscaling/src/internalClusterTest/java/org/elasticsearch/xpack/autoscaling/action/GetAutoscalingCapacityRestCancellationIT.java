@@ -82,27 +82,27 @@ public class GetAutoscalingCapacityRestCancellationIT extends AutoscalingIntegTe
             PlainActionFuture<Response> successFuture2 = new PlainActionFuture<>();
             Request getCapacityRequest = new Request("GET", "/_autoscaling/capacity");
             Cancellable cancellable = restClient.performRequestAsync(getCapacityRequest, wrapAsRestResponseListener(cancelledFuture));
-            LocalStateAutoscaling.AutoscalingTestPlugin plugin = internalCluster().getMasterNodeInstance(PluginsService.class)
+            LocalStateAutoscaling.AutoscalingTestPlugin plugin = internalCluster().getAnyMasterNodeInstance(PluginsService.class)
                 .filterPlugins(LocalStateAutoscaling.class)
                 .get(0)
                 .testPlugin();
             plugin.syncWithDeciderService(() -> {
                 putAutoscalingPolicy(org.elasticsearch.core.Map.of(AutoscalingCountTestDeciderService.NAME, Settings.EMPTY));
                 assertThat(
-                    internalCluster().getMasterNodeInstance(TransportGetAutoscalingCapacityAction.class).responseCacheQueueSize(),
+                    internalCluster().getAnyMasterNodeInstance(TransportGetAutoscalingCapacityAction.class).responseCacheQueueSize(),
                     equalTo(1)
                 );
                 restClient.performRequestAsync(getCapacityRequest, wrapAsRestResponseListener(successFuture1));
                 assertBusy(
                     () -> assertThat(
-                        internalCluster().getMasterNodeInstance(TransportGetAutoscalingCapacityAction.class).responseCacheQueueSize(),
+                        internalCluster().getAnyMasterNodeInstance(TransportGetAutoscalingCapacityAction.class).responseCacheQueueSize(),
                         equalTo(2)
                     )
                 );
                 restClient.performRequestAsync(getCapacityRequest, wrapAsRestResponseListener(successFuture2));
                 assertBusy(
                     () -> assertThat(
-                        internalCluster().getMasterNodeInstance(TransportGetAutoscalingCapacityAction.class).responseCacheQueueSize(),
+                        internalCluster().getAnyMasterNodeInstance(TransportGetAutoscalingCapacityAction.class).responseCacheQueueSize(),
                         equalTo(3)
                     )
                 );
@@ -129,7 +129,7 @@ public class GetAutoscalingCapacityRestCancellationIT extends AutoscalingIntegTe
 
     private void waitForCancelledCapacityTask() throws Exception {
         assertBusy(() -> {
-            TransportService transportService = internalCluster().getMasterNodeInstance(TransportService.class);
+            TransportService transportService = internalCluster().getAnyMasterNodeInstance(TransportService.class);
             final TaskManager taskManager = transportService.getTaskManager();
             assertTrue(taskManager.assertCancellableTaskConsistency());
             for (CancellableTask cancellableTask : taskManager.getCancellableTasks().values()) {

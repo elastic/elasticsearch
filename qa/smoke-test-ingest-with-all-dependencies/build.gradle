@@ -6,27 +6,25 @@
  * Side Public License, v 1.
  */
 
-apply plugin: 'elasticsearch.internal-testclusters'
-apply plugin: 'elasticsearch.standalone-rest-test'
-apply plugin: 'elasticsearch.rest-test'
-apply plugin: 'elasticsearch.rest-resources'
+apply plugin: 'elasticsearch.legacy-yaml-rest-test'
 
 dependencies {
-  testImplementation project(':modules:ingest-common')
-  testImplementation project(':modules:ingest-geoip')
-  testImplementation project(':modules:lang-mustache')
-  testImplementation project(':modules:lang-painless')
-  testImplementation project(':modules:reindex')
+  yamlRestTestImplementation project(':modules:ingest-common')
+  yamlRestTestImplementation project(':modules:ingest-geoip')
+  yamlRestTestImplementation project(':modules:lang-mustache')
+  yamlRestTestImplementation project(':modules:lang-painless')
+  yamlRestTestImplementation project(':modules:reindex')
 }
 
 testClusters.configureEach {
   setting 'xpack.security.enabled', 'false'
 }
 
-tasks.named("testingConventions").configure {
-  naming {
-    IT {
-      baseClass 'org.elasticsearch.ingest.AbstractScriptTestCase'
-    }
-  }
+tasks.named("yamlRestTestTestingConventions").configure {
+  baseClass 'org.elasticsearch.ingest.AbstractScriptTestCase'
+  baseClass 'org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase'
+}
+
+tasks.named("forbiddenPatterns").configure {
+  exclude '**/*.mmdb'
 }

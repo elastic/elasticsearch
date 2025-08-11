@@ -211,7 +211,7 @@ public class TransportService extends AbstractLifecycleComponent
             localNodeFactory,
             clusterSettings,
             taskHeaders,
-            new ClusterConnectionManager(settings, transport)
+            new ClusterConnectionManager(settings, transport, threadPool.getThreadContext())
         );
     }
 
@@ -1520,26 +1520,43 @@ public class TransportService extends AbstractLifecycleComponent
 
         @Override
         public void sendResponse(TransportResponse response) throws IOException {
-            service.onResponseSent(requestId, action, response);
-            final TransportResponseHandler<?> handler = service.responseHandlers.onResponseReceived(requestId, service);
-            // ignore if its null, the service logs it
-            if (handler != null) {
-                final String executor = handler.executor();
-                if (ThreadPool.Names.SAME.equals(executor)) {
-                    processResponse(handler, response);
-                } else {
-                    threadPool.executor(executor).execute(new Runnable() {
-                        @Override
-                        public void run() {
-                            processResponse(handler, response);
-                        }
+            try {
+                service.onResponseSent(requestId, action, response);
+                final TransportResponseHandler<?> handler = service.responseHandlers.onResponseReceived(requestId, service);
+                // ignore if its null, the service logs it
+                if (handler != null) {
+                    final String executor = handler.executor();
+                    if (ThreadPool.Names.SAME.equals(executor)) {
+                        processResponse(handler, response);
+                    } else {
+                        boolean success = false;
+                        response.incRef();
+                        try {
+                            threadPool.executor(executor).execute(new Runnable() {
+                                @Override
+                                public void run() {
+                                    try {
+                                        processResponse(handler, response);
+                                    } finally {
+                                        response.decRef();
+                                    }
+                                }
 
-                        @Override
-                        public String toString() {
-                            return "delivery of response to [" + requestId + "][" + action + "]: " + response;
+                                @Override
+                                public String toString() {
+                                    return "delivery of response to [" + requestId + "][" + action + "]: " + response;
+                                }
+                            });
+                            success = true;
+                        } finally {
+                            if (success == false) {
+                                response.decRef();
+                            }
                         }
-                    });
+                    }
                 }
+            } finally {
+                response.decRef();
             }
         }
 

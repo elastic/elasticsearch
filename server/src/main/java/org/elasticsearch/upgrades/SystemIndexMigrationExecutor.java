@@ -24,6 +24,8 @@ import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.persistent.PersistentTasksExecutor;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.ParseField;
 
 import java.util.Collection;
 import java.util.List;
@@ -107,6 +109,21 @@ public class SystemIndexMigrationExecutor extends PersistentTasksExecutor<System
         } else {
             return new PersistentTasksCustomMetadata.Assignment(discoveryNode.getId(), "");
         }
+    }
+
+    public static List<NamedXContentRegistry.Entry> getNamedXContentParsers() {
+        return org.elasticsearch.core.List.of(
+            new NamedXContentRegistry.Entry(
+                PersistentTaskParams.class,
+                new ParseField(SystemIndexMigrationTaskParams.SYSTEM_INDEX_UPGRADE_TASK_NAME),
+                SystemIndexMigrationTaskParams::fromXContent
+            ),
+            new NamedXContentRegistry.Entry(
+                PersistentTaskState.class,
+                new ParseField(SystemIndexMigrationTaskParams.SYSTEM_INDEX_UPGRADE_TASK_NAME),
+                SystemIndexMigrationTaskState::fromXContent
+            )
+        );
     }
 
     public static List<NamedWriteableRegistry.Entry> getNamedWriteables() {

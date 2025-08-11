@@ -15,9 +15,8 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
-import static java.util.Collections.emptyMap;
+import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
-import static java.util.Collections.singletonMap;
 import static org.elasticsearch.tasks.TaskResultsService.TASKS_FEATURE_NAME;
 import static org.elasticsearch.tasks.TaskResultsService.TASK_INDEX;
 import static org.hamcrest.Matchers.allOf;
@@ -66,7 +65,10 @@ public class SystemIndicesTests extends ESTestCase {
         assertThat(exception.getMessage(), containsString(overlapping3.toString() + fromPluginString));
         assertThat(exception.getMessage(), not(containsString(notOverlapping.toString())));
 
-        IllegalStateException constructorException = expectThrows(IllegalStateException.class, () -> new SystemIndices(descriptors));
+        IllegalStateException constructorException = expectThrows(
+            IllegalStateException.class,
+            () -> new SystemIndices(List.copyOf(descriptors.values()))
+        );
         assertThat(constructorException.getMessage(), equalTo(exception.getMessage()));
     }
 
@@ -95,24 +97,26 @@ public class SystemIndicesTests extends ESTestCase {
         );
         assertThat(exception.getMessage(), containsString(pattern2.toString() + " from [" + source2 + "]"));
 
-        IllegalStateException constructorException = expectThrows(IllegalStateException.class, () -> new SystemIndices(descriptors));
+        IllegalStateException constructorException = expectThrows(
+            IllegalStateException.class,
+            () -> new SystemIndices(List.copyOf(descriptors.values()))
+        );
         assertThat(constructorException.getMessage(), equalTo(exception.getMessage()));
     }
 
     public void testBuiltInSystemIndices() {
-        SystemIndices systemIndices = new SystemIndices(emptyMap());
+        SystemIndices systemIndices = new SystemIndices(emptyList());
         assertTrue(systemIndices.isSystemIndex(".tasks"));
         assertTrue(systemIndices.isSystemIndex(".tasks1"));
         assertTrue(systemIndices.isSystemIndex(".tasks-old"));
     }
 
     public void testPluginCannotOverrideBuiltInSystemIndex() {
-        Map<String, SystemIndices.Feature> pluginMap = singletonMap(
-            TASKS_FEATURE_NAME,
+        java.util.List<SystemIndices.Feature> pluginMap = singletonList(
             new SystemIndices.Feature(
                 TASKS_FEATURE_NAME,
                 "test",
-                singletonList(new SystemIndexDescriptor(TASK_INDEX + "*", "Task Result " + "Index"))
+                Collections.singletonList(new SystemIndexDescriptor(TASK_INDEX + "*", "Task Result Index"))
             )
         );
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> new SystemIndices(pluginMap));
@@ -121,8 +125,7 @@ public class SystemIndicesTests extends ESTestCase {
 
     public void testPatternWithSimpleRange() {
         final SystemIndices systemIndices = new SystemIndices(
-            singletonMap(
-                "test",
+            List.of(
                 new SystemIndices.Feature(
                     "test",
                     "test feature",
@@ -143,8 +146,7 @@ public class SystemIndicesTests extends ESTestCase {
 
     public void testPatternWithSimpleRangeAndRepeatOperator() {
         final SystemIndices systemIndices = new SystemIndices(
-            singletonMap(
-                "test",
+            singletonList(
                 new SystemIndices.Feature(
                     "test",
                     "test feature",
@@ -162,8 +164,7 @@ public class SystemIndicesTests extends ESTestCase {
 
     public void testPatternWithComplexRange() {
         final SystemIndices systemIndices = new SystemIndices(
-            singletonMap(
-                "test",
+            singletonList(
                 new SystemIndices.Feature(
                     "test",
                     "test feature",

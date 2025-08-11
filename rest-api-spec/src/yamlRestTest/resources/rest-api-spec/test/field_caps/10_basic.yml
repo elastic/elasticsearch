@@ -104,6 +104,12 @@ setup:
                             type: text
                             index: false
 
+  - do:
+      cluster.health:
+        wait_for_no_relocating_shards: true
+        wait_for_no_initializing_shards: true
+        wait_for_events: languid
+
 ---
 "Get simple field caps":
 

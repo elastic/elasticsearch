@@ -13,6 +13,7 @@ import com.google.api.gax.retrying.RetrySettings;
 import com.google.cloud.http.HttpTransportOptions;
 import com.google.cloud.storage.StorageException;
 import com.google.cloud.storage.StorageOptions;
+import com.google.cloud.storage.StorageRetryStrategy;
 import com.sun.net.httpserver.HttpHandler;
 
 import org.apache.http.HttpStatus;
@@ -157,6 +158,7 @@ public class GoogleCloudStorageBlobContainerRetriesTests extends AbstractBlobCon
                     retrySettingsBuilder.setMaxAttempts(maxRetries + 1);
                 }
                 return options.toBuilder()
+                    .setStorageRetryStrategy(StorageRetryStrategy.getLegacyStorageRetryStrategy())
                     .setHost(options.getHost())
                     .setCredentials(options.getCredentials())
                     .setRetrySettings(retrySettingsBuilder.build())

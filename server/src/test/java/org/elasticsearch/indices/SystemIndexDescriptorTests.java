@@ -287,6 +287,24 @@ public class SystemIndexDescriptorTests extends ESTestCase {
         assertFalse("the leading dot got dropped", automaton.run("system-index-1"));
     }
 
+    public void testManagedSystemIndexMustHaveMatchingIndexFormat() {
+        SystemIndexDescriptor.Builder builder = SystemIndexDescriptor.builder()
+            .setIndexPattern(".system*")
+            .setDescription("system stuff")
+            .setPrimaryIndex(".system-1")
+            .setAliasName(".system")
+            .setType(Type.INTERNAL_MANAGED)
+            .setMappings(MAPPINGS)
+            .setSettings(Settings.builder().put("index.format", 5).build())
+            .setIndexFormat(0)
+            .setVersionMetaKey("version")
+            .setOrigin("system");
+
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, builder::build);
+
+        assertThat(e.getMessage(), equalTo("Descriptor index format does not match index format in managed settings"));
+    }
+
     private SystemIndexDescriptor.Builder priorSystemIndexDescriptorBuilder() {
         return SystemIndexDescriptor.builder()
             .setIndexPattern(".system*")

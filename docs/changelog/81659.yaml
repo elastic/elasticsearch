@@ -1,5 +1,0 @@
-pr: 81659
-summary: Improve Docker image's cacert scripting
-area: Packaging
-type: enhancement
-issues: []

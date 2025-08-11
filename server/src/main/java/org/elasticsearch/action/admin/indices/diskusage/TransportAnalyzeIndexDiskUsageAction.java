@@ -8,6 +8,7 @@
 
 package org.elasticsearch.action.admin.indices.diskusage;
 
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.NoShardAvailableActionException;
 import org.elasticsearch.action.support.ActionFilters;
@@ -17,12 +18,14 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
@@ -35,8 +38,12 @@ import org.elasticsearch.transport.TransportService;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.Iterator;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.Queue;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReferenceArray;
 
 public class TransportAnalyzeIndexDiskUsageAction extends TransportBroadcastAction<
@@ -45,6 +52,7 @@ public class TransportAnalyzeIndexDiskUsageAction extends TransportBroadcastActi
     AnalyzeDiskUsageShardRequest,
     AnalyzeDiskUsageShardResponse> {
     private final IndicesService indicesService;
+    private final ThreadPool threadPool;
 
     @Inject
     public TransportAnalyzeIndexDiskUsageAction(
@@ -65,11 +73,96 @@ public class TransportAnalyzeIndexDiskUsageAction extends TransportBroadcastActi
             ThreadPool.Names.ANALYZE
         );
         this.indicesService = indexServices;
+        this.threadPool = transportService.getThreadPool();
     }
 
     @Override
     protected void doExecute(Task task, AnalyzeIndexDiskUsageRequest request, ActionListener<AnalyzeIndexDiskUsageResponse> listener) {
-        super.doExecute(task, request, listener);
+        new LimitingRequestPerNodeBroadcastAction(task, request, listener, 5).start();
+    }
+
+    private static class ShardRequest {
+        private final DiscoveryNode node;
+        private final AnalyzeDiskUsageShardRequest shardRequest;
+        private final ActionListener<AnalyzeDiskUsageShardResponse> handler;
+
+        ShardRequest(DiscoveryNode node, AnalyzeDiskUsageShardRequest shardRequest, ActionListener<AnalyzeDiskUsageShardResponse> handler) {
+            this.node = node;
+            this.shardRequest = shardRequest;
+            this.handler = handler;
+        }
+    }
+
+    final class LimitingRequestPerNodeBroadcastAction extends AsyncBroadcastAction {
+        private final Queue<ShardRequest> queue = new LinkedList<>();
+        private final Map<DiscoveryNode, AtomicInteger> sendingCounters = ConcurrentCollections.newConcurrentMap();
+        private final int maxConcurrentRequestsPerNode;
+
+        LimitingRequestPerNodeBroadcastAction(
+            Task task,
+            AnalyzeIndexDiskUsageRequest request,
+            ActionListener<AnalyzeIndexDiskUsageResponse> listener,
+            int maxConcurrentRequestsPerNode
+        ) {
+            super(task, request, listener);
+            this.maxConcurrentRequestsPerNode = maxConcurrentRequestsPerNode;
+        }
+
+        private void trySendRequests() {
+            assert Thread.holdsLock(this) == false;
+            final List<ShardRequest> readyRequests = new ArrayList<>();
+            synchronized (this) {
+                final Iterator<ShardRequest> it = queue.iterator();
+                while (it.hasNext()) {
+                    final ShardRequest r = it.next();
+                    final AtomicInteger sending = sendingCounters.computeIfAbsent(r.node, k -> new AtomicInteger());
+                    assert 0 <= sending.get() && sending.get() <= maxConcurrentRequestsPerNode : sending;
+                    if (sending.get() < maxConcurrentRequestsPerNode) {
+                        sending.incrementAndGet();
+                        readyRequests.add(r);
+                        it.remove();
+                    }
+                }
+            }
+            if (readyRequests.isEmpty()) {
+                return;
+            }
+            final Thread sendingThread = Thread.currentThread();
+            for (ShardRequest r : readyRequests) {
+                super.sendShardRequest(
+                    r.node,
+                    r.shardRequest,
+                    ActionListener.runAfter(r.handler, () -> onRequestResponded(sendingThread, r.node))
+                );
+            }
+        }
+
+        private void onRequestResponded(Thread sendingThread, DiscoveryNode node) {
+            final AtomicInteger sending = sendingCounters.get(node);
+            assert sending != null && 1 <= sending.get() && sending.get() <= maxConcurrentRequestsPerNode : sending;
+            sending.decrementAndGet();
+            // fork to avoid StackOverflow
+            if (sendingThread == Thread.currentThread()) {
+                threadPool.generic().execute(this::trySendRequests);
+            } else {
+                trySendRequests();
+            }
+        }
+
+        @Override
+        protected synchronized void sendShardRequest(
+            DiscoveryNode node,
+            AnalyzeDiskUsageShardRequest shardRequest,
+            ActionListener<AnalyzeDiskUsageShardResponse> listener
+        ) {
+            queue.add(new ShardRequest(node, shardRequest, listener));
+        }
+
+        @Override
+        public void start() {
+            super.start();
+            trySendRequests();
+        }
     }
 
     @Override
@@ -112,6 +205,8 @@ public class TransportAnalyzeIndexDiskUsageAction extends TransportBroadcastActi
                 combined.compute(resp.getIndex(), (k, v) -> v == null ? resp.stats : v.add(resp.stats));
             } else if (r instanceof DefaultShardOperationFailedException) {
                 shardFailures.add((DefaultShardOperationFailedException) r);
+            } else if (r instanceof Exception) {
+                shardFailures.add(new DefaultShardOperationFailedException(ExceptionsHelper.convertToElastic((Exception) r)));
             } else {
                 assert false : "unknown response [" + r + "]";
                 throw new IllegalStateException("unknown response [" + r + "]");

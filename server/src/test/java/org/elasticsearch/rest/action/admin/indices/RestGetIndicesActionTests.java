@@ -9,6 +9,7 @@
 package org.elasticsearch.rest.action.admin.indices;
 
 import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.test.rest.RestActionTestCase;
@@ -33,7 +34,7 @@ public class RestGetIndicesActionTests extends RestActionTestCase {
             .withParams(params)
             .build();
 
-        RestGetIndicesAction handler = new RestGetIndicesAction();
+        RestGetIndicesAction handler = new RestGetIndicesAction(new DeterministicTaskQueue().getThreadPool());
         handler.prepareRequest(request, mock(NodeClient.class));
         assertWarnings(RestGetIndicesAction.TYPES_DEPRECATION_MESSAGE);
 
@@ -53,7 +54,7 @@ public class RestGetIndicesActionTests extends RestActionTestCase {
             .withParams(params)
             .build();
 
-        RestGetIndicesAction handler = new RestGetIndicesAction();
+        RestGetIndicesAction handler = new RestGetIndicesAction(new DeterministicTaskQueue().getThreadPool());
         handler.prepareRequest(request, mock(NodeClient.class));
     }
 }

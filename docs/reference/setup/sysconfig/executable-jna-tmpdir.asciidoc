@@ -1,5 +1,5 @@
 [[executable-jna-tmpdir]]
-=== JNA temporary directory not mounted with `noexec`
+=== Ensure JNA temporary directory permits executables
 
 [NOTE]
 This is only relevant for Linux.
@@ -16,8 +16,9 @@ some hardened Linux installations mount `/tmp` with the `noexec` option by
 default. This prevents JNA and `libffi` from working correctly. For instance,
 at startup JNA may fail to load with an `java.lang.UnsatisfiedLinkerError`
 exception or with a message that says something similar to
-`failed to map segment from shared object`. Note that the exception message can
-differ amongst JVM versions. Additionally, the components of {es} that rely on
+`failed to map segment from shared object`, or `libffi` may report a message
+such as `failed to allocate closure`. Note that the exception messages can
+differ between JVM versions. Additionally, the components of {es} that rely on
 execution of native code via JNA may fail with messages indicating that it is
 `because JNA is not available`.
 
@@ -26,12 +27,24 @@ filesystem, or configure {es} to use a different location for its temporary
 directory by setting the <<es-tmpdir,`$ES_TMPDIR`>> environment variable. For
 instance:
 
+* If you are running {es} directly from a shell, set `$ES_TMPDIR` as follows:
++
 ["source","sh",subs="attributes"]
 --------------------------------------------
 export ES_TMPDIR=/usr/share/elasticsearch/tmp
 --------------------------------------------
 
-Alternatively, you can configure the path that JNA uses for its temporary files
-with the <<set-jvm-options,JVM flag>> `-Djna.tmpdir=<path>` and you can
-configure the path that `libffi` uses for its temporary files with the
-`LIBFFI_TMPDIR` environment variable.
+* If you are using `systemd` to run {es} as a service, add the following
+line to the `[Service]` section in a <<systemd,service override file>>:
++
+[source,text]
+--------------------------------------------
+Environment=ES_TMPDIR=/usr/share/elasticsearch/tmp
+--------------------------------------------
+
+If you need finer control over the location of these temporary files, you can
+also configure the path that JNA uses with the <<set-jvm-options,JVM flag>>
+`-Djna.tmpdir=<path>` and you can configure the path that `libffi` uses for its
+temporary files by setting the `LIBFFI_TMPDIR` environment variable. Future
+versions of {es} may need additional configuration, so you should prefer to set
+`ES_TMPDIR` wherever possible.

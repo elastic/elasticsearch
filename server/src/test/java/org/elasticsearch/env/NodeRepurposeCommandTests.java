@@ -53,21 +53,21 @@ public class NodeRepurposeCommandTests extends ESTestCase {
     private static final Index INDEX = new Index("testIndex", "testUUID");
     private Settings dataMasterSettings;
     private Environment environment;
-    private Path[] nodePaths;
+    private Path[] dataPaths;
     private Settings dataNoMasterSettings;
     private Settings noDataNoMasterSettings;
     private Settings noDataMasterSettings;
 
     @Before
-    public void createNodePaths() throws IOException {
+    public void createDataPaths() throws IOException {
         dataMasterSettings = buildEnvSettings(Settings.EMPTY);
         environment = TestEnvironment.newEnvironment(dataMasterSettings);
         try (NodeEnvironment nodeEnvironment = new NodeEnvironment(dataMasterSettings, environment)) {
-            nodePaths = nodeEnvironment.nodeDataPaths();
+            dataPaths = nodeEnvironment.nodeDataPaths();
             final String nodeId = randomAlphaOfLength(10);
             try (
                 PersistedClusterStateService.Writer writer = new PersistedClusterStateService(
-                    nodePaths,
+                    dataPaths,
                     nodeId,
                     xContentRegistry(),
                     BigArrays.NON_RECYCLING_INSTANCE,

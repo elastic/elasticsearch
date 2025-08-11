@@ -25,8 +25,10 @@ import java.io.IOException;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static java.util.Collections.singleton;
+import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 public class AddVotingConfigExclusionsRequestTests extends ESTestCase {
@@ -315,6 +317,40 @@ public class AddVotingConfigExclusionsRequestTests extends ESTestCase {
         assertThat(
             new AddVotingConfigExclusionsRequest("nodeName1", "unresolvableNodeName").resolveVotingConfigExclusions(clusterState),
             containsInAnyOrder(node1Exclusion, unresolvableVotingConfigExclusion)
+        );
+    }
+
+    public void testResolveAmbiguousName() {
+        final DiscoveryNode node1 = new DiscoveryNode(
+            "ambiguous-name",
+            "nodeId1",
+            buildNewFakeTransportAddress(),
+            emptyMap(),
+            singleton(DiscoveryNodeRole.MASTER_ROLE),
+            Version.CURRENT
+        );
+
+        final DiscoveryNode node2 = new DiscoveryNode(
+            "ambiguous-name",
+            "nodeId2",
+            buildNewFakeTransportAddress(),
+            emptyMap(),
+            singleton(DiscoveryNodeRole.MASTER_ROLE),
+            Version.CURRENT
+        );
+
+        final ClusterState clusterState = ClusterState.builder(new ClusterName("cluster"))
+            .nodes(new Builder().add(node1).add(node2).localNodeId(node1.getId()))
+            .build();
+
+        final AddVotingConfigExclusionsRequest request = new AddVotingConfigExclusionsRequest("ambiguous-name");
+        assertThat(
+            expectThrows(IllegalArgumentException.class, () -> request.resolveVotingConfigExclusions(clusterState)).getMessage(),
+            allOf(
+                containsString("node name [ambiguous-name] is ambiguous"),
+                containsString(node1.descriptionWithoutAttributes()),
+                containsString(node2.descriptionWithoutAttributes())
+            )
         );
     }
 

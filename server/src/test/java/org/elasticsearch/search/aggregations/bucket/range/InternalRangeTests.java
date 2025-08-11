@@ -112,16 +112,9 @@ public class InternalRangeTests extends InternalRangeTestCase<InternalRange<Inte
             case 2:
                 buckets = new ArrayList<>(buckets);
                 double from = randomDouble();
+                double to = from + randomDouble();
                 buckets.add(
-                    new InternalRange.Bucket(
-                        "range_a",
-                        from,
-                        from + randomDouble(),
-                        randomNonNegativeLong(),
-                        InternalAggregations.EMPTY,
-                        false,
-                        format
-                    )
+                    new InternalRange.Bucket("range_a", from, to, randomNonNegativeLong(), InternalAggregations.EMPTY, false, format)
                 );
                 break;
             case 3:

@@ -360,6 +360,39 @@ public class BasicEnrichTests extends ESSingleNodeTestCase {
         assertThat(keys.contains(userEntry.get(MATCH_FIELD)), is(true));
     }
 
+    public void testFailureAfterEnrich() throws Exception {
+        List<String> keys = createSourceMatchIndex(1, 1);
+        String policyName = "my-policy";
+        EnrichPolicy enrichPolicy = new EnrichPolicy(
+            EnrichPolicy.MATCH_TYPE,
+            null,
+            Collections.singletonList(SOURCE_INDEX_NAME),
+            MATCH_FIELD,
+            Arrays.asList(DECORATE_FIELDS)
+        );
+        PutEnrichPolicyAction.Request request = new PutEnrichPolicyAction.Request(policyName, enrichPolicy);
+        client().execute(PutEnrichPolicyAction.INSTANCE, request).actionGet();
+        client().execute(ExecuteEnrichPolicyAction.INSTANCE, new ExecuteEnrichPolicyAction.Request(policyName)).actionGet();
+
+        // A pipeline with a foreach that uses a non existing field that is specified after enrich has run:
+        String pipelineName = "my-pipeline";
+        String pipelineBody = "{\"processors\": [{\"enrich\": {\"policy_name\":\""
+            + policyName
+            + "\", \"field\": \"email\", \"target_field\": \"users\"}},"
+            + "{ \"foreach\": {\"field\":\"users\", \"processor\":{\"append\":{\"field\":\"matched2\",\"value\":\"{{_ingest._value}}\"}}}}"
+            + "]}";
+        PutPipelineRequest putPipelineRequest = new PutPipelineRequest(pipelineName, new BytesArray(pipelineBody), XContentType.JSON);
+        client().admin().cluster().putPipeline(putPipelineRequest).actionGet();
+
+        for (int i = 0; i < 5; i++) {
+            IndexRequest indexRequest = new IndexRequest("my-index").id("1")
+                .setPipeline(pipelineName)
+                .source(mapOf(MATCH_FIELD, "non_existing"));
+            Exception e = expectThrows(IllegalArgumentException.class, () -> client().index(indexRequest).actionGet());
+            assertThat(e.getMessage(), equalTo("field [users] not present as part of path [users]"));
+        }
+    }
+
     private List<String> createSourceMatchIndex(int numKeys, int numDocsPerKey) {
         Set<String> keys = new HashSet<>();
         for (int id = 0; id < numKeys; id++) {

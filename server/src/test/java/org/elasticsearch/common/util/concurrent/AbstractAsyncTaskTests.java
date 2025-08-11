@@ -187,9 +187,9 @@ public class AbstractAsyncTaskTests extends ESTestCase {
         assertFalse(task.isScheduled());
         task.rescheduleIfNecessary();
         assertTrue(task.isScheduled());
-        task.setInterval(TimeValue.timeValueMillis(1));
+        task.setInterval(TimeValue.timeValueMillis(10));
         assertTrue(task.isScheduled());
-        // This should only take 2 milliseconds in ideal conditions, but allow 10 seconds in case of VM stalls
+        // This should only take 20 milliseconds in ideal conditions, but allow 10 seconds in case of VM stalls
         assertTrue(latch.await(10, TimeUnit.SECONDS));
         assertBusy(() -> assertFalse(task.isScheduled()));
         task.close();

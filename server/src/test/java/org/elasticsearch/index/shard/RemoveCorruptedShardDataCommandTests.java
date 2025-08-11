@@ -102,7 +102,7 @@ public class RemoveCorruptedShardDataCommandTests extends IndexShardTestCase {
         );
 
         // create same directory structure as prod does
-        final Path path = NodeEnvironment.resolveNodePath(dataDir, 0);
+        final Path path = NodeEnvironment.resolveDataPath(dataDir, 0);
         Files.createDirectories(path);
         dataPaths = new Path[] { path };
         final Settings settings = Settings.builder()
@@ -113,8 +113,8 @@ public class RemoveCorruptedShardDataCommandTests extends IndexShardTestCase {
             .put(IndexMetadata.SETTING_INDEX_UUID, shardId.getIndex().getUUID())
             .build();
 
-        final NodeEnvironment.NodePath nodePath = new NodeEnvironment.NodePath(path);
-        shardPath = new ShardPath(false, nodePath.resolve(shardId), nodePath.resolve(shardId), shardId);
+        final NodeEnvironment.DataPath dataPath = new NodeEnvironment.DataPath(path);
+        shardPath = new ShardPath(false, dataPath.resolve(shardId), dataPath.resolve(shardId), shardId);
         final IndexMetadata.Builder metadata = IndexMetadata.builder(routing.getIndexName())
             .settings(settings)
             .primaryTerm(0, randomIntBetween(1, 100))
@@ -124,7 +124,7 @@ public class RemoveCorruptedShardDataCommandTests extends IndexShardTestCase {
         clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(Metadata.builder().put(indexMetadata, false).build()).build();
 
         try (NodeEnvironment.NodeLock lock = new NodeEnvironment.NodeLock(0, logger, environment, Files::exists)) {
-            final Path[] dataPaths = Arrays.stream(lock.getNodePaths()).filter(Objects::nonNull).map(p -> p.path).toArray(Path[]::new);
+            final Path[] dataPaths = Arrays.stream(lock.getDataPaths()).filter(Objects::nonNull).map(p -> p.path).toArray(Path[]::new);
             try (
                 PersistedClusterStateService.Writer writer = new PersistedClusterStateService(
                     dataPaths,

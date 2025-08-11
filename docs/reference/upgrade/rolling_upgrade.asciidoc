@@ -7,19 +7,23 @@ a time so upgrading does not interrupt service. Running multiple versions of
 not supported, as shards cannot be replicated from upgraded nodes to nodes
 running the older version.
 
-We strongly recommend that when you upgrade you divide your cluster's nodes
-into the following two groups and upgrade the groups in this order:
+When performing a rolling upgrade:
 
-. Nodes that are not <<master-node,master-eligible>>. You can retrieve a list
+. Upgrade nodes that are not <<master-node,master-eligible>>. You can retrieve a list
 of these nodes with `GET /_nodes/_all,master:false` or by finding all the nodes
 configured with `node.master: false`.
 
-. Master-eligible nodes, which are the remaining nodes. You can retrieve a list
+. Upgrade nodes tier-by-tier, starting with the frozen tier.
+Complete the upgrade for all nodes in each data tier before moving to the next.
+Upgrade the frozen tier, then the cold tier, then the warm tier, and upgrade
+the hot tier last. This ensures {ilm-init} can continue to move data through
+the tiers during the upgrade. You can get the list of nodes in a specific tier
+with a `GET /_nodes` request, for example: `GET /_nodes/data_frozen:true/_none`.
+
+. Upgrade the master-eligible nodes last. You can retrieve a list
 of these nodes with `GET /_nodes/master:true`.
 
-You may upgrade the nodes within each of these groups in any order.
-
-Upgrading the nodes in this order ensures that the master-ineligible nodes are
+This order ensures that the master-ineligible nodes are
 always running a version at least as new as the master-eligible nodes. Newer
 nodes can always join a cluster with an older master, but older nodes cannot
 always join a cluster with a newer master. By upgrading the master-eligible

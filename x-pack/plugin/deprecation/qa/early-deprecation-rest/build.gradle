@@ -1,8 +1,8 @@
 import org.elasticsearch.gradle.util.GradleUtils
 import org.elasticsearch.gradle.internal.info.BuildParams
 
-apply plugin: 'elasticsearch.internal-es-plugin'
-apply plugin: 'elasticsearch.internal-java-rest-test'
+apply plugin: 'elasticsearch.base-internal-es-plugin'
+apply plugin: 'elasticsearch.legacy-java-rest-test'
 
 esplugin {
   description 'Deprecated query plugin'
@@ -33,9 +33,8 @@ testClusters.configureEach {
   setting 'xpack.license.self_generated.type', 'trial'
 }
 
-tasks.named("test").configure { enabled = false }
-
-if (BuildParams.inFipsJvm){
-  // Test clusters run with security disabled
-  tasks.named("javaRestTest").configure{enabled = false }
+// Test clusters run with security disabled
+tasks.named("javaRestTest") {
+  onlyIf { BuildParams.inFipsJvm == false }
 }
+

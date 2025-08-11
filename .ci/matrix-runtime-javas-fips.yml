@@ -5,8 +5,9 @@
 # FIPS 140-2 mode.
 # We also want to test with the bundled JDK so that we proactively find
 # issues that might later be backported to JDK11. Current bundled JDK is
-# openjdk16
+# openjdk18
 
 ES_RUNTIME_JAVA:
   - java11
-  - openjdk16
+  - openjdk17
+  - openjdk18

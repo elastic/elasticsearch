@@ -7,12 +7,10 @@
 
 import org.elasticsearch.gradle.testclusters.DefaultTestClustersTask
 
-apply plugin: 'elasticsearch.internal-testclusters'
-apply plugin: 'elasticsearch.standalone-rest-test'
-apply plugin: 'elasticsearch.rest-test'
+apply plugin: 'elasticsearch.legacy-java-rest-test'
 
 dependencies {
-  testImplementation project(':x-pack:plugin:vector-tile')
+  javaRestTestImplementation project(':x-pack:plugin:vector-tile')
 }
 
 testClusters {
@@ -39,7 +37,7 @@ tasks.register("startRemoteCluster", DefaultTestClustersTask.class) {
   }
 }
 
-tasks.named("integTest").configure {
+tasks.named("javaRestTest").configure {
   dependsOn 'startRemoteCluster'
   useCluster testClusters.'remote'
   useCluster testClusters.'local'

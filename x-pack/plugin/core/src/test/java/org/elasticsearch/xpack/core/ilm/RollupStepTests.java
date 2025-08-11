@@ -25,6 +25,7 @@ import java.util.Collections;
 import java.util.Map;
 
 import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.createTimestampField;
+import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.newInstance;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
@@ -130,11 +131,7 @@ public class RollupStepTests extends AbstractStepTestCase<RollupStep> {
             .metadata(
                 Metadata.builder()
                     .put(
-                        new DataStream(
-                            dataStreamName,
-                            createTimestampField("@timestamp"),
-                            Collections.singletonList(indexMetadata.getIndex())
-                        )
+                        newInstance(dataStreamName, createTimestampField("@timestamp"), Collections.singletonList(indexMetadata.getIndex()))
                     )
                     .put(indexMetadata, true)
             )

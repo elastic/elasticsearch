@@ -3,7 +3,7 @@
   - do:
       index:
         index:   source
-        id:      1
+        id:      "1"
         body:    { "text": "test" }
         refresh: true
 
@@ -58,12 +58,12 @@
   - do:
       index:
         index:   source
-        id:      1
+        id:      "1"
         body:    { "text": "test" }
   - do:
       index:
         index:   source
-        id:      2
+        id:      "2"
         body:    { "text": "test2" }
   - do:
       indices.refresh: {}
@@ -113,7 +113,7 @@
   - do:
       index:
         index:   source
-        id:      1
+        id:      "1"
         body:    { "text": "test" }
         routing: foo
         refresh: true
@@ -165,7 +165,7 @@
   - do:
       index:
         index:   source
-        id:      1
+        id:      "1"
         body:    { "text": "test" }
         refresh: true
 
@@ -226,13 +226,13 @@
   - do:
       index:
         index:   source
-        id:      1
+        id:      "1"
         body:    { "text": "test" }
         refresh: true
   - do:
       index:
         index:   source
-        id:      2
+        id:      "2"
         body:    { "text": "test" }
         refresh: true
 
@@ -292,13 +292,13 @@
   - do:
       index:
         index:   source
-        id:      1
+        id:      "1"
         body:    { "text": "test" }
         refresh: true
   - do:
       index:
         index:   source
-        id:      2
+        id:      "2"
         body:    { "text": "test" }
         refresh: true
 
@@ -354,7 +354,7 @@
   - do:
       index:
         index:   source
-        id:      1
+        id:      "1"
         body:    { "text": "test" }
         refresh: true
 
@@ -385,7 +385,7 @@
   - do:
       index:
         index:   source
-        id:      1
+        id:      "1"
         body:    { "text": "test" }
         refresh: true
 
@@ -406,7 +406,7 @@
   - do:
       index:
         index:   source
-        id:      1
+        id:      "1"
         body:    { "text": "test", "filtered": "removed" }
         refresh: true
 
@@ -445,7 +445,7 @@
   - do:
       get:
         index: dest
-        id: 1
+        id: "1"
   - match: { _source.text: "test" }
   - is_false: _source.filtered
 
@@ -463,17 +463,17 @@
   - do:
       index:
         index:   source
-        id:      1
+        id:      "1"
         body:    { "text": "test" }
   - do:
       index:
         index:   source
-        id:      2
+        id:      "2"
         body:    { "text": "test" }
   - do:
       index:
         index:   source
-        id:      3
+        id:      "3"
         body:    { "text": "test" }
   - do:
       indices.refresh: {}

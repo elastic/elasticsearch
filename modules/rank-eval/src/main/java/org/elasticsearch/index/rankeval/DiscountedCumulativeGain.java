@@ -258,11 +258,9 @@ public class DiscountedCumulativeGain implements EvaluationMetric {
             return builder;
         }
 
-        private static final ConstructingObjectParser<Detail, Void> PARSER = new ConstructingObjectParser<>(
-            NAME,
-            true,
-            args -> { return new Detail((Double) args[0], (Double) args[1] != null ? (Double) args[1] : 0.0d, (Integer) args[2]); }
-        );
+        private static final ConstructingObjectParser<Detail, Void> PARSER = new ConstructingObjectParser<>(NAME, true, args -> {
+            return new Detail((Double) args[0], (Double) args[1] != null ? (Double) args[1] : 0.0d, (Integer) args[2]);
+        });
 
         static {
             PARSER.declareDouble(constructorArg(), DCG_FIELD);

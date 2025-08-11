@@ -58,7 +58,8 @@ final class SystemJvmOptions {
                 "-Dlog4j2.formatMsgNoLookups=true",
 
                 javaLocaleProviders(),
-                maybeAddOpensJavaIoToAllUnnamed()
+                maybeAddOpensJavaIoToAllUnnamed(),
+                maybeAllowSecurityManager()
             )
         ).stream().filter(e -> e.isEmpty() == false).collect(Collectors.toList());
     }
@@ -66,6 +67,15 @@ final class SystemJvmOptions {
     private static String maybeShowCodeDetailsInExceptionMessages() {
         if (JavaVersion.majorVersion(JavaVersion.CURRENT) >= 14) {
             return "-XX:+ShowCodeDetailsInExceptionMessages";
+        } else {
+            return "";
+        }
+    }
+
+    // The security manager needs to be explicitly allowed on JDK 18+.
+    private static String maybeAllowSecurityManager() {
+        if (JavaVersion.majorVersion(JavaVersion.CURRENT) >= 18) {
+            return "-Djava.security.manager=allow";
         } else {
             return "";
         }
@@ -81,11 +91,15 @@ final class SystemJvmOptions {
          *  parsing will break in an incompatible way for some date patterns and locales.
          *  //TODO COMPAT will be deprecated in jdk14 https://bugs.openjdk.java.net/browse/JDK-8232906
          * See also: documentation in <code>server/org.elasticsearch.common.time.IsoCalendarDataProvider</code>
+         *
+         * COMPAT is removed in JDK 23, so we have to use CLDR for 23
          */
         if (JavaVersion.majorVersion(JavaVersion.CURRENT) == 8) {
             return "-Djava.locale.providers=SPI,JRE";
-        } else {
+        } else if (JavaVersion.majorVersion(JavaVersion.CURRENT) <= 22) {
             return "-Djava.locale.providers=SPI,COMPAT";
+        } else {
+            return "-Djava.locale.providers=SPI,CLDR";
         }
     }
 

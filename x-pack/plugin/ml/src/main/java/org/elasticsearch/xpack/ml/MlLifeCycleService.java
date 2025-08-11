@@ -28,6 +28,8 @@ import java.time.Duration;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.Collection;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 public class MlLifeCycleService {
 
@@ -47,7 +49,7 @@ public class MlLifeCycleService {
     private final AutodetectProcessManager autodetectProcessManager;
     private final DataFrameAnalyticsManager analyticsManager;
     private final MlMemoryTracker memoryTracker;
-    private volatile Instant shutdownStartTime;
+    private final Map<String, Instant> shutdownStartTimes = new ConcurrentHashMap<>();
 
     public MlLifeCycleService(
         Environment environment,
@@ -106,7 +108,7 @@ public class MlLifeCycleService {
      * @return Has all active ML work vacated the specified node?
      */
     public boolean isNodeSafeToShutdown(String nodeId) {
-        return isNodeSafeToShutdown(nodeId, clusterService.state(), shutdownStartTime, Clock.systemUTC());
+        return isNodeSafeToShutdown(nodeId, clusterService.state(), shutdownStartTimes.get(nodeId), Clock.systemUTC());
     }
 
     static boolean isNodeSafeToShutdown(String nodeId, ClusterState state, Instant shutdownStartTime, Clock clock) {
@@ -151,11 +153,9 @@ public class MlLifeCycleService {
             return;
         }
 
-        if (shutdownNodeIds.contains(state.nodes().getLocalNodeId())) {
-            if (shutdownStartTime == null) {
-                shutdownStartTime = Instant.now(clock);
-                logger.info("Starting node shutdown sequence for ML");
-            }
+        String localNodeId = state.nodes().getLocalNodeId();
+        updateShutdownStartTimes(shutdownNodeIds, localNodeId, clock);
+        if (shutdownNodeIds.contains(localNodeId)) {
             datafeedRunner.vacateAllDatafeedsOnThisNode(
                 "previously assigned node [" + state.nodes().getLocalNode().getName() + "] is shutting down"
             );
@@ -163,7 +163,19 @@ public class MlLifeCycleService {
         }
     }
 
-    Instant getShutdownStartTime() {
-        return shutdownStartTime;
+    Instant getShutdownStartTime(String nodeId) {
+        return shutdownStartTimes.get(nodeId);
+    }
+
+    private void updateShutdownStartTimes(Collection<String> shutdownNodeIds, String localNodeId, Clock clock) {
+        for (String shutdownNodeId : shutdownNodeIds) {
+            shutdownStartTimes.computeIfAbsent(shutdownNodeId, key -> {
+                if (key.equals(localNodeId)) {
+                    logger.info("Starting node shutdown sequence for ML");
+                }
+                return Instant.now(clock);
+            });
+        }
+        shutdownStartTimes.keySet().retainAll(shutdownNodeIds);
     }
 }

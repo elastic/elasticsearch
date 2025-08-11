@@ -296,8 +296,8 @@ public class IPFilterTests extends ESTestCase {
     private void assertAddressIsAllowedForProfile(String profile, String... inetAddresses) {
         for (String inetAddress : inetAddresses) {
             String message = String.format(Locale.ROOT, "Expected address %s to be allowed", inetAddress);
-            InetAddress address = InetAddresses.forString(inetAddress);
-            assertTrue(message, ipFilter.accept(profile, new InetSocketAddress(address, 0)));
+            InetSocketAddress address = new InetSocketAddress(InetAddresses.forString(inetAddress), 0);
+            assertTrue(message, ipFilter.accept(profile, address));
             ArgumentCaptor<SecurityIpFilterRule> ruleCaptor = ArgumentCaptor.forClass(SecurityIpFilterRule.class);
             verify(auditTrail).connectionGranted(eq(address), eq(profile), ruleCaptor.capture());
             assertNotNull(ruleCaptor.getValue());
@@ -311,8 +311,8 @@ public class IPFilterTests extends ESTestCase {
     private void assertAddressIsDeniedForProfile(String profile, String... inetAddresses) {
         for (String inetAddress : inetAddresses) {
             String message = String.format(Locale.ROOT, "Expected address %s to be denied", inetAddress);
-            InetAddress address = InetAddresses.forString(inetAddress);
-            assertFalse(message, ipFilter.accept(profile, new InetSocketAddress(address, 0)));
+            InetSocketAddress address = new InetSocketAddress(InetAddresses.forString(inetAddress), 0);
+            assertFalse(message, ipFilter.accept(profile, address));
             ArgumentCaptor<SecurityIpFilterRule> ruleCaptor = ArgumentCaptor.forClass(SecurityIpFilterRule.class);
             verify(auditTrail).connectionDenied(eq(address), eq(profile), ruleCaptor.capture());
             assertNotNull(ruleCaptor.getValue());

@@ -21,6 +21,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.isA;
 
 public class AutodetectWorkerExecutorServiceTests extends ESTestCase {
 
@@ -37,6 +38,33 @@ public class AutodetectWorkerExecutorServiceTests extends ESTestCase {
         threadPool.generic().execute(() -> executor.start());
         executor.shutdown();
         expectThrows(EsRejectedExecutionException.class, () -> executor.execute(() -> {}));
+    }
+
+    public void testAutodetectWorkerExecutorService_SubmitAfterShutdownWithAbstractRunnable() {
+        AutodetectWorkerExecutorService executor = new AutodetectWorkerExecutorService(new ThreadContext(Settings.EMPTY));
+
+        threadPool.generic().execute(() -> executor.start());
+        executor.shutdown();
+        AtomicBoolean rejected = new AtomicBoolean(false);
+        executor.execute(new AbstractRunnable() {
+            @Override
+            public void onRejection(Exception e) {
+                assertThat(e, isA(EsRejectedExecutionException.class));
+                rejected.set(true);
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                fail("onFailure should not be called after the worker is shutdown");
+            }
+
+            @Override
+            protected void doRun() throws Exception {
+                fail("doRun should not be called after the worker is shutdown");
+            }
+        });
+
+        assertTrue(rejected.get());
     }
 
     public void testAutodetectWorkerExecutorService_TasksNotExecutedCallHandlerOnShutdown() throws Exception {

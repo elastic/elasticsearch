@@ -1,5 +1,7 @@
-apply plugin: 'elasticsearch.internal-es-plugin'
-apply plugin: 'elasticsearch.internal-java-rest-test'
+import org.elasticsearch.gradle.Version
+
+apply plugin: 'elasticsearch.base-internal-es-plugin'
+apply plugin: 'elasticsearch.legacy-java-rest-test'
 
 esplugin {
   name 'operator-privileges-test'

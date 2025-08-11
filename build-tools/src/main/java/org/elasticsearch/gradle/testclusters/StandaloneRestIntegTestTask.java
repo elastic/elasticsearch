@@ -8,8 +8,7 @@
 package org.elasticsearch.gradle.testclusters;
 
 import org.elasticsearch.gradle.FileSystemOperationsAware;
-import org.elasticsearch.gradle.util.GradleUtils;
-import org.gradle.api.provider.Provider;
+import org.gradle.api.services.internal.BuildServiceProvider;
 import org.gradle.api.services.internal.BuildServiceRegistryInternal;
 import org.gradle.api.tasks.CacheableTask;
 import org.gradle.api.tasks.Internal;
@@ -34,7 +33,7 @@ import static org.elasticsearch.gradle.testclusters.TestClustersPlugin.THROTTLE_
  * {@link Nested} inputs.
  */
 @CacheableTask
-public class StandaloneRestIntegTestTask extends Test implements TestClustersAware, FileSystemOperationsAware {
+public abstract class StandaloneRestIntegTestTask extends Test implements TestClustersAware, FileSystemOperationsAware {
 
     private Collection<ElasticsearchCluster> clusters = new HashSet<>();
     private boolean debugServer = false;
@@ -67,11 +66,7 @@ public class StandaloneRestIntegTestTask extends Test implements TestClustersAwa
     @Option(option = "debug-server-jvm", description = "Enable debugging configuration, to allow attaching a debugger to elasticsearch.")
     public void setDebugServer(boolean enabled) {
         this.debugServer = enabled;
-    }
-
-    @Override
-    public int getMaxParallelForks() {
-        return 1;
+        systemProperty("tests.cluster.debug.enabled", Boolean.toString(enabled));
     }
 
     @Nested
@@ -85,12 +80,13 @@ public class StandaloneRestIntegTestTask extends Test implements TestClustersAwa
     public List<ResourceLock> getSharedResources() {
         List<ResourceLock> locks = new ArrayList<>(super.getSharedResources());
         BuildServiceRegistryInternal serviceRegistry = getServices().get(BuildServiceRegistryInternal.class);
-        Provider<TestClustersThrottle> throttleProvider = GradleUtils.getBuildService(serviceRegistry, THROTTLE_SERVICE_NAME);
-        SharedResource resource = serviceRegistry.forService(throttleProvider);
-
+        BuildServiceProvider<?, ?> serviceProvider = serviceRegistry.consume(THROTTLE_SERVICE_NAME, TestClustersThrottle.class);
+        SharedResource resource = serviceRegistry.forService(serviceProvider);
         int nodeCount = clusters.stream().mapToInt(cluster -> cluster.getNodes().size()).sum();
         if (nodeCount > 0) {
-            locks.add(resource.getResourceLock(Math.min(nodeCount, resource.getMaxUsages())));
+            for (int i = 0; i < Math.min(nodeCount, resource.getMaxUsages()); i++) {
+                locks.add(resource.getResourceLock());
+            }
         }
         return Collections.unmodifiableList(locks);
     }

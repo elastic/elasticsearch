@@ -18,6 +18,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.discovery.zen.ZenDiscovery;
+import org.elasticsearch.jdk.JavaVersion;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.disruption.BlockMasterServiceOnMaster;
 import org.elasticsearch.test.disruption.IntermittentLongGCDisruption;
@@ -48,6 +49,8 @@ public class MasterDisruptionIT extends AbstractDisruptionTestCase {
      */
     public void testMasterNodeGCs() throws Exception {
         List<String> nodes = startCluster(3);
+        // NOTE: this assume must happen after starting the cluster, so that cleanup will have something to cleanup.
+        assumeFalse("jdk20 removed thread suspend/resume", JavaVersion.current().compareTo(JavaVersion.parse("20")) >= 0);
 
         String oldMasterNode = internalCluster().getMasterName();
         // a very long GC, but it's OK as we remove the disruption when it has had an effect

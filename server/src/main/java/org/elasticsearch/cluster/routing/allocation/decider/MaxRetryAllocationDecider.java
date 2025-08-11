@@ -61,7 +61,7 @@ public class MaxRetryAllocationDecider extends AllocationDecider {
     }
 
     private static Decision debugDecision(Decision decision, UnassignedInfo unassignedInfo, int numFailedAllocations, int maxRetry) {
-        if (decision.type() == Decision.Type.YES) {
+        if (decision.type() == Decision.Type.NO) {
             return Decision.single(
                 Decision.Type.NO,
                 NAME,

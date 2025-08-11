@@ -18,7 +18,7 @@
       index:
           index:   test_1
           type:    test
-          id:      1
+          id:      "1"
           body:    { foo: bar }
 
  - do:
@@ -26,14 +26,14 @@
       get:
           index:    test_1
           type:     test
-          id:       1
+          id:       "1"
           realtime: false
 
  - do:
       get:
           index:    test_1
           type:     test
-          id:       1
+          id:       "1"
           realtime: true
 
  - is_true: found
@@ -42,7 +42,7 @@
       get:
           index:    test_1
           type:     test
-          id:       1
+          id:       "1"
           realtime: false
           refresh:  true
 

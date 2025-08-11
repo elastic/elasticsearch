@@ -94,9 +94,9 @@ public class ResourceWatcherService implements Closeable {
         interval = RELOAD_INTERVAL_HIGH.get(settings);
         highMonitor = new ResourceMonitor(interval, Frequency.HIGH);
         if (enabled) {
-            lowFuture = threadPool.scheduleWithFixedDelay(lowMonitor, lowMonitor.interval, Names.SAME);
-            mediumFuture = threadPool.scheduleWithFixedDelay(mediumMonitor, mediumMonitor.interval, Names.SAME);
-            highFuture = threadPool.scheduleWithFixedDelay(highMonitor, highMonitor.interval, Names.SAME);
+            lowFuture = threadPool.scheduleWithFixedDelay(lowMonitor, lowMonitor.interval, Names.GENERIC);
+            mediumFuture = threadPool.scheduleWithFixedDelay(mediumMonitor, mediumMonitor.interval, Names.GENERIC);
+            highFuture = threadPool.scheduleWithFixedDelay(highMonitor, highMonitor.interval, Names.GENERIC);
         } else {
             lowFuture = null;
             mediumFuture = null;

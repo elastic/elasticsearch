@@ -56,11 +56,11 @@ public class TransformUsingSearchRuntimeFieldsIT extends TransformIntegTestCase 
     private static final String REVIEWS_INDEX_NAME = "basic-crud-reviews";
     private static final int NUM_USERS = 28;
 
-    private static final Integer getUserIdForRow(int row) {
+    private static Integer getUserIdForRow(int row) {
         return row % NUM_USERS;
     }
 
-    private static final String getDateStringForRow(int row) {
+    private static String getDateStringForRow(int row) {
         int day = (11 + (row / 100)) % 28;
         int hour = 10 + (row % 13);
         int min = 10 + (row % 49);
@@ -286,14 +286,12 @@ public class TransformUsingSearchRuntimeFieldsIT extends TransformIntegTestCase 
         waitUntilCheckpoint(configWithRuntimeFields.getId(), 1L);
 
         stopTransform(configWithRuntimeFields.getId());
-        assertBusy(
-            () -> {
-                assertEquals(
-                    TransformStats.State.STOPPED,
-                    getTransformStats(configWithRuntimeFields.getId()).getTransformsStats().get(0).getState()
-                );
-            }
-        );
+        assertBusy(() -> {
+            assertEquals(
+                TransformStats.State.STOPPED,
+                getTransformStats(configWithRuntimeFields.getId()).getTransformsStats().get(0).getState()
+            );
+        });
 
         try (RestHighLevelClient restClient = new TestRestHighLevelClient()) {
             restClient.indices().refresh(new RefreshRequest(destIndexName), RequestOptions.DEFAULT);

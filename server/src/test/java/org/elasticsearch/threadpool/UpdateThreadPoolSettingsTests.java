@@ -179,12 +179,12 @@ public class UpdateThreadPoolSettingsTests extends ESThreadPoolTestCase {
     public void testCustomThreadPool() throws Exception {
         ThreadPool threadPool = null;
         try {
-
             final ScalingExecutorBuilder scaling = new ScalingExecutorBuilder(
                 "my_pool1",
                 1,
                 EsExecutors.allocatedProcessors(Settings.EMPTY),
-                TimeValue.timeValueMinutes(1)
+                TimeValue.timeValueMinutes(1),
+                randomBoolean()
             );
 
             final FixedExecutorBuilder fixed = new FixedExecutorBuilder(Settings.EMPTY, "my_pool2", 1, 1);

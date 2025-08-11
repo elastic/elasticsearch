@@ -61,27 +61,39 @@ setup:
                   type: integer
 
   - do:
+      indices.create:
+        index: date_histogram_timezone_test
+        body:
+          settings:
+            number_of_replicas: 0
+          mappings:
+            properties:
+              date:
+                type: date
+                format: "8yyyy-MM-dd HH:mm:ss"
+
+  - do:
       index:
         index: nonesting
-        id:    1
+        id:    "1"
         body: { "kw": "one", "num": 1 }
 
   - do:
       index:
         index: nonesting
-        id:    2
+        id:    "2"
         body: { "kw": "two", "num": 2 }
 
   - do:
       index:
         index: nonesting
-        id:    3
+        id:    "3"
         body: { "kw": "three", "num": 3 }
 
   - do:
       index:
         index: verynested
-        id:    1
+        id:    "1"
         body: {
               "department": "compsci",
               "staff": 12,
@@ -120,7 +132,7 @@ setup:
   - do:
       index:
         index: verynested
-        id:    2
+        id:    "2"
         body: {
               "department": "math",
               "staff": 20,
@@ -159,48 +171,74 @@ setup:
   - do:
       index:
         index: test
-        id:    1
+        id:    "1"
         body:  { "keyword": "foo", "long": [10, 20], "geo_point": "37.2343,-115.8067"}
 
   - do:
       index:
         index: test
-        id:    2
+        id:    "2"
         body:  { "keyword": ["foo", "bar"], "geo_point": "41.12,-71.34" }
 
   - do:
       index:
         index: test
-        id:    3
+        id:    "3"
         body:  { "keyword": "bar", "long": [100, 0], "geo_point": "90.0,0.0"}
 
   - do:
       index:
         index: test
-        id:    4
+        id:    "4"
         body:  { "keyword": "bar", "long": [1000, 0], "geo_point": "41.12,-71.34"}
 
   - do:
       index:
         index: test
-        id:    5
+        id:    "5"
         body:  { "date": "2017-10-20T03:08:45" }
 
   - do:
       index:
         index: test
-        id:    6
+        id:    "6"
         body:  { "date": "2017-10-21T07:00:00" }
 
   - do:
       index:
         index: other
-        id:    0
+        id:    "0"
         body:  { "date": "2017-10-20T03:08:45" }
 
   - do:
+      bulk:
+        index: date_histogram_timezone_test
+        refresh: true
+        body:
+          - { "index": { } }
+          - { "date": "2021-05-01 20:00:00" }
+          - { "index": { } }
+          - { "date": "2021-05-01 21:30:00" }
+          - { "index": { } }
+          - { "date": "2021-05-01 23:54:00" }
+          - { "index": { } }
+          - { "date": "2021-05-01 23:40:00" }
+          - { "index": { } }
+          - { "date": "2021-05-01 22:20:00" }
+          - { "index": { } }
+          - { "date": "2021-05-01 21:20:00" }
+          - { "index": { } }
+          - { "date": "2021-05-01 23:50:00" }
+          - { "index": { } }
+          - { "date": "2021-05-01 22:15:00" }
+          - { "index": { } }
+          - { "date": "2021-05-01 22:40:00" }
+          - { "index": { } }
+          - { "date": "2021-05-01 22:20:00" }
+
+  - do:
       indices.refresh:
-        index: [test, other, verynested, nonesting]
+        index: [test, other, verynested, nonesting, date_histogram_timezone_test]
 
 ---
 "Simple Composite aggregation":
@@ -903,7 +941,7 @@ setup:
   - do:
       index:
         index:   test_2
-        id:      1
+        id:      "1"
         body:    { "f": "192.168.0.1" }
         refresh: true
 
@@ -936,7 +974,7 @@ setup:
   - do:
       index:
         index:   test
-        id:      7
+        id:      "7"
         body:    { "date": "2017-10-22T01:00:00" }
         refresh: true
   - do:
@@ -1006,7 +1044,7 @@ setup:
   - do:
       index:
         index:   test
-        id:      7
+        id:      "7"
         body:    { "date": "2017-10-22T01:00:00" }
         refresh: true
   - do:
@@ -1083,19 +1121,19 @@ setup:
   - do:
       index:
         index:   test_nanos
-        id:      7
+        id:      "7"
         body:    { "date_nanos": "2017-11-21T01:00:00" }
         refresh: true
   - do:
       index:
         index:   test_nanos
-        id:      8
+        id:      "8"
         body:    { "date_nanos": "2017-11-22T01:00:00" }
         refresh: true
   - do:
       index:
         index:   test_nanos
-        id:      9
+        id:      "9"
         body:    { "date_nanos": "2017-11-22T02:00:00" }
         refresh: true
   - do:
@@ -1145,7 +1183,7 @@ setup:
   - do:
       index:
         index:   sorted_test
-        id:      2
+        id:      "2"
         refresh: true
         body:  { "keyword": "foo", "long": 1 }
 
@@ -1190,7 +1228,7 @@ setup:
   - do:
       index:
         index:   sorted_test
-        id:      2
+        id:      "2"
         refresh: true
         body:  { "keyword": "foo", "long": 1 }
 
@@ -1534,3 +1572,61 @@ setup:
   - match: { aggregations.test.buckets.2.key.long: null}
   - match: { aggregations.test.buckets.2.key.kw: null }
   - match: { aggregations.test.buckets.2.doc_count: 2 }
+
+---
+"date_histogram and date_histogram_composite timezone":
+  - skip:
+      version: " - 7.16.99"
+      reason: bug fixed somewhere between 7.2 and 7.17
+  - do:
+      search:
+        index: date_histogram_timezone_test
+        body:
+          size: 0
+          aggs:
+            date_histogram_yes_tz:
+              composite:
+                size: 20
+                sources:
+                  - datefield:
+                      date_histogram:
+                        field: date
+                        format: "8yyyy-MM-dd HH:mm:ss"
+                        calendar_interval: hour
+                        time_zone: Asia/Jakarta
+            date_histogram_no__tz:
+              composite:
+                size: 20
+                sources:
+                  - datefield:
+                      date_histogram:
+                        field: date
+                        format: "8yyyy-MM-dd HH:mm:ss"
+                        calendar_interval: hour
+
+  - match: { hits.total.value: 10 }
+  - match:  { hits.total.relation: "eq" }
+
+  - match:  { aggregations.date_histogram_yes_tz.buckets.0.key.datefield: "2021-05-02 03:00:00" }
+  - match:  { aggregations.date_histogram_no__tz.buckets.0.key.datefield: "2021-05-01 20:00:00" }
+
+  - match:  { aggregations.date_histogram_yes_tz.buckets.1.key.datefield: "2021-05-02 04:00:00" }
+  - match:  { aggregations.date_histogram_no__tz.buckets.1.key.datefield: "2021-05-01 21:00:00" }
+
+  - match:  { aggregations.date_histogram_yes_tz.buckets.2.key.datefield: "2021-05-02 05:00:00" }
+  - match:  { aggregations.date_histogram_no__tz.buckets.2.key.datefield: "2021-05-01 22:00:00" }
+
+  - match:  { aggregations.date_histogram_yes_tz.buckets.3.key.datefield: "2021-05-02 06:00:00" }
+  - match:  { aggregations.date_histogram_no__tz.buckets.3.key.datefield: "2021-05-01 23:00:00" }
+
+  - length: { aggregations.date_histogram_yes_tz.buckets: 4 }
+  - match:  { aggregations.date_histogram_yes_tz.buckets.0.doc_count: 1 }
+  - match:  { aggregations.date_histogram_yes_tz.buckets.1.doc_count: 2 }
+  - match:  { aggregations.date_histogram_yes_tz.buckets.2.doc_count: 4 }
+  - match:  { aggregations.date_histogram_yes_tz.buckets.3.doc_count: 3 }
+
+  - length: { aggregations.date_histogram_no__tz.buckets: 4 }
+  - match:  { aggregations.date_histogram_no__tz.buckets.0.doc_count: 1 }
+  - match:  { aggregations.date_histogram_no__tz.buckets.1.doc_count: 2 }
+  - match:  { aggregations.date_histogram_no__tz.buckets.2.doc_count: 4 }
+  - match:  { aggregations.date_histogram_no__tz.buckets.3.doc_count: 3 }

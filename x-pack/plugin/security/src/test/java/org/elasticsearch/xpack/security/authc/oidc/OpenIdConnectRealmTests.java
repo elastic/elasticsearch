@@ -56,6 +56,7 @@ import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.notNullValue;
@@ -276,16 +277,14 @@ public class OpenIdConnectRealmTests extends OpenIdConnectTestCase {
         final OpenIdConnectPrepareAuthenticationResponse response = realm.buildAuthenticationRequestUri(null, null, null);
         final String state = response.getState();
         final String nonce = response.getNonce();
-        assertThat(
+        assertEqualUrlStrings(
             response.getAuthenticationRequestUrl(),
-            equalTo(
-                "https://op.example.com/login?scope=scope1+scope2+openid&response_type=code"
-                    + "&redirect_uri=https%3A%2F%2Frp.my.com%2Fcb&state="
-                    + state
-                    + "&nonce="
-                    + nonce
-                    + "&client_id=rp-my"
-            )
+            "https://op.example.com/login?scope=scope1+scope2+openid&response_type=code"
+                + "&redirect_uri=https%3A%2F%2Frp.my.com%2Fcb&state="
+                + state
+                + "&nonce="
+                + nonce
+                + "&client_id=rp-my"
         );
         assertThat(response.getRealmName(), equalTo(REALM_NAME));
     }
@@ -309,16 +308,14 @@ public class OpenIdConnectRealmTests extends OpenIdConnectTestCase {
         final OpenIdConnectPrepareAuthenticationResponse response = realm.buildAuthenticationRequestUri(null, null, null);
         final String state = response.getState();
         final String nonce = response.getNonce();
-        assertThat(
+        assertEqualUrlStrings(
             response.getAuthenticationRequestUrl(),
-            equalTo(
-                "https://op.example.com/login?scope=openid+scope1+scope2&response_type=code"
-                    + "&redirect_uri=https%3A%2F%2Frp.my.com%2Fcb&state="
-                    + state
-                    + "&nonce="
-                    + nonce
-                    + "&client_id=rp-my"
-            )
+            "https://op.example.com/login?scope=openid+scope1+scope2&response_type=code"
+                + "&redirect_uri=https%3A%2F%2Frp.my.com%2Fcb&state="
+                + state
+                + "&nonce="
+                + nonce
+                + "&client_id=rp-my"
         );
         assertThat(response.getRealmName(), equalTo(REALM_NAME));
     }
@@ -339,16 +336,14 @@ public class OpenIdConnectRealmTests extends OpenIdConnectTestCase {
         final OpenIdConnectPrepareAuthenticationResponse response = realm.buildAuthenticationRequestUri(null, null, null);
         final String state = response.getState();
         final String nonce = response.getNonce();
-        assertThat(
+        assertEqualUrlStrings(
             response.getAuthenticationRequestUrl(),
-            equalTo(
-                "https://op.example.com/login?scope=openid&response_type=code"
-                    + "&redirect_uri=https%3A%2F%2Frp.my.com%2Fcb&state="
-                    + state
-                    + "&nonce="
-                    + nonce
-                    + "&client_id=rp-my"
-            )
+            "https://op.example.com/login?scope=openid&response_type=code"
+                + "&redirect_uri=https%3A%2F%2Frp.my.com%2Fcb&state="
+                + state
+                + "&nonce="
+                + nonce
+                + "&client_id=rp-my"
         );
         assertThat(response.getRealmName(), equalTo(REALM_NAME));
     }
@@ -409,16 +404,14 @@ public class OpenIdConnectRealmTests extends OpenIdConnectTestCase {
         final String nonce = new Nonce().getValue();
         final OpenIdConnectPrepareAuthenticationResponse response = realm.buildAuthenticationRequestUri(state, nonce, null);
 
-        assertThat(
+        assertEqualUrlStrings(
             response.getAuthenticationRequestUrl(),
-            equalTo(
-                "https://op.example.com/login?scope=openid&response_type=code"
-                    + "&redirect_uri=https%3A%2F%2Frp.my.com%2Fcb&state="
-                    + state
-                    + "&nonce="
-                    + nonce
-                    + "&client_id=rp-my"
-            )
+            "https://op.example.com/login?scope=openid&response_type=code"
+                + "&redirect_uri=https%3A%2F%2Frp.my.com%2Fcb&state="
+                + state
+                + "&nonce="
+                + nonce
+                + "&client_id=rp-my"
         );
         assertThat(response.getRealmName(), equalTo(REALM_NAME));
     }
@@ -441,19 +434,31 @@ public class OpenIdConnectRealmTests extends OpenIdConnectTestCase {
         final String thehint = randomAlphaOfLength(8);
         final OpenIdConnectPrepareAuthenticationResponse response = realm.buildAuthenticationRequestUri(state, nonce, thehint);
 
-        assertThat(
+        assertEqualUrlStrings(
             response.getAuthenticationRequestUrl(),
-            equalTo(
-                "https://op.example.com/login?login_hint="
-                    + thehint
-                    + "&scope=openid&response_type=code&redirect_uri=https%3A%2F%2Frp.my.com%2Fcb&state="
-                    + state
-                    + "&nonce="
-                    + nonce
-                    + "&client_id=rp-my"
-            )
+            "https://op.example.com/login?login_hint="
+                + thehint
+                + "&scope=openid&response_type=code&redirect_uri=https%3A%2F%2Frp.my.com%2Fcb&state="
+                + state
+                + "&nonce="
+                + nonce
+                + "&client_id=rp-my"
         );
         assertThat(response.getRealmName(), equalTo(REALM_NAME));
+    }
+
+    private void assertEqualUrlStrings(String actual, String expected) {
+        final int endOfPath = actual.indexOf('?');
+        assertThat(endOfPath, greaterThan(-1));
+        assertThat(actual.substring(0, endOfPath + 1), equalTo(expected.substring(0, endOfPath + 1)));
+
+        final HashMap<String, String> actualParams = new HashMap<>();
+        RestUtils.decodeQueryString(actual, endOfPath + 1, actualParams);
+
+        final HashMap<String, String> expectedParams = new HashMap<>();
+        RestUtils.decodeQueryString(expected, endOfPath + 1, expectedParams);
+
+        assertThat(actualParams, equalTo(expectedParams));
     }
 
     private AuthenticationResult authenticateWithOidc(

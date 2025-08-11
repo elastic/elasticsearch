@@ -678,9 +678,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
                 null,
                 threadPool,
                 null,
-                new SystemIndices(
-                    Collections.singletonMap("foo", new SystemIndices.Feature("foo", "test feature", systemIndexDescriptors))
-                ),
+                new SystemIndices(Collections.singletonList(new SystemIndices.Feature("foo", "test feature", systemIndexDescriptors))),
                 false
             );
             // Check deprecations
@@ -730,9 +728,9 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
     }
 
     public void testAggregateSettingsAppliesSettingsFromTemplatesAndRequest() {
-        IndexTemplateMetadata templateMetadata = addMatchingTemplate(
-            builder -> { builder.settings(Settings.builder().put("template_setting", "value1")); }
-        );
+        IndexTemplateMetadata templateMetadata = addMatchingTemplate(builder -> {
+            builder.settings(Settings.builder().put("template_setting", "value1"));
+        });
         ImmutableOpenMap.Builder<String, IndexTemplateMetadata> templatesBuilder = ImmutableOpenMap.builder();
         templatesBuilder.put("template_1", templateMetadata);
         Metadata metadata = new Metadata.Builder().templates(templatesBuilder.build()).build();

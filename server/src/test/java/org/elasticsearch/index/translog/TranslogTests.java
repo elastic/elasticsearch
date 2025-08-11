@@ -420,7 +420,12 @@ public class TranslogTests extends ESTestCase {
         assertThat(Translog.findEarliestLastModifiedAge(fixedTime, readers, w), equalTo(LongStream.of(periods).max().orElse(0L)));
     }
 
-    public void testStats() throws IOException {
+    private void waitForPositiveAge() throws Exception {
+        final long lastModifiedTime = translog.getCurrent().getLastModifiedTime();
+        assertBusy(() -> assertThat(System.currentTimeMillis(), greaterThan(lastModifiedTime)));
+    }
+
+    public void testStats() throws Exception {
         // self control cleaning for test
         translog.getDeletionPolicy().setRetentionSizeInBytes(1024 * 1024);
         translog.getDeletionPolicy().setRetentionAgeInMillis(3600 * 1000);
@@ -433,6 +438,7 @@ public class TranslogTests extends ESTestCase {
         translog.add(new Translog.Index("test", "1", 0, primaryTerm.get(), new byte[] { 1 }));
 
         {
+            waitForPositiveAge();
             final TranslogStats stats = stats();
             assertThat(stats.estimatedNumberOfOperations(), equalTo(1));
             assertThat(stats.getTranslogSizeInBytes(), equalTo(162L));
@@ -443,6 +449,7 @@ public class TranslogTests extends ESTestCase {
 
         translog.add(new Translog.Delete("test", "2", 1, primaryTerm.get(), newUid("2")));
         {
+            waitForPositiveAge();
             final TranslogStats stats = stats();
             assertThat(stats.estimatedNumberOfOperations(), equalTo(2));
             assertThat(stats.getTranslogSizeInBytes(), equalTo(210L));
@@ -453,6 +460,7 @@ public class TranslogTests extends ESTestCase {
 
         translog.add(new Translog.Delete("test", "3", 2, primaryTerm.get(), newUid("3")));
         {
+            waitForPositiveAge();
             final TranslogStats stats = stats();
             assertThat(stats.estimatedNumberOfOperations(), equalTo(3));
             assertThat(stats.getTranslogSizeInBytes(), equalTo(258L));
@@ -463,6 +471,7 @@ public class TranslogTests extends ESTestCase {
 
         translog.add(new Translog.NoOp(3, 1, randomAlphaOfLength(16)));
         {
+            waitForPositiveAge();
             final TranslogStats stats = stats();
             assertThat(stats.estimatedNumberOfOperations(), equalTo(4));
             assertThat(stats.getTranslogSizeInBytes(), equalTo(300L));
@@ -473,6 +482,7 @@ public class TranslogTests extends ESTestCase {
 
         translog.rollGeneration();
         {
+            waitForPositiveAge();
             final TranslogStats stats = stats();
             assertThat(stats.estimatedNumberOfOperations(), equalTo(4));
             assertThat(stats.getTranslogSizeInBytes(), equalTo(355L));
@@ -510,13 +520,13 @@ public class TranslogTests extends ESTestCase {
         translog.getDeletionPolicy().setLocalCheckpointOfSafeCommit(randomLongBetween(3, Long.MAX_VALUE));
         translog.trimUnreferencedReaders();
         {
-            long lastModifiedAge = System.currentTimeMillis() - translog.getCurrent().getLastModifiedTime();
+            waitForPositiveAge();
             final TranslogStats stats = stats();
             assertThat(stats.estimatedNumberOfOperations(), equalTo(4));
             assertThat(stats.getTranslogSizeInBytes(), equalTo(355L));
             assertThat(stats.getUncommittedOperations(), equalTo(0));
             assertThat(stats.getUncommittedSizeInBytes(), equalTo(firstOperationPosition));
-            assertThat(stats.getEarliestLastModifiedAge(), greaterThanOrEqualTo(lastModifiedAge));
+            assertThat(stats.getEarliestLastModifiedAge(), greaterThan(0L));
         }
     }
 

@@ -224,7 +224,7 @@ public class ShapeBuilderTests extends ESTestCase {
             new CoordinatesBuilder().coordinate(-40.0, 50.0).coordinate(40.0, 50.0).coordinate(-40.0, -50.0).coordinate(40.0, -50.0).close()
         );
         Exception e = expectThrows(InvalidShapeException.class, () -> newPolygon.buildS4J());
-        assertThat(e.getMessage(), containsString("Cannot determine orientation: signed area equal to 0"));
+        assertThat(e.getMessage(), containsString("Self-intersection at or near point (0.0, 0.0, NaN)"));
     }
 
     /** note: only supported by S4J at the moment */

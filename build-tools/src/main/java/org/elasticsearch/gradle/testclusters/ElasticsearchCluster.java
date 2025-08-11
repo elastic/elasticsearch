@@ -332,6 +332,9 @@ public class ElasticsearchCluster implements TestClusterConfiguration, Named {
         }
         ElasticsearchNode firstNode = null;
         for (ElasticsearchNode node : nodes) {
+            if (node.getTestDistribution().equals(TestDistribution.INTEG_TEST)) {
+                node.defaultConfig.put("xpack.security.enabled", "false");
+            }
             if (node.getTestDistribution().equals(TestDistribution.DEFAULT)) {
                 if (node.getVersion().onOrAfter("7.16.0")) {
                     node.defaultConfig.put("cluster.deprecation_indexing.enabled", "false");
@@ -453,6 +456,11 @@ public class ElasticsearchCluster implements TestClusterConfiguration, Named {
     @Override
     public void user(Map<String, String> userSpec) {
         nodes.all(node -> node.user(userSpec));
+    }
+
+    @Override
+    public void rolesFile(File rolesYml) {
+        nodes.all(node -> node.rolesFile(rolesYml));
     }
 
     private void writeUnicastHostsFiles() {

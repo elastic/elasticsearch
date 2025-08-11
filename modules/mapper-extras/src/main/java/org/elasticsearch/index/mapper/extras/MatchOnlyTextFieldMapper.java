@@ -135,29 +135,39 @@ public class MatchOnlyTextFieldMapper extends TextFamilyFieldMapper {
             return new Parameter<?>[] { meta };
         }
 
-        private MatchOnlyTextFieldType buildFieldType(MapperBuilderContext context) {
+        private MatchOnlyTextFieldType buildFieldType(MapperBuilderContext context, MultiFields multiFields) {
             NamedAnalyzer searchAnalyzer = analyzers.getSearchAnalyzer();
             NamedAnalyzer searchQuoteAnalyzer = analyzers.getSearchQuoteAnalyzer();
             NamedAnalyzer indexAnalyzer = analyzers.getIndexAnalyzer();
             TextSearchInfo tsi = new TextSearchInfo(Defaults.FIELD_TYPE, null, searchAnalyzer, searchQuoteAnalyzer);
-            MatchOnlyTextFieldType ft = new MatchOnlyTextFieldType(
-                context.buildFullName(leafName()),
-                tsi,
-                indexAnalyzer,
-                context.isSourceSynthetic(),
-                meta.getValue(),
-                isWithinMultiField,
-                storedFieldInBinaryFormat
-            );
-            return ft;
+            return new MatchOnlyTextFieldType(
+                    context.buildFullName(leafName()),
+                    tsi,
+                    indexAnalyzer,
+                    context.isSourceSynthetic(),
+                    meta.getValue(),
+                    isWithinMultiField,
+                    storedFieldInBinaryFormat,
+                    TextFieldMapper.SyntheticSourceHelper.syntheticSourceDelegate(getFieldType(), multiFields));
+        }
+
+        /**
+         * This is more of a helper function that's useful in TextFieldMapper.SyntheticSourceHelper.syntheticSourceDelegate()
+         */
+        private FieldType getFieldType() {
+            FieldType fieldType = new FieldType();
+            // by definition, match_only_text are not stored
+            fieldType.setStored(false);
+            return fieldType;
         }
 
         @Override
         public MatchOnlyTextFieldMapper build(MapperBuilderContext context) {
             this.isSyntheticSourceEnabled = context.isSourceSynthetic();
 
-            MatchOnlyTextFieldType tft = buildFieldType(context);
-            return new MatchOnlyTextFieldMapper(leafName(), Defaults.FIELD_TYPE, tft, builderParams(this, context), this);
+            BuilderParams builderParams = builderParams(this, context);
+            MatchOnlyTextFieldType tft = buildFieldType(context, builderParams.multiFields());
+            return new MatchOnlyTextFieldMapper(leafName(), Defaults.FIELD_TYPE, tft, builderParams, this);
         }
     }
 
@@ -194,11 +204,13 @@ public class MatchOnlyTextFieldMapper extends TextFamilyFieldMapper {
             boolean isSyntheticSource,
             Map<String, String> meta,
             boolean withinMultiField,
-            boolean storedFieldInBinaryFormat
+            boolean storedFieldInBinaryFormat,
+            KeywordFieldMapper.KeywordFieldType syntheticSourceDelegate
         ) {
             super(name, true, false, false, tsi, meta);
             this.indexAnalyzer = Objects.requireNonNull(indexAnalyzer);
-            this.textFieldType = new TextFieldType(name, isSyntheticSource);
+            // TODO: need to set synthetic source delegate correctly
+            this.textFieldType = new TextFieldType(name, isSyntheticSource, syntheticSourceDelegate);
             this.withinMultiField = withinMultiField;
             this.storedFieldInBinaryFormat = storedFieldInBinaryFormat;
         }
@@ -211,7 +223,8 @@ public class MatchOnlyTextFieldMapper extends TextFamilyFieldMapper {
                 false,
                 Collections.emptyMap(),
                 false,
-                false
+                false,
+                null
             );
         }
 

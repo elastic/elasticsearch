@@ -1,0 +1,6 @@
+pr: 132635
+summary: Push filters on right hand-side of joins
+area: ES|QL
+type: enhancement
+issues:
+ - 130024

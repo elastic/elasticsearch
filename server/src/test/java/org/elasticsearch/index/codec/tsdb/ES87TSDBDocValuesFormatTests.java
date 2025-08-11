@@ -58,9 +58,9 @@ public class ES87TSDBDocValuesFormatTests extends BaseDocValuesFormatTestCase {
         LogConfigurator.configureESLogging();
     }
 
-    static class TestES87TSDBDocValuesFormat extends ES87TSDBDocValuesFormat {
+    public static class TestES87TSDBDocValuesFormat extends ES87TSDBDocValuesFormat {
 
-        TestES87TSDBDocValuesFormat() {
+        public TestES87TSDBDocValuesFormat() {
             super();
         }
 

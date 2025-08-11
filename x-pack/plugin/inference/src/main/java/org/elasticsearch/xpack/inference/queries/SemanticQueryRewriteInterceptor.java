@@ -127,13 +127,10 @@ public abstract class SemanticQueryRewriteInterceptor implements QueryRewriteInt
                         fieldBoosts.put(f, boost);
                     });
                 } else if (Regex.isSimpleMatchPattern(field)) {
-                    indexInferenceMetadata.keySet()
-                        .stream()
-                        .filter(f -> Regex.simpleMatch(field, f))
-                        .forEach(f -> {
-                            indexInferenceFields.put(f, indexInferenceMetadata.get(f));
-                            fieldBoosts.put(f, boost);
-                        });
+                    indexInferenceMetadata.keySet().stream().filter(f -> Regex.simpleMatch(field, f)).forEach(f -> {
+                        indexInferenceFields.put(f, indexInferenceMetadata.get(f));
+                        fieldBoosts.put(f, boost);
+                    });
                 } else if (indexInferenceMetadata.containsKey(field)) {
                     indexInferenceFields.put(field, indexInferenceMetadata.get(field));
                     fieldBoosts.put(field, boost);
@@ -143,7 +140,7 @@ public abstract class SemanticQueryRewriteInterceptor implements QueryRewriteInt
             // Non-inference fields: original fields minus resolved inference fields
             Set<String> indexNonInferenceFields = new HashSet<>(fieldsWithWeights.keySet());
             indexNonInferenceFields.removeAll(indexInferenceFields.keySet());
-            
+
             // Store boosts for non-inference fields in global fieldBoosts map
             for (String nonInferenceField : indexNonInferenceFields) {
                 fieldBoosts.put(nonInferenceField, fieldsWithWeights.get(nonInferenceField));
@@ -160,7 +157,6 @@ public abstract class SemanticQueryRewriteInterceptor implements QueryRewriteInt
 
         return new InferenceIndexInformationForField(inferenceFieldsPerIndex, nonInferenceFieldsPerIndex, fieldBoosts);
     }
-
 
     protected QueryBuilder createSubQueryForIndices(Collection<String> indices, QueryBuilder queryBuilder) {
         BoolQueryBuilder boolQueryBuilder = new BoolQueryBuilder();

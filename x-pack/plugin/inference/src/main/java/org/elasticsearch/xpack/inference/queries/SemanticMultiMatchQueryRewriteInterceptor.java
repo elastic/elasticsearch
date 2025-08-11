@@ -209,7 +209,9 @@ public class SemanticMultiMatchQueryRewriteInterceptor extends SemanticQueryRewr
         for (String fieldName : inferenceInfo.getAllInferenceFields()) {
             Set<String> semanticIndices = inferenceInfo.getInferenceIndicesForField(fieldName);
             if (semanticIndices.isEmpty() == false) {
-                disMaxQuery.add(createSemanticSubQuery(semanticIndices, fieldName, queryValue).boost(inferenceInfo.getFieldBoost(fieldName)));
+                disMaxQuery.add(
+                    createSemanticSubQuery(semanticIndices, fieldName, queryValue).boost(inferenceInfo.getFieldBoost(fieldName))
+                );
             }
         }
 
@@ -250,7 +252,9 @@ public class SemanticMultiMatchQueryRewriteInterceptor extends SemanticQueryRewr
         for (String fieldName : inferenceInfo.getAllInferenceFields()) {
             Set<String> semanticIndices = inferenceInfo.getInferenceIndicesForField(fieldName);
             if (semanticIndices.isEmpty() == false) {
-                boolQuery.should(createSemanticSubQuery(semanticIndices, fieldName, queryValue).boost(inferenceInfo.getFieldBoost(fieldName)));
+                boolQuery.should(
+                    createSemanticSubQuery(semanticIndices, fieldName, queryValue).boost(inferenceInfo.getFieldBoost(fieldName))
+                );
             }
         }
 

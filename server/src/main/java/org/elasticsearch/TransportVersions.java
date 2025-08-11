@@ -358,7 +358,8 @@ public class TransportVersions {
     public static final TransportVersion ML_INFERENCE_AI21_COMPLETION_ADDED = def(9_134_0_00);
     public static final TransportVersion TRANSPORT_NODE_USAGE_STATS_FOR_THREAD_POOLS_ACTION = def(9_135_0_00);
     public static final TransportVersion INDEX_TEMPLATE_TRACKING_INFO = def(9_136_0_00);
-    public static final TransportVersion INGEST_REQUEST_INCLUDE_TSID = def(9_137_0_00);
+    public static final TransportVersion EXTENDED_SNAPSHOT_STATS_IN_NODE_INFO = def(9_137_0_00);
+    public static final TransportVersion INGEST_REQUEST_INCLUDE_TSID = def(9_138_0_00);
 
     /*
      * STOP! READ THIS FIRST! No, really,

@@ -17,7 +17,7 @@ import org.elasticsearch.common.util.iterable.Iterables;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
-import org.elasticsearch.xpack.esql.capabilities.PostAnalysisVerificationAware;
+import org.elasticsearch.xpack.esql.capabilities.PostOptimizationVerificationAware;
 import org.elasticsearch.xpack.esql.capabilities.TelemetryAware;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.capabilities.Resolvables;
@@ -52,7 +52,7 @@ import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutp
 public class Enrich extends UnaryPlan
     implements
         GeneratingPlan<Enrich>,
-        PostAnalysisVerificationAware,
+        PostOptimizationVerificationAware,
         TelemetryAware,
         SortAgnostic,
         ExecutesOn {
@@ -306,25 +306,21 @@ public class Enrich extends UnaryPlan
      * retaining the originating cluster and restructuring pages for routing, which might be complicated.
      */
     private void checkForPlansForbiddenBeforeRemoteEnrich(Failures failures) {
-        if (this.mode != Mode.REMOTE) {
-            return;
-        }
-
-        Set<Source> badCommands = new HashSet<>();
+        Set<Source> fails = new HashSet<>();
 
         this.forEachUp(LogicalPlan.class, u -> {
             if (u instanceof ExecutesOn ex && ex.executesOn() == ExecuteLocation.COORDINATOR) {
-                badCommands.add(u.source());
+                fails.add(u.source());
             }
         });
 
-        badCommands.forEach(
-            f -> failures.add(fail(this, "ENRICH with remote policy can't be executed after [" + f.text() + "]" + f.source()))
-        );
+        fails.forEach(f -> failures.add(fail(this, "ENRICH with remote policy can't be executed after [" + f.text() + "]" + f.source())));
     }
 
     @Override
-    public void postAnalysisVerification(Failures failures) {
-        checkForPlansForbiddenBeforeRemoteEnrich(failures);
+    public void postOptimizationVerification(Failures failures) {
+        if (this.mode == Mode.REMOTE) {
+            checkForPlansForbiddenBeforeRemoteEnrich(failures);
+        }
     }
 }

@@ -8,23 +8,16 @@
 package org.elasticsearch.xpack.esql.plan.logical.join;
 
 import org.elasticsearch.xpack.esql.capabilities.TelemetryAware;
-import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.plan.logical.ExecutesOn;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.esql.plan.logical.PipelineBreaker;
 import org.elasticsearch.xpack.esql.plan.logical.SurrogateLogicalPlan;
-import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes.UsingJoinType;
 
-import java.util.HashSet;
 import java.util.List;
-import java.util.Set;
 
 import static java.util.Collections.emptyList;
-import static org.elasticsearch.xpack.esql.common.Failure.fail;
 import static org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes.LEFT;
 
 /**
@@ -94,28 +87,4 @@ public class LookupJoin extends Join implements SurrogateLogicalPlan, TelemetryA
     public String telemetryLabel() {
         return "LOOKUP JOIN";
     }
-
-    @Override
-    public void postAnalysisVerification(Failures failures) {
-        super.postAnalysisVerification(failures);
-        if (isRemote()) {
-            checkRemoteJoin(failures);
-        }
-    }
-
-    private void checkRemoteJoin(Failures failures) {
-        Set<Source> fails = new HashSet<>();
-
-        this.forEachUp(UnaryPlan.class, u -> {
-            if (u instanceof PipelineBreaker || (u instanceof ExecutesOn ex && ex.executesOn() == ExecuteLocation.COORDINATOR)) {
-                fails.add(u.source());
-            }
-        });
-
-        fails.forEach(
-            f -> failures.add(fail(this, "LOOKUP JOIN with remote indices can't be executed after [" + f.text() + "]" + f.source()))
-        );
-
-    }
-
 }

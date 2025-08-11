@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.action;
 
 import org.elasticsearch.Build;
 import org.elasticsearch.common.util.FeatureFlag;
+import org.elasticsearch.compute.lucene.read.ValuesSourceReaderOperator;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.rest.action.admin.cluster.RestNodesCapabilitiesAction;
 import org.elasticsearch.xpack.esql.core.plugin.EsqlCorePlugin;
@@ -90,6 +91,16 @@ public class EsqlCapabilities {
          * Expand the {@code VALUES} agg to cover spatial types.
          */
         AGG_VALUES_SPATIAL,
+
+        /**
+         * Accept unsigned longs on MAX and MIN aggregations.
+         */
+        AGG_MAX_MIN_UNSIGNED_LONG,
+
+        /**
+         * Accept unsigned longs on VALUES and SAMPLE aggregations.
+         */
+        AGG_VALUES_SAMPLE_UNSIGNED_LONG,
 
         /**
          * Does ESQL support async queries.
@@ -223,6 +234,11 @@ public class EsqlCapabilities {
          * Support for function {@code SCALB}.
          */
         FN_SCALB,
+
+        /**
+         * Support for function DAY_NAME
+         */
+        FN_DAY_NAME,
 
         /**
          * Fixes for multiple functions not serializing their source, and emitting warnings with wrong line number and text.
@@ -890,6 +906,42 @@ public class EsqlCapabilities {
         AGGREGATE_METRIC_DOUBLE_PARTIAL_SUBMETRICS(AGGREGATE_METRIC_DOUBLE_FEATURE_FLAG),
 
         /**
+         * Support for rendering aggregate_metric_double type
+         */
+        AGGREGATE_METRIC_DOUBLE_RENDERING(AGGREGATE_METRIC_DOUBLE_FEATURE_FLAG),
+
+        /**
+         * Support for to_aggregate_metric_double function
+         */
+        AGGREGATE_METRIC_DOUBLE_CONVERT_TO(AGGREGATE_METRIC_DOUBLE_FEATURE_FLAG),
+
+        /**
+         * Support for sorting when aggregate_metric_doubles are present
+         */
+        AGGREGATE_METRIC_DOUBLE_SORTING(AGGREGATE_METRIC_DOUBLE_FEATURE_FLAG),
+
+        /**
+         * Support avg with aggregate metric doubles
+         */
+        AGGREGATE_METRIC_DOUBLE_AVG(AGGREGATE_METRIC_DOUBLE_FEATURE_FLAG),
+
+        /**
+         * Support for implicit casting of aggregate metric double when run in aggregations
+         */
+        AGGREGATE_METRIC_DOUBLE_IMPLICIT_CASTING_IN_AGGS(AGGREGATE_METRIC_DOUBLE_FEATURE_FLAG),
+
+        /**
+         * Fixes bug when aggregate metric double is encoded as a single nul value but decoded as
+         * AggregateMetricDoubleBlock (expecting 4 values) in TopN.
+         */
+        AGGREGATE_METRIC_DOUBLE_SORTING_FIXED(AGGREGATE_METRIC_DOUBLE_FEATURE_FLAG),
+
+        /**
+         * Stop erroring out when trying to apply MV_EXPAND on aggregate metric double.
+         */
+        AGGREGATE_METRIC_DOUBLE_MV_EXPAND(AGGREGATE_METRIC_DOUBLE_FEATURE_FLAG),
+
+        /**
          * Support change point detection "CHANGE_POINT".
          */
         CHANGE_POINT,
@@ -905,7 +957,7 @@ public class EsqlCapabilities {
          * Fixes a series of issues with inlinestats which had an incomplete implementation after lookup and inlinestats
          * were refactored.
          */
-        INLINESTATS_V7(EsqlPlugin.INLINESTATS_FEATURE_FLAG),
+        INLINESTATS_V9(EsqlPlugin.INLINESTATS_FEATURE_FLAG),
 
         /**
          * Support partial_results
@@ -913,14 +965,9 @@ public class EsqlCapabilities {
         SUPPORT_PARTIAL_RESULTS,
 
         /**
-         * Support for rendering aggregate_metric_double type
-         */
-        AGGREGATE_METRIC_DOUBLE_RENDERING(AGGREGATE_METRIC_DOUBLE_FEATURE_FLAG),
-
-        /**
          * Support for RERANK command
          */
-        RERANK(Build.current().isSnapshot()),
+        RERANK,
 
         /**
          * Support for COMPLETION command
@@ -931,11 +978,6 @@ public class EsqlCapabilities {
          * Allow mixed numeric types in conditional functions - case, greatest and least
          */
         MIXED_NUMERIC_TYPES_IN_CASE_GREATEST_LEAST,
-
-        /**
-         * Support for RRF command
-         */
-        RRF(Build.current().isSnapshot()),
 
         /**
          * Lucene query pushdown to StartsWith and EndsWith functions.
@@ -969,11 +1011,6 @@ public class EsqlCapabilities {
         NON_FULL_TEXT_FUNCTIONS_SCORING,
 
         /**
-         * Support for to_aggregate_metric_double function
-         */
-        AGGREGATE_METRIC_DOUBLE_CONVERT_TO(AGGREGATE_METRIC_DOUBLE_FEATURE_FLAG),
-
-        /**
          * The {@code _query} API now reports the original types.
          */
         REPORT_ORIGINAL_TYPES,
@@ -1000,11 +1037,6 @@ public class EsqlCapabilities {
         MAKE_NUMBER_OF_CHANNELS_CONSISTENT_WITH_LAYOUT,
 
         /**
-         * Support for sorting when aggregate_metric_doubles are present
-         */
-        AGGREGATE_METRIC_DOUBLE_SORTING(AGGREGATE_METRIC_DOUBLE_FEATURE_FLAG),
-
-        /**
          * Supercedes {@link Cap#MAKE_NUMBER_OF_CHANNELS_CONSISTENT_WITH_LAYOUT}.
          */
         FIX_REPLACE_MISSING_FIELD_WITH_NULL_DUPLICATE_NAME_ID_IN_LAYOUT,
@@ -1016,7 +1048,7 @@ public class EsqlCapabilities {
         FILTER_IN_CONVERTED_NULL,
 
         /**
-         * When creating constant null blocks in {@link org.elasticsearch.compute.lucene.ValuesSourceReaderOperator}, we also handed off
+         * When creating constant null blocks in {@link ValuesSourceReaderOperator}, we also handed off
          * the ownership of that block - but didn't account for the fact that the caller might close it, leading to double releases
          * in some union type queries. C.f. https://github.com/elastic/elasticsearch/issues/125850
          */
@@ -1070,9 +1102,21 @@ public class EsqlCapabilities {
         DROP_AGAIN_WITH_WILDCARD_AFTER_EVAL,
 
         /**
+         * Correctly ask for all fields from lookup indices even when there is e.g. a {@code DROP *field} after.
+         * See <a href="https://github.com/elastic/elasticsearch/issues/129561">
+         *     ES|QL: missing columns for wildcard drop after lookup join  #129561</a>
+         */
+        DROP_WITH_WILDCARD_AFTER_LOOKUP_JOIN,
+
+        /**
          * Support last_over_time aggregation that gets evaluated per time-series
          */
         LAST_OVER_TIME(Build.current().isSnapshot()),
+
+        /**
+         * score function
+         */
+        SCORE_FUNCTION(Build.current().isSnapshot()),
 
         /**
          * Support for the SAMPLE command
@@ -1113,6 +1157,11 @@ public class EsqlCapabilities {
          * Support for count_distinct_over_time aggregation that gets evaluated per time-series
          */
         COUNT_DISTINCT_OVER_TIME(Build.current().isSnapshot()),
+
+        /**
+         * Extra field types in the k8s.csv dataset
+         */
+        K8S_DATASET_ADDITIONAL_FIELDS(Build.current().isSnapshot()),
 
         /**
          * Resolve groupings before resolving references to groupings in the aggregations.
@@ -1168,6 +1217,11 @@ public class EsqlCapabilities {
         PARAMETER_FOR_LIMIT,
 
         /**
+         * Changed and normalized the LIMIT error message.
+         */
+        NORMALIZED_LIMIT_ERROR_MESSAGE,
+
+        /**
          * Dense vector field type support
          */
         DENSE_VECTOR_FIELD_TYPE(EsqlCorePlugin.DENSE_VECTOR_FEATURE_FLAG),
@@ -1188,6 +1242,11 @@ public class EsqlCapabilities {
         RLIKE_WITH_EMPTY_LANGUAGE_PATTERN,
 
         /**
+         * Enable support for cross-cluster lookup joins.
+         */
+        ENABLE_LOOKUP_JOIN_ON_REMOTE(Build.current().isSnapshot()),
+
+        /**
          * MATCH PHRASE function
          */
         MATCH_PHRASE_FUNCTION,
@@ -1195,9 +1254,14 @@ public class EsqlCapabilities {
         /**
          * Support knn function
          */
-        KNN_FUNCTION_V2(Build.current().isSnapshot()),
+        KNN_FUNCTION_V3(Build.current().isSnapshot()),
 
+        /**
+         * Support for the LIKE operator with a list of wildcards.
+         */
         LIKE_WITH_LIST_OF_PATTERNS,
+
+        LIKE_LIST_ON_INDEX_FIELDS,
 
         /**
          * Support parameters for SAMPLE command.
@@ -1213,9 +1277,19 @@ public class EsqlCapabilities {
         NO_PLAIN_STRINGS_IN_LITERALS,
 
         /**
+         * Support for the mv_expand target attribute should be retained in its original position.
+         * see <a href="https://github.com/elastic/elasticsearch/issues/129000"> ES|QL: inconsistent column order #129000 </a>
+         */
+        FIX_MV_EXPAND_INCONSISTENT_COLUMN_ORDER,
+
+        /**
          * (Re)Added EXPLAIN command
          */
         EXPLAIN(Build.current().isSnapshot()),
+        /**
+         * Support for the RLIKE operator with a list of regexes.
+         */
+        RLIKE_WITH_LIST_OF_PATTERNS,
 
         /**
          * FUSE command
@@ -1223,9 +1297,50 @@ public class EsqlCapabilities {
         FUSE(Build.current().isSnapshot()),
 
         /**
-         * Support avg with aggregate metric doubles
+         * Support improved behavior for LIKE operator when used with index fields.
          */
-        AGGREGATE_METRIC_DOUBLE_AVG(AGGREGATE_METRIC_DOUBLE_FEATURE_FLAG);
+        LIKE_ON_INDEX_FIELDS,
+
+        /**
+         * Forbid usage of brackets in unquoted index and enrich policy names
+         * https://github.com/elastic/elasticsearch/issues/130378
+         */
+        NO_BRACKETS_IN_UNQUOTED_INDEX_NAMES,
+
+        /**
+         * Cosine vector similarity function
+         */
+        COSINE_VECTOR_SIMILARITY_FUNCTION(Build.current().isSnapshot()),
+
+        /**
+         * Fixed some profile serialization issues
+         */
+        FIXED_PROFILE_SERIALIZATION,
+
+        /**
+         * Dot product vector similarity function
+         */
+        DOT_PRODUCT_VECTOR_SIMILARITY_FUNCTION(Build.current().isSnapshot()),
+
+        /**
+         * l1 norm vector similarity function
+         */
+        L1_NORM_VECTOR_SIMILARITY_FUNCTION(Build.current().isSnapshot()),
+
+        /**
+         * l2 norm vector similarity function
+         */
+        L2_NORM_VECTOR_SIMILARITY_FUNCTION(Build.current().isSnapshot()),
+
+        /**
+         * Support for the options field of CATEGORIZE.
+         */
+        CATEGORIZE_OPTIONS,
+
+        /**
+         * Support correct counting of skipped shards.
+         */
+        CORRECT_SKIPPED_SHARDS_COUNT;
 
         private final boolean enabled;
 

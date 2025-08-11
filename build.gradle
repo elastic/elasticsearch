@@ -328,6 +328,8 @@ allprojects {
       dependsOn ":distribution:bwc:bugfix:buildBwcLinuxTar"
       dependsOn ":distribution:bwc:bugfix2:buildBwcLinuxTar"
       dependsOn ":distribution:bwc:bugfix3:buildBwcLinuxTar"
+      dependsOn ":distribution:bwc:bugfix4:buildBwcLinuxTar"
+      dependsOn ":distribution:bwc:bugfix5:buildBwcLinuxTar"
       dependsOn ":distribution:bwc:minor:buildBwcLinuxTar"
       dependsOn ":distribution:bwc:staged:buildBwcLinuxTar"
       dependsOn ":distribution:bwc:staged2:buildBwcLinuxTar"
@@ -366,7 +368,7 @@ allprojects {
         }
       }
     }
-    
+
     proj.tasks.register("bcUpgradeTest$partString") {
       dependsOn tasks.matching { it.name == 'bcUpgradeTest' }
       withReleaseBuild {

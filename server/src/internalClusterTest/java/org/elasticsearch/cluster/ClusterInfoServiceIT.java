@@ -13,6 +13,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.admin.cluster.node.stats.TransportNodesStatsAction;
+import org.elasticsearch.action.admin.cluster.node.usage.TransportNodeUsageStatsForThreadPoolsAction;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsAction;
 import org.elasticsearch.action.support.ActionFilter;
 import org.elasticsearch.action.support.ActionFilters;
@@ -21,6 +22,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.allocation.WriteLoadConstraintSettings;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
@@ -39,16 +41,19 @@ import org.elasticsearch.plugins.SystemIndexPlugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.transport.MockTransportService;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.hamcrest.Matchers;
 
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static java.util.Collections.emptySet;
@@ -333,5 +338,66 @@ public class ClusterInfoServiceIT extends ESIntegTestCase {
                     .containsShardId(shard.shardId())
             );
         }
+    }
+
+    public void testClusterInfoIncludesNodeUsageStatsForThreadPools() {
+        var settings = Settings.builder()
+            .put(
+                WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_ENABLED_SETTING.getKey(),
+                WriteLoadConstraintSettings.WriteLoadDeciderStatus.ENABLED
+            )
+            .build();
+        var masterName = internalCluster().startMasterOnlyNode(settings);
+        var dataNodeName = internalCluster().startDataOnlyNode(settings);
+        ensureStableCluster(2);
+        assertEquals(internalCluster().getMasterName(), masterName);
+        assertNotEquals(internalCluster().getMasterName(), dataNodeName);
+        logger.info("---> master node: " + masterName + ", data node: " + dataNodeName);
+
+        // Track when the data node receives a poll from the master for the write thread pool's stats.
+        final MockTransportService dataNodeMockTransportService = MockTransportService.getInstance(dataNodeName);
+        final CountDownLatch nodeThreadPoolStatsPolledByMaster = new CountDownLatch(1);
+        dataNodeMockTransportService.addRequestHandlingBehavior(
+            TransportNodeUsageStatsForThreadPoolsAction.NAME + "[n]",
+            (handler, request, channel, task) -> {
+                handler.messageReceived(request, channel, task);
+
+                if (nodeThreadPoolStatsPolledByMaster.getCount() > 0) {
+                    logger.info("---> Data node received a request for thread pool stats");
+                }
+                nodeThreadPoolStatsPolledByMaster.countDown();
+            }
+        );
+
+        // Do some writes to create some write thread pool activity.
+        final String indexName = randomIdentifier();
+        for (int i = 0; i < randomIntBetween(1, 1000); i++) {
+            index(indexName, Integer.toString(i), Collections.singletonMap("foo", "bar"));
+        }
+
+        // Force a refresh of the ClusterInfo state to collect fresh info from the data nodes.
+        final InternalClusterInfoService masterClusterInfoService = asInstanceOf(
+            InternalClusterInfoService.class,
+            internalCluster().getCurrentMasterNodeInstance(ClusterInfoService.class)
+        );
+        final ClusterInfo clusterInfo = ClusterInfoServiceUtils.refresh(masterClusterInfoService);
+
+        // Verify that the data node received a request for thread pool stats.
+        safeAwait(nodeThreadPoolStatsPolledByMaster);
+
+        final Map<String, NodeUsageStatsForThreadPools> usageStatsForThreadPools = clusterInfo.getNodeUsageStatsForThreadPools();
+        logger.info("---> Thread pool usage stats reported by data nodes to the master: " + usageStatsForThreadPools);
+        assertThat(usageStatsForThreadPools.size(), equalTo(1)); // only stats from data nodes should be collectedg
+        var dataNodeId = getNodeId(dataNodeName);
+        var nodeUsageStatsForThreadPool = usageStatsForThreadPools.get(dataNodeId);
+        assertNotNull(nodeUsageStatsForThreadPool);
+        logger.info("---> Data node's thread pool stats: " + nodeUsageStatsForThreadPool);
+
+        assertEquals(dataNodeId, nodeUsageStatsForThreadPool.nodeId());
+        var writeThreadPoolStats = nodeUsageStatsForThreadPool.threadPoolUsageStatsMap().get(ThreadPool.Names.WRITE);
+        assertNotNull("Expected to find stats for the WRITE thread pool", writeThreadPoolStats);
+        assertThat(writeThreadPoolStats.totalThreadPoolThreads(), greaterThan(0));
+        assertThat(writeThreadPoolStats.averageThreadPoolUtilization(), greaterThan(0f));
+        assertThat(writeThreadPoolStats.maxThreadPoolQueueLatencyMillis(), greaterThanOrEqualTo(0L));
     }
 }

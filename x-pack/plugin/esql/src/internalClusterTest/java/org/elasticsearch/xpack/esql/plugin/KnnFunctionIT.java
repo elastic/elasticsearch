@@ -8,11 +8,14 @@
 package org.elasticsearch.xpack.esql.plugin;
 
 import org.elasticsearch.action.index.IndexRequestBuilder;
+import org.elasticsearch.client.internal.IndicesAdminClient;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
+import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.AbstractEsqlIntegTestCase;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.junit.Before;
@@ -25,7 +28,9 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
+import static org.elasticsearch.index.IndexMode.LOOKUP;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.hamcrest.CoreMatchers.containsString;
 
 public class KnnFunctionIT extends AbstractEsqlIntegTestCase {
 
@@ -109,9 +114,52 @@ public class KnnFunctionIT extends AbstractEsqlIntegTestCase {
         }
     }
 
+    public void testKnnWithPrefilters() {
+        float[] queryVector = new float[numDims];
+        Arrays.fill(queryVector, 1.0f);
+
+        // We retrieve 5 from knn, but must be prefiltered with id > 5 or no result will be returned as it would be post-filtered
+        var query = String.format(Locale.ROOT, """
+            FROM test METADATA _score
+            | WHERE knn(vector, %s, 5) AND id > 5
+            | KEEP id, floats, _score, vector
+            | SORT _score DESC
+            | LIMIT 5
+            """, Arrays.toString(queryVector));
+
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("id", "floats", "_score", "vector"));
+            assertColumnTypes(resp.columns(), List.of("integer", "double", "double", "dense_vector"));
+
+            List<List<Object>> valuesList = EsqlTestUtils.getValuesList(resp);
+            // K = 5, 1 more for every id > 10
+            assertEquals(5, valuesList.size());
+        }
+    }
+
+    public void testKnnWithLookupJoin() {
+        float[] queryVector = new float[numDims];
+        Arrays.fill(queryVector, 1.0f);
+
+        var query = String.format(Locale.ROOT, """
+            FROM test
+            | LOOKUP JOIN test_lookup ON id
+            | WHERE KNN(lookup_vector, %s, 5) OR id > 10
+            """, Arrays.toString(queryVector));
+
+        var error = expectThrows(VerificationException.class, () -> run(query));
+        assertThat(
+            error.getMessage(),
+            containsString(
+                "line 3:13: [KNN] function cannot operate on [lookup_vector], supplied by an index [test_lookup] in non-STANDARD "
+                    + "mode [lookup]"
+            )
+        );
+    }
+
     @Before
     public void setup() throws IOException {
-        assumeTrue("Needs KNN support", EsqlCapabilities.Cap.KNN_FUNCTION_V2.isEnabled());
+        assumeTrue("Needs KNN support", EsqlCapabilities.Cap.KNN_FUNCTION_V3.isEnabled());
 
         var indexName = "test";
         var client = client().admin().indices();
@@ -138,7 +186,7 @@ public class KnnFunctionIT extends AbstractEsqlIntegTestCase {
         var createRequest = client.prepareCreate(indexName).setMapping(mapping).setSettings(settingsBuilder.build());
         assertAcked(createRequest);
 
-        numDocs = randomIntBetween(10, 20);
+        numDocs = randomIntBetween(15, 25);
         numDims = randomIntBetween(3, 10);
         IndexRequestBuilder[] docs = new IndexRequestBuilder[numDocs];
         float value = 0.0f;
@@ -152,5 +200,30 @@ public class KnnFunctionIT extends AbstractEsqlIntegTestCase {
         }
 
         indexRandom(true, docs);
+
+        createAndPopulateLookupIndex(client, "test_lookup");
+    }
+
+    private void createAndPopulateLookupIndex(IndicesAdminClient client, String lookupIndexName) throws IOException {
+        XContentBuilder mapping = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("properties")
+            .startObject("id")
+            .field("type", "integer")
+            .endObject()
+            .startObject("lookup_vector")
+            .field("type", "dense_vector")
+            .field("similarity", "l2_norm")
+            .endObject()
+            .endObject()
+            .endObject();
+
+        Settings.Builder settingsBuilder = Settings.builder()
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexSettings.MODE.getKey(), LOOKUP.getName());
+
+        var createRequest = client.prepareCreate(lookupIndexName).setMapping(mapping).setSettings(settingsBuilder.build());
+        assertAcked(createRequest);
     }
 }

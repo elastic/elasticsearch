@@ -111,7 +111,7 @@ import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.entitlement.bootstrap.TestEntitlementBootstrap;
+import org.elasticsearch.entitlement.bootstrap.TestEntitlementsRule;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.TestEnvironment;
@@ -159,6 +159,7 @@ import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
+import org.junit.ClassRule;
 import org.junit.Rule;
 import org.junit.internal.AssumptionViolatedException;
 import org.junit.rules.RuleChain;
@@ -517,24 +518,15 @@ public abstract class ESTestCase extends LuceneTestCase {
     public @interface WithEntitlementsOnTestCode {
     }
 
-    @BeforeClass
-    public static void setupEntitlementsForClass() {
-        boolean withoutEntitlements = getTestClass().isAnnotationPresent(WithoutEntitlements.class);
-        boolean withEntitlementsOnTestCode = getTestClass().isAnnotationPresent(WithEntitlementsOnTestCode.class);
-        if (TestEntitlementBootstrap.isEnabledForTest()) {
-            TestEntitlementBootstrap.setActive(false == withoutEntitlements);
-            TestEntitlementBootstrap.setTriviallyAllowingTestCode(false == withEntitlementsOnTestCode);
-        } else if (withEntitlementsOnTestCode) {
-            throw new AssertionError(
-                "Cannot use WithEntitlementsOnTestCode on tests that are not configured to use entitlements for testing"
-            );
-        }
+    @Retention(RetentionPolicy.RUNTIME)
+    @Target(ElementType.TYPE)
+    @Inherited
+    public @interface EntitledTestPackages {
+        String[] value();
     }
 
-    @AfterClass
-    public static void resetEntitlements() {
-        TestEntitlementBootstrap.reset();
-    }
+    @ClassRule
+    public static final TestEntitlementsRule TEST_ENTITLEMENTS = new TestEntitlementsRule();
 
     // setup mock filesystems for this test run. we change PathUtils
     // so that all accesses are plumbed thru any mock wrappers
@@ -1167,6 +1159,10 @@ public abstract class ESTestCase extends LuceneTestCase {
             result = result * end + (1.0 - result) * start;
         }
         return result;
+    }
+
+    public static Double randomOptionalDouble() {
+        return randomFrom(randomDouble(), null);
     }
 
     public static long randomLong() {
@@ -2200,7 +2196,7 @@ public abstract class ESTestCase extends LuceneTestCase {
     }
 
     public static boolean inFipsJvm() {
-        return Boolean.parseBoolean(System.getProperty(FIPS_SYSPROP));
+        return Booleans.parseBoolean(System.getProperty(FIPS_SYSPROP, "false"));
     }
 
     /*
@@ -2884,9 +2880,23 @@ public abstract class ESTestCase extends LuceneTestCase {
     }
 
     /**
+     * Constructs a {@link ProjectState} for the given {@link ProjectMetadata}.
+     */
+    public static ProjectState projectStateFromProject(ProjectMetadata project) {
+        return ClusterState.builder(ClusterName.DEFAULT).putProjectMetadata(project).build().projectState(project.id());
+    }
+
+    /**
      * Constructs an empty {@link ProjectState} with one (empty) project.
      */
     public static ProjectState projectStateWithEmptyProject() {
         return projectStateFromProject(ProjectMetadata.builder(randomProjectIdOrDefault()));
+    }
+
+    /**
+     * Constructs an empty {@link ProjectMetadata} with a random ID.
+     */
+    public static ProjectMetadata emptyProject() {
+        return ProjectMetadata.builder(randomProjectIdOrDefault()).build();
     }
 }

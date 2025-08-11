@@ -20,6 +20,7 @@ Events that meet the specified threshold are emitted into [{{es}} logging](docs-
 * If [{{es}} monitoring](docs-content://deploy-manage/monitor/stack-monitoring.md) is enabled, from [Stack Monitoring](docs-content://deploy-manage/monitor/monitoring-data/visualizing-monitoring-data.md). Slow log events have a `logger` value of `index.search.slowlog` or `index.indexing.slowlog`.
 * From local {{es}} service logs directory. Slow log files have a suffix of `_index_search_slowlog.json` or `_index_indexing_slowlog.json`.
 
+See this [this video](https://www.youtube.com/watch?v=ulUPJshB5bU) for a walkthrough of setting and reviewing slow logs.
 
 ## Slow log format [slow-log-format]
 

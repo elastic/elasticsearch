@@ -527,6 +527,9 @@ tests:
 - class: org.elasticsearch.xpack.sql.action.SqlSearchPageTimeoutIT
   method: testSearchContextIsCleanedUpAfterPageTimeoutForAggregationQueries
   issue: https://github.com/elastic/elasticsearch/issues/132619
+- class: org.elasticsearch.repositories.SnapshotMetricsIT
+  method: testSnapshotAPMMetrics
+  issue: https://github.com/elastic/elasticsearch/issues/132672
 
 # Examples:
 #

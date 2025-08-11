@@ -26,8 +26,8 @@ import org.elasticsearch.index.codec.vectors.cluster.HierarchicalKMeans;
 import org.elasticsearch.index.codec.vectors.cluster.KMeansResult;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.simdvec.ES91Int4VectorsScorer;
 import org.elasticsearch.simdvec.ES91OSQVectorsScorer;
+import org.elasticsearch.simdvec.ES92Int7VectorsScorer;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -64,6 +64,7 @@ public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
         CentroidSupplier centroidSupplier,
         FloatVectorValues floatVectorValues,
         IndexOutput postingsOutput,
+        long fileOffset,
         int[] assignments,
         int[] overspillAssignments
     ) throws IOException {
@@ -76,9 +77,12 @@ public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
             }
         }
 
+        int maxPostingListSize = 0;
         int[][] assignmentsByCluster = new int[centroidSupplier.size()][];
         for (int c = 0; c < centroidSupplier.size(); c++) {
-            assignmentsByCluster[c] = new int[centroidVectorCount[c]];
+            int size = centroidVectorCount[c];
+            maxPostingListSize = Math.max(maxPostingListSize, size);
+            assignmentsByCluster[c] = new int[size];
         }
         Arrays.fill(centroidVectorCount, 0);
 
@@ -93,6 +97,8 @@ public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
                 }
             }
         }
+        // write the max posting list size
+        postingsOutput.writeVInt(maxPostingListSize);
         // write the posting lists
         final PackedLongValues.Builder offsets = PackedLongValues.monotonicBuilder(PackedInts.COMPACT);
         DocIdsWriter docIdsWriter = new DocIdsWriter();
@@ -106,7 +112,7 @@ public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
         for (int c = 0; c < centroidSupplier.size(); c++) {
             float[] centroid = centroidSupplier.centroid(c);
             int[] cluster = assignmentsByCluster[c];
-            offsets.add(postingsOutput.alignFilePointer(Float.BYTES));
+            offsets.add(postingsOutput.alignFilePointer(Float.BYTES) - fileOffset);
             buffer.asFloatBuffer().put(centroid);
             // write raw centroid for quantizing the query vectors
             postingsOutput.writeBytes(buffer.array(), buffer.array().length);
@@ -137,6 +143,7 @@ public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
         CentroidSupplier centroidSupplier,
         FloatVectorValues floatVectorValues,
         IndexOutput postingsOutput,
+        long fileOffset,
         MergeState mergeState,
         int[] assignments,
         int[] overspillAssignments
@@ -196,11 +203,14 @@ public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
             }
         }
 
+        int maxPostingListSize = 0;
         int[][] assignmentsByCluster = new int[centroidSupplier.size()][];
         boolean[][] isOverspillByCluster = new boolean[centroidSupplier.size()][];
         for (int c = 0; c < centroidSupplier.size(); c++) {
-            assignmentsByCluster[c] = new int[centroidVectorCount[c]];
-            isOverspillByCluster[c] = new boolean[centroidVectorCount[c]];
+            int size = centroidVectorCount[c];
+            maxPostingListSize = Math.max(maxPostingListSize, size);
+            assignmentsByCluster[c] = new int[size];
+            isOverspillByCluster[c] = new boolean[size];
         }
         Arrays.fill(centroidVectorCount, 0);
 
@@ -226,11 +236,14 @@ public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
             DocIdsWriter docIdsWriter = new DocIdsWriter();
             DiskBBQBulkWriter bulkWriter = new DiskBBQBulkWriter.OneBitDiskBBQBulkWriter(ES91OSQVectorsScorer.BULK_SIZE, postingsOutput);
             final ByteBuffer buffer = ByteBuffer.allocate(fieldInfo.getVectorDimension() * Float.BYTES).order(ByteOrder.LITTLE_ENDIAN);
+            // write the max posting list size
+            postingsOutput.writeVInt(maxPostingListSize);
+            // write the posting lists
             for (int c = 0; c < centroidSupplier.size(); c++) {
                 float[] centroid = centroidSupplier.centroid(c);
                 int[] cluster = assignmentsByCluster[c];
                 boolean[] isOverspill = isOverspillByCluster[c];
-                offsets.add(postingsOutput.alignFilePointer(Float.BYTES));
+                offsets.add(postingsOutput.alignFilePointer(Float.BYTES) - fileOffset);
                 // write raw centroid for quantizing the query vectors
                 buffer.asFloatBuffer().put(centroid);
                 postingsOutput.writeBytes(buffer.array(), buffer.array().length);
@@ -315,8 +328,8 @@ public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
         LongValues offsets,
         IndexOutput centroidOutput
     ) throws IOException {
-        DiskBBQBulkWriter.FourBitDiskBBQBulkWriter bulkWriter = new DiskBBQBulkWriter.FourBitDiskBBQBulkWriter(
-            ES91Int4VectorsScorer.BULK_SIZE,
+        DiskBBQBulkWriter.SevenBitDiskBBQBulkWriter bulkWriter = new DiskBBQBulkWriter.SevenBitDiskBBQBulkWriter(
+            ES92Int7VectorsScorer.BULK_SIZE,
             centroidOutput
         );
         final OptimizedScalarQuantizer osq = new OptimizedScalarQuantizer(fieldInfo.getVectorSimilarityFunction());
@@ -365,8 +378,8 @@ public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
         IndexOutput centroidOutput
     ) throws IOException {
         centroidOutput.writeVInt(0);
-        DiskBBQBulkWriter.FourBitDiskBBQBulkWriter bulkWriter = new DiskBBQBulkWriter.FourBitDiskBBQBulkWriter(
-            ES91Int4VectorsScorer.BULK_SIZE,
+        DiskBBQBulkWriter.SevenBitDiskBBQBulkWriter bulkWriter = new DiskBBQBulkWriter.SevenBitDiskBBQBulkWriter(
+            ES92Int7VectorsScorer.BULK_SIZE,
             centroidOutput
         );
         final OptimizedScalarQuantizer osq = new OptimizedScalarQuantizer(fieldInfo.getVectorSimilarityFunction());
@@ -405,9 +418,9 @@ public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
         // this are small numbers so we run it wih all the centroids.
         final KMeansResult kMeansResult = new HierarchicalKMeans(
             fieldInfo.getVectorDimension(),
-            6,
-            floatVectorValues.size(),
-            floatVectorValues.size(),
+            HierarchicalKMeans.MAX_ITERATIONS_DEFAULT,
+            HierarchicalKMeans.SAMPLES_PER_CLUSTER_DEFAULT,
+            HierarchicalKMeans.MAXK,
             -1 // disable SOAR assignments
         ).cluster(floatVectorValues, centroidsPerParentCluster);
         final int[] centroidVectorCount = new int[kMeansResult.centroids().length];
@@ -571,7 +584,7 @@ public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
             // Its possible that the vectors are on-heap and we cannot mutate them as we may quantize twice
             // due to overspill, so we copy the vector to a scratch array
             System.arraycopy(vector, 0, floatVectorScratch, 0, vector.length);
-            corrections = quantizer.scalarQuantize(floatVectorScratch, quantizedVectorScratch, (byte) 4, centroid);
+            corrections = quantizer.scalarQuantize(floatVectorScratch, quantizedVectorScratch, (byte) 7, centroid);
             for (int i = 0; i < quantizedVectorScratch.length; i++) {
                 quantizedVector[i] = (byte) quantizedVectorScratch[i];
             }

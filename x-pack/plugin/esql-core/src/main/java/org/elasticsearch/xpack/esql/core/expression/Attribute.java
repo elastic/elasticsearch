@@ -33,19 +33,42 @@ public abstract class Attribute extends NamedExpression {
      */
     protected static final String SYNTHETIC_ATTRIBUTE_NAME_PREFIX = "$$";
 
-    // can the attr be null - typically used in JOINs
+    // can the attr be null
     private final Nullability nullability;
+    // TODO: update all subclasses to correctly serialize this field
+    private final String qualifier;
 
     public Attribute(Source source, String name, @Nullable NameId id) {
         this(source, name, Nullability.TRUE, id);
     }
 
-    public Attribute(Source source, String name, Nullability nullability, @Nullable NameId id) {
-        this(source, name, nullability, id, false);
+    public Attribute(Source source, @Nullable String qualifier, String name, @Nullable NameId id) {
+        this(source, qualifier, name, Nullability.TRUE, id);
     }
 
+    public Attribute(Source source, String name, Nullability nullability, @Nullable NameId id) {
+        this(source, null, name, nullability, id);
+    }
+
+    public Attribute(Source source, @Nullable String qualifier, String name, Nullability nullability, @Nullable NameId id) {
+        this(source, qualifier, name, nullability, id, false);
+    }
+
+    // TODO check all usages of constructors without qualifiers; we may be dropping qualifiers while copying. Applies to all subclasses.
     public Attribute(Source source, String name, Nullability nullability, @Nullable NameId id, boolean synthetic) {
+        this(source, null, name, nullability, id, synthetic);
+    }
+
+    public Attribute(
+        Source source,
+        @Nullable String qualifier,
+        String name,
+        Nullability nullability,
+        @Nullable NameId id,
+        boolean synthetic
+    ) {
         super(source, name, emptyList(), id, synthetic);
+        this.qualifier = qualifier;
         this.nullability = nullability;
     }
 
@@ -59,6 +82,10 @@ public abstract class Attribute extends NamedExpression {
         throw new UnsupportedOperationException("this type of node doesn't have any children to replace");
     }
 
+    public String qualifier() {
+        return qualifier;
+    }
+
     @Override
     public Nullability nullable() {
         return nullability;
@@ -70,26 +97,40 @@ public abstract class Attribute extends NamedExpression {
     }
 
     public Attribute withLocation(Source source) {
-        return Objects.equals(source(), source) ? this : clone(source, name(), dataType(), nullable(), id(), synthetic());
+        return Objects.equals(source(), source) ? this : clone(source, qualifier(), name(), dataType(), nullable(), id(), synthetic());
+    }
+
+    public Attribute withQualifier(String qualifier) {
+        return Objects.equals(qualifier, qualifier) ? this : clone(source(), qualifier, name(), dataType(), nullable(), id(), synthetic());
     }
 
     public Attribute withName(String name) {
-        return Objects.equals(name(), name) ? this : clone(source(), name, dataType(), nullable(), id(), synthetic());
+        return Objects.equals(name(), name) ? this : clone(source(), qualifier(), name, dataType(), nullable(), id(), synthetic());
     }
 
     public Attribute withNullability(Nullability nullability) {
-        return Objects.equals(nullable(), nullability) ? this : clone(source(), name(), dataType(), nullability, id(), synthetic());
+        return Objects.equals(nullable(), nullability)
+            ? this
+            : clone(source(), qualifier(), name(), dataType(), nullability, id(), synthetic());
     }
 
     public Attribute withId(NameId id) {
-        return clone(source(), name(), dataType(), nullable(), id, synthetic());
+        return clone(source(), qualifier(), name(), dataType(), nullable(), id, synthetic());
     }
 
     public Attribute withDataType(DataType type) {
-        return Objects.equals(dataType(), type) ? this : clone(source(), name(), type, nullable(), id(), synthetic());
+        return Objects.equals(dataType(), type) ? this : clone(source(), qualifier(), name(), type, nullable(), id(), synthetic());
     }
 
-    protected abstract Attribute clone(Source source, String name, DataType type, Nullability nullability, NameId id, boolean synthetic);
+    protected abstract Attribute clone(
+        Source source,
+        String qualifier,
+        String name,
+        DataType type,
+        Nullability nullability,
+        NameId id,
+        boolean synthetic
+    );
 
     @Override
     public Attribute toAttribute() {
@@ -108,7 +149,7 @@ public abstract class Attribute extends NamedExpression {
 
     @Override
     protected Expression canonicalize() {
-        return clone(Source.EMPTY, name(), dataType(), nullability, id(), synthetic());
+        return clone(Source.EMPTY, qualifier(), name(), dataType(), nullability, id(), synthetic());
     }
 
     @Override

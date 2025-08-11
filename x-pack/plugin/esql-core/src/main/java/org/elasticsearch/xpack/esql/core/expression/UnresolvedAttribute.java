@@ -38,13 +38,34 @@ public class UnresolvedAttribute extends Attribute implements Unresolvable {
         this(source, name, null);
     }
 
-    public UnresolvedAttribute(Source source, String name, String unresolvedMessage) {
-        this(source, name, null, unresolvedMessage, null);
+    public UnresolvedAttribute(Source source, String name, @Nullable String unresolvedMessage) {
+        this(source, null, name, unresolvedMessage);
+    }
+
+    public UnresolvedAttribute(Source source, @Nullable String qualifier, String name, @Nullable String unresolvedMessage) {
+        this(source, qualifier, name, null, unresolvedMessage, null);
+    }
+
+    public UnresolvedAttribute(
+        Source source,
+        String name,
+        @Nullable NameId id,
+        @Nullable String unresolvedMessage,
+        Object resolutionMetadata
+    ) {
+        this(source, null, name, id, unresolvedMessage, resolutionMetadata);
     }
 
     @SuppressWarnings("this-escape")
-    public UnresolvedAttribute(Source source, String name, @Nullable NameId id, String unresolvedMessage, Object resolutionMetadata) {
-        super(source, name, id);
+    public UnresolvedAttribute(
+        Source source,
+        @Nullable String qualifier,
+        String name,
+        @Nullable NameId id,
+        @Nullable String unresolvedMessage,
+        Object resolutionMetadata
+    ) {
+        super(source, qualifier, name, id);
         this.customMessage = unresolvedMessage != null;
         this.unresolvedMsg = unresolvedMessage == null ? errorMessage(name(), null) : unresolvedMessage;
         this.resolutionMetadata = resolutionMetadata;
@@ -62,7 +83,7 @@ public class UnresolvedAttribute extends Attribute implements Unresolvable {
 
     @Override
     protected NodeInfo<UnresolvedAttribute> info() {
-        return NodeInfo.create(this, UnresolvedAttribute::new, name(), id(), unresolvedMsg, resolutionMetadata);
+        return NodeInfo.create(this, UnresolvedAttribute::new, qualifier(), name(), id(), unresolvedMsg, resolutionMetadata);
     }
 
     public Object resolutionMetadata() {
@@ -79,7 +100,16 @@ public class UnresolvedAttribute extends Attribute implements Unresolvable {
     }
 
     @Override
-    protected Attribute clone(Source source, String name, DataType dataType, Nullability nullability, NameId id, boolean synthetic) {
+    protected Attribute clone(
+        Source source,
+        String qualifier,
+        String name,
+        DataType dataType,
+        Nullability nullability,
+        NameId id,
+        boolean synthetic
+    ) {
+        // TODO: This looks like a bug; making clones should allow for changes.
         return this;
     }
 

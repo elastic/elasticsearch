@@ -265,9 +265,19 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
     }
 
     public UnresolvedAttribute visitQualifiedName(EsqlBaseParser.QualifiedNameContext ctx, UnresolvedAttribute defaultValue) {
+        // TODO: Disallow qualifier + param (for now)
         if (ctx == null) {
             return defaultValue;
         }
+
+        String name = visitUnqualifiedName(ctx.unqualifiedName());
+        String qualifier = ctx.qualifier != null ? ctx.qualifier.getText() : null;
+
+        return new UnresolvedAttribute(source(ctx), qualifier, name, null);
+    }
+
+    @Override
+    public String visitUnqualifiedName(EsqlBaseParser.UnqualifiedNameContext ctx) {
         List<Object> items = visitList(this, ctx.identifierOrParameter(), Object.class);
         List<String> strings = new ArrayList<>(items.size());
         for (Object item : items) {
@@ -277,7 +287,7 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
                 strings.add(unresolvedAttributeNameInParam(ctx, e));
             }
         }
-        return new UnresolvedAttribute(source(ctx), Strings.collectionToDelimitedString(strings, "."));
+        return Strings.collectionToDelimitedString(strings, ".");
     }
 
     @Override
@@ -312,15 +322,19 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
     }
 
     @Override
-    public NamedExpression visitQualifiedNamePattern(EsqlBaseParser.QualifiedNamePatternContext ctx) {
-        if (ctx == null) {
+    public NamedExpression visitQualifiedNamePattern(EsqlBaseParser.QualifiedNamePatternContext qualifiedCtx) {
+        // TODO: Disallow qualifier + wildcard and qualifier + param (for now)
+        if (qualifiedCtx == null) {
             return null;
         }
 
-        var src = source(ctx);
+        String qualifier = qualifiedCtx.qualifier != null ? qualifiedCtx.qualifier.getText() : null;
+        EsqlBaseParser.UnqualifiedNamePatternContext unqualifiedCtx = qualifiedCtx.unqualifiedNamePattern();
+
+        var src = source(qualifiedCtx);
         StringBuilder patternString = new StringBuilder();
         StringBuilder nameString = new StringBuilder();
-        var patterns = ctx.identifierPattern();
+        var patterns = unqualifiedCtx.identifierPattern();
 
         // check special wildcard case
         if (patterns.size() == 1) {
@@ -338,7 +352,7 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
                         throw new ParsingException(
                             src,
                             "Query parameter [{}] with value [{}] declared as a constant, cannot be used as an identifier or pattern",
-                            ctx.getText(),
+                            unqualifiedCtx.getText(),
                             lit
                         );
                     }
@@ -374,7 +388,7 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
                 if (exp instanceof Literal lit) {
                     // only Literal.NULL can happen with missing params, params for constants are not allowed
                     if (lit.value() != null) {
-                        throw new ParsingException(src, "Constant [{}] is unsupported for [{}]", pattern, ctx.getText());
+                        throw new ParsingException(src, "Constant [{}] is unsupported for [{}]", pattern, unqualifiedCtx.getText());
                     }
                 } else if (exp instanceof UnresolvedAttribute ua) { // identifier provided in QueryParam is treated as unquoted string
                     String unquotedIdentifier = ua.name();
@@ -465,7 +479,7 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
                 nameString.toString()
             );
         } else {
-            result = new UnresolvedAttribute(src, Strings.collectionToDelimitedString(objects, ""));
+            result = new UnresolvedAttribute(src, qualifier, Strings.collectionToDelimitedString(objects, ""), null);
         }
         return result;
     }

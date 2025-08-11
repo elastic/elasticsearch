@@ -35,9 +35,8 @@ import static org.elasticsearch.xpack.esql.core.util.PlanStreamInput.readCachedS
 import static org.elasticsearch.xpack.esql.core.util.PlanStreamOutput.writeCachedStringWithVersionCheck;
 
 /**
- * Unsupported attribute meaning an attribute that has been found yet cannot be used (hence why UnresolvedAttribute
- * cannot be used) expect in special conditions (currently only in projections to allow it to flow through
- * the engine).
+ * Unsupported attribute that has been found yet cannot be used except in special conditions (currently only in projections to allow it to
+ * flow through the engine).
  * As such the field is marked as unresolved (so the verifier can pick up its usage outside project).
  */
 public final class UnsupportedAttribute extends FieldAttribute implements Unresolvable {
@@ -73,7 +72,18 @@ public final class UnsupportedAttribute extends FieldAttribute implements Unreso
     }
 
     public UnsupportedAttribute(Source source, String name, UnsupportedEsField field, @Nullable String customMessage, @Nullable NameId id) {
-        super(source, null, name, field, Nullability.TRUE, id, false);
+        this(source, null, name, field, customMessage, id);
+    }
+
+    public UnsupportedAttribute(
+        Source source,
+        @Nullable String qualifier,
+        String name,
+        UnsupportedEsField field,
+        @Nullable String customMessage,
+        @Nullable NameId id
+    ) {
+        super(source, null, qualifier, name, field, Nullability.TRUE, id, false);
         this.hasCustomMessage = customMessage != null;
         this.message = customMessage == null ? errorMessage(name(), field) : customMessage;
     }
@@ -134,12 +144,20 @@ public final class UnsupportedAttribute extends FieldAttribute implements Unreso
 
     @Override
     protected NodeInfo<FieldAttribute> info() {
-        return NodeInfo.create(this, UnsupportedAttribute::new, name(), field(), hasCustomMessage ? message : null, id());
+        return NodeInfo.create(this, UnsupportedAttribute::new, qualifier(), name(), field(), hasCustomMessage ? message : null, id());
     }
 
     @Override
-    protected Attribute clone(Source source, String name, DataType type, Nullability nullability, NameId id, boolean synthetic) {
-        return new UnsupportedAttribute(source, name, field(), hasCustomMessage ? message : null, id);
+    protected Attribute clone(
+        Source source,
+        String qualifier,
+        String name,
+        DataType type,
+        Nullability nullability,
+        NameId id,
+        boolean synthetic
+    ) {
+        return new UnsupportedAttribute(source, qualifier, name, field(), hasCustomMessage ? message : null, id);
     }
 
     protected String label() {

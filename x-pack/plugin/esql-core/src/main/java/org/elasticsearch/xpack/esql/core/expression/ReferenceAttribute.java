@@ -40,13 +40,26 @@ public class ReferenceAttribute extends TypedAttribute {
         @Nullable NameId id,
         boolean synthetic
     ) {
-        super(source, name, dataType, nullability, id, synthetic);
+        this(source, null, name, dataType, nullability, id, synthetic);
+    }
+
+    public ReferenceAttribute(
+        Source source,
+        @Nullable String qualifier,
+        String name,
+        DataType dataType,
+        Nullability nullability,
+        @Nullable NameId id,
+        boolean synthetic
+    ) {
+        super(source, qualifier, name, dataType, nullability, id, synthetic);
     }
 
     @Deprecated
     /**
      * Old constructor from when this had a qualifier string. Still needed to not break serialization.
      */
+    // TODO: clean up/remove
     private ReferenceAttribute(
         Source source,
         String name,
@@ -56,7 +69,7 @@ public class ReferenceAttribute extends TypedAttribute {
         NameId id,
         boolean synthetic
     ) {
-        this(source, name, dataType, nullability, id, synthetic);
+        this(source, qualifier, name, dataType, nullability, id, synthetic);
     }
 
     @SuppressWarnings("unchecked")
@@ -104,13 +117,13 @@ public class ReferenceAttribute extends TypedAttribute {
     }
 
     @Override
-    protected Attribute clone(Source source, String name, DataType dataType, Nullability nullability, NameId id, boolean synthetic) {
-        return new ReferenceAttribute(source, name, dataType, null, nullability, id, synthetic);
+    protected Attribute clone(Source source, String qualifier, String name, DataType dataType, Nullability nullability, NameId id, boolean synthetic) {
+        return new ReferenceAttribute(source, qualifier, name, dataType, nullability, id, synthetic);
     }
 
     @Override
     protected NodeInfo<ReferenceAttribute> info() {
-        return NodeInfo.create(this, ReferenceAttribute::new, name(), dataType(), nullable(), id(), synthetic());
+        return NodeInfo.create(this, ReferenceAttribute::new, qualifier(), name(), dataType(), nullable(), id(), synthetic());
     }
 
     @Override

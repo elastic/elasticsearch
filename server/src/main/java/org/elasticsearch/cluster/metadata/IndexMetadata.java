@@ -531,7 +531,8 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
     public static final Setting<List<String>> INDEX_DIMENSIONS = Setting.stringListSetting(
         "index.dimensions",
         Setting.Property.IndexScope,
-        Property.Dynamic
+        Property.Dynamic,
+        Property.PrivateIndex
     );
 
     /**

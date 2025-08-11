@@ -23,7 +23,6 @@ import org.elasticsearch.reindex.ReindexPlugin;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.junit.Before;
-import static org.hamcrest.Matchers.empty;
 
 import java.util.Arrays;
 import java.util.Collection;
@@ -34,11 +33,12 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import static java.util.Collections.singletonList;
+import static org.elasticsearch.action.DocWriteRequest.OpType.CREATE;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFutureThrows;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
-import static org.elasticsearch.action.DocWriteRequest.OpType.CREATE;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.not;
 
 /**

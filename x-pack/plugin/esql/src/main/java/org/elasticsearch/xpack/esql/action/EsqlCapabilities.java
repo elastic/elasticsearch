@@ -1340,7 +1340,7 @@ public class EsqlCapabilities {
         /**
          * FIRST and LAST aggregate functions.
          */
-        AGG_FIRST_LAST,
+        AGG_FIRST_LAST(Build.current().isSnapshot()),
 
         /**
          * Support correct counting of skipped shards.

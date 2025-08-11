@@ -318,8 +318,6 @@ public class EsqlFunctionRegistry {
                 def(Avg.class, uni(Avg::new), "avg"),
                 def(Count.class, uni(Count::new), "count"),
                 def(CountDistinct.class, bi(CountDistinct::new), "count_distinct"),
-                def(First.class, bi(First::new), "first"),
-                def(Last.class, bi(Last::new), "last"),
                 def(Max.class, uni(Max::new), "max"),
                 def(Median.class, uni(Median::new), "median"),
                 def(MedianAbsoluteDeviation.class, uni(MedianAbsoluteDeviation::new), "median_absolute_deviation"),
@@ -479,6 +477,8 @@ public class EsqlFunctionRegistry {
                 // The delay() function is for debug/snapshot environments only and should never be enabled in a non-snapshot build.
                 // This is an experimental function and can be removed without notice.
                 def(Delay.class, Delay::new, "delay"),
+                def(First.class, bi(First::new), "first"),
+                def(Last.class, bi(Last::new), "last"),
                 def(Rate.class, uni(Rate::new), "rate"),
                 def(MaxOverTime.class, uni(MaxOverTime::new), "max_over_time"),
                 def(MinOverTime.class, uni(MinOverTime::new), "min_over_time"),

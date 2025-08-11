@@ -106,29 +106,57 @@ public class HierarchicalKMeans {
         // TODO: consider adding cluster size counts to the kmeans algo
         // handle assignment here so we can track distance and cluster size
         int[] centroidVectorCount = new int[centroids.length];
+        int effectiveCluster = -1;
         int effectiveK = 0;
         for (int assigment : assignments) {
             centroidVectorCount[assigment]++;
             // this cluster has received an assignment, its now effective, but only count it once
             if (centroidVectorCount[assigment] == 1) {
                 effectiveK++;
+                effectiveCluster = assigment;
             }
         }
 
         if (effectiveK == 1) {
+            final float[][] singleClusterCentroid = new float[1][];
+            singleClusterCentroid[0] = centroids[effectiveCluster];
+            kMeansIntermediate.setCentroids(singleClusterCentroid);
+            Arrays.fill(kMeansIntermediate.assignments(), 0);
             return kMeansIntermediate;
         }
 
+        int removedElements = 0;
         for (int c = 0; c < centroidVectorCount.length; c++) {
             // Recurse for each cluster which is larger than targetSize
             // Give ourselves 30% margin for the target size
-            if (100 * centroidVectorCount[c] > 134 * targetSize) {
-                FloatVectorValues sample = createClusterSlice(centroidVectorCount[c], c, vectors, assignments);
-
+            final int count = centroidVectorCount[c];
+            final int adjustedCentroid = c - removedElements;
+            if (100 * count > 134 * targetSize) {
+                final FloatVectorValues sample = createClusterSlice(count, adjustedCentroid, vectors, assignments);
                 // TODO: consider iterative here instead of recursive
                 // recursive call to build out the sub partitions around this centroid c
                 // subsequently reconcile and flatten the space of all centroids and assignments into one structure we can return
-                updateAssignmentsWithRecursiveSplit(kMeansIntermediate, c, clusterAndSplit(sample, targetSize));
+                updateAssignmentsWithRecursiveSplit(kMeansIntermediate, adjustedCentroid, clusterAndSplit(sample, targetSize));
+            } else if (count == 0) {
+                // remove empty clusters
+                final int newSize = kMeansIntermediate.centroids().length - 1;
+                final float[][] newCentroids = new float[newSize][];
+                System.arraycopy(kMeansIntermediate.centroids(), 0, newCentroids, 0, adjustedCentroid);
+                System.arraycopy(
+                    kMeansIntermediate.centroids(),
+                    adjustedCentroid + 1,
+                    newCentroids,
+                    adjustedCentroid,
+                    newSize - adjustedCentroid
+                );
+                // we need to update the assignments to reflect the new centroid ordinals
+                for (int i = 0; i < kMeansIntermediate.assignments().length; i++) {
+                    if (kMeansIntermediate.assignments()[i] > adjustedCentroid) {
+                        kMeansIntermediate.assignments()[i]--;
+                    }
+                }
+                kMeansIntermediate.setCentroids(newCentroids);
+                removedElements++;
             }
         }
 

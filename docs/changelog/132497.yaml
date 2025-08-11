@@ -1,0 +1,5 @@
+pr: 132497
+summary: Add cache miss and read metrics
+area: Searchable Snapshots
+type: enhancement
+issues: []

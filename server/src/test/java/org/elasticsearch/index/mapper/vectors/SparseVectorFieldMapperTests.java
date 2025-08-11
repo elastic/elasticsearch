@@ -26,6 +26,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
@@ -40,7 +41,6 @@ import org.elasticsearch.inference.WeightedToken;
 import org.elasticsearch.search.lookup.Source;
 import org.elasticsearch.search.vectors.SparseVectorQueryWrapper;
 import org.elasticsearch.test.index.IndexVersionUtils;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParseException;
@@ -50,10 +50,8 @@ import org.hamcrest.Matchers;
 import org.junit.AssumptionViolatedException;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.EnumSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -201,6 +199,30 @@ public class SparseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase
             b.field("prune", false);
         }
         b.endObject();
+    }
+
+    private void mapping(XContentBuilder b, @Nullable Boolean prune, PruningConfig pruningConfig, Boolean previousVersion) throws IOException {
+        b.field("type", "sparse_vector");
+        if (previousVersion == false && prune != null) {
+            b.startObject("index_options");
+            {
+                b.field("prune", prune);
+                if (pruningConfig != PruningConfig.NULL) {
+                    b.startObject("pruning_config");
+                    {
+                        if (pruningConfig == PruningConfig.EXPLICIT_DEFAULT) {
+                            b.field("tokens_freq_ratio_threshold", TokenPruningConfig.DEFAULT_TOKENS_FREQ_RATIO_THRESHOLD);
+                            b.field("tokens_weight_threshold", TokenPruningConfig.DEFAULT_TOKENS_WEIGHT_THRESHOLD);
+                        } else if (pruningConfig == PruningConfig.STRICT) {
+                            b.field("tokens_freq_ratio_threshold", STRICT_TOKENS_FREQ_RATIO_THRESHOLD);
+                            b.field("tokens_weight_threshold", STRICT_TOKENS_WEIGHT_THRESHOLD);
+                        }
+                    }
+                    b.endObject();
+                }
+            }
+            b.endObject();
+        }
     }
 
     @Override
@@ -701,27 +723,25 @@ public class SparseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase
         );
     }
 
-    public enum PruningScenario {
+    private enum PruningScenario {
         NO_PRUNING,      // No pruning applied - all tokens preserved
         DEFAULT_PRUNING, // Default pruning configuration
         STRICT_PRUNING   // Stricter pruning with higher thresholds
     }
 
-    public enum QueryPruningScenario {
-        PRUNE_FALSE_NO_CONFIG,
-        PRUNE_FALSE_WITH_CONFIG,
-        PRUNE_TRUE_NO_CONFIG,
-        PRUNE_TRUE_WITH_CONFIG,
-        PRUNE_NULL_WITH_CONFIG,
-        PRUNE_NULL_NO_CONFIG
+    private enum PruningConfig {
+        NULL, EXPLICIT_DEFAULT, STRICT
     }
 
-    public enum IndexPruningScenario {
-        PRUNE_FALSE_NO_CONFIG,
-        PRUNE_TRUE_NO_CONFIG,
-        PRUNE_TRUE_WITH_CONFIG,
-        PRUNE_NULL_NO_CONFIG
-    }
+    private final Set<PruningOptions> validIndexPruningScenarios = Set.of(
+        new PruningOptions(false, PruningConfig.NULL),
+        new PruningOptions(true, PruningConfig.NULL),
+        new PruningOptions(true, PruningConfig.EXPLICIT_DEFAULT),
+        new PruningOptions(true, PruningConfig.STRICT),
+        new PruningOptions(null, PruningConfig.NULL)
+    );
+
+    private record PruningOptions(@Nullable Boolean prune, PruningConfig pruningConfig) {}
 
     private void withSearchExecutionContext(MapperService mapperService, CheckedConsumer<SearchExecutionContext, IOException> consumer)
         throws IOException {
@@ -757,47 +777,17 @@ public class SparseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase
     }
 
     public void testPruningScenarios() throws Exception {
-        for (int i = 0; i < 60; i++) {
-            assertPruningScenario(randomFrom(IndexPruningScenario.values()), randomFrom(QueryPruningScenario.values()));
+        for (int i = 0; i < 120; i++) {
+            assertPruningScenario(
+                randomFrom(validIndexPruningScenarios),
+                new PruningOptions(randomBoolean() ? randomBoolean() : null,
+                    randomFrom(PruningConfig.values()))
+            );
         }
     }
 
-    public void testPruningDefaultsPreIndexOptions() throws Exception {
-        IndexVersion version = IndexVersionUtils.randomVersionBetween(
-            random(),
-            UPGRADE_TO_LUCENE_10_0_0,
-            IndexVersionUtils.getPreviousVersion(SPARSE_VECTOR_PRUNING_INDEX_OPTIONS_SUPPORT)
-        );
-        IndexPruningScenario indexPruningScenario = IndexPruningScenario.PRUNE_NULL_NO_CONFIG;
-        QueryPruningScenario queryPruningScenario = QueryPruningScenario.PRUNE_NULL_NO_CONFIG;
-        MapperService mapperService = createMapperService(version, getIndexMapping(indexPruningScenario));
-        Tuple<Boolean, TokenPruningConfig> queryPruneConfig = getQueryPruneConfig(queryPruningScenario);
-
-        withSearchExecutionContext(mapperService, (context) -> {
-            SparseVectorFieldMapper.SparseVectorFieldType ft = (SparseVectorFieldMapper.SparseVectorFieldType) mapperService.fieldType(
-                "field"
-            );
-            Query finalizedQuery = ft.finalizeSparseVectorQuery(
-                context,
-                "field",
-                QUERY_VECTORS,
-                queryPruneConfig.v1(),
-                queryPruneConfig.v2()
-            );
-            // query should _not_ be pruned by default on older index versions
-            List<Query> expectedQueryClauses = getExpectedQueryClauses(ft, PruningScenario.NO_PRUNING, context);
-            assertQueryContains(expectedQueryClauses, finalizedQuery);
-        });
-
-    }
-
-    private XContentBuilder getIndexMapping(IndexPruningScenario pruningScenario) throws IOException {
-        return switch (pruningScenario) {
-            case PRUNE_FALSE_NO_CONFIG -> fieldMapping(this::mappingWithIndexOptionsPruneFalse);
-            case PRUNE_TRUE_NO_CONFIG -> fieldMapping(this::mappingWithIndexOptionsOnlyPruneTrue);
-            case PRUNE_TRUE_WITH_CONFIG -> fieldMapping(this::minimalMappingWithExplicitIndexOptions);
-            case PRUNE_NULL_NO_CONFIG -> fieldMapping(this::minimalMapping);
-        };
+    private XContentBuilder getIndexMapping(PruningOptions pruningOptions, Boolean usePreviousIndex) throws IOException {
+        return fieldMapping(b -> mapping(b, pruningOptions.prune(), pruningOptions.pruningConfig(), usePreviousIndex));
     }
 
     private void assertQueryContains(List<Query> expectedClauses, Query query) {
@@ -810,71 +800,53 @@ public class SparseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase
         assertThat(shouldClauses, Matchers.containsInAnyOrder(expectedClauses.toArray()));
     }
 
-    private void assertQueryHasClauseCount(Query query, int clauseCount) {
-        SparseVectorQueryWrapper queryWrapper = (SparseVectorQueryWrapper) query;
-        var termsQuery = queryWrapper.getTermsQuery();
-        assertNotNull(termsQuery);
-        var booleanQuery = (BooleanQuery) termsQuery;
-        Collection<Query> clauses = booleanQuery.getClauses(BooleanClause.Occur.SHOULD);
-        assertThat(clauses.size(), equalTo(clauseCount));
-    }
-
-    private PruningScenario getEffectivePruningScenario(
-        IndexPruningScenario indexPruningScenario,
-        QueryPruningScenario queryPruningScenario
-    ) {
-        PruningScenario effectivePruningScenario = null;
-        if (queryPruningScenario != null) {
-            effectivePruningScenario = switch (queryPruningScenario) {
-                case PRUNE_FALSE_NO_CONFIG, PRUNE_FALSE_WITH_CONFIG -> PruningScenario.NO_PRUNING;
-                case PRUNE_TRUE_WITH_CONFIG -> PruningScenario.STRICT_PRUNING;
-                case PRUNE_TRUE_NO_CONFIG, PRUNE_NULL_NO_CONFIG, PRUNE_NULL_WITH_CONFIG -> null; // Need to compare with
-                                                                                                 // indexPruningScenario
-            };
+    private PruningScenario getPruningLevel(PruningConfig config) {
+        if (config == PruningConfig.STRICT) {
+            return PruningScenario.STRICT_PRUNING;
         }
-
-        if (effectivePruningScenario != null) {
-            return effectivePruningScenario;
-        }
-        Set<IndexPruningScenario> indexOptionsWithoutConfig = EnumSet.of(
-            IndexPruningScenario.PRUNE_NULL_NO_CONFIG,
-            IndexPruningScenario.PRUNE_TRUE_NO_CONFIG
-        );
-
-        if (queryPruningScenario == QueryPruningScenario.PRUNE_NULL_NO_CONFIG) {
-            if (indexPruningScenario == IndexPruningScenario.PRUNE_FALSE_NO_CONFIG) return PruningScenario.NO_PRUNING;
-            else if (indexOptionsWithoutConfig.contains(indexPruningScenario)) return PruningScenario.DEFAULT_PRUNING;
-            else return PruningScenario.STRICT_PRUNING;
-        }
-
-        if (queryPruningScenario == QueryPruningScenario.PRUNE_TRUE_NO_CONFIG) {
-            if (indexPruningScenario == IndexPruningScenario.PRUNE_TRUE_WITH_CONFIG) return PruningScenario.STRICT_PRUNING;
-            else return PruningScenario.DEFAULT_PRUNING;
-        }
-
-        if (queryPruningScenario == QueryPruningScenario.PRUNE_NULL_WITH_CONFIG) {
-            if (indexPruningScenario == IndexPruningScenario.PRUNE_FALSE_NO_CONFIG) return PruningScenario.NO_PRUNING;
-            else return PruningScenario.STRICT_PRUNING;
-        }
-
         return PruningScenario.DEFAULT_PRUNING;
     }
 
-    private Tuple<Boolean, TokenPruningConfig> getQueryPruneConfig(QueryPruningScenario queryPruningScenario) {
-        return switch (queryPruningScenario) {
-            case PRUNE_FALSE_NO_CONFIG -> new Tuple<>(false, null);
-            case PRUNE_FALSE_WITH_CONFIG -> new Tuple<>(false, new TokenPruningConfig());
-            case PRUNE_TRUE_NO_CONFIG -> new Tuple<>(true, null);
-            case PRUNE_TRUE_WITH_CONFIG -> new Tuple<>(
-                true,
-                new TokenPruningConfig(STRICT_TOKENS_FREQ_RATIO_THRESHOLD, STRICT_TOKENS_WEIGHT_THRESHOLD, false)
-            );
-            case PRUNE_NULL_WITH_CONFIG -> new Tuple<>(
-                null,
-                new TokenPruningConfig(STRICT_TOKENS_FREQ_RATIO_THRESHOLD, STRICT_TOKENS_WEIGHT_THRESHOLD, false)
-            );
-            case PRUNE_NULL_NO_CONFIG -> new Tuple<>(null, null);
-        };
+    private PruningScenario getEffectivePruningScenario(
+        PruningOptions indexPruningOptions,
+        PruningOptions queryPruningOptions,
+        Boolean usePreviousIndex
+    ) {
+        if (usePreviousIndex) {
+            return (queryPruningOptions.prune != null && queryPruningOptions.prune)
+                ? getPruningLevel(queryPruningOptions.pruningConfig)
+                : PruningScenario.NO_PRUNING;
+        }
+
+        Boolean shouldPrune = indexPruningOptions.prune;
+        if (queryPruningOptions.prune != null) {
+            shouldPrune = queryPruningOptions.prune;
+        }
+
+        if (shouldPrune != null && shouldPrune == false) {
+            // Pruning is explicitly disabled
+            return PruningScenario.NO_PRUNING;
+        }
+
+        return queryPruningOptions.pruningConfig != PruningConfig.NULL
+            ? getPruningLevel(queryPruningOptions.pruningConfig)
+            : getPruningLevel(indexPruningOptions.pruningConfig);
+    }
+
+    private Tuple<Boolean, TokenPruningConfig> getQueryPruneConfig(PruningOptions queryPruningOptions) {
+        Boolean prune = queryPruningOptions.prune;
+        TokenPruningConfig tokenPruningConfig = null;
+        if (queryPruningOptions.pruningConfig != PruningConfig.NULL) {
+            switch (queryPruningOptions.pruningConfig) {
+                case EXPLICIT_DEFAULT -> tokenPruningConfig = new TokenPruningConfig();
+                case STRICT -> tokenPruningConfig = new TokenPruningConfig(
+                    STRICT_TOKENS_FREQ_RATIO_THRESHOLD,
+                    STRICT_TOKENS_WEIGHT_THRESHOLD,
+                    false
+                );
+            }
+        }
+        return new Tuple<>(prune, tokenPruningConfig);
     }
 
     private List<Query> getExpectedQueryClauses(SparseVectorFieldMapper.SparseVectorFieldType ft, PruningScenario pruningScenario, SearchExecutionContext searchExecutionContext) {
@@ -892,16 +864,18 @@ public class SparseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase
         }).collect(Collectors.toUnmodifiableList());
     }
 
-    private void assertPruningScenario(IndexPruningScenario indexPruningScenario, QueryPruningScenario queryPruningScenario)
+    private void assertPruningScenario(PruningOptions indexPruningOptions, PruningOptions queryPruningOptions)
         throws IOException {
-        IndexVersion indexVersion = IndexVersionUtils.randomVersionBetween(
-            random(),
-            SPARSE_VECTOR_PRUNING_INDEX_OPTIONS_SUPPORT,
-            IndexVersion.current()
-        );
-        MapperService mapperService = createMapperService(indexVersion, getIndexMapping(indexPruningScenario));
-        Tuple<Boolean, TokenPruningConfig> queryPruneConfig = getQueryPruneConfig(queryPruningScenario);
-        PruningScenario effectivePruningScenario = getEffectivePruningScenario(indexPruningScenario, queryPruningScenario);
+
+        boolean usePreIndexOptionsIndex = false;
+        if (indexPruningOptions.prune == null && indexPruningOptions.pruningConfig == PruningConfig.NULL) {
+            usePreIndexOptionsIndex = randomBoolean();
+        }
+
+        IndexVersion indexVersion = getIndexVersionForTest(usePreIndexOptionsIndex);
+        MapperService mapperService = createMapperService(indexVersion, getIndexMapping(indexPruningOptions, usePreIndexOptionsIndex));
+        Tuple<Boolean, TokenPruningConfig> queryPruneConfig = getQueryPruneConfig(queryPruningOptions);
+        PruningScenario effectivePruningScenario = getEffectivePruningScenario(indexPruningOptions, queryPruningOptions, usePreIndexOptionsIndex);
         withSearchExecutionContext(mapperService, (context) -> {
             SparseVectorFieldMapper.SparseVectorFieldType ft = (SparseVectorFieldMapper.SparseVectorFieldType) mapperService.fieldType(
                 "field"

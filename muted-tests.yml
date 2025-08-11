@@ -229,9 +229,6 @@ tests:
 - class: org.elasticsearch.action.RejectionActionIT
   method: testSimulatedSearchRejectionLoad
   issue: https://github.com/elastic/elasticsearch/issues/125901
-- class: org.elasticsearch.search.CCSDuelIT
-  method: testTerminateAfter
-  issue: https://github.com/elastic/elasticsearch/issues/126085
 - class: org.elasticsearch.search.basic.SearchWithRandomDisconnectsIT
   method: testSearchWithRandomDisconnects
   issue: https://github.com/elastic/elasticsearch/issues/122707

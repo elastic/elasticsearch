@@ -1446,7 +1446,7 @@ public class RemoteClusterServiceTests extends ESTestCase {
             );
         }
 
-        // Shouldn't throw when stateless is enabled on a search node or a node with remote cluster client role.
+        // Shouldn't throw when stateless is enabled on a search node, or a node with remote cluster client role, or both.
         final var statelessEnabledOnSearchNodeSettings = Settings.builder()
             .put(nodeNameSettings)
             .put(onlyRole(DiscoveryNodeRole.SEARCH_ROLE))
@@ -1461,6 +1461,14 @@ public class RemoteClusterServiceTests extends ESTestCase {
             .put(DiscoveryNode.STATELESS_ENABLED_SETTING_NAME, true)
             .build();
         try (RemoteClusterService service = new RemoteClusterService(statelessEnabledOnRemoteClusterClientSettings, null)) {
+            service.ensureClientIsEnabled();
+        }
+        final var statelessEnabledOnSearchNodeAndRemoteClusterClientSettings = Settings.builder()
+            .put(nodeNameSettings)
+            .put(onlyRoles(Set.of(DiscoveryNodeRole.SEARCH_ROLE, DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE)))
+            .put(DiscoveryNode.STATELESS_ENABLED_SETTING_NAME, true)
+            .build();
+        try (RemoteClusterService service = new RemoteClusterService(statelessEnabledOnSearchNodeAndRemoteClusterClientSettings, null)) {
             service.ensureClientIsEnabled();
         }
     }

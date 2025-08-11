@@ -65,11 +65,6 @@ public class GoogleVertexAiUnifiedChatCompletionResponseHandler extends GoogleVe
         return chatCompletionErrorResponseHandler.buildChatCompletionError(message, request, result);
     }
 
-    @Override
-    protected void checkForErrorObject(Request request, HttpResult result) {
-        chatCompletionErrorResponseHandler.checkForErrorObject(request, result);
-    }
-
     private static class GoogleVertexAiErrorParser implements UnifiedChatCompletionErrorParser {
 
         @Override

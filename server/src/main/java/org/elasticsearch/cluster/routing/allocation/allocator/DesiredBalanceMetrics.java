@@ -32,18 +32,45 @@ public class DesiredBalanceMetrics {
 
     /**
      * @param unassignedShards Shards that are not assigned to any node.
+     * @param allocationStatsByRole A breakdown of the allocations stats by {@link ShardRouting.Role}
+     */
+    public record AllocationStats(long unassignedShards, Map<ShardRouting.Role, RoleAllocationStats> allocationStatsByRole) {
+
+        public AllocationStats(long unassignedShards, long totalAllocations, long undesiredAllocationsExcludingShuttingDownNodes) {
+            this(
+                unassignedShards,
+                Map.of(ShardRouting.Role.DEFAULT, new RoleAllocationStats(totalAllocations, undesiredAllocationsExcludingShuttingDownNodes))
+            );
+        }
+
+        public long totalAllocations() {
+            return allocationStatsByRole.values().stream().mapToLong(RoleAllocationStats::totalAllocations).sum();
+        }
+
+        public long undesiredAllocationsExcludingShuttingDownNodes() {
+            return allocationStatsByRole.values()
+                .stream()
+                .mapToLong(RoleAllocationStats::undesiredAllocationsExcludingShuttingDownNodes)
+                .sum();
+        }
+    }
+
+    /**
      * @param totalAllocations Shards that are assigned to a node.
      * @param undesiredAllocationsExcludingShuttingDownNodes Shards that are assigned to a node but must move to alleviate a resource
      *                                                       constraint per the {@link AllocationDeciders}. Excludes shards that must move
      *                                                       because of a node shutting down.
-     * @param undesiredAllocationsExcludingShuttingDownNodesByRole A breakdown of the undesired allocations by {@link ShardRouting.Role}
      */
-    public record AllocationStats(
-        long unassignedShards,
-        long totalAllocations,
-        long undesiredAllocationsExcludingShuttingDownNodes,
-        Map<ShardRouting.Role, Long> undesiredAllocationsExcludingShuttingDownNodesByRole
-    ) {}
+    public record RoleAllocationStats(long totalAllocations, long undesiredAllocationsExcludingShuttingDownNodes) {
+        public static final RoleAllocationStats EMPTY = new RoleAllocationStats(0L, 0L);
+
+        public float undesiredAllocationsRatio() {
+            if (totalAllocations == 0) {
+                return 0f;
+            }
+            return undesiredAllocationsExcludingShuttingDownNodes / (float) totalAllocations;
+        }
+    }
 
     public record NodeWeightStats(long shardCount, double diskUsageInBytes, double writeLoad, double nodeWeight) {
         public static final NodeWeightStats ZERO = new NodeWeightStats(0, 0, 0, 0);
@@ -78,7 +105,7 @@ public class DesiredBalanceMetrics {
     public static final String CURRENT_NODE_FORECASTED_DISK_USAGE_METRIC_NAME =
         "es.allocator.allocations.node.forecasted_disk_usage_bytes.current";
 
-    public static final AllocationStats EMPTY_ALLOCATION_STATS = new AllocationStats(-1, -1, -1, Map.of());
+    public static final AllocationStats EMPTY_ALLOCATION_STATS = new AllocationStats(-1, Map.of());
 
     private volatile boolean nodeIsMaster = false;
 
@@ -98,6 +125,12 @@ public class DesiredBalanceMetrics {
      */
     private volatile long undesiredAllocationsExcludingShuttingDownNodes;
 
+    /**
+     * A breakdown of shards assigned and the undesired allocations from the last reconciliation
+     * broken down by {@link ShardRouting.Role}.
+     */
+    private volatile Map<ShardRouting.Role, RoleAllocationStats> allocationStatsByRole;
+
     private final AtomicReference<Map<DiscoveryNode, NodeWeightStats>> weightStatsPerNodeRef = new AtomicReference<>(Map.of());
     private final AtomicReference<Map<DiscoveryNode, NodeAllocationStatsAndWeight>> allocationStatsPerNodeRef = new AtomicReference<>(
         Map.of()
@@ -112,8 +145,9 @@ public class DesiredBalanceMetrics {
         assert weightStatsPerNode != null : "node balance weight stats cannot be null";
         if (allocationStats != EMPTY_ALLOCATION_STATS) {
             this.unassignedShards = allocationStats.unassignedShards;
-            this.totalAllocations = allocationStats.totalAllocations;
-            this.undesiredAllocationsExcludingShuttingDownNodes = allocationStats.undesiredAllocationsExcludingShuttingDownNodes;
+            this.totalAllocations = allocationStats.totalAllocations();
+            this.undesiredAllocationsExcludingShuttingDownNodes = allocationStats.undesiredAllocationsExcludingShuttingDownNodes();
+            this.allocationStatsByRole = allocationStats.allocationStatsByRole();
         }
         weightStatsPerNodeRef.set(weightStatsPerNode);
         allocationStatsPerNodeRef.set(nodeAllocationStats);
@@ -221,6 +255,10 @@ public class DesiredBalanceMetrics {
 
     public long undesiredAllocations() {
         return undesiredAllocationsExcludingShuttingDownNodes;
+    }
+
+    public Map<ShardRouting.Role, RoleAllocationStats> allocationStatsByRole() {
+        return allocationStatsByRole;
     }
 
     private List<LongWithAttributes> getUnassignedShardsMetrics() {

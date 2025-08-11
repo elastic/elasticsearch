@@ -281,7 +281,7 @@ public class DesiredBalanceReconcilerTests extends ESAllocationTestCase {
             assertTrue(index1RoutingTable.primaryShard().unassigned());
             assertTrue(index1RoutingTable.replicaShards().stream().allMatch(ShardRouting::unassigned));
             assertNotNull(allocationStats.get());
-            assertEquals(new DesiredBalanceMetrics.AllocationStats(3, 1, 0, Map.of()), allocationStats.get());
+            assertEquals(new DesiredBalanceMetrics.AllocationStats(3, 1, 0), allocationStats.get());
         }
 
         // now relax the filter so that the replica of index-0 and the primary of index-1 can both be assigned to node-1, but the throttle
@@ -296,7 +296,7 @@ public class DesiredBalanceReconcilerTests extends ESAllocationTestCase {
             assertTrue(index1RoutingTable.primaryShard().initializing());
             assertTrue(index1RoutingTable.replicaShards().stream().allMatch(ShardRouting::unassigned));
             assertNotNull(allocationStats.get());
-            assertEquals(new DesiredBalanceMetrics.AllocationStats(2, 2, 0, Map.of()), allocationStats.get());
+            assertEquals(new DesiredBalanceMetrics.AllocationStats(2, 2, 0), allocationStats.get());
         }
 
         final var stateWithStartedPrimariesAndInitializingReplica = startInitializingShardsAndReroute(
@@ -313,7 +313,7 @@ public class DesiredBalanceReconcilerTests extends ESAllocationTestCase {
             assertTrue(index1RoutingTable.primaryShard().started());
             assertTrue(index1RoutingTable.replicaShards().stream().allMatch(ShardRouting::unassigned));
             assertNotNull(allocationStats.get());
-            assertEquals(new DesiredBalanceMetrics.AllocationStats(1, 3, 0, Map.of()), allocationStats.get());
+            assertEquals(new DesiredBalanceMetrics.AllocationStats(1, 3, 0), allocationStats.get());
         }
     }
 
@@ -910,7 +910,7 @@ public class DesiredBalanceReconcilerTests extends ESAllocationTestCase {
             assertThat(shardRouting.currentNodeId(), oneOf("node-0", "node-1"));
         }
         assertNotNull(allocationStats);
-        assertEquals(new DesiredBalanceMetrics.AllocationStats(0, 6, 0, Map.of()), allocationStats.get());
+        assertEquals(new DesiredBalanceMetrics.AllocationStats(0, 6, 0), allocationStats.get());
 
         // Only allow allocation on two of the nodes, excluding the other two nodes.
         clusterSettings.applySettings(
@@ -926,7 +926,7 @@ public class DesiredBalanceReconcilerTests extends ESAllocationTestCase {
         assertSame(clusterState, allocationService.reroute(clusterState, "test", ActionListener.noop())); // all still on desired nodes, no
                                                                                                           // movement needed
         assertNotNull(allocationStats);
-        assertEquals(new DesiredBalanceMetrics.AllocationStats(0, 6, 0, Map.of()), allocationStats.get());
+        assertEquals(new DesiredBalanceMetrics.AllocationStats(0, 6, 0), allocationStats.get());
 
         desiredBalance.set(desiredBalance(clusterState, (shardId, nodeId) -> nodeId.equals("node-2") || nodeId.equals("node-3")));
 
@@ -937,12 +937,12 @@ public class DesiredBalanceReconcilerTests extends ESAllocationTestCase {
         assertThat(reroutedState.getRoutingNodes().node("node-1").numberOfShardsWithState(ShardRoutingState.RELOCATING), equalTo(1));
         assertNotNull(allocationStats);
         // Total allocations counts relocating and intializing shards, so the two relocating shards will be counted twice.
-        assertEquals(new DesiredBalanceMetrics.AllocationStats(0, 8, 4, Map.of(ShardRouting.Role.DEFAULT, 4L)), allocationStats.get());
+        assertEquals(new DesiredBalanceMetrics.AllocationStats(0, 8, 4), allocationStats.get());
 
         // Ensuring that we check the shortcut two-param canAllocate() method up front
         canAllocateRef.set(Decision.NO);
         assertSame(clusterState, allocationService.reroute(clusterState, "test", ActionListener.noop()));
-        assertEquals(new DesiredBalanceMetrics.AllocationStats(0, 6, 6, Map.of(ShardRouting.Role.DEFAULT, 6L)), allocationStats.get());
+        assertEquals(new DesiredBalanceMetrics.AllocationStats(0, 6, 6), allocationStats.get());
         canAllocateRef.set(Decision.YES);
 
         // Restore filter to default
@@ -980,7 +980,7 @@ public class DesiredBalanceReconcilerTests extends ESAllocationTestCase {
             "test",
             ActionListener.noop()
         );
-        assertEquals(new DesiredBalanceMetrics.AllocationStats(0, 7, 3, Map.of(ShardRouting.Role.DEFAULT, 3L)), allocationStats.get());
+        assertEquals(new DesiredBalanceMetrics.AllocationStats(0, 7, 3), allocationStats.get());
 
         assertThat(shuttingDownState.getRoutingNodes().node("node-2").numberOfShardsWithState(ShardRoutingState.INITIALIZING), equalTo(1));
     }
@@ -1048,7 +1048,7 @@ public class DesiredBalanceReconcilerTests extends ESAllocationTestCase {
 
         // All still on desired nodes, no movement needed, cluster state remains the same.
         assertSame(clusterState, allocationService.reroute(clusterState, "test", ActionListener.noop()));
-        assertEquals(new DesiredBalanceMetrics.AllocationStats(0, 6, 0, Map.of()), allocationStats.get());
+        assertEquals(new DesiredBalanceMetrics.AllocationStats(0, 6, 0), allocationStats.get());
 
         desiredBalance.set(desiredBalance(clusterState, (shardId, nodeId) -> nodeId.equals("node-2") || nodeId.equals("node-3")));
 
@@ -1076,7 +1076,7 @@ public class DesiredBalanceReconcilerTests extends ESAllocationTestCase {
         assertThat(reroutedState.getRoutingNodes().node("node-0").numberOfShardsWithState(ShardRoutingState.RELOCATING), equalTo(1));
         assertThat(reroutedState.getRoutingNodes().node("node-1").numberOfShardsWithState(ShardRoutingState.RELOCATING), equalTo(1));
         assertNotNull(allocationStats.get());
-        assertEquals(new DesiredBalanceMetrics.AllocationStats(0, 6, 6, Map.of(ShardRouting.Role.DEFAULT, 6L)), allocationStats.get());
+        assertEquals(new DesiredBalanceMetrics.AllocationStats(0, 6, 6), allocationStats.get());
 
         // Test that the AllocationStats are still updated, even though throttling is active. The cluster state should remain unchanged
         // because due to throttling: the previous reroute request started relocating two shards and, since those reallocations have not
@@ -1084,7 +1084,7 @@ public class DesiredBalanceReconcilerTests extends ESAllocationTestCase {
         assertSame(reroutedState, allocationService.reroute(reroutedState, "test", ActionListener.noop()));
         assertNotNull(allocationStats);
         // Note: total allocations counts relocating and intializing shards, so the two relocating shards will be counted twice.
-        assertEquals(new DesiredBalanceMetrics.AllocationStats(0, 8, 4, Map.of(ShardRouting.Role.DEFAULT, 4L)), allocationStats.get());
+        assertEquals(new DesiredBalanceMetrics.AllocationStats(0, 8, 4), allocationStats.get());
     }
 
     public void testDoNotRebalanceToTheNodeThatNoLongerExists() {
@@ -1293,7 +1293,7 @@ public class DesiredBalanceReconcilerTests extends ESAllocationTestCase {
 
             var initializing = shardsWithState(allocation.routingNodes(), ShardRoutingState.INITIALIZING);
             if (initializing.isEmpty()) {
-                assertEquals(new DesiredBalanceMetrics.AllocationStats(0, shardsPerNode * numberOfNodes, 0, Map.of()), allocationStats);
+                assertEquals(new DesiredBalanceMetrics.AllocationStats(0, shardsPerNode * numberOfNodes, 0), allocationStats);
                 break;
             }
 

@@ -529,6 +529,7 @@ public class DesiredBalanceReconciler {
             int unassignedShards = routingNodes.unassigned().size() + routingNodes.unassigned().ignored().size();
             int totalAllocations = 0;
             int undesiredAllocationsExcludingShuttingDownNodes = 0;
+            final ObjectLongMap<ShardRouting.Role> totalAllocationsByRole = new ObjectLongHashMap<>();
             final ObjectLongMap<ShardRouting.Role> undesiredAllocationsExcludingShuttingDownNodesByRole = new ObjectLongHashMap<>();
 
             // Iterate over all started shards and try to move any which are on undesired nodes. In the presence of throttling shard
@@ -538,6 +539,7 @@ public class DesiredBalanceReconciler {
                 final var shardRouting = iterator.next();
 
                 totalAllocations++;
+                totalAllocationsByRole.addTo(shardRouting.role(), 1);
 
                 if (shardRouting.started() == false) {
                     // can only rebalance started shards
@@ -600,10 +602,16 @@ public class DesiredBalanceReconciler {
             maybeLogUndesiredAllocationsWarning(totalAllocations, undesiredAllocationsExcludingShuttingDownNodes, routingNodes.size());
             return new DesiredBalanceMetrics.AllocationStats(
                 unassignedShards,
-                totalAllocations,
-                undesiredAllocationsExcludingShuttingDownNodes,
-                StreamSupport.stream(undesiredAllocationsExcludingShuttingDownNodesByRole.spliterator(), false)
-                    .collect(Collectors.toUnmodifiableMap(lc -> lc.key, lc -> lc.value))
+                StreamSupport.stream(totalAllocationsByRole.spliterator(), false)
+                    .collect(
+                        Collectors.toUnmodifiableMap(
+                            lc -> lc.key,
+                            lc -> new DesiredBalanceMetrics.RoleAllocationStats(
+                                totalAllocationsByRole.get(lc.key),
+                                undesiredAllocationsExcludingShuttingDownNodesByRole.get(lc.key)
+                            )
+                        )
+                    )
             );
         }
 

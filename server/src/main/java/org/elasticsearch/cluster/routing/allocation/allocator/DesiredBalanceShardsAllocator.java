@@ -438,6 +438,10 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
         );
     }
 
+    public Map<ShardRouting.Role, DesiredBalanceMetrics.RoleAllocationStats> getAllocationStatsByRole() {
+        return desiredBalanceMetrics.allocationStatsByRole();
+    }
+
     private void onNoLongerMaster() {
         if (indexGenerator.getAndSet(-1) != -1) {
             currentDesiredBalanceRef.set(DesiredBalance.NOT_MASTER);

@@ -1,0 +1,5 @@
+pr: 132456
+summary: Some optimizations for constant blocks
+area: ES|QL
+type: enhancement
+issues: []

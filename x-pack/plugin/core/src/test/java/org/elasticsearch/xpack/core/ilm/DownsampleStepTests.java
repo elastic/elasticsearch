@@ -15,6 +15,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
@@ -252,7 +253,7 @@ public class DownsampleStepTests extends AbstractStepTestCase<DownsampleStep> {
         ProjectState state = projectStateFromProject(ProjectMetadata.builder(randomProjectIdOrDefault()).put(sourceIndexMetadata, true));
         {
             try (var threadPool = createThreadPool()) {
-                final var client = new NoOpClient(threadPool);
+                final var client = new NoOpClient(threadPool, TestProjectResolvers.usingRequestHeader(threadPool.getThreadContext()));
                 StepKey nextKey = randomStepKey();
                 DateHistogramInterval fixedInterval = ConfigTestHelpers.randomInterval();
                 TimeValue timeout = DownsampleAction.DEFAULT_WAIT_TIMEOUT;
@@ -273,7 +274,7 @@ public class DownsampleStepTests extends AbstractStepTestCase<DownsampleStep> {
         }
         {
             try (var threadPool = createThreadPool()) {
-                final var client = new NoOpClient(threadPool);
+                final var client = new NoOpClient(threadPool, TestProjectResolvers.usingRequestHeader(threadPool.getThreadContext()));
                 StepKey nextKey = randomStepKey();
                 DateHistogramInterval fixedInterval = ConfigTestHelpers.randomInterval();
                 TimeValue timeout = DownsampleAction.DEFAULT_WAIT_TIMEOUT;
@@ -316,6 +317,6 @@ public class DownsampleStepTests extends AbstractStepTestCase<DownsampleStep> {
             assertDownsampleActionRequest(request, sourceIndex);
             listener.onResponse(AcknowledgedResponse.of(true));
             return null;
-        }).when(client).execute(Mockito.any(), Mockito.any(), Mockito.any());
+        }).when(projectClient).execute(Mockito.any(), Mockito.any(), Mockito.any());
     }
 }

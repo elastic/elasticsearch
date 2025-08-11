@@ -7,6 +7,7 @@
 
 package org.elasticsearch.compute.aggregation;
 
+// begin generated imports
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.breaker.CircuitBreaker;
@@ -18,23 +19,20 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.DoubleVector;
-$if(float)$
 import org.elasticsearch.compute.data.FloatBlock;
-$elseif(int)$
 import org.elasticsearch.compute.data.IntBlock;
-$endif$
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
+// end generated imports
 
 /**
  * A rate grouping aggregation definition for $type$.
  * This class is generated. Edit `X-RateAggregator.java.st` instead.
  */
 @GroupingAggregator(
-    timeseries = true,
     value = {
         @IntermediateState(name = "timestamps", type = "LONG_BLOCK"),
         @IntermediateState(name = "values", type = "$TYPE$_BLOCK"),
@@ -47,7 +45,7 @@ public class Rate$Type$Aggregator {
         return new $Type$RateGroupingState(driverContext.bigArrays(), driverContext.breaker());
     }
 
-    public static void combine($Type$RateGroupingState current, int groupId, long timestamp, $type$ value) {
+    public static void combine($Type$RateGroupingState current, int groupId, $type$ value, long timestamp) {
         current.append(groupId, timestamp, value);
     }
 

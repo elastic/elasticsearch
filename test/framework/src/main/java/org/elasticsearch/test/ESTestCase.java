@@ -542,7 +542,7 @@ public abstract class ESTestCase extends LuceneTestCase {
 
     @AfterClass
     public static void resetEntitlements() {
-        TestEntitlementBootstrap.reset();
+        TestEntitlementBootstrap.resetAfterTest();
     }
 
     // setup mock filesystems for this test run. we change PathUtils

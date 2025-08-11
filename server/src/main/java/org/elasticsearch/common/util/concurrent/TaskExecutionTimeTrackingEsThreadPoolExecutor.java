@@ -172,10 +172,13 @@ public final class TaskExecutionTimeTrackingEsThreadPoolExecutor extends EsThrea
         if (queue.isEmpty()) {
             return 0;
         }
-        assert queue instanceof LinkedTransferQueue : "Not the type of queue expected: " + queue.getClass();
-        var linkedTransferQueue = (LinkedTransferQueue) queue;
+        assert queue instanceof LinkedTransferQueue || queue instanceof SizeBlockingQueue
+            : "Not the type of queue expected: " + queue.getClass();
+        var linkedTransferOrSizeBlockingQueue = queue instanceof LinkedTransferQueue
+            ? (LinkedTransferQueue) queue
+            : (SizeBlockingQueue) queue;
 
-        var task = linkedTransferQueue.peek();
+        var task = linkedTransferOrSizeBlockingQueue.peek();
         assert task instanceof WrappedRunnable : "Not the type of task expected: " + task.getClass();
         var wrappedTask = ((WrappedRunnable) task).unwrap();
         assert wrappedTask instanceof TimedRunnable : "Not the type of task expected: " + task.getClass();

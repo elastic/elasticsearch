@@ -18,7 +18,6 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
-import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.Arrays;
 import java.util.HashSet;
@@ -27,7 +26,6 @@ import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.stream.StreamSupport;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -410,7 +408,7 @@ public class ClusterServiceIT extends ESIntegTestCase {
                 });
             }
 
-            waitForTimeToElapse();
+            ESIntegTestCase.waitForTimeToElapse(100);
 
             pendingClusterTasks = clusterService.getMasterService().pendingTasks();
             assertThat(pendingClusterTasks.size(), greaterThanOrEqualTo(5));
@@ -432,29 +430,5 @@ public class ClusterServiceIT extends ESIntegTestCase {
         } finally {
             block2.countDown();
         }
-    }
-
-    private static void waitForTimeToElapse() throws InterruptedException {
-        final ThreadPool[] threadPools = StreamSupport.stream(internalCluster().getInstances(ClusterService.class).spliterator(), false)
-            .map(ClusterService::threadPool)
-            .toArray(ThreadPool[]::new);
-        final long[] startTimes = Arrays.stream(threadPools).mapToLong(ThreadPool::relativeTimeInMillis).toArray();
-
-        final var startNanoTime = System.nanoTime();
-        while (TimeUnit.MILLISECONDS.convert(System.nanoTime() - startNanoTime, TimeUnit.NANOSECONDS) <= 100) {
-            // noinspection BusyWait
-            Thread.sleep(100);
-        }
-
-        outer: do {
-            for (int i = 0; i < threadPools.length; i++) {
-                if (threadPools[i].relativeTimeInMillis() <= startTimes[i]) {
-                    // noinspection BusyWait
-                    Thread.sleep(100);
-                    continue outer;
-                }
-            }
-            return;
-        } while (true);
     }
 }

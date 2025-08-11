@@ -180,7 +180,7 @@ public class DocumentLevelSecurityRandomTests extends SecurityIntegTestCase {
         doTestWithRuntimeFieldsInTestIndex();
     }
 
-    private void doTestWithRuntimeFieldsInTestIndex() {
+    private void doTestWithRuntimeFieldsInTestIndex() throws InterruptedException {
         List<IndexRequestBuilder> requests = new ArrayList<>(47);
         for (int i = 1; i <= 42; i++) {
             requests.add(prepareIndex("test").setSource("field1", "value1", "field2", "foo" + i));

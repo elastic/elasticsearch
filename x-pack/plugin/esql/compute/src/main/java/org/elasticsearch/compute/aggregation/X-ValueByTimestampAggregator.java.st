@@ -45,6 +45,11 @@ public class $Occurrence$$Type$ByTimestampAggregator {
         return new Long$Type$State(0, 0);
     }
 
+    public static void first(Long$Type$State current, $type$ value, long timestamp) {
+        current.v1(timestamp);
+        current.v2(value);
+    }
+
     public static void combine(Long$Type$State current, $type$ value, long timestamp) {
         if (timestamp $if(First)$<$else$>$endif$ current.v1()) {
             // NOCOMMIT we default to 0 in the timestamp and this won't see that - need to deal with empty.
@@ -55,8 +60,12 @@ public class $Occurrence$$Type$ByTimestampAggregator {
 
     public static void combineIntermediate(Long$Type$State current, long timestamp, $type$ value, boolean seen) {
         if (seen) {
-            current.seen(true);
-            combine(current, value, timestamp);
+            if (current.seen()) {
+                combine(current, value, timestamp);
+            } else {
+                first(current, value, timestamp);
+                current.seen(true);
+            }
         }
     }
 

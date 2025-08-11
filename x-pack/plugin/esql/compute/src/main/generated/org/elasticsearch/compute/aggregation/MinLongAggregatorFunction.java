@@ -109,11 +109,11 @@ public final class MinLongAggregatorFunction implements AggregatorFunction {
       if (vBlock.isNull(p)) {
         continue;
       }
-      state.seen(true);
       int vStart = vBlock.getFirstValueIndex(p);
       int vEnd = vStart + vBlock.getValueCount(p);
       for (int vOffset = vStart; vOffset < vEnd; vOffset++) {
         long vValue = vBlock.getLong(vOffset);
+        state.seen(true);
         state.longValue(MinLongAggregator.combine(state.longValue(), vValue));
       }
     }
@@ -127,11 +127,11 @@ public final class MinLongAggregatorFunction implements AggregatorFunction {
       if (vBlock.isNull(p)) {
         continue;
       }
-      state.seen(true);
       int vStart = vBlock.getFirstValueIndex(p);
       int vEnd = vStart + vBlock.getValueCount(p);
       for (int vOffset = vStart; vOffset < vEnd; vOffset++) {
         long vValue = vBlock.getLong(vOffset);
+        state.seen(true);
         state.longValue(MinLongAggregator.combine(state.longValue(), vValue));
       }
     }

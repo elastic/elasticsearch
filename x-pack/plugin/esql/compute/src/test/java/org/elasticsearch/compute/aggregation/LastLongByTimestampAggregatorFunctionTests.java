@@ -23,7 +23,13 @@ import java.util.stream.IntStream;
 public class LastLongByTimestampAggregatorFunctionTests extends AggregatorFunctionTestCase {
     @Override
     protected SourceOperator simpleInput(BlockFactory blockFactory, int size) {
+<<<<<<< HEAD
         FirstLongByTimestampGroupingAggregatorFunctionTests.TimestampGen tsgen = randomFrom(FirstLongByTimestampGroupingAggregatorFunctionTests.TimestampGen.values());
+=======
+        FirstLongByTimestampGroupingAggregatorFunctionTests.TimestampGen tsgen = randomFrom(
+            FirstLongByTimestampGroupingAggregatorFunctionTests.TimestampGen.values()
+        );
+>>>>>>> esql_bad_timestamps
         return new TupleLongLongBlockSourceOperator(
             blockFactory,
             IntStream.range(0, size).mapToObj(l -> Tuple.tuple(randomLong(), tsgen.gen()))

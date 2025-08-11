@@ -45,6 +45,11 @@ public class FirstLongByTimestampAggregator {
         return new LongLongState(0, 0);
     }
 
+    public static void first(LongLongState current, long value, long timestamp) {
+        current.v1(timestamp);
+        current.v2(value);
+    }
+
     public static void combine(LongLongState current, long value, long timestamp) {
         if (timestamp < current.v1()) {
             // NOCOMMIT we default to 0 in the timestamp and this won't see that - need to deal with empty.
@@ -55,8 +60,12 @@ public class FirstLongByTimestampAggregator {
 
     public static void combineIntermediate(LongLongState current, long timestamp, long value, boolean seen) {
         if (seen) {
-            current.seen(true);
-            combine(current, value, timestamp);
+            if (current.seen()) {
+                combine(current, value, timestamp);
+            } else {
+                first(current, value, timestamp);
+                current.seen(true);
+            }
         }
     }
 

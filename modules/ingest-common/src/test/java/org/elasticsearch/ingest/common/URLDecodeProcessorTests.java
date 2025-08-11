@@ -48,7 +48,7 @@ public class URLDecodeProcessorTests extends AbstractStringProcessorTestCase<Str
 
     private static boolean isValidUrlEncodedString(String s) {
         try {
-            URLDecoder.decode(s, "UTF-8");
+            URLDecoder.decode(s, StandardCharsets.UTF_8);
             return true;
         } catch (Exception e) {
             return false;

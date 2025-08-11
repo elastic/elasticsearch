@@ -4851,4 +4851,13 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 + "] to not hold the engine write lock (lock ordering should be: engineMutex -> engineResetLock -> mutex)";
         return true;
     }
+
+    @Override
+    public void renameTo(Index newIndex) {
+        super.renameTo(newIndex);
+        getService.renameTo(newIndex);
+        synchronized (this) {
+            this.shardRouting = this.shardRouting.updateIndex(newIndex);
+        }
+    }
 }

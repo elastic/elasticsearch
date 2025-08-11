@@ -113,6 +113,7 @@ public class TransportGetDesiredBalanceAction extends TransportMasterNodeReadAct
             IndexMetadata indexMetadata = state.metadata().getProject().index(indexRoutingTable.getIndex());
             for (int shardId = 0; shardId < indexRoutingTable.size(); shardId++) {
                 IndexShardRoutingTable shardRoutingTable = indexRoutingTable.shard(shardId);
+                // TODO: we either need to get the assignment by index UUID or make the shard ID hashcode independent of the index name
                 ShardAssignment shardAssignment = latestDesiredBalance.assignments().get(shardRoutingTable.shardId());
                 List<DesiredBalanceResponse.ShardView> shardViews = new ArrayList<>();
                 for (int idx = 0; idx < shardRoutingTable.size(); idx++) {

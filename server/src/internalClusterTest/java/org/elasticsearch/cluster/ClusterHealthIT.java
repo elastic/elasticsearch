@@ -292,7 +292,7 @@ public class ClusterHealthIT extends ESIntegTestCase {
         });
 
         try {
-            createIndex("index");
+            createIndex(false, "index");
             assertFalse(clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT, "index").setWaitForGreenStatus().get().isTimedOut());
 
             // at this point the original health response should not have returned: there was never a point where the index was green AND

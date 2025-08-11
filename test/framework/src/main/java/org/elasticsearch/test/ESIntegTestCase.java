@@ -40,6 +40,7 @@ import org.elasticsearch.action.admin.cluster.tasks.PendingClusterTasksResponse;
 import org.elasticsearch.action.admin.cluster.tasks.TransportPendingClusterTasksAction;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
+import org.elasticsearch.action.admin.indices.rename.RenameIndexAction;
 import org.elasticsearch.action.admin.indices.segments.IndexSegments;
 import org.elasticsearch.action.admin.indices.segments.IndexShardSegments;
 import org.elasticsearch.action.admin.indices.segments.IndicesSegmentResponse;
@@ -85,6 +86,8 @@ import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
+import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
@@ -782,21 +785,68 @@ public abstract class ESIntegTestCase extends ESTestCase {
      * Creates one or more indices and asserts that the indices are acknowledged.
      */
     public final void createIndex(String... names) {
-        assertAcked(Arrays.stream(names).map(this::prepareCreate).toArray(CreateIndexRequestBuilder[]::new));
+        createIndex(true, names);
+    }
+
+    /**
+     * Creates one or more indices and asserts that the indices are acknowledged.
+     */
+    public final void createIndex(boolean rename, String... names) {
+        for (var name : names) {
+            createIndex(name, null, rename);
+        }
     }
 
     /**
      * creates an index with the given setting
      */
     public final void createIndex(String name, Settings indexSettings) {
-        assertAcked(prepareCreate(name).setSettings(indexSettings));
+        createIndex(name, indexSettings, true);
+    }
+
+    /**
+     * creates an index with the given setting
+     */
+    public final void createIndex(String name, Settings indexSettings, boolean rename) {
+        // We don't rename the index if the name matches an index template or if the name starts with special characters.
+        final var clusterState = client().admin().cluster().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
+        final String template = MetadataIndexTemplateService.findV2Template(clusterState.metadata().getProject(), name, true);
+        if (rename == false || template != null || name.startsWith(".") || name.startsWith("<")) {
+            final var createIndexRequestBuilder = prepareCreate(name);
+            if (indexSettings != null) {
+                createIndexRequestBuilder.setSettings(indexSettings);
+            }
+            assertAcked(createIndexRequestBuilder);
+            return;
+        }
+        // Create a temporary index
+        final var tempName = "temp_" + name.substring(0, Math.min(name.length(), MetadataCreateIndexService.MAX_INDEX_NAME_BYTES - 5));
+        final var createIndexRequestBuilder = prepareCreate(tempName);
+        if (indexSettings != null) {
+            createIndexRequestBuilder.setSettings(indexSettings);
+        }
+        assertAcked(createIndexRequestBuilder);
+        ensureYellowAndNoInitializingShards(tempName);
+
+        // Rename the temporary index to the desired name
+        client().execute(
+            RenameIndexAction.INSTANCE,
+            new RenameIndexAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, tempName, name)
+        ).actionGet();
     }
 
     /**
      * creates an index with the given shard and replica counts
      */
     public final void createIndex(String name, int shards, int replicas) {
-        createIndex(name, indexSettings(shards, replicas).build());
+        createIndex(name, shards, replicas, true);
+    }
+
+    /**
+     * creates an index with the given shard and replica counts
+     */
+    public final void createIndex(String name, int shards, int replicas, boolean rename) {
+        createIndex(name, indexSettings(shards, replicas).build(), rename);
     }
 
     /**
@@ -1147,8 +1197,9 @@ public abstract class ESIntegTestCase extends ESTestCase {
             }
 
             logger.info(
-                "{} timed out\nallocation explain:\n{}\ncluster state:\n{}\npending tasks:\n{}\nhot threads:\n{}\n",
+                "{} timed out\nAPI output:\n{}\nallocation explain:\n{}\ncluster state:\n{}\npending tasks:\n{}\nhot threads:\n{}\n",
                 method,
+                clusterHealthResponse,
                 safeFormat(allocationExplainRef.get(), r -> Strings.toString(r.getExplanation(), true, true)),
                 safeFormat(clusterStateRef.get(), r -> r.getState().toString()),
                 safeFormat(pendingTasksRef.get(), r -> Strings.toString(r, true, true)),

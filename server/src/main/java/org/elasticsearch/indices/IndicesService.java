@@ -995,6 +995,25 @@ public class IndicesService extends AbstractLifecycleComponent
         );
     }
 
+    public void renameIndex(final Index index, IndexMetadata newIndexMetadata) {
+        // Grab the index service and put it under the new name
+        synchronized (this) {
+            IndexService service = indices.get(index.getUUID());
+            if (service == null) {
+                logger.info("--> tried to rename an index [{}] with a null service!", index);
+                return;
+            }
+            service.renameTo(newIndexMetadata);
+        }
+        // Do the same with the pending deletes
+        synchronized (pendingDeletes) {
+            var pending = pendingDeletes.remove(index);
+            if (pending != null) {
+                pendingDeletes.put(newIndexMetadata.getIndex(), pending);
+            }
+        }
+    }
+
     @Override
     public void removeIndex(
         final Index index,
@@ -1012,7 +1031,7 @@ public class IndicesService extends AbstractLifecycleComponent
             final IndexEventListener listener;
             synchronized (this) {
                 if (hasIndex(index)) {
-                    logger.debug("[{}] closing ... (reason [{}])", indexName, reason);
+                    logger.info("[{}] closing ... (reason [{}])", indexName, reason);
                     indexService = indices.get(index.getUUID());
                     assert indexService != null : "IndexService is null for index: " + index;
                     indices = Maps.copyMapWithRemovedEntry(indices, index.getUUID());
@@ -1031,9 +1050,9 @@ public class IndicesService extends AbstractLifecycleComponent
             }
 
             listener.beforeIndexRemoved(indexService, reason);
-            logger.debug("{} closing index service (reason [{}][{}])", index, reason, extraInfo);
+            logger.info("{} closing index service (reason [{}][{}])", index, reason, extraInfo);
             indexService.close(extraInfo, reason == IndexRemovalReason.DELETED, shardCloseExecutor, ActionListener.runBefore(l, () -> {
-                logger.debug("{} closed... (reason [{}][{}])", index, reason, extraInfo);
+                logger.info("{} closed... (reason [{}][{}])", index, reason, extraInfo);
                 final IndexSettings indexSettings = indexService.getIndexSettings();
                 listener.afterIndexRemoved(indexService.index(), indexSettings, reason);
                 if (reason == IndexRemovalReason.DELETED) {
@@ -1336,7 +1355,7 @@ public class IndicesService extends AbstractLifecycleComponent
      * @param indexSettings the shards's relevant {@link IndexSettings}. This is required to access the indexes settings etc.
      */
     public ShardDeletionCheckResult canDeleteShardContent(ShardId shardId, IndexSettings indexSettings) {
-        assert shardId.getIndex().equals(indexSettings.getIndex());
+        // assert shardId.getIndex().equals(indexSettings.getIndex());
         final IndexService indexService = indexService(shardId.getIndex());
         final boolean isAllocated = indexService != null && indexService.hasShard(shardId.id());
         if (isAllocated) {

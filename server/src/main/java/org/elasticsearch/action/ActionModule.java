@@ -122,6 +122,8 @@ import org.elasticsearch.action.admin.indices.recovery.TransportRecoveryAction;
 import org.elasticsearch.action.admin.indices.refresh.RefreshAction;
 import org.elasticsearch.action.admin.indices.refresh.TransportRefreshAction;
 import org.elasticsearch.action.admin.indices.refresh.TransportShardRefreshAction;
+import org.elasticsearch.action.admin.indices.rename.RenameIndexAction;
+import org.elasticsearch.action.admin.indices.rename.TransportRenameIndexAction;
 import org.elasticsearch.action.admin.indices.resolve.ResolveIndexAction;
 import org.elasticsearch.action.admin.indices.resolve.TransportResolveClusterAction;
 import org.elasticsearch.action.admin.indices.rollover.LazyRolloverAction;
@@ -719,6 +721,7 @@ public class ActionModule extends AbstractModule {
         actions.register(TransportClearIndicesCacheAction.TYPE, TransportClearIndicesCacheAction.class);
         actions.register(GetAliasesAction.INSTANCE, TransportGetAliasesAction.class);
         actions.register(GetSettingsAction.INSTANCE, TransportGetSettingsAction.class);
+        actions.register(RenameIndexAction.INSTANCE, TransportRenameIndexAction.class);
 
         actions.register(TransportIndexAction.TYPE, TransportIndexAction.class);
         actions.register(TransportGetAction.TYPE, TransportGetAction.class);

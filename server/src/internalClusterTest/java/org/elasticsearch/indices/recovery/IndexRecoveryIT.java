@@ -400,7 +400,7 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
 
     public void testReplicaRecovery() throws Exception {
         final String nodeA = internalCluster().startNode();
-        createIndex(INDEX_NAME, SHARD_COUNT_1, REPLICA_COUNT_0);
+        createIndex(INDEX_NAME, SHARD_COUNT_1, REPLICA_COUNT_0, false);
         ensureGreen(INDEX_NAME);
 
         final int numOfDocs = scaledRandomIntBetween(0, 200);

@@ -102,7 +102,7 @@ public class UpdateShardAllocationSettingsIT extends ESIntegTestCase {
         // only primaries should be assigned
         updateClusterSettings(Settings.builder().put(CLUSTER_ROUTING_ALLOCATION_SAME_HOST_SETTING.getKey(), true));
         final String indexName = "idx";
-        createIndex(indexName, 1, 1);
+        createIndex(indexName, indexSettings(1, 1).build(), false);
         ClusterState clusterState = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
         assertFalse(
             "replica should be unassigned",

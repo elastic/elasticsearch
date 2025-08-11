@@ -408,6 +408,25 @@ public final class ShardRouting implements Writeable, ToXContentObject {
         writeToThin(out);
     }
 
+    /**
+     * TODO: document
+     */
+    public ShardRouting updateIndex(Index index) {
+        return new ShardRouting(
+            new ShardId(index, shardId.id()),
+            currentNodeId,
+            relocatingNodeId,
+            primary,
+            state,
+            recoverySource,
+            unassignedInfo,
+            relocationFailureInfo,
+            allocationId,
+            expectedShardSize,
+            role
+        );
+    }
+
     public ShardRouting updateUnassigned(UnassignedInfo unassignedInfo, RecoverySource recoverySource) {
         assert this.unassignedInfo != null : "can only update unassigned info if it is already set";
         assert this.unassignedInfo.delayed() || (unassignedInfo.delayed() == false) : "cannot transition from non-delayed to delayed";

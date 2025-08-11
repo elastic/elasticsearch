@@ -24,7 +24,7 @@ class DocValuesConsumerUtil {
 
     record MergeStats(boolean supported, long sumNumValues, int sumNumDocsWithField, int minLength, int maxLength) {}
 
-    static MergeStats compatibleWithOptimizedMerge(boolean optimizedMergeEnabled, MergeState mergeState, FieldInfo fieldInfo) {
+    static MergeStats compatibleWithOptimizedMerge(boolean optimizedMergeEnabled, MergeState mergeState, FieldInfo mergedFieldInfo) {
         if (optimizedMergeEnabled == false || mergeState.needsIndexSort == false) {
             return UNSUPPORTED;
         }
@@ -42,6 +42,10 @@ class DocValuesConsumerUtil {
         int maxLength = 0;
 
         for (int i = 0; i < mergeState.docValuesProducers.length; i++) {
+            final FieldInfo fieldInfo = mergeState.fieldInfos[i].fieldInfo(mergedFieldInfo.name);
+            if (fieldInfo == null) {
+                continue;
+            }
             DocValuesProducer docValuesProducer = mergeState.docValuesProducers[i];
             if (docValuesProducer instanceof FilterDocValuesProducer filterDocValuesProducer) {
                 docValuesProducer = filterDocValuesProducer.getIn();

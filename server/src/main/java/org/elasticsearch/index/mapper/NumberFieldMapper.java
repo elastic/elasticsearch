@@ -45,6 +45,7 @@ import org.elasticsearch.index.fielddata.SourceValueFetcherSortedDoubleIndexFiel
 import org.elasticsearch.index.fielddata.SourceValueFetcherSortedNumericIndexFieldData;
 import org.elasticsearch.index.fielddata.plain.SortedDoublesIndexFieldData;
 import org.elasticsearch.index.fielddata.plain.SortedNumericIndexFieldData;
+import org.elasticsearch.index.mapper.TimeSeriesParams.GaugeAggs;
 import org.elasticsearch.index.mapper.TimeSeriesParams.MetricType;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.script.DoubleFieldScript;
@@ -121,6 +122,8 @@ public class NumberFieldMapper extends FieldMapper {
          * supported
          */
         private final Parameter<MetricType> metric;
+
+        private final Parameter<GaugeAggs> defaultMetric;
 
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
 
@@ -223,6 +226,20 @@ public class NumberFieldMapper extends FieldMapper {
                 }
             }).precludesParameters(dimension);
 
+            this.defaultMetric = TimeSeriesParams.defaultMetric(m -> toType(m).defaultMetric).addValidator(s -> {
+                if (s != null && metric.getValue() != MetricType.GAUGE) {
+                    throw new IllegalArgumentException(
+                        "Field ["
+                            + TimeSeriesParams.TIME_SERIES_METRIC_PARAM
+                            + "] must be set to ["
+                            + MetricType.GAUGE
+                            + "] to allow setting of ["
+                            + TimeSeriesParams.TIME_SERIES_DEFAULT_METRIC_PARAM
+                            + "]"
+                    );
+                }
+            });
+
             this.script.precludesParameters(ignoreMalformed, coerce, nullValue);
             addScriptValidation(script, indexed, hasDocValues);
 
@@ -278,7 +295,8 @@ public class NumberFieldMapper extends FieldMapper {
                 onScriptErrorParam,
                 meta,
                 dimension,
-                metric };
+                metric,
+                defaultMetric };
         }
 
         @Override
@@ -1843,6 +1861,7 @@ public class NumberFieldMapper extends FieldMapper {
         private final FieldValues<Number> scriptValues;
         private final boolean isDimension;
         private final MetricType metricType;
+        private final GaugeAggs defaultMetric;
         private final IndexMode indexMode;
         private final boolean isSyntheticSource;
 
@@ -1858,6 +1877,7 @@ public class NumberFieldMapper extends FieldMapper {
             FieldValues<Number> script,
             boolean isDimension,
             MetricType metricType,
+            GaugeAggs defaultMetric,
             IndexMode indexMode,
             boolean isSyntheticSource
         ) {
@@ -1868,6 +1888,7 @@ public class NumberFieldMapper extends FieldMapper {
             this.scriptValues = script;
             this.isDimension = isDimension;
             this.metricType = metricType;
+            this.defaultMetric = defaultMetric;
             this.indexMode = indexMode;
             this.isSyntheticSource = isSyntheticSource;
         }
@@ -1885,6 +1906,7 @@ public class NumberFieldMapper extends FieldMapper {
                 builder.scriptValues(),
                 builder.dimension.getValue(),
                 builder.metric.getValue(),
+                builder.defaultMetric.getValue(),
                 builder.indexMode,
                 isSyntheticSource
             );
@@ -1895,7 +1917,7 @@ public class NumberFieldMapper extends FieldMapper {
         }
 
         public NumberFieldType(String name, NumberType type, boolean isIndexed) {
-            this(name, type, isIndexed, false, true, true, null, Collections.emptyMap(), null, false, null, null, false);
+            this(name, type, isIndexed, false, true, true, null, Collections.emptyMap(), null, false, null, null, null, false);
         }
 
         @Override
@@ -2092,6 +2114,7 @@ public class NumberFieldMapper extends FieldMapper {
     private final ScriptCompiler scriptCompiler;
     private final Script script;
     private final MetricType metricType;
+    private final GaugeAggs defaultMetric;
     private boolean allowMultipleValues;
     private final IndexVersion indexCreatedVersion;
     private final boolean isSyntheticSource;
@@ -2123,6 +2146,7 @@ public class NumberFieldMapper extends FieldMapper {
         this.scriptCompiler = builder.scriptCompiler;
         this.script = builder.script.getValue();
         this.metricType = builder.metric.getValue();
+        this.defaultMetric = builder.defaultMetric.getValue();
         this.allowMultipleValues = builder.allowMultipleValues;
         this.indexCreatedVersion = builder.indexCreatedVersion;
         this.isSyntheticSource = isSyntheticSource;

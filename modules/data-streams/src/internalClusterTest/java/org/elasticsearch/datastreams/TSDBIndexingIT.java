@@ -326,11 +326,7 @@ public class TSDBIndexingIT extends ESSingleNodeTestCase {
             ComposableIndexTemplate.builder()
                 .indexPatterns(List.of("k8s*"))
                 .template(
-                    new Template(
-                        Settings.builder().put("index.mode", "time_series").build(),
-                        new CompressedXContent(mappingTemplate),
-                        null
-                    )
+                    new Template(Settings.builder().put("index.mode", "time_series").build(), new CompressedXContent(mappingTemplate), null)
                 )
                 .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate(false, false))
                 .build()
@@ -679,38 +675,32 @@ public class TSDBIndexingIT extends ESSingleNodeTestCase {
         putTemplateRequest.indexTemplate(
             ComposableIndexTemplate.builder()
                 .indexPatterns(List.of(dataStreamName))
-                .template(
-                    new Template(
-                        Settings.builder().put("index.mode", "time_series").build(),
-                        new CompressedXContent("""
+                .template(new Template(Settings.builder().put("index.mode", "time_series").build(), new CompressedXContent("""
 
-                                {
-                              "_doc": {
-                                "dynamic_templates": [
-                                  {
-                                    "labels": {
-                                      "match_mapping_type": "string",
-                                      "mapping": {
-                                        "type": "keyword",
-                                        "time_series_dimension": true
-                                      }
-                                    }
-                                  }
-                                ],
-                                "properties": {
-                                  "@timestamp": {
-                                    "type": "date"
-                                  },
-                                  "metricset": {
-                                    "type": "keyword",
-                                    "time_series_dimension": true
-                                  }
-                                }
+                        {
+                      "_doc": {
+                        "dynamic_templates": [
+                          {
+                            "labels": {
+                              "match_mapping_type": "string",
+                              "mapping": {
+                                "type": "keyword",
+                                "time_series_dimension": true
                               }
-                            }"""),
-                        null
-                    )
-                )
+                            }
+                          }
+                        ],
+                        "properties": {
+                          "@timestamp": {
+                            "type": "date"
+                          },
+                          "metricset": {
+                            "type": "keyword",
+                            "time_series_dimension": true
+                          }
+                        }
+                      }
+                    }"""), null))
                 .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate(false, false))
                 .build()
         );
@@ -746,37 +736,31 @@ public class TSDBIndexingIT extends ESSingleNodeTestCase {
         putTemplateRequest.indexTemplate(
             ComposableIndexTemplate.builder()
                 .indexPatterns(List.of(dataStreamName))
-                .template(
-                    new Template(
-                        Settings.builder().put("index.mode", "time_series").build(),
-                        new CompressedXContent("""
+                .template(new Template(Settings.builder().put("index.mode", "time_series").build(), new CompressedXContent("""
 
-                                {
-                              "_doc": {
-                                "dynamic_templates": [
-                                  {
-                                    "label": {
-                                      "mapping": {
-                                        "type": "keyword",
-                                        "time_series_dimension": true
-                                      }
-                                    }
-                                  }
-                                ],
-                                "properties": {
-                                  "@timestamp": {
-                                    "type": "date"
-                                  },
-                                  "metricset": {
-                                    "type": "keyword",
-                                    "time_series_dimension": true
-                                  }
-                                }
+                        {
+                      "_doc": {
+                        "dynamic_templates": [
+                          {
+                            "label": {
+                              "mapping": {
+                                "type": "keyword",
+                                "time_series_dimension": true
                               }
-                            }"""),
-                        null
-                    )
-                )
+                            }
+                          }
+                        ],
+                        "properties": {
+                          "@timestamp": {
+                            "type": "date"
+                          },
+                          "metricset": {
+                            "type": "keyword",
+                            "time_series_dimension": true
+                          }
+                        }
+                      }
+                    }"""), null))
                 .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate(false, false))
                 .build()
         );
@@ -824,7 +808,6 @@ public class TSDBIndexingIT extends ESSingleNodeTestCase {
         Settings settings = getIndexResponse.getSettings().get(getIndexResponse.getIndices()[0]);
         return setting.get(settings);
     }
-
 
     static String formatInstant(Instant instant) {
         return DateFormatter.forPattern(FormatNames.STRICT_DATE_OPTIONAL_TIME.getName()).format(instant);

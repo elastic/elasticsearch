@@ -54,6 +54,8 @@ functionExpression
 
 functionName
     : identifierOrParameter
+    | FIRST
+    | LAST
     ;
 
 mapExpression

@@ -76,6 +76,7 @@ import org.elasticsearch.xpack.esql.planner.mapper.Mapper;
 import org.elasticsearch.xpack.esql.planner.premapper.PreMapper;
 import org.elasticsearch.xpack.esql.plugin.TransportActionServices;
 import org.elasticsearch.xpack.esql.telemetry.PlanTelemetry;
+import org.elasticsearch.xpack.ml.MachineLearning;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -202,7 +203,8 @@ public class EsqlSession {
             TcpTransport.TRANSPORT_WORKER_THREAD_NAME_PREFIX,
             ThreadPool.Names.SYSTEM_READ,
             ThreadPool.Names.SEARCH,
-            ThreadPool.Names.SEARCH_COORDINATION
+            ThreadPool.Names.SEARCH_COORDINATION,
+            MachineLearning.NATIVE_INFERENCE_COMMS_THREAD_POOL_NAME
         );
         if (explainMode) {// TODO: INLINESTATS come back to the explain mode branch and reevaluate
             PhysicalPlan physicalPlan = logicalPlanToPhysicalPlan(optimizedPlan, request);
@@ -497,6 +499,11 @@ public class EsqlSession {
         }
         if (executionInfo.getClusters().isEmpty() || executionInfo.isCrossClusterSearch() == false) {
             // Local only case, still do some checks, since we moved analysis checks here
+            if (lookupIndexResolution.get().indexNameWithModes().isEmpty()) {
+                // This is not OK, but we proceed with it as we do with invalid resolution, and it will fail on the verification
+                // because lookup field will be missing.
+                return result.addLookupIndexResolution(index, lookupIndexResolution);
+            }
             if (lookupIndexResolution.get().indexNameWithModes().size() > 1) {
                 throw new VerificationException(
                     "Lookup Join requires a single lookup mode index; [" + index + "] resolves to multiple indices"
@@ -516,6 +523,16 @@ public class EsqlSession {
             }
             return result.addLookupIndexResolution(index, lookupIndexResolution);
         }
+
+        if (lookupIndexResolution.get().indexNameWithModes().isEmpty() && lookupIndexResolution.resolvedIndices().isEmpty() == false) {
+            // This is a weird situation - we have empty index list but non-empty resolution. This is likely because IndexResolver
+            // got an empty map and pretends to have an empty resolution. This means this query will fail, since lookup fields will not
+            // match, but here we can pretend it's ok to pass it on to the verifier and generate a correct error message.
+            // Note this only happens if the map is completely empty, which means it's going to error out anyway, since we should have
+            // at least the key field there.
+            return result.addLookupIndexResolution(index, lookupIndexResolution);
+        }
+
         // Collect resolved clusters from the index resolution, verify that each cluster has a single resolution for the lookup index
         Map<String, String> clustersWithResolvedIndices = new HashMap<>(lookupIndexResolution.resolvedIndices().size());
         lookupIndexResolution.get().indexNameWithModes().forEach((indexName, indexMode) -> {

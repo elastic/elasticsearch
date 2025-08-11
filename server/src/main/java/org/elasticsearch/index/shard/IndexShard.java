@@ -5380,4 +5380,13 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             return () -> Math.max(1, queueSize / Math.max(1, RECOVERING_SHARDS_ON_NODE.get()));
         }
     }
+
+    @Override
+    public void renameTo(Index newIndex) {
+        super.renameTo(newIndex);
+        getService.renameTo(newIndex);
+        synchronized (this) {
+            this.shardRouting = this.shardRouting.updateIndex(newIndex);
+        }
+    }
 }

@@ -55,6 +55,8 @@ import static org.elasticsearch.indices.cluster.IndexRemovalReason.NO_LONGER_ASS
  */
 public class MetadataIndexAliasesService {
 
+    public static final String CUSTOM_RENAME_METADATA_KEY = "index_rename";
+
     private final IndicesService indicesService;
 
     private final NamedXContentRegistry xContentRegistry;

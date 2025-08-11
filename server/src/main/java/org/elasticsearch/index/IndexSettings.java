@@ -2032,7 +2032,7 @@ public final class IndexSettings {
      * Returns the index this settings object belongs to
      */
     public Index getIndex() {
-        return index;
+        return indexMetadata.getIndex();
     }
 
     /**

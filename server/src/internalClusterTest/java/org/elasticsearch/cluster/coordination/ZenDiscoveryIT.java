@@ -43,7 +43,7 @@ public class ZenDiscoveryIT extends ESIntegTestCase {
             .get();
         assertThat(clusterHealthResponse.isTimedOut(), is(false));
 
-        createIndex("test");
+        createIndex(false, "test");
         ensureSearchable("test");
         RecoveryResponse r = indicesAdmin().prepareRecoveries("test").get();
         int numRecoveriesBeforeNewMaster = r.shardRecoveryInfos().get("test").size();

@@ -192,7 +192,7 @@ public class NodeShutdownShardsIT extends ESIntegTestCase {
 
         final String nodeC = internalCluster().startNode();
 
-        createIndex("other", 1, 1);
+        createIndex("other", 1, 1, false);
 
         ensureYellow("other");
 
@@ -261,7 +261,7 @@ public class NodeShutdownShardsIT extends ESIntegTestCase {
         assertBusy(() -> assertNodeShutdownStatus(nodeAId, STALLED));
         assertIndexSetting("myindex", "index.routing.allocation.require._name", nodeA);
 
-        createIndex("other", 1, 1);
+        createIndex("other", 1, 1, false);
 
         ensureYellow("other");
 

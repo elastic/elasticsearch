@@ -196,7 +196,6 @@ public abstract class SemanticQueryRewriteInterceptor implements QueryRewriteInt
             return nonInferenceFieldsPerIndex.isEmpty() == false;
         }
 
-        // Backward compatibility methods
         public Collection<String> getInferenceIndices() {
             return inferenceFieldsPerIndex.keySet();
         }
@@ -231,9 +230,6 @@ public abstract class SemanticQueryRewriteInterceptor implements QueryRewriteInt
         }
 
         /**
-         * Returns the resolved boost for a field (inference or non-inference).
-         * This accounts for wildcard expansion boosts.
-         *
          * @param fieldName the field name
          * @return the resolved boost for the field
          */

@@ -103,7 +103,7 @@ public class SemanticMultiMatchQueryRewriteInterceptor extends SemanticQueryRewr
             case BEST_FIELDS -> buildBestFieldsCombinedQuery(originalQuery, indexInformation, queryValue);
             case MOST_FIELDS -> buildMostFieldsCombinedQuery(originalQuery, indexInformation, queryValue);
             default ->
-                // Fallback to best_fields behavior
+                // Fallback to best_fields behavior as default type
                 buildBestFieldsCombinedQuery(originalQuery, indexInformation, queryValue);
         };
     }
@@ -123,7 +123,7 @@ public class SemanticMultiMatchQueryRewriteInterceptor extends SemanticQueryRewr
             case BEST_FIELDS -> buildBestFieldsSemanticQuery(originalQuery, indexInformation, inferenceFields, queryValue);
             case MOST_FIELDS -> buildMostFieldsSemanticQuery(originalQuery, indexInformation, inferenceFields, queryValue);
             default ->
-                // Fallback to best_fields behavior for unknown types
+                // Fallback to best_fields behavior for default types
                 buildBestFieldsSemanticQuery(originalQuery, indexInformation, inferenceFields, queryValue);
         };
     }
@@ -195,7 +195,6 @@ public class SemanticMultiMatchQueryRewriteInterceptor extends SemanticQueryRewr
         for (String fieldName : inferenceFields) {
             boolQuery.should(createSemanticQuery(fieldName, queryValue, indexInformation));
         }
-        // Apply minimumShouldMatch - use original query's value or default to "1"
         String minimumShouldMatch = originalQuery.minimumShouldMatch();
         boolQuery.minimumShouldMatch(minimumShouldMatch != null ? minimumShouldMatch : "1");
         boolQuery.boost(originalQuery.boost());
@@ -281,7 +280,6 @@ public class SemanticMultiMatchQueryRewriteInterceptor extends SemanticQueryRewr
             boolQuery.should(createSubQueryForIndices(List.of(indexName), indexQuery));
         }
 
-        // Apply minimumShouldMatch - use original query's value or default to "1"
         String minimumShouldMatch = originalQuery.minimumShouldMatch();
         boolQuery.minimumShouldMatch(minimumShouldMatch != null ? minimumShouldMatch : "1");
         boolQuery.boost(originalQuery.boost());

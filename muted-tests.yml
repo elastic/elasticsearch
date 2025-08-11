@@ -479,9 +479,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.ccq.MultiClustersIT
   method: testLookupJoinAliasesSkipOld
   issue: https://github.com/elastic/elasticsearch/issues/131697
-- class: org.elasticsearch.indices.cluster.RemoteSearchForceConnectTimeoutIT
-  method: testTimeoutSetting
-  issue: https://github.com/elastic/elasticsearch/issues/131656
 - class: org.elasticsearch.xpack.stack.StackYamlIT
   method: test {yaml=stack/10_basic/Test wrong data_stream type - logs from 9.2.0}
   issue: https://github.com/elastic/elasticsearch/issues/131803
@@ -605,9 +602,6 @@ tests:
 - class: org.elasticsearch.index.mapper.vectors.DenseVectorFieldIndexTypeUpdateIT
   method: testDenseVectorMappingUpdate {initialType=int4_hnsw updateType=bbq_disk}
   issue: https://github.com/elastic/elasticsearch/issues/132165
-- class: org.elasticsearch.indices.cluster.FieldCapsForceConnectTimeoutIT
-  method: testTimeoutSetting
-  issue: https://github.com/elastic/elasticsearch/issues/132179
 - class: org.elasticsearch.index.mapper.vectors.DenseVectorFieldIndexTypeUpdateIT
   method: "testDenseVectorMappingUpdate {initialType=bbq_flat updateType=bbq_disk #2}"
   issue: https://github.com/elastic/elasticsearch/issues/132184

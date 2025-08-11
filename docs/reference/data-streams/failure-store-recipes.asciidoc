@@ -310,24 +310,24 @@ Since failure stores can be searched just like a normal data stream, we can use 
 If you want to use KQL or Lucene query types, you should first create a data view for your failure store data.
 If you plan to use {esql} or the Query DSL query types, this step is not required.
 Navigate to the data view page in Kibana and add a new data view. Set the index pattern to your failure store using the selector syntax.
-image::/manage-data/images/elasticsearch-reference-management_failure_store_alerting_create_data_view.png[create a data view using the failure store syntax in the index name]
+image::images/data-streams/failure_store_alerting_create_data_view.png[create a data view using the failure store syntax in the index name]
 
 ===== Step 2: Create new rule
 Navigate to Management / Alerts and Insights / Rules. Create a new rule. Choose the {es} query option.
-image::/manage-data/images/elasticsearch-reference-management_failure_store_alerting_create_rule.png[create a new alerting rule and select the elasticsearch query option]
+image::images/data-streams/failure_store_alerting_create_rule.png[create a new alerting rule and select the elasticsearch query option]
 
 ===== Step 3: Pick your query type
 Choose which query type you wish to use
 For KQL/Lucene queries, reference the data view that contains your failure store.
-image::/manage-data/images/elasticsearch-reference-management_failure_store_alerting_kql.png[use the data view created in the previous step as the input to the kql query]
+image::images/data-streams/failure_store_alerting_kql.png[use the data view created in the previous step as the input to the kql query]
 For Query DSL queries, use the `::failures` suffix on your data stream name.
-image::/manage-data/images/elasticsearch-reference-management_failure_store_alerting_dsl.png[use the ::failures suffix in the data stream name in the query dsl]
+image::images/data-streams/failure_store_alerting_dsl.png[use the ::failures suffix in the data stream name in the query dsl]
 For {esql} queries, use the `::failures` suffix on your data stream name in the `FROM` command.
-image::/manage-data/images/elasticsearch-reference-management_failure_store_alerting_esql.png[use the ::failures suffix in the data stream name in the from command]
+image::images/data-streams/failure_store_alerting_esql.png[use the ::failures suffix in the data stream name in the from command]
 
 ===== Step 4: Test
 Configure schedule, actions, and details of the alert before saving the rule.
-image::/manage-data/images/elasticsearch-reference-management_failure_store_alerting_finish.png[complete the rule configuration and save it]
+image::images/data-streams/failure_store_alerting_finish.png[complete the rule configuration and save it]
 
 [[data-remediation]]
 ==== Data remediation
@@ -526,6 +526,7 @@ PUT _ingest/pipeline/my-datastream-remediation-pipeline
 
 ====== Step 4: Test your pipelines
 Before sending data off to be reindexed, be sure to test the pipelines in question with an example document to make sure they work. First, test to make sure the resulting document from the remediation pipeline is shaped how you expect. We can use the https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-ingest-simulate[simulate pipeline API] for this.
+
 [source,console]
 ----
 POST _ingest/pipeline/_simulate

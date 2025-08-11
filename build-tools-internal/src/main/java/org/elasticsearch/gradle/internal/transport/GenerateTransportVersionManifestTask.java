@@ -13,15 +13,21 @@ import org.gradle.api.DefaultTask;
 import org.gradle.api.file.DirectoryProperty;
 import org.gradle.api.file.RegularFileProperty;
 import org.gradle.api.tasks.InputDirectory;
+import org.gradle.api.tasks.Optional;
 import org.gradle.api.tasks.OutputFile;
+import org.gradle.api.tasks.PathSensitive;
+import org.gradle.api.tasks.PathSensitivity;
 import org.gradle.api.tasks.TaskAction;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 
 public abstract class GenerateTransportVersionManifestTask extends DefaultTask {
     @InputDirectory
+    @Optional
+    @PathSensitive(PathSensitivity.RELATIVE)
     public abstract DirectoryProperty getDefinitionsDirectory();
 
     @OutputFile
@@ -29,8 +35,15 @@ public abstract class GenerateTransportVersionManifestTask extends DefaultTask {
 
     @TaskAction
     public void generateTransportVersionManifest() throws IOException {
-        Path constantsDir = getDefinitionsDirectory().get().getAsFile().toPath();
         Path manifestFile = getManifestFile().get().getAsFile().toPath();
+        if (getDefinitionsDirectory().isPresent() == false) {
+            // no definitions to capture, remove this leniency once all branches have at least one version
+            Files.writeString(manifestFile, "", StandardCharsets.UTF_8);
+            return;
+        }
+        Path constantsDir = getDefinitionsDirectory().get().getAsFile().toPath();
+
+
         try (var writer = Files.newBufferedWriter(manifestFile)) {
             try (var stream = Files.list(constantsDir)) {
                 for (String filename : stream.map(p -> p.getFileName().toString()).toList()) {

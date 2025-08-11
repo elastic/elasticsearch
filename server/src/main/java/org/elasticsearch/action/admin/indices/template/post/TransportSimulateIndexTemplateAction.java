@@ -397,10 +397,10 @@ public class TransportSimulateIndexTemplateAction extends TransportLocalProjectM
     private static Settings collectSettings(
         final ProjectMetadata simulatedProject,
         final DataStream dataStream,
-        String templateNmae,
+        String templateName,
         ComposableIndexTemplate template
     ) {
-        Settings templateSettings = resolveSettings(simulatedProject, templateNmae);
+        Settings templateSettings = resolveSettings(simulatedProject, templateName);
         if (template.getDataStreamTemplate() != null && dataStream != null) {
             // The data stream has had settings overrides applied, so include them
             templateSettings = templateSettings.merge(dataStream.getSettings());

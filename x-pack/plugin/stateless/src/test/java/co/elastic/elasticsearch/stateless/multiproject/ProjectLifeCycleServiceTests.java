@@ -38,6 +38,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.repositories.RepositoriesService;
+import org.elasticsearch.repositories.SnapshotMetrics;
 import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
@@ -105,7 +106,8 @@ public class ProjectLifeCycleServiceTests extends ESTestCase {
                 Map.of(),
                 threadPool,
                 client,
-                List.of()
+                List.of(),
+                SnapshotMetrics.NOOP
             );
             var objectStoreService = new ObjectStoreService(
                 nodeSettings,

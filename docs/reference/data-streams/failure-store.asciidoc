@@ -40,9 +40,9 @@ PUT _index_template/my-index-template
   "index_patterns": ["my-datastream-*"],
   "data_stream": { },
   "template": {
-    "data_stream_options": { // <1>
+    "data_stream_options": { <1>
       "failure_store": {
-        "enabled": true // <2>
+        "enabled": true <2>
       }
     }
   }
@@ -65,7 +65,7 @@ To modify an existing data stream's options, use the https://www.elastic.co/docs
 PUT _data_stream/my-datastream-existing/_options
 {
   "failure_store": {
-    "enabled": true // <1>
+    "enabled": true <1>
   }
 }
 ----
@@ -78,7 +78,7 @@ The failure store redirection can be disabled using this API as well. When the f
 PUT _data_stream/my-datastream-existing/_options
 {
   "failure_store": {
-    "enabled": false // <1>
+    "enabled": false <1>
   }
 }
 ----
@@ -95,7 +95,7 @@ If you have a large number of existing data streams you may want to enable their
 PUT _cluster/settings
 {
   "persistent" : {
-    "data_streams.failure_store.enabled" : [ "my-datastream-*", "logs-*" ] // <1>
+    "data_streams.failure_store.enabled" : [ "my-datastream-*", "logs-*" ] <1>
   }
 }
 ----
@@ -108,7 +108,7 @@ Matching data streams will ignore this configuration if the failure store is exp
 PUT _data_stream/my-datastream-1/_options
 {
   "failure_store": {
-    "enabled": false // <1>
+    "enabled": false <1>
   }
 }
 ----
@@ -138,9 +138,9 @@ Here we have a bulk operation that sends two documents. Both are writing to the 
 ----
 POST my-datastream-new/_bulk
 {"create":{}}
-{"@timestamp": "2025-05-01T00:00:00Z", "id": 1234} // <1>
+{"@timestamp": "2025-05-01T00:00:00Z", "id": 1234} <1>
 {"create":{}}
-{"@timestamp": "2025-05-01T00:00:00Z", "id": "invalid_text"} // <2>
+{"@timestamp": "2025-05-01T00:00:00Z", "id": "invalid_text"} <2>
 ----
 <1> A correctly formatted document.
 <2> Invalid document that cannot be parsed using the current mapping.
@@ -148,12 +148,12 @@ POST my-datastream-new/_bulk
 [source,console-result]
 ----
 {
-  "errors": false, // <1>
+  "errors": false, <1>
   "took": 400,
   "items": [
     {
       "create": {
-        "_index": ".ds-my-datastream-new-2025.05.01-000001", // <2>
+        "_index": ".ds-my-datastream-new-2025.05.01-000001", <2>
         "_id": "YUvQipYB_ZAKuDfZRosB",
         "_version": 1,
         "result": "created",
@@ -169,7 +169,7 @@ POST my-datastream-new/_bulk
     },
     {
       "create": {
-        "_index": ".fs-my-datastream-new-2025.05.01-000002", // <3>
+        "_index": ".fs-my-datastream-new-2025.05.01-000002", <3>
         "_id": "lEu8jZYB_ZAKuDfZNouU",
         "_version": 1,
         "result": "created",
@@ -180,7 +180,7 @@ POST my-datastream-new/_bulk
         },
         "_seq_no": 10,
         "_primary_term": 1,
-        "failure_store": "used", // <4>
+        "failure_store": "used", <4>
         "status": 201
       }
     }
@@ -197,7 +197,7 @@ If the document was redirected to a data stream's failure store due to a problem
 [source,console-result]
 ----
 {
-  "_index": ".fs-my-datastream-new-2025.05.01-000002", // <1>
+  "_index": ".fs-my-datastream-new-2025.05.01-000002", <1>
   "_id": "lEu8jZYB_ZAKuDfZNouU",
   "_version": 1,
   "result": "created",
@@ -208,7 +208,7 @@ If the document was redirected to a data stream's failure store due to a problem
   },
   "_seq_no": 11,
   "_primary_term": 1,
-  "failure_store": "used" // <2>
+  "failure_store": "used" <2>
 }
 ----
 <1> The document for this index operation was sent to the failure store's write index.
@@ -220,7 +220,7 @@ If the document could have been redirected to a data stream's failure store but 
 ----
 {
   "error": {
-    "root_cause": [ // <1>
+    "root_cause": [ <1>
       {
         "type": "document_parsing_exception",
         "reason": "[1:53] failed to parse field [id] of type [long] in document with id 'Y0vQipYB_ZAKuDfZR4sR'. Preview of field's value: 'invalid_text'"
@@ -232,9 +232,9 @@ If the document could have been redirected to a data stream's failure store but 
       "type": "illegal_argument_exception",
       "reason": "For input string: \"invalid_text\""
     },
-    "failure_store": "not_enabled" // <2>
+    "failure_store": "not_enabled" <2>
   },
-  "status": 400 // <3>
+  "status": 400 <3>
 }
 ----
 <1> The failure is returned to the client as normal when the failure store is not enabled.
@@ -249,17 +249,17 @@ If the document was redirected to a data stream's failure store but that failed 
   "error": {
     "root_cause": [
       {
-        "type": "document_parsing_exception", // <1>
+        "type": "document_parsing_exception", <1>
         "reason": "[1:53] failed to parse field [id] of type [long] in document with id 'Y0vQipYB_ZAKuDfZR4sR'. Preview of field's value: 'invalid_text'",
         "suppressed": [
           {
-            "type": "cluster_block_exception", // <2>
+            "type": "cluster_block_exception", <2>
             "reason": "index [.fs-my-datastream-2025.05.01-000002] blocked by: [FORBIDDEN/5/index read-only (api)];"
           }
         ]
       }
     ],
-    "type": "document_parsing_exception", // <3>
+    "type": "document_parsing_exception", <3>
     "reason": "[1:53] failed to parse field [id] of type [long] in document with id 'Y0vQipYB_ZAKuDfZR4sR'. Preview of field's value: 'invalid_text'",
     "caused_by": {
       "type": "illegal_argument_exception",
@@ -271,9 +271,9 @@ If the document was redirected to a data stream's failure store but that failed 
         "reason": "index [.fs-my-datastream-2025.05.01-000002] blocked by: [FORBIDDEN/5/index read-only (api)];"
       }
     ],
-    "failure_store": "failed" // <4>
+    "failure_store": "failed" <4>
   },
-  "status": 400 // <5>
+  "status": 400 <5>
 }
 ----
 <1> The root cause of the problem was a mapping mismatch.
@@ -309,7 +309,7 @@ To indicate that the search should be performed on failure store data, use the <
 ----
 POST _query?format=txt
 {
-    "query": """FROM my-datastream::failures | DROP error.stack_trace | LIMIT 1""" // <1>
+    "query": """FROM my-datastream::failures | DROP error.stack_trace | LIMIT 1""" <1>
 }
 ----
 <1> We drop the `error.stack_trace` field here just to keep the example free of newlines.
@@ -461,14 +461,14 @@ PUT _ingest/pipeline/my-datastream-example-pipeline
 {
   "processors": [
     {
-      "set": { // <1>
+      "set": { <1>
         "override": false,
         "field": "@timestamp",
         "copy_from": "_ingest.timestamp"
       }
     },
     {
-      "set": { // <2>
+      "set": { <2>
         "field": "published",
         "copy_from": "data"
       }
@@ -564,7 +564,7 @@ GET my-datastream-ingest::failures/_search
         "_score": 1,
         "_source": {
           "@timestamp": "2025-05-09T20:31:13.759Z",
-          "document": { // <1>
+          "document": { <1>
             "index": "my-datastream-ingest",
             "source": {
               "random": 42
@@ -572,7 +572,7 @@ GET my-datastream-ingest::failures/_search
           },
           "error": {
             "type": "illegal_argument_exception",
-            "message": "field [data] not present as part of path [data]", // <2>
+            "message": "field [data] not present as part of path [data]", <2>
             "stack_trace": """j.l.IllegalArgumentException: field [data] not present as part of path [data]
 	at o.e.i.IngestDocument.getFieldValue(IngestDocument.java:202)
 	at o.e.i.c.SetProcessor.execute(SetProcessor.java:86)
@@ -601,7 +601,7 @@ Building on the example above, we send a document that has a text value where we
 ----
 POST my-datastream-ingest/_doc
 {
-  "data": "this field is invalid" // <1>
+  "data": "this field is invalid" <1>
 }
 ----
 <1> The mappings above expect this field to have been a numeric value.
@@ -620,7 +620,7 @@ POST my-datastream-ingest/_doc
   },
   "_seq_no": 0,
   "_primary_term": 1,
-  "failure_store": "used" // <1>
+  "failure_store": "used" <1>
 }
 ----
 <1> The document failed and was sent to the failure store.
@@ -655,7 +655,7 @@ GET my-datastream-ingest::failures/_search
         "_score": 1,
         "_source": {
           "@timestamp": "2025-05-09T20:55:38.943Z",
-          "document": { // <1>
+          "document": { <1>
             "id": "sHTVtpYBwrYNjPmaEdB5",
             "index": "my-datastream-ingest",
             "source": {
@@ -665,7 +665,7 @@ GET my-datastream-ingest::failures/_search
             }
           },
           "error": {
-            "type": "document_parsing_exception", // <2>
+            "type": "document_parsing_exception", <2>
             "message": "[1:91] failed to parse field [published] of type [long] in document with id 'sHTVtpYBwrYNjPmaEdB5'. Preview of field's value: 'this field is invalid'",
             "stack_trace": """o.e.i.m.DocumentParsingException: [1:91] failed to parse field [published] of type [long] in document with id 'sHTVtpYBwrYNjPmaEdB5'. Preview of field's value: 'this field is invalid'
 	at o.e.i.m.FieldMapper.rethrowAsDocumentParsingException(FieldMapper.java:241)
@@ -761,20 +761,20 @@ GET _data_stream/my-datastream
       "replicated": false,
       "rollover_on_write": false,
       "index_mode": "standard",
-      "failure_store": { // <1>
+      "failure_store": { <1>
         "enabled": true,
         "rollover_on_write": false,
         "indices": [
           {
             "index_name": ".fs-my-datastream-2025.05.05-000002",
             "index_uuid": "oYS2WsjkSKmdazWuS4RP9Q",
-            "managed_by": "Data stream lifecycle"  // <2>
+            "managed_by": "Data stream lifecycle"  <2>
           }
         ],
         "lifecycle": {
           "enabled": true,
-          "effective_retention": "30d",  // <3>
-          "retention_determined_by": "default_failures_retention"  // <4>
+          "effective_retention": "30d",  <3>
+          "retention_determined_by": "default_failures_retention"  <4>
         }
       }
     }
@@ -810,9 +810,9 @@ You can also specify the failure store retention period for a data stream on its
 PUT _data_stream/my-datastream/_options
 {
     "failure_store": {
-        "enabled": true, // <1>
+        "enabled": true, <1>
         "lifecycle": {
-            "data_retention": "10d" // <2>
+            "data_retention": "10d" <2>
         }
     }
 }
@@ -832,17 +832,17 @@ POST _data_stream/_modify
 {
   "actions":[
     {
-      "remove_backing_index": { // <1>
+      "remove_backing_index": { <1>
         "data_stream": "my-datastream",
-        "index": ".fs-my-datastream-2025.05.05-000002", // <2>
-        "failure_store": true // <3>
+        "index": ".fs-my-datastream-2025.05.05-000002", <2>
+        "failure_store": true <3>
       }
     },
     {
-      "add_backing_index": { // <4>
+      "add_backing_index": { <4>
         "data_stream": "my-datastream",
-        "index": "restored-failure-index", // <5>
-        "failure_store": true // <6>
+        "index": "restored-failure-index", <5>
+        "failure_store": true <6>
       }
     }
   ]

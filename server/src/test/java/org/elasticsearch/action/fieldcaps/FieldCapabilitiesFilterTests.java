@@ -129,7 +129,7 @@ public class FieldCapabilitiesFilterTests extends MapperServiceTestCase {
             assertNull(response.get("dimension_1"));
             assertNull(response.get("dimension_2"));
         }
-        
+
          */
         {
             // then, test with the filter

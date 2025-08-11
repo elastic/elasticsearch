@@ -437,7 +437,10 @@ Failure documents have a uniform structure that is handled internally by {es}.
 * `error.processor_tag` (`keyword`, optional) If the failure occurred in an ingest processor that is annotated with a tag, the tag contents will be present here.
 * `error.processor_type` (`keyword`, optional) If the failure occurred in an ingest processor, this will contain the processor type. (e.g. `script`, `append`, `enrich`, etc.)
 --
-===== Failure document source [[use-failure-store-document-source]]
+
+[discrete]
+[[use-failure-store-document-source]]
+===== Failure document source 
 The contents of a failure's `document` field is dependent on when the failure occurred in ingestion. When sending data to a data stream, documents can fail in two different phases: during an ingest pipeline and during indexing.
 . Documents that fail during an ingest pipeline will store the source of the document as it was originally sent to {es}. Changes from pipelines are discarded before redirecting the failure.
 . Documents that fail during indexing will store the source of the document as it was during the index operation. Any changes from pipelines will be reflected in the source of the document that is redirected.

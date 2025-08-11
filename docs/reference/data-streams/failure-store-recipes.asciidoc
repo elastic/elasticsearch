@@ -339,8 +339,8 @@ Care should be taken when replaying data into a data stream from a failure store
 ====
 We recommend a few best practices for remediating failure data.
 
-* *Separate your failures beforehand.* As described in the previous <<failure-document-source,failure document source>> section, failure documents are structured differently depending on when the document failed during ingestion. We recommend to separate documents by ingest pipeline failures and indexing failures at minimum. Ingest pipeline failures often need to have the original pipeline re-run, while index failures should skip any pipelines. Further separating failures by index or specific failure type may also be beneficial.
-* *Perform a failure store rollover.* Consider <<failure-store-rollover,rolling over the failure store>> before attempting to remediate failures. This will create a new failure index that will collect any new failures during the remediation process.
+* *Separate your failures beforehand.* As described in the previous <<use-failure-store-document-source,failure document source>> section, failure documents are structured differently depending on when the document failed during ingestion. We recommend to separate documents by ingest pipeline failures and indexing failures at minimum. Ingest pipeline failures often need to have the original pipeline re-run, while index failures should skip any pipelines. Further separating failures by index or specific failure type may also be beneficial.
+* *Perform a failure store rollover.* Consider <<manage-failure-store-rollover,rolling over the failure store>> before attempting to remediate failures. This will create a new failure index that will collect any new failures during the remediation process.
 * *Use an ingest pipeline to convert failure documents back into their original document.* Failure documents store failure information along with the document that failed ingestion. The first step for remediating documents should be to use an ingest pipeline to extract the original source from the failure document and then discard any other information about the failure.
 * *Simulate first to avoid repeat failures.* If you must run a pipeline as part of your remediation process, it is best to simulate the pipeline against the failure first. This will catch any unforeseen issues that may fail the document a second time. Remember, ingest pipeline failures will capture the document before an ingest pipeline is applied to it, which can further complicate remediation when a failure document becomes nested inside a new failure. The easiest way to simulate these changes is via the https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-ingest-simulate[pipeline simulate API] or the https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-simulate-ingest[simulate ingest API].
 
@@ -799,7 +799,7 @@ Once any failures have been remediated, you may wish to purge the failures from 
 [[failure-store-examples-remediation-mapping]]
 ===== Remediating mapping and shard failures
 
-As described in the previous failure document source section, failures that occur due to a mapping or indexing issue will be stored as they were after any pipelines had executed. This means that to replay the document into the data stream, you will need to make sure to skip any pipelines that have already run.
+As described in the previous <<use-failure-store-document-source,failure document source>> section, failures that occur due to a mapping or indexing issue will be stored as they were after any pipelines had executed. This means that to replay the document into the data stream, you will need to make sure to skip any pipelines that have already run.
 
 [TIP]
 ====

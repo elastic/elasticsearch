@@ -159,10 +159,16 @@ public class WriteLoadConstraintDeciderTests extends ESAllocationTestCase {
         // The write load decider is disabled by default.
 
         var writeLoadDecider = createWriteLoadConstraintDecider(Settings.builder().build());
-        assertEquals(Decision.Type.YES, writeLoadDecider.canAllocate(shardRouting2, exceedingThresholdRoutingNode, routingAllocation).type());
+        assertEquals(
+            Decision.Type.YES,
+            writeLoadDecider.canAllocate(shardRouting2, exceedingThresholdRoutingNode, routingAllocation).type()
+        );
         assertEquals(Decision.Type.YES, writeLoadDecider.canAllocate(shardRouting1, belowThresholdRoutingNode, routingAllocation).type());
         assertEquals(Decision.Type.YES, writeLoadDecider.canAllocate(shardRouting1, nearThresholdRoutingNode, routingAllocation).type());
-        assertEquals(Decision.Type.YES, writeLoadDecider.canAllocate(thirdRoutingNoWriteLoad, exceedingThresholdRoutingNode, routingAllocation).type());
+        assertEquals(
+            Decision.Type.YES,
+            writeLoadDecider.canAllocate(thirdRoutingNoWriteLoad, exceedingThresholdRoutingNode, routingAllocation).type()
+        );
 
         // Check that the answers change when enabled.
 

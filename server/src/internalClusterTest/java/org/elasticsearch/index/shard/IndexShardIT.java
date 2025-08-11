@@ -394,7 +394,6 @@ public class IndexShardIT extends ESSingleNodeTestCase {
                 for (int i = 0; i < indexMetadata.getNumberOfShards(); i++) {
                     final ShardId shardId = new ShardId(indexMetadata.getIndex(), i);
                     assertTrue(shardWriteLoads.containsKey(shardId));
-                    logger.info("~~~shardWriteLoads: " + shardWriteLoads.get(shardId));
                     maximumLoadRecorded = Math.max(shardWriteLoads.get(shardId), maximumLoadRecorded);
                 }
                 // Each index should have seen some write-load

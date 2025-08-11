@@ -285,13 +285,13 @@ public class OptimizerVerificationTests extends AbstractLogicalPlanOptimizerTest
             )
         );
 
-        // assertEquals(
-        // "1:68: LOOKUP JOIN with remote indices can't be executed after [LIMIT 2]@1:25",
-        // error(
-        // "FROM test,remote:test | LIMIT 2 | EVAL language_code = languages | LOOKUP JOIN languages_lookup ON language_code",
-        // analyzer
-        // )
-        // );
+        assertEquals(
+            "1:68: LOOKUP JOIN with remote indices can't be executed after [LIMIT 2]@1:25",
+            error(
+                "FROM test,remote:test | LIMIT 2 | EVAL language_code = languages | LOOKUP JOIN languages_lookup ON language_code",
+                analyzer
+            )
+        );
 
         assertEquals(
             "1:96: LOOKUP JOIN with remote indices can't be executed after [ENRICH _coordinator:languages_coord]@1:58",

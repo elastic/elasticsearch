@@ -7,23 +7,28 @@
 
 package org.elasticsearch.xpack.esql.plan.logical.join;
 
+import org.elasticsearch.xpack.esql.capabilities.PostAnalysisVerificationAware;
 import org.elasticsearch.xpack.esql.capabilities.TelemetryAware;
+import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.SurrogateLogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes.UsingJoinType;
 
+import java.util.LinkedList;
 import java.util.List;
 
 import static java.util.Collections.emptyList;
+import static org.elasticsearch.xpack.esql.common.Failure.fail;
 import static org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes.LEFT;
 
 /**
  * Lookup join - specialized LEFT (OUTER) JOIN between the main left side and a lookup index (index_mode = lookup) on the right.
  */
-public class LookupJoin extends Join implements SurrogateLogicalPlan, TelemetryAware {
+public class LookupJoin extends Join implements SurrogateLogicalPlan, TelemetryAware, PostAnalysisVerificationAware {
 
     public LookupJoin(Source source, LogicalPlan left, LogicalPlan right, List<Attribute> joinFields, boolean isRemote) {
         this(source, left, right, new UsingJoinType(LEFT, joinFields), emptyList(), emptyList(), emptyList(), isRemote);
@@ -86,5 +91,22 @@ public class LookupJoin extends Join implements SurrogateLogicalPlan, TelemetryA
     @Override
     public String telemetryLabel() {
         return "LOOKUP JOIN";
+    }
+
+    @Override
+    public void postAnalysisVerification(Failures failures) {
+        super.postAnalysisVerification(failures);
+        if (isRemote()) {
+            checkRemoteJoin(failures);
+        }
+    }
+
+    private void checkRemoteJoin(Failures failures) {
+        // Check only for LIMITs, Join will check the rest post-optimization
+        this.forEachUp(Limit.class, f -> {
+            failures.add(
+                fail(this, "LOOKUP JOIN with remote indices can't be executed after [" + f.source().text() + "]" + f.source().source())
+            );
+        });
     }
 }

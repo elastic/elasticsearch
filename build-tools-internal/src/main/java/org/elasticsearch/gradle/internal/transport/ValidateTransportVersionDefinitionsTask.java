@@ -16,6 +16,7 @@ import org.elasticsearch.gradle.internal.transport.TransportVersionUtils.Transpo
 import org.elasticsearch.gradle.internal.transport.TransportVersionUtils.TransportVersionLatest;
 import org.elasticsearch.gradle.internal.transport.TransportVersionUtils.TransportVersionReference;
 import org.gradle.api.DefaultTask;
+import org.gradle.api.Project;
 import org.gradle.api.file.ConfigurableFileCollection;
 import org.gradle.api.file.DirectoryProperty;
 import org.gradle.api.tasks.CacheableTask;
@@ -72,8 +73,9 @@ public abstract class ValidateTransportVersionDefinitionsTask extends DefaultTas
 
     private static final Pattern NAME_FORMAT = Pattern.compile("[a-z0-9_]+");
 
+    private final Project project;
+    private final Path rootPath;
     private final ExecOperations execOperations;
-    private final String rootPath;
 
     // all transport version names referenced
     private final Set<String> allNames = new HashSet<>();
@@ -89,9 +91,10 @@ public abstract class ValidateTransportVersionDefinitionsTask extends DefaultTas
     Map<String, TransportVersionLatest> latestByBranch = new HashMap<>();
 
     @Inject
-    public ValidateTransportVersionDefinitionsTask(ExecOperations execOperations) {
+    public ValidateTransportVersionDefinitionsTask(Project project, ExecOperations execOperations) {
+        this.project = project;
         this.execOperations = execOperations;
-        this.rootPath = getProject().getRootProject().getLayout().getProjectDirectory().getAsFile().getAbsolutePath();
+        this.rootPath = getProject().getRootProject().getLayout().getProjectDirectory().getAsFile().toPath();
     }
 
     @TaskAction
@@ -136,7 +139,7 @@ public abstract class ValidateTransportVersionDefinitionsTask extends DefaultTas
         final ByteArrayOutputStream stdout = new ByteArrayOutputStream();
 
         List<String> command = new ArrayList<>();
-        Collections.addAll(command, "git", "-C", rootPath);
+        Collections.addAll(command, "git", "-C", rootPath.toAbsolutePath().toString());
         Collections.addAll(command, args);
 
         ExecResult result = execOperations.exec(spec -> {
@@ -214,7 +217,9 @@ public abstract class ValidateTransportVersionDefinitionsTask extends DefaultTas
             }
 
             if (ndx == 0) {
-                if (id.patch() != 0) {
+                // TODO: initial versions will only be applicable to a release branch, so they won't have an associated
+                // main version. They will also be loaded differently in the future, but until they are separate, we ignore them here.
+                if (id.patch() != 0 && definition.name().startsWith("initial_") == false) {
                     throwDefinitionFailure(definition.name(), "has patch version " + id.complete() + " as primary id");
                 }
             } else {
@@ -315,15 +320,14 @@ public abstract class ValidateTransportVersionDefinitionsTask extends DefaultTas
     }
 
     private String definitionRelativePath(String name) {
-        return relativePath(definitionFilePath(getProject(), name));
+        return relativePath(definitionFilePath(project, name));
     }
 
     private String latestRelativePath(String branch) {
-        return relativePath(latestFilePath(getProject(), branch));
+        return relativePath(latestFilePath(project, branch));
     }
 
     private String relativePath(Path file) {
-        Path rootPath = getProject().getRootProject().getLayout().getProjectDirectory().getAsFile().toPath();
         return rootPath.relativize(file).toString();
     }
 }

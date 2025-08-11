@@ -148,7 +148,7 @@ public class TransportVersions {
     public static final TransportVersion INITIAL_ELASTICSEARCH_8_18_2 = def(8_840_0_04);
     public static final TransportVersion INITIAL_ELASTICSEARCH_8_18_3 = def(8_840_0_05);
     public static final TransportVersion INITIAL_ELASTICSEARCH_8_18_4 = def(8_840_0_06);
-    public static final TransportVersion INITIAL_ELASTICSEARCH_8_18_5 = def(8_840_0_07);
+    public static final TransportVersion INITIAL_ELASTICSEARCH_8_18_5 = TransportVersion.fromName("initial_elasticsearch_8_18_5");
     public static final TransportVersion INITIAL_ELASTICSEARCH_8_19 = def(8_841_0_00);
     public static final TransportVersion COHERE_BIT_EMBEDDING_TYPE_SUPPORT_ADDED_BACKPORT_8_X = def(8_841_0_01);
     public static final TransportVersion REMOVE_ALL_APPLICABLE_SELECTOR_BACKPORT_8_19 = def(8_841_0_02);
@@ -219,7 +219,7 @@ public class TransportVersions {
     public static final TransportVersion INITIAL_ELASTICSEARCH_9_0_2 = def(9_000_0_11);
     public static final TransportVersion INITIAL_ELASTICSEARCH_9_0_3 = def(9_000_0_12);
     public static final TransportVersion INITIAL_ELASTICSEARCH_9_0_4 = def(9_000_0_13);
-    public static final TransportVersion INITIAL_ELASTICSEARCH_9_0_5 = def(9_000_0_14);
+    public static final TransportVersion INITIAL_ELASTICSEARCH_9_0_5 = TransportVersion.fromName("initial_elasticsearch_9_0_5");
     public static final TransportVersion COHERE_BIT_EMBEDDING_TYPE_SUPPORT_ADDED = def(9_001_0_00);
     public static final TransportVersion REMOVE_SNAPSHOT_FAILURES = def(9_002_0_00);
     public static final TransportVersion TRANSPORT_STATS_HANDLING_TIME_REQUIRED = def(9_003_0_00);

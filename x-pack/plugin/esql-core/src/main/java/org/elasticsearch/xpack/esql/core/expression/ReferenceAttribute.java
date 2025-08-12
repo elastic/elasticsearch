@@ -117,7 +117,15 @@ public class ReferenceAttribute extends TypedAttribute {
     }
 
     @Override
-    protected Attribute clone(Source source, String qualifier, String name, DataType dataType, Nullability nullability, NameId id, boolean synthetic) {
+    protected Attribute clone(
+        Source source,
+        String qualifier,
+        String name,
+        DataType dataType,
+        Nullability nullability,
+        NameId id,
+        boolean synthetic
+    ) {
         return new ReferenceAttribute(source, qualifier, name, dataType, nullability, id, synthetic);
     }
 

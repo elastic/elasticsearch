@@ -43,6 +43,7 @@ import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
+import org.elasticsearch.index.codec.tsdb.es819.BulkNumericDocValues;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.LuceneSyntheticSourceChangesSnapshot;
 import org.elasticsearch.index.fielddata.FieldDataContext;
@@ -93,6 +94,7 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -1538,8 +1540,8 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
                 assertThat(reader.numDocs(), equalTo(3));
                 LeafReaderContext context = reader.leaves().get(0);
                 var blockLoader = mapperService.fieldType("field").blockLoader(mockBlockContext);
-                var columnReader = blockLoader.columnAtATimeReader(context);
-                assertThat(columnReader.toString(), equalTo("ES819.NumericDocValues.ColumnAtATimeReader"));
+                var columnReader = (BlockDocValuesReader.SingletonLongs) blockLoader.columnAtATimeReader(context);
+                assertThat(columnReader.numericDocValues, instanceOf(BulkNumericDocValues.class));
                 var docBlock = TestBlock.docs(IntStream.range(0, 3).toArray());
                 var block = (TestBlock) columnReader.read(TestBlock.factory(), docBlock, 0);
                 for (int i = 0; i < block.size(); i++) {
@@ -1563,8 +1565,8 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
                 assertThat(reader.numDocs(), equalTo(3));
                 LeafReaderContext context = reader.leaves().get(0);
                 var blockLoader = mapperService.fieldType("field").blockLoader(mockBlockContext);
-                var columnReader = blockLoader.columnAtATimeReader(context);
-                assertThat(columnReader, instanceOf(BlockDocValuesReader.SingletonLongs.class));
+                var columnReader = (BlockDocValuesReader.SingletonLongs) blockLoader.columnAtATimeReader(context);
+                assertThat(columnReader.numericDocValues, not(instanceOf(BulkNumericDocValues.class)));
                 var docBlock = TestBlock.docs(IntStream.range(0, 3).toArray());
                 var block = (TestBlock) columnReader.read(TestBlock.factory(), docBlock, 0);
                 assertThat(block.get(0), equalTo(expectedSampleValues[0]));

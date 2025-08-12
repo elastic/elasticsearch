@@ -743,12 +743,9 @@ public class ES819TSDBDocValuesFormatTests extends ES87TSDBDocValuesFormatTests 
             try (var reader = DirectoryReader.open(iw)) {
                 int gaugeIndex = numDocs;
                 for (var leaf : reader.leaves()) {
-                    var timestampDV = DocValues.unwrapSingleton(leaf.reader().getSortedNumericDocValues(timestampField));
-                    var timestampReader = ((BulkNumericDocValues) timestampDV).getColumnAtATimeReader();
-                    var counterDV = DocValues.unwrapSingleton(leaf.reader().getSortedNumericDocValues(counterField));
-                    var counterReader = ((BulkNumericDocValues) counterDV).getColumnAtATimeReader();
-                    var gaugeDV = DocValues.unwrapSingleton(leaf.reader().getSortedNumericDocValues(gaugeField));
-                    var gaugeReader = ((BulkNumericDocValues) gaugeDV).getColumnAtATimeReader();
+                    var timestampDV = getBulkNumericDocValues(leaf.reader(), timestampField);
+                    var counterDV = getBulkNumericDocValues(leaf.reader(), counterField);
+                    var gaugeDV = getBulkNumericDocValues(leaf.reader(), gaugeField);
                     int maxDoc = leaf.reader().maxDoc();
                     for (int i = 0; i < maxDoc;) {
                         int size = Math.max(1, random().nextInt(0, maxDoc - i));
@@ -756,7 +753,7 @@ public class ES819TSDBDocValuesFormatTests extends ES87TSDBDocValuesFormatTests 
 
                         {
                             // bulk loading timestamp:
-                            var block = (TestBlock) timestampReader.read(factory, docs, 0);
+                            var block = (TestBlock) timestampDV.read(factory, docs, 0);
                             assertEquals(size, block.size());
                             for (int j = 0; j < block.size(); j++) {
                                 long actualTimestamp = (long) block.get(j);
@@ -767,7 +764,7 @@ public class ES819TSDBDocValuesFormatTests extends ES87TSDBDocValuesFormatTests 
                         }
                         {
                             // bulk loading counter field:
-                            var block = (TestBlock) counterReader.read(factory, docs, 0);
+                            var block = (TestBlock) counterDV.read(factory, docs, 0);
                             assertEquals(size, block.size());
                             for (int j = 0; j < block.size(); j++) {
                                 long actualCounter = (long) block.get(j);
@@ -778,7 +775,7 @@ public class ES819TSDBDocValuesFormatTests extends ES87TSDBDocValuesFormatTests 
                         }
                         {
                             // bulk loading gauge field:
-                            var block = (TestBlock) gaugeReader.read(factory, docs, 0);
+                            var block = (TestBlock) gaugeDV.read(factory, docs, 0);
                             assertEquals(size, block.size());
                             for (int j = 0; j < block.size(); j++) {
                                 long actualGauge = (long) block.get(j);
@@ -806,18 +803,15 @@ public class ES819TSDBDocValuesFormatTests extends ES87TSDBDocValuesFormatTests 
                 int size = maxDoc - randomOffset;
                 int gaugeIndex = size;
 
-                var timestampDV = DocValues.unwrapSingleton(leafReader.getSortedNumericDocValues(timestampField));
-                var timestampReader = ((BulkNumericDocValues) timestampDV).getColumnAtATimeReader();
-                var counterDV = DocValues.unwrapSingleton(leafReader.getSortedNumericDocValues(counterField));
-                var counterReader = ((BulkNumericDocValues) counterDV).getColumnAtATimeReader();
-                var gaugeDV = DocValues.unwrapSingleton(leafReader.getSortedNumericDocValues(gaugeField));
-                var gaugeBulkReader = ((BulkNumericDocValues) gaugeDV).getColumnAtATimeReader();
+                var timestampDV = getBulkNumericDocValues(leafReader, timestampField);
+                var counterDV = getBulkNumericDocValues(leafReader, counterField);
+                var gaugeDV = getBulkNumericDocValues(leafReader, gaugeField);
 
                 var docs = TestBlock.docs(IntStream.range(0, maxDoc).toArray());
 
                 {
                     // bulk loading timestamp:
-                    var block = (TestBlock) timestampReader.read(blockFactory, docs, randomOffset);
+                    var block = (TestBlock) timestampDV.read(blockFactory, docs, randomOffset);
                     assertEquals(size, block.size());
                     for (int j = 0; j < block.size(); j++) {
                         long actualTimestamp = (long) block.get(j);
@@ -828,7 +822,7 @@ public class ES819TSDBDocValuesFormatTests extends ES87TSDBDocValuesFormatTests 
                 }
                 {
                     // bulk loading counter field:
-                    var block = (TestBlock) counterReader.read(factory, docs, randomOffset);
+                    var block = (TestBlock) counterDV.read(factory, docs, randomOffset);
                     assertEquals(size, block.size());
                     for (int j = 0; j < block.size(); j++) {
                         long actualCounter = (long) block.get(j);
@@ -839,7 +833,7 @@ public class ES819TSDBDocValuesFormatTests extends ES87TSDBDocValuesFormatTests 
                 }
                 {
                     // bulk loading gauge field:
-                    var block = (TestBlock) gaugeBulkReader.read(factory, docs, randomOffset);
+                    var block = (TestBlock) gaugeDV.read(factory, docs, randomOffset);
                     assertEquals(size, block.size());
                     for (int j = 0; j < block.size(); j++) {
                         long actualGauge = (long) block.get(j);
@@ -853,17 +847,16 @@ public class ES819TSDBDocValuesFormatTests extends ES87TSDBDocValuesFormatTests 
                 size = docs.count();
                 // Test against values loaded using normal doc value apis:
                 long[] expectedCounters = new long[size];
-                counterDV = DocValues.unwrapSingleton(leafReader.getSortedNumericDocValues(counterField));
+                counterDV = getBulkNumericDocValues(leafReader, counterField);
                 for (int i = 0; i < docs.count(); i++) {
                     int docId = docs.get(i);
                     counterDV.advanceExact(docId);
                     expectedCounters[i] = counterDV.longValue();
                 }
-                counterDV = DocValues.unwrapSingleton(leafReader.getSortedNumericDocValues(counterField));
-                counterReader = ((BulkNumericDocValues) counterDV).getColumnAtATimeReader();
+                counterDV = getBulkNumericDocValues(leafReader, counterField);
                 {
                     // bulk loading counter field:
-                    var block = (TestBlock) counterReader.read(factory, docs, 0);
+                    var block = (TestBlock) counterDV.read(factory, docs, 0);
                     assertEquals(size, block.size());
                     for (int j = 0; j < block.size(); j++) {
                         long actualCounter = (long) block.get(j);
@@ -927,9 +920,9 @@ public class ES819TSDBDocValuesFormatTests extends ES87TSDBDocValuesFormatTests 
                         false
                     );
                     assertEquals(numDocsPerQValue, topDocs.totalHits.value());
-                    var timestampDV = DocValues.unwrapSingleton(leafReader.getSortedNumericDocValues(timestampField));
+                    var timestampDV = getBulkNumericDocValues(leafReader, timestampField);
                     long[] expectedTimestamps = new long[numDocsPerQValue];
-                    var counterDV = DocValues.unwrapSingleton(leafReader.getSortedNumericDocValues(counterField));
+                    var counterDV = getBulkNumericDocValues(leafReader, counterField);
                     long[] expectedCounters = new long[numDocsPerQValue];
                     int[] docIds = new int[numDocsPerQValue];
                     for (int i = 0; i < topDocs.scoreDocs.length; i++) {
@@ -945,9 +938,8 @@ public class ES819TSDBDocValuesFormatTests extends ES87TSDBDocValuesFormatTests 
 
                     var docs = TestBlock.docs(docIds);
                     {
-                        timestampDV = DocValues.unwrapSingleton(leafReader.getSortedNumericDocValues(timestampField));
-                        var timestampReader = ((BulkNumericDocValues) timestampDV).getColumnAtATimeReader();
-                        var block = (TestBlock) timestampReader.read(factory, docs, 0);
+                        timestampDV = getBulkNumericDocValues(leafReader, timestampField);
+                        var block = (TestBlock) timestampDV.read(factory, docs, 0);
                         assertEquals(numDocsPerQValue, block.size());
                         for (int j = 0; j < block.size(); j++) {
                             long actualTimestamp = (long) block.get(j);
@@ -956,9 +948,8 @@ public class ES819TSDBDocValuesFormatTests extends ES87TSDBDocValuesFormatTests 
                         }
                     }
                     {
-                        counterDV = DocValues.unwrapSingleton(leafReader.getSortedNumericDocValues(counterField));
-                        var counterReader = ((BulkNumericDocValues) counterDV).getColumnAtATimeReader();
-                        var block = (TestBlock) counterReader.read(factory, docs, 0);
+                        counterDV = getBulkNumericDocValues(leafReader, counterField);
+                        var block = (TestBlock) counterDV.read(factory, docs, 0);
                         assertEquals(numDocsPerQValue, block.size());
                         for (int j = 0; j < block.size(); j++) {
                             long actualCounter = (long) block.get(j);
@@ -969,6 +960,10 @@ public class ES819TSDBDocValuesFormatTests extends ES87TSDBDocValuesFormatTests 
                 }
             }
         }
+    }
+
+    private static BulkNumericDocValues getBulkNumericDocValues(LeafReader leafReader, String counterField) throws IOException {
+        return (BulkNumericDocValues) DocValues.unwrapSingleton(leafReader.getSortedNumericDocValues(counterField));
     }
 
     private IndexWriterConfig getTimeSeriesIndexWriterConfig(String hostnameField, String timestampField) {

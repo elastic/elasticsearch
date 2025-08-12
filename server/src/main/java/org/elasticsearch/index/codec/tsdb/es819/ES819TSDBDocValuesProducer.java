@@ -1143,12 +1143,12 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
             // dense
             return new BulkNumericDocValues() {
 
+                private final Thread creationThread = Thread.currentThread();
                 private final int maxDoc = ES819TSDBDocValuesProducer.this.maxDoc;
                 private int doc = -1;
                 private final TSDBDocValuesEncoder decoder = new TSDBDocValuesEncoder(ES819TSDBDocValuesFormat.NUMERIC_BLOCK_SIZE);
                 private long currentBlockIndex = -1;
                 private final long[] currentBlock = new long[ES819TSDBDocValuesFormat.NUMERIC_BLOCK_SIZE];
-                private BlockLoader.ColumnAtATimeReader bulkReader;
 
                 @Override
                 public int docID() {
@@ -1157,13 +1157,11 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
 
                 @Override
                 public int nextDoc() throws IOException {
-                    assert bulkReader == null : "can't use this method if bulk loader has been initialized";
                     return advance(doc + 1);
                 }
 
                 @Override
                 public int advance(int target) throws IOException {
-                    assert bulkReader == null : "can't use this method if bulk loader has been initialized";
                     if (target >= maxDoc) {
                         return doc = NO_MORE_DOCS;
                     }
@@ -1172,7 +1170,6 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
 
                 @Override
                 public boolean advanceExact(int target) {
-                    assert bulkReader == null : "can't use this method if bulk loader has been initialized";
                     doc = target;
                     return true;
                 }
@@ -1184,7 +1181,6 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
 
                 @Override
                 public long longValue() throws IOException {
-                    assert bulkReader == null : "can't use this method if bulk loader has been initialized";
                     final int index = doc;
                     final int blockIndex = index >>> ES819TSDBDocValuesFormat.NUMERIC_BLOCK_SHIFT;
                     final int blockInIndex = index & ES819TSDBDocValuesFormat.NUMERIC_BLOCK_MASK;
@@ -1205,70 +1201,48 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
                 }
 
                 @Override
-                public BlockLoader.ColumnAtATimeReader getColumnAtATimeReader() {
-                    if (bulkReader == null) {
-                        bulkReader = new BlockLoader.ColumnAtATimeReader() {
+                public BlockLoader.Block read(BlockLoader.BlockFactory factory, BlockLoader.Docs docs, int offset) throws IOException {
+                    assert maxOrd == -1 : "unexpected maxOrd[" + maxOrd + "]";
+                    final int docsCount = docs.count();
+                    doc = docs.get(docsCount - 1);
+                    try (BlockLoader.SingletonLongBuilder builder = factory.singletonLongs(docs.count() - offset)) {
+                        for (int i = offset; i < docsCount;) {
+                            int index = docs.get(i);
+                            final int blockIndex = index >>> ES819TSDBDocValuesFormat.NUMERIC_BLOCK_SHIFT;
+                            final int blockInIndex = index & ES819TSDBDocValuesFormat.NUMERIC_BLOCK_MASK;
+                            if (blockIndex != currentBlockIndex) {
+                                assert blockIndex > currentBlockIndex : blockIndex + " < " + currentBlockIndex;
+                                // no need to seek if the loading block is the next block
+                                if (currentBlockIndex + 1 != blockIndex) {
+                                    valuesData.seek(indexReader.get(blockIndex));
+                                }
+                                currentBlockIndex = blockIndex;
+                                decoder.decode(valuesData, currentBlock);
+                            }
 
-                            private final Thread creationThread = Thread.currentThread();
-
-                            @Override
-                            public BlockLoader.Block read(BlockLoader.BlockFactory factory, BlockLoader.Docs docs, int offset)
-                                throws IOException {
-                                assert maxOrd == -1 : "unexpected maxOrd[" + maxOrd + "]";
-                                final int docsCount = docs.count();
-                                doc = docs.get(docsCount - 1);
-                                try (BlockLoader.SingletonLongBuilder builder = factory.singletonLongs(docs.count() - offset)) {
-                                    for (int i = offset; i < docsCount;) {
-                                        int index = docs.get(i);
-                                        final int blockIndex = index >>> ES819TSDBDocValuesFormat.NUMERIC_BLOCK_SHIFT;
-                                        final int blockInIndex = index & ES819TSDBDocValuesFormat.NUMERIC_BLOCK_MASK;
-                                        if (blockIndex != currentBlockIndex) {
-                                            assert blockIndex > currentBlockIndex : blockIndex + " < " + currentBlockIndex;
-                                            // no need to seek if the loading block is the next block
-                                            if (currentBlockIndex + 1 != blockIndex) {
-                                                valuesData.seek(indexReader.get(blockIndex));
-                                            }
-                                            currentBlockIndex = blockIndex;
-                                            decoder.decode(valuesData, currentBlock);
-                                        }
-
-                                        // Try to append more than just one value:
-                                        // Instead of iterating over docs and find the max length, take an optimistic approach to avoid as
-                                        // many comparisons as there are remaining docs and instead do at most 7 comparisons:
-                                        int length = 1;
-                                        int remainingBlockLength = ES819TSDBDocValuesFormat.NUMERIC_BLOCK_SIZE - blockInIndex;
-                                        for (int newLength = remainingBlockLength; newLength > 1; newLength = newLength >> 1) {
-                                            int lastIndex = i + newLength - 1;
-                                            if (lastIndex < docsCount && isDense(index, docs.get(lastIndex), newLength)) {
-                                                length = newLength;
-                                                break;
-                                            }
-                                        }
-                                        builder.appendLongs(currentBlock, blockInIndex, length);
-                                        i += length;
-                                    }
-                                    return builder.build();
+                            // Try to append more than just one value:
+                            // Instead of iterating over docs and find the max length, take an optimistic approach to avoid as
+                            // many comparisons as there are remaining docs and instead do at most 7 comparisons:
+                            int length = 1;
+                            int remainingBlockLength = ES819TSDBDocValuesFormat.NUMERIC_BLOCK_SIZE - blockInIndex;
+                            for (int newLength = remainingBlockLength; newLength > 1; newLength = newLength >> 1) {
+                                int lastIndex = i + newLength - 1;
+                                if (lastIndex < docsCount && isDense(index, docs.get(lastIndex), newLength)) {
+                                    length = newLength;
+                                    break;
                                 }
                             }
-
-                            @Override
-                            public boolean canReuse(int startingDocID) {
-                                return creationThread == Thread.currentThread() && doc <= startingDocID;
-                            }
-
-                            @Override
-                            public String toString() {
-                                return "ES819.NumericDocValues.ColumnAtATimeReader";
-                            }
-
-                            static boolean isDense(int firstDocId, int lastDocId, int length) {
-                                return lastDocId - firstDocId == length - 1;
-                            }
-
-                        };
+                            builder.appendLongs(currentBlock, blockInIndex, length);
+                            i += length;
+                        }
+                        return builder.build();
                     }
-                    return bulkReader;
                 }
+
+                static boolean isDense(int firstDocId, int lastDocId, int length) {
+                    return lastDocId - firstDocId == length - 1;
+                }
+
             };
         } else {
             final IndexedDISI disi = new IndexedDISI(

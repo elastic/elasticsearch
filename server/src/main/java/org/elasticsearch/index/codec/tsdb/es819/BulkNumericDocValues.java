@@ -12,14 +12,16 @@ package org.elasticsearch.index.codec.tsdb.es819;
 import org.apache.lucene.index.NumericDocValues;
 import org.elasticsearch.index.mapper.BlockLoader;
 
+import java.io.IOException;
+
 /**
- * An es819 doc values specialization that allows retrieving a {@link BlockLoader.ColumnAtATimeReader}.
+ * An es819 doc values specialization that is a {@link BlockLoader.ColumnAtATimeReader} and allows bulk loading of values.
  */
 public abstract class BulkNumericDocValues extends NumericDocValues {
 
     /**
-     * @return a column at a time reader or <code>null</code> if field or implementation doesn't support a column at a time reader.
+     * Reads the values of all documents in {@code docs}.
      */
-    public abstract BlockLoader.ColumnAtATimeReader getColumnAtATimeReader();
+    public abstract BlockLoader.Block read(BlockLoader.BlockFactory factory, BlockLoader.Docs docs, int offset) throws IOException;
 
 }

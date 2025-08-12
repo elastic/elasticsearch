@@ -63,10 +63,6 @@ public abstract class BlockDocValuesReader implements BlockLoader.AllReader {
 
         @Override
         public final ColumnAtATimeReader columnAtATimeReader(LeafReaderContext context) throws IOException {
-            var optimizedColumnAtTimeReader = optimizedColumnAtTimeReader(context);
-            if (optimizedColumnAtTimeReader != null) {
-                return optimizedColumnAtTimeReader;
-            }
             return reader(context);
         }
 
@@ -90,9 +86,6 @@ public abstract class BlockDocValuesReader implements BlockLoader.AllReader {
             throw new UnsupportedOperationException();
         }
 
-        protected ColumnAtATimeReader optimizedColumnAtTimeReader(LeafReaderContext context) throws IOException {
-            return null;
-        }
     }
 
     public static class LongsBlockLoader extends DocValuesBlockLoader {
@@ -123,24 +116,10 @@ public abstract class BlockDocValuesReader implements BlockLoader.AllReader {
             }
             return new ConstantNullsReader();
         }
-
-        protected ColumnAtATimeReader optimizedColumnAtTimeReader(LeafReaderContext context) throws IOException {
-            NumericDocValues singleton = context.reader().getNumericDocValues(fieldName);
-            if (singleton == null) {
-                SortedNumericDocValues docValues = context.reader().getSortedNumericDocValues(fieldName);
-                singleton = DocValues.unwrapSingleton(docValues);
-            }
-
-            if (singleton instanceof BulkNumericDocValues bulkDv) {
-                return bulkDv.getColumnAtATimeReader();
-            }
-
-            return null;
-        }
     }
 
     static class SingletonLongs extends BlockDocValuesReader {
-        private final NumericDocValues numericDocValues;
+        final NumericDocValues numericDocValues;
 
         SingletonLongs(NumericDocValues numericDocValues) {
             this.numericDocValues = numericDocValues;
@@ -148,6 +127,9 @@ public abstract class BlockDocValuesReader implements BlockLoader.AllReader {
 
         @Override
         public BlockLoader.Block read(BlockFactory factory, Docs docs, int offset) throws IOException {
+            if (numericDocValues instanceof BulkNumericDocValues bulkDv) {
+                return bulkDv.read(factory, docs, offset);
+            }
             try (BlockLoader.LongBuilder builder = factory.longsFromDocValues(docs.count() - offset)) {
                 int lastDoc = -1;
                 for (int i = offset; i < docs.count(); i++) {

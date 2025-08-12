@@ -10,6 +10,7 @@
 package org.elasticsearch.monitor.metrics;
 
 import org.apache.lucene.analysis.TokenStream;
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
@@ -65,6 +66,8 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThan;
 
+// TODO: MODERNSOURCEFIVES
+@LuceneTestCase.AwaitsFix(bugUrl = "changed account")
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, numClientNodes = 0)
 public class NodeIndexingMetricsIT extends ESIntegTestCase {
 

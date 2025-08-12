@@ -65,7 +65,7 @@ import java.util.Set;
 import static org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsFormat.DEFAULT_BEAM_WIDTH;
 import static org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsFormat.DEFAULT_MAX_CONN;
 import static org.apache.lucene.tests.index.BaseKnnVectorsFormatTestCase.randomNormalizedVector;
-import static org.elasticsearch.index.codec.vectors.IVFVectorsFormat.DYNAMIC_NPROBE;
+import static org.elasticsearch.index.codec.vectors.IVFVectorsFormat.DYNAMIC_VISIT_RATIO;
 import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.DEFAULT_OVERSAMPLE;
 import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.IVF_FORMAT;
 import static org.hamcrest.Matchers.containsString;
@@ -1514,7 +1514,7 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
                 .getIndexOptions();
             assertEquals(3.0F, indexOptions.rescoreVector.oversample(), 0.0F);
             assertEquals(IVFVectorsFormat.DEFAULT_VECTORS_PER_CLUSTER, indexOptions.clusterSize);
-            assertEquals(DYNAMIC_NPROBE, indexOptions.defaultNProbe);
+            assertEquals(DYNAMIC_VISIT_RATIO, indexOptions.defaultVisitPercentage, 0.0);
         }
         {
             DocumentMapper mapperService = createDocumentMapper(fieldMapping(b -> {
@@ -1525,7 +1525,7 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
                 b.startObject("index_options");
                 b.field("type", "bbq_disk");
                 b.field("cluster_size", 1000);
-                b.field("default_n_probe", 10);
+                b.field("default_visit_percentage", 5.0);
                 b.field(DenseVectorFieldMapper.RescoreVector.NAME, Map.of("oversample", 2.0f));
                 b.endObject();
             }));
@@ -1536,7 +1536,7 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
                 .getIndexOptions();
             assertEquals(2F, indexOptions.rescoreVector.oversample(), 0.0F);
             assertEquals(1000, indexOptions.clusterSize);
-            assertEquals(10, indexOptions.defaultNProbe);
+            assertEquals(5.0, indexOptions.defaultVisitPercentage, 0.0);
         }
     }
 

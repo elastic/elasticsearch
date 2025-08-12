@@ -9,6 +9,8 @@
 
 package org.elasticsearch.search.vectors;
 
+import com.carrotsearch.hppc.IntHashSet;
+
 import org.apache.lucene.codecs.KnnVectorsReader;
 import org.apache.lucene.codecs.perfield.PerFieldKnnVectorsFormat;
 import org.apache.lucene.index.FieldInfo;
@@ -61,29 +63,39 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
     static final TopDocs NO_RESULTS = TopDocsCollector.EMPTY_TOPDOCS;
 
     protected final String field;
-    protected final int nProbe;
+    protected final float visitRatio;
     protected final int k;
     protected final int numCands;
     protected final Query filter;
-    private final float visitedRatio;
+    protected final IVFKnnSearchStrategy searchStrategy;
     protected int vectorOpsCount;
 
-    protected AbstractIVFKnnVectorQuery(String field, int nProbe, int k, int numCands, float visitedRatio, Query filter) {
+    protected AbstractIVFKnnVectorQuery(String field, float visitRatio, int k, int numCands, Query filter) {
         if (k < 1) {
             throw new IllegalArgumentException("k must be at least 1, got: " + k);
         }
-        if (nProbe < 1 && nProbe != -1) {
-            throw new IllegalArgumentException("nProbe must be at least 1 or exactly -1, got: " + nProbe);
+        if (visitRatio < 0.0f || visitRatio > 1.0f) {
+            throw new IllegalArgumentException("visitRatio must be between 0.0 and 1.0 (both inclusive), got: " + visitRatio);
         }
         if (numCands < k) {
             throw new IllegalArgumentException("numCands must be at least k, got: " + numCands);
         }
         this.field = field;
-        this.nProbe = nProbe;
+        this.visitRatio = visitRatio;
         this.k = k;
         this.filter = filter;
         this.numCands = numCands;
-        this.visitedRatio = visitedRatio;
+        if (visitRatio == 0.0f) {
+            // dynamically set the percentage
+            float expected = (float) Math.round(1.75f * Math.log10(numCands) * Math.log10(numCands) * (numCands));
+            // FIXME: get floatVectorValues from the reader, clean this up
+            // int totalVectors = floatVectorValues.size();
+            int totalVectors = 1000000;
+            float ratio = expected / totalVectors;
+            searchStrategy = new IVFKnnSearchStrategy(ratio);
+        } else {
+            this.searchStrategy = new IVFKnnSearchStrategy(visitRatio);
+        }
     }
 
     @Override
@@ -101,12 +113,12 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
         return k == that.k
             && Objects.equals(field, that.field)
             && Objects.equals(filter, that.filter)
-            && Objects.equals(nProbe, that.nProbe);
+            && Objects.equals(visitRatio, that.visitRatio);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(field, k, filter, nProbe);
+        return Objects.hash(field, k, filter, visitRatio);
     }
 
     @Override
@@ -128,17 +140,20 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
             filterWeight = null;
         }
         // we request numCands as we are using it as an approximation measure
-        KnnCollectorManager knnCollectorManager = getKnnCollectorManager(numCands, indexSearcher);
+        // we need to ensure we are getting at least 2*k results to ensure we cover overspill duplicates
+        // TODO move the logic for automatically adjusting percentages to the query, so we can only pass
+        // 2k to the collector.
+        KnnCollectorManager knnCollectorManager = getKnnCollectorManager(Math.max(Math.round(2f * k), numCands), indexSearcher);
         TaskExecutor taskExecutor = indexSearcher.getTaskExecutor();
         List<LeafReaderContext> leafReaderContexts = reader.leaves();
 
         // FIXME: validate this, clean it up
         int totalBudget = 0;
-        for(LeafReaderContext leafReaderContext : leafReaderContexts) {
+        for (LeafReaderContext leafReaderContext : leafReaderContexts) {
             totalBudget += leafReaderContext.reader().leaves().size();
         }
-        totalBudget = (int) (totalBudget * visitedRatio);
-//        int totalBudget = (int) (reader.numDocs() * visitedRatio);
+        totalBudget = (int) (totalBudget * visitRatio);
+        // int totalBudget = (int) (reader.numDocs() * visitedRatio);
 
         List<Callable<TopDocs>> tasks;
         if (leafReaderContexts.isEmpty() == false) {
@@ -158,12 +173,14 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
             double lowerAffinity = (maxAffinity + averageAffinity) * 0.5;
             double cutoffAffinity = lowerAffinity * 0.1; // minimum affinity score for a segment to be considered
             double affinityThreshold = (maxAffinity + lowerAffinity) * 0.66; // min affinity for increasing nProbe
-            int maxAdjustments = (int) (nProbe * 1.5);
+
+            // FIXME: review this change from nProbe to ratio
+            int maxAdjustments = (int) (visitRatio * 1.5);
 
             if (Double.isNaN(maxAffinity) || Double.isNaN(averageAffinity)) {
                 tasks = new ArrayList<>(leafReaderContexts.size());
                 for (LeafReaderContext context : leafReaderContexts) {
-                    tasks.add(() -> searchLeaf(context, filterWeight, knnCollectorManager, nProbe, Integer.MAX_VALUE));
+                    tasks.add(() -> searchLeaf(context, filterWeight, knnCollectorManager, visitRatio, Integer.MAX_VALUE));
                 }
             } else {
                 tasks = new ArrayList<>(segmentAffinities.size());
@@ -177,12 +194,12 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
                     if (score < cutoffAffinity) {
                         continue;
                     }
-                    int adjustedNProbe = adjustNProbeForSegment(score, affinityThreshold, maxAdjustments);
+                    float adjustedVisitRatio = adjustVisitRatioForSegment(score, affinityThreshold, maxAdjustments);
                     LeafReaderContext context = segmentAffinity.context();
 
                     // distribute the budget according to : budgetᵢ = total_budget × (affinityᵢ × |vectors|ᵢ) / ∑ (affinityⱼ × |vectors|ⱼ)
                     int segmentBudget = (int) (totalBudget * (score * context.reader().numDocs()) / scoreVectorsSum);
-                    tasks.add(() -> searchLeaf(context, filterWeight, knnCollectorManager, adjustedNProbe, Math.max(1, segmentBudget)));
+                    tasks.add(() -> searchLeaf(context, filterWeight, knnCollectorManager, adjustedVisitRatio, Math.max(1, segmentBudget)));
                 }
             }
         } else {
@@ -199,21 +216,22 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
         return new KnnScoreDocQuery(topK.scoreDocs, reader);
     }
 
-    private int adjustNProbeForSegment(double affinityScore, double affinityThreshold, int maxAdjustment) {
-        int baseNProbe = this.nProbe;
+    private float adjustVisitRatioForSegment(double affinityScore, double affinityThreshold, int maxAdjustment) {
+        // FIXME: review this change from nProbe to ratio
+        float baseVisitRatio = this.visitRatio;
 
         // for high affinity scores, increase nProbe
         if (affinityScore > affinityThreshold) {
             int adjustment = (int) Math.ceil((affinityScore - affinityThreshold) * maxAdjustment);
-            return Math.min(baseNProbe * adjustment, baseNProbe + maxAdjustment);
+            return Math.min(baseVisitRatio * adjustment, baseVisitRatio + maxAdjustment);
         }
 
         // for low affinity scores, decrease nProbe
         if (affinityScore <= affinityThreshold) {
-            return Math.max(baseNProbe / 3, 1);
+            return Math.max(baseVisitRatio / 3, 1);
         }
 
-        return baseNProbe;
+        return baseVisitRatio;
     }
 
     abstract float[] getQueryVector() throws IOException;
@@ -309,29 +327,40 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
         LeafReaderContext ctx,
         Weight filterWeight,
         KnnCollectorManager knnCollectorManager,
-        int nProbe,
+        float visitRatio,
         int visitingBudget
     ) throws IOException {
-        TopDocs results = getLeafResults(ctx, filterWeight, knnCollectorManager, nProbe, visitingBudget);
-        if (ctx.docBase > 0) {
-            for (ScoreDoc scoreDoc : results.scoreDocs) {
-                scoreDoc.doc += ctx.docBase;
+        TopDocs results = getLeafResults(ctx, filterWeight, knnCollectorManager, visitRatio, visitingBudget);
+        IntHashSet dedup = new IntHashSet(results.scoreDocs.length * 4 / 3);
+        int deduplicateCount = 0;
+        for (ScoreDoc scoreDoc : results.scoreDocs) {
+            if (dedup.add(scoreDoc.doc)) {
+                deduplicateCount++;
             }
         }
-        return results;
+        ScoreDoc[] deduplicatedScoreDocs = new ScoreDoc[deduplicateCount];
+        dedup.clear();
+        int index = 0;
+        for (ScoreDoc scoreDoc : results.scoreDocs) {
+            if (dedup.add(scoreDoc.doc)) {
+                scoreDoc.doc += ctx.docBase;
+                deduplicatedScoreDocs[index++] = scoreDoc;
+            }
+        }
+        return new TopDocs(results.totalHits, deduplicatedScoreDocs);
     }
 
     TopDocs getLeafResults(
         LeafReaderContext ctx,
         Weight filterWeight,
         KnnCollectorManager knnCollectorManager,
-        int nProbe,
+        float visitRatio,
         int visitingBudget
     ) throws IOException {
         final LeafReader reader = ctx.reader();
         final Bits liveDocs = reader.getLiveDocs();
 
-        KnnSearchStrategy searchStrategy = new IVFKnnSearchStrategy(nProbe);
+        KnnSearchStrategy searchStrategy = new IVFKnnSearchStrategy(visitRatio);
 
         if (filterWeight == null) {
             return approximateSearch(ctx, liveDocs, visitingBudget, knnCollectorManager, searchStrategy);

@@ -148,13 +148,13 @@ public class CopyLifecycleIndexMetadataTransportActionIT extends ESIntegTestCase
             var destIndex = randomAlphaOfLength(20).toLowerCase(Locale.ROOT);
             safeGet(indicesAdmin().create(new CreateIndexRequest(destIndex)));
 
-            IndexMetadata destBefore = getClusterMetadata(destIndex).index(destIndex);
+            IndexMetadata destBefore = getProjectMetadata(destIndex).index(destIndex);
             assertNull(destBefore.getCustomData(LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY));
 
             // copy over the metadata
             copyMetadata(backingIndex, destIndex);
 
-            var metadataAfter = getClusterMetadata(backingIndex, destIndex);
+            var metadataAfter = getProjectMetadata(backingIndex, destIndex);
             IndexMetadata sourceAfter = metadataAfter.index(backingIndex);
             IndexMetadata destAfter = metadataAfter.index(destIndex);
             assertNotNull(destAfter.getCustomData(LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY));
@@ -183,7 +183,7 @@ public class CopyLifecycleIndexMetadataTransportActionIT extends ESIntegTestCase
             var destIndex = randomAlphaOfLength(20).toLowerCase(Locale.ROOT);
             safeGet(indicesAdmin().create(new CreateIndexRequest(destIndex)));
 
-            var metadataBefore = getClusterMetadata(backingIndex, destIndex);
+            var metadataBefore = getProjectMetadata(backingIndex, destIndex);
             IndexMetadata source = metadataBefore.index(backingIndex);
             IndexMetadata destBefore = metadataBefore.index(destIndex);
 
@@ -199,7 +199,7 @@ public class CopyLifecycleIndexMetadataTransportActionIT extends ESIntegTestCase
             copyMetadata(backingIndex, destIndex);
 
             // now rollover info should be equal
-            IndexMetadata destAfter = getClusterMetadata(destIndex).index(destIndex);
+            IndexMetadata destAfter = getProjectMetadata(destIndex).index(destIndex);
             assertEquals(source.getRolloverInfos(), destAfter.getRolloverInfos());
         }
     }
@@ -283,7 +283,7 @@ public class CopyLifecycleIndexMetadataTransportActionIT extends ESIntegTestCase
         return rolloverResponse.getNewIndex();
     }
 
-    private ProjectMetadata getClusterMetadata(String... indices) {
+    private ProjectMetadata getProjectMetadata(String... indices) {
         return safeGet(clusterAdmin().state(new ClusterStateRequest(TEST_REQUEST_TIMEOUT).indices(indices))).getState()
             .metadata()
             .getProject(ProjectId.DEFAULT);

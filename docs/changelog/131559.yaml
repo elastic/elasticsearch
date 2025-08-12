@@ -2,4 +2,21 @@ pr: 131559
 summary: Add support for LOOKUP JOIN on multiple fields
 area: ES|QL
 type: enhancement
-issues: [ ]
+issues: []
+highlight:
+  title: Add support for Lookup Join on Multiple Fields
+  body: "Add support for Lookup Join on Multiple Fields\n\n```\nFROM index1\n| LOOKUP\
+    \ JOIN lookup_index on field1, field2\n```\n\nRemoved some checks to allow lookup\
+    \ join on multiple fields. Added a new\ninterface LookupEnrichQueryGenerator,\
+    \ that can be used to get total\nnumber of queries and queries by position. The\
+    \ rest of the methods from\nQueryGenerator are not needed by AbstractLookupService.\
+    \ \n\nThat allowed the creation of a new class  ExpressionQueryList implements\n\
+    LookupEnrichQueryGenerator, which is responsible for creating the AND\nquery for\
+    \ the different fields. We will likely need to enhance it in the\nfuture to support\
+    \ expressions that include OR and NOT as well. \n\nTransportRequest is enhanced\
+    \ to now support `List<MatchConfig>`\nmatchFields instead of `String matchField`.\
+    \ This is how we pass the\nmatch fields around now. If we are communicating with\
+    \ an cluster that\ndoes not support LookupOnMultipleFields and it is needed by\
+    \ the query we\nwill fail the query. This can happen during rolling upgrade or\
+    \ CCS."
+  notable: true

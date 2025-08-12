@@ -39,7 +39,7 @@ This caused a `ClassCastException` at runtime when the parent was not multi-buck
 Codec:
 :::{dropdown} Use local segment `fieldInfos` for TSDB merge stats
 Merging shrink TSDB or LogsDB indices in versions 8.19 or 9.1+ could fail when using `addIndexes` to combine Lucene segments directly.
-In these cases, fieldInfos could differ between shards and the merged segment, causing incorrect merge statistics.
+In these cases, the `fieldInfos` value could differ between shards and the merged segment, causing incorrect merge statistics.
 PR [#132597](https://github.com/elastic/elasticsearch/pull/132597) updates the process to use `fieldInfos` from each segment instead of the merged segment, ensuring accurate stats and preventing merge failures.
 :::
 

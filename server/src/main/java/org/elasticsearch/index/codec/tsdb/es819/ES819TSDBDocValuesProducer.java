@@ -1217,7 +1217,7 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
                                 assert maxOrd == -1 : "unexpected maxOrd[" + maxOrd + "]";
                                 final int docsCount = docs.count();
                                 doc = docs.get(docsCount - 1);
-                                try (BlockLoader.SingletonBulkLongBuilder builder = factory.singletonLongs(docs.count() - offset)) {
+                                try (BlockLoader.SingletonLongBuilder builder = factory.singletonLongs(docs.count() - offset)) {
                                     for (int i = offset; i < docsCount;) {
                                         int index = docs.get(i);
                                         final int blockIndex = index >>> ES819TSDBDocValuesFormat.NUMERIC_BLOCK_SHIFT;

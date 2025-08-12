@@ -33,7 +33,7 @@ import static org.elasticsearch.test.MapMatcher.assertMap;
 import static org.elasticsearch.test.MapMatcher.matchesMap;
 import static org.hamcrest.Matchers.equalTo;
 
-public class SingletonBulkLongBuilderTests extends ComputeTestCase {
+public class SingletonLongBuilderTests extends ComputeTestCase {
 
     public void testReader() throws IOException {
         testRead(blockFactory());
@@ -66,11 +66,15 @@ public class SingletonBulkLongBuilderTests extends ComputeTestCase {
             try (IndexReader reader = DirectoryReader.open(directory)) {
                 for (LeafReaderContext ctx : reader.leaves()) {
                     var docValues = ctx.reader().getNumericDocValues("field");
-                    try (SingletonBulkLongsBuilder builder = new SingletonBulkLongsBuilder(ctx.reader().numDocs(), factory)) {
+                    try (SingletonLongBuilder builder = new SingletonLongBuilder(ctx.reader().numDocs(), factory)) {
                         for (int i = 0; i < ctx.reader().maxDoc(); i++) {
                             assertThat(docValues.advanceExact(i), equalTo(true));
                             long value = docValues.longValue();
-                            builder.appendLongs(new long[] { value }, 0, 1);
+                            if (randomBoolean()) {
+                                builder.appendLongs(new long[] { value }, 0, 1);
+                            } else {
+                                builder.appendLong(value);
+                            }
                         }
                         try (LongVector build = (LongVector) builder.build().asVector()) {
                             for (int i = 0; i < build.getPositionCount(); i++) {
@@ -103,11 +107,15 @@ public class SingletonBulkLongBuilderTests extends ComputeTestCase {
                 LeafReader leafReader = reader.leaves().get(0).reader();
                 var docValues = leafReader.getNumericDocValues("field");
                 int offset = 850;
-                try (SingletonBulkLongsBuilder builder = new SingletonBulkLongsBuilder(count - offset, blockFactory())) {
+                try (SingletonLongBuilder builder = new SingletonLongBuilder(count - offset, blockFactory())) {
                     for (int i = offset; i < leafReader.maxDoc(); i++) {
                         assertThat(docValues.advanceExact(i), equalTo(true));
                         long value = docValues.longValue();
-                        builder.appendLongs(new long[] { value }, 0, 1);
+                        if (randomBoolean()) {
+                            builder.appendLongs(new long[] { value }, 0, 1);
+                        } else {
+                            builder.appendLong(value);
+                        }
                     }
                     try (LongVector build = (LongVector) builder.build().asVector()) {
                         assertThat(build.getPositionCount(), equalTo(count - offset));

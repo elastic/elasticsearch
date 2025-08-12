@@ -200,9 +200,9 @@ public class TestBlock implements BlockLoader.Block {
             }
 
             @Override
-            public BlockLoader.SingletonBulkLongBuilder singletonLongs(int expectedCount) {
+            public BlockLoader.SingletonLongBuilder singletonLongs(int expectedCount) {
                 final long[] values = new long[expectedCount];
-                return new BlockLoader.SingletonBulkLongBuilder() {
+                return new BlockLoader.SingletonLongBuilder() {
 
                     private int count;
 
@@ -212,13 +212,19 @@ public class TestBlock implements BlockLoader.Block {
                     }
 
                     @Override
-                    public BlockLoader.SingletonBulkLongBuilder appendLongs(long[] newValues, int from, int length) {
+                    public BlockLoader.SingletonLongBuilder appendLongs(long[] newValues, int from, int length) {
                         try {
                             System.arraycopy(newValues, from, values, count, length);
                         } catch (ArrayIndexOutOfBoundsException e) {
                             throw e;
                         }
                         count += length;
+                        return this;
+                    }
+
+                    @Override
+                    public BlockLoader.SingletonLongBuilder appendLong(long value) {
+                        values[count++] = value;
                         return this;
                     }
 

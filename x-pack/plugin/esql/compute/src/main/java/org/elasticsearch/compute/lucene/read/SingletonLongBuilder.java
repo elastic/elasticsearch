@@ -16,14 +16,14 @@ import org.elasticsearch.index.mapper.BlockLoader;
  * Like {@link org.elasticsearch.compute.data.LongBlockBuilder} but optimized for collecting dense single valued values.
  * Additionally, this builder doesn't grow its array.
  */
-public final class SingletonBulkLongsBuilder implements BlockLoader.SingletonBulkLongBuilder, Releasable, Block.Builder {
+public final class SingletonLongBuilder implements BlockLoader.SingletonLongBuilder, Releasable, Block.Builder {
 
     private final long[] values;
     private final BlockFactory blockFactory;
 
     private int count;
 
-    public SingletonBulkLongsBuilder(int expectedCount, BlockFactory blockFactory) {
+    public SingletonLongBuilder(int expectedCount, BlockFactory blockFactory) {
         this.blockFactory = blockFactory;
         blockFactory.adjustBreaker(valuesSize(expectedCount));
         this.values = new long[expectedCount];
@@ -69,7 +69,13 @@ public final class SingletonBulkLongsBuilder implements BlockLoader.SingletonBul
     }
 
     @Override
-    public BlockLoader.SingletonBulkLongBuilder appendLongs(long[] values, int from, int length) {
+    public BlockLoader.SingletonLongBuilder appendLong(long value) {
+        values[count++] = value;
+        return this;
+    }
+
+    @Override
+    public BlockLoader.SingletonLongBuilder appendLongs(long[] values, int from, int length) {
         System.arraycopy(values, from, this.values, count, length);
         count += length;
         return this;

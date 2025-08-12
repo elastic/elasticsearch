@@ -409,7 +409,7 @@ public interface BlockLoader {
          *
          * @param expectedCount The maximum number of values to be collected.
          */
-        SingletonBulkLongBuilder singletonLongs(int expectedCount);
+        SingletonLongBuilder singletonLongs(int expectedCount);
 
         /**
          * Build a builder to load only {@code null}s.
@@ -512,9 +512,11 @@ public interface BlockLoader {
     /**
      * Specialized builder for collecting dense arrays of long values.
      */
-    interface SingletonBulkLongBuilder extends Builder {
+    interface SingletonLongBuilder extends Builder {
 
-        SingletonBulkLongBuilder appendLongs(long[] values, int from, int length);
+        SingletonLongBuilder appendLong(long value);
+
+        SingletonLongBuilder appendLongs(long[] values, int from, int length);
     }
 
     interface LongBuilder extends Builder {

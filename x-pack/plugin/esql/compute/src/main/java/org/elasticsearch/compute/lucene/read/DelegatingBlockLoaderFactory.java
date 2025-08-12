@@ -77,8 +77,8 @@ public abstract class DelegatingBlockLoaderFactory implements BlockLoader.BlockF
     }
 
     @Override
-    public BlockLoader.SingletonBulkLongBuilder singletonLongs(int expectedCount) {
-        return new SingletonBulkLongsBuilder(expectedCount, factory);
+    public BlockLoader.SingletonLongBuilder singletonLongs(int expectedCount) {
+        return new SingletonLongBuilder(expectedCount, factory);
     }
 
     @Override

@@ -399,10 +399,7 @@ public class TasksIT extends ESIntegTestCase {
                     taskInfo.description(),
                     Regex.simpleMatch("id[*], size[1], lastEmittedDoc[null]", taskInfo.description())
                 );
-                case NODE_SEARCH_ACTION_NAME -> assertTrue(
-                    taskInfo.description(),
-                    Regex.simpleMatch("shardIds[*]", taskInfo.description())
-                );
+                case NODE_SEARCH_ACTION_NAME -> assertEquals("NodeQueryRequest", taskInfo.description());
                 default -> fail("Unexpected action [" + taskInfo.action() + "] with description [" + taskInfo.description() + "]");
             }
             // assert that all task descriptions have non-zero length

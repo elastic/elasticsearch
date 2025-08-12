@@ -317,12 +317,7 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
 
         @Override
         public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
-            return new SearchShardTask(id, type, action, getDescription(), parentTaskId, headers);
-        }
-
-        @Override
-        public String getDescription() {
-            return "shardIds" + shards.stream().map(ShardToQuery::shardId).toList();
+            return new SearchShardTask(id, type, action, "NodeQueryRequest", parentTaskId, headers);
         }
 
         @Override

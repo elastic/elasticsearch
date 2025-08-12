@@ -278,6 +278,8 @@ import static org.elasticsearch.index.mapper.TimeSeriesRoutingHashFieldMapper.TS
  * Sets up things that can be done at search time like queries, aggregations, and suggesters.
  */
 public class SearchModule {
+    private static volatile Map<String, Highlighter> staticHighlighters = Map.of();
+
     public static final Setting<Integer> INDICES_MAX_CLAUSE_COUNT_SETTING = Setting.intSetting(
         "indices.query.bool.max_clause_count",
         4096,
@@ -920,6 +922,20 @@ public class SearchModule {
         return unmodifiableMap(highlighters.getRegistry());
     }
 
+    /**
+     * Sets the static highlighters map for access by other plugins
+     */
+    private static void setStaticHighlighters(Map<String, Highlighter> highlighters) {
+        staticHighlighters = Map.copyOf(highlighters);
+    }
+
+    /**
+     * Gets the static highlighters map for other plugin access
+     */
+    public static Map<String, Highlighter> getStaticHighlighters() {
+        return staticHighlighters;
+    }
+
     private void registerScoreFunctions(List<SearchPlugin> plugins) {
         // ScriptScoreFunctionBuilder has it own named writable because of a new script_score query
         namedWriteables.add(
@@ -1058,6 +1074,8 @@ public class SearchModule {
         registerFetchSubPhase(new MatchedQueriesPhase());
         registerFetchSubPhase(new HighlightPhase(highlighters));
         registerFetchSubPhase(new FetchScorePhase());
+
+        setStaticHighlighters(highlighters);
 
         FetchPhaseConstructionContext context = new FetchPhaseConstructionContext(highlighters);
         registerFromPlugin(plugins, p -> p.getFetchSubPhases(context), this::registerFetchSubPhase);

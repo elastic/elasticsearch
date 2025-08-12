@@ -269,7 +269,7 @@ public class SearchHighlightContext {
                 return this;
             }
 
-            Builder highlightQuery(Query highlightQuery) {
+            public Builder highlightQuery(Query highlightQuery) {
                 fieldOptions.highlightQuery = highlightQuery;
                 return this;
             }

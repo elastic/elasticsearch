@@ -50,6 +50,7 @@ public class HighlighterExpressionEvaluator extends LuceneQueryEvaluator<BytesRe
     private final Integer numFragments;
     private final Integer fragmentLength;
     private final SearchContext searchContext;
+    private final Map<String, Highlighter> highlighters;
 
     HighlighterExpressionEvaluator(
         BlockFactory blockFactory,
@@ -57,13 +58,15 @@ public class HighlighterExpressionEvaluator extends LuceneQueryEvaluator<BytesRe
         String fieldName,
         Integer numFragments,
         Integer fragmentLength,
-        SearchContext searchContext
+        SearchContext searchContext,
+        Map<String, Highlighter> highlighters
     ) {
         super(blockFactory, shardConfigs);
         this.fieldName = fieldName;
         this.numFragments = numFragments;
         this.fragmentLength = fragmentLength;
         this.searchContext = searchContext;
+        this.highlighters = highlighters;
     }
 
     @Override
@@ -93,14 +96,7 @@ public class HighlighterExpressionEvaluator extends LuceneQueryEvaluator<BytesRe
         MappedFieldType fieldType = searchContext.getSearchExecutionContext().getFieldType(fieldName);
         SearchHit searchHit = new SearchHit(docId);
         Source source = Source.lazy(lazyStoredSourceLoader(leafReaderContext, docId));
-        String defaultHighlighter = fieldType.getDefaultHighlighter();
-
-        Highlighter highlighter;
-        // if (SemanticTextHighlighter.NAME.equals(defaultHighlighter)) {
-        // highlighter = new SemanticTextHighlighter();
-        // } else {
-        highlighter = new DefaultHighlighter();
-        // }
+        Highlighter highlighter = highlighters.getOrDefault(fieldType.getDefaultHighlighter(), new DefaultHighlighter());
 
         SearchHighlightContext.FieldOptions.Builder optionsBuilder = new SearchHighlightContext.FieldOptions.Builder();
         optionsBuilder.numberOfFragments(numFragments != null ? numFragments : HighlightBuilder.DEFAULT_NUMBER_OF_FRAGMENTS);
@@ -109,6 +105,7 @@ public class HighlighterExpressionEvaluator extends LuceneQueryEvaluator<BytesRe
         optionsBuilder.postTags(new String[] { "" });
         optionsBuilder.requireFieldMatch(false);
         optionsBuilder.scoreOrdered(true);
+        optionsBuilder.highlightQuery(query);
         SearchHighlightContext.Field field = new SearchHighlightContext.Field(fieldName, optionsBuilder.build());
 
         FetchSubPhase.HitContext hitContext = new FetchSubPhase.HitContext(searchHit, leafReaderContext, docId, Map.of(), source, null);
@@ -165,7 +162,8 @@ public class HighlighterExpressionEvaluator extends LuceneQueryEvaluator<BytesRe
         String fieldName,
         Integer numFragments,
         Integer fragmentSize,
-        SearchContext searchContext
+        SearchContext searchContext,
+        Map<String, Highlighter> highlighters
     ) implements EvalOperator.ExpressionEvaluator.Factory {
         @Override
         public EvalOperator.ExpressionEvaluator get(DriverContext context) {
@@ -175,7 +173,8 @@ public class HighlighterExpressionEvaluator extends LuceneQueryEvaluator<BytesRe
                 fieldName,
                 numFragments,
                 fragmentSize,
-                searchContext
+                searchContext,
+                highlighters
             );
         }
     }

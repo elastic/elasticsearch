@@ -254,7 +254,14 @@ public class ExtractSnippets extends EsqlScalarFunction implements OptionalArgum
         // Get field name and search context from the first shard context
         String fieldNameStr = field.sourceText();
         SearchContext firstSearchContext = shardContexts.isEmpty() ? null : shardContexts.get(0).searchContext();
-        return new HighlighterExpressionEvaluator.Factory(shardConfigs, fieldNameStr, numSnippets, snippedSize, firstSearchContext);
+        return new HighlighterExpressionEvaluator.Factory(
+            shardConfigs,
+            fieldNameStr,
+            numSnippets,
+            snippedSize,
+            firstSearchContext,
+            toEvaluator.highlighters()
+        );
     }
 
     @Override

@@ -89,6 +89,8 @@ import org.elasticsearch.repositories.RepositoryShardId;
 import org.elasticsearch.repositories.ShardGeneration;
 import org.elasticsearch.repositories.ShardGenerations;
 import org.elasticsearch.repositories.ShardSnapshotResult;
+import org.elasticsearch.repositories.SnapshotMetrics;
+import org.elasticsearch.telemetry.metric.LongWithAttributes;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -179,9 +181,13 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
 
     private final boolean serializeProjectMetadata;
 
+    private final SnapshotMetrics snapshotMetrics;
+
     private final MasterServiceTaskQueue<SnapshotTask> masterServiceTaskQueue;
 
     private final ShardSnapshotUpdateCompletionHandler shardSnapshotUpdateCompletionHandler;
+
+    private CachedSnapshotStateMetrics cachedSnapshotStateMetrics;
 
     /**
      * Setting that specifies the maximum number of allowed concurrent snapshot create and delete operations in the
@@ -206,13 +212,17 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
         RepositoriesService repositoriesService,
         TransportService transportService,
         SystemIndices systemIndices,
-        boolean serializeProjectMetadata
+        boolean serializeProjectMetadata,
+        SnapshotMetrics snapshotMetrics
     ) {
         this.clusterService = clusterService;
         this.rerouteService = rerouteService;
         this.indexNameExpressionResolver = indexNameExpressionResolver;
         this.repositoriesService = repositoriesService;
         this.threadPool = transportService.getThreadPool();
+        this.snapshotMetrics = snapshotMetrics;
+        snapshotMetrics.createSnapshotShardsByStateMetric(this::getShardsByState);
+        snapshotMetrics.createSnapshotsByStateMetric(this::getSnapshotsByState);
 
         if (DiscoveryNode.isMasterNode(settings)) {
             // addLowPriorityApplier to make sure that Repository will be created before snapshot
@@ -1222,6 +1232,14 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                         () -> snapshotListeners.addListener(new ActionListener<>() {
                             @Override
                             public void onResponse(List<ActionListener<SnapshotInfo>> actionListeners) {
+                                final Map<String, Object> attributesWithState = Maps.copyMapWithAddedEntry(
+                                    SnapshotMetrics.createAttributesMap(snapshot.getProjectId(), repo.getMetadata()),
+                                    "state",
+                                    snapshotInfo.state().name()
+                                );
+                                snapshotMetrics.snapshotsCompletedCounter().incrementBy(1, attributesWithState);
+                                snapshotMetrics.snapshotsDurationHistogram()
+                                    .record((snapshotInfo.endTime() - snapshotInfo.startTime()) / 1_000.0, attributesWithState);
                                 SnapshotsServiceUtils.completeListenersIgnoringException(actionListeners, snapshotInfo);
                                 logger.info("snapshot [{}] completed with state [{}]", snapshot, snapshotInfo.state());
                             }
@@ -3325,6 +3343,11 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
             final var res = snapshotsInProgress.withAddedEntry(newEntry);
             taskContext.success(() -> {
                 logger.info("snapshot [{}] started", snapshot);
+                final Map<String, Object> attributes = SnapshotMetrics.createAttributesMap(
+                    snapshot.getProjectId(),
+                    repository.getMetadata()
+                );
+                snapshotMetrics.snapshotsStartedCounter().incrementBy(1, attributes);
                 createSnapshotTask.listener.onResponse(snapshot);
                 if (newEntry.state().completed()) {
                     endSnapshot(newEntry, currentState.metadata(), createSnapshotTask.repositoryData);
@@ -3332,6 +3355,61 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
             });
             return res;
         }
+    }
+
+    private Collection<LongWithAttributes> getShardsByState() {
+        final ClusterState currentState = clusterService.state();
+        // Only the master should report on shards-by-state
+        if (currentState.nodes().isLocalNodeElectedMaster() == false) {
+            return List.of();
+        }
+        return recalculateIfStale(currentState).shardStateMetrics();
+    }
+
+    private Collection<LongWithAttributes> getSnapshotsByState() {
+        final ClusterState currentState = clusterService.state();
+        // Only the master should report on snapshots-by-state
+        if (currentState.nodes().isLocalNodeElectedMaster() == false) {
+            return List.of();
+        }
+        return recalculateIfStale(currentState).snapshotStateMetrics();
+    }
+
+    private CachedSnapshotStateMetrics recalculateIfStale(ClusterState currentState) {
+        if (cachedSnapshotStateMetrics == null || cachedSnapshotStateMetrics.isStale(currentState)) {
+            cachedSnapshotStateMetrics = recalculateSnapshotStats(currentState);
+        }
+        return cachedSnapshotStateMetrics;
+    }
+
+    private CachedSnapshotStateMetrics recalculateSnapshotStats(ClusterState currentState) {
+        final SnapshotsInProgress snapshotsInProgress = SnapshotsInProgress.get(currentState);
+        final List<LongWithAttributes> snapshotStateMetrics = new ArrayList<>();
+        final List<LongWithAttributes> shardStateMetrics = new ArrayList<>();
+
+        currentState.metadata().projects().forEach((projectId, project) -> {
+            final RepositoriesMetadata repositoriesMetadata = RepositoriesMetadata.get(project);
+            if (repositoriesMetadata != null) {
+                for (RepositoryMetadata repository : repositoriesMetadata.repositories()) {
+                    final Tuple<Map<SnapshotsInProgress.State, Integer>, Map<ShardState, Integer>> stateSummaries = snapshotsInProgress
+                        .shardStateSummaryForRepository(projectId, repository.name());
+                    final Map<String, Object> attributesMap = SnapshotMetrics.createAttributesMap(projectId, repository);
+                    stateSummaries.v1()
+                        .forEach(
+                            (snapshotState, count) -> snapshotStateMetrics.add(
+                                new LongWithAttributes(count, Maps.copyMapWithAddedEntry(attributesMap, "state", snapshotState.name()))
+                            )
+                        );
+                    stateSummaries.v2()
+                        .forEach(
+                            (shardState, count) -> shardStateMetrics.add(
+                                new LongWithAttributes(count, Maps.copyMapWithAddedEntry(attributesMap, "state", shardState.name()))
+                            )
+                        );
+                }
+            }
+        });
+        return new CachedSnapshotStateMetrics(currentState, snapshotStateMetrics, shardStateMetrics);
     }
 
     private record UpdateNodeIdsForRemovalTask() implements ClusterStateTaskListener {
@@ -3361,4 +3439,38 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
     }
 
     private final MasterServiceTaskQueue<UpdateNodeIdsForRemovalTask> updateNodeIdsToRemoveQueue;
+
+    /**
+     * A cached copy of the snapshot and shard state metrics
+     */
+    private record CachedSnapshotStateMetrics(
+        String clusterStateId,
+        int snapshotsInProgressIdentityHashcode,
+        Collection<LongWithAttributes> snapshotStateMetrics,
+        Collection<LongWithAttributes> shardStateMetrics
+    ) {
+        CachedSnapshotStateMetrics(
+            ClusterState sourceState,
+            Collection<LongWithAttributes> snapshotStateMetrics,
+            Collection<LongWithAttributes> shardStateMetrics
+        ) {
+            this(
+                sourceState.stateUUID(),
+                System.identityHashCode(SnapshotsInProgress.get(sourceState)),
+                snapshotStateMetrics,
+                shardStateMetrics
+            );
+        }
+
+        /**
+         * Are these metrics stale?
+         *
+         * @param currentClusterState The current cluster state
+         * @return true if these metrics were calculated from a prior cluster state and need to be recalculated, false otherwise
+         */
+        public boolean isStale(ClusterState currentClusterState) {
+            return (Objects.equals(clusterStateId, currentClusterState.stateUUID()) == false
+                && System.identityHashCode(SnapshotsInProgress.get(currentClusterState)) != snapshotsInProgressIdentityHashcode);
+        }
+    }
 }

@@ -295,16 +295,16 @@ public class FleetSystemIndicesIT extends AbstractFleetIT {
     }
 
     public void testCreationOfIntegrationKnowledge() throws Exception {
-        Request request = new Request("PUT", ".integration-knowledge");
+        Request request = new Request("PUT", ".integration_knowledge");
         Response response = client().performRequest(request);
         assertEquals(200, response.getStatusLine().getStatusCode());
 
-        request = new Request("GET", ".integration-knowledge/_mapping");
+        request = new Request("GET", ".integration_knowledge/_mapping");
         response = client().performRequest(request);
         String responseBody = EntityUtils.toString(response.getEntity());
         assertThat(responseBody, containsString("knowledge_content"));
 
-        request = new Request("GET", ".integration-knowledge-7/_mapping");
+        request = new Request("GET", ".integration_knowledge-7/_mapping");
         response = client().performRequest(request);
         responseBody = EntityUtils.toString(response.getEntity());
         assertThat(responseBody, containsString("knowledge_content"));

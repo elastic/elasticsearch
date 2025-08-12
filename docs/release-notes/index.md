@@ -725,7 +725,7 @@ Vector Search:
 ### Features and enhancements [elasticsearch-9.0.5-features-enhancements]
 
 Engine:
-* Logs the available disk space when merge tasks are scheduled, and records the information if the disk space is below the `indices.merge.disk.watermark.high` threshold. This helps diagnose and troubleshoot situations where merges fail due to insufficient disk space. [#131711](https://github.com/elastic/elasticsearch/pull/131711)
+* The available disk space is now logged when merge tasks are scheduled. If the disk space is below the `indices.merge.disk.watermark.high` threshold, this information is recorded to help diagnose and troubleshoot situations where merges fail due to insufficient disk space. [#131711](https://github.com/elastic/elasticsearch/pull/131711)
 
 ### Fixes [elasticsearch-9.0.5-fixes]
 

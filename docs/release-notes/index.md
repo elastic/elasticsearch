@@ -45,7 +45,7 @@ PR [#132597](https://github.com/elastic/elasticsearch/pull/132597) updates the p
 
 ES|QL:
 :::{dropdown} Fixes for `COPY_SIGN` function in ESQL
-Updated the `COPY_SIGN` function to better support the literal `NULL` in parameters.
+The `COPY_SIGN` function has been updated to better support the literal `NULL` in parameters.
 [#132459](https://github.com/elastic/elasticsearch/pull/132459)
 :::
 

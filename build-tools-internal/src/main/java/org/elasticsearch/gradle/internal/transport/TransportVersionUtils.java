@@ -84,12 +84,12 @@ class TransportVersionUtils {
         }
     }
 
-    static Path definitionFilePath(Project project, String name) {
-        return getDefinitionsDirectory(project).getAsFile().toPath().resolve(name + ".csv");
+    static Path definitionFilePath(Path resourcesDir, String name) {
+        return getDefinitionsDirectory(resourcesDir).resolve(name + ".csv");
     }
 
-    static Path latestFilePath(Project project, String name) {
-        return getLatestDirectory(project).getAsFile().toPath().resolve(name + ".csv");
+    static Path latestFilePath(Path resourcesDir, String name) {
+        return getLatestDirectory(resourcesDir).resolve(name + ".csv");
     }
 
     static TransportVersionDefinition readDefinitionFile(Path file) throws IOException {
@@ -124,12 +124,12 @@ class TransportVersionUtils {
         return new TransportVersionId(complete, major, server, subsidiary, patch);
     }
 
-    static Directory getDefinitionsDirectory(Project project) {
-        return getResourcesDirectory(project).dir("defined");
+    static Path getDefinitionsDirectory(Path resourcesDir) {
+        return resourcesDir.resolve("defined");
     }
 
-    static Directory getLatestDirectory(Project project) {
-        return getResourcesDirectory(project).dir("latest");
+    static Path getLatestDirectory(Path resourcesDir) {
+        return resourcesDir.resolve("latest");
     }
 
     static Directory getResourcesDirectory(Project project) {

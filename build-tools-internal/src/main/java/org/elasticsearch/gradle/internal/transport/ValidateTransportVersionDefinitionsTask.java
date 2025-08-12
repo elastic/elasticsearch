@@ -308,6 +308,7 @@ public abstract class ValidateTransportVersionDefinitionsTask extends DefaultTas
                     "Transport version base id " + base + " is missing patch ids between " + next.id() + " and " + previous.id()
                 );
             }
+            previous = next;
         }
     }
 
@@ -319,12 +320,16 @@ public abstract class ValidateTransportVersionDefinitionsTask extends DefaultTas
         throw new IllegalStateException("Latest transport version file [" + latestRelativePath(branch) + "] " + message);
     }
 
+    private Path resourcesDirPath() {
+        return getResourcesDirectory().get().getAsFile().toPath();
+    }
+
     private String definitionRelativePath(String name) {
-        return relativePath(definitionFilePath(project, name));
+        return relativePath(definitionFilePath(resourcesDirPath(), name));
     }
 
     private String latestRelativePath(String branch) {
-        return relativePath(latestFilePath(project, branch));
+        return relativePath(latestFilePath(resourcesDirPath(), branch));
     }
 
     private String relativePath(Path file) {

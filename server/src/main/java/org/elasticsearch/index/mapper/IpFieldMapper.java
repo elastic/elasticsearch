@@ -60,7 +60,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.BiFunction;
-import java.util.function.Supplier;
 
 import static org.elasticsearch.index.mapper.FieldArrayContext.getOffsetsFieldName;
 import static org.elasticsearch.index.mapper.IpPrefixAutomatonUtil.buildIpPrefixAutomaton;
@@ -667,7 +666,7 @@ public class IpFieldMapper extends FieldMapper {
             }
         }
         if (address != null) {
-            indexValue(context, address, address::getInetAddress);
+            indexValue(context, address);
         }
         if (offsetsFieldName != null && context.isImmediateParentAnArray() && context.canAddIgnoredField()) {
             if (address != null) {
@@ -679,9 +678,9 @@ public class IpFieldMapper extends FieldMapper {
         }
     }
 
-    private void indexValue(DocumentParserContext context, ESInetAddressPoint address, Supplier<InetAddress> inetSupplier) {
+    private void indexValue(DocumentParserContext context, ESInetAddressPoint address) {
         if (dimension) {
-            context.getRoutingFields().addIp(fieldType().name(), inetSupplier.get());
+            context.getRoutingFields().addIp(fieldType().name(), address.getInetAddress());
         }
         LuceneDocument doc = context.doc();
         if (indexed) {
@@ -698,32 +697,39 @@ public class IpFieldMapper extends FieldMapper {
     }
 
     private static class ESInetAddressPoint extends Field {
-        public static final int BYTES = 16;
-
         private static final FieldType TYPE;
 
         static {
             TYPE = new FieldType();
-            TYPE.setDimensions(1, BYTES);
+            TYPE.setDimensions(1, InetAddressPoint.BYTES);
             TYPE.freeze();
         }
 
-        private final Supplier<InetAddress> inetSupplier;
+        private final XContentString ipString;
+        private final InetAddress inetAddress;
 
-        protected ESInetAddressPoint(String name, XContentString ipAsString) {
+        protected ESInetAddressPoint(String name, XContentString ipString) {
             super(name, TYPE);
-            this.fieldsData = new BytesRef(InetAddresses.encodeAsIpv6(ipAsString));
-            this.inetSupplier = () -> InetAddresses.forString(ipAsString.bytes());
+            this.fieldsData = new BytesRef(InetAddresses.encodeAsIpv6(ipString));
+            this.ipString = ipString;
+            this.inetAddress = null;
         }
 
         protected ESInetAddressPoint(String name, InetAddress inetAddress) {
             super(name, TYPE);
             this.fieldsData = new BytesRef(CIDRUtils.encode(inetAddress.getAddress()));
-            this.inetSupplier = () -> inetAddress;
+            this.inetAddress = inetAddress;
+            this.ipString = null;
         }
 
         public InetAddress getInetAddress() {
-            return inetSupplier.get();
+            if (ipString != null) {
+                return InetAddresses.forString(ipString.bytes());
+            }
+            if (inetAddress != null) {
+                return inetAddress;
+            }
+            throw new IllegalStateException("Neither ipString nor inetAddress is set");
         }
 
         @Override
@@ -759,7 +765,7 @@ public class IpFieldMapper extends FieldMapper {
             searchLookup,
             readerContext,
             doc,
-            value -> indexValue(documentParserContext, new ESInetAddressPoint(fieldType().name(), value), () -> value)
+            value -> indexValue(documentParserContext, new ESInetAddressPoint(fieldType().name(), value))
         );
     }
 

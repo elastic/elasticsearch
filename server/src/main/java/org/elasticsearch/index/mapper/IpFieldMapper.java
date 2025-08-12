@@ -743,10 +743,10 @@ public class IpFieldMapper extends FieldMapper {
             InetAddress address = getInetAddress();
             if (address.getAddress().length == 16) {
                 result.append('[');
-                result.append(address.getHostAddress());
+                result.append(NetworkAddress.format(address));
                 result.append(']');
             } else {
-                result.append(address.getHostAddress());
+                result.append(NetworkAddress.format(address));
             }
 
             result.append('>');

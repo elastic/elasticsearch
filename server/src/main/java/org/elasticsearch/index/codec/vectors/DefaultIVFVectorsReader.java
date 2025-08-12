@@ -16,6 +16,7 @@ import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.search.KnnCollector;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.ArrayUtil;
+import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.VectorUtil;
 import org.apache.lucene.util.hnsw.NeighborQueue;
 import org.elasticsearch.simdvec.ES91OSQVectorsScorer;
@@ -24,7 +25,6 @@ import org.elasticsearch.simdvec.ESVectorUtil;
 
 import java.io.IOException;
 import java.util.Map;
-import java.util.function.IntPredicate;
 
 import static org.apache.lucene.codecs.lucene102.Lucene102BinaryQuantizedVectorsFormat.QUERY_BITS;
 import static org.apache.lucene.index.VectorSimilarityFunction.COSINE;
@@ -293,11 +293,10 @@ public class DefaultIVFVectorsReader extends IVFVectorsReader {
     }
 
     @Override
-    PostingVisitor getPostingVisitor(FieldInfo fieldInfo, IndexInput indexInput, float[] target, IntPredicate needsScoring)
-        throws IOException {
+    PostingVisitor getPostingVisitor(FieldInfo fieldInfo, IndexInput indexInput, float[] target, Bits acceptDocs) throws IOException {
         FieldEntry entry = fields.get(fieldInfo.number);
         final int maxPostingListSize = indexInput.readVInt();
-        return new MemorySegmentPostingsVisitor(target, indexInput, entry, fieldInfo, maxPostingListSize, needsScoring);
+        return new MemorySegmentPostingsVisitor(target, indexInput, entry, fieldInfo, maxPostingListSize, acceptDocs);
     }
 
     @Override
@@ -311,7 +310,7 @@ public class DefaultIVFVectorsReader extends IVFVectorsReader {
         final float[] target;
         final FieldEntry entry;
         final FieldInfo fieldInfo;
-        final IntPredicate needsScoring;
+        final Bits acceptDocs;
         private final ES91OSQVectorsScorer osqVectorsScorer;
         final float[] scores = new float[BULK_SIZE];
         final float[] correctionsLower = new float[BULK_SIZE];
@@ -341,13 +340,13 @@ public class DefaultIVFVectorsReader extends IVFVectorsReader {
             FieldEntry entry,
             FieldInfo fieldInfo,
             int maxPostingListSize,
-            IntPredicate needsScoring
+            Bits acceptDocs
         ) throws IOException {
             this.target = target;
             this.indexInput = indexInput;
             this.entry = entry;
             this.fieldInfo = fieldInfo;
-            this.needsScoring = needsScoring;
+            this.acceptDocs = acceptDocs;
             centroid = new float[fieldInfo.getVectorDimension()];
             scratch = new float[target.length];
             quantizationScratch = new int[target.length];
@@ -418,11 +417,12 @@ public class DefaultIVFVectorsReader extends IVFVectorsReader {
             return maxScore;
         }
 
-        private static int docToBulkScore(int[] docIds, int offset, IntPredicate needsScoring) {
+        private static int docToBulkScore(int[] docIds, int offset, Bits acceptDocs) {
+            assert acceptDocs != null : "acceptDocs must not be null";
             int docToScore = ES91OSQVectorsScorer.BULK_SIZE;
             for (int i = 0; i < ES91OSQVectorsScorer.BULK_SIZE; i++) {
                 final int idx = offset + i;
-                if (needsScoring.test(docIds[idx]) == false) {
+                if (acceptDocs.get(docIds[idx]) == false) {
                     docIds[idx] = -1;
                     docToScore--;
                 }
@@ -446,7 +446,7 @@ public class DefaultIVFVectorsReader extends IVFVectorsReader {
             int limit = vectors - BULK_SIZE + 1;
             int i = 0;
             for (; i < limit; i += BULK_SIZE) {
-                final int docsToBulkScore = docToBulkScore(docIdsScratch, i, needsScoring);
+                final int docsToBulkScore = acceptDocs == null ? BULK_SIZE : docToBulkScore(docIdsScratch, i, acceptDocs);
                 if (docsToBulkScore == 0) {
                     continue;
                 }
@@ -475,7 +475,7 @@ public class DefaultIVFVectorsReader extends IVFVectorsReader {
             // process tail
             for (; i < vectors; i++) {
                 int doc = docIdsScratch[i];
-                if (needsScoring.test(doc)) {
+                if (acceptDocs == null || acceptDocs.get(doc)) {
                     quantizeQueryIfNecessary();
                     indexInput.seek(slicePos + i * quantizedByteLength);
                     float qcDist = osqVectorsScorer.quantizeScore(quantizedQueryScratch);

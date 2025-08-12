@@ -1,0 +1,5 @@
+pr: 132764
+summary: Undeprecate `LegacyStackTemplateRegistry`
+area: Indices APIs
+type: enhancement
+issues: []

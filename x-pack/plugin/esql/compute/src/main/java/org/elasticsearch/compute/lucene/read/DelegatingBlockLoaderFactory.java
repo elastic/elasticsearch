@@ -77,8 +77,22 @@ public abstract class DelegatingBlockLoaderFactory implements BlockLoader.BlockF
     }
 
     @Override
+    public BlockLoader.SingletonLongBuilder singletonLongs(int expectedCount) {
+        return new SingletonLongsBuilder(expectedCount, factory);
+    }
+
+    @Override
     public BlockLoader.Builder nulls(int expectedCount) {
         return ElementType.NULL.newBlockBuilder(expectedCount, factory);
+    }
+
+    @Override
+    public BlockLoader.TSSingletonOrdinalsBuilder tsSingletonOrdinalsBuilder(
+        boolean isPrimaryIndexSortField,
+        SortedDocValues ordinals,
+        int count
+    ) {
+        return new TSSingletonOrdinalsBuilder(isPrimaryIndexSortField, factory, ordinals, count);
     }
 
     @Override

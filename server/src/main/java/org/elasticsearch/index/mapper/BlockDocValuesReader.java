@@ -116,7 +116,7 @@ public abstract class BlockDocValuesReader implements BlockLoader.AllReader {
         }
     }
 
-    private static class SingletonLongs extends BlockDocValuesReader {
+    static class SingletonLongs extends BlockDocValuesReader {
         private final NumericDocValues numericDocValues;
 
         SingletonLongs(NumericDocValues numericDocValues) {
@@ -632,7 +632,7 @@ public abstract class BlockDocValuesReader implements BlockLoader.AllReader {
         }
     }
 
-    private static class SingletonOrdinals extends BlockDocValuesReader {
+    public static class SingletonOrdinals extends BlockDocValuesReader {
         private final SortedDocValues ordinals;
 
         SingletonOrdinals(SortedDocValues ordinals) {

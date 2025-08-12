@@ -400,6 +400,8 @@ public interface BlockLoader {
          */
         LongBuilder longs(int expectedCount);
 
+        BlockLoader.SingletonLongBuilder singletonLongs(int expectedCount);
+
         /**
          * Build a builder to load only {@code null}s.
          */
@@ -420,6 +422,8 @@ public interface BlockLoader {
          * Build a reader for reading {@link SortedDocValues}
          */
         SingletonOrdinalsBuilder singletonOrdinalsBuilder(SortedDocValues ordinals, int count);
+
+        TSSingletonOrdinalsBuilder tsSingletonOrdinalsBuilder(boolean isPrimaryIndexSortField, SortedDocValues ordinals, int count);
 
         /**
          * Build a reader for reading {@link SortedSetDocValues}
@@ -505,11 +509,26 @@ public interface BlockLoader {
         LongBuilder appendLong(long value);
     }
 
+    interface SingletonLongBuilder extends Builder {
+
+        SingletonLongBuilder appendLong(long value);
+
+        SingletonLongBuilder appendLongs(long[] values, int from, int length);
+    }
+
     interface SingletonOrdinalsBuilder extends Builder {
         /**
          * Appends an ordinal to the builder.
          */
         SingletonOrdinalsBuilder appendOrd(int value);
+    }
+
+    interface TSSingletonOrdinalsBuilder extends Builder {
+
+        TSSingletonOrdinalsBuilder appendOrd(long value);
+
+        TSSingletonOrdinalsBuilder appendOrds(long[] values, int from, int length);
+
     }
 
     interface SortedSetOrdinalsBuilder extends Builder {

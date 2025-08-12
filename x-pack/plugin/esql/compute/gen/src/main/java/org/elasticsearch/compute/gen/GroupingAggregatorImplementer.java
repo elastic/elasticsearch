@@ -20,10 +20,9 @@ import org.elasticsearch.compute.ann.IntermediateState;
 import org.elasticsearch.compute.gen.AggregatorImplementer.AggregationParameter;
 import org.elasticsearch.compute.gen.AggregatorImplementer.AggregationState;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
-import java.util.Objects;
-import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -63,8 +62,6 @@ import static org.elasticsearch.compute.gen.Types.INT_BLOCK;
 import static org.elasticsearch.compute.gen.Types.INT_VECTOR;
 import static org.elasticsearch.compute.gen.Types.LIST_AGG_FUNC_DESC;
 import static org.elasticsearch.compute.gen.Types.LIST_INTEGER;
-import static org.elasticsearch.compute.gen.Types.LONG_BLOCK;
-import static org.elasticsearch.compute.gen.Types.LONG_VECTOR;
 import static org.elasticsearch.compute.gen.Types.PAGE;
 import static org.elasticsearch.compute.gen.Types.SEEN_GROUP_IDS;
 import static org.elasticsearch.compute.gen.Types.WARNINGS;
@@ -90,10 +87,9 @@ public class GroupingAggregatorImplementer {
     private final List<Parameter> createParameters;
     private final ClassName implementation;
     private final List<AggregatorImplementer.IntermediateStateDesc> intermediateState;
-    private final boolean timseries;
 
     private final AggregationState aggState;
-    private final AggregationParameter aggParam;
+    private final List<AggregationParameter> aggParams;
 
     public GroupingAggregatorImplementer(
         Elements elements,
@@ -118,18 +114,11 @@ public class GroupingAggregatorImplementer {
             requireName("combine"),
             combineArgs(aggState)
         );
-        switch (combine.getParameters().size()) {
-            case 2, 3 -> timseries = false;
-            case 4 -> {
-                if (false == TypeName.get(combine.getParameters().get(2).asType()).equals(TypeName.LONG)) {
-                    throw new IllegalArgumentException("combine/4's third parameter must be long but was: " + combine);
-                }
-                timseries = true;
-            }
-            default -> throw new IllegalArgumentException("combine must have 2, 3, or 4 parameters but was: " + combine);
-        }
-        // TODO support multiple parameters
-        this.aggParam = AggregationParameter.create(combine.getParameters().getLast());
+        this.aggParams = combine.getParameters()
+            .stream()
+            .skip(aggState.declaredType().isPrimitive() ? 1 : 2)
+            .map(AggregationParameter::create)
+            .toList();
 
         this.createParameters = init.getParameters()
             .stream()
@@ -205,10 +194,11 @@ public class GroupingAggregatorImplementer {
         builder.addMethod(intermediateBlockCount());
         builder.addMethod(prepareProcessRawInputPage());
         for (ClassName groupIdClass : GROUP_IDS_CLASSES) {
-            builder.addMethod(addRawInputLoop(groupIdClass, blockType(aggParam.type())));
-            builder.addMethod(addRawInputLoop(groupIdClass, vectorType(aggParam.type())));
+            builder.addMethod(addRawInputLoop(groupIdClass, false));
+            builder.addMethod(addRawInputLoop(groupIdClass, true));
             builder.addMethod(addIntermediateInput(groupIdClass));
         }
+        builder.addMethod(maybeEnableGroupIdTracking());
         builder.addMethod(selectedMayContainUnseenGroups());
         builder.addMethod(evaluateIntermediate());
         builder.addMethod(evaluateFinal());
@@ -324,104 +314,135 @@ public class GroupingAggregatorImplementer {
         builder.addAnnotation(Override.class).addModifiers(Modifier.PUBLIC).returns(GROUPING_AGGREGATOR_FUNCTION_ADD_INPUT);
         builder.addParameter(SEEN_GROUP_IDS, "seenGroupIds").addParameter(PAGE, "page");
 
-        builder.addStatement("$T valuesBlock = page.getBlock(channels.get(0))", blockType(aggParam.type()));
-        builder.addStatement("$T valuesVector = valuesBlock.asVector()", vectorType(aggParam.type()));
-        if (timseries) {
-            builder.addStatement("$T timestampsBlock = page.getBlock(channels.get(1))", LONG_BLOCK);
-            builder.addStatement("$T timestampsVector = timestampsBlock.asVector()", LONG_VECTOR);
-
-            builder.beginControlFlow("if (timestampsVector == null) ");
-            builder.addStatement("throw new IllegalStateException($S)", "expected @timestamp vector; but got a block");
+        for (int i = 0; i < aggParams.size(); i++) {
+            AggregationParameter p = aggParams.get(i);
+            builder.addStatement("$T $L = page.getBlock(channels.get($L))", blockType(p.type()), p.blockName(), i);
+        }
+        for (AggregationParameter p : aggParams) {
+            builder.addStatement("$T $L = $L.asVector()", vectorType(p.type()), p.vectorName(), p.blockName());
+            builder.beginControlFlow("if ($L == null)", p.vectorName());
+            {
+                builder.addStatement(
+                    "maybeEnableGroupIdTracking(seenGroupIds, "
+                        + aggParams.stream().map(AggregationParameter::blockName).collect(joining(", "))
+                        + ")"
+                );
+                returnAddInput(builder, false);
+            }
             builder.endControlFlow();
         }
-        builder.beginControlFlow("if (valuesVector == null)");
-        String extra = timseries ? ", timestampsVector" : "";
-        {
-            builder.beginControlFlow("if (valuesBlock.mayHaveNulls())");
+
+        returnAddInput(builder, true);
+        return builder.build();
+    }
+
+    private void returnAddInput(MethodSpec.Builder builder, boolean valuesAreVector) {
+        if (shouldWrapAddInput(valuesAreVector)) {
+            builder.addStatement("var addInput = $L", addInput(valuesAreVector));
+
+            StringBuilder pattern = new StringBuilder("return $T.wrapAddInput(addInput, state");
+            List<Object> params = new ArrayList<>();
+            params.add(declarationType);
+            for (AggregationParameter p : aggParams) {
+                pattern.append(", $L");
+                params.add(valuesAreVector ? p.vectorName() : p.blockName());
+            }
+            pattern.append(")");
+            builder.addStatement(pattern.toString(), params.toArray());
+        } else {
+            builder.addStatement("return $L", addInput(valuesAreVector));
+        }
+    }
+
+    private MethodSpec maybeEnableGroupIdTracking() {
+        MethodSpec.Builder builder = MethodSpec.methodBuilder("maybeEnableGroupIdTracking");
+        builder.addModifiers(Modifier.PRIVATE).returns(TypeName.VOID);
+        builder.addParameter(SEEN_GROUP_IDS, "seenGroupIds");
+        for (AggregationParameter p : aggParams) {
+            builder.addParameter(blockType(p.type()), p.blockName());
+        }
+
+        for (AggregationParameter p : aggParams) {
+            builder.beginControlFlow("if ($L.mayHaveNulls())", p.blockName());
             builder.addStatement("state.enableGroupIdTracking(seenGroupIds)");
             builder.endControlFlow();
-            if (shouldWrapAddInput(blockType(aggParam.type()))) {
-                builder.addStatement(
-                    "var addInput = $L",
-                    addInput(b -> b.addStatement("addRawInput(positionOffset, groupIds, valuesBlock$L)", extra))
-                );
-                builder.addStatement("return $T.wrapAddInput(addInput, state, valuesBlock)", declarationType);
-            } else {
-                builder.addStatement(
-                    "return $L",
-                    addInput(b -> b.addStatement("addRawInput(positionOffset, groupIds, valuesBlock$L)", extra))
-                );
-            }
         }
-        builder.endControlFlow();
-        if (shouldWrapAddInput(vectorType(aggParam.type()))) {
-            builder.addStatement(
-                "var addInput = $L",
-                addInput(b -> b.addStatement("addRawInput(positionOffset, groupIds, valuesVector$L)", extra))
-            );
-            builder.addStatement("return $T.wrapAddInput(addInput, state, valuesVector)", declarationType);
-        } else {
-            builder.addStatement(
-                "return $L",
-                addInput(b -> b.addStatement("addRawInput(positionOffset, groupIds, valuesVector$L)", extra))
-            );
-        }
+
         return builder.build();
     }
 
     /**
      * Generate an {@code AddInput} implementation. That's a collection path optimized for the input data.
      */
-    private TypeSpec addInput(Consumer<MethodSpec.Builder> addBlock) {
-        TypeSpec.Builder builder = TypeSpec.anonymousClassBuilder("");
-        builder.addSuperinterface(GROUPING_AGGREGATOR_FUNCTION_ADD_INPUT);
+    private TypeSpec addInput(boolean valuesAreVector) {
+        TypeSpec.Builder typeBuilder = TypeSpec.anonymousClassBuilder("");
+        typeBuilder.addSuperinterface(GROUPING_AGGREGATOR_FUNCTION_ADD_INPUT);
 
         for (ClassName groupIdsType : GROUP_IDS_CLASSES) {
-            MethodSpec.Builder vector = MethodSpec.methodBuilder("add").addAnnotation(Override.class).addModifiers(Modifier.PUBLIC);
-            vector.addParameter(TypeName.INT, "positionOffset").addParameter(groupIdsType, "groupIds");
-            addBlock.accept(vector);
-            builder.addMethod(vector.build());
+            MethodSpec.Builder builder = MethodSpec.methodBuilder("add").addAnnotation(Override.class).addModifiers(Modifier.PUBLIC);
+            builder.addParameter(TypeName.INT, "positionOffset").addParameter(groupIdsType, "groupIds");
+
+            StringBuilder pattern = new StringBuilder("addRawInput(positionOffset, groupIds");
+            List<Object> params = new ArrayList<>();
+            for (AggregationParameter p : aggParams) {
+                pattern.append(", $L");
+                params.add(valuesAreVector ? p.vectorName() : p.blockName());
+            }
+            pattern.append(")");
+            builder.addStatement(pattern.toString(), params.toArray());
+
+            typeBuilder.addMethod(builder.build());
         }
 
         MethodSpec.Builder close = MethodSpec.methodBuilder("close").addAnnotation(Override.class).addModifiers(Modifier.PUBLIC);
-        builder.addMethod(close.build());
+        typeBuilder.addMethod(close.build());
 
-        return builder.build();
+        return typeBuilder.build();
     }
 
     /**
      * Generate an {@code addRawInput} method to perform the actual aggregation.
      * @param groupsType The type of the group key, always {@code IntBlock} or {@code IntVector}
-     * @param valuesType The type of the values to consume, always a subclass of {@code Block} or a subclass of {@code Vector}
+     * @param valuesAreVector Are the value a {@code Vector} (true) or a {@code Block} (false)
      */
-    private MethodSpec addRawInputLoop(TypeName groupsType, TypeName valuesType) {
+    private MethodSpec addRawInputLoop(TypeName groupsType, boolean valuesAreVector) {
         boolean groupsIsBlock = groupsType.toString().endsWith("Block");
-        boolean valuesIsBlock = valuesType.toString().endsWith("Block");
         MethodSpec.Builder builder = MethodSpec.methodBuilder("addRawInput");
         builder.addModifiers(Modifier.PRIVATE);
-        builder.addParameter(TypeName.INT, "positionOffset").addParameter(groupsType, "groups").addParameter(valuesType, "values");
-        if (timseries) {
-            builder.addParameter(LONG_VECTOR, "timestamps");
+        builder.addParameter(TypeName.INT, "positionOffset").addParameter(groupsType, "groups");
+
+        for (AggregationParameter p : aggParams) {
+            builder.addParameter(
+                valuesAreVector ? vectorType(p.type()) : blockType(p.type()),
+                valuesAreVector ? p.vectorName() : p.blockName()
+            );
         }
-        if (aggParam.isBytesRef()) {
-            // Add bytes_ref scratch var that will be used for bytes_ref blocks/vectors
-            builder.addStatement("$T scratch = new $T()", BYTES_REF, BYTES_REF);
+        for (AggregationParameter p : aggParams) {
+            if (p.isBytesRef()) {
+                // Add bytes_ref scratch var that will be used for bytes_ref blocks/vectors
+                builder.addStatement("$T $L = new $T()", BYTES_REF, p.scratchName(), BYTES_REF);
+            }
         }
-        if (aggParam.isArray() && valuesIsBlock == false) {
+
+        if (aggParams.getFirst().isArray() && valuesAreVector) {
             builder.addComment("This type does not support vectors because all values are multi-valued");
             return builder.build();
         }
 
         builder.beginControlFlow("for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++)");
         {
-            if (groupsIsBlock || valuesIsBlock) {
-                String conditions = Stream.of(
-                    groupsIsBlock ? "groups.isNull(groupPosition)" : null,
-                    valuesIsBlock ? "values.isNull(groupPosition + positionOffset)" : null
-                ).filter(Objects::nonNull).collect(Collectors.joining(" || "));
-                builder.beginControlFlow("if (" + conditions + ")");
+            if (groupsIsBlock) {
+                builder.beginControlFlow("if (groups.isNull(groupPosition))");
                 builder.addStatement("continue");
                 builder.endControlFlow();
+            }
+            builder.addStatement("int valuesPosition = groupPosition + positionOffset");
+            if (valuesAreVector == false) {
+                for (AggregationParameter p : aggParams) {
+                    builder.beginControlFlow("if ($L.isNull(valuesPosition))", p.blockName());
+                    builder.addStatement("continue");
+                    builder.endControlFlow();
+                }
             }
             if (groupsIsBlock) {
                 builder.addStatement("int groupStart = groups.getFirstValueIndex(groupPosition)");
@@ -438,23 +459,50 @@ public class GroupingAggregatorImplementer {
                 builder.endControlFlow();
             }
 
-            if (valuesIsBlock) {
-                builder.addStatement("int valuesStart = values.getFirstValueIndex(groupPosition + positionOffset)");
-                builder.addStatement("int valuesEnd = valuesStart + values.getValueCount(groupPosition + positionOffset)");
-                if (aggParam.isArray()) {
-                    String arrayType = aggParam.type().toString().replace("[]", "");
+            if (valuesAreVector) {
+                for (AggregationParameter a : aggParams) {
+                    a.read(builder, true);
+                }
+                combineRawInput(builder);
+            } else {
+                if (aggParams.getFirst().isArray()) {
+                    if (aggParams.size() > 1) {
+                        throw new IllegalArgumentException("array mode not supported for multiple args");
+                    }
+                    String arrayType = aggParams.getFirst().type().toString().replace("[]", "");
+                    builder.addStatement("int valuesStart = $L.getFirstValueIndex(valuesPosition)", aggParams.getFirst().blockName());
+                    builder.addStatement(
+                        "int valuesEnd = valuesStart + $L.getValueCount(valuesPosition)",
+                        aggParams.getFirst().blockName()
+                    );
                     builder.addStatement("$L[] valuesArray = new $L[valuesEnd - valuesStart]", arrayType, arrayType);
                     builder.beginControlFlow("for (int v = valuesStart; v < valuesEnd; v++)");
-                    builder.addStatement("valuesArray[v-valuesStart] = $L.get$L(v)", "values", capitalize(arrayType));
+                    builder.addStatement(
+                        "valuesArray[v-valuesStart] = $L.get$L(v)",
+                        aggParams.getFirst().blockName(),
+                        capitalize(aggParams.getFirst().arrayType())
+                    );
                     builder.endControlFlow();
                     combineRawInputForArray(builder, "valuesArray");
                 } else {
-                    builder.beginControlFlow("for (int v = valuesStart; v < valuesEnd; v++)");
-                    combineRawInput(builder, "values", "v");
-                    builder.endControlFlow();
+                    for (AggregationParameter p : aggParams) {
+                        builder.addStatement("int $L = $L.getFirstValueIndex(valuesPosition)", p.startName(), p.blockName());
+                        builder.addStatement("int $L = $L + $L.getValueCount(valuesPosition)", p.endName(), p.startName(), p.blockName());
+                        builder.beginControlFlow(
+                            "for (int $L = $L; $L < $L; $L++)",
+                            p.offsetName(),
+                            p.startName(),
+                            p.offsetName(),
+                            p.endName(),
+                            p.offsetName()
+                        );
+                        p.read(builder, false);
+                    }
+                    combineRawInput(builder);
+                    for (AggregationParameter a : aggParams) {
+                        builder.endControlFlow();
+                    }
                 }
-            } else {
-                combineRawInput(builder, "values", "groupPosition + positionOffset");
             }
 
             if (groupsIsBlock) {
@@ -465,102 +513,48 @@ public class GroupingAggregatorImplementer {
         return builder.build();
     }
 
-    private void combineRawInput(MethodSpec.Builder builder, String blockVariable, String offsetVariable) {
-        TypeName valueType = aggParam.type();
+    private void combineRawInput(MethodSpec.Builder builder) {
         TypeName returnType = TypeName.get(combine.getReturnType());
-
-        warningsBlock(builder, () -> {
-            if (aggParam.isBytesRef()) {
-                combineRawInputForBytesRef(builder, blockVariable, offsetVariable);
-            } else if (valueType.isPrimitive() == false) {
-                throw new IllegalArgumentException("second parameter to combine must be a primitive, array or BytesRef: " + valueType);
-            } else if (returnType.isPrimitive()) {
-                combineRawInputForPrimitive(builder, blockVariable, offsetVariable);
-            } else if (returnType == TypeName.VOID) {
-                combineRawInputForVoid(builder, blockVariable, offsetVariable);
-            } else {
-                throw new IllegalArgumentException("combine must return void or a primitive");
-            }
-        });
+        warningsBlock(builder, () -> invokeCombineRawInput(returnType, builder));
     }
 
-    private void combineRawInputForBytesRef(MethodSpec.Builder builder, String blockVariable, String offsetVariable) {
-        // scratch is a BytesRef var that must have been defined before the iteration starts
-        if (timseries) {
-            if (offsetVariable.contains(" + ")) {
-                builder.addStatement("var valuePosition = $L", offsetVariable);
-                offsetVariable = "valuePosition";
-            }
-            builder.addStatement(
-                "$T.combine(state, groupId, timestamps.getLong($L), $L.getBytesRef($L, scratch))",
-                declarationType,
-                offsetVariable,
-                blockVariable,
-                offsetVariable
-            );
-        } else {
-            builder.addStatement("$T.combine(state, groupId, $L.getBytesRef($L, scratch))", declarationType, blockVariable, offsetVariable);
-        }
-    }
+    private void invokeCombineRawInput(TypeName returnType, MethodSpec.Builder builder) {
+        StringBuilder pattern = new StringBuilder();
+        List<Object> params = new ArrayList<>();
 
-    private void combineRawInputForPrimitive(MethodSpec.Builder builder, String blockVariable, String offsetVariable) {
-        if (timseries) {
-            if (offsetVariable.contains(" + ")) {
-                builder.addStatement("var valuePosition = $L", offsetVariable);
-                offsetVariable = "valuePosition";
-            }
-            builder.addStatement(
-                "$T.combine(state, groupId, timestamps.getLong($L), values.get$L($L))",
-                declarationType,
-                offsetVariable,
-                capitalize(aggParam.type().toString()),
-                offsetVariable
-            );
+        if (returnType.isPrimitive()) {
+            pattern.append("state.set(groupId, $T.combine(state.getOrDefault(groupId)");
+            params.add(declarationType);
         } else {
-            builder.addStatement(
-                "state.set(groupId, $T.combine(state.getOrDefault(groupId), $L.get$L($L)))",
-                declarationType,
-                blockVariable,
-                capitalize(aggParam.type().toString()),
-                offsetVariable
-            );
+            pattern.append("$T.combine(state, groupId");
+            params.add(declarationType);
         }
-    }
-
-    private void combineRawInputForVoid(MethodSpec.Builder builder, String blockVariable, String offsetVariable) {
-        if (timseries) {
-            if (offsetVariable.contains(" + ")) {
-                builder.addStatement("var valuePosition = $L", offsetVariable);
-                offsetVariable = "valuePosition";
-            }
-            builder.addStatement(
-                "$T.combine(state, groupId, timestamps.getLong($L), values.get$L($L))",
-                declarationType,
-                offsetVariable,
-                capitalize(aggParam.type().toString()),
-                offsetVariable
-            );
-        } else {
-            builder.addStatement(
-                "$T.combine(state, groupId, $L.get$L($L))",
-                declarationType,
-                blockVariable,
-                capitalize(aggParam.type().toString()),
-                offsetVariable
-            );
+        for (AggregationParameter p : aggParams) {
+            pattern.append(", $L");
+            params.add(p.valueName());
         }
+        if (returnType.isPrimitive()) {
+            pattern.append(")");
+        }
+        pattern.append(")");
+        builder.addStatement(pattern.toString(), params.toArray());
     }
 
     private void combineRawInputForArray(MethodSpec.Builder builder, String arrayVariable) {
         warningsBlock(builder, () -> builder.addStatement("$T.combine(state, groupId, $L)", declarationType, arrayVariable));
     }
 
-    private boolean shouldWrapAddInput(TypeName valuesType) {
+    private boolean shouldWrapAddInput(boolean valuesAreVector) {
         return optionalStaticMethod(
             declarationType,
             requireType(GROUPING_AGGREGATOR_FUNCTION_ADD_INPUT),
             requireName("wrapAddInput"),
-            requireArgs(requireType(GROUPING_AGGREGATOR_FUNCTION_ADD_INPUT), requireType(aggState.declaredType()), requireType(valuesType))
+            requireArgs(
+                Stream.concat(
+                    Stream.of(requireType(GROUPING_AGGREGATOR_FUNCTION_ADD_INPUT), requireType(aggState.declaredType())),
+                    aggParams.stream().map(p -> requireType(valuesAreVector ? vectorType(p.type()) : blockType(p.type())))
+                ).toArray(Methods.TypeMatcher[]::new)
+            )
         ) != null;
     }
 
@@ -649,27 +643,28 @@ public class GroupingAggregatorImplementer {
                     builder.addStatement("int groupId = groups.getInt(groupPosition)");
                 }
 
+                builder.addStatement("int valuesPosition = groupPosition + positionOffset");
                 if (aggState.declaredType().isPrimitive()) {
                     if (warnExceptions.isEmpty()) {
                         assert intermediateState.size() == 2;
                         assert intermediateState.get(1).name().equals("seen");
-                        builder.beginControlFlow("if (seen.getBoolean(groupPosition + positionOffset))");
+                        builder.beginControlFlow("if (seen.getBoolean(valuesPosition))");
                     } else {
                         assert intermediateState.size() == 3;
                         assert intermediateState.get(1).name().equals("seen");
                         assert intermediateState.get(2).name().equals("failed");
-                        builder.beginControlFlow("if (failed.getBoolean(groupPosition + positionOffset))");
+                        builder.beginControlFlow("if (failed.getBoolean(valuesPosition))");
                         {
                             builder.addStatement("state.setFailed(groupId)");
                         }
-                        builder.nextControlFlow("else if (seen.getBoolean(groupPosition + positionOffset))");
+                        builder.nextControlFlow("else if (seen.getBoolean(valuesPosition))");
                     }
 
                     warningsBlock(builder, () -> {
                         var name = intermediateState.get(0).name();
                         var vectorAccessor = vectorAccessorName(intermediateState.get(0).elementType());
                         builder.addStatement(
-                            "state.set(groupId, $T.combine(state.getOrDefault(groupId), $L.$L(groupPosition + positionOffset)))",
+                            "state.set(groupId, $T.combine(state.getOrDefault(groupId), $L.$L(valuesPosition)))",
                             declarationType,
                             name,
                             vectorAccessor
@@ -693,8 +688,8 @@ public class GroupingAggregatorImplementer {
 
                     builder.addStatement(
                         "$T.combineIntermediate(state, groupId, "
-                            + intermediateState.stream().map(desc -> desc.access("groupPosition + positionOffset")).collect(joining(", "))
-                            + (stateHasBlock ? ", groupPosition + positionOffset" : "")
+                            + intermediateState.stream().map(desc -> desc.access("valuesPosition")).collect(joining(", "))
+                            + (stateHasBlock ? ", valuesPosition" : "")
                             + ")",
                         declarationType
                     );

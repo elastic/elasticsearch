@@ -14,6 +14,7 @@ import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.tests.index.BaseKnnVectorsFormatTestCase;
 import org.apache.lucene.tests.util.TestUtil;
 import org.elasticsearch.common.logging.LogConfigurator;
+import org.elasticsearch.xpack.gpu.GPUSupport;
 import org.junit.BeforeClass;
 
 public class GPUVectorsFormatTests extends BaseKnnVectorsFormatTestCase {
@@ -25,7 +26,7 @@ public class GPUVectorsFormatTests extends BaseKnnVectorsFormatTestCase {
 
     @BeforeClass
     public static void beforeClass() {
-        assumeTrue("cuvs not supported", GPUVectorsFormat.cuVSResourcesOrNull(false) != null);
+        assumeTrue("cuvs not supported", GPUSupport.isSupported(false));
     }
 
     static final Codec codec = TestUtil.alwaysKnnVectorsFormat(new GPUVectorsFormat());

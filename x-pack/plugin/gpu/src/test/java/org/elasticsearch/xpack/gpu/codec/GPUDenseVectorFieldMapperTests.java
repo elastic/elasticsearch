@@ -17,6 +17,7 @@ import org.elasticsearch.index.mapper.AbstractDenseVectorFieldMapperTestcase;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xpack.gpu.GPUPlugin;
+import org.elasticsearch.xpack.gpu.GPUSupport;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -29,7 +30,7 @@ public class GPUDenseVectorFieldMapperTests extends AbstractDenseVectorFieldMapp
 
     @Before
     public void setup() {
-        assumeTrue("cuvs not supported", GPUVectorsFormat.cuVSResourcesOrNull(false) != null);
+        assumeTrue("cuvs not supported", GPUSupport.isSupported(false));
     }
 
     @Override

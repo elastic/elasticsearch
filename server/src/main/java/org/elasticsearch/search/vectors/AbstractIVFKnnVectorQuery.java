@@ -153,7 +153,6 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
             totalBudget += leafReaderContext.reader().leaves().size();
         }
         totalBudget = (int) (totalBudget * visitRatio);
-        // int totalBudget = (int) (reader.numDocs() * visitedRatio);
 
         List<Callable<TopDocs>> tasks;
         if (leafReaderContexts.isEmpty() == false) {

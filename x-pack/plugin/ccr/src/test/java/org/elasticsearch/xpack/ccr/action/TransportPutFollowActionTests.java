@@ -159,14 +159,16 @@ public class TransportPutFollowActionTests extends ESTestCase {
     static DataStream generateDataSteam(String name, int numBackingIndices, boolean replicate) {
         List<Index> backingIndices = IntStream.range(1, numBackingIndices + 1)
             .mapToObj(value -> DataStream.getDefaultBackingIndexName(name, value))
-            .map(value -> new Index(value, "uuid"))
+            .map(value -> new Index(value, randomUUID()))
             .collect(Collectors.toList());
         long generation = backingIndices.size();
         return DataStream.builder(name, backingIndices).setGeneration(generation).setMetadata(Map.of()).setReplicated(replicate).build();
     }
 
     static DataStream generateDataSteam(String name, int generation, boolean replicate, String... backingIndexNames) {
-        List<Index> backingIndices = Arrays.stream(backingIndexNames).map(value -> new Index(value, "uuid")).collect(Collectors.toList());
+        List<Index> backingIndices = Arrays.stream(backingIndexNames)
+            .map(value -> new Index(value, randomUUID()))
+            .collect(Collectors.toList());
         return DataStream.builder(name, backingIndices).setGeneration(generation).setMetadata(Map.of()).setReplicated(replicate).build();
     }
 

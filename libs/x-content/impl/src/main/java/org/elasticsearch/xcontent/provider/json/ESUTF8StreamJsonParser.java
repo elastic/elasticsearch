@@ -104,7 +104,14 @@ public class ESUTF8StreamJsonParser extends UTF8StreamJsonParser implements Opti
                     if (ptr + codeType > max) {
                         return null;
                     }
-                    codePointCount++;
+                    // For 4-byte UTF-8 sequences (surrogate pairs in UTF-16)
+                    if (codeType == 4) {
+                        // Count as 2 UTF-16 code units
+                        codePointCount += 2;
+                    } else {
+                        // 2-byte and 3-byte sequences = 1 UTF-16 code unit
+                        codePointCount++;
+                    }
                     ptr += codeType;
                 } else {
                     return null;

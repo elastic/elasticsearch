@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.esql.action;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.common.collect.Iterators;
@@ -61,6 +63,7 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
     public static final ParseField DETAILS_FIELD = new ParseField("details");
     public static final ParseField TOOK = new ParseField("took");
     public static final ParseField IS_PARTIAL_FIELD = new ParseField("is_partial");
+    private static final Logger log = LogManager.getLogger(EsqlExecutionInfo.class);
 
     // Map key is clusterAlias on the primary querying cluster of a CCS minimize_roundtrips=true query
     // The Map itself is immutable after construction - all Clusters will be accounted for at the start of the search.
@@ -124,7 +127,9 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
     public void writeTo(StreamOutput out) throws IOException {
         out.writeOptionalTimeValue(overallTook);
         if (clusterInfo != null) {
-            out.writeCollection(clusterInfo.values());
+            // .stream().toList() creates an immutable copy of the cluster info entries
+            // as today they might be still changing while serialization is happening
+            out.writeCollection(clusterInfo.values().stream().toList());
         } else {
             out.writeCollection(Collections.emptyList());
         }

@@ -190,7 +190,7 @@ public abstract class ValidateTransportVersionDefinitionsTask extends DefaultTas
             originalDefinition.ids().forEach(id -> existingIdsByBase.put(id.base(), id));
         }
 
-        if (allNames.contains(definition.name()) == false) {
+        if (allNames.contains(definition.name()) == false && definition.name().startsWith("initial_") == false) {
             throwDefinitionFailure(definition.name(), "is not referenced");
         }
         if (NAME_FORMAT.matcher(definition.name()).matches() == false) {

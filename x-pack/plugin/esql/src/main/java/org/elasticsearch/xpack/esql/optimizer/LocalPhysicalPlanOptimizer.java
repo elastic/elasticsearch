@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.optimizer;
 
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.common.Failures;
+import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalOptimizerContext.ProjectAfterTopN;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.EnableSpatialDistancePushdown;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.InsertFieldExtraction;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.ParallelizeTimeSeriesSource;
@@ -34,7 +35,8 @@ import java.util.List;
  */
 public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<PhysicalPlan, LocalPhysicalOptimizerContext> {
 
-    private static final List<Batch<PhysicalPlan>> RULES = rules(true);
+    private static final List<Batch<PhysicalPlan>> RULES_REMOVE_PROJECT_AFTER_TOP_N = rules(true, ProjectAfterTopN.REMOVE);
+    private static final List<Batch<PhysicalPlan>> RULES_KEEP_PROJECT_AFTER_TOP_N = rules(true, ProjectAfterTopN.KEEP);
 
     private final PhysicalVerifier verifier = PhysicalVerifier.INSTANCE;
 
@@ -56,14 +58,21 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
 
     @Override
     protected List<Batch<PhysicalPlan>> batches() {
-        return RULES;
+        return switch (context().removeProjectAfterTopN()) {
+            case REMOVE -> RULES_REMOVE_PROJECT_AFTER_TOP_N;
+            case KEEP -> RULES_KEEP_PROJECT_AFTER_TOP_N;
+        };
     }
 
     @SuppressWarnings("unchecked")
-    protected static List<Batch<PhysicalPlan>> rules(boolean optimizeForEsSource) {
-        // execute the rules multiple times to improve the chances of things being pushed down
-        var pushdownFirst = new Batch<PhysicalPlan>("Push to ES first", Limiter.ONCE, esSourceRules(optimizeForEsSource, true));
-        var pushdownContinuous = new Batch<PhysicalPlan>("Push to ES continuous", esSourceRules(optimizeForEsSource, false));
+    protected static List<Batch<PhysicalPlan>> rules(boolean optimizeForEsSource, ProjectAfterTopN projectAfterTopN) {
+        // execute the rules multiple times to improve the chances of things being pushed down. If we we want to remove the Project after
+        // TopN, this should be done in the first pass.
+        var pushdownFirst = new Batch<PhysicalPlan>("Push to ES first", Limiter.ONCE, esSourceRules(optimizeForEsSource, projectAfterTopN));
+        var pushdownContinuous = new Batch<PhysicalPlan>(
+            "Push to ES continuous",
+            esSourceRules(optimizeForEsSource, ProjectAfterTopN.KEEP)
+        );
 
         // add the field extraction in just one pass
         // add it at the end after all the other rules have ran
@@ -78,11 +87,11 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
     }
 
     @SuppressWarnings("rawtypes")
-    private static Rule[] esSourceRules(boolean optimizeForEsSource, boolean first) {
+    private static Rule[] esSourceRules(boolean optimizeForEsSource, ProjectAfterTopN removeProjectAfterTopN) {
         List<Rule<?, PhysicalPlan>> esSourceRules = new ArrayList<>(8);
         esSourceRules.add(new ReplaceSourceAttributes());
         if (optimizeForEsSource) {
-            if (first) {
+            if (removeProjectAfterTopN == ProjectAfterTopN.REMOVE) {
                 // This rule should only be applied once, since it is not idempotent.
                 esSourceRules.add(new RemoveProjectAfterTopN());
             }

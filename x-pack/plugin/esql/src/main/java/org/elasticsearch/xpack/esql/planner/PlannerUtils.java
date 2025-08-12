@@ -185,9 +185,10 @@ public class PlannerUtils {
         List<SearchExecutionContext> searchContexts,
         Configuration configuration,
         FoldContext foldCtx,
+        LocalPhysicalOptimizerContext.ProjectAfterTopN projectAfterTopN,
         PhysicalPlan plan
     ) {
-        return localPlan(flags, configuration, foldCtx, plan, SearchContextStats.from(searchContexts));
+        return localPlan(flags, configuration, foldCtx, plan, SearchContextStats.from(searchContexts), projectAfterTopN);
     }
 
     public static PhysicalPlan localPlan(
@@ -195,11 +196,12 @@ public class PlannerUtils {
         Configuration configuration,
         FoldContext foldCtx,
         PhysicalPlan plan,
-        SearchStats searchStats
+        SearchStats searchStats,
+        LocalPhysicalOptimizerContext.ProjectAfterTopN projectAfterTopN
     ) {
         final var logicalOptimizer = new LocalLogicalPlanOptimizer(new LocalLogicalOptimizerContext(configuration, foldCtx, searchStats));
         var physicalOptimizer = new LocalPhysicalPlanOptimizer(
-            new LocalPhysicalOptimizerContext(flags, configuration, foldCtx, searchStats)
+            new LocalPhysicalOptimizerContext(flags, configuration, foldCtx, searchStats, projectAfterTopN)
         );
 
         return localPlan(plan, logicalOptimizer, physicalOptimizer);

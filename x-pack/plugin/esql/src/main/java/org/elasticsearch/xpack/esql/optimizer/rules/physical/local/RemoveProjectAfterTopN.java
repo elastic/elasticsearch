@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.optimizer.rules.physical.local;
 
-import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.PhysicalOptimizerRules;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
@@ -18,8 +17,8 @@ import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
 /**
  * Removes a {@link ProjectExec} that follows a {@link TopNExec}.
  *
- * This step is necessary, since said project will activate {@link InsertFieldExtraction} later on, whereas we wish to perform these
- * extractions in the reduce coordinator node, after performing multiple top N operations, thereby reducing the amounnt of data we need to
+ * This step is needed since said project will activate {@link InsertFieldExtraction} later on, whereas we wish to perform these
+ * extractions in the reduce coordinator node, after performing multiple Top N operations, thereby reducing the amount of data we need to
  * read from the index.
  */
 public class RemoveProjectAfterTopN extends PhysicalOptimizerRules.ParameterizedOptimizerRule<ProjectExec, LocalPhysicalOptimizerContext> {
@@ -34,16 +33,12 @@ public class RemoveProjectAfterTopN extends PhysicalOptimizerRules.Parameterized
         return project;
     }
 
-    // We don't support this optimization for multi-index queries at the moment, since the reduce coordinator doesn't actually have access
-    // to each individual table's schema, and thus cannot determine the correct output of the data node's physical plan.
+    /**
+     * We don't support this optimization for multi-index queries at the moment, since the reduce coordinator doesn't actually have access
+     * to each individual table's schema, and thus cannot determine the correct output of the data node's physical plan. A similar check
+     * is performed in {@link org.elasticsearch.xpack.esql.plugin.ComputeService}.
+     */
     private static boolean hasMultiIndex(TopNExec topN) {
-        Holder<Boolean> hasMultiIndex = new Holder<>(false);
-        topN.transformDown(EsQueryExec.class, qe -> {
-            if (qe.indexNameWithModes().size() > 1) {
-                hasMultiIndex.set(true);
-            }
-            return qe;
-        });
-        return hasMultiIndex.get();
+        return topN.anyMatch(plan -> plan instanceof EsQueryExec eqe && eqe.indexNameWithModes().size() > 1);
     }
 }

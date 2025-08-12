@@ -28,6 +28,7 @@ import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.elasticsearch.xpack.esql.common.FunctionList;
+import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalOptimizerContext.ProjectAfterTopN;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSinkExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.session.Configuration;
@@ -249,13 +250,12 @@ final class ClusterComputeHandler implements TransportRequestHandler<ClusterComp
             () -> exchangeService.finishSinkHandler(globalSessionId, new TaskCancelledException(parentTask.getReasonCancelled()))
         );
         final String localSessionId = clusterAlias + ":" + globalSessionId;
-        // FIXME(gal, NOCOMMIT) This isn't working because we don't handle the TOP_N reduction here yet. Should be disabled then.
         final PhysicalPlan coordinatorPlan = ComputeService.reductionPlan(
             computeService.createFlags(),
             configuration,
             configuration.newFoldContext(),
             plan,
-            true
+            ComputeService.ReductionPlanFeatures.WITHOUT_TOP_N
         );
         final AtomicReference<ComputeResponse> finalResponse = new AtomicReference<>();
         final EsqlFlags flags = computeService.createFlags();
@@ -286,8 +286,8 @@ final class ClusterComputeHandler implements TransportRequestHandler<ClusterComp
                         () -> exchangeSink.createExchangeSink(() -> {})
                     ),
                     coordinatorPlan,
-                    computeListener.acquireCompute(),
-                    false
+                    ProjectAfterTopN.REMOVE,
+                    computeListener.acquireCompute()
                 );
                 dataNodeComputeHandler.startComputeOnDataNodes(
                     localSessionId,

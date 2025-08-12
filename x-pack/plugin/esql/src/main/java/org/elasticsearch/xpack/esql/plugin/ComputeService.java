@@ -51,13 +51,13 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.enrich.EnrichLookupService;
 import org.elasticsearch.xpack.esql.enrich.LookupFromIndexService;
 import org.elasticsearch.xpack.esql.inference.InferenceRunner;
 import org.elasticsearch.xpack.esql.optimizer.LocalLogicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.LocalLogicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalOptimizerContext;
+import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalOptimizerContext.ProjectAfterTopN;
 import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSinkExec;
@@ -129,6 +129,7 @@ import static org.elasticsearch.xpack.esql.plugin.EsqlPlugin.ESQL_WORKER_THREAD_
  * </ul>
  */
 public class ComputeService {
+    public static final String DATA_DESCRIPTION = "data";
     public static final String DATA_ACTION_NAME = EsqlQueryAction.NAME + "/data";
     public static final String CLUSTER_ACTION_NAME = EsqlQueryAction.NAME + "/cluster";
     private static final String LOCAL_CLUSTER = RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY;
@@ -200,6 +201,7 @@ public class ComputeService {
         Configuration configuration,
         FoldContext foldContext,
         EsqlExecutionInfo execInfo,
+        ProjectAfterTopN projectAfterTopN,
         ActionListener<Result> listener
     ) {
         Tuple<List<PhysicalPlan>, PhysicalPlan> subplansAndMainPlan = PlannerUtils.breakPlanIntoSubPlansAndMainPlan(physicalPlan);
@@ -208,7 +210,19 @@ public class ComputeService {
 
         // we have no sub plans, so we can just execute the given plan
         if (subplans == null || subplans.isEmpty()) {
-            executePlan(sessionId, rootTask, flags, physicalPlan, configuration, foldContext, execInfo, null, listener, null);
+            executePlan(
+                sessionId,
+                rootTask,
+                flags,
+                physicalPlan,
+                configuration,
+                foldContext,
+                execInfo,
+                null,
+                projectAfterTopN,
+                listener,
+                null
+            );
             return;
         }
 
@@ -255,7 +269,7 @@ public class ComputeService {
                     })
                 )
             ) {
-                runCompute(rootTask, computeContext, mainPlan, localListener.acquireCompute(), false);
+                runCompute(rootTask, computeContext, mainPlan, projectAfterTopN, localListener.acquireCompute());
 
                 for (int i = 0; i < subplans.size(); i++) {
                     var subplan = subplans.get(i);
@@ -274,6 +288,7 @@ public class ComputeService {
                         foldContext,
                         execInfo,
                         "subplan-" + i,
+                        projectAfterTopN,
                         ActionListener.wrap(result -> {
                             exchangeSink.addCompletionListener(
                                 ActionListener.running(() -> { exchangeService.finishSinkHandler(childSessionId, null); })
@@ -299,6 +314,7 @@ public class ComputeService {
         FoldContext foldContext,
         EsqlExecutionInfo execInfo,
         String profileQualifier,
+        ProjectAfterTopN projectAfterTopN,
         ActionListener<Result> listener,
         Supplier<ExchangeSink> exchangeSinkSupplier
     ) {
@@ -356,7 +372,7 @@ public class ComputeService {
                     })
                 )
             ) {
-                runCompute(rootTask, computeContext, coordinatorPlan, computeListener.acquireCompute(), false);
+                runCompute(rootTask, computeContext, coordinatorPlan, projectAfterTopN, computeListener.acquireCompute());
                 return;
             }
         } else {
@@ -437,8 +453,8 @@ public class ComputeService {
                             exchangeSinkSupplier
                         ),
                         coordinatorPlan,
-                        localListener.acquireCompute(),
-                        false
+                        projectAfterTopN,
+                        localListener.acquireCompute()
                     );
                     // starts computes on data nodes on the main cluster
                     if (localConcreteIndices != null && localConcreteIndices.indices().length > 0) {
@@ -557,8 +573,8 @@ public class ComputeService {
         CancellableTask task,
         ComputeContext context,
         PhysicalPlan plan,
-        ActionListener<DriverCompletionInfo> listener,
-        boolean shouldReduceDecRef // FIXME(gal, NOCOMMIT) yuck
+        ProjectAfterTopN projectAfterTopN,
+        ActionListener<DriverCompletionInfo> listener
     ) {
         var shardContexts = context.searchContexts().map(ComputeSearchContext::shardContext);
         EsPhysicalOperationProviders physicalOperationProviders = new EsPhysicalOperationProviders(
@@ -593,6 +609,7 @@ public class ComputeService {
                 context.searchExecutionContexts(),
                 context.configuration(),
                 context.foldCtx(),
+                projectAfterTopN,
                 plan
             );
             if (LOGGER.isDebugEnabled()) {
@@ -606,9 +623,10 @@ public class ComputeService {
                 LOGGER.debug("Local execution plan for {}:\n{}", context.description(), localExecutionPlan.describe());
             }
             var drivers = localExecutionPlan.createDrivers(context.sessionId());
-            // After creating the drivers (and therefore, the operators), we can safely decrement the reference count since the operators
-            // will hold a reference to the contexts where relevant.
-            if (shouldReduceDecRef) {
+            // After creating the drivers (and therefore, the operators), we can safely decrement the reference count since the reader
+            // operators will hold a reference to the contexts where relevant. However, we should only do this for the data computations,
+            // because in other cases the drivers won't increment the reference count of the contexts (no readers).
+            if (context.description().equals(DATA_DESCRIPTION)) {
                 shardContexts.forEach(RefCounted::decRef);
             }
             if (drivers.isEmpty()) {
@@ -658,10 +676,10 @@ public class ComputeService {
         Configuration configuration,
         FoldContext foldCtx,
         ExchangeSinkExec plan,
-        boolean enable
+        ReductionPlanFeatures features
     ) {
         PhysicalPlan source = new ExchangeSourceExec(plan.source(), plan.output(), plan.isIntermediateAgg());
-        if (enable == false) {
+        if (features == ReductionPlanFeatures.DISABLED) {
             return plan.replaceChild(source);
         }
 
@@ -669,18 +687,24 @@ public class ComputeService {
         PhysicalPlan newPlan = switch (res) {
             case PlannerUtils.SimplePlanReduction.NO_REDUCTION -> source;
             case PlannerUtils.SimplePlanReduction.TOP_N ->
-                // In the case of TopN, the source output type is replaced since we're pulling the FieldExtractExec to the reduction node.
-                // FIXME(gal, NOCOMMIT) Explain TopN better
-                // FIXME(gal, NOCOMMIT) Remove duplication with below
-                getChild(flags, configuration, foldCtx, plan).orElse(plan.replaceChildren(List.of(source)));
+                // In the case of TopN, the source output type is replaced since we're pulling the FieldExtractExec to the reduction node,
+                // so essential we are splitting the TopNExec into two parts, similar to other aggregations, but unlike other aggregations,
+                // we also need the original plan, since we add the project in the reduction node.
+                fixTopNSource(flags, configuration, foldCtx, plan).filter(unused -> features == ReductionPlanFeatures.ALL)
+                    .orElseGet(() -> plan.replaceChildren(List.of(source)));
             case PlannerUtils.ReducedPlan(var p) -> p.replaceChildren(List.of(source));
         };
         return plan.replaceChild(newPlan);
     }
 
-    // FIXME(gal, NOCOMMIT) rename
-    // FIXME(gal, NOCOMMIT) unyuck (there should be a better way of figuring out if we need to use TOP_N or not)
-    private static Optional<PhysicalPlan> getChild(
+    enum ReductionPlanFeatures {
+        ALL,
+        WITHOUT_TOP_N,
+        DISABLED
+    }
+
+    /** Returns {@code Optional.empty()} if the plan is not a TopN source, or if it references multiple indices. */
+    private static Optional<PhysicalPlan> fixTopNSource(
         EsqlFlags flags,
         Configuration configuration,
         FoldContext foldCtx,
@@ -690,7 +714,6 @@ public class ComputeService {
         if (fragment == null) {
             return Optional.empty();
         }
-        // FIXME(gal, NOCOMMIT) document
         if (referencesMultipleIndices(fragment)) {
             // If the fragment references multiple indices, we don't need to do anything special.
             return Optional.empty();
@@ -699,12 +722,13 @@ public class ComputeService {
         final var logicalOptimizer = new LocalLogicalPlanOptimizer(
             new LocalLogicalOptimizerContext(configuration, foldCtx, fakeSearchStats)
         );
+        ProjectAfterTopN projectAfterTopN = ProjectAfterTopN.KEEP;
         var physicalOptimizer = new LocalPhysicalPlanOptimizer(
-            new LocalPhysicalOptimizerContext(flags, configuration, foldCtx, fakeSearchStats)
+            new LocalPhysicalOptimizerContext(flags, configuration, foldCtx, fakeSearchStats, projectAfterTopN)
         ) {
             @Override
             protected List<Batch<PhysicalPlan>> batches() {
-                return LocalPhysicalPlanOptimizer.rules(false /* optimizeForEsSource */);
+                return LocalPhysicalPlanOptimizer.rules(false /* optimizeForEsSource */, projectAfterTopN);
             }
         };
         var localPlan = PlannerUtils.localPlan(plan, logicalOptimizer, physicalOptimizer);
@@ -715,8 +739,16 @@ public class ComputeService {
         return Optional.of(((UnaryExec) result).child());
     }
 
-    // FIXME(gal, NOCOMMIT) A hack to avoid the ReplaceFieldWithConstantOrNull optimization. Since we don't have search stats yet during the
-    // reduce planning phase.
+    /**
+     * Since we can't predict the actual optimized plan without the proper index stats, which we don't have during the reduce planning
+     * phase, we choose (for now) to take the easy route of just turning off this optimization for multi-index queries. A similar check
+     * is done during the planning in {@link org.elasticsearch.xpack.esql.optimizer.rules.physical.local.RemoveProjectAfterTopN}.
+     */
+    private static boolean referencesMultipleIndices(FragmentExec fragment) {
+        return fragment.fragment().anyMatch(plan1 -> plan1 instanceof EsRelation relation && relation.indexNameWithModes().size() > 1);
+    }
+
+    // A hack to avoid the ReplaceFieldWithConstantOrNull optimization, since we don't have search stats during the reduce planning phase.
     private static class SearchStatsHacks implements SearchStats {
         @Override
         public boolean exists(FieldAttribute.FieldName field) {
@@ -772,17 +804,6 @@ public class ComputeService {
         public boolean canUseEqualityOnSyntheticSourceDelegate(FieldAttribute.FieldName name, String value) {
             throw new UnsupportedOperationException();
         }
-    }
-
-    private static boolean referencesMultipleIndices(FragmentExec fragment) {
-        Holder<Boolean> hasMultiIndex = new Holder<>(false);
-        fragment.fragment().transformUp(EsRelation.class, relation -> {
-            if (relation.indexNameWithModes().size() > 1) {
-                hasMultiIndex.set(true);
-            }
-            return relation;
-        });
-        return hasMultiIndex.get();
     }
 
     String newChildSession(String session) {

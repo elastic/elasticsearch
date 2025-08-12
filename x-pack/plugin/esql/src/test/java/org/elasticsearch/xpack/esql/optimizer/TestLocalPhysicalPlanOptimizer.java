@@ -26,6 +26,6 @@ public class TestLocalPhysicalPlanOptimizer extends LocalPhysicalPlanOptimizer {
 
     @Override
     protected List<Batch<PhysicalPlan>> batches() {
-        return rules(esRules);
+        return rules(esRules, LocalPhysicalOptimizerContext.ProjectAfterTopN.KEEP);
     }
 }

@@ -2088,7 +2088,8 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
             new EsqlFlags(true),
             config,
             FoldContext.small(),
-            SearchStats.EMPTY
+            SearchStats.EMPTY,
+            LocalPhysicalOptimizerContext.ProjectAfterTopN.KEEP
         );
         LocalPhysicalPlanOptimizer optimizerWithNoopExecute = new LocalPhysicalPlanOptimizer(context) {
             @Override

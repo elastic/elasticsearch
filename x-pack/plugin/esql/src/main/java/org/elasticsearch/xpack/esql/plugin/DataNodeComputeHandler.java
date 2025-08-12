@@ -46,6 +46,7 @@ import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.esql.common.FunctionList;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
+import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalOptimizerContext.ProjectAfterTopN;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSinkExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.planner.PlanConcurrencyCalculator;
@@ -249,6 +250,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
             Map<ShardId, Exception> shardLevelFailures,
             ComputeListener computeListener,
             List<ComputeSearchContext> reduceNodeSearchContexts
+
         ) {
             this.flags = flags;
             this.request = request;
@@ -312,7 +314,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                 }
                 var computeContext = new ComputeContext(
                     sessionId,
-                    "data",
+                    ComputeService.DATA_DESCRIPTION,
                     clusterAlias,
                     flags,
                     FunctionList.fromImmutableList(searchContexts),
@@ -321,7 +323,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                     null,
                     () -> exchangeSink.createExchangeSink(pagesProduced::incrementAndGet)
                 );
-                computeService.runCompute(parentTask, computeContext, request.plan(), batchListener, true);
+                computeService.runCompute(parentTask, computeContext, request.plan(), getProjectAfterTopN(request), batchListener);
             }, batchListener::onFailure));
         }
 
@@ -473,6 +475,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                         () -> externalSink.createExchangeSink(() -> {})
                     ),
                     reducePlan,
+                    getProjectAfterTopN(request),
                     ActionListener.wrap(resp -> {
                         // don't return until all pages are fetched
                         externalSink.addCompletionListener(ActionListener.running(() -> {
@@ -483,8 +486,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                         LOGGER.fatal("Error in node-level reduction", e);
                         exchangeService.finishSinkHandler(externalId, e);
                         reductionListener.onFailure(e);
-                    }),
-                    false
+                    })
                 );
                 parentListener.onResponse(null);
             } catch (Exception e) {
@@ -507,7 +509,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                 configuration,
                 configuration.newFoldContext(),
                 plan,
-                request.runNodeLevelReduction()
+                request.runNodeLevelReduction() ? ComputeService.ReductionPlanFeatures.ALL : ComputeService.ReductionPlanFeatures.DISABLED
             );
         } else {
             listener.onFailure(new IllegalStateException("expected exchange sink for a remote compute; got " + request.plan()));
@@ -541,5 +543,9 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
     static boolean supportShardLevelRetryFailure(TransportVersion transportVersion) {
         return transportVersion.onOrAfter(TransportVersions.ESQL_RETRY_ON_SHARD_LEVEL_FAILURE)
             || transportVersion.isPatchFrom(TransportVersions.ESQL_RETRY_ON_SHARD_LEVEL_FAILURE_BACKPORT_8_19);
+    }
+
+    private static ProjectAfterTopN getProjectAfterTopN(DataNodeRequest request) {
+        return request.runNodeLevelReduction() ? ProjectAfterTopN.REMOVE : ProjectAfterTopN.KEEP;
     }
 }

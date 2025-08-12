@@ -242,7 +242,7 @@ public class TransportVersionTests extends ESTestCase {
             "<test>",
             "testSupports0",
             false,
-            new BufferedReader(new InputStreamReader(new ByteArrayInputStream(data0))),
+            new BufferedReader(new InputStreamReader(new ByteArrayInputStream(data0), StandardCharsets.UTF_8)),
             5000000
         );
         assertThat(new TransportVersion(null, 2003000, null).supports(test0), is(false));
@@ -254,7 +254,7 @@ public class TransportVersionTests extends ESTestCase {
             "<test>",
             "testSupports1",
             false,
-            new BufferedReader(new InputStreamReader(new ByteArrayInputStream(data1))),
+            new BufferedReader(new InputStreamReader(new ByteArrayInputStream(data1), StandardCharsets.UTF_8)),
             5000000
         );
         assertThat(new TransportVersion(null, 2003000, null).supports(test1), is(false));
@@ -269,7 +269,7 @@ public class TransportVersionTests extends ESTestCase {
             "<test>",
             "testSupports2",
             false,
-            new BufferedReader(new InputStreamReader(new ByteArrayInputStream(data2))),
+            new BufferedReader(new InputStreamReader(new ByteArrayInputStream(data2), StandardCharsets.UTF_8)),
             5000000
         );
         assertThat(new TransportVersion(null, 1001000, null).supports(test2), is(false));
@@ -296,7 +296,7 @@ public class TransportVersionTests extends ESTestCase {
             "<test>",
             "testSupports3",
             false,
-            new BufferedReader(new InputStreamReader(new ByteArrayInputStream(data3))),
+            new BufferedReader(new InputStreamReader(new ByteArrayInputStream(data3), StandardCharsets.UTF_8)),
             5000000
         );
         assertThat(new TransportVersion(null, 1001001, null).supports(test3), is(false));
@@ -324,7 +324,7 @@ public class TransportVersionTests extends ESTestCase {
             "<test>",
             "testSupports3",
             false,
-            new BufferedReader(new InputStreamReader(new ByteArrayInputStream(data4))),
+            new BufferedReader(new InputStreamReader(new ByteArrayInputStream(data4), StandardCharsets.UTF_8)),
             5000000
         );
         assertThat(new TransportVersion(null, 1001001, null).supports(test4), is(false));

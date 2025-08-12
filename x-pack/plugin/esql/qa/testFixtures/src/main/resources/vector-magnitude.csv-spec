@@ -1,0 +1,75 @@
+ # Tests for v_magnitude scalar function
+ 
+ magnitudeWithVectorField
+ required_capability: magnitude_scalar_vector_function
+ 
+// tag::vector-magnitude[]
+ from colors
+ | eval similarity = v_magnitude(rgb_vector) 
+ | sort similarity desc, color asc 
+// end::vector-magnitude[]
+ | limit 10
+ | keep color, similarity
+ ;
+ 
+// tag::vector-magnitude-result[]
+color:text | similarity:double
+red        | 441.6729431152344
+maroon     | 382.6669616699219
+crimson    | 376.36419677734375
+orange     | 371.68536376953125
+gold       | 362.8360595703125
+black      | 360.62445068359375
+magenta    | 360.62445068359375
+yellow     | 360.62445068359375
+firebrick  | 359.67486572265625
+tomato     | 351.0227966308594
+// end::vector-magnitude-result[] 
+;
+
+ magnitudeAsPartOfExpression
+ required_capability: magnitude_scalar_vector_function
+ 
+ from colors
+ | eval score = round((1 + v_magnitude(rgb_vector) / 2), 3) 
+ | sort score desc, color asc 
+ | limit 10
+ | keep color, score
+ ;
+
+color:text | score:double
+red        | 221.836
+maroon     | 192.333
+crimson    | 189.182
+orange     | 186.843
+gold       | 182.418
+black      | 181.312
+magenta    | 181.312
+yellow     | 181.312
+firebrick  | 180.837
+tomato     | 176.511
+;
+
+magnitudeWithLiteralVectors
+required_capability: magnitude_scalar_vector_function
+ 
+row a = 1
+| eval magnitude = round(v_magnitude([1, 2, 3]), 3) 
+| keep magnitude
+;
+
+magnitude:double
+1.732
+;
+
+ magnitudeWithStats
+ required_capability: magnitude_scalar_vector_function
+ 
+ from colors
+ | eval magnitude = round(v_magnitude(rgb_vector), 3) 
+ | stats avg = round(avg(magnitude), 3), min = min(magnitude), max = max(magnitude)
+ ;
+
+avg:double | min:double | max:double
+274.974    | 0.0        | 441.673
+;

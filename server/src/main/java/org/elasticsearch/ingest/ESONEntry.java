@@ -70,7 +70,7 @@ public abstract class ESONEntry {
 
         @Override
         public String toString() {
-            return "ObjectEntry{" + "key='" + key() + '\'' + ", fieldCount=" + offsetOrCount() + ", hasMutations=" + hasMutations() + '}';
+            return "ObjectEntry{" + "type=" + type() + ", key='" + key() + '\'' + ", offsetOrCount=" + offsetOrCount() + '}';
         }
     }
 
@@ -88,7 +88,7 @@ public abstract class ESONEntry {
 
         @Override
         public String toString() {
-            return "ArrayEntry{" + "key='" + key() + '\'' + ", elementCount=" + offsetOrCount() + ", hasMutations=" + hasMutations() + '}';
+            return "ArrayEntry{" + "type=" + type() + ", key='" + key() + '\'' + ", offsetOrCount=" + offsetOrCount() + '}';
         }
     }
 
@@ -118,7 +118,17 @@ public abstract class ESONEntry {
 
         @Override
         public String toString() {
-            return "FieldEntry{" + "value=" + value + '}';
+            return "FieldEntry{"
+                + "value="
+                + value
+                + ", type="
+                + type()
+                + ", key='"
+                + key()
+                + '\''
+                + ", offsetOrCount="
+                + offsetOrCount()
+                + '}';
         }
     }
 }

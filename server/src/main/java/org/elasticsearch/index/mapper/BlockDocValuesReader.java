@@ -22,6 +22,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.ByteArrayStreamInput;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.codec.tsdb.es819.BulkNumericDocValues;
+import org.elasticsearch.index.codec.tsdb.es819.BulkSortedDocValues;
 import org.elasticsearch.index.mapper.BlockLoader.BlockFactory;
 import org.elasticsearch.index.mapper.BlockLoader.BooleanBuilder;
 import org.elasticsearch.index.mapper.BlockLoader.Builder;
@@ -658,6 +659,9 @@ public abstract class BlockDocValuesReader implements BlockLoader.AllReader {
         public BlockLoader.Block read(BlockFactory factory, Docs docs, int offset) throws IOException {
             if (docs.count() - offset == 1) {
                 return readSingleDoc(factory, docs.get(offset));
+            }
+            if (ordinals instanceof BulkSortedDocValues bulkDv && bulkDv.supportsBlockRead()) {
+                return bulkDv.read(factory, docs, offset);
             }
             try (var builder = factory.singletonOrdinalsBuilder(ordinals, docs.count() - offset)) {
                 for (int i = offset; i < docs.count(); i++) {

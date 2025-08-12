@@ -369,10 +369,26 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
             public long cost() {
                 return ords.cost();
             }
+
+            @Override
+            public BlockLoader.Block read(BlockLoader.BlockFactory factory, BlockLoader.Docs docs, int offset) throws IOException {
+                if (ords instanceof BulkNumericDocValues b) {
+                    try (var builder = factory.singletonOrdinalsBuilder(this, docs.count() - offset)) {
+                        return b.readOrdinals(builder, docs, offset);
+                    }
+                } else {
+                    throw new UnsupportedOperationException();
+                }
+            }
+
+            @Override
+            public boolean supportsBlockRead() {
+                return ords instanceof BulkNumericDocValues;
+            }
         };
     }
 
-    abstract class BaseSortedDocValues extends SortedDocValues {
+    abstract class BaseSortedDocValues extends BulkSortedDocValues {
 
         final SortedEntry entry;
         final TermsEnum termsEnum;
@@ -1236,6 +1252,59 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
                         }
                         return builder.build();
                     }
+                }
+
+                @Override
+                public BlockLoader.Block readOrdinals(BlockLoader.SingletonOrdinalsBuilder builder, BlockLoader.Docs docs, int offset)
+                    throws IOException {
+                    assert maxOrd >= 0 : "unexpected maxOrd[" + maxOrd + "]";
+                    final int docsCount = docs.count();
+                    doc = docs.get(docsCount - 1);
+                    for (int i = offset; i < docsCount;) {
+                        int index = docs.get(i);
+                        final int blockIndex = index >>> ES819TSDBDocValuesFormat.NUMERIC_BLOCK_SHIFT;
+                        final int blockInIndex = index & ES819TSDBDocValuesFormat.NUMERIC_BLOCK_MASK;
+                        if (blockIndex != currentBlockIndex) {
+                            assert blockIndex > currentBlockIndex : blockIndex + " < " + currentBlockIndex;
+                            // no need to seek if the loading block is the next block
+                            if (currentBlockIndex + 1 != blockIndex) {
+                                valuesData.seek(indexReader.get(blockIndex));
+                            }
+                            currentBlockIndex = blockIndex;
+                            decoder.decodeOrdinals(valuesData, currentBlock, bitsPerOrd);
+                        }
+
+                        // Try to append more than just one value:
+                        // Instead of iterating over docs and find the max length, take an optimistic approach to avoid as
+                        // many comparisons as there are remaining docs and instead do at most 7 comparisons:
+                        int length = 1;
+                        int remainingBlockLength = Math.min(ES819TSDBDocValuesFormat.NUMERIC_BLOCK_SIZE - blockInIndex, docsCount - i);
+                        for (int newLength = remainingBlockLength; newLength > 1; newLength = newLength >> 1) {
+                            int lastIndex = i + newLength - 1;
+                            if (isDense(index, docs.get(lastIndex), newLength)) {
+                                length = newLength;
+                                break;
+                            }
+                        }
+
+                        // Unfortunately, no array copy here...
+                        // Since we need to loop here, let's also keep track of min/max.
+                        int minOrd = Integer.MAX_VALUE;
+                        int maxOrd = Integer.MIN_VALUE;
+                        int counter = 0;
+                        int[] convertedOrds = new int[length];
+                        int endBlockInIndex = blockInIndex + length;
+                        for (int j = blockInIndex; j < endBlockInIndex; j++) {
+                            int ord = Math.toIntExact(currentBlock[j]);
+                            convertedOrds[counter++] = ord;
+                            minOrd = Math.min(minOrd, ord);
+                            maxOrd = Math.max(maxOrd, ord);
+                        }
+                        builder.appendOrds(convertedOrds, 0, length, minOrd, maxOrd);
+                        i += length;
+                    }
+                    return builder.build();
+
                 }
 
                 static boolean isDense(int firstDocId, int lastDocId, int length) {

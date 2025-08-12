@@ -24,4 +24,7 @@ public abstract class BulkNumericDocValues extends NumericDocValues {
      */
     public abstract BlockLoader.Block read(BlockLoader.BlockFactory factory, BlockLoader.Docs docs, int offset) throws IOException;
 
+    public abstract BlockLoader.Block readOrdinals(BlockLoader.SingletonOrdinalsBuilder builder, BlockLoader.Docs docs, int offset)
+        throws IOException;
+
 }

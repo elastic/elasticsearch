@@ -283,6 +283,14 @@ public class TestBlock implements BlockLoader.Block {
                             throw new UncheckedIOException(e);
                         }
                     }
+
+                    @Override
+                    public BlockLoader.SingletonOrdinalsBuilder appendOrds(int[] values, int from, int length, int minOrd, int maxOrd) {
+                        for (int i = from; i < from + length; i++) {
+                            appendOrd(values[i]);
+                        }
+                        return this;
+                    }
                 }
                 return new SingletonOrdsBuilder();
             }

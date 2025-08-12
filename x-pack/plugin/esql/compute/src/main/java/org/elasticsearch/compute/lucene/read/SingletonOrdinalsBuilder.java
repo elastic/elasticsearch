@@ -56,6 +56,15 @@ public class SingletonOrdinalsBuilder implements BlockLoader.SingletonOrdinalsBu
     }
 
     @Override
+    public BlockLoader.SingletonOrdinalsBuilder appendOrds(int[] values, int from, int length, int minOrd, int maxOrd) {
+        System.arraycopy(values, from, ords, count, length);
+        this.count += length;
+        this.minOrd = Math.min(this.minOrd, minOrd);
+        this.maxOrd = Math.max(this.maxOrd, maxOrd);
+        return this;
+    }
+
+    @Override
     public SingletonOrdinalsBuilder beginPositionEntry() {
         throw new UnsupportedOperationException("should only have one value per doc");
     }

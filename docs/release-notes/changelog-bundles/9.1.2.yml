@@ -1,0 +1,36 @@
+version: 9.1.2
+released: false
+generated: 2025-08-11T22:54:57.775421149Z
+changelogs:
+  - pr: 132320
+    summary: "Aggs: Add validation to Bucket script pipeline agg"
+    area: Aggregations
+    type: bug
+    issues:
+      - 132272
+  - pr: 132387
+    summary: "[ExtraHop & QualysGAV] Add `manage`, `create_index`, `read`, `index`, `write`, `delete`, permission for third party agent indices `kibana_system`"
+    area: Authorization
+    type: enhancement
+    issues:
+      - 131825
+  - pr: 132459
+    summary: Small fixes for COPY_SIGN
+    area: ES|QL
+    type: bug
+    issues: []
+  - pr: 132570
+    summary: Always stop the timer when profiling the fetch phase
+    area: Search
+    type: bug
+    issues: []
+  - pr: 132593
+    summary: Strings outside BMP have 2 chars per code points
+    area: Mapping
+    type: bug
+    issues: []
+  - pr: 132597
+    summary: Use local segment `fieldInfos` to lookup tsdb merge stats
+    area: Codec
+    type: bug
+    issues: []

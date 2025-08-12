@@ -137,9 +137,7 @@ public class DenseVectorFieldTypeIT extends AbstractEsqlIntegTestCase {
             | KEEP id, vector
             """;
 
-        indexedVectors.forEach((i, v) -> {
-            System.out.println("ID: " + i + ", Vector: " + v);
-        });
+        indexedVectors.forEach((i, v) -> { System.out.println("ID: " + i + ", Vector: " + v); });
 
         try (var resp = run(query)) {
             List<List<Object>> valuesList = EsqlTestUtils.getValuesList(resp);
@@ -248,10 +246,7 @@ public class DenseVectorFieldTypeIT extends AbstractEsqlIntegTestCase {
             .field("element_type", elementType.toString().toLowerCase(Locale.ROOT))
             .field("index", index);
         if (index) {
-            mapping.field(
-                "similarity",
-                similarity.name().toLowerCase(Locale.ROOT)
-            );
+            mapping.field("similarity", similarity.name().toLowerCase(Locale.ROOT));
         }
         if (indexType != null) {
             mapping.startObject("index_options").field("type", indexType).endObject();

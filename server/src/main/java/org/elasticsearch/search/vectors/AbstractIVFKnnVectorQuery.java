@@ -50,29 +50,29 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
     static final TopDocs NO_RESULTS = TopDocsCollector.EMPTY_TOPDOCS;
 
     protected final String field;
-    protected final int nProbe;
+    protected final float visitRatio;
     protected final int k;
     protected final int numCands;
     protected final Query filter;
     protected final KnnSearchStrategy searchStrategy;
     protected int vectorOpsCount;
 
-    protected AbstractIVFKnnVectorQuery(String field, int nProbe, int k, int numCands, Query filter) {
+    protected AbstractIVFKnnVectorQuery(String field, float visitRatio, int k, int numCands, Query filter) {
         if (k < 1) {
             throw new IllegalArgumentException("k must be at least 1, got: " + k);
         }
-        if (nProbe < 1 && nProbe != -1) {
-            throw new IllegalArgumentException("nProbe must be at least 1 or exactly -1, got: " + nProbe);
+        if (visitRatio < 0.0f || visitRatio > 1.0f) {
+            throw new IllegalArgumentException("visitRatio must be between 0.0 and 1.0 (both inclusive), got: " + visitRatio);
         }
         if (numCands < k) {
             throw new IllegalArgumentException("numCands must be at least k, got: " + numCands);
         }
         this.field = field;
-        this.nProbe = nProbe;
+        this.visitRatio = visitRatio;
         this.k = k;
         this.filter = filter;
         this.numCands = numCands;
-        this.searchStrategy = new IVFKnnSearchStrategy(nProbe);
+        this.searchStrategy = new IVFKnnSearchStrategy(visitRatio);
     }
 
     @Override
@@ -90,12 +90,12 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
         return k == that.k
             && Objects.equals(field, that.field)
             && Objects.equals(filter, that.filter)
-            && Objects.equals(nProbe, that.nProbe);
+            && Objects.equals(visitRatio, that.visitRatio);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(field, k, filter, nProbe);
+        return Objects.hash(field, k, filter, visitRatio);
     }
 
     @Override
@@ -118,7 +118,7 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
         }
         // we request numCands as we are using it as an approximation measure
         // we need to ensure we are getting at least 2*k results to ensure we cover overspill duplicates
-        // TODO move the logic for automatically adjusting percentages/nprobe to the query, so we can only pass
+        // TODO move the logic for automatically adjusting percentages to the query, so we can only pass
         // 2k to the collector.
         KnnCollectorManager knnCollectorManager = getKnnCollectorManager(Math.max(Math.round(2f * k), numCands), indexSearcher);
         TaskExecutor taskExecutor = indexSearcher.getTaskExecutor();

@@ -294,6 +294,11 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
             doc = target;
             return true;
         }
+
+        @Override
+        public int docIDRunEnd() throws IOException {
+            return maxDoc;
+        }
     }
 
     private abstract static class SparseBinaryDocValues extends BinaryDocValues {
@@ -327,6 +332,11 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
         @Override
         public boolean advanceExact(int target) throws IOException {
             return disi.advanceExact(target);
+        }
+
+        @Override
+        public int docIDRunEnd() throws IOException {
+            return disi.docIDRunEnd();
         }
     }
 
@@ -368,6 +378,11 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
             @Override
             public long cost() {
                 return ords.cost();
+            }
+
+            @Override
+            public int docIDRunEnd() throws IOException {
+                return ords.docIDRunEnd();
             }
         };
     }
@@ -750,6 +765,11 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
             public long cost() {
                 return ords.cost();
             }
+
+            @Override
+            public int docIDRunEnd() throws IOException {
+                return ords.docIDRunEnd();
+            }
         };
     }
 
@@ -1086,6 +1106,11 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
                     public long cost() {
                         return maxDoc;
                     }
+
+                    @Override
+                    public int docIDRunEnd() {
+                        return maxDoc;
+                    }
                 };
             } else {
                 final IndexedDISI disi = new IndexedDISI(
@@ -1126,6 +1151,11 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
                     @Override
                     public long longValue() {
                         return 0L;
+                    }
+
+                    @Override
+                    public int docIDRunEnd() throws IOException {
+                        return disi.docIDRunEnd();
                     }
                 };
             }
@@ -1175,6 +1205,11 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
 
                 @Override
                 public long cost() {
+                    return maxDoc;
+                }
+
+                @Override
+                public int docIDRunEnd() {
                     return maxDoc;
                 }
 
@@ -1284,6 +1319,11 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
                 @Override
                 public long cost() {
                     return disi.cost();
+                }
+
+                @Override
+                public int docIDRunEnd() throws IOException {
+                    return disi.docIDRunEnd();
                 }
 
                 @Override
@@ -1406,6 +1446,11 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
                 public int docValueCount() {
                     return count;
                 }
+
+                @Override
+                public int docIDRunEnd() {
+                    return maxDoc;
+                }
             };
         } else {
             // sparse
@@ -1461,6 +1506,11 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
                 public int docValueCount() {
                     set();
                     return count;
+                }
+
+                @Override
+                public int docIDRunEnd() throws IOException {
+                    return disi.docIDRunEnd();
                 }
 
                 private void set() {

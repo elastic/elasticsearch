@@ -19,16 +19,13 @@
 package org.elasticsearch.index.codec.vectors;
 
 import org.apache.lucene.index.PointValues.IntersectVisitor;
-import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.store.DataOutput;
 import org.apache.lucene.store.IndexInput;
-import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.IntsRef;
 import org.apache.lucene.util.LongsRef;
 import org.apache.lucene.util.hnsw.IntToIntFunction;
 
 import java.io.IOException;
-import java.util.Arrays;
 
 /**
  * This class is used to write and read the doc ids in a compressed format. The format is optimized

@@ -620,7 +620,7 @@ public class AzureStorageServiceTests extends ESTestCase {
         return secureSettings;
     }
 
-    private static String encodeKey(final String value) {
+    public static String encodeKey(final String value) {
         return Base64.getEncoder().encodeToString(value.getBytes(StandardCharsets.UTF_8));
     }
 }

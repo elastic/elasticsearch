@@ -41,8 +41,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-import static java.util.Collections.emptyMap;
-
 public class AzureStorageService {
     private static final Logger logger = LogManager.getLogger(AzureStorageService.class);
 
@@ -85,11 +83,9 @@ public class AzureStorageService {
     private static final long DEFAULT_UPLOAD_BLOCK_SIZE = DEFAULT_BLOCK_SIZE.getBytes();
     private final int multipartUploadMaxConcurrency;
 
-    // 'package' for testing
-    private volatile Map<String, AzureStorageSettings> storageSettings = emptyMap();
     private final AzureClientProvider azureClientProvider;
     private final ClientLogger clientLogger = new ClientLogger(AzureStorageService.class);
-    private final AzureClientsManager clientsManager;
+    private final AzureStorageClientsManager clientsManager;
     private final boolean stateless;
 
     public AzureStorageService(
@@ -98,7 +94,7 @@ public class AzureStorageService {
         ClusterService clusterService,
         ProjectResolver projectResolver
     ) {
-        this.clientsManager = new AzureClientsManager(settings, projectResolver.supportsMultipleProjects());
+        this.clientsManager = new AzureStorageClientsManager(settings, projectResolver.supportsMultipleProjects());
         this.azureClientProvider = azureClientProvider;
         this.stateless = DiscoveryNode.isStateless(settings);
         this.multipartUploadMaxConcurrency = azureClientProvider.getMultipartUploadMaxConcurrency();
@@ -234,14 +230,19 @@ public class AzureStorageService {
         return clientsManager.clusterStorageSettings;
     }
 
-    class AzureClientsManager implements ClusterStateApplier {
+    // Package private for testing
+    AzureStorageClientsManager getClientsManager() {
+        return clientsManager;
+    }
+
+    class AzureStorageClientsManager implements ClusterStateApplier {
         private static final String AZURE_SETTING_PREFIX = "azure.";
 
         private final Settings nodeAzureSettings;
         private volatile Map<String, AzureStorageSettings> clusterStorageSettings;
         private final Map<ProjectId, Map<String, AzureStorageSettings>> perProjectStorageSettings;
 
-        AzureClientsManager(Settings nodeSettings, boolean supportsMultipleProjects) {
+        AzureStorageClientsManager(Settings nodeSettings, boolean supportsMultipleProjects) {
             // eagerly load client settings so that secure settings are read
             final Map<String, AzureStorageSettings> clientsSettings = AzureStorageSettings.load(nodeSettings);
             refreshClusterClientSettings(clientsSettings);
@@ -284,7 +285,6 @@ public class AzureStorageService {
                     .setSecureSettings(projectSecrets.getSettings())
                     .build();
                 final var allClientSettings = AzureStorageSettings.load(currentSettings);
-                assert allClientSettings.isEmpty() == false;
                 // Skip project client settings that have no credentials configured. This should not happen in serverless.
                 // But it is safer to skip them and is also a more consistent behaviour with the cases when
                 // project secrets are not present.
@@ -325,43 +325,37 @@ public class AzureStorageService {
             OperationPurpose purpose,
             AzureClientProvider.RequestMetricsHandler requestMetricsHandler
         ) {
-            final AzureStorageSettings azureStorageSettings;
-            if (projectId == null || ProjectId.DEFAULT.equals(projectId)) {
-                azureStorageSettings = getClusterClientSettings(clientName);
-            } else {
-                final Map<String, AzureStorageSettings> storageSettings = perProjectStorageSettings.get(projectId);
-                if (storageSettings == null) {
-                    throw new SettingsException("Unable to find client settings for project [" + projectId + "]");
-                }
-                azureStorageSettings = storageSettings.get(clientName);
-                if (azureStorageSettings == null) {
-                    throw new SettingsException("Unable to find client with name [" + clientName + "] for project [" + projectId + "]");
-                }
-            }
+            final var azureStorageSettings = getClientSettings(projectId, clientName); // ensure the client exists
             return buildClient(locationMode, purpose, requestMetricsHandler, azureStorageSettings);
         }
 
         public AzureStorageSettings getClientSettings(@Nullable ProjectId projectId, String clientName) {
+            final var allClientSettings = getAllClientSettings(projectId);
+            final var azureStorageSettings = allClientSettings.get(clientName);
+            if (azureStorageSettings == null) {
+                throw new SettingsException(
+                    "Unable to find client with name ["
+                        + clientName
+                        + "]"
+                        + (isDefaultProjectIdOrNull(projectId) ? "" : " for project [" + projectId + "]")
+                );
+            }
+            return azureStorageSettings;
+        }
+
+        Map<String, AzureStorageSettings> getAllClientSettings(@Nullable ProjectId projectId) {
             if (projectId == null || ProjectId.DEFAULT.equals(projectId)) {
-                return getClusterClientSettings(clientName);
+                return clusterStorageSettings;
             }
             final var projectClientSettings = perProjectStorageSettings.get(projectId);
             if (projectClientSettings == null) {
                 throw new SettingsException("Unable to find any client for project [" + projectId + "]");
             }
-            final var clientSettings = projectClientSettings.get(clientName);
-            if (clientSettings == null) {
-                throw new SettingsException("Unable to find client with name [" + clientName + "] for project [" + projectId + "]");
-            }
-            return clientSettings;
+            return projectClientSettings;
         }
 
-        private AzureStorageSettings getClusterClientSettings(String clientName) {
-            final AzureStorageSettings azureStorageSettings = this.clusterStorageSettings.get(clientName);
-            if (azureStorageSettings == null) {
-                throw new SettingsException("Unable to find client with name [" + clientName + "]");
-            }
-            return azureStorageSettings;
+        Map<ProjectId, Map<String, AzureStorageSettings>> getPerProjectStorageSettings() {
+            return perProjectStorageSettings == null ? null : Map.copyOf(perProjectStorageSettings);
         }
 
         private void refreshClusterClientSettings(Map<String, AzureStorageSettings> clientsSettings) {
@@ -375,6 +369,10 @@ public class AzureStorageService {
                 return true;
             }
             return currentClientSettings.equals(old) == false;
+        }
+
+        private static boolean isDefaultProjectIdOrNull(@Nullable ProjectId projectId) {
+            return projectId == null || ProjectId.DEFAULT.equals(projectId);
         }
     }
 }

@@ -429,11 +429,11 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
      * The source of the document to index, recopied to a new array if it is unsafe.
      */
     public BytesReference source() {
-        return modernSource.originalSourceBytes();
+        return modernSource == null ? null : modernSource.originalSourceBytes();
     }
 
     public int sourceSize() {
-        return modernSource.originalSourceSize();
+        return modernSource == null ? 0 : modernSource.originalSourceSize();
     }
 
     public void setStructuredSource(ESONIndexed.ESONObject esonSource) {

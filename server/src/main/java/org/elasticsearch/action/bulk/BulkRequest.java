@@ -172,7 +172,7 @@ public class BulkRequest extends LegacyActionRequest
 
         requests.add(request);
         // lack of source is validated in validate() method
-        sizeInBytes += (request.source() != null ? request.source().length() : 0) + REQUEST_OVERHEAD;
+        sizeInBytes += request.sourceSize() + REQUEST_OVERHEAD;
         indices.add(request.index());
         return this;
     }

@@ -35,16 +35,16 @@ public abstract class GenerateTransportVersionManifestTask extends DefaultTask {
 
     @TaskAction
     public void generateTransportVersionManifest() throws IOException {
+        Path definitionsDir = getDefinitionsDirectory().get().getAsFile().toPath();
         Path manifestFile = getManifestFile().get().getAsFile().toPath();
         if (getDefinitionsDirectory().isPresent() == false) {
             // no definitions to capture, remove this leniency once all branches have at least one version
             Files.writeString(manifestFile, "", StandardCharsets.UTF_8);
             return;
         }
-        Path constantsDir = getDefinitionsDirectory().get().getAsFile().toPath();
 
         try (var writer = Files.newBufferedWriter(manifestFile)) {
-            try (var stream = Files.list(constantsDir)) {
+            try (var stream = Files.list(definitionsDir)) {
                 for (String filename : stream.map(p -> p.getFileName().toString()).toList()) {
                     if (filename.equals(manifestFile.getFileName().toString())) {
                         // don't list self

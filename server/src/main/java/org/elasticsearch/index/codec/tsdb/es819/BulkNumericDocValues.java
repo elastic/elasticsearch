@@ -15,7 +15,7 @@ import org.elasticsearch.index.mapper.BlockLoader;
 import java.io.IOException;
 
 /**
- * An es819 doc values specialization that is a {@link BlockLoader.ColumnAtATimeReader} and allows bulk loading of values.
+ * An es819 doc values specialization that allows bulk loading of values that is optimized in the context of compute engine.
  */
 public abstract class BulkNumericDocValues extends NumericDocValues {
 

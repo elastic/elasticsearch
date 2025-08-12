@@ -740,7 +740,7 @@ Data streams:
 :::{dropdown} Disables auto-sharding for LOOKUP index mode
 Auto-sharding for data streams caused unsupported replica scaling when the index mode was set to `LOOKUP`. 
 This happened because lookup mappers do not support scaling beyond one replica.
-[#131429](https://github.com/elastic/elasticsearch/pull/131429) resolves this issue by disabling auto-sharding for data streams with `LOOKUP` index mode, avoiding unsupported replica settings.
+[#131429](https://github.com/elastic/elasticsearch/pull/131429) resolves this issue by disabling auto-sharding for data streams with `LOOKUP` index modes, avoiding unsupported replica settings.
 :::
 
 EQL:

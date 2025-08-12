@@ -15,6 +15,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateApplier;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterApplierService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterService;
@@ -24,6 +25,7 @@ import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ClusterServiceUtils;
+import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.MockTransportService;
@@ -37,7 +39,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-public class NodeJoiningIT extends MasterElectionTestCase {
+public class NodeJoiningIT extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
@@ -62,6 +64,7 @@ public class NodeJoiningIT extends MasterElectionTestCase {
             String masterNodeName = internalCluster().getMasterName();
             DiscoveryNode masterNode = internalCluster().clusterService(masterNodeName).state().nodes().getMasterNode();
             int numberOfNodesOriginallyInCluster = internalCluster().clusterService(masterNodeName).state().getNodes().size();
+            int numberOfMasterNodesOriginallyInCluster = internalCluster().clusterService(masterNodeName).state().nodes().getMasterNodes().size();
             List<String> namesOfDataNodesInOriginalCluster = getListOfDataNodeNamesFromCluster(masterNodeName);
 
             // Ensure the logging is as expected
@@ -81,7 +84,7 @@ public class NodeJoiningIT extends MasterElectionTestCase {
                 ClusterState state = internalCluster().clusterService(masterNodeName).state();
                 assertEquals(numberOfNodesOriginallyInCluster + 1, state.nodes().getSize());
                 assertEquals(namesOfDataNodesInOriginalCluster.size() + 1, state.nodes().getDataNodes().size());
-                assertEquals(5, state.nodes().getMasterNodes().size());
+                assertEquals(numberOfMasterNodesOriginallyInCluster, state.nodes().getMasterNodes().size());
 
                 List<String> namesOfDataNodesInNewCluster = getListOfDataNodeNamesFromCluster(masterNodeName);
                 assertTrue(namesOfDataNodesInNewCluster.contains(newNodeName));
@@ -106,11 +109,9 @@ public class NodeJoiningIT extends MasterElectionTestCase {
             final var newMasterNodeName = ensureSufficientMasterEligibleNodes();
             String originalMasterNodeName = internalCluster().getMasterName();
             int numberOfNodesOriginallyInCluster = internalCluster().clusterService(originalMasterNodeName).state().getNodes().size();
+            int numberOfMasterNodesOriginallyInCluster = internalCluster().clusterService(originalMasterNodeName).state().nodes().getMasterNodes().size();
             List<String> namesOfDataNodesInOriginalCluster = getListOfDataNodeNamesFromCluster(originalMasterNodeName);
             DiscoveryNode masterNode = internalCluster().clusterService(originalMasterNodeName).state().getNodes().getMasterNode();
-
-            // A CountDownLatch that only gets decremented when the first master acknowledges the second master
-            final var previousMasterKnowsNewMasterIsElectedLatch = configureElectionLatchForNewMaster(newMasterNodeName, cleanupTasks);
 
             // Sets MockTransportService behaviour
             for (final var transportService : internalCluster().getInstances(TransportService.class)) {
@@ -150,7 +151,14 @@ public class NodeJoiningIT extends MasterElectionTestCase {
                 String newNodeName = internalCluster().startDataOnlyNode();
 
                 // Wait until the old master has acknowledged the new master's election
-                safeAwait(previousMasterKnowsNewMasterIsElectedLatch);
+                ClusterService originalMasterClusterService = internalCluster().getInstance(ClusterService.class, originalMasterNodeName);
+                ClusterServiceUtils.addTemporaryStateListener(
+                        originalMasterClusterService,
+                        clusterState -> {
+                            DiscoveryNode currentMasterNode = clusterState.nodes().getMasterNode();
+                            return currentMasterNode != null && currentMasterNode.getName().equals(newMasterNodeName);
+                        }
+                );
                 assertNotEquals(originalMasterNodeName, internalCluster().getMasterName());
                 logger.info("New master is elected");
 
@@ -160,7 +168,7 @@ public class NodeJoiningIT extends MasterElectionTestCase {
                 ClusterState state = internalCluster().clusterService().state();
                 assertEquals(numberOfNodesOriginallyInCluster + 1, state.nodes().getSize());
                 assertEquals(namesOfDataNodesInOriginalCluster.size() + 1, state.nodes().getDataNodes().size());
-                assertEquals(5, state.nodes().getMasterNodes().size());
+                assertEquals(numberOfMasterNodesOriginallyInCluster, state.nodes().getMasterNodes().size());
 
                 List<String> namesOfDataNodesInNewCluster = getListOfDataNodeNamesFromCluster(newMasterNodeName);
                 assertTrue(namesOfDataNodesInNewCluster.contains(newNodeName));
@@ -173,7 +181,10 @@ public class NodeJoiningIT extends MasterElectionTestCase {
         }
     }
 
-    // Tests whether a WARN log is thrown when a node attempts to join a cluster, and then the same master node is re-elected (#126192)
+    /*
+        In this scenario, node N attempts to join a cluster, there is an election and the original master is re-elected.
+        Node N should join the cluster, but it should not be disconnected
+     */
     @TestLogging(
         reason = "test includes assertions about logging",
         value = "org.elasticsearch.cluster.coordination.NodeJoinExecutor:WARN,"
@@ -182,7 +193,7 @@ public class NodeJoiningIT extends MasterElectionTestCase {
             + "org.elasticsearch.cluster.coordination.MasterService:INFO,"
             + "org.elasticsearch.cluster.coordination.ClusterApplierService:WARN"
     )
-    public void testNodeTriesToJoinClusterAndThenSameMasterIsElected_DoesNotIncludeWarnLog() {
+    public void testNodeTriesToJoinClusterAndThenSameMasterIsElected() {
         final var cleanupTasks = new ArrayList<Releasable>();
 
         try {
@@ -193,6 +204,7 @@ public class NodeJoiningIT extends MasterElectionTestCase {
             long originalTerm = internalCluster().clusterService(masterNodeName).state().coordinationMetadata().term();
             long originalVersion = internalCluster().clusterService(masterNodeName).state().version();
             int numberOfNodesOriginallyInCluster = internalCluster().clusterService(masterNodeName).state().getNodes().size();
+            int numberOfMasterNodesOriginallyInCluster = internalCluster().clusterService(masterNodeName).state().nodes().getMasterNodes().size();
             List<String> namesOfDataNodesInOriginalCluster = getListOfDataNodeNamesFromCluster(masterNodeName);
             String[] namesOfAllNodesInOriginalCluster = internalCluster().getNodeNames();
 
@@ -213,13 +225,6 @@ public class NodeJoiningIT extends MasterElectionTestCase {
             CountDownLatch publishingBanRemovedLatch = removeMockTransportServicePublishBanWhenMasterHasSteppedDown(
                 masterNodeName,
                 masterNodeTransportService,
-                cleanupTasks
-            );
-
-            // A CountDownLatch that only gets decremented when the first master node is re-elected
-            final var masterKnowsItHasBeenReElectedLatch = configureElectionLatchForReElectedMaster(
-                masterNodeName,
-                originalTerm,
                 cleanupTasks
             );
 
@@ -280,7 +285,15 @@ public class NodeJoiningIT extends MasterElectionTestCase {
                 logger.info("Master publishing ban removed");
 
                 // Wait until the master acknowledges its re-election. The master is only re-elected once it's publishing ban is lifted
-                safeAwait(masterKnowsItHasBeenReElectedLatch);
+                ClusterService masterClusterService = internalCluster().getInstance(ClusterService.class, masterNodeName);
+                ClusterServiceUtils.addTemporaryStateListener(
+                        masterClusterService,
+                        clusterState -> {
+                            DiscoveryNode currentMasterNode = clusterState.nodes().getMasterNode();
+                            long currentTerm = clusterState.coordinationMetadata().term();
+                            return currentMasterNode != null && currentMasterNode.getName().equals(masterNodeName) && currentTerm > originalTerm;
+                        }
+                );
                 assertEquals(masterNodeName, internalCluster().getMasterName());
                 logger.info("Master has been re-elected");
 
@@ -289,7 +302,7 @@ public class NodeJoiningIT extends MasterElectionTestCase {
                     for (String nodeName : namesOfAllNodesInOriginalCluster) {
                         ClusterServiceUtils.awaitClusterState(
                             logger,
-                            clusterState -> clusterState.nodes().nodeExistsWithName(newNodeName),
+                            clusterState -> nodeExistsWithName(clusterState.nodes(),newNodeName),
                             internalCluster().clusterService(nodeName)
                         );
                     }
@@ -304,7 +317,7 @@ public class NodeJoiningIT extends MasterElectionTestCase {
                 ClusterState state = internalCluster().clusterService(masterNodeName).state();
                 assertEquals(numberOfNodesOriginallyInCluster + 1, state.nodes().getSize());
                 assertEquals(namesOfDataNodesInOriginalCluster.size() + 1, state.nodes().getDataNodes().size());
-                assertEquals(5, state.nodes().getMasterNodes().size());
+                assertEquals(numberOfMasterNodesOriginallyInCluster, state.nodes().getMasterNodes().size());
 
                 List<String> namesOfDataNodesInNewCluster = getListOfDataNodeNamesFromCluster(masterNodeName);
                 assertTrue(namesOfDataNodesInNewCluster.contains(newNodeName));
@@ -326,6 +339,15 @@ public class NodeJoiningIT extends MasterElectionTestCase {
             .stream()
             .map(DiscoveryNode::getName)
             .toList();
+    }
+
+    private boolean nodeExistsWithName(DiscoveryNodes nodes, String nodeName) {
+        for (DiscoveryNode node : nodes.getAllNodes()) {
+            if (node.getName().equals(nodeName)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private void addNodeJoinExpectation(MockLog mockLog, String expectedNewNodeAsString) {
@@ -559,5 +581,26 @@ public class NodeJoiningIT extends MasterElectionTestCase {
         masterClusterService.addStateApplier(newMasterMonitor);
         cleanupTasks.add(() -> masterClusterService.removeApplier(newMasterMonitor));
         return latch;
+    }
+
+    /**
+     * Add some master-only nodes and block until they've joined the cluster
+     * <p>
+     * Ensure that we've got 3 voting nodes in the cluster, this means even if the original
+     * master accepts its own failed state update before standing down, we can still
+     * establish a quorum without its (or our own) join.
+     */
+    protected static String ensureSufficientMasterEligibleNodes() {
+        final var votingConfigSizeListener = ClusterServiceUtils.addTemporaryStateListener(
+                cs -> 3 <= cs.coordinationMetadata().getLastCommittedConfiguration().getNodeIds().size()
+        );
+
+        try {
+            final var newNodeNames = internalCluster().startMasterOnlyNodes(Math.max(1, 3 - internalCluster().numMasterNodes()));
+            safeAwait(votingConfigSizeListener);
+            return newNodeNames.get(0);
+        } finally {
+            votingConfigSizeListener.onResponse(null);
+        }
     }
 }

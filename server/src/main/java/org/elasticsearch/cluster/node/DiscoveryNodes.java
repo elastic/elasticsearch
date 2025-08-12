@@ -268,21 +268,6 @@ public class DiscoveryNodes implements Iterable<DiscoveryNode>, SimpleDiffable<D
     }
 
     /**
-     * Determine if a given node exists
-     *
-     * @param name of the node which existence should be verified
-     * @return <code>true</code> if the node exists. Otherwise <code>false</code>
-     */
-    public boolean nodeExistsWithName(String name) {
-        for (DiscoveryNode node : nodes.values()) {
-            if (node.getName().equals(name)) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    /**
      * Determine if the given node exists and has the right roles. Supported roles vary by version, and our local cluster state might
      * have come via an older master, so the roles may differ even if the node is otherwise identical.
      */

@@ -17,13 +17,14 @@ import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateApplier;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.coordination.LeaderChecker;
-import org.elasticsearch.cluster.coordination.MasterElectionTestCase;
 import org.elasticsearch.cluster.coordination.PublicationTransportHandler;
 import org.elasticsearch.cluster.coordination.StatefulPreVoteCollector;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
@@ -34,6 +35,8 @@ import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.test.ClusterServiceUtils;
+import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -42,11 +45,13 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.CyclicBarrier;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 
-public class TransportMasterNodeActionIT extends MasterElectionTestCase {
+public class TransportMasterNodeActionIT extends ESIntegTestCase {
 
     @SuppressWarnings("unchecked")
     @Override
@@ -81,7 +86,7 @@ public class TransportMasterNodeActionIT extends MasterElectionTestCase {
                 .get()
                 .getState()
                 .term();
-            final var previousMasterKnowsNewMasterIsElectedLatch = configureElectionLatchForNewMaster(newMaster, cleanupTasks);
+            final var previousMasterKnowsNewMasterIsElectedLatch = configureElectionLatch(newMaster, cleanupTasks);
 
             final var newMasterReceivedReroutedMessageFuture = new PlainActionFuture<>();
             final var newMasterReceivedReroutedMessageListener = ActionListener.assertOnce(newMasterReceivedReroutedMessageFuture);
@@ -150,6 +155,73 @@ public class TransportMasterNodeActionIT extends MasterElectionTestCase {
             safeGet(testActionFuture);
         } finally {
             Releasables.closeExpectNoException(Releasables.wrap(cleanupTasks));
+        }
+    }
+
+    /**
+     * Block the cluster state applier on a node. Returns only when applier is blocked.
+     *
+     * @param nodeName The name of the node on which to block the applier
+     * @param cleanupTasks The list of clean up tasks
+     * @return A cyclic barrier which when awaited on will un-block the applier
+     */
+    private static CyclicBarrier blockClusterStateApplier(String nodeName, ArrayList<Releasable> cleanupTasks) {
+        final var stateApplierBarrier = new CyclicBarrier(2);
+        internalCluster().getInstance(ClusterService.class, nodeName).getClusterApplierService().onNewClusterState("test", () -> {
+            // Meet to signify application is blocked
+            safeAwait(stateApplierBarrier);
+            // Wait for the signal to unblock
+            safeAwait(stateApplierBarrier);
+            return null;
+        }, ActionListener.noop());
+        cleanupTasks.add(stateApplierBarrier::reset);
+
+        // Wait until state application is blocked
+        safeAwait(stateApplierBarrier);
+        return stateApplierBarrier;
+    }
+
+    /**
+     * Configure a latch that will be released when the existing master knows of the new master's election
+     *
+     * @param newMaster The name of the newMaster node
+     * @param cleanupTasks The list of cleanup tasks
+     * @return A latch that will be released when the old master acknowledges the new master's election
+     */
+    private CountDownLatch configureElectionLatch(String newMaster, List<Releasable> cleanupTasks) {
+        final String originalMasterName = internalCluster().getMasterName();
+        logger.info("Original master was {}, new master will be {}", originalMasterName, newMaster);
+        final var previousMasterKnowsNewMasterIsElectedLatch = new CountDownLatch(1);
+        ClusterStateApplier newMasterMonitor = event -> {
+            DiscoveryNode masterNode = event.state().nodes().getMasterNode();
+            if (masterNode != null && masterNode.getName().equals(newMaster)) {
+                previousMasterKnowsNewMasterIsElectedLatch.countDown();
+            }
+        };
+        ClusterService originalMasterClusterService = internalCluster().getInstance(ClusterService.class, originalMasterName);
+        originalMasterClusterService.addStateApplier(newMasterMonitor);
+        cleanupTasks.add(() -> originalMasterClusterService.removeApplier(newMasterMonitor));
+        return previousMasterKnowsNewMasterIsElectedLatch;
+    }
+
+    /**
+     * Add some master-only nodes and block until they've joined the cluster
+     * <p>
+     * Ensure that we've got 5 voting nodes in the cluster, this means even if the original
+     * master accepts its own failed state update before standing down, we can still
+     * establish a quorum without its (or our own) join.
+     */
+    private static String ensureSufficientMasterEligibleNodes() {
+        final var votingConfigSizeListener = ClusterServiceUtils.addTemporaryStateListener(
+            cs -> 5 <= cs.coordinationMetadata().getLastCommittedConfiguration().getNodeIds().size()
+        );
+
+        try {
+            final var newNodeNames = internalCluster().startMasterOnlyNodes(Math.max(1, 5 - internalCluster().numMasterNodes()));
+            safeAwait(votingConfigSizeListener);
+            return newNodeNames.get(0);
+        } finally {
+            votingConfigSizeListener.onResponse(null);
         }
     }
 

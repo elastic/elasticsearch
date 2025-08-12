@@ -16,7 +16,6 @@ import org.elasticsearch.gradle.internal.transport.TransportVersionUtils.Transpo
 import org.elasticsearch.gradle.internal.transport.TransportVersionUtils.TransportVersionLatest;
 import org.elasticsearch.gradle.internal.transport.TransportVersionUtils.TransportVersionReference;
 import org.gradle.api.DefaultTask;
-import org.gradle.api.Project;
 import org.gradle.api.file.ConfigurableFileCollection;
 import org.gradle.api.file.DirectoryProperty;
 import org.gradle.api.tasks.CacheableTask;

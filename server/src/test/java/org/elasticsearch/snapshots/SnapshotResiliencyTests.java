@@ -174,6 +174,7 @@ import org.elasticsearch.plugins.scanners.StablePluginsRegistry;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.RepositoryData;
+import org.elasticsearch.repositories.SnapshotMetrics;
 import org.elasticsearch.repositories.VerifyNodeRepositoryAction;
 import org.elasticsearch.repositories.VerifyNodeRepositoryCoordinationAction;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
@@ -2411,7 +2412,8 @@ public class SnapshotResiliencyTests extends ESTestCase {
                     emptyMap(),
                     threadPool,
                     client,
-                    List.of()
+                    List.of(),
+                    SnapshotMetrics.NOOP
                 );
                 snapshotsService = new SnapshotsService(
                     settings,
@@ -2421,7 +2423,8 @@ public class SnapshotResiliencyTests extends ESTestCase {
                     repositoriesService,
                     transportService,
                     EmptySystemIndices.INSTANCE,
-                    false
+                    false,
+                    SnapshotMetrics.NOOP
                 );
                 nodeEnv = new NodeEnvironment(settings, environment);
                 final NamedXContentRegistry namedXContentRegistry = new NamedXContentRegistry(Collections.emptyList());

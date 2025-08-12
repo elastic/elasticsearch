@@ -18,8 +18,10 @@ import org.hamcrest.Matcher;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.test.ESTestCase.assertThat;
 import static org.hamcrest.Matchers.equalTo;
@@ -195,6 +197,51 @@ public class TestBlock implements BlockLoader.Block {
                     }
                 }
                 return new LongsBuilder();
+            }
+
+            @Override
+            public BlockLoader.SingletonLongBuilder singletonLongs(int expectedCount) {
+                final long[] values = new long[expectedCount];
+                return new BlockLoader.SingletonLongBuilder() {
+
+                    private int count;
+
+                    @Override
+                    public BlockLoader.Block build() {
+                        return new TestBlock(Arrays.stream(values).boxed().collect(Collectors.toUnmodifiableList()));
+                    }
+
+                    @Override
+                    public BlockLoader.SingletonLongBuilder appendLongs(long[] newValues, int from, int length) {
+                        System.arraycopy(newValues, from, values, count, length);
+                        count += length;
+                        return this;
+                    }
+
+                    @Override
+                    public BlockLoader.SingletonLongBuilder appendLong(long value) {
+                        values[count++] = value;
+                        return this;
+                    }
+
+                    @Override
+                    public BlockLoader.Builder appendNull() {
+                        throw new UnsupportedOperationException();
+                    }
+
+                    @Override
+                    public BlockLoader.Builder beginPositionEntry() {
+                        throw new UnsupportedOperationException();
+                    }
+
+                    @Override
+                    public BlockLoader.Builder endPositionEntry() {
+                        throw new UnsupportedOperationException();
+                    }
+
+                    @Override
+                    public void close() {}
+                };
             }
 
             @Override

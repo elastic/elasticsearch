@@ -22,15 +22,14 @@ import java.nio.file.Path;
 
 public abstract class GenerateTransportVersionManifestTask extends DefaultTask {
     @InputDirectory
-    public abstract DirectoryProperty getResourcesDirectory();
+    public abstract DirectoryProperty getDefinitionsDirectory();
 
     @OutputFile
     public abstract RegularFileProperty getManifestFile();
 
     @TaskAction
     public void generateTransportVersionManifest() throws IOException {
-        Path resourcesDir = getResourcesDirectory().get().getAsFile().toPath();
-        Path definitionsDir = TransportVersionUtils.getDefinitionsDirectory(resourcesDir);
+        Path definitionsDir = getDefinitionsDirectory().get().getAsFile().toPath();
         Path manifestFile = getManifestFile().get().getAsFile().toPath();
         try (var writer = Files.newBufferedWriter(manifestFile)) {
             try (var stream = Files.list(definitionsDir)) {

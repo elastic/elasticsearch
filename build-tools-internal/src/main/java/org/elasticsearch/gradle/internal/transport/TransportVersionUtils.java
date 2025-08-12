@@ -69,6 +69,16 @@ class TransportVersionUtils {
     }
 
     record TransportVersionId(int complete, int major, int server, int subsidiary, int patch) implements Comparable<TransportVersionId> {
+
+        static TransportVersionId fromString(String s) {
+            int complete = Integer.parseInt(s);
+            int patch = complete % 100;
+            int subsidiary = (complete / 100) % 10;
+            int server = (complete / 1000) % 1000;
+            int major = complete / 1000000;
+            return new TransportVersionId(complete, major, server, subsidiary, patch);
+        }
+
         @Override
         public int compareTo(TransportVersionId o) {
             return Integer.compare(complete, o.complete);
@@ -84,12 +94,12 @@ class TransportVersionUtils {
         }
     }
 
-    static Path definitionFilePath(Path resourcesDir, String name) {
-        return getDefinitionsDirectory(resourcesDir).resolve(name + ".csv");
+    static Path definitionFilePath(Directory resourcesDirectory, String name) {
+        return getDefinitionsDirectory(resourcesDirectory).getAsFile().toPath().resolve(name + ".csv");
     }
 
-    static Path latestFilePath(Path resourcesDir, String name) {
-        return getLatestDirectory(resourcesDir).resolve(name + ".csv");
+    static Path latestFilePath(Directory resourcesDirectory, String name) {
+        return getLatestDirectory(resourcesDirectory).getAsFile().toPath().resolve(name + ".csv");
     }
 
     static TransportVersionDefinition readDefinitionFile(Path file) throws IOException {
@@ -124,12 +134,12 @@ class TransportVersionUtils {
         return new TransportVersionId(complete, major, server, subsidiary, patch);
     }
 
-    static Path getDefinitionsDirectory(Path resourcesDir) {
-        return resourcesDir.resolve("defined");
+    static Directory getDefinitionsDirectory(Directory resourcesDirectory) {
+        return resourcesDirectory.dir("defined");
     }
 
-    static Path getLatestDirectory(Path resourcesDir) {
-        return resourcesDir.resolve("latest");
+    static Directory getLatestDirectory(Directory resourcesDirectory) {
+        return resourcesDirectory.dir("latest");
     }
 
     static Directory getResourcesDirectory(Project project) {

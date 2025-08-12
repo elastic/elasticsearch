@@ -34,7 +34,7 @@ public abstract class ValidateTransportVersionReferencesTask extends DefaultTask
     @InputDirectory
     @Optional
     @PathSensitive(PathSensitivity.RELATIVE)
-    public abstract DirectoryProperty getResourcesDirectory();
+    public abstract DirectoryProperty getDefinitionsDirectory();
 
     @InputFile
     @PathSensitive(PathSensitivity.RELATIVE)
@@ -43,9 +43,8 @@ public abstract class ValidateTransportVersionReferencesTask extends DefaultTask
     @TaskAction
     public void validateTransportVersions() throws IOException {
         final Predicate<String> referenceChecker;
-        if (getResourcesDirectory().isPresent()) {
-            Path resourcesDir = getResourcesDirectory().getAsFile().get().toPath();
-            Path definitionsDir = TransportVersionUtils.getDefinitionsDirectory(resourcesDir);
+        if (getDefinitionsDirectory().isPresent()) {
+            Path definitionsDir = getDefinitionsDirectory().getAsFile().get().toPath();
             referenceChecker = (name) -> Files.exists(definitionsDir.resolve(name + ".csv"));
         } else {
             referenceChecker = (name) -> false;

@@ -330,7 +330,8 @@ public class EsqlQueryGenerator {
             // this is a known pathological case, no need to test it for now
             || field.name().equals("<no-fields>")
             // no dense vectors for now, they are not supported in most commands
-            || field.type().contains("vector")) == false;
+            || field.type().contains("vector")
+            || field.type().contains("unsupported")) == false;
     }
 
     public static String unquote(String colName) {

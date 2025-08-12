@@ -47,16 +47,15 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailuresAndResponse;
 
-
 public class PatternedTextVsMatchOnlyTextTests extends ESIntegTestCase {
     private static final Logger logger = LogManager.getLogger(PatternedTextVsMatchOnlyTextTests.class);
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
         return Settings.builder()
-                .put(super.nodeSettings(nodeOrdinal, otherSettings))
-                .put(LicenseSettings.SELF_GENERATED_LICENSE_TYPE.getKey(), "trial")
-                .build();
+            .put(super.nodeSettings(nodeOrdinal, otherSettings))
+            .put(LicenseSettings.SELF_GENERATED_LICENSE_TYPE.getKey(), "trial")
+            .build();
     }
 
     @Override
@@ -68,14 +67,14 @@ public class PatternedTextVsMatchOnlyTextTests extends ESIntegTestCase {
     private static final String MATCH_ONLY_TEXT_FIELD = "field_match_only_text";
     private static final String PATTERNED_TEXT_FIELD = "field_patterned_text";
     private static final String MAPPING = """
-        {
-          "properties": {
-            "@timestamp": { "type": "date" },
-            "field_match_only_text": { "type": "match_only_text" },
-            "field_patterned_text": { "type": "patterned_text" }
-          }
-        }
-    """;
+            {
+              "properties": {
+                "@timestamp": { "type": "date" },
+                "field_match_only_text": { "type": "match_only_text" },
+                "field_patterned_text": { "type": "patterned_text" }
+              }
+            }
+        """;
 
     @Before
     public void setup() {
@@ -83,8 +82,7 @@ public class PatternedTextVsMatchOnlyTextTests extends ESIntegTestCase {
     }
 
     public void testQueries() throws IOException {
-        var createRequest = new CreateIndexRequest(INDEX)
-            .mapping(MAPPING);
+        var createRequest = new CreateIndexRequest(INDEX).mapping(MAPPING);
 
         assertAcked(admin().indices().create(createRequest));
 
@@ -110,7 +108,12 @@ public class PatternedTextVsMatchOnlyTextTests extends ESIntegTestCase {
         }
     }
 
-    private void assertQueryResults(List<QueryBuilder> patternedTextQueries, List<QueryBuilder> matchOnlyTextQueries, int numDocs, String queryType) {
+    private void assertQueryResults(
+        List<QueryBuilder> patternedTextQueries,
+        List<QueryBuilder> matchOnlyTextQueries,
+        int numDocs,
+        String queryType
+    ) {
         var numQueriesWithResults = new AtomicInteger(0);
         var numQueriesTotal = new AtomicInteger(0);
         for (int i = 0; i < patternedTextQueries.size(); ++i) {

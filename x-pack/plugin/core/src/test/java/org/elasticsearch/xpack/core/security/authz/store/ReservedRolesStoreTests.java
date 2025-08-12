@@ -2772,9 +2772,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
 
         final String applicationName = "kibana-.kibana";
 
-        final Set<String> applicationPrivilegeNames = Set.of(
-            "reserved_reporting_user"
-        );
+        final Set<String> applicationPrivilegeNames = Set.of("reserved_reporting_user");
 
         final Set<String> allowedApplicationActionPatterns = Set.of(
             "login:",

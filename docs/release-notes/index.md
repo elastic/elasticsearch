@@ -773,7 +773,7 @@ This happened because the ES|QL driver added a live operator list to the `Driver
 
 Infra/Core:
 :::{dropdown} Grants server module read/write permissions for deprecated `path.shared_data` setting
-Grants the server module read/write access to the deprecated `path.shared_data` setting.  
+The server module is now granted read/write permissions for the deprecated `path.shared_data` setting.  
 [#131680](https://github.com/elastic/elasticsearch/pull/131680) resolves issues surfaced in internal testing and ensures compatibility with legacy configurations.
 :::
 

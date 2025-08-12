@@ -85,14 +85,20 @@ public class Index implements Writeable, ToXContentObject {
             return false;
         }
         Index index1 = (Index) o;
-        return uuid.equals(index1.uuid) && name.equals(index1.name); // allow for _na_ uuid
+        if (ClusterState.UNKNOWN_UUID.equals(uuid) && ClusterState.UNKNOWN_UUID.equals(index1.uuid)) {
+            // If the uuid is unknown, we only compare the name
+            return name.equals(index1.name);
+        }
+        return uuid.equals(index1.uuid);
     }
 
     @Override
     public int hashCode() {
-        int result = name.hashCode();
-        result = 31 * result + uuid.hashCode();
-        return result;
+        if (ClusterState.UNKNOWN_UUID.equals(uuid)) {
+            // If the uuid is unknown, we only hash the name
+            return name.hashCode();
+        }
+        return uuid.hashCode();
     }
 
     @Override

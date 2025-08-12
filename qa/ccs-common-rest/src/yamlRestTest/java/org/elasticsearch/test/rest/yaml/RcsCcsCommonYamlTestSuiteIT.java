@@ -83,14 +83,6 @@ public class RcsCcsCommonYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
     private static final AtomicReference<Set<String>> combinedOsSetRef = new AtomicReference<>();
     private static final AtomicReference<Set<String>> combinedNodeVersionsRef = new AtomicReference<>();
 
-    private static long suiteStartNanos;
-
-    @BeforeClass
-    public static void startSuiteTimer() {
-        suiteStartNanos = System.nanoTime();
-        logger.info("Starting {}…", RcsCcsCommonYamlTestSuiteIT.class.getSimpleName());
-    }
-
     private static LocalClusterConfigProvider commonClusterConfig = cluster -> cluster.module("x-pack-async-search")
         .module("aggregations")
         .module("mapper-extras")
@@ -356,8 +348,6 @@ public class RcsCcsCommonYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
         try {
             IOUtils.close(searchClient, adminSearchClient);
         } finally {
-            long durMs = (System.nanoTime() - suiteStartNanos) / 1_000_000L;
-            logger.info("{} finished in {} ms", RcsCcsCommonYamlTestSuiteIT.class.getSimpleName(), durMs);
             clusterHosts = null;
         }
     }

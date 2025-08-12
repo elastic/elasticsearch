@@ -29,5 +29,4 @@ module org.elasticsearch.repository.azure {
     requires reactor.netty.core;
     requires reactor.netty.http;
     requires com.azure.storage.blob.batch;
-    requires org.elasticsearch.logging;
 }

@@ -135,10 +135,6 @@ public class DenseVectorFieldTypeIT extends AbstractEsqlIntegTestCase {
             | KEEP id, vector
             """;
 
-        indexedVectors.forEach((i, v) -> {
-            System.out.println("ID: " + i + ", Vector: " + v);
-        });
-
         try (var resp = run(query)) {
             List<List<Object>> valuesList = EsqlTestUtils.getValuesList(resp);
             assertEquals(valuesList.size(), indexedVectors.size());

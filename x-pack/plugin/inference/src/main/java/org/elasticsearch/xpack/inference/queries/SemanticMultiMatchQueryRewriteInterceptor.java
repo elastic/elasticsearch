@@ -81,7 +81,6 @@ public class SemanticMultiMatchQueryRewriteInterceptor extends SemanticQueryRewr
             semanticQuery.queryName(originalQuery.queryName());
             return semanticQuery;
         } else {
-            detectAndWarnScoreRangeMismatch(indexInformation);
             return buildMultiFieldSemanticQuery(originalQuery, inferenceFields, queryValue, indexInformation);
         }
     }
@@ -96,7 +95,6 @@ public class SemanticMultiMatchQueryRewriteInterceptor extends SemanticQueryRewr
         String queryValue = getQuery(queryBuilder);
 
         validateQueryTypeSupported(originalQuery.type());
-        detectAndWarnScoreRangeMismatch(indexInformation);
 
         return switch (originalQuery.type()) {
             case BEST_FIELDS -> buildBestFieldsCombinedQuery(originalQuery, indexInformation, queryValue);
@@ -308,50 +306,4 @@ public class SemanticMultiMatchQueryRewriteInterceptor extends SemanticQueryRewr
             target.fuzziness(original.fuzziness());
         }
     }
-
-    /**
-     * Detects and warns about score range mismatches when a multi_match query has at least one dense vector model (TEXT_EMBEDDING)
-     * mixed with sparse vector models (SPARSE_EMBEDDING) or non-inference fields.
-     * Dense vector models typically produce bounded scores (0-1) while sparse vector models and
-     * non-inference fields produce unbounded scores, causing score range mismatches.
-     */
-    private void detectAndWarnScoreRangeMismatch(InferenceIndexInformationForField indexInformation) {
-        ModelRegistry modelRegistry = modelRegistrySupplier.get();
-        // Check if we have any dense vector models mixed with sparse vector models or non-inference fields
-        boolean hasDenseVectorModel = false;
-        boolean hasSparseVectorModel = false;
-        boolean hasNonInferenceFields = indexInformation.hasNonInferenceFields();
-
-        // Collect all inference IDs from all fields using the public API
-        Set<String> allInferenceIds = indexInformation.getInferenceIdsIndices().keySet();
-
-        // Check task types for each inference ID
-        for (String inferenceId : allInferenceIds) {
-            try {
-                MinimalServiceSettings settings = modelRegistry.getMinimalServiceSettings(inferenceId);
-                if (settings != null) {
-                    TaskType taskType = settings.taskType();
-                    if (taskType == TaskType.TEXT_EMBEDDING) {
-                        hasDenseVectorModel = true;
-                    } else if (taskType == TaskType.SPARSE_EMBEDDING) {
-                        hasSparseVectorModel = true;
-                    }
-                }
-            } catch (Exception e) {
-                // TODO: validate If we can't get model info, skip this inference ID or throw an error
-            }
-        }
-
-        // Emit warning only if we have dense vector model mixed with sparse vector or non-inference fields
-        if (hasDenseVectorModel && (hasSparseVectorModel || hasNonInferenceFields)) {
-            HeaderWarning.addWarning(
-                "Query contains dense vector model (TEXT_EMBEDDING) with bounded scores (0-1) mixed with "
-                    + (hasSparseVectorModel ? "sparse vector model (SPARSE_EMBEDDING) and/or " : "")
-                    + (hasNonInferenceFields ? "non-inference fields " : "")
-                    + "that produce unbounded scores. This may cause score range mismatches and affect result ranking. "
-                    + "Consider using Linear or RRF retrievers."
-            );
-        }
-    }
-
 }

@@ -99,9 +99,9 @@ public class SemanticMultiMatchQueryRewriteInterceptor extends SemanticQueryRewr
         return switch (originalQuery.type()) {
             case BEST_FIELDS -> buildBestFieldsCombinedQuery(originalQuery, indexInformation, queryValue);
             case MOST_FIELDS -> buildMostFieldsCombinedQuery(originalQuery, indexInformation, queryValue);
-            default ->
-                // Fallback to best_fields behavior as default type
-                buildBestFieldsCombinedQuery(originalQuery, indexInformation, queryValue);
+            default -> throw new IllegalArgumentException(
+                "Unsupported query type [" + originalQuery.type() + "] for semantic_text fields"
+            );
         };
     }
 
@@ -119,9 +119,9 @@ public class SemanticMultiMatchQueryRewriteInterceptor extends SemanticQueryRewr
         return switch (originalQuery.type()) {
             case BEST_FIELDS -> buildBestFieldsSemanticQuery(originalQuery, indexInformation, inferenceFields, queryValue);
             case MOST_FIELDS -> buildMostFieldsSemanticQuery(originalQuery, indexInformation, inferenceFields, queryValue);
-            default ->
-                // Fallback to best_fields behavior for default types
-                buildBestFieldsSemanticQuery(originalQuery, indexInformation, inferenceFields, queryValue);
+            default -> throw new IllegalArgumentException(
+                "Unsupported query type [" + originalQuery.type() + "] for semantic_text fields"
+            );
         };
     }
 

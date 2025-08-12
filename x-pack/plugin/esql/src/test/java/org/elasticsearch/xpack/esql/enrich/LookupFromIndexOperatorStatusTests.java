@@ -30,6 +30,7 @@ public class LookupFromIndexOperatorStatusTests extends AbstractWireSerializingT
             randomNonNegativeLong(),
             randomLongBetween(0, TimeValue.timeValueHours(1).millis()),
             randomNonNegativeLong(),
+            randomNonNegativeLong(),
             randomNonNegativeLong()
         );
     }
@@ -41,19 +42,21 @@ public class LookupFromIndexOperatorStatusTests extends AbstractWireSerializingT
         long procesNanos = in.processNanos();
         long totalTerms = in.totalTerms();
         long emittedPages = in.emittedPages();
-        switch (randomIntBetween(0, 4)) {
+        long emittedRows = in.emittedRows();
+        switch (randomIntBetween(0, 5)) {
             case 0 -> receivedPages = randomValueOtherThan(receivedPages, ESTestCase::randomNonNegativeLong);
             case 1 -> completedPages = randomValueOtherThan(completedPages, ESTestCase::randomNonNegativeLong);
             case 2 -> procesNanos = randomValueOtherThan(procesNanos, ESTestCase::randomNonNegativeLong);
             case 3 -> totalTerms = randomValueOtherThan(totalTerms, ESTestCase::randomNonNegativeLong);
             case 4 -> emittedPages = randomValueOtherThan(emittedPages, ESTestCase::randomNonNegativeLong);
+            case 5 -> emittedRows = randomValueOtherThan(emittedRows, ESTestCase::randomNonNegativeLong);
             default -> throw new UnsupportedOperationException();
         }
-        return new LookupFromIndexOperator.Status(receivedPages, completedPages, procesNanos, totalTerms, emittedPages);
+        return new LookupFromIndexOperator.Status(receivedPages, completedPages, procesNanos, totalTerms, emittedPages, emittedRows);
     }
 
     public void testToXContent() {
-        var status = new LookupFromIndexOperator.Status(100, 50, TimeValue.timeValueNanos(10).nanos(), 120, 88);
+        var status = new LookupFromIndexOperator.Status(100, 50, TimeValue.timeValueNanos(10).nanos(), 120, 88, 800);
         String json = Strings.toString(status, true, true);
         assertThat(json, equalTo("""
             {
@@ -62,6 +65,7 @@ public class LookupFromIndexOperatorStatusTests extends AbstractWireSerializingT
               "received_pages" : 100,
               "completed_pages" : 50,
               "emitted_pages" : 88,
+              "emitted_rows" : 800,
               "total_terms" : 120
             }"""));
     }

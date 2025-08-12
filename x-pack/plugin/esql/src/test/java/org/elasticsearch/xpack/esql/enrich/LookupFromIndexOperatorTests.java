@@ -276,10 +276,12 @@ public class LookupFromIndexOperatorTests extends OperatorTestCase {
     @Override
     protected void checkOperatorStatusFields(Map<String, Object> status, List<Page> input, List<Page> output) {
         var totalPages = input.size();
-        var totalTerms = input.stream().mapToLong(p -> p.getBlock(0).getTotalValueCount()).sum();
+        var totalInutValues = input.stream().mapToLong(p -> p.getBlock(0).getTotalValueCount()).sum();
+        var totalOutputRows = input.stream().mapToLong(p -> p.getPositionCount()).sum();
 
-        assertThat(status, hasEntry(is("total_terms"), matchNumberEqualTo(totalTerms)));
+        assertThat(status, hasEntry(is("total_terms"), matchNumberEqualTo(totalInutValues)));
         assertThat(status, hasEntry(is("completed_pages"), matchNumberEqualTo(totalPages)));
         assertThat(status, hasEntry(is("emitted_pages"), matchNumberGreaterThanOrEqualTo(totalPages)));
+        assertThat(status, hasEntry(is("emitted_rows"), matchNumberGreaterThanOrEqualTo(totalOutputRows)));
     }
 }

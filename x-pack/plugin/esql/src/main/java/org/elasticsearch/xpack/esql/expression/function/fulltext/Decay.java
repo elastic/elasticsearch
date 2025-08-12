@@ -43,6 +43,7 @@ import java.util.Arrays;
 import java.util.List;
 
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.*;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isNotNull;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isNumeric;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
 import static org.elasticsearch.xpack.esql.core.type.DataType.*;
@@ -165,13 +166,14 @@ public class Decay extends EsqlScalarFunction implements OptionalArgument {
             return new TypeResolution("Unresolved children");
         }
 
-        TypeResolution valueResolution = isType(
+        TypeResolution valueResolution = isNotNull(value, sourceText(), FIRST)
+            .and(isType(
             value,
             dt -> dt.isNumeric() || dt.isDate() || isSpatialPoint(dt),
             sourceText(),
             FIRST,
             NUMERIC_DATE_OR_SPATIAL_POINT
-        );
+        ));
         if (valueResolution.unresolved()) {
             return valueResolution;
         }
@@ -392,7 +394,6 @@ public class Decay extends EsqlScalarFunction implements OptionalArgument {
         };
     }
 
-    // TODO: should offset be a long?
     @Evaluator(extraName = "Long")
     static double process(long value, long origin, long scale, double offset, double decay, BytesRef functionType) {
         return switch (functionType.utf8ToString()) {

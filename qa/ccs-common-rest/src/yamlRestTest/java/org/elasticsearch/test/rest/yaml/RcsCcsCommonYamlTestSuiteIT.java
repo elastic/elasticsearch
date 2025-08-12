@@ -105,7 +105,7 @@ public class RcsCcsCommonYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
 
     private static ElasticsearchCluster fulfillingCluster = ElasticsearchCluster.local()
         .name(REMOTE_CLUSTER_NAME)
-        .nodes(1)
+        .nodes(2)
         .setting("node.roles", "[data,ingest,master]")
         .setting("remote_cluster_server.enabled", "true")
         .setting("remote_cluster.port", "0")

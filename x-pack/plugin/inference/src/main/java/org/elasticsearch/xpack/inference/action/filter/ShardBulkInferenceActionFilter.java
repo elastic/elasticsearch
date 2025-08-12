@@ -629,7 +629,7 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
             if (indexRequest.isIndexingPressureIncremented() == false) {
                 try {
                     // Track operation count as one operation per document source update
-                    coordinatingIndexingPressure.increment(1, indexRequest.getIndexRequest().source().length());
+                    coordinatingIndexingPressure.increment(1, indexRequest.getIndexRequest().sourceSize());
                     indexRequest.setIndexingPressureIncremented();
                 } catch (EsRejectedExecutionException e) {
                     addInferenceResponseFailure(
@@ -725,6 +725,7 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
             }
 
             BytesReference originalSource = indexRequest.source();
+            int originalSourceSize = indexRequest.sourceSize();
             if (useLegacyFormat) {
                 var newDocMap = indexRequest.sourceAsMap();
                 for (var entry : inferenceFieldsMap.entrySet()) {
@@ -737,13 +738,13 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                     indexRequest.source(builder);
                 }
             }
-            long modifiedSourceSize = indexRequest.source().length();
+            long modifiedSourceSize = indexRequest.sourceSize();
 
             // Add the indexing pressure from the source modifications.
             // Don't increment operation count because we count one source update as one operation, and we already accounted for those
             // in addFieldInferenceRequests.
             try {
-                coordinatingIndexingPressure.increment(0, modifiedSourceSize - originalSource.length());
+                coordinatingIndexingPressure.increment(0, modifiedSourceSize - originalSourceSize);
             } catch (EsRejectedExecutionException e) {
                 indexRequest.source(originalSource, indexRequest.getContentType());
                 item.abort(

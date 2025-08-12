@@ -90,9 +90,7 @@ public final class BulkShardRequest extends ReplicatedWriteRequest<BulkShardRequ
         for (int i = 0; i < items.length; i++) {
             DocWriteRequest<?> request = items[i].request();
             if (request instanceof IndexRequest) {
-                if (((IndexRequest) request).source() != null) {
-                    totalSizeInBytes += ((IndexRequest) request).sourceSize();
-                }
+                totalSizeInBytes += ((IndexRequest) request).sourceSize();
             } else if (request instanceof UpdateRequest) {
                 IndexRequest doc = ((UpdateRequest) request).doc();
                 if (doc != null && doc.source() != null) {

@@ -268,7 +268,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
     @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = super.validate();
-        if (source == null) {
+        if ((useStructuredSource == false && source == null) || (useStructuredSource && structuredSource == null)) {
             validationException = addValidationError("source is missing", validationException);
         }
         if (contentType == null) {

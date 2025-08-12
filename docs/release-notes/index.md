@@ -809,7 +809,7 @@ This happened because `String.length()` was used to calculate the byte length of
 :::
 
 Search:
-:::dropdown Correct shard status reporting in point-in-time responses
+:::{dropdown} Correct shard status reporting in point-in-time responses
 The Open PIT API incorrectly swapped the skipped and failed shard counts when partial search results were allowed. This caused the API to report failed shards as skipped and vice versa. [#131391](https://github.com/elastic/elasticsearch/pull/131391) fixes the field mapping so shard status is reported accurately. (issue: [#131026](https://github.com/elastic/elasticsearch/issues/131026))
 :::
 

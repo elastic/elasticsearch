@@ -468,7 +468,8 @@ public class EsqlSession {
             patternWithRemotes,
             fieldNames,
             null,
-            listener.map(indexResolution -> receiveLookupIndexResolution(result, localPattern, executionInfo, indexResolution))
+            listener.map(indexResolution -> receiveLookupIndexResolution(result, localPattern, executionInfo, indexResolution)),
+            false
         );
     }
 
@@ -686,7 +687,8 @@ public class EsqlSession {
                     requestFilter,
                     listener.delegateFailure((l, indexResolution) -> {
                         l.onResponse(result.withIndexResolution(indexResolution));
-                    })
+                    }),
+                    false
                 );
             }
         } else {

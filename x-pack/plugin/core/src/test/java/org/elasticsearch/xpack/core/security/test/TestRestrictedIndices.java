@@ -104,7 +104,7 @@ public class TestRestrictedIndices {
                     SystemIndexDescriptorUtils.createUnmanaged(".fleet-policies-leader*", "fleet policies leader"),
                     SystemIndexDescriptorUtils.createUnmanaged(".fleet-servers*", "fleet servers"),
                     SystemIndexDescriptorUtils.createUnmanaged(".fleet-artifacts*", "fleet artifacts"),
-                    SystemIndexDescriptorUtils.createUnmanaged(".integration_knowledge*", "integration knowledge")
+                    SystemIndexDescriptorUtils.createUnmanaged(".integration_knowledge*", "fleet integration knowledge base")
                 ),
                 List.of(
                     new SystemDataStreamDescriptor(

@@ -271,7 +271,10 @@ public class Fleet extends Plugin implements SystemIndexPlugin {
 
     private static SystemIndexDescriptor fleetIntegrationKnowledgeSystemIndexDescriptor() {
         PutIndexTemplateRequest request = new PutIndexTemplateRequest();
-        request.source(loadTemplateSource("/fleet-integration-knowledge.json", FLEET_INTEGRATION_KNOWLEDGE_MAPPINGS_VERSION), XContentType.JSON);
+        request.source(
+            loadTemplateSource("/fleet-integration-knowledge.json", FLEET_INTEGRATION_KNOWLEDGE_MAPPINGS_VERSION),
+            XContentType.JSON
+        );
 
         return SystemIndexDescriptor.builder()
             .setType(Type.INTERNAL_MANAGED)

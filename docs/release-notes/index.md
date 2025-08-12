@@ -50,7 +50,7 @@ The `COPY_SIGN` function has been updated to better support the literal `NULL` i
 :::
 
 Mapping:
-:::{dropdown} Calculate text string length correctly for code points outside BMP
+:::{dropdown} Calculates text string length correctly for code points outside BMP
 Strings parsed with the optimized UTF-8 parsing path had incorrect length calculations for characters outside the basic multilingual plane (BMP).
 These characters require two UTF-16 code units, but the optimized path did not account for this, causing mismatches with the non-optimized path.
 [#132593](https://github.com/elastic/elasticsearch/pull/132593) fixes the calculation to ensure consistent and correct string lengths.

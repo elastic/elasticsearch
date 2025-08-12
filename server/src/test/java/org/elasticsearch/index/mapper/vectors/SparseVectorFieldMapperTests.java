@@ -198,8 +198,7 @@ public class SparseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase
         b.endObject();
     }
 
-    private void mapping(XContentBuilder b, @Nullable Boolean prune, PruningConfig pruningConfig)
-        throws IOException {
+    private void mapping(XContentBuilder b, @Nullable Boolean prune, PruningConfig pruningConfig) throws IOException {
         b.field("type", "sparse_vector");
         if (prune != null) {
             b.field("index_options", new SparseVectorFieldMapper.SparseVectorIndexOptions(prune, pruningConfig.tokenPruningConfig));
@@ -710,22 +709,17 @@ public class SparseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase
         STRICT_PRUNING   // Stricter pruning with higher thresholds
     }
 
+    private enum PruningConfig {
+        NULL(null),
+        EXPLICIT_DEFAULT(new TokenPruningConfig()),
+        STRICT(new TokenPruningConfig(STRICT_TOKENS_FREQ_RATIO_THRESHOLD, STRICT_TOKENS_WEIGHT_THRESHOLD, false));
 
-        private enum PruningConfig {
-            NULL(null),
-            EXPLICIT_DEFAULT(new TokenPruningConfig()),
-            STRICT(new TokenPruningConfig(
-                STRICT_TOKENS_FREQ_RATIO_THRESHOLD,
-                STRICT_TOKENS_WEIGHT_THRESHOLD,
-                false
-            ));
+        public final @Nullable TokenPruningConfig tokenPruningConfig;
 
-            public final @Nullable TokenPruningConfig tokenPruningConfig;
-
-            PruningConfig(@Nullable TokenPruningConfig tokenPruningConfig) {
-                this.tokenPruningConfig = tokenPruningConfig;
-            }
+        PruningConfig(@Nullable TokenPruningConfig tokenPruningConfig) {
+            this.tokenPruningConfig = tokenPruningConfig;
         }
+    }
 
     private final Set<PruningOptions> validIndexPruningScenarios = Set.of(
         new PruningOptions(false, PruningConfig.NULL),
@@ -844,11 +838,7 @@ public class SparseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase
     private void assertPruningScenario(PruningOptions indexPruningOptions, PruningOptions queryPruningOptions) throws IOException {
         IndexVersion indexVersion = getIndexVersionForTest(randomBoolean());
         MapperService mapperService = createMapperService(indexVersion, getIndexMapping(indexPruningOptions));
-        PruningScenario effectivePruningScenario = getEffectivePruningScenario(
-            indexPruningOptions,
-            queryPruningOptions,
-            indexVersion
-        );
+        PruningScenario effectivePruningScenario = getEffectivePruningScenario(indexPruningOptions, queryPruningOptions, indexVersion);
         withSearchExecutionContext(mapperService, (context) -> {
             SparseVectorFieldMapper.SparseVectorFieldType ft = (SparseVectorFieldMapper.SparseVectorFieldType) mapperService.fieldType(
                 "field"

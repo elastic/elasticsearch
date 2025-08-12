@@ -1232,7 +1232,6 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                         () -> snapshotListeners.addListener(new ActionListener<>() {
                             @Override
                             public void onResponse(List<ActionListener<SnapshotInfo>> actionListeners) {
-                                SnapshotsServiceUtils.completeListenersIgnoringException(actionListeners, snapshotInfo);
                                 final Map<String, Object> attributesWithState = Maps.copyMapWithAddedEntry(
                                     SnapshotMetrics.createAttributesMap(snapshot.getProjectId(), repo.getMetadata()),
                                     "state",
@@ -1241,6 +1240,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                                 snapshotMetrics.snapshotsCompletedCounter().incrementBy(1, attributesWithState);
                                 snapshotMetrics.snapshotsDurationHistogram()
                                     .record((snapshotInfo.endTime() - snapshotInfo.startTime()) / 1_000.0, attributesWithState);
+                                SnapshotsServiceUtils.completeListenersIgnoringException(actionListeners, snapshotInfo);
                                 logger.info("snapshot [{}] completed with state [{}]", snapshot, snapshotInfo.state());
                             }
 

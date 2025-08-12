@@ -1,5 +1,5 @@
 pr: 132622
-summary: Add bulk loading of dense singleton number doc values to tsdb codec and push compute engine value loading for longs down to tsdb codec
+summary: Push down compute engine value loading of singleton numeric doc value to the es819 tsdb doc values codec.
 area: "Codec"
 type: enhancement
 issues: []

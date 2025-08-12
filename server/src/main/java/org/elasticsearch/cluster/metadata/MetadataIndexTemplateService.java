@@ -397,18 +397,6 @@ public class MetadataIndexTemplateService {
                 final String composableTemplateName = entry.getKey();
                 final ComposableIndexTemplate composableTemplate = entry.getValue();
                 try {
-                    validateLifecycle(
-                        tempProjectWithComponentTemplateAdded,
-                        composableTemplateName,
-                        composableTemplate,
-                        globalRetentionSettings.get(false)
-                    );
-                    validateDataStreamOptions(
-                        tempProjectWithComponentTemplateAdded,
-                        composableTemplateName,
-                        composableTemplate,
-                        globalRetentionSettings.get(true)
-                    );
                     validateIndexTemplateV2(tempProjectWithComponentTemplateAdded, composableTemplateName, composableTemplate);
                 } catch (Exception e) {
                     if (validationFailure == null) {
@@ -605,6 +593,12 @@ public class MetadataIndexTemplateService {
     }
 
     public static void validateV2TemplateRequest(ProjectMetadata metadata, String name, ComposableIndexTemplate template) {
+        if (template.createdDateMillis().isPresent()) {
+            throw new InvalidIndexTemplateException(name, "provided a template property which is managed by the system: created_date");
+        }
+        if (template.modifiedDateMillis().isPresent()) {
+            throw new InvalidIndexTemplateException(name, "provided a template property which is managed by the system: modified_date");
+        }
         if (template.indexPatterns().stream().anyMatch(Regex::isMatchAllPattern)) {
             Settings mergedSettings = resolveSettings(template, metadata.componentTemplates());
             if (IndexMetadata.INDEX_HIDDEN_SETTING.exists(mergedSettings)) {
@@ -685,11 +679,9 @@ public class MetadataIndexTemplateService {
             HeaderWarning.addWarning(warning);
         }
 
-        final ComposableIndexTemplate finalIndexTemplate;
-        Template innerTemplate = template.template();
-        if (innerTemplate == null) {
-            finalIndexTemplate = template;
-        } else {
+        final ComposableIndexTemplate.Builder finalIndexTemplateBuilder = template.toBuilder();
+        final Template innerTemplate = template.template();
+        if (innerTemplate != null) {
             // We may need to normalize index settings, so do that also
             Settings finalSettings = innerTemplate.settings();
             if (finalSettings != null) {
@@ -697,14 +689,25 @@ public class MetadataIndexTemplateService {
             }
             // If an inner template was specified, its mappings may need to be
             // adjusted (to add _doc) and it should be validated
-            CompressedXContent mappings = innerTemplate.mappings();
-            CompressedXContent wrappedMappings = wrapMappingsIfNecessary(mappings, xContentRegistry);
+            final CompressedXContent mappings = innerTemplate.mappings();
+            final CompressedXContent wrappedMappings = wrapMappingsIfNecessary(mappings, xContentRegistry);
             final Template finalTemplate = Template.builder(innerTemplate).settings(finalSettings).mappings(wrappedMappings).build();
-            finalIndexTemplate = template.toBuilder().template(finalTemplate).build();
+            finalIndexTemplateBuilder.template(finalTemplate);
         }
 
-        if (finalIndexTemplate.equals(existing)) {
-            return project;
+        final long now = instantSource.millis();
+        final ComposableIndexTemplate finalIndexTemplate;
+        if (existing == null) {
+            finalIndexTemplate = finalIndexTemplateBuilder.createdDate(now).modifiedDate(now).build();
+        } else {
+            final ComposableIndexTemplate templateToCompareToExisting = finalIndexTemplateBuilder.createdDate(
+                existing.createdDateMillis().orElse(null)
+            ).modifiedDate(existing.modifiedDateMillis().orElse(null)).build();
+
+            if (templateToCompareToExisting.equals(existing)) {
+                return project;
+            }
+            finalIndexTemplate = finalIndexTemplateBuilder.modifiedDate(now).build();
         }
 
         validateIndexTemplateV2(project, name, finalIndexTemplate);

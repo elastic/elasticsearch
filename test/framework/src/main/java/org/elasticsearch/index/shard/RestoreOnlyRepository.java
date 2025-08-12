@@ -22,6 +22,7 @@ import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
 import org.elasticsearch.repositories.FinalizeSnapshotContext;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.IndexMetaDataGenerations;
+import org.elasticsearch.repositories.RepositoriesStats;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.RepositoryData;
 import org.elasticsearch.repositories.RepositoryShardId;
@@ -31,6 +32,7 @@ import org.elasticsearch.repositories.ShardSnapshotResult;
 import org.elasticsearch.repositories.SnapshotShardContext;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotInfo;
+import org.elasticsearch.telemetry.metric.LongWithAttributes;
 
 import java.util.Collection;
 import java.util.Collections;
@@ -125,16 +127,6 @@ public abstract class RestoreOnlyRepository extends AbstractLifecycleComponent i
     }
 
     @Override
-    public long getSnapshotThrottleTimeInNanos() {
-        return 0;
-    }
-
-    @Override
-    public long getRestoreThrottleTimeInNanos() {
-        return 0;
-    }
-
-    @Override
     public String startVerification() {
         return null;
     }
@@ -174,5 +166,15 @@ public abstract class RestoreOnlyRepository extends AbstractLifecycleComponent i
     ) {
 
         throw new UnsupportedOperationException("Unsupported for restore-only repository");
+    }
+
+    @Override
+    public LongWithAttributes getShardSnapshotsInProgress() {
+        return null;
+    }
+
+    @Override
+    public RepositoriesStats.SnapshotStats getSnapshotStats() {
+        return RepositoriesStats.SnapshotStats.ZERO;
     }
 }

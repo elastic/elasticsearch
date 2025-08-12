@@ -431,6 +431,9 @@ tests:
 - class: org.elasticsearch.search.sort.FieldSortIT
   method: testSortMixedFieldTypes
   issue: https://github.com/elastic/elasticsearch/issues/129445
+- class: org.elasticsearch.gradle.LoggedExecFuncTest
+  method: failed tasks output logged to console when spooling true
+  issue: https://github.com/elastic/elasticsearch/issues/119509
 
 # Examples:
 #

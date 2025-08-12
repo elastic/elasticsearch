@@ -95,7 +95,7 @@ public abstract class AsyncOperator<Fetched> implements Operator {
         driverContext.addAsyncAction();
         boolean success = false;
         try {
-            final ActionListener<Fetched> listener = ActionListener.wrap(output -> { buffers.put(seqNo, output); }, e -> {
+            final ActionListener<Fetched> listener = ActionListener.wrap(output -> buffers.put(seqNo, output), e -> {
                 releasePageOnAnyThread(input);
                 failureCollector.unwrapAndCollect(e);
             });

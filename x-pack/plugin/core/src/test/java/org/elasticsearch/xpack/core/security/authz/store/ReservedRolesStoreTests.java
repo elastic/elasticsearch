@@ -4305,5 +4305,4 @@ public class ReservedRolesStoreTests extends ESTestCase {
         );
         return mock;
     }
-
 }

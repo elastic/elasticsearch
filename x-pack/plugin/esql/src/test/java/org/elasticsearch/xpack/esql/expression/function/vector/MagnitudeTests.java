@@ -28,7 +28,7 @@ public class MagnitudeTests extends AbstractVectorScalarFunctionTestCase {
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
-        return scalarParameters(CosineSimilarity.class.getSimpleName(), Magnitude.SCALAR_FUNCTION);
+        return scalarParameters(Magnitude.class.getSimpleName(), Magnitude.SCALAR_FUNCTION);
     }
 
     protected EsqlCapabilities.Cap capability() {

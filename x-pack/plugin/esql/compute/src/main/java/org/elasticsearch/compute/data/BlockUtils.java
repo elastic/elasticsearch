@@ -13,6 +13,7 @@ import org.elasticsearch.compute.data.AggregateMetricDoubleBlockBuilder.Aggregat
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 
+import java.lang.reflect.Array;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -229,6 +230,13 @@ public final class BlockUtils {
                 return constantBlock(blockFactory, NULL, val, size);
             }
             Object colVal = collection.iterator().next();
+            return constantBlock(blockFactory, fromJava(colVal.getClass()), colVal, size);
+        }
+        if (val.getClass().isArray()) {
+            if (Array.getLength(val) == 0) {
+                return constantBlock(blockFactory, NULL, val, size);
+            }
+            Object colVal = Array.get(val, 0);
             return constantBlock(blockFactory, fromJava(colVal.getClass()), colVal, size);
         }
         return constantBlock(blockFactory, fromJava(val.getClass()), val, size);

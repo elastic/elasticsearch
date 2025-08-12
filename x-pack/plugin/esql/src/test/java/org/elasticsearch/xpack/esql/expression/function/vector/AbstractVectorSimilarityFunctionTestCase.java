@@ -78,10 +78,6 @@ public abstract class AbstractVectorSimilarityFunctionTestCase extends AbstractS
         return floatArray;
     }
 
-    protected double calculateSimilarity(List<Float> left, List<Float> right) {
-        return 0;
-    }
-
     /**
      * @return A random dense vector for testing
      * @param dimensions

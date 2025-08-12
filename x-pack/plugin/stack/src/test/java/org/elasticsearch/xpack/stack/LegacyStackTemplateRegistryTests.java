@@ -43,15 +43,15 @@ public class LegacyStackTemplateRegistryTests extends ESTestCase {
         threadPool.shutdownNow();
     }
 
-    public void testThatTemplatesAreDeprecated() {
+    public void testThatTemplatesAreNotDeprecated() {
         for (ComposableIndexTemplate it : registry.getComposableTemplateConfigs().values()) {
-            assertTrue(it.isDeprecated());
+            assertFalse(it.isDeprecated());
         }
         for (LifecyclePolicy ilm : registry.getLifecyclePolicies()) {
-            assertTrue(ilm.isDeprecated());
+            assertFalse(ilm.isDeprecated());
         }
         for (ComponentTemplate ct : registry.getComponentTemplateConfigs().values()) {
-            assertTrue(ct.deprecated());
+            assertFalse(ct.deprecated());
         }
         registry.getIngestPipelines()
             .stream()

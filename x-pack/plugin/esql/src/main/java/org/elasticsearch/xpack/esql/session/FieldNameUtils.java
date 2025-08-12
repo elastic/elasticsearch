@@ -59,7 +59,7 @@ public class FieldNameUtils {
     public static PreAnalysisResult resolveFieldNames(LogicalPlan parsed, EnrichResolution enrichResolution) {
 
         // we need the match_fields names from enrich policies and THEN, with an updated list of fields, we call field_caps API
-        var enrichPolicyMatchFields = enrichResolution.resolvedEnrichPolicies()
+        Set<String> enrichPolicyMatchFields = enrichResolution.resolvedEnrichPolicies()
             .stream()
             .map(ResolvedEnrichPolicy::matchField)
             .collect(Collectors.toSet());
@@ -67,14 +67,14 @@ public class FieldNameUtils {
         // get the field names from the parsed plan combined with the ENRICH match fields from the ENRICH policy
         List<LogicalPlan> inlinestats = parsed.collect(InlineStats.class::isInstance);
         Set<Aggregate> inlinestatsAggs = new HashSet<>();
-        for (var i : inlinestats) {
+        for (LogicalPlan i : inlinestats) {
             inlinestatsAggs.add(((InlineStats) i).aggregate());
         }
 
         if (false == parsed.anyMatch(p -> shouldCollectReferencedFields(p, inlinestatsAggs))) {
             // no explicit columns selection, for example "from employees"
             // also, inlinestats only adds columns to the existent output, its Aggregate shouldn't interfere with potentially using "*"
-            return new PreAnalysisResult(enrichResolution, IndexResolver.ALL_FIELDS, Set.of());
+            return new PreAnalysisResult(enrichResolution, IndexResolver.ALL_FIELDS, Set.of(), false);
         }
 
         Holder<Boolean> projectAll = new Holder<>(false);
@@ -86,7 +86,7 @@ public class FieldNameUtils {
         });
 
         if (projectAll.get()) {
-            return new PreAnalysisResult(enrichResolution, IndexResolver.ALL_FIELDS, Set.of());
+            return new PreAnalysisResult(enrichResolution, IndexResolver.ALL_FIELDS, Set.of(), false);
         }
 
         var referencesBuilder = new Holder<>(AttributeSet.builder());
@@ -221,7 +221,7 @@ public class FieldNameUtils {
         parsed.forEachDownMayReturnEarly(forEachDownProcessor.get());
 
         if (projectAll.get()) {
-            return new PreAnalysisResult(enrichResolution, IndexResolver.ALL_FIELDS, Set.of());
+            return new PreAnalysisResult(enrichResolution, IndexResolver.ALL_FIELDS, Set.of(), false);
         }
 
         // Add JOIN ON column references afterward to avoid Alias removal
@@ -235,12 +235,12 @@ public class FieldNameUtils {
 
         if (fieldNames.isEmpty() && enrichPolicyMatchFields.isEmpty()) {
             // there cannot be an empty list of fields, we'll ask the simplest and lightest one instead: _index
-            return new PreAnalysisResult(enrichResolution, IndexResolver.INDEX_METADATA_FIELD, wildcardJoinIndices);
+            return new PreAnalysisResult(enrichResolution, IndexResolver.INDEX_METADATA_FIELD, wildcardJoinIndices, false);
         } else {
             fieldNames.addAll(subfields(fieldNames));
             fieldNames.addAll(enrichPolicyMatchFields);
             fieldNames.addAll(subfields(enrichPolicyMatchFields));
-            return new PreAnalysisResult(enrichResolution, fieldNames, wildcardJoinIndices);
+            return new PreAnalysisResult(enrichResolution, fieldNames, wildcardJoinIndices, false);
         }
     }
 

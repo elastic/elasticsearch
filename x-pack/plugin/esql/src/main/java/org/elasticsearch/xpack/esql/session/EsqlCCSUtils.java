@@ -337,6 +337,7 @@ public class EsqlCCSUtils {
                 patterns.getFirst().indexPattern()
             );
 
+            executionInfo.clusterInfoInitialized(false);
             // initialize the cluster entries in EsqlExecutionInfo before throwing the invalid license error
             // so that the CCS telemetry handler can recognize that this error is CCS-related
             for (var entry : groupedIndices.entrySet()) {
@@ -347,7 +348,7 @@ public class EsqlCCSUtils {
                     return new EsqlExecutionInfo.Cluster(clusterAlias, indexExpr, executionInfo.isSkipUnavailable(clusterAlias));
                 });
             }
-            executionInfo.clusterInfoInitialized();
+            executionInfo.clusterInfoInitialized(true);
             // check if it is a cross-cluster query
             if (groupedIndices.size() > 1 || groupedIndices.containsKey(RemoteClusterService.LOCAL_CLUSTER_GROUP_KEY) == false) {
                 if (EsqlLicenseChecker.isCcsAllowed(licenseState) == false) {

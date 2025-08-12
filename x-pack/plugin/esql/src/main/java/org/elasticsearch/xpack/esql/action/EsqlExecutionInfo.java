@@ -68,7 +68,7 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
     // old Cluster Object to a new Cluster Object with the remapping function.
     public final ConcurrentMap<String, Cluster> clusterInfo;
     // Did we initialize the clusterInfo map? If not, then we will serialize it as empty.
-    private transient volatile boolean clusterInfoInitialized = false;
+    private transient volatile boolean clusterInfoInitialized = true;
     // whether the user has asked for CCS metadata to be in the JSON response (the overall took will always be present)
     private final boolean includeCCSMetadata;
 
@@ -106,13 +106,11 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
         this.includeCCSMetadata = includeCCSMetadata;
         this.skipUnavailablePredicate = Predicates.always();
         this.relativeStart = null;
-        this.clusterInfoInitialized = true;
     }
 
     public EsqlExecutionInfo(StreamInput in) throws IOException {
         this.overallTook = in.readOptionalTimeValue();
         this.clusterInfo = in.readMapValues(EsqlExecutionInfo.Cluster::new, Cluster::getClusterAlias, ConcurrentHashMap::new);
-        this.clusterInfoInitialized = true;
         this.includeCCSMetadata = in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0) ? in.readBoolean() : false;
         this.isPartial = in.getTransportVersion().onOrAfter(TransportVersions.ESQL_RESPONSE_PARTIAL) ? in.readBoolean() : false;
         this.skipUnavailablePredicate = Predicates.always();
@@ -354,8 +352,8 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
         return isStopped;
     }
 
-    public void clusterInfoInitialized() {
-        this.clusterInfoInitialized = true;
+    public void clusterInfoInitialized(boolean clusterInfoInitialized) {
+        this.clusterInfoInitialized = clusterInfoInitialized;
     }
 
     /**

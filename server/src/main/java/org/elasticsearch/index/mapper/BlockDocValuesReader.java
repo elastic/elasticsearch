@@ -30,7 +30,6 @@ import org.elasticsearch.index.mapper.BlockLoader.DoubleBuilder;
 import org.elasticsearch.index.mapper.BlockLoader.IntBuilder;
 import org.elasticsearch.index.mapper.BlockLoader.LongBuilder;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
-import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.ElementType;
 import org.elasticsearch.index.mapper.vectors.VectorEncoderDecoder;
 import org.elasticsearch.search.fetch.StoredFieldsSpec;
 
@@ -530,39 +529,31 @@ public abstract class BlockDocValuesReader implements BlockLoader.AllReader {
 
         @Override
         public AllReader reader(LeafReaderContext context) throws IOException {
-            switch (fieldType.getElementType()) {
-                case FLOAT -> {
-                    FloatVectorValues floatVectorValues = context.reader().getFloatVectorValues(fieldName);
-                    if (floatVectorValues != null) {
-                        if (fieldType.isNormalized()) {
-                            return new FloatDenseVectorNormalizedValuesBlockReader(
-                                floatVectorValues,
-                                dimensions,
-                                context.reader().getNumericDocValues(fieldType.name() + COSINE_MAGNITUDE_FIELD_SUFFIX)
-                            );
-                        }
-                        return new FloatDenseVectorValuesBlockReader(floatVectorValues, dimensions);
-                    }
+            FloatVectorValues floatVectorValues = context.reader().getFloatVectorValues(fieldName);
+            if (floatVectorValues != null) {
+                if (fieldType.isNormalized()) {
+                    return new FloatDenseVectorNormalizedValuesBlockReader(
+                        floatVectorValues,
+                        dimensions,
+                        context.reader().getNumericDocValues(fieldType.name() + COSINE_MAGNITUDE_FIELD_SUFFIX)
+                    );
                 }
-                case BYTE -> {
-                    ByteVectorValues byteVectorValues = context.reader().getByteVectorValues(fieldName);
-                    if (byteVectorValues != null) {
-                        return new ByteDenseVectorValuesBlockReader(byteVectorValues, dimensions);
-                    }
-                }
+                return new FloatDenseVectorValuesBlockReader(floatVectorValues, dimensions);
             }
+
             return new ConstantNullsReader();
         }
     }
 
-    private static class DenseVectorValuesBlockReader extends BlockDocValuesReader {
-        private final FloatVectorValues floatVectorValues;
-        private final KnnVectorValues.DocIndexIterator iterator;
-        private final int dimensions;
+    private abstract static class DenseVectorValuesBlockReader<T extends KnnVectorValues> extends BlockDocValuesReader {
 
-        DenseVectorValuesBlockReader(FloatVectorValues floatVectorValues, int dimensions) {
-            this.floatVectorValues = floatVectorValues;
-            iterator = floatVectorValues.iterator();
+        protected final T vectorValues;
+        protected final KnnVectorValues.DocIndexIterator iterator;
+        protected final int dimensions;
+
+        DenseVectorValuesBlockReader(T vectorValues, int dimensions) {
+            this.vectorValues = vectorValues;
+            iterator = vectorValues.iterator();
             this.dimensions = dimensions;
         }
 
@@ -587,17 +578,14 @@ public abstract class BlockDocValuesReader implements BlockLoader.AllReader {
                 builder.appendNull();
             } else if (iterator.docID() == doc || iterator.advance(doc) == doc) {
                 builder.beginPositionEntry();
-                float[] floats = floatVectorValues.vectorValue(iterator.index());
-                assert floats.length == dimensions
-                    : "unexpected dimensions for vector value; expected " + dimensions + " but got " + floats.length;
-                for (float aFloat : floats) {
-                    builder.appendFloat(aFloat);
-                }
+                appendDoc(builder);
                 builder.endPositionEntry();
             } else {
                 builder.appendNull();
             }
         }
+
+        protected abstract void appendDoc(BlockLoader.FloatBuilder builder) throws IOException;
 
         @Override
         public int docId() {
@@ -654,26 +642,6 @@ public abstract class BlockDocValuesReader implements BlockLoader.AllReader {
         @Override
         public String toString() {
             return "BlockDocValuesReader.FloatDenseVectorNormalizedValuesBlockReader";
-        }
-    }
-
-    private static class ByteDenseVectorValuesBlockReader extends DenseVectorValuesBlockReader<ByteVectorValues> {
-        ByteDenseVectorValuesBlockReader(ByteVectorValues floatVectorValues, int dimensions) {
-            super(floatVectorValues, dimensions);
-        }
-
-        protected void appendDoc(BlockLoader.FloatBuilder builder) throws IOException {
-            byte[] bytes = vectorValues.vectorValue(iterator.index());
-            assert bytes.length == dimensions
-                : "unexpected dimensions for vector value; expected " + dimensions + " but got " + bytes.length;
-            for (byte aFloat : bytes) {
-                builder.appendFloat(aFloat);
-            }
-        }
-
-        @Override
-        public String toString() {
-            return "BlockDocValuesReader.ByteDenseVectorValuesBlockReader";
         }
     }
 

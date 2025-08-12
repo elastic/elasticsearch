@@ -216,8 +216,7 @@ public class DenseVectorFieldTypeIT extends AbstractEsqlIntegTestCase {
                 if (similarity == DenseVectorFieldMapper.VectorSimilarity.DOT_PRODUCT) {
                     // Normalize the vector
                     float magnitude = DenseVector.getMagnitude(vector);
-                        vector.replaceAll(number -> number.floatValue() / magnitude);
-                    }
+                    vector.replaceAll(number -> number.floatValue() / magnitude);
                 }
                 docs[i] = prepareIndex("test").setId("" + i).setSource("id", String.valueOf(i), "vector", vector);
                 indexedVectors.put(i, vector);

@@ -16,9 +16,13 @@ import org.gradle.testkit.runner.TaskOutcome
 
 class TransportVersionManagementPluginFuncTest extends AbstractGradleFuncTest {
 
-    // collection task
-    //
-
+    /**
+     *
+     * @param project
+     * @param path
+     * @param content
+     * @return
+     */
     def javaResource(String project, String path, String content) {
         file("${project}/src/main/resources/${path}").withWriter { writer ->
             writer << content
@@ -43,7 +47,11 @@ class TransportVersionManagementPluginFuncTest extends AbstractGradleFuncTest {
     }
 
     def definedAndUsedTransportVersion(String name, String ids) {
-        javaSource("myserver", "org.elasticsearch", "Test${name.capitalize()}", "", """
+        return definedAndUsedTransportVersion(name, ids, "Test${name.capitalize()}")
+    }
+
+    def definedAndUsedTransportVersion(String name, String ids, String classname) {
+        javaSource("myserver", "org.elasticsearch", classname, "", """
             static final TransportVersion usage = TransportVersion.fromName("${name}");
         """)
         definedTransportVersion(name, ids)
@@ -148,15 +156,18 @@ class TransportVersionManagementPluginFuncTest extends AbstractGradleFuncTest {
             "[myserver/src/main/resources/transport/defined/not_used.csv] is not referenced")
     }
 
-    def "names must be lowercase"() {
+    def "names must be lowercase alphanum or underscore"() {
         given:
-        definedAndUsedTransportVersion("CapitalTV", "8100000")
+        definedAndUsedTransportVersion("${name}", "8100000", "TestNames")
         when:
         def result = validateDefinitionsFails()
         then:
         assertDefinitionsFailure(result, "Transport version definition file " +
-            "[myserver/src/main/resources/transport/defined/CapitalTV.csv] does not have a valid name, " +
+            "[myserver/src/main/resources/transport/defined/${name}.csv] does not have a valid name, " +
             "must be lowercase alphanumeric and underscore")
+
+        where:
+        name << ["CapitalTV", "spaces tv", "trailing_spaces_tv ", "hyphen-tv", "period.tv"]
     }
 
     def "definitions contain at least one id"() {

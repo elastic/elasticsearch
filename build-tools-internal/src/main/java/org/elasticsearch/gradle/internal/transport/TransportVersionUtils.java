@@ -30,7 +30,7 @@ class TransportVersionUtils {
     record TransportVersionReference(String name, String location) {
         @Override
         public String toString() {
-            return name + " " + location;
+            return name + "," + location;
         }
     }
 
@@ -106,7 +106,7 @@ class TransportVersionUtils {
         assert file.endsWith(".txt");
         List<TransportVersionReference> results = new ArrayList<>();
         for (String line : Files.readAllLines(file, StandardCharsets.UTF_8)) {
-            String[] parts = line.split(" ", 2);
+            String[] parts = line.split(",", 2);
             if (parts.length != 2) {
                 throw new IOException("Invalid transport version data file [" + file + "]: " + line);
             }

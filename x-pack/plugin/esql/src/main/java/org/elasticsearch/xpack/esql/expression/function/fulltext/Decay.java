@@ -166,14 +166,9 @@ public class Decay extends EsqlScalarFunction implements OptionalArgument {
             return new TypeResolution("Unresolved children");
         }
 
-        TypeResolution valueResolution = isNotNull(value, sourceText(), FIRST)
-            .and(isType(
-            value,
-            dt -> dt.isNumeric() || dt.isDate() || isSpatialPoint(dt),
-            sourceText(),
-            FIRST,
-            NUMERIC_DATE_OR_SPATIAL_POINT
-        ));
+        TypeResolution valueResolution = isNotNull(value, sourceText(), FIRST).and(
+            isType(value, dt -> dt.isNumeric() || dt.isDate() || isSpatialPoint(dt), sourceText(), FIRST, NUMERIC_DATE_OR_SPATIAL_POINT)
+        );
         if (valueResolution.unresolved()) {
             return valueResolution;
         }

@@ -205,9 +205,12 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
         Setting.Property.Dynamic
     );
 
+    /**
+     * Setting that specifies the max number of shard snapshots that can run on a data node. Default is 0 which means no limit.
+     */
     public static final Setting<Integer> SHARD_SNAPSHOT_PER_NODE_LIMIT_SETTING = Setting.intSetting(
         "snapshot.shard_snapshot_per_node_limit",
-        10,
+        0,
         0,
         Setting.Property.NodeScope,
         Setting.Property.Dynamic

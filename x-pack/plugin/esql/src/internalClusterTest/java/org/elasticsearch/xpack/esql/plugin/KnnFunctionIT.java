@@ -75,29 +75,32 @@ public class KnnFunctionIT extends AbstractEsqlIntegTestCase {
         var query = String.format(Locale.ROOT, """
             FROM test METADATA _score
             | WHERE knn(vector, %s, 10)
-            | KEEP id, floats, _score, vector
+            | KEEP id, _score, vector
             | SORT _score DESC
             """, Arrays.toString(queryVector));
 
         try (var resp = run(query)) {
-            assertColumnNames(resp.columns(), List.of("id", "floats", "_score", "vector"));
-            assertColumnTypes(resp.columns(), List.of("integer", "double", "double", "dense_vector"));
+            assertColumnNames(resp.columns(), List.of("id", "_score", "vector"));
+            assertColumnTypes(resp.columns(), List.of("integer", "double", "dense_vector"));
 
             List<List<Object>> valuesList = EsqlTestUtils.getValuesList(resp);
             assertEquals(Math.min(indexedVectors.size(), 10), valuesList.size());
             double previousScore = Float.MAX_VALUE;
             for (List<Object> row : valuesList) {
                 // Vectors should be in score order
-                double currentScore = (Double) row.get(2);
+                double currentScore = (Double) row.get(1);
                 assertThat(currentScore, lessThanOrEqualTo(previousScore));
                 previousScore = currentScore;
                 @SuppressWarnings("unchecked")
                 // Vectors should be the same
-                List<Number> floats = (List<Number>) row.get(1);
-                for (int j = 0; j < floats.size(); j++) {
-                    assertEquals(floats.get(j).floatValue(), indexedVectors.get(row.get(0)).get(j).floatValue(), 0f);
+                List<Number> actualVector = (List<Number>) row.get(2);
+                List<Number> expectedVector = indexedVectors.get(row.get(0));
+                for (int j = 0; j < actualVector.size(); j++) {
+                    float expected = expectedVector.get(j).floatValue();
+                    float actual = actualVector.get(j).floatValue();
+                    assertEquals(expected, actual, 0f);
                 }
-                var score = (Double) row.get(2);
+                var score = (Double) row.get(1);
                 assertNotNull(score);
                 assertTrue(score > 0.0);
             }
@@ -111,13 +114,13 @@ public class KnnFunctionIT extends AbstractEsqlIntegTestCase {
         var query = String.format(Locale.ROOT, """
             FROM test METADATA _score
             | WHERE knn(vector, %s, 5)
-            | KEEP id, floats, _score, vector
+            | KEEP id, _score, vector
             | SORT _score DESC
             """, Arrays.toString(queryVector));
 
         try (var resp = run(query)) {
-            assertColumnNames(resp.columns(), List.of("id", "floats", "_score", "vector"));
-            assertColumnTypes(resp.columns(), List.of("integer", "double", "double", "dense_vector"));
+            assertColumnNames(resp.columns(), List.of("id", "_score", "vector"));
+            assertColumnTypes(resp.columns(), List.of("integer", "double", "dense_vector"));
 
             List<List<Object>> valuesList = EsqlTestUtils.getValuesList(resp);
             assertEquals(5, valuesList.size());
@@ -132,13 +135,13 @@ public class KnnFunctionIT extends AbstractEsqlIntegTestCase {
         var query = String.format(Locale.ROOT, """
             FROM test METADATA _score
             | WHERE knn(vector, %s, 5) OR id > 100
-            | KEEP id, floats, _score, vector
+            | KEEP id, _score, vector
             | SORT _score DESC
             """, Arrays.toString(queryVector));
 
         try (var resp = run(query)) {
-            assertColumnNames(resp.columns(), List.of("id", "floats", "_score", "vector"));
-            assertColumnTypes(resp.columns(), List.of("integer", "double", "double", "dense_vector"));
+            assertColumnNames(resp.columns(), List.of("id", "_score", "vector"));
+            assertColumnTypes(resp.columns(), List.of("integer", "double", "dense_vector"));
 
             List<List<Object>> valuesList = EsqlTestUtils.getValuesList(resp);
             assertEquals(5, valuesList.size());
@@ -153,14 +156,14 @@ public class KnnFunctionIT extends AbstractEsqlIntegTestCase {
         var query = String.format(Locale.ROOT, """
             FROM test METADATA _score
             | WHERE knn(vector, %s, 5) AND id > 5 AND id <= 10
-            | KEEP id, floats, _score, vector
+            | KEEP id, _score, vector
             | SORT _score DESC
             | LIMIT 5
             """, Arrays.toString(queryVector));
 
         try (var resp = run(query)) {
-            assertColumnNames(resp.columns(), List.of("id", "floats", "_score", "vector"));
-            assertColumnTypes(resp.columns(), List.of("integer", "double", "double", "dense_vector"));
+            assertColumnNames(resp.columns(), List.of("id", "_score", "vector"));
+            assertColumnTypes(resp.columns(), List.of("integer", "double", "dense_vector"));
 
             List<List<Object>> valuesList = EsqlTestUtils.getValuesList(resp);
             // K = 5, 1 more for every id > 10
@@ -200,9 +203,6 @@ public class KnnFunctionIT extends AbstractEsqlIntegTestCase {
             .startObject("id")
             .field("type", "integer")
             .endObject()
-            .startObject("floats")
-            .field("type", "float")
-            .endObject()
             .startObject("vector")
             .field("type", "dense_vector")
             .field(
@@ -232,16 +232,16 @@ public class KnnFunctionIT extends AbstractEsqlIntegTestCase {
             for (int j = 0; j < numDims; j++) {
                 switch (elementType) {
                     case FLOAT:
-                        vector.add(randomFloatBetween(-1F, 1F, true));
+                        vector.add(randomFloatBetween(0F, 1F, true));
                         break;
                     case BYTE:
-                        vector.add(randomByte());
+                        vector.add((byte) (randomFloatBetween(0F, 1F, true) * 127));
                         break;
                     default:
                         throw new IllegalArgumentException("Unexpected element type: " + elementType);
                 }
             }
-            docs[i] = prepareIndex("test").setId("" + i).setSource("id", String.valueOf(i), "floats", vector, "vector", vector);
+            docs[i] = prepareIndex("test").setId(String.valueOf(i)).setSource("id", String.valueOf(i), "vector", vector);
             indexedVectors.put(i, vector);
         }
 

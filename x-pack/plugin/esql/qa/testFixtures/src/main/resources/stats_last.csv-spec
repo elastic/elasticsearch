@@ -63,7 +63,7 @@ last_network_cost:double | pod:keyword
                     null | two
 ;
 
-double_by_null
+null_by_timestamp
 required_capability: agg_first_last
 FROM k8s
 | EVAL network.cost = network.cost + null

@@ -4306,10 +4306,4 @@ public class ReservedRolesStoreTests extends ESTestCase {
         return mock;
     }
 
-    private IndexAbstraction mockIndexAbstraction(String name, IndexAbstraction.Type type) {
-        IndexAbstraction mock = mock(IndexAbstraction.class);
-        when(mock.getName()).thenReturn(name);
-        when(mock.getType()).thenReturn(type);
-        return mock;
-    }
 }

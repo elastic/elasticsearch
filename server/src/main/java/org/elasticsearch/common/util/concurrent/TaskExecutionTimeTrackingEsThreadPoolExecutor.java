@@ -24,6 +24,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.LinkedTransferQueue;
 import java.util.concurrent.RejectedExecutionHandler;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
@@ -146,11 +147,40 @@ public final class TaskExecutionTimeTrackingEsThreadPoolExecutor extends EsThrea
         return getQueue().size();
     }
 
+    /**
+     * Returns the max queue latency seen since the last time that this method was called. Every call will reset the max seen back to zero.
+     * Latencies are only observed as tasks are taken off of the queue. This means that tasks in the queue will not contribute to the max
+     * latency until they are unqueued and handed to a thread to execute. To see the latency of tasks still in the queue, use
+     * {@link #peekMaxQueueLatencyInQueue}. If there have been no tasks in the queue since the last call, then zero latency is returned.
+     */
     public long getMaxQueueLatencyMillisSinceLastPollAndReset() {
         if (trackMaxQueueLatency == false) {
             return 0;
         }
         return maxQueueLatencyMillisSinceLastPoll.getThenReset();
+    }
+
+    /**
+     * Returns the queue latency of the next task to be executed that is still in the task queue. Essentially peeks at the front of the
+     * queue and calculates how long it has been there. Returns zero if there is no queue.
+     */
+    public long peekMaxQueueLatencyInQueue() {
+        if (trackMaxQueueLatency == false) {
+            return 0;
+        }
+        var queue = getQueue();
+        if (queue.isEmpty()) {
+            return 0;
+        }
+        assert queue instanceof LinkedTransferQueue : "Not the type of queue expected: " + queue.getClass();
+        var linkedTransferQueue = (LinkedTransferQueue) queue;
+
+        var task = linkedTransferQueue.peek();
+        assert task instanceof WrappedRunnable : "Not the type of task expected: " + task.getClass();
+        var wrappedTask = ((WrappedRunnable) task).unwrap();
+        assert wrappedTask instanceof TimedRunnable : "Not the type of task expected: " + task.getClass();
+        var timedTask = (TimedRunnable) wrappedTask;
+        return timedTask.getTimeSinceCreationNanos();
     }
 
     /**

@@ -236,6 +236,11 @@ public class EsqlCapabilities {
         FN_SCALB,
 
         /**
+         * Support for function DAY_NAME
+         */
+        FN_DAY_NAME,
+
+        /**
          * Fixes for multiple functions not serializing their source, and emitting warnings with wrong line number and text.
          */
         FUNCTIONS_SOURCE_SERIALIZATION_WARNINGS,

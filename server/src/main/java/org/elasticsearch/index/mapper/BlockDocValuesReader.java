@@ -23,7 +23,6 @@ import org.elasticsearch.common.io.stream.ByteArrayStreamInput;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.codec.tsdb.es819.BulkNumericDocValues;
-import org.elasticsearch.index.codec.tsdb.es819.BulkReader;
 import org.elasticsearch.index.mapper.BlockLoader.BlockFactory;
 import org.elasticsearch.index.mapper.BlockLoader.BooleanBuilder;
 import org.elasticsearch.index.mapper.BlockLoader.Builder;
@@ -147,39 +146,10 @@ public abstract class BlockDocValuesReader implements BlockLoader.AllReader {
             }
 
             if (singleton instanceof BulkNumericDocValues bulkDv) {
-                var bulkLoader = bulkDv.getBulkReader();
-                return new BulkSingletonLong(bulkLoader);
+                return bulkDv.getColumnAtATimeReader();
             }
 
             return null;
-        }
-    }
-
-    static final class BulkSingletonLong implements BlockLoader.ColumnAtATimeReader {
-        private final Thread creationThread;
-        private final BulkReader bulkReader;
-
-        BulkSingletonLong(BulkReader bulkReader) {
-            this.creationThread = Thread.currentThread();
-            this.bulkReader = bulkReader;
-        }
-
-        @Override
-        public BlockLoader.Block read(BlockFactory factory, Docs docs, int offset) throws IOException {
-            try (BlockLoader.SingletonBulkLongBuilder builder = factory.singletonLongs(docs.count() - offset)) {
-                bulkReader.bulkRead(builder, docs, offset);
-                return builder.build();
-            }
-        }
-
-        @Override
-        public boolean canReuse(int startingDocID) {
-            return creationThread == Thread.currentThread() && bulkReader.docID() <= startingDocID;
-        }
-
-        @Override
-        public String toString() {
-            return "BlockDocValuesReader.BulkSingletonLong";
         }
     }
 

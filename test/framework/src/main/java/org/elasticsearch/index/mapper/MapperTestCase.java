@@ -1539,7 +1539,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
                 LeafReaderContext context = reader.leaves().get(0);
                 var blockLoader = mapperService.fieldType("field").blockLoader(mockBlockContext);
                 var columnReader = blockLoader.columnAtATimeReader(context);
-                assertThat(columnReader, instanceOf(BlockDocValuesReader.BulkSingletonLong.class));
+                assertThat(columnReader.toString(), equalTo("ES819.NumericDocValues.ColumnAtATimeReader"));
                 var docBlock = TestBlock.docs(IntStream.range(0, 3).toArray());
                 var block = (TestBlock) columnReader.read(TestBlock.factory(), docBlock, 0);
                 for (int i = 0; i < block.size(); i++) {

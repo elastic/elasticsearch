@@ -10,15 +10,16 @@
 package org.elasticsearch.index.codec.tsdb.es819;
 
 import org.apache.lucene.index.NumericDocValues;
+import org.elasticsearch.index.mapper.BlockLoader;
 
 /**
- * An es819 doc values Specialization that allows retrieving a {@link BulkReader}.
+ * An es819 doc values specialization that allows retrieving a {@link BlockLoader.ColumnAtATimeReader}.
  */
 public abstract class BulkNumericDocValues extends NumericDocValues {
 
     /**
-     * @return a bulk reader instance or <code>null</code> if field or implementation doesn't support bulk loading.
+     * @return a column at a time reader or <code>null</code> if field or implementation doesn't support a column at a time reader.
      */
-    public abstract BulkReader getBulkReader();
+    public abstract BlockLoader.ColumnAtATimeReader getColumnAtATimeReader();
 
 }

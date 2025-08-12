@@ -24,6 +24,10 @@ There are no deprecations associated with this release.
 
 There are no deprecations associated with this release.
 
+## 9.0.5 [elasticsearch-9.0.5-deprecations]
+
+There are no deprecations associated with this release.
+
 ## 9.0.4 [elasticsearch-9.0.4-deprecations]
 
 No deprecations in this version.

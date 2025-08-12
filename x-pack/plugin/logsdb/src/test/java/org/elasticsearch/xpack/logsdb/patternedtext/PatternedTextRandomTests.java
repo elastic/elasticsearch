@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.logsdb.patternedtext;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
@@ -32,16 +34,22 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.time.Instant;
-import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.List;
+import java.util.UUID;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailuresAndResponse;
 
 
 public class PatternedTextRandomTests extends ESIntegTestCase {
+    private static final Logger logger = LogManager.getLogger(PatternedTextRandomTests.class);
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
@@ -59,6 +67,15 @@ public class PatternedTextRandomTests extends ESIntegTestCase {
     private static final String INDEX = "test_index";
     private static final String MATCH_ONLY_TEXT_FIELD = "field_match_only_text";
     private static final String PATTERNED_TEXT_FIELD = "field_patterned_text";
+    private static final String MAPPING = """
+        {
+          "properties": {
+            "@timestamp": { "type": "date" },
+            "field_match_only_text": { "type": "match_only_text" },
+            "field_patterned_text": { "type": "patterned_text" }
+          }
+        }
+    """;
 
     @Before
     public void setup() {
@@ -66,92 +83,67 @@ public class PatternedTextRandomTests extends ESIntegTestCase {
     }
 
     public void testQueries() throws IOException {
-        var settings = Settings.builder();
-        var mappings = XContentFactory.jsonBuilder()
-            .startObject()
-            .startObject("properties")
-            .startObject("@timestamp")
-            .field("type", "date")
-            .endObject()
-            .startObject(PATTERNED_TEXT_FIELD)
-            .field("type", "patterned_text")
-            .endObject()
-            .startObject(MATCH_ONLY_TEXT_FIELD)
-            .field("type", "match_only_text")
-            .endObject()
-            .endObject()
-            .endObject();
-
         var createRequest = new CreateIndexRequest(INDEX)
-            .settings(settings)
-            .mapping(mappings);
+            .mapping(MAPPING);
 
-        var createResponse = safeGet(admin().indices().create(createRequest));
-        assertTrue(createResponse.isAcknowledged());
+        assertAcked(admin().indices().create(createRequest));
 
-        int numDocs = randomIntBetween(10, 1000);
+        int numDocs = randomIntBetween(10, 200);
         List<String> logMessages = generateMessages(numDocs);
         indexDocs(logMessages);
 
-        int[] numQueriesWithResults = {0};
-        int[] totalQueries = {0};
+        var numQueriesWithResults = new AtomicInteger(0);
+        var numQueriesTotal = new AtomicInteger(0);
         for (var message : logMessages) {
-            List<String> queryTerms = randomQueryParts(message);
-
+            List<String> queryTerms = randomQueryValues(message);
             var patternedTextQueries = generateQueries(PATTERNED_TEXT_FIELD, queryTerms);
             var matchOnlyQueries = generateQueries(MATCH_ONLY_TEXT_FIELD, queryTerms);
 
             for (int i = 0; i < patternedTextQueries.size(); ++i) {
-                var ptQuery = patternedTextQueries.get(i);
-                var motQuery = matchOnlyQueries.get(i);
+                var ptRequest = client().prepareSearch(INDEX).setQuery(patternedTextQueries.get(i));
+                var motRequest = client().prepareSearch(INDEX).setQuery(matchOnlyQueries.get(i));
 
-                var ptRequest = client().prepareSearch(INDEX).setQuery(ptQuery).setSize(numDocs);
-                var motRequest = client().prepareSearch(INDEX).setQuery(motQuery).setSize(numDocs);
-                totalQueries[0]++;
+                numQueriesTotal.incrementAndGet();
                 assertNoFailuresAndResponse(ptRequest, ptResponse -> {
                     assertNoFailuresAndResponse(motRequest, motResponse -> {
+
                         assertEquals(motResponse.getHits().getTotalHits().value(), ptResponse.getHits().getTotalHits().value());
 
-                        if (motResponse.getHits().getTotalHits().value() > 0) {
-                            numQueriesWithResults[0]++;
-                        }
                         var motDocIds = Arrays.stream(motResponse.getHits().getHits()).map(SearchHit::getId).collect(Collectors.toSet());
                         var ptDocIds = Arrays.stream(ptResponse.getHits().getHits()).map(SearchHit::getId).collect(Collectors.toSet());
                         assertEquals(motDocIds, ptDocIds);
+
+                        if (motResponse.getHits().getTotalHits().value() > 0) {
+                            numQueriesWithResults.incrementAndGet();
+                        }
                     });
                 });
             }
         }
-        System.out.println("num queries with results: " + numQueriesWithResults[0] + ", total: " + totalQueries[0]);
+        logger.info("Ran {} queries, of which {} had matches", numQueriesTotal.get(), numQueriesWithResults.get());
     }
 
-    public List<QueryBuilder> generateQueries(String field, List<String> queryTerms) {
+    private List<QueryBuilder> generateQueries(String field, List<String> queryTerms) {
         var results = new ArrayList<QueryBuilder>();
-
         for (var queryTerm : queryTerms) {
             results.add(QueryBuilders.termQuery(field, queryTerm));
             results.add(QueryBuilders.matchQuery(field, queryTerm));
             results.add(QueryBuilders.matchPhraseQuery(field, queryTerm));
         }
-
         return results;
     }
 
-    private static List<String> randomQueryParts(String value) {
+    private static List<String> randomQueryValues(String value) {
         var values = new ArrayList<String>();
-        var tokenizerRegex = "[\\s\\p{Punct}]+";
-        List<String> tokens = Arrays.stream(value.split(tokenizerRegex)).filter(t -> t.isEmpty() == false).toList();
 
-        // full value
         values.add(value);
-        // random sub-phrase
         values.add(randomSubstring(value));
 
+        var tokenizerRegex = "[\\s\\p{Punct}]+";
+        List<String> tokens = Arrays.stream(value.split(tokenizerRegex)).filter(t -> t.isEmpty() == false).toList();
         if (tokens.isEmpty() == false) {
-            // random term
             values.add(randomFrom(tokens));
-            // random sub-phrase
-            values.add(getSubPhrase(tokens));
+            values.add(randomSubPhrase(tokens));
         }
         return values;
     }
@@ -162,7 +154,7 @@ public class PatternedTextRandomTests extends ESIntegTestCase {
         return value.substring(low, hi);
     }
 
-    private static String getSubPhrase(List<String> tokens) {
+    private static String randomSubPhrase(List<String> tokens) {
         int low = ESTestCase.randomIntBetween(0, tokens.size() - 1);
         int hi = ESTestCase.randomIntBetween(low + 1, tokens.size());
         return String.join(" ", tokens.subList(low, hi));

@@ -105,6 +105,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
     @Nullable
     private String routing;
 
+    private ModernSource modernSource;
     private BytesReference source;
     private ESONFlat structuredSource;
     private boolean useStructuredSource = false;
@@ -604,6 +605,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
         if (useStructuredSource) {
             createStructuredSource();
         }
+        this.modernSource = new ModernSource(source, null);
         return this;
     }
 

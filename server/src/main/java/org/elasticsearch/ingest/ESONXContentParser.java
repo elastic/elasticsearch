@@ -242,12 +242,18 @@ public class ESONXContentParser extends AbstractXContentParser {
 
     @Override
     public String text() throws IOException {
+        if (currentToken.isValue() == false) {
+            throwOnNoText();
+        }
         Object value = getCurrentValue();
         return value.toString();
     }
 
     @Override
     public XContentString optimizedText() throws IOException {
+        if (currentToken.isValue() == false) {
+            throwOnNoText();
+        }
         // For strings, try to access raw bytes directly without materializing the string
         if (currentType instanceof ESONSource.VariableValue varValue && varValue.type() == ESONEntry.STRING) {
             BytesRef bytesRef = ESONSource.Values.readByteSlice(values.data(), varValue.position());
@@ -260,8 +266,15 @@ public class ESONXContentParser extends AbstractXContentParser {
         return new Text(value.toString());
     }
 
+    private void throwOnNoText() {
+        throw new IllegalArgumentException("Expected text at " + getTokenLocation() + " but found " + currentToken());
+    }
+
     @Override
     public boolean optimizedTextToStream(OutputStream out) throws IOException {
+        if (currentToken.isValue() == false) {
+            throwOnNoText();
+        }
         // For strings, try to write raw bytes directly without materializing the string
         if (currentType instanceof ESONSource.VariableValue varValue && varValue.type() == ESONEntry.STRING) {
             try {

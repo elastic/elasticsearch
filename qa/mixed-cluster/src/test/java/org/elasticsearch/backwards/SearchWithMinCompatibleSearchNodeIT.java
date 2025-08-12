@@ -8,6 +8,7 @@
 package org.elasticsearch.backwards;
 
 import org.apache.http.HttpHost;
+import org.apache.http.util.EntityUtils;
 import org.elasticsearch.Version;
 import org.elasticsearch.backwards.IndexingIT.Node;
 import org.elasticsearch.backwards.IndexingIT.Nodes;
@@ -24,6 +25,7 @@ import org.elasticsearch.test.rest.yaml.ObjectPath;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -45,8 +47,23 @@ public class SearchWithMinCompatibleSearchNodeIT extends ESRestTestCase {
     private static Version newVersion;
 
     @Before
-    public void prepareTestData() throws IOException {
+    public void prepareTestData() throws Exception {
         nodes = IndexingIT.buildNodeAndVersions(client());
+
+        debugClusterVersions();
+
+        assertBusy(() -> {
+            Nodes n = IndexingIT.buildNodeAndVersions(client());
+            if (n.getNewNodes().isEmpty() || n.getBWCNodes().isEmpty()) {
+                debugClusterVersions();
+                throw new AssertionError("cluster not mixed yet");
+            }
+            nodes = n; // update when mixed
+        }, 6, java.util.concurrent.TimeUnit.SECONDS);
+
+        assumeTrue("requires >=1 NEW node", nodes.getNewNodes().isEmpty() == false);
+        assumeTrue("requires >=1 BWC node", nodes.getBWCNodes().isEmpty() == false);
+
         numShards = nodes.size();
         numDocs = randomIntBetween(numShards, 16);
         bwcNodes = new ArrayList<>();
@@ -71,6 +88,14 @@ public class SearchWithMinCompatibleSearchNodeIT extends ESRestTestCase {
             }
             ensureGreen(index);
         }
+    }
+
+    private void debugClusterVersions() throws IOException {
+        Request r = new Request("GET", "/_cat/nodes?v&h=name,ip,version,roles");
+        r.addParameter("format", "json");
+        Response resp = client().performRequest(r);
+        String body = EntityUtils.toString(resp.getEntity(), StandardCharsets.UTF_8);
+        logger.info("Available Nodes: {}", body);
     }
 
     public void testMinVersionAsNewVersion() throws Exception {

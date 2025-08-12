@@ -10,6 +10,7 @@
 package org.elasticsearch.index.codec.vectors;
 
 import org.apache.lucene.codecs.KnnVectorsFormat;
+import org.apache.lucene.codecs.hnsw.FlatVectorsFormat;
 import org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsFormat;
 import org.apache.lucene.search.TaskExecutor;
 import org.apache.lucene.util.hnsw.HnswGraph;
@@ -91,7 +92,7 @@ public abstract class AbstractHnswVectorsFormat extends KnnVectorsFormat {
         }
     }
 
-    protected abstract KnnVectorsFormat flatVectorsFormat();
+    protected abstract FlatVectorsFormat flatVectorsFormat();
 
     @Override
     public int getMaxDimensions(String fieldName) {

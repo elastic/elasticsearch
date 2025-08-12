@@ -9,7 +9,6 @@
 
 package org.elasticsearch.index.codec.vectors;
 
-import org.apache.lucene.codecs.KnnVectorsFormat;
 import org.apache.lucene.codecs.KnnVectorsReader;
 import org.apache.lucene.codecs.KnnVectorsWriter;
 import org.apache.lucene.codecs.hnsw.FlatVectorsFormat;
@@ -40,7 +39,7 @@ public final class ES814HnswScalarQuantizedVectorsFormat extends AbstractHnswVec
     }
 
     @Override
-    protected KnnVectorsFormat flatVectorsFormat() {
+    protected FlatVectorsFormat flatVectorsFormat() {
         return flatVectorsFormat;
     }
 

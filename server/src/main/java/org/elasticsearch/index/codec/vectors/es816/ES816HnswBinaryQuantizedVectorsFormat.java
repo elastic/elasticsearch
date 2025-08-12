@@ -19,7 +19,6 @@
  */
 package org.elasticsearch.index.codec.vectors.es816;
 
-import org.apache.lucene.codecs.KnnVectorsFormat;
 import org.apache.lucene.codecs.KnnVectorsReader;
 import org.apache.lucene.codecs.KnnVectorsWriter;
 import org.apache.lucene.codecs.hnsw.FlatVectorsFormat;
@@ -71,7 +70,7 @@ public class ES816HnswBinaryQuantizedVectorsFormat extends AbstractHnswVectorsFo
     }
 
     @Override
-    protected KnnVectorsFormat flatVectorsFormat() {
+    protected FlatVectorsFormat flatVectorsFormat() {
         return flatVectorsFormat;
     }
 

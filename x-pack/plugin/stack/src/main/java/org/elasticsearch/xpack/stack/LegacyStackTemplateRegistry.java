@@ -34,7 +34,6 @@ import java.util.Map;
 
 import static org.elasticsearch.xpack.stack.StackTemplateRegistry.STACK_TEMPLATES_ENABLED;
 
-@Deprecated(since = "8.12.0", forRemoval = true)
 public class LegacyStackTemplateRegistry extends IndexTemplateRegistry {
     private static final Logger logger = LogManager.getLogger(LegacyStackTemplateRegistry.class);
 
@@ -47,7 +46,7 @@ public class LegacyStackTemplateRegistry extends IndexTemplateRegistry {
     private final ClusterService clusterService;
     private volatile boolean stackTemplateEnabled;
 
-    private static final Map<String, String> ADDITIONAL_TEMPLATE_VARIABLES = Map.of("xpack.stack.template.deprecated", "true");
+    private static final Map<String, String> ADDITIONAL_TEMPLATE_VARIABLES = Map.of("xpack.stack.template.deprecated", "false");
 
     // General mappings conventions for any data that ends up in a data stream
     public static final String DATA_STREAMS_MAPPINGS_COMPONENT_TEMPLATE_NAME = "data-streams-mappings";

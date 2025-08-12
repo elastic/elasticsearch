@@ -48,7 +48,7 @@ public class ExpressionQueryList implements LookupEnrichQueryGenerator {
         int positionCount = queryLists.get(0).getPositionCount();
         for (QueryList queryList : queryLists) {
             if (queryList.getPositionCount() != positionCount) {
-                throw new IllegalArgumentException(
+                throw new IllegalStateException(
                     "All QueryLists must have the same position count, expected: "
                         + positionCount
                         + ", but got: "

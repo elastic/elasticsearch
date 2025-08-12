@@ -239,28 +239,28 @@ public final class LookupFromIndexOperator extends AsyncOperator<LookupFromIndex
             Status::new
         );
 
-        private final long totalTerms;
+        private final long totalRows;
         /**
          * Total number of pages emitted by this {@link Operator}.
          */
         private final long emittedPages;
 
-        Status(long receivedPages, long completedPages, long totalTimeInMillis, long totalTerms, long emittedPages) {
+        Status(long receivedPages, long completedPages, long totalTimeInMillis, long totalRows, long emittedPages) {
             super(receivedPages, completedPages, totalTimeInMillis);
-            this.totalTerms = totalTerms;
+            this.totalRows = totalRows;
             this.emittedPages = emittedPages;
         }
 
         Status(StreamInput in) throws IOException {
             super(in);
-            this.totalTerms = in.readVLong();
+            this.totalRows = in.readVLong();
             this.emittedPages = in.readVLong();
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            out.writeVLong(totalTerms);
+            out.writeVLong(totalRows);
             out.writeVLong(emittedPages);
         }
 
@@ -273,8 +273,8 @@ public final class LookupFromIndexOperator extends AsyncOperator<LookupFromIndex
             return emittedPages;
         }
 
-        public long totalTerms() {
-            return totalTerms;
+        public long totalRows() {
+            return totalRows;
         }
 
         @Override
@@ -282,7 +282,7 @@ public final class LookupFromIndexOperator extends AsyncOperator<LookupFromIndex
             builder.startObject();
             super.innerToXContent(builder);
             builder.field("emitted_pages", emittedPages());
-            builder.field("total_terms", totalTerms());
+            builder.field("total_rows", totalRows());
             return builder.endObject();
         }
 
@@ -295,12 +295,12 @@ public final class LookupFromIndexOperator extends AsyncOperator<LookupFromIndex
                 return false;
             }
             Status status = (Status) o;
-            return totalTerms == status.totalTerms && emittedPages == status.emittedPages;
+            return totalRows == status.totalRows && emittedPages == status.emittedPages;
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(super.hashCode(), totalTerms, emittedPages);
+            return Objects.hash(super.hashCode(), totalRows, emittedPages);
         }
     }
 

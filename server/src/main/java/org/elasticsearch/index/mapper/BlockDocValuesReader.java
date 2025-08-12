@@ -102,68 +102,49 @@ public abstract class BlockDocValuesReader implements BlockLoader.AllReader {
 
         @Override
         public AllReader reader(LeafReaderContext context) throws IOException {
-            int maxDoc = context.reader().maxDoc();
             SortedNumericDocValues docValues = context.reader().getSortedNumericDocValues(fieldName);
             if (docValues != null) {
                 NumericDocValues singleton = DocValues.unwrapSingleton(docValues);
                 if (singleton != null) {
-                    return new SingletonLongs(maxDoc, singleton);
+                    return new SingletonLongs(singleton);
                 }
                 return new Longs(docValues);
             }
             NumericDocValues singleton = context.reader().getNumericDocValues(fieldName);
             if (singleton != null) {
-                return new SingletonLongs(maxDoc, singleton);
+                return new SingletonLongs(singleton);
             }
             return new ConstantNullsReader();
         }
     }
 
     static class SingletonLongs extends BlockDocValuesReader {
-        final boolean isDense;
         final NumericDocValues numericDocValues;
 
-        SingletonLongs(int maxDoc, NumericDocValues numericDocValues) {
+        SingletonLongs(NumericDocValues numericDocValues) {
             this.numericDocValues = numericDocValues;
-            this.isDense = numericDocValues.cost() == maxDoc;
         }
 
         @Override
         public BlockLoader.Block read(BlockFactory factory, Docs docs, int offset) throws IOException {
             if (numericDocValues instanceof BulkNumericDocValues bulkDv) {
                 return bulkDv.read(factory, docs, offset);
-            } else if (isDense) {
-                try (BlockLoader.SingletonLongBuilder builder = factory.singletonLongs(docs.count() - offset)) {
-                    int lastDoc = -1;
-                    for (int i = offset; i < docs.count(); i++) {
-                        int doc = docs.get(i);
-                        if (doc < lastDoc) {
-                            throw new IllegalStateException("docs within same block must be in order");
-                        }
-                        boolean found = numericDocValues.advanceExact(doc);
-                        assert found : "numericDocValues should be dense, but it is not";
+            }
+            try (BlockLoader.LongBuilder builder = factory.longsFromDocValues(docs.count() - offset)) {
+                int lastDoc = -1;
+                for (int i = offset; i < docs.count(); i++) {
+                    int doc = docs.get(i);
+                    if (doc < lastDoc) {
+                        throw new IllegalStateException("docs within same block must be in order");
+                    }
+                    if (numericDocValues.advanceExact(doc)) {
                         builder.appendLong(numericDocValues.longValue());
-                        lastDoc = doc;
+                    } else {
+                        builder.appendNull();
                     }
-                    return builder.build();
+                    lastDoc = doc;
                 }
-            } else {
-                try (BlockLoader.LongBuilder builder = factory.longsFromDocValues(docs.count() - offset)) {
-                    int lastDoc = -1;
-                    for (int i = offset; i < docs.count(); i++) {
-                        int doc = docs.get(i);
-                        if (doc < lastDoc) {
-                            throw new IllegalStateException("docs within same block must be in order");
-                        }
-                        if (numericDocValues.advanceExact(doc)) {
-                            builder.appendLong(numericDocValues.longValue());
-                        } else {
-                            builder.appendNull();
-                        }
-                        lastDoc = doc;
-                    }
-                    return builder.build();
-                }
+                return builder.build();
             }
         }
 

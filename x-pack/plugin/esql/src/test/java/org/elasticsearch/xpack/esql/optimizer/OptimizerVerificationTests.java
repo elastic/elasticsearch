@@ -319,10 +319,7 @@ public class OptimizerVerificationTests extends AbstractLogicalPlanOptimizerTest
             )
         );
 
-        plan(
-            "FROM test,remote:test | EVAL language_code = languages | LOOKUP JOIN languages_lookup ON language_code | LIMIT 2",
-            analyzer
-        );
+        plan("FROM test,remote:test | EVAL language_code = languages | LOOKUP JOIN languages_lookup ON language_code | LIMIT 2", analyzer);
 
         // Since FORK, RERANK, COMPLETION and CHANGE_POINT are not supported on remote indices, we can't check them here against the remote
         // LOOKUP JOIN

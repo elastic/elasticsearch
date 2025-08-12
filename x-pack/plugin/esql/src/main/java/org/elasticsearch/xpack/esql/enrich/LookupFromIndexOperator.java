@@ -241,8 +241,8 @@ public final class LookupFromIndexOperator extends AsyncOperator<LookupFromIndex
          */
         private final long emittedPages;
 
-        Status(long receivedPages, long completedPages, long totalTimeInMillis, long totalTerms, long emittedPages) {
-            super(receivedPages, completedPages, totalTimeInMillis);
+        Status(long receivedPages, long completedPages, long processNanos, long totalTerms, long emittedPages) {
+            super(receivedPages, completedPages, processNanos);
             this.totalTerms = totalTerms;
             this.emittedPages = emittedPages;
         }

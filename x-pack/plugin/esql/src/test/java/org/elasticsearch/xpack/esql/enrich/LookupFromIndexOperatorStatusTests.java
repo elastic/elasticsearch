@@ -53,12 +53,12 @@ public class LookupFromIndexOperatorStatusTests extends AbstractWireSerializingT
     }
 
     public void testToXContent() {
-        var status = new LookupFromIndexOperator.Status(100, 50, TimeValue.timeValueSeconds(10).millis(), 120, 88);
+        var status = new LookupFromIndexOperator.Status(100, 50, TimeValue.timeValueNanos(10).nanos(), 120, 88);
         String json = Strings.toString(status, true, true);
         assertThat(json, equalTo("""
             {
-              "process_nanos" : 10000,
-              "process_time" : "10micros",
+              "process_nanos" : 10,
+              "process_time" : "10nanos",
               "received_pages" : 100,
               "completed_pages" : 50,
               "emitted_pages" : 88,

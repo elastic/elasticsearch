@@ -71,7 +71,7 @@ import static org.elasticsearch.gradle.internal.conventions.VersionPropertiesPlu
 public class GlobalBuildInfoPlugin implements Plugin<Project> {
     private static final Logger LOGGER = Logging.getLogger(GlobalBuildInfoPlugin.class);
     private static final String DEFAULT_VERSION_JAVA_FILE_PATH = "server/src/main/java/org/elasticsearch/Version.java";
-    private static final String DEFAULT_BRANCHES_FILE_URL = "https://raw.githubusercontent.com/elastic/elasticsearch/master/branches.json";
+    private static final String DEFAULT_BRANCHES_FILE_URL = "https://raw.githubusercontent.com/elastic/elasticsearch/main/branches.json";
     private static final String BRANCHES_FILE_LOCATION_PROPERTY = "org.elasticsearch.build.branches-file-location";
     private static final Pattern LINE_PATTERN = Pattern.compile(
         "\\W+public static final Version V_(\\d+)_(\\d+)_(\\d+)(_alpha\\d+|_beta\\d+|_rc\\d+)?.*\\);"

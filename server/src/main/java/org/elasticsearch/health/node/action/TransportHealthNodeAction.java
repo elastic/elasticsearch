@@ -28,7 +28,6 @@ import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
@@ -120,31 +119,42 @@ public abstract class TransportHealthNodeAction<Request extends HealthNodeReques
                 });
             } else {
                 logger.trace("forwarding request [{}] to health node [{}]", actionName, healthNode);
-                ActionListenerResponseHandler<Response> handler = new ActionListenerResponseHandler<>(
-                    listener,
-                    responseReader,
-                    TransportResponseHandler.TRANSPORT_WORKER
-                ) {
-                    @Override
-                    public void handleException(final TransportException exception) {
-                        logger.trace(
-                            () -> format("failure when forwarding request [%s] to health node [%s]", actionName, healthNode),
-                            exception
-                        );
-                        listener.onFailure(exception);
-                    }
-                };
+                final ActionListener<Response> listenerWithExceptionLogging = logger.isTraceEnabled()
+                    ? listener.delegateResponse((delegate, e) -> {
+                        logger.trace(() -> format("failure when forwarding request [%s] to health node [%s]", actionName, healthNode), e);
+                        delegate.onFailure(e);
+                    })
+                    : listener;
                 if (task != null) {
                     transportService.sendChildRequest(
                         healthNode,
                         actionName,
                         request,
                         task,
-                        TransportRequestOptions.timeout(healthNodeTransportActionTimeout),
-                        handler
+                        TransportRequestOptions.EMPTY,
+                        new ActionListenerResponseHandler<>(
+                            ActionListener.addTimeout(
+                                healthNodeTransportActionTimeout,
+                                threadPool,
+                                TransportResponseHandler.TRANSPORT_WORKER,
+                                listenerWithExceptionLogging,
+                                () -> { /* TODO cancel the remote task? */}
+                            ),
+                            responseReader,
+                            TransportResponseHandler.TRANSPORT_WORKER
+                        )
                     );
                 } else {
-                    transportService.sendRequest(healthNode, actionName, request, handler);
+                    transportService.sendRequest(
+                        healthNode,
+                        actionName,
+                        request,
+                        new ActionListenerResponseHandler<>(
+                            listenerWithExceptionLogging,
+                            responseReader,
+                            TransportResponseHandler.TRANSPORT_WORKER
+                        )
+                    );
                 }
             }
         } catch (Exception e) {

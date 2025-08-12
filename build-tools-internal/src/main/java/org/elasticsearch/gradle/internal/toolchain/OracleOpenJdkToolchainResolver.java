@@ -61,17 +61,11 @@ public abstract class OracleOpenJdkToolchainResolver extends AbstractCustomJavaT
     record EarlyAccessJdkBuild(JavaLanguageVersion languageVersion, String buildNumber) implements JdkBuild {
         @Override
         public String url(String os, String arch, String extension) {
-            // example:
-            // https://builds.es-jdk-archive.com/jdks/openjdk/26/openjdk-26-ea+6/openjdk-26-ea+6_linux-aarch64_bin.tar.gz
-            return "https://builds.es-jdk-archive.com/jdks/openjdk/"
+            return "https://download.java.net/java/early_access/jdk"
                 + languageVersion.asInt()
                 + "/"
-                + "openjdk-"
-                + languageVersion.asInt()
-                + "-ea+"
                 + buildNumber
-                + "/"
-                + "openjdk-"
+                + "/GPL/openjdk-"
                 + languageVersion.asInt()
                 + "-ea+"
                 + buildNumber
@@ -96,8 +90,7 @@ public abstract class OracleOpenJdkToolchainResolver extends AbstractCustomJavaT
 
     // package private so it can be replaced by tests
     List<JdkBuild> builds = List.of(
-        getBundledJdkBuild(VersionProperties.getBundledJdkVersion(), VersionProperties.getBundledJdkMajorVersion()),
-        getEarlyAccessBuild(JavaLanguageVersion.of(25), "3")
+        getBundledJdkBuild(VersionProperties.getBundledJdkVersion(), VersionProperties.getBundledJdkMajorVersion())
     );
 
     static EarlyAccessJdkBuild getEarlyAccessBuild(JavaLanguageVersion languageVersion, String buildNumber) {

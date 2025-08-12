@@ -40,6 +40,7 @@ import org.gradle.jvm.toolchain.JavaLanguageVersion;
 import org.gradle.jvm.toolchain.JavaToolchainService;
 import org.gradle.jvm.toolchain.JavaToolchainSpec;
 import org.gradle.jvm.toolchain.JvmVendorSpec;
+import org.gradle.jvm.toolchain.internal.DefaultJvmVendorSpec;
 import org.gradle.jvm.toolchain.internal.InstallationLocation;
 import org.gradle.util.GradleVersion;
 import org.jetbrains.annotations.NotNull;
@@ -63,6 +64,7 @@ import java.util.stream.Stream;
 import javax.inject.Inject;
 
 import static org.elasticsearch.gradle.internal.conventions.GUtils.elvis;
+import static org.elasticsearch.gradle.internal.toolchain.EarlyAccessCatalogJdkToolchainResolver.findLatestEABuildNumber;
 
 public class GlobalBuildInfoPlugin implements Plugin<Project> {
     private static final Logger LOGGER = Logging.getLogger(GlobalBuildInfoPlugin.class);
@@ -338,6 +340,7 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
         String runtimeJavaProperty = System.getProperty("runtime.java");
 
         if (runtimeJavaProperty != null) {
+            System.out.println("GlobalBuildInfoPlugin.findRuntimeJavaHome");
             return resolveJavaHomeFromToolChainService(runtimeJavaProperty);
         }
         if (System.getenv("RUNTIME_JAVA_HOME") != null) {
@@ -355,9 +358,26 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
 
     @NotNull
     private Provider<File> resolveJavaHomeFromToolChainService(String version) {
-        Property<JavaLanguageVersion> value = objectFactory.property(JavaLanguageVersion.class).value(JavaLanguageVersion.of(version));
-        return toolChainService.launcherFor(javaToolchainSpec -> javaToolchainSpec.getLanguageVersion().value(value))
-            .map(launcher -> launcher.getMetadata().getInstallationPath().getAsFile());
+        JavaLanguageVersion languageVersion = JavaLanguageVersion.of(version);
+        Property<JavaLanguageVersion> value = objectFactory.property(JavaLanguageVersion.class).value(languageVersion);
+        return toolChainService.launcherFor(javaToolchainSpec -> {
+            javaToolchainSpec.getLanguageVersion().value(value);
+
+            if (Integer.parseInt(VersionProperties.getBundledJdkMajorVersion()) < Integer.parseInt(version)) {
+                // If the requested version is higher than the bundled JDK, we need trick the toolchain into using our early access catalog
+                // Otherwise, we use the default implementation
+                Integer buildNumber = Integer.getInteger("runtime.java.build");
+
+                if (buildNumber == null) {
+                    buildNumber = Integer.getInteger("runtime.java." + version + ".build");
+                }
+                if (buildNumber == null) {
+                    buildNumber = findLatestEABuildNumber(languageVersion);
+                }
+                javaToolchainSpec.getVendor()
+                    .set(DefaultJvmVendorSpec.of("Oracle[" + languageVersion + "/" + buildNumber + "]"));
+            }
+        }).map(launcher -> launcher.getMetadata().getInstallationPath().getAsFile());
     }
 
     public static String getResourceContents(String resourcePath) {

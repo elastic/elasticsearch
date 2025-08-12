@@ -20,7 +20,6 @@ import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.ByteArrayStreamInput;
-import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.codec.tsdb.es819.BulkNumericDocValues;
 import org.elasticsearch.index.mapper.BlockLoader.BlockFactory;
@@ -64,11 +63,9 @@ public abstract class BlockDocValuesReader implements BlockLoader.AllReader {
 
         @Override
         public final ColumnAtATimeReader columnAtATimeReader(LeafReaderContext context) throws IOException {
-            if (supportsOptimizedColumnAtTimeReader()) {
-                var optimizedColumnAtTimeReader = optimizedColumnAtTimeReader(context);
-                if (optimizedColumnAtTimeReader != null) {
-                    return optimizedColumnAtTimeReader;
-                }
+            var optimizedColumnAtTimeReader = optimizedColumnAtTimeReader(context);
+            if (optimizedColumnAtTimeReader != null) {
+                return optimizedColumnAtTimeReader;
             }
             return reader(context);
         }
@@ -93,22 +90,16 @@ public abstract class BlockDocValuesReader implements BlockLoader.AllReader {
             throw new UnsupportedOperationException();
         }
 
-        protected boolean supportsOptimizedColumnAtTimeReader() {
-            return false;
-        }
-
         protected ColumnAtATimeReader optimizedColumnAtTimeReader(LeafReaderContext context) throws IOException {
-            throw new UnsupportedOperationException();
+            return null;
         }
     }
 
     public static class LongsBlockLoader extends DocValuesBlockLoader {
         private final String fieldName;
-        private final IndexMode indexMode;
 
-        public LongsBlockLoader(String fieldName, IndexMode indexMode) {
+        public LongsBlockLoader(String fieldName) {
             this.fieldName = fieldName;
-            this.indexMode = indexMode;
         }
 
         @Override
@@ -131,11 +122,6 @@ public abstract class BlockDocValuesReader implements BlockLoader.AllReader {
                 return new SingletonLongs(singleton);
             }
             return new ConstantNullsReader();
-        }
-
-        @Override
-        protected boolean supportsOptimizedColumnAtTimeReader() {
-            return indexMode.supportOptimizedDocValueLoading();
         }
 
         protected ColumnAtATimeReader optimizedColumnAtTimeReader(LeafReaderContext context) throws IOException {

@@ -58,7 +58,6 @@ import org.elasticsearch.compute.test.TestDriverFactory;
 import org.elasticsearch.compute.test.TestResultPageSinkOperator;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Releasables;
-import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.BlockDocValuesReader;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
@@ -178,7 +177,7 @@ public class OperatorTests extends MapperServiceTestCase {
                     new ValuesSourceReaderOperator.FieldInfo(
                         "v",
                         ElementType.LONG,
-                        f -> new BlockDocValuesReader.LongsBlockLoader("v", IndexMode.STANDARD)
+                        f -> new BlockDocValuesReader.LongsBlockLoader("v")
                     )
                 ),
                 List.of(new ValuesSourceReaderOperator.ShardContext(reader, () -> {

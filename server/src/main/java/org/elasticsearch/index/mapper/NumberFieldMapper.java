@@ -482,7 +482,7 @@ public class NumberFieldMapper extends FieldMapper {
             }
 
             @Override
-            BlockLoader blockLoaderFromDocValues(String fieldName, MappedFieldType.BlockLoaderContext blContext) {
+            BlockLoader blockLoaderFromDocValues(String fieldName) {
                 return new BlockDocValuesReader.DoublesBlockLoader(fieldName, l -> HalfFloatPoint.sortableShortToHalfFloat((short) l));
             }
 
@@ -671,7 +671,7 @@ public class NumberFieldMapper extends FieldMapper {
             }
 
             @Override
-            BlockLoader blockLoaderFromDocValues(String fieldName, MappedFieldType.BlockLoaderContext blContext) {
+            BlockLoader blockLoaderFromDocValues(String fieldName) {
                 return new BlockDocValuesReader.DoublesBlockLoader(fieldName, l -> NumericUtils.sortableIntToFloat((int) l));
             }
 
@@ -826,7 +826,7 @@ public class NumberFieldMapper extends FieldMapper {
             }
 
             @Override
-            BlockLoader blockLoaderFromDocValues(String fieldName, MappedFieldType.BlockLoaderContext blContext) {
+            BlockLoader blockLoaderFromDocValues(String fieldName) {
                 return new BlockDocValuesReader.DoublesBlockLoader(fieldName, NumericUtils::sortableLongToDouble);
             }
 
@@ -949,7 +949,7 @@ public class NumberFieldMapper extends FieldMapper {
             }
 
             @Override
-            BlockLoader blockLoaderFromDocValues(String fieldName, MappedFieldType.BlockLoaderContext blContext) {
+            BlockLoader blockLoaderFromDocValues(String fieldName) {
                 return new BlockDocValuesReader.IntsBlockLoader(fieldName);
             }
 
@@ -1072,7 +1072,7 @@ public class NumberFieldMapper extends FieldMapper {
             }
 
             @Override
-            BlockLoader blockLoaderFromDocValues(String fieldName, MappedFieldType.BlockLoaderContext blContext) {
+            BlockLoader blockLoaderFromDocValues(String fieldName) {
                 return new BlockDocValuesReader.IntsBlockLoader(fieldName);
             }
 
@@ -1269,7 +1269,7 @@ public class NumberFieldMapper extends FieldMapper {
             }
 
             @Override
-            BlockLoader blockLoaderFromDocValues(String fieldName, MappedFieldType.BlockLoaderContext blContext) {
+            BlockLoader blockLoaderFromDocValues(String fieldName) {
                 return new BlockDocValuesReader.IntsBlockLoader(fieldName);
             }
 
@@ -1426,9 +1426,8 @@ public class NumberFieldMapper extends FieldMapper {
             }
 
             @Override
-            BlockLoader blockLoaderFromDocValues(String fieldName, MappedFieldType.BlockLoaderContext blContext) {
-                var indexMode = blContext.indexSettings().getMode();
-                return new BlockDocValuesReader.LongsBlockLoader(fieldName, indexMode);
+            BlockLoader blockLoaderFromDocValues(String fieldName) {
+                return new BlockDocValuesReader.LongsBlockLoader(fieldName);
             }
 
             @Override
@@ -1732,7 +1731,7 @@ public class NumberFieldMapper extends FieldMapper {
             };
         }
 
-        abstract BlockLoader blockLoaderFromDocValues(String fieldName, MappedFieldType.BlockLoaderContext blContext);
+        abstract BlockLoader blockLoaderFromDocValues(String fieldName);
 
         abstract BlockLoader blockLoaderFromSource(SourceValueFetcher sourceValueFetcher, BlockSourceReader.LeafIteratorLookup lookup);
 
@@ -1971,7 +1970,7 @@ public class NumberFieldMapper extends FieldMapper {
         @Override
         public BlockLoader blockLoader(BlockLoaderContext blContext) {
             if (hasDocValues() && (blContext.fieldExtractPreference() != FieldExtractPreference.STORED || isSyntheticSource)) {
-                return type.blockLoaderFromDocValues(name(), blContext);
+                return type.blockLoaderFromDocValues(name());
             }
 
             // Multi fields don't have fallback synthetic source.

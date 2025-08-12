@@ -546,8 +546,7 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
         @Override
         public BlockLoader blockLoader(BlockLoaderContext blContext) {
             if (blContext.fieldExtractPreference() == DOC_VALUES && hasDocValues()) {
-                var indexMode = blContext.indexSettings().getMode();
-                return new BlockDocValuesReader.LongsBlockLoader(name(), indexMode);
+                return new BlockDocValuesReader.LongsBlockLoader(name());
             }
 
             // There are two scenarios possible once we arrive here:

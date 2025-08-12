@@ -377,8 +377,7 @@ public class UnsignedLongFieldMapper extends FieldMapper {
                 return BlockLoader.CONSTANT_NULLS;
             }
             if (hasDocValues() && (blContext.fieldExtractPreference() != FieldExtractPreference.STORED || isSyntheticSource)) {
-                var indexMode = blContext.indexSettings().getMode();
-                return new BlockDocValuesReader.LongsBlockLoader(name(), indexMode);
+                return new BlockDocValuesReader.LongsBlockLoader(name());
             }
             // Multi fields don't have fallback synthetic source.
             if (isSyntheticSource && blContext.parentField(name()) == null) {

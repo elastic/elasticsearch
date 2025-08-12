@@ -242,8 +242,7 @@ public class PointFieldMapper extends AbstractPointGeometryFieldMapper<Cartesian
         @Override
         public BlockLoader blockLoader(BlockLoaderContext blContext) {
             if (blContext.fieldExtractPreference() == DOC_VALUES && hasDocValues()) {
-                var indexMode = blContext.indexSettings().getMode();
-                return new BlockDocValuesReader.LongsBlockLoader(name(), indexMode);
+                return new BlockDocValuesReader.LongsBlockLoader(name());
             }
 
             // Multi fields don't have fallback synthetic source.s

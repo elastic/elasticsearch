@@ -198,28 +198,11 @@ public class SparseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase
         b.endObject();
     }
 
-    private void mapping(XContentBuilder b, @Nullable Boolean prune, PruningConfig pruningConfig, Boolean previousVersion)
+    private void mapping(XContentBuilder b, @Nullable Boolean prune, PruningConfig pruningConfig)
         throws IOException {
         b.field("type", "sparse_vector");
-        if (previousVersion == false && prune != null) {
-            b.startObject("index_options");
-            {
-                b.field("prune", prune);
-                if (pruningConfig != PruningConfig.NULL) {
-                    b.startObject("pruning_config");
-                    {
-                        if (pruningConfig == PruningConfig.EXPLICIT_DEFAULT) {
-                            b.field("tokens_freq_ratio_threshold", TokenPruningConfig.DEFAULT_TOKENS_FREQ_RATIO_THRESHOLD);
-                            b.field("tokens_weight_threshold", TokenPruningConfig.DEFAULT_TOKENS_WEIGHT_THRESHOLD);
-                        } else if (pruningConfig == PruningConfig.STRICT) {
-                            b.field("tokens_freq_ratio_threshold", STRICT_TOKENS_FREQ_RATIO_THRESHOLD);
-                            b.field("tokens_weight_threshold", STRICT_TOKENS_WEIGHT_THRESHOLD);
-                        }
-                    }
-                    b.endObject();
-                }
-            }
-            b.endObject();
+        if (prune != null) {
+            b.field("index_options", new SparseVectorFieldMapper.SparseVectorIndexOptions(prune, pruningConfig.tokenPruningConfig));
         }
     }
 
@@ -727,11 +710,22 @@ public class SparseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase
         STRICT_PRUNING   // Stricter pruning with higher thresholds
     }
 
-    private enum PruningConfig {
-        NULL,
-        EXPLICIT_DEFAULT,
-        STRICT
-    }
+
+        private enum PruningConfig {
+            NULL(null),
+            EXPLICIT_DEFAULT(new TokenPruningConfig()),
+            STRICT(new TokenPruningConfig(
+                STRICT_TOKENS_FREQ_RATIO_THRESHOLD,
+                STRICT_TOKENS_WEIGHT_THRESHOLD,
+                false
+            ));
+
+            public final @Nullable TokenPruningConfig tokenPruningConfig;
+
+            PruningConfig(@Nullable TokenPruningConfig tokenPruningConfig) {
+                this.tokenPruningConfig = tokenPruningConfig;
+            }
+        }
 
     private final Set<PruningOptions> validIndexPruningScenarios = Set.of(
         new PruningOptions(false, PruningConfig.NULL),
@@ -785,8 +779,8 @@ public class SparseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase
         }
     }
 
-    private XContentBuilder getIndexMapping(PruningOptions pruningOptions, Boolean usePreviousIndex) throws IOException {
-        return fieldMapping(b -> mapping(b, pruningOptions.prune(), pruningOptions.pruningConfig(), usePreviousIndex));
+    private XContentBuilder getIndexMapping(PruningOptions pruningOptions) throws IOException {
+        return fieldMapping(b -> mapping(b, pruningOptions.prune, pruningOptions.pruningConfig));
     }
 
     private void assertQueryContains(List<Query> expectedClauses, Query query) {
@@ -799,53 +793,33 @@ public class SparseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase
         assertThat(shouldClauses, Matchers.containsInAnyOrder(expectedClauses.toArray()));
     }
 
-    private PruningScenario getPruningLevel(PruningConfig config) {
-        if (config == PruningConfig.STRICT) {
-            return PruningScenario.STRICT_PRUNING;
-        }
-        return PruningScenario.DEFAULT_PRUNING;
-    }
-
     private PruningScenario getEffectivePruningScenario(
         PruningOptions indexPruningOptions,
         PruningOptions queryPruningOptions,
-        Boolean usePreviousIndex
+        IndexVersion indexVersion
     ) {
-        if (usePreviousIndex) {
-            return (queryPruningOptions.prune != null && queryPruningOptions.prune)
-                ? getPruningLevel(queryPruningOptions.pruningConfig)
-                : PruningScenario.NO_PRUNING;
+        Boolean shouldPrune = queryPruningOptions.prune;
+        if (shouldPrune == null) {
+            shouldPrune = indexPruningOptions.prune;
         }
 
-        Boolean shouldPrune = indexPruningOptions.prune;
-        if (queryPruningOptions.prune != null) {
-            shouldPrune = queryPruningOptions.prune;
+        if (shouldPrune == null) {
+            shouldPrune = indexVersion.onOrAfter(SPARSE_VECTOR_PRUNING_INDEX_OPTIONS_SUPPORT);
         }
 
-        if (shouldPrune != null && shouldPrune == false) {
-            // Pruning is explicitly disabled
-            return PruningScenario.NO_PRUNING;
-        }
-
-        return queryPruningOptions.pruningConfig != PruningConfig.NULL
-            ? getPruningLevel(queryPruningOptions.pruningConfig)
-            : getPruningLevel(indexPruningOptions.pruningConfig);
-    }
-
-    private Tuple<Boolean, TokenPruningConfig> getQueryPruneConfig(PruningOptions queryPruningOptions) {
-        Boolean prune = queryPruningOptions.prune;
-        TokenPruningConfig tokenPruningConfig = null;
-        if (queryPruningOptions.pruningConfig != PruningConfig.NULL) {
-            switch (queryPruningOptions.pruningConfig) {
-                case EXPLICIT_DEFAULT -> tokenPruningConfig = new TokenPruningConfig();
-                case STRICT -> tokenPruningConfig = new TokenPruningConfig(
-                    STRICT_TOKENS_FREQ_RATIO_THRESHOLD,
-                    STRICT_TOKENS_WEIGHT_THRESHOLD,
-                    false
-                );
+        PruningScenario pruningScenario = PruningScenario.NO_PRUNING;
+        if (shouldPrune) {
+            PruningConfig pruningConfig = queryPruningOptions.pruningConfig;
+            if (pruningConfig == PruningConfig.NULL) {
+                pruningConfig = indexPruningOptions.pruningConfig;
             }
+            pruningScenario = switch (pruningConfig) {
+                case STRICT -> PruningScenario.STRICT_PRUNING;
+                case EXPLICIT_DEFAULT, NULL -> PruningScenario.DEFAULT_PRUNING;
+            };
         }
-        return new Tuple<>(prune, tokenPruningConfig);
+
+        return pruningScenario;
     }
 
     private List<Query> getExpectedQueryClauses(
@@ -868,19 +842,12 @@ public class SparseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase
     }
 
     private void assertPruningScenario(PruningOptions indexPruningOptions, PruningOptions queryPruningOptions) throws IOException {
-
-        boolean usePreIndexOptionsIndex = false;
-        if (indexPruningOptions.prune == null && indexPruningOptions.pruningConfig == PruningConfig.NULL) {
-            usePreIndexOptionsIndex = randomBoolean();
-        }
-
-        IndexVersion indexVersion = getIndexVersionForTest(usePreIndexOptionsIndex);
-        MapperService mapperService = createMapperService(indexVersion, getIndexMapping(indexPruningOptions, usePreIndexOptionsIndex));
-        Tuple<Boolean, TokenPruningConfig> queryPruneConfig = getQueryPruneConfig(queryPruningOptions);
+        IndexVersion indexVersion = getIndexVersionForTest(randomBoolean());
+        MapperService mapperService = createMapperService(indexVersion, getIndexMapping(indexPruningOptions));
         PruningScenario effectivePruningScenario = getEffectivePruningScenario(
             indexPruningOptions,
             queryPruningOptions,
-            usePreIndexOptionsIndex
+            indexVersion
         );
         withSearchExecutionContext(mapperService, (context) -> {
             SparseVectorFieldMapper.SparseVectorFieldType ft = (SparseVectorFieldMapper.SparseVectorFieldType) mapperService.fieldType(
@@ -891,8 +858,8 @@ public class SparseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase
                 context,
                 "field",
                 QUERY_VECTORS,
-                queryPruneConfig.v1(),
-                queryPruneConfig.v2()
+                queryPruningOptions.prune,
+                queryPruningOptions.pruningConfig.tokenPruningConfig
             );
             assertQueryContains(expectedQueryClauses, finalizedQuery);
         });

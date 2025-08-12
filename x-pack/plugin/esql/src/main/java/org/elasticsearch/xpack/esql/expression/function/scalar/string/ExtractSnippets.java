@@ -15,6 +15,7 @@ import org.elasticsearch.compute.lucene.LuceneQueryEvaluator;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder;
 import org.elasticsearch.search.fetch.subphase.highlight.SearchHighlightContext;
@@ -217,7 +218,9 @@ public class ExtractSnippets extends EsqlScalarFunction implements OptionalArgum
                 // TODO: Reduce duplication between this method and TextSimilarityRerankingRankFeaturePhaseRankShardContext#prepareForFetch
                 HighlightBuilder highlightBuilder = new HighlightBuilder();
                 if (queryBuilder != null) {
-                    highlightBuilder.highlightQuery(queryBuilder);
+                    // TODO validate this works and determine why this is not working in query builder resolver
+                    QueryBuilder rewritten = Rewriteable.rewrite(queryBuilder, searchExecutionContext);
+                    highlightBuilder.highlightQuery(rewritten);
                 }
                 // Stripping pre/post tags as they're not useful for snippet creation
                 highlightBuilder.field(field.sourceText()).preTags("").postTags("");

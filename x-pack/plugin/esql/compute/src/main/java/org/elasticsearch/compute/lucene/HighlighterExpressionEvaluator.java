@@ -86,6 +86,22 @@ public class HighlighterExpressionEvaluator extends LuceneQueryEvaluator<BytesRe
         throws IOException {
 
         // TODO: Can we build a custom highlighter directly here, so we don't have to rely on fetch phase classes?
+
+        // Create a source loader for highlighter use
+        SourceLoader sourceLoader = searchContext.newSourceLoader(null);
+        FetchContext fetchContext = new FetchContext(searchContext, sourceLoader);
+        MappedFieldType fieldType = searchContext.getSearchExecutionContext().getFieldType(fieldName);
+        SearchHit searchHit = new SearchHit(docId);
+        Source source = Source.lazy(lazyStoredSourceLoader(leafReaderContext, docId));
+        String defaultHighlighter = fieldType.getDefaultHighlighter();
+
+        Highlighter highlighter;
+        // if (SemanticTextHighlighter.NAME.equals(defaultHighlighter)) {
+        // highlighter = new SemanticTextHighlighter();
+        // } else {
+        highlighter = new DefaultHighlighter();
+        // }
+
         SearchHighlightContext.FieldOptions.Builder optionsBuilder = new SearchHighlightContext.FieldOptions.Builder();
         optionsBuilder.numberOfFragments(numFragments != null ? numFragments : HighlightBuilder.DEFAULT_NUMBER_OF_FRAGMENTS);
         optionsBuilder.fragmentCharSize(fragmentLength != null ? fragmentLength : HighlightBuilder.DEFAULT_FRAGMENT_CHAR_SIZE);
@@ -94,12 +110,6 @@ public class HighlighterExpressionEvaluator extends LuceneQueryEvaluator<BytesRe
         optionsBuilder.requireFieldMatch(false);
         optionsBuilder.scoreOrdered(true);
         SearchHighlightContext.Field field = new SearchHighlightContext.Field(fieldName, optionsBuilder.build());
-        // Create a source loader for highlighter use
-        SourceLoader sourceLoader = searchContext.newSourceLoader(null);
-        FetchContext fetchContext = new FetchContext(searchContext, sourceLoader);
-        MappedFieldType fieldType = searchContext.getSearchExecutionContext().getFieldType(fieldName);
-        SearchHit searchHit = new SearchHit(docId);
-        Source source = Source.lazy(lazyStoredSourceLoader(leafReaderContext, docId));
 
         FetchSubPhase.HitContext hitContext = new FetchSubPhase.HitContext(searchHit, leafReaderContext, docId, Map.of(), source, null);
         FieldHighlightContext highlightContext = new FieldHighlightContext(
@@ -111,18 +121,19 @@ public class HighlighterExpressionEvaluator extends LuceneQueryEvaluator<BytesRe
             query,
             new HashMap<>()
         );
-        Highlighter highlighter = new DefaultHighlighter();
         HighlightField highlight = highlighter.highlight(highlightContext);
 
-        boolean multivalued = highlight.fragments().length > 1;
-        if (multivalued) {
-            builder.beginPositionEntry();
-        }
-        for (Text highlightText : highlight.fragments()) {
-            builder.appendBytesRef(new BytesRef(highlightText.bytes().bytes()));
-        }
-        if (multivalued) {
-            builder.endPositionEntry();
+        if (highlight != null) {
+            boolean multivalued = highlight.fragments().length > 1;
+            if (multivalued) {
+                builder.beginPositionEntry();
+            }
+            for (Text highlightText : highlight.fragments()) {
+                builder.appendBytesRef(new BytesRef(highlightText.bytes().bytes()));
+            }
+            if (multivalued) {
+                builder.endPositionEntry();
+            }
         }
     }
 

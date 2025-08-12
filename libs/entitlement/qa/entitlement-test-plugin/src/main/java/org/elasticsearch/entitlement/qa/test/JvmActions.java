@@ -69,6 +69,13 @@ class JvmActions {
         }
     }
 
+    @EntitlementTest(expectedAccess = PLUGINS)
+    static void createClassLoaderNewInstance() throws IOException {
+        try (var classLoader = URLClassLoader.newInstance(new URL[0], RestEntitlementsCheckAction.class.getClassLoader())) {
+            // intentionally empty, just let the loader close
+        }
+    }
+
     @EntitlementTest(expectedAccess = ALWAYS_DENIED)
     static void createLogManager() {
         new java.util.logging.LogManager() {

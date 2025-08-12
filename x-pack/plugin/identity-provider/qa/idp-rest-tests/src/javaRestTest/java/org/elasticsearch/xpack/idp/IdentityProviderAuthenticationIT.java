@@ -49,6 +49,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 
 public class IdentityProviderAuthenticationIT extends IdpRestTestCase {
@@ -89,6 +90,52 @@ public class IdentityProviderAuthenticationIT extends IdpRestTestCase {
         authenticateWithSamlResponse(samlResponse, null);
     }
 
+    public void testUpdateExistingServiceProvider() throws Exception {
+        final Map<String, Object> request1 = Map.ofEntries(
+            Map.entry("name", "Test SP [v1]"),
+            Map.entry("acs", SP_ACS),
+            Map.entry("privileges", Map.ofEntries(Map.entry("resource", SP_ENTITY_ID), Map.entry("roles", List.of("sso:(\\w+)")))),
+            Map.entry(
+                "attributes",
+                Map.ofEntries(
+                    Map.entry("principal", "https://idp.test.es.elasticsearch.org/attribute/principal"),
+                    Map.entry("name", "https://idp.test.es.elasticsearch.org/attribute/name"),
+                    Map.entry("email", "https://idp.test.es.elasticsearch.org/attribute/email"),
+                    Map.entry("roles", "https://idp.test.es.elasticsearch.org/attribute/roles")
+                )
+            )
+        );
+        final SamlServiceProviderIndex.DocumentVersion docVersion1 = createServiceProvider(SP_ENTITY_ID, request1);
+        checkIndexDoc(docVersion1);
+        ensureGreen(SamlServiceProviderIndex.INDEX_NAME);
+
+        final String samlResponse1 = generateSamlResponse(SP_ENTITY_ID, SP_ACS, null);
+        assertThat(samlResponse1, containsString("https://idp.test.es.elasticsearch.org/attribute/principal"));
+        assertThat(samlResponse1, not(containsString("https://idp.test.es.elasticsearch.org/attribute/username")));
+
+        final Map<String, Object> request = Map.ofEntries(
+            Map.entry("name", "Test SP [v2]"),
+            Map.entry("acs", SP_ACS),
+            Map.entry("privileges", Map.ofEntries(Map.entry("resource", SP_ENTITY_ID), Map.entry("roles", List.of("sso:(\\w+)")))),
+            Map.entry(
+                "attributes",
+                Map.ofEntries(
+                    Map.entry("principal", "https://idp.test.es.elasticsearch.org/attribute/username"),
+                    Map.entry("name", "https://idp.test.es.elasticsearch.org/attribute/name"),
+                    Map.entry("email", "https://idp.test.es.elasticsearch.org/attribute/email"),
+                    Map.entry("roles", "https://idp.test.es.elasticsearch.org/attribute/roles")
+                )
+            )
+        );
+        final SamlServiceProviderIndex.DocumentVersion docVersion2 = createServiceProvider(SP_ENTITY_ID, request);
+        checkIndexDoc(docVersion2);
+        ensureGreen(SamlServiceProviderIndex.INDEX_NAME);
+
+        final String samlResponse2 = generateSamlResponse(SP_ENTITY_ID, SP_ACS, null);
+        assertThat(samlResponse2, containsString("https://idp.test.es.elasticsearch.org/attribute/username"));
+        assertThat(samlResponse2, not(containsString("https://idp.test.es.elasticsearch.org/attribute/principal")));
+    }
+
     public void testCustomAttributesInIdpInitiatedSso() throws Exception {
         final Map<String, Object> request = Map.ofEntries(
             Map.entry("name", "Test SP With Custom Attributes"),
@@ -100,7 +147,8 @@ public class IdentityProviderAuthenticationIT extends IdpRestTestCase {
                     Map.entry("principal", "https://idp.test.es.elasticsearch.org/attribute/principal"),
                     Map.entry("name", "https://idp.test.es.elasticsearch.org/attribute/name"),
                     Map.entry("email", "https://idp.test.es.elasticsearch.org/attribute/email"),
-                    Map.entry("roles", "https://idp.test.es.elasticsearch.org/attribute/roles")
+                    Map.entry("roles", "https://idp.test.es.elasticsearch.org/attribute/roles"),
+                    Map.entry("extensions", List.of("department", "region"))
                 )
             )
         );

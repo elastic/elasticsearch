@@ -9,11 +9,16 @@ package org.elasticsearch.xpack.esql.qa.rest.generative;
 
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.ResponseException;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.test.rest.ESRestTestCase;
+import org.elasticsearch.xpack.esql.AssertWarnings;
 import org.elasticsearch.xpack.esql.CsvTestsDataLoader;
+import org.elasticsearch.xpack.esql.qa.rest.ProfileLogger;
 import org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase;
+import org.elasticsearch.xpack.esql.qa.rest.generative.command.CommandGenerator;
 import org.junit.AfterClass;
 import org.junit.Before;
+import org.junit.Rule;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -30,6 +35,9 @@ import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.loadDataSetIntoEs;
 
 public abstract class GenerativeRestTest extends ESRestTestCase {
 
+    @Rule(order = Integer.MIN_VALUE)
+    public ProfileLogger profileLogger = new ProfileLogger();
+
     public static final int ITERATIONS = 100;
     public static final int MAX_DEPTH = 20;
 
@@ -38,20 +46,20 @@ public abstract class GenerativeRestTest extends ESRestTestCase {
         "Cannot use field \\[.*\\] due to ambiguities",
         "cannot sort on .*",
         "argument of \\[count.*\\] must",
-        "Cannot use field \\[.*\\] with unsupported type \\[.*_range\\]",
+        "Cannot use field \\[.*\\] with unsupported type \\[.*\\]",
         "Unbounded sort not supported yet",
         "The field names are too complex to process", // field_caps problem
         "must be \\[any type except counter types\\]", // TODO refine the generation of count()
 
-        // warnings
-        "Field '.*' shadowed by field at line .*",
-        "evaluation of \\[.*\\] failed, treating result as null", // TODO investigate?
-
-        // Awaiting fixes
+        // Awaiting fixes for query failure
         "Unknown column \\[<all-fields-projected>\\]", // https://github.com/elastic/elasticsearch/issues/121741,
         "Plan \\[ProjectExec\\[\\[<no-fields>.* optimized incorrectly due to missing references", // https://github.com/elastic/elasticsearch/issues/125866
-        "optimized incorrectly due to missing references", // https://github.com/elastic/elasticsearch/issues/116781
-        "The incoming YAML document exceeds the limit:" // still to investigate, but it seems to be specific to the test framework
+        "The incoming YAML document exceeds the limit:", // still to investigate, but it seems to be specific to the test framework
+        "Data too large", // Circuit breaker exceptions eg. https://github.com/elastic/elasticsearch/issues/130072
+        "optimized incorrectly due to missing references", // https://github.com/elastic/elasticsearch/issues/131509
+
+        // Awaiting fixes for correctness
+        "Expecting at most \\[.*\\] columns, got \\[.*\\]" // https://github.com/elastic/elasticsearch/issues/129561
     );
 
     public static final Set<Pattern> ALLOWED_ERROR_PATTERNS = ALLOWED_ERRORS.stream()
@@ -62,7 +70,7 @@ public abstract class GenerativeRestTest extends ESRestTestCase {
     @Before
     public void setup() throws IOException {
         if (indexExists(CSV_DATASET_MAP.keySet().iterator().next()) == false) {
-            loadDataSetIntoEs(client(), true, supportsSourceFieldMapping());
+            loadDataSetIntoEs(client(), true, supportsSourceFieldMapping(), false);
         }
     }
 
@@ -84,52 +92,126 @@ public abstract class GenerativeRestTest extends ESRestTestCase {
         List<String> indices = availableIndices();
         List<LookupIdx> lookupIndices = lookupIndices();
         List<CsvTestsDataLoader.EnrichConfig> policies = availableEnrichPolicies();
+        CommandGenerator.QuerySchema mappingInfo = new CommandGenerator.QuerySchema(indices, lookupIndices, policies);
+
         for (int i = 0; i < ITERATIONS; i++) {
-            String command = EsqlQueryGenerator.sourceCommand(indices);
-            EsqlQueryGenerator.QueryExecuted result = execute(command, 0);
-            if (result.exception() != null) {
-                checkException(result);
-                continue;
-            }
-            for (int j = 0; j < MAX_DEPTH; j++) {
-                if (result.outputSchema().isEmpty()) {
-                    break;
+            var exec = new EsqlQueryGenerator.Executor() {
+                @Override
+                public void run(CommandGenerator generator, CommandGenerator.CommandDescription current) {
+                    previousCommands.add(current);
+                    final String command = current.commandString();
+
+                    final EsqlQueryGenerator.QueryExecuted result = previousResult == null
+                        ? execute(command, 0, profileLogger)
+                        : execute(previousResult.query() + command, previousResult.depth(), profileLogger);
+                    previousResult = result;
+
+                    final boolean hasException = result.exception() != null;
+                    if (hasException || checkResults(List.of(), generator, current, previousResult, result).success() == false) {
+                        if (hasException) {
+                            checkException(result);
+                        }
+                        continueExecuting = false;
+                        currentSchema = List.of();
+                    } else {
+                        continueExecuting = true;
+                        currentSchema = result.outputSchema();
+                    }
                 }
-                command = EsqlQueryGenerator.pipeCommand(result.outputSchema(), policies, lookupIndices);
-                result = execute(result.query() + command, result.depth() + 1);
-                if (result.exception() != null) {
-                    checkException(result);
-                    break;
+
+                @Override
+                public List<CommandGenerator.CommandDescription> previousCommands() {
+                    return previousCommands;
                 }
-            }
+
+                @Override
+                public boolean continueExecuting() {
+                    return continueExecuting;
+                }
+
+                @Override
+                public List<EsqlQueryGenerator.Column> currentSchema() {
+                    return currentSchema;
+                }
+
+                boolean continueExecuting;
+                List<EsqlQueryGenerator.Column> currentSchema;
+                final List<CommandGenerator.CommandDescription> previousCommands = new ArrayList<>();
+                EsqlQueryGenerator.QueryExecuted previousResult;
+            };
+            EsqlQueryGenerator.generatePipeline(MAX_DEPTH, EsqlQueryGenerator.sourceCommand(), mappingInfo, exec);
         }
+    }
+
+    private static CommandGenerator.ValidationResult checkResults(
+        List<CommandGenerator.CommandDescription> previousCommands,
+        CommandGenerator commandGenerator,
+        CommandGenerator.CommandDescription commandDescription,
+        EsqlQueryGenerator.QueryExecuted previousResult,
+        EsqlQueryGenerator.QueryExecuted result
+    ) {
+        CommandGenerator.ValidationResult outputValidation = commandGenerator.validateOutput(
+            previousCommands,
+            commandDescription,
+            previousResult == null ? null : previousResult.outputSchema(),
+            previousResult == null ? null : previousResult.result(),
+            result.outputSchema(),
+            result.result()
+        );
+        if (outputValidation.success() == false) {
+            for (Pattern allowedError : ALLOWED_ERROR_PATTERNS) {
+                if (isAllowedError(outputValidation.errorMessage(), allowedError)) {
+                    return outputValidation;
+                }
+            }
+            fail("query: " + result.query() + "\nerror: " + outputValidation.errorMessage());
+        }
+        return outputValidation;
     }
 
     private void checkException(EsqlQueryGenerator.QueryExecuted query) {
         for (Pattern allowedError : ALLOWED_ERROR_PATTERNS) {
-            if (allowedError.matcher(query.exception().getMessage()).matches()) {
+            if (isAllowedError(query.exception().getMessage(), allowedError)) {
                 return;
             }
         }
         fail("query: " + query.query() + "\nexception: " + query.exception().getMessage());
     }
 
-    private EsqlQueryGenerator.QueryExecuted execute(String command, int depth) {
+    /**
+     * Long lines in exceptions can be split across several lines. When a newline is inserted, the end of the current line and the beginning
+     * of the new line are marked with a backslash {@code \}; the new line will also have whitespace before the backslash for aligning.
+     */
+    private static final Pattern ERROR_MESSAGE_LINE_BREAK = Pattern.compile("\\\\\n\\s*\\\\");
+
+    private static boolean isAllowedError(String errorMessage, Pattern allowedPattern) {
+        String errorWithoutLineBreaks = ERROR_MESSAGE_LINE_BREAK.matcher(errorMessage).replaceAll("");
+        return allowedPattern.matcher(errorWithoutLineBreaks).matches();
+    }
+
+    @SuppressWarnings("unchecked")
+    public static EsqlQueryGenerator.QueryExecuted execute(String command, int depth, @Nullable ProfileLogger profileLogger) {
         try {
-            Map<String, Object> a = RestEsqlTestCase.runEsqlSync(new RestEsqlTestCase.RequestObjectBuilder().query(command).build());
-            List<EsqlQueryGenerator.Column> outputSchema = outputSchema(a);
-            return new EsqlQueryGenerator.QueryExecuted(command, depth, outputSchema, null);
+            Map<String, Object> json = RestEsqlTestCase.runEsql(
+                new RestEsqlTestCase.RequestObjectBuilder().query(command).build(),
+                new AssertWarnings.AllowedRegexes(List.of(Pattern.compile(".*"))),// we don't care about warnings
+                profileLogger,
+                RestEsqlTestCase.Mode.SYNC
+            );
+            List<EsqlQueryGenerator.Column> outputSchema = outputSchema(json);
+            List<List<Object>> values = (List<List<Object>>) json.get("values");
+            return new EsqlQueryGenerator.QueryExecuted(command, depth, outputSchema, values, null);
         } catch (Exception e) {
-            return new EsqlQueryGenerator.QueryExecuted(command, depth, null, e);
+            return new EsqlQueryGenerator.QueryExecuted(command, depth, null, null, e);
         } catch (AssertionError ae) {
             // this is for ensureNoWarnings()
-            return new EsqlQueryGenerator.QueryExecuted(command, depth, null, new RuntimeException(ae.getMessage()));
+            return new EsqlQueryGenerator.QueryExecuted(command, depth, null, null, new RuntimeException(ae.getMessage()));
         }
 
     }
 
     @SuppressWarnings("unchecked")
-    private List<EsqlQueryGenerator.Column> outputSchema(Map<String, Object> a) {
+    private static List<EsqlQueryGenerator.Column> outputSchema(Map<String, Object> a) {
         List<Map<String, String>> cols = (List<Map<String, String>>) a.get("columns");
         if (cols == null) {
             return null;
@@ -138,13 +220,13 @@ public abstract class GenerativeRestTest extends ESRestTestCase {
     }
 
     private List<String> availableIndices() throws IOException {
-        return availableDatasetsForEs(client(), true, supportsSourceFieldMapping()).stream()
+        return availableDatasetsForEs(true, supportsSourceFieldMapping(), false).stream()
             .filter(x -> x.requiresInferenceEndpoint() == false)
             .map(x -> x.indexName())
             .toList();
     }
 
-    record LookupIdx(String idxName, String key, String keyType) {}
+    public record LookupIdx(String idxName, String key, String keyType) {}
 
     private List<LookupIdx> lookupIndices() {
         List<LookupIdx> result = new ArrayList<>();

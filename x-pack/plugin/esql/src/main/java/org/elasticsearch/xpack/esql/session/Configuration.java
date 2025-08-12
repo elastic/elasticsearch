@@ -24,6 +24,7 @@ import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneId;
+import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.util.Locale;
 import java.util.Map;
@@ -34,6 +35,7 @@ import static org.elasticsearch.common.unit.ByteSizeUnit.KB;
 public class Configuration implements Writeable {
 
     public static final int QUERY_COMPRESS_THRESHOLD_CHARS = KB.toIntBytes(5);
+    public static final ZoneId DEFAULT_TZ = ZoneOffset.UTC;
 
     private final String clusterName;
     private final String username;
@@ -211,6 +213,23 @@ public class Configuration implements Writeable {
         return tables;
     }
 
+    public Configuration withoutTables() {
+        return new Configuration(
+            zoneId,
+            locale,
+            username,
+            clusterName,
+            pragmas,
+            resultTruncationMaxSize,
+            resultTruncationDefaultSize,
+            query,
+            profile,
+            Map.of(),
+            queryStartTimeNanos,
+            allowPartialResults
+        );
+    }
+
     /**
      * Enable profiling, sacrificing performance to return information about
      * what operations are taking the most time.
@@ -309,4 +328,11 @@ public class Configuration implements Writeable {
             + '}';
     }
 
+    /**
+     * Reads a {@link Configuration} that doesn't contain any {@link Configuration#tables()}.
+     */
+    public static Configuration readWithoutTables(StreamInput in) throws IOException {
+        BlockStreamInput blockStreamInput = new BlockStreamInput(in, null);
+        return new Configuration(blockStreamInput);
+    }
 }

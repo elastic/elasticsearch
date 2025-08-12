@@ -16,6 +16,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xpack.esql.action.AbstractEsqlIntegTestCase;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -93,10 +94,14 @@ public class DenseVectorFieldTypeIT extends AbstractEsqlIntegTestCase {
                 var values = valuesList.get(id);
                 assertEquals(id, values.get(0));
                 List<Float> vectors = (List<Float>) values.get(1);
-                assertNotNull(vectors);
-                assertEquals(vector.size(), vectors.size());
-                for (int i = 0; i < vector.size(); i++) {
-                    assertEquals(vector.get(i), vectors.get(i), 0F);
+                if (vector == null) {
+                    assertNull(vectors);
+                } else {
+                    assertNotNull(vectors);
+                    assertEquals(vector.size(), vectors.size());
+                    for (int i = 0; i < vector.size(); i++) {
+                        assertEquals(vector.get(i), vectors.get(i), 0F);
+                    }
                 }
             });
         }
@@ -116,20 +121,79 @@ public class DenseVectorFieldTypeIT extends AbstractEsqlIntegTestCase {
                 ;
                 assertEquals(2, value.size());
                 Integer id = (Integer) value.get(0);
-                List<Float> vector = (List<Float>) value.get(1);
-                assertNotNull(vector);
                 List<Float> expectedVector = indexedVectors.get(id);
-                assertNotNull(expectedVector);
-                for (int i = 0; i < vector.size(); i++) {
-                    assertEquals(expectedVector.get(i), vector.get(i), 0F);
+                List<Float> vector = (List<Float>) value.get(1);
+                if (expectedVector == null) {
+                    assertNull(vector);
+                } else {
+                    assertNotNull(vector);
+                    assertEquals(expectedVector.size(), vector.size());
+                    assertNotNull(vector);
+                    assertNotNull(expectedVector);
+                    for (int i = 0; i < vector.size(); i++) {
+                        assertEquals(expectedVector.get(i), vector.get(i), 0F);
+                    }
                 }
+            });
+        }
+    }
+
+    public void testNonIndexedDenseVectorField() throws IOException {
+        createIndexWithDenseVector("no_dense_vectors");
+
+        int numDocs = randomIntBetween(10, 100);
+        IndexRequestBuilder[] docs = new IndexRequestBuilder[numDocs];
+        for (int i = 0; i < numDocs; i++) {
+            docs[i] = prepareIndex("no_dense_vectors").setId("" + i).setSource("id", String.valueOf(i));
+        }
+
+        indexRandom(true, docs);
+
+        var query = """
+            FROM no_dense_vectors
+            | KEEP id, vector
+            """;
+
+        try (var resp = run(query)) {
+            List<List<Object>> valuesList = EsqlTestUtils.getValuesList(resp);
+            assertEquals(numDocs, valuesList.size());
+            valuesList.forEach(value -> {
+                assertEquals(2, value.size());
+                Integer id = (Integer) value.get(0);
+                assertNotNull(id);
+                Object vector = value.get(1);
+                assertNull(vector);
             });
         }
     }
 
     @Before
     public void setup() throws IOException {
-        var indexName = "test";
+        assumeTrue("Dense vector type is disabled", EsqlCapabilities.Cap.DENSE_VECTOR_FIELD_TYPE.isEnabled());
+
+        createIndexWithDenseVector("test");
+
+        int numDims = randomIntBetween(32, 64) * 2; // min 64, even number
+        int numDocs = randomIntBetween(10, 100);
+        IndexRequestBuilder[] docs = new IndexRequestBuilder[numDocs];
+        for (int i = 0; i < numDocs; i++) {
+            List<Float> vector = new ArrayList<>(numDims);
+            if (rarely()) {
+                docs[i] = prepareIndex("test").setId("" + i).setSource("id", String.valueOf(i));
+                indexedVectors.put(i, null);
+            } else {
+                for (int j = 0; j < numDims; j++) {
+                    vector.add(randomFloat());
+                }
+                docs[i] = prepareIndex("test").setId("" + i).setSource("id", String.valueOf(i), "vector", vector);
+                indexedVectors.put(i, vector);
+            }
+        }
+
+        indexRandom(true, docs);
+    }
+
+    private void createIndexWithDenseVector(String indexName) throws IOException {
         var client = client().admin().indices();
         XContentBuilder mapping = XContentFactory.jsonBuilder()
             .startObject()
@@ -154,24 +218,10 @@ public class DenseVectorFieldTypeIT extends AbstractEsqlIntegTestCase {
             settingsBuilder.put(INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), SYNTHETIC);
         }
 
-        var CreateRequest = client.prepareCreate(indexName)
+        var createRequest = client.prepareCreate(indexName)
             .setSettings(Settings.builder().put("index.number_of_shards", 1))
             .setMapping(mapping)
             .setSettings(settingsBuilder.build());
-        assertAcked(CreateRequest);
-
-        int numDims = randomIntBetween(32, 64) * 2; // min 64, even number
-        int numDocs = randomIntBetween(10, 100);
-        IndexRequestBuilder[] docs = new IndexRequestBuilder[numDocs];
-        for (int i = 0; i < numDocs; i++) {
-            List<Float> vector = new ArrayList<>(numDims);
-            for (int j = 0; j < numDims; j++) {
-                vector.add(randomFloat());
-            }
-            docs[i] = prepareIndex("test").setId("" + i).setSource("id", String.valueOf(i), "vector", vector);
-            indexedVectors.put(i, vector);
-        }
-
-        indexRandom(true, docs);
+        assertAcked(createRequest);
     }
 }

@@ -18,10 +18,12 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateExtract;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateFormat;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateParse;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateTrunc;
+import org.elasticsearch.xpack.esql.expression.function.scalar.date.DayName;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.Now;
 import org.elasticsearch.xpack.esql.expression.function.scalar.ip.CIDRMatch;
 import org.elasticsearch.xpack.esql.expression.function.scalar.ip.IpPrefix;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Atan2;
+import org.elasticsearch.xpack.esql.expression.function.scalar.math.CopySign;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.E;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Hypot;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Log;
@@ -71,6 +73,7 @@ public class ScalarFunctionWritables {
         entries.add(EndsWith.ENTRY);
         entries.add(FromAggregateMetricDouble.ENTRY);
         entries.add(Greatest.ENTRY);
+        entries.add(CopySign.ENTRY);
         entries.add(Hash.ENTRY);
         entries.add(Hypot.ENTRY);
         entries.add(In.ENTRY);
@@ -80,6 +83,7 @@ public class ScalarFunctionWritables {
         entries.add(DateFormat.ENTRY);
         entries.add(DateParse.ENTRY);
         entries.add(DateTrunc.ENTRY);
+        entries.add(DayName.ENTRY);
         entries.add(IpPrefix.ENTRY);
         entries.add(Least.ENTRY);
         entries.add(Left.ENTRY);

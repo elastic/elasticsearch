@@ -6,11 +6,10 @@
  */
 package org.elasticsearch.xpack.core.ilm;
 
-import org.elasticsearch.cluster.ClusterName;
-import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
-import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexVersion;
@@ -67,7 +66,7 @@ public class ClusterStateWaitUntilThresholdStepTests extends AbstractStepTestCas
         ClusterStateWaitUntilThresholdStep underTest = new ClusterStateWaitUntilThresholdStep(stepToExecute, randomStepKey());
         ClusterStateWaitStep.Result result = underTest.isConditionMet(
             new Index("testName", UUID.randomUUID().toString()),
-            ClusterState.EMPTY_STATE
+            projectStateFromProject(ProjectMetadata.builder(randomUniqueProjectId()))
         );
         assertThat(result.complete(), is(false));
         assertThat(result.informationContext(), nullValue());
@@ -86,14 +85,12 @@ public class ClusterStateWaitUntilThresholdStepTests extends AbstractStepTestCas
                 .numberOfShards(1)
                 .numberOfReplicas(0)
                 .build();
-            ClusterState clusterState = ClusterState.builder(new ClusterName("cluster"))
-                .metadata(Metadata.builder().put(indexMetadata, true).build())
-                .build();
+            ProjectState state = projectStateFromProject(ProjectMetadata.builder(randomUniqueProjectId()).put(indexMetadata, true));
 
             WaitForIndexingCompleteStep stepToExecute = new WaitForIndexingCompleteStep(randomStepKey(), randomStepKey());
             ClusterStateWaitUntilThresholdStep underTest = new ClusterStateWaitUntilThresholdStep(stepToExecute, randomStepKey());
 
-            ClusterStateWaitStep.Result result = underTest.isConditionMet(indexMetadata.getIndex(), clusterState);
+            ClusterStateWaitStep.Result result = underTest.isConditionMet(indexMetadata.getIndex(), state);
             assertThat(result.complete(), is(true));
             assertThat(result.informationContext(), nullValue());
         }
@@ -111,13 +108,11 @@ public class ClusterStateWaitUntilThresholdStepTests extends AbstractStepTestCas
                 .numberOfReplicas(0)
                 .build();
 
-            ClusterState clusterState = ClusterState.builder(new ClusterName("cluster"))
-                .metadata(Metadata.builder().put(indexMetadata, true).build())
-                .build();
+            ProjectState state = projectStateFromProject(ProjectMetadata.builder(randomUniqueProjectId()).put(indexMetadata, true));
 
             WaitForIndexingCompleteStep stepToExecute = new WaitForIndexingCompleteStep(randomStepKey(), randomStepKey());
             ClusterStateWaitUntilThresholdStep underTest = new ClusterStateWaitUntilThresholdStep(stepToExecute, randomStepKey());
-            ClusterStateWaitStep.Result result = underTest.isConditionMet(indexMetadata.getIndex(), clusterState);
+            ClusterStateWaitStep.Result result = underTest.isConditionMet(indexMetadata.getIndex(), state);
 
             assertThat(result.complete(), is(false));
             assertThat(result.informationContext(), notNullValue());
@@ -144,15 +139,13 @@ public class ClusterStateWaitUntilThresholdStepTests extends AbstractStepTestCas
                 .numberOfShards(1)
                 .numberOfReplicas(0)
                 .build();
-            ClusterState clusterState = ClusterState.builder(new ClusterName("cluster"))
-                .metadata(Metadata.builder().put(indexMetadata, true).build())
-                .build();
+            ProjectState state = projectStateFromProject(ProjectMetadata.builder(randomUniqueProjectId()).put(indexMetadata, true));
 
             WaitForIndexingCompleteStep stepToExecute = new WaitForIndexingCompleteStep(randomStepKey(), randomStepKey());
             StepKey nextKeyOnThresholdBreach = randomStepKey();
             ClusterStateWaitUntilThresholdStep underTest = new ClusterStateWaitUntilThresholdStep(stepToExecute, nextKeyOnThresholdBreach);
 
-            ClusterStateWaitStep.Result result = underTest.isConditionMet(indexMetadata.getIndex(), clusterState);
+            ClusterStateWaitStep.Result result = underTest.isConditionMet(indexMetadata.getIndex(), state);
             assertThat(result.complete(), is(true));
             assertThat(result.informationContext(), nullValue());
             assertThat(underTest.getNextStepKey(), is(not(nextKeyOnThresholdBreach)));
@@ -173,15 +166,13 @@ public class ClusterStateWaitUntilThresholdStepTests extends AbstractStepTestCas
                 .numberOfReplicas(0)
                 .build();
 
-            ClusterState clusterState = ClusterState.builder(new ClusterName("cluster"))
-                .metadata(Metadata.builder().put(indexMetadata, true).build())
-                .build();
+            ProjectState state = projectStateFromProject(ProjectMetadata.builder(randomUniqueProjectId()).put(indexMetadata, true));
 
             StepKey currentStepKey = randomStepKey();
             WaitForIndexingCompleteStep stepToExecute = new WaitForIndexingCompleteStep(currentStepKey, randomStepKey());
             StepKey nextKeyOnThresholdBreach = randomStepKey();
             ClusterStateWaitUntilThresholdStep underTest = new ClusterStateWaitUntilThresholdStep(stepToExecute, nextKeyOnThresholdBreach);
-            ClusterStateWaitStep.Result result = underTest.isConditionMet(indexMetadata.getIndex(), clusterState);
+            ClusterStateWaitStep.Result result = underTest.isConditionMet(indexMetadata.getIndex(), state);
 
             assertThat(result.complete(), is(true));
             assertThat(result.informationContext(), notNullValue());
@@ -247,14 +238,12 @@ public class ClusterStateWaitUntilThresholdStepTests extends AbstractStepTestCas
             .putCustom(ILM_CUSTOM_METADATA_KEY, Map.of("step_time", String.valueOf(Clock.systemUTC().millis())))
             .build();
 
-        ClusterState clusterState = ClusterState.builder(new ClusterName("cluster"))
-            .metadata(Metadata.builder().put(indexMetadata, true).build())
-            .build();
+        ProjectState state = projectStateFromProject(ProjectMetadata.builder(randomUniqueProjectId()).put(indexMetadata, true));
 
         ClusterStateWaitUntilThresholdStep step = new ClusterStateWaitUntilThresholdStep(
             new ClusterStateWaitStep(new StepKey("phase", "action", "key"), new StepKey("phase", "action", "next-key")) {
                 @Override
-                public Result isConditionMet(Index index, ClusterState clusterState) {
+                public Result isConditionMet(Index index, ProjectState currentState) {
                     return new Result(false, new SingleMessageFieldInfo(""));
                 }
 
@@ -266,14 +255,14 @@ public class ClusterStateWaitUntilThresholdStepTests extends AbstractStepTestCas
             new StepKey("phase", "action", "breached")
         );
 
-        assertFalse(step.isConditionMet(indexMetadata.getIndex(), clusterState).complete());
+        assertFalse(step.isConditionMet(indexMetadata.getIndex(), state).complete());
 
         assertThat(step.getNextStepKey().name(), equalTo("next-key"));
 
         step = new ClusterStateWaitUntilThresholdStep(
             new ClusterStateWaitStep(new StepKey("phase", "action", "key"), new StepKey("phase", "action", "next-key")) {
                 @Override
-                public Result isConditionMet(Index index, ClusterState clusterState) {
+                public Result isConditionMet(Index index, ProjectState currentState) {
                     return new Result(false, new SingleMessageFieldInfo(""));
                 }
 
@@ -289,7 +278,7 @@ public class ClusterStateWaitUntilThresholdStepTests extends AbstractStepTestCas
             },
             new StepKey("phase", "action", "breached")
         );
-        assertTrue(step.isConditionMet(indexMetadata.getIndex(), clusterState).complete());
+        assertTrue(step.isConditionMet(indexMetadata.getIndex(), state).complete());
         assertThat(step.getNextStepKey().name(), equalTo("breached"));
     }
 }

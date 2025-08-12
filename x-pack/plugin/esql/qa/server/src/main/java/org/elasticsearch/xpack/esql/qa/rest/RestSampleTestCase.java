@@ -10,11 +10,13 @@ package org.elasticsearch.xpack.esql.qa.rest;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.test.rest.ESRestTestCase;
+import org.elasticsearch.xpack.esql.AssertWarnings;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.hamcrest.Description;
 import org.hamcrest.TypeSafeMatcher;
 import org.junit.After;
 import org.junit.Before;
+import org.junit.Rule;
 
 import java.io.IOException;
 import java.util.HashSet;
@@ -29,11 +31,14 @@ import static org.hamcrest.Matchers.lessThan;
 
 public class RestSampleTestCase extends ESRestTestCase {
 
+    @Rule(order = Integer.MIN_VALUE)
+    public ProfileLogger profileLogger = new ProfileLogger();
+
     @Before
     public void skipWhenSampleDisabled() throws IOException {
         assumeTrue(
             "Requires SAMPLE capability",
-            EsqlSpecTestCase.hasCapabilities(adminClient(), List.of(EsqlCapabilities.Cap.SAMPLE.capabilityName()))
+            RestEsqlTestCase.hasCapabilities(adminClient(), List.of(EsqlCapabilities.Cap.SAMPLE_V3.capabilityName()))
         );
     }
 
@@ -111,7 +116,7 @@ public class RestSampleTestCase extends ESRestTestCase {
 
     private Map<String, Object> runEsqlQuery(String query) throws IOException {
         RestEsqlTestCase.RequestObjectBuilder builder = RestEsqlTestCase.requestObjectBuilder().query(query);
-        return RestEsqlTestCase.runEsqlSync(builder);
+        return RestEsqlTestCase.runEsqlSync(builder, new AssertWarnings.NoWarnings(), profileLogger);
     }
 
     private void createTestIndex() throws IOException {

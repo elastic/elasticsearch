@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.idp.saml.sp;
 
 import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -32,10 +31,9 @@ public class SamlServiceProviderIndexTemplateRegistry extends IndexTemplateRegis
         ClusterService clusterService,
         ThreadPool threadPool,
         Client client,
-        NamedXContentRegistry xContentRegistry,
-        ProjectResolver projectResolver
+        NamedXContentRegistry xContentRegistry
     ) {
-        super(nodeSettings, clusterService, threadPool, client, xContentRegistry, projectResolver);
+        super(nodeSettings, clusterService, threadPool, client, xContentRegistry);
     }
 
     @Override

@@ -181,6 +181,7 @@ public final class StringUtils {
 
     /**
      * Translates a Lucene wildcard pattern to a Lucene RegExp one.
+     * Note: all RegExp "optional" characters are escaped too (allowing the use of the {@code RegExp.ALL} flag).
      * @param wildcard Lucene wildcard pattern
      * @return Lucene RegExp pattern
      */
@@ -209,7 +210,10 @@ public final class StringUtils {
                         regex.append("\\\\");
                     }
                 }
-                case '$', '(', ')', '+', '.', '[', ']', '^', '{', '|', '}' -> regex.append("\\").append(c);
+                // reserved RegExp characters
+                case '"', '$', '(', ')', '+', '.', '[', ']', '^', '{', '|', '}' -> regex.append("\\").append(c);
+                // reserved optional RegExp characters
+                case '#', '&', '<', '>' -> regex.append("\\").append(c);
                 default -> regex.append(c);
             }
         }

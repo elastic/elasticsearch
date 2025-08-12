@@ -3,7 +3,6 @@ plugins {
 }
 
 apply plugin: 'elasticsearch.build'
-apply plugin: 'elasticsearch.publish'
 
 tasks.named("dependencyLicenses").configure {
   mapping from: /asm-.*/, to: 'asm'

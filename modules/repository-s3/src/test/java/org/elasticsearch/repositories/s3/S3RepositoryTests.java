@@ -24,9 +24,11 @@ import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.repositories.RepositoryException;
+import org.elasticsearch.repositories.SnapshotMetrics;
 import org.elasticsearch.repositories.blobstore.BlobStoreTestUtil;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
@@ -71,7 +73,7 @@ public class S3RepositoryTests extends ESTestCase {
         }
 
         @Override
-        public AmazonS3Reference client(RepositoryMetadata repositoryMetadata) {
+        public AmazonS3Reference client(@Nullable ProjectId projectId, RepositoryMetadata repositoryMetadata) {
             return new AmazonS3Reference(new DummyS3Client(), mock(SdkHttpClient.class));
         }
 
@@ -164,9 +166,8 @@ public class S3RepositoryTests extends ESTestCase {
     }
 
     private S3Repository createS3Repo(RepositoryMetadata metadata) {
-        final ProjectId projectId = randomProjectIdOrDefault();
         final S3Repository s3Repository = new S3Repository(
-            projectId,
+            ProjectId.DEFAULT,
             metadata,
             NamedXContentRegistry.EMPTY,
             new DummyS3Service(
@@ -178,9 +179,10 @@ public class S3RepositoryTests extends ESTestCase {
             BlobStoreTestUtil.mockClusterService(),
             MockBigArrays.NON_RECYCLING_INSTANCE,
             new RecoverySettings(Settings.EMPTY, new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)),
-            S3RepositoriesMetrics.NOOP
+            S3RepositoriesMetrics.NOOP,
+            SnapshotMetrics.NOOP
         );
-        assertThat(s3Repository.getProjectId(), equalTo(projectId));
+        assertThat(s3Repository.getProjectId(), equalTo(ProjectId.DEFAULT));
         return s3Repository;
     }
 

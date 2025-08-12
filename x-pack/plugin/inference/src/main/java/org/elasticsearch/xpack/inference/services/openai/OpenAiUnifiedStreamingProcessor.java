@@ -97,7 +97,14 @@ public class OpenAiUnifiedStreamingProcessor extends DelegatingProcessor<
             return Stream.empty();
         }
 
-        try (XContentParser jsonParser = XContentFactory.xContent(XContentType.JSON).createParser(parserConfig, event.data())) {
+        return parse(parserConfig, event.data());
+    }
+
+    public static Stream<StreamingUnifiedChatCompletionResults.ChatCompletionChunk> parse(
+        XContentParserConfiguration parserConfig,
+        String data
+    ) throws IOException {
+        try (XContentParser jsonParser = XContentFactory.xContent(XContentType.JSON).createParser(parserConfig, data)) {
             moveToFirstToken(jsonParser);
 
             XContentParser.Token token = jsonParser.currentToken();
@@ -131,8 +138,8 @@ public class OpenAiUnifiedStreamingProcessor extends DelegatingProcessor<
                 (p, c) -> ChatCompletionChunkParser.ChoiceParser.parse(p),
                 new ParseField(CHOICES_FIELD)
             );
-            PARSER.declareString(ConstructingObjectParser.constructorArg(), new ParseField(MODEL_FIELD));
-            PARSER.declareString(ConstructingObjectParser.constructorArg(), new ParseField(OBJECT_FIELD));
+            PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), new ParseField(MODEL_FIELD));
+            PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), new ParseField(OBJECT_FIELD));
             PARSER.declareObjectOrNull(
                 ConstructingObjectParser.optionalConstructorArg(),
                 (p, c) -> ChatCompletionChunkParser.UsageParser.parse(p),
@@ -191,7 +198,7 @@ public class OpenAiUnifiedStreamingProcessor extends DelegatingProcessor<
                 PARSER.declareStringOrNull(ConstructingObjectParser.optionalConstructorArg(), new ParseField(CONTENT_FIELD));
                 PARSER.declareStringOrNull(ConstructingObjectParser.optionalConstructorArg(), new ParseField(REFUSAL_FIELD));
                 PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), new ParseField(ROLE_FIELD));
-                PARSER.declareObjectArray(
+                PARSER.declareObjectArrayOrNull(
                     ConstructingObjectParser.optionalConstructorArg(),
                     (p, c) -> ChatCompletionChunkParser.ToolCallParser.parse(p),
                     new ParseField(TOOL_CALLS_FIELD)

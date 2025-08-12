@@ -327,7 +327,7 @@ public class CorruptedBlobStoreRepositoryIT extends AbstractSnapshotIntegTestCas
 
         logger.info("--> verify that repo is assumed in old metadata format");
         assertThat(
-            SnapshotsService.minCompatibleVersion(IndexVersion.current(), getRepositoryData(repoName), null),
+            SnapshotsServiceUtils.minCompatibleVersion(IndexVersion.current(), getRepositoryData(repoName), null),
             is(SnapshotsService.OLD_SNAPSHOT_FORMAT)
         );
 
@@ -336,7 +336,7 @@ public class CorruptedBlobStoreRepositoryIT extends AbstractSnapshotIntegTestCas
 
         logger.info("--> verify that repository is assumed in new metadata format after removing corrupted snapshot");
         assertThat(
-            SnapshotsService.minCompatibleVersion(IndexVersion.current(), getRepositoryData(repoName), null),
+            SnapshotsServiceUtils.minCompatibleVersion(IndexVersion.current(), getRepositoryData(repoName), null),
             is(IndexVersion.current())
         );
         final RepositoryData finalRepositoryData = getRepositoryData(repoName);
@@ -820,7 +820,8 @@ public class CorruptedBlobStoreRepositoryIT extends AbstractSnapshotIntegTestCas
                     "fallback message",
                     "org.elasticsearch.repositories.blobstore.BlobStoreRepository",
                     Level.ERROR,
-                    "index [test-idx-1/*] shard generation [*] in [test-repo][*] not found - falling back to reading all shard snapshots"
+                    "index [test-idx-1/*] shard generation [*] in [default/test-repo][*] not found "
+                        + "- falling back to reading all shard snapshots"
                 )
             );
             mockLog.addExpectation(
@@ -828,7 +829,7 @@ public class CorruptedBlobStoreRepositoryIT extends AbstractSnapshotIntegTestCas
                     "shard blobs list",
                     "org.elasticsearch.repositories.blobstore.BlobStoreRepository",
                     Level.ERROR,
-                    "read shard snapshots [*] due to missing shard generation [*] for index [test-idx-1/*] in [test-repo][*]"
+                    "read shard snapshots [*] due to missing shard generation [*] for index [test-idx-1/*] in [default/test-repo][*]"
                 )
             );
             if (repairWithDelete) {

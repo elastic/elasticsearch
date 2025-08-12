@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.idp.saml.authn;
 
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.idp.saml.idp.SamlIdentityProvider;
 import org.elasticsearch.xpack.idp.saml.sp.SamlServiceProvider;
 import org.elasticsearch.xpack.idp.saml.sp.ServiceProviderDefaults;
@@ -103,7 +104,46 @@ public class SuccessfulAuthenticationResponseMessageBuilderTests extends IdpSaml
         assertTrue("Custom attribute 'customAttr2' not found in SAML response", foundCustomAttr2);
     }
 
-    private Response buildResponse(SamlInitiateSingleSignOnAttributes customAttributes) throws Exception {
+    public void testRejectInvalidCustomAttributes() throws Exception {
+        final var customAttributes = new SamlInitiateSingleSignOnAttributes(
+            Map.of("https://idp.example.org/attribute/department", Collections.singletonList("engineering"))
+        );
+
+        // Build response with custom attributes
+        final IllegalArgumentException ex = expectThrows(
+            IllegalArgumentException.class,
+            () -> buildResponse(
+                new SamlServiceProvider.AttributeNames(
+                    "https://idp.example.org/attribute/principal",
+                    null,
+                    null,
+                    null,
+                    Set.of("https://idp.example.org/attribute/avatar")
+                ),
+                customAttributes
+            )
+        );
+        assertThat(ex.getMessage(), containsString("custom attribute [https://idp.example.org/attribute/department]"));
+        assertThat(ex.getMessage(), containsString("allowed attribute names are [https://idp.example.org/attribute/avatar]"));
+    }
+
+    private Response buildResponse(@Nullable SamlInitiateSingleSignOnAttributes customAttributes) throws Exception {
+        return buildResponse(
+            new SamlServiceProvider.AttributeNames(
+                "principal",
+                null,
+                null,
+                null,
+                customAttributes == null ? Set.of() : customAttributes.getAttributes().keySet()
+            ),
+            customAttributes
+        );
+    }
+
+    private Response buildResponse(
+        final SamlServiceProvider.AttributeNames attributes,
+        @Nullable SamlInitiateSingleSignOnAttributes customAttributes
+    ) throws Exception {
         final Clock clock = Clock.systemUTC();
 
         final SamlServiceProvider sp = mock(SamlServiceProvider.class);
@@ -112,7 +152,7 @@ public class SuccessfulAuthenticationResponseMessageBuilderTests extends IdpSaml
         when(sp.getEntityId()).thenReturn(baseServiceUrl);
         when(sp.getAssertionConsumerService()).thenReturn(URI.create(acs).toURL());
         when(sp.getAuthnExpiry()).thenReturn(Duration.ofMinutes(10));
-        when(sp.getAttributeNames()).thenReturn(new SamlServiceProvider.AttributeNames("principal", null, null, null));
+        when(sp.getAttributeNames()).thenReturn(attributes);
 
         final UserServiceAuthentication user = mock(UserServiceAuthentication.class);
         when(user.getPrincipal()).thenReturn(randomAlphaOfLengthBetween(4, 12));

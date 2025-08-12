@@ -21,6 +21,7 @@ import org.elasticsearch.ingest.DropProcessor;
 import org.elasticsearch.ingest.PipelineProcessor;
 import org.elasticsearch.ingest.Processor;
 import org.elasticsearch.plugins.ActionPlugin;
+import org.elasticsearch.plugins.ExtensiblePlugin;
 import org.elasticsearch.plugins.IngestPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestController;
@@ -33,7 +34,7 @@ import java.util.function.Supplier;
 
 import static java.util.Map.entry;
 
-public class IngestCommonPlugin extends Plugin implements ActionPlugin, IngestPlugin {
+public class IngestCommonPlugin extends Plugin implements ActionPlugin, IngestPlugin, ExtensiblePlugin {
 
     public IngestCommonPlugin() {}
 

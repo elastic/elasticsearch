@@ -10,6 +10,7 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.document.Field;
+import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.document.StoredField;
@@ -25,6 +26,7 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.automaton.CompiledAutomaton;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.network.CIDRUtils;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.core.Nullable;
@@ -58,6 +60,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.BiFunction;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.index.mapper.FieldArrayContext.getOffsetsFieldName;
 import static org.elasticsearch.index.mapper.IpPrefixAutomatonUtil.buildIpPrefixAutomaton;
@@ -645,10 +648,12 @@ public class IpFieldMapper extends FieldMapper {
 
     @Override
     protected void parseCreateField(DocumentParserContext context) throws IOException {
-        InetAddress address;
+        ESInetAddressPoint address;
         XContentString value = context.parser().optimizedTextOrNull();
         try {
-            address = value == null ? nullValue : InetAddresses.forString(value.bytes());
+            address = value == null
+                ? nullValue == null ? null : new ESInetAddressPoint(fieldType().name(), nullValue)
+                : new ESInetAddressPoint(fieldType().name(), value);
         } catch (IllegalArgumentException e) {
             if (ignoreMalformed) {
                 context.addIgnoredField(fieldType().name());
@@ -662,11 +667,11 @@ public class IpFieldMapper extends FieldMapper {
             }
         }
         if (address != null) {
-            indexValue(context, address);
+            indexValue(context, address, address::getInetAddress);
         }
         if (offsetsFieldName != null && context.isImmediateParentAnArray() && context.canAddIgnoredField()) {
             if (address != null) {
-                BytesRef sortableValue = new BytesRef(InetAddressPoint.encode(address));
+                BytesRef sortableValue = address.binaryValue();
                 context.getOffSetContext().recordOffset(offsetsFieldName, sortableValue);
             } else {
                 context.getOffSetContext().recordNull(offsetsFieldName);
@@ -674,22 +679,72 @@ public class IpFieldMapper extends FieldMapper {
         }
     }
 
-    private void indexValue(DocumentParserContext context, InetAddress address) {
+    private void indexValue(DocumentParserContext context, ESInetAddressPoint address, Supplier<InetAddress> inetSupplier) {
         if (dimension) {
-            context.getRoutingFields().addIp(fieldType().name(), address);
+            context.getRoutingFields().addIp(fieldType().name(), inetSupplier.get());
         }
         LuceneDocument doc = context.doc();
         if (indexed) {
-            Field field = new InetAddressPoint(fieldType().name(), address);
-            doc.add(field);
+            doc.add(address);
         }
         if (hasDocValues) {
-            doc.add(new SortedSetDocValuesField(fieldType().name(), new BytesRef(InetAddressPoint.encode(address))));
+            doc.add(new SortedSetDocValuesField(fieldType().name(), address.binaryValue()));
         } else if (stored || indexed) {
             context.addToFieldNames(fieldType().name());
         }
         if (stored) {
-            doc.add(new StoredField(fieldType().name(), new BytesRef(InetAddressPoint.encode(address))));
+            doc.add(new StoredField(fieldType().name(), address.binaryValue()));
+        }
+    }
+
+    private static class ESInetAddressPoint extends Field {
+        public static final int BYTES = 16;
+
+        private static final FieldType TYPE;
+
+        static {
+            TYPE = new FieldType();
+            TYPE.setDimensions(1, BYTES);
+            TYPE.freeze();
+        }
+
+        private final Supplier<InetAddress> inetSupplier;
+
+        protected ESInetAddressPoint(String name, XContentString ipAsString) {
+            super(name, TYPE);
+            this.fieldsData = new BytesRef(InetAddresses.encodeAsIpv6(ipAsString));
+            this.inetSupplier = () -> InetAddresses.forString(ipAsString.bytes());
+        }
+
+        protected ESInetAddressPoint(String name, InetAddress inetAddress) {
+            super(name, TYPE);
+            this.fieldsData = new BytesRef(CIDRUtils.encode(inetAddress.getAddress()));
+            this.inetSupplier = () -> inetAddress;
+        }
+
+        public InetAddress getInetAddress() {
+            return inetSupplier.get();
+        }
+
+        @Override
+        public String toString() {
+            StringBuilder result = new StringBuilder();
+            result.append(getClass().getSimpleName());
+            result.append(" <");
+            result.append(name);
+            result.append(':');
+
+            InetAddress address = getInetAddress();
+            if (address.getAddress().length == 16) {
+                result.append('[');
+                result.append(address.getHostAddress());
+                result.append(']');
+            } else {
+                result.append(address.getHostAddress());
+            }
+
+            result.append('>');
+            return result.toString();
         }
     }
 
@@ -700,7 +755,12 @@ public class IpFieldMapper extends FieldMapper {
         int doc,
         DocumentParserContext documentParserContext
     ) {
-        this.scriptValues.valuesForDoc(searchLookup, readerContext, doc, value -> indexValue(documentParserContext, value));
+        this.scriptValues.valuesForDoc(
+            searchLookup,
+            readerContext,
+            doc,
+            value -> indexValue(documentParserContext, new ESInetAddressPoint(fieldType().name(), value), () -> value)
+        );
     }
 
     @Override

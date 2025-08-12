@@ -49,6 +49,24 @@ public class InetAddresses {
         return NetworkAddress.format(bytesToInetAddress(bytes));
     }
 
+    /**
+     * Encodes the given {@link XContentString} in binary encoding, always using 16 bytes for both IPv4 and IPv6 addresses.
+     * This is how Lucene encodes IP addresses in {@link org.apache.lucene.document.InetAddressPoint}.
+     *
+     * @param ipString the IP address as a string
+     * @return a byte array containing the binary representation of the IP address
+     * @throws IllegalArgumentException if the argument is not a valid IP string literal
+     */
+    public static byte[] encodeAsIpv6(XContentString ipString) {
+        XContentString.UTF8Bytes uft8Bytes = ipString.bytes();
+        byte[] address = ipStringToBytes(uft8Bytes.bytes(), uft8Bytes.offset(), uft8Bytes.length());
+        // The argument was malformed, i.e. not an IP string literal.
+        if (address == null) {
+            throw new IllegalArgumentException(String.format(Locale.ROOT, "'%s' is not an IP string literal.", ipString.string()));
+        }
+        return CIDRUtils.encode(address);
+    }
+
     private static byte[] ipStringToBytes(byte[] ipUtf8, int offset, int length) {
         // Make a first pass to categorize the characters in this string.
         boolean hasColon = false;

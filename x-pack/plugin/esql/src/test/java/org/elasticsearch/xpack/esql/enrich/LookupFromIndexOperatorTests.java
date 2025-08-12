@@ -78,6 +78,8 @@ import java.util.Set;
 import java.util.stream.LongStream;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasEntry;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.matchesPattern;
 import static org.mockito.Mockito.mock;
 
@@ -272,7 +274,12 @@ public class LookupFromIndexOperatorTests extends OperatorTestCase {
     }
 
     @Override
-    public void testOperatorStatus() {
-        assumeFalse("not yet standardized", true);
+    protected void checkOperatorStatusFields(Map<String, Object> status, List<Page> input, List<Page> output) {
+        var totalPages = input.size();
+        var totalTerms = input.stream().mapToLong(p -> p.getBlock(0).getTotalValueCount()).sum();
+
+        assertThat(status, hasEntry(is("total_terms"), matchNumberEqualTo(totalTerms)));
+        assertThat(status, hasEntry(is("completed_pages"), matchNumberEqualTo(totalPages)));
+        assertThat(status, hasEntry(is("emitted_pages"), matchNumberGreaterThanOrEqualTo(totalPages)));
     }
 }

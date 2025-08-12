@@ -38,7 +38,7 @@ public class LookupFromIndexOperatorStatusTests extends AbstractWireSerializingT
     protected LookupFromIndexOperator.Status mutateInstance(LookupFromIndexOperator.Status in) throws IOException {
         long receivedPages = in.receivedPages();
         long completedPages = in.completedPages();
-        long procesNanos = in.procesNanos();
+        long procesNanos = in.processNanos();
         long totalTerms = in.totalTerms();
         long emittedPages = in.emittedPages();
         switch (randomIntBetween(0, 4)) {

@@ -39,17 +39,17 @@ public class AsyncOperatorStatusTests extends AbstractWireSerializingTestCase<As
             case 0 -> new AsyncOperator.Status(
                 randomValueOtherThan(in.receivedPages(), ESTestCase::randomNonNegativeLong),
                 in.completedPages(),
-                in.procesNanos()
+                in.processNanos()
             );
             case 1 -> new AsyncOperator.Status(
                 in.receivedPages(),
                 randomValueOtherThan(in.completedPages(), ESTestCase::randomNonNegativeLong),
-                in.procesNanos()
+                in.processNanos()
             );
             case 2 -> new AsyncOperator.Status(
                 in.receivedPages(),
                 in.completedPages(),
-                randomValueOtherThan(in.procesNanos(), ESTestCase::randomNonNegativeLong)
+                randomValueOtherThan(in.processNanos(), ESTestCase::randomNonNegativeLong)
             );
             default -> throw new AssertionError("unknown ");
         };

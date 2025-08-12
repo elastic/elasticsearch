@@ -41,25 +41,25 @@ public class EnrichOperatorStatusTests extends AbstractWireSerializingTestCase<E
                 randomValueOtherThan(in.receivedPages(), ESTestCase::randomNonNegativeLong),
                 in.completedPages(),
                 in.totalTerms,
-                in.procesNanos()
+                in.processNanos()
             );
             case 1 -> new EnrichLookupOperator.Status(
                 in.receivedPages(),
                 randomValueOtherThan(in.completedPages(), ESTestCase::randomNonNegativeLong),
                 in.totalTerms,
-                in.procesNanos()
+                in.processNanos()
             );
             case 2 -> new EnrichLookupOperator.Status(
                 in.receivedPages(),
                 in.completedPages(),
                 randomValueOtherThan(in.totalTerms, ESTestCase::randomNonNegativeLong),
-                in.procesNanos()
+                in.processNanos()
             );
             case 3 -> new EnrichLookupOperator.Status(
                 in.receivedPages(),
                 in.completedPages(),
                 in.totalTerms,
-                randomValueOtherThan(in.procesNanos(), ESTestCase::randomNonNegativeLong)
+                randomValueOtherThan(in.processNanos(), ESTestCase::randomNonNegativeLong)
             );
             default -> throw new AssertionError("unknown ");
         };

@@ -120,19 +120,6 @@ public abstract class InferenceOperatorTestCase<InferenceResultsType extends Inf
         };
     }
 
-    @Override
-    public void testOperatorStatus() {
-        DriverContext driverContext = driverContext();
-        try (var operator = simple().get(driverContext)) {
-            AsyncOperator.Status status = asInstanceOf(AsyncOperator.Status.class, operator.status());
-
-            assertThat(status, notNullValue());
-            assertThat(status.receivedPages(), equalTo(0L));
-            assertThat(status.completedPages(), equalTo(0L));
-            assertThat(status.procesNanos(), greaterThanOrEqualTo(0L));
-        }
-    }
-
     @SuppressWarnings("unchecked")
     protected InferenceService mockedInferenceService() {
         Client mockClient = new NoOpClient(threadPool) {

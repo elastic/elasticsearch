@@ -442,7 +442,7 @@ public class Decay extends EsqlScalarFunction implements OptionalArgument {
         distance = Math.max(0.0, distance - offsetValue);
 
         return switch (functionType.utf8ToString()) {
-            // TODO: check these formulas
+            // TODO: double-check against painless, if applicable
             case "exp" -> Math.exp(-distance * Math.log(decay) / scaleValue);
             case "gauss" -> Math.exp(-0.5 * Math.pow(distance / (scaleValue / Math.sqrt(-2.0 * Math.log(decay))), 2));
             default -> { // linear

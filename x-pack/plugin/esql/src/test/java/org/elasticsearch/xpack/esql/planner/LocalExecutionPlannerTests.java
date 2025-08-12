@@ -19,6 +19,7 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.lucene.DataPartitioning;
 import org.elasticsearch.compute.lucene.LuceneSourceOperator;
@@ -345,7 +346,7 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
             FoldContext.small(),
             FunctionList.fromImmutableList(shardContexts),
             null,
-            DataPartitioning.AUTO
+            new PhysicalSettings(DataPartitioning.AUTO, ByteSizeValue.ofMb(1))
         );
     }
 

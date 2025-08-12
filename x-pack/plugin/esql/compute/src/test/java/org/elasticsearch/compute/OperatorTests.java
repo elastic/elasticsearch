@@ -13,8 +13,6 @@ import org.apache.lucene.document.IntField;
 import org.apache.lucene.document.IntPoint;
 import org.apache.lucene.document.LongField;
 import org.apache.lucene.document.LongPoint;
-import org.apache.lucene.document.SortedNumericDocValuesField;
-import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
@@ -22,13 +20,11 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.LeafCollector;
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Scorable;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
-import org.apache.lucene.tests.store.BaseDirectoryWrapper;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
@@ -40,12 +36,8 @@ import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
-import org.elasticsearch.compute.aggregation.CountAggregatorFunction;
-import org.elasticsearch.compute.aggregation.ValuesLongAggregatorFunctionSupplier;
-import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
-import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DocBlock;
 import org.elasticsearch.compute.data.DocVector;
 import org.elasticsearch.compute.data.ElementType;
@@ -60,12 +52,8 @@ import org.elasticsearch.compute.lucene.LuceneSourceOperator;
 import org.elasticsearch.compute.lucene.LuceneSourceOperatorTests;
 import org.elasticsearch.compute.lucene.ShardContext;
 import org.elasticsearch.compute.lucene.read.ValuesSourceReaderOperator;
-import org.elasticsearch.compute.operator.AbstractPageMappingOperator;
 import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.HashAggregationOperator;
-import org.elasticsearch.compute.operator.Operator;
-import org.elasticsearch.compute.operator.OrdinalsGroupingOperator;
 import org.elasticsearch.compute.operator.PageConsumerOperator;
 import org.elasticsearch.compute.operator.RowInTableLookupOperator;
 import org.elasticsearch.compute.operator.ShuffleDocsOperator;
@@ -108,8 +96,6 @@ import java.util.TreeMap;
 import java.util.concurrent.Executors;
 import java.util.stream.IntStream;
 
-import static org.elasticsearch.compute.aggregation.AggregatorMode.FINAL;
-import static org.elasticsearch.compute.aggregation.AggregatorMode.INITIAL;
 import static org.elasticsearch.compute.test.OperatorTestCase.randomPageSize;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
@@ -398,6 +384,7 @@ public class OperatorTests extends MapperServiceTestCase {
                 LuceneOperator.NO_LIMIT
             );
             ValuesSourceReaderOperator.Factory load = new ValuesSourceReaderOperator.Factory(
+                ByteSizeValue.ofGb(1),
                 List.of(
                     new ValuesSourceReaderOperator.FieldInfo("v", ElementType.LONG, f -> new BlockDocValuesReader.LongsBlockLoader("v"))
                 ),
@@ -424,7 +411,6 @@ public class OperatorTests extends MapperServiceTestCase {
             boolean sawSecondMax = false;
             boolean sawThirdMax = false;
             for (Page page : pages) {
-                logger.error("ADFA {}", page);
                 LongVector group = page.<LongBlock>getBlock(1).asVector();
                 LongVector value = page.<LongBlock>getBlock(2).asVector();
                 for (int p = 0; p < page.getPositionCount(); p++) {

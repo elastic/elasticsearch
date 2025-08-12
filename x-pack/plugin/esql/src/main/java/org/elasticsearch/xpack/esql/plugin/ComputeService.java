@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.plugin;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.search.SearchRequest;
@@ -19,7 +20,6 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.RunOnce;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.compute.lucene.DataPartitioning;
 import org.elasticsearch.compute.operator.DriverCompletionInfo;
 import org.elasticsearch.compute.operator.DriverTaskRunner;
 import org.elasticsearch.compute.operator.FailureCollector;
@@ -42,6 +42,7 @@ import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.AbstractTransportRequest;
 import org.elasticsearch.transport.RemoteClusterAware;
+import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
@@ -50,10 +51,9 @@ import org.elasticsearch.xpack.esql.common.FunctionList;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
-import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.enrich.EnrichLookupService;
 import org.elasticsearch.xpack.esql.enrich.LookupFromIndexService;
-import org.elasticsearch.xpack.esql.inference.InferenceRunner;
+import org.elasticsearch.xpack.esql.inference.InferenceService;
 import org.elasticsearch.xpack.esql.optimizer.LocalLogicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.LocalLogicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalOptimizerContext;
@@ -69,11 +69,13 @@ import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
 import org.elasticsearch.xpack.esql.plan.physical.UnaryExec;
 import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner;
+import org.elasticsearch.xpack.esql.planner.PhysicalSettings;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.session.EsqlCCSUtils;
 import org.elasticsearch.xpack.esql.session.Result;
 import org.elasticsearch.xpack.esql.stats.SearchStats;
+import org.elasticsearch.xpack.ml.MachineLearning;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -143,15 +145,14 @@ public class ComputeService {
     private final DriverTaskRunner driverRunner;
     private final EnrichLookupService enrichLookupService;
     private final LookupFromIndexService lookupFromIndexService;
-    private final InferenceRunner inferenceRunner;
+    private final InferenceService inferenceService;
     private final ClusterService clusterService;
     private final ProjectResolver projectResolver;
     private final AtomicLong childSessionIdGenerator = new AtomicLong();
     private final DataNodeComputeHandler dataNodeComputeHandler;
     private final ClusterComputeHandler clusterComputeHandler;
     private final ExchangeService exchangeService;
-
-    private volatile DataPartitioning defaultDataPartitioning;
+    private final PhysicalSettings physicalSettings;
 
     @SuppressWarnings("this-escape")
     public ComputeService(
@@ -171,7 +172,7 @@ public class ComputeService {
         this.driverRunner = new DriverTaskRunner(transportService, esqlExecutor);
         this.enrichLookupService = enrichLookupService;
         this.lookupFromIndexService = lookupFromIndexService;
-        this.inferenceRunner = transportActionServices.inferenceRunner();
+        this.inferenceService = transportActionServices.inferenceService();
         this.clusterService = transportActionServices.clusterService();
         this.projectResolver = transportActionServices.projectResolver();
         this.dataNodeComputeHandler = new DataNodeComputeHandler(
@@ -190,7 +191,7 @@ public class ComputeService {
             esqlExecutor,
             dataNodeComputeHandler
         );
-        clusterService.getClusterSettings().initializeAndWatch(EsqlPlugin.DEFAULT_DATA_PARTITIONING, v -> this.defaultDataPartitioning = v);
+        this.physicalSettings = new PhysicalSettings(clusterService);
     }
 
     public void execute(
@@ -204,6 +205,14 @@ public class ComputeService {
         ProjectAfterTopN projectAfterTopN,
         ActionListener<Result> listener
     ) {
+        assert ThreadPool.assertCurrentThreadPool(
+            EsqlPlugin.ESQL_WORKER_THREAD_POOL_NAME,
+            TcpTransport.TRANSPORT_WORKER_THREAD_NAME_PREFIX,
+            ThreadPool.Names.SYSTEM_READ,
+            ThreadPool.Names.SEARCH,
+            ThreadPool.Names.SEARCH_COORDINATION,
+            MachineLearning.NATIVE_INFERENCE_COMMS_THREAD_POOL_NAME
+        );
         Tuple<List<PhysicalPlan>, PhysicalPlan> subplansAndMainPlan = PlannerUtils.breakPlanIntoSubPlansAndMainPlan(physicalPlan);
 
         List<PhysicalPlan> subplans = subplansAndMainPlan.v1();
@@ -403,9 +412,10 @@ public class ComputeService {
             var computeListener = new ComputeListener(
                 transportService.getThreadPool(),
                 cancelQueryOnFailure,
-                listener.map(completionInfo -> {
+                listener.delegateFailureAndWrap((l, completionInfo) -> {
+                    failIfAllShardsFailed(execInfo, collectedPages);
                     execInfo.markEndQuery();  // TODO: revisit this time recording model as part of INLINESTATS improvements
-                    return new Result(outputAttributes, collectedPages, completionInfo, execInfo);
+                    l.onResponse(new Result(outputAttributes, collectedPages, completionInfo, execInfo));
                 })
             )
         ) {
@@ -569,6 +579,47 @@ public class ComputeService {
         }
     }
 
+    /**
+     * If all of target shards excluding the skipped shards failed from the local or remote clusters, then we should fail the entire query
+     * regardless of the partial_results configuration or skip_unavailable setting. This behavior doesn't fully align with the search API,
+     * which doesn't consider the failures from the remote clusters when skip_unavailable is true.
+     */
+    static void failIfAllShardsFailed(EsqlExecutionInfo execInfo, List<Page> finalResults) {
+        // do not fail if any final result has results
+        if (finalResults.stream().anyMatch(p -> p.getPositionCount() > 0)) {
+            return;
+        }
+        int totalFailedShards = 0;
+        for (EsqlExecutionInfo.Cluster cluster : execInfo.clusterInfo.values()) {
+            final Integer successfulShards = cluster.getSuccessfulShards();
+            if (successfulShards != null && successfulShards > 0) {
+                return;
+            }
+            if (cluster.getFailedShards() != null) {
+                totalFailedShards += cluster.getFailedShards();
+            }
+        }
+        if (totalFailedShards == 0) {
+            return;
+        }
+        final var failureCollector = new FailureCollector();
+        for (EsqlExecutionInfo.Cluster cluster : execInfo.clusterInfo.values()) {
+            var failedShards = cluster.getFailedShards();
+            if (failedShards != null && failedShards > 0) {
+                assert cluster.getFailures().isEmpty() == false : "expected failures for cluster [" + cluster.getClusterAlias() + "]";
+                for (ShardSearchFailure failure : cluster.getFailures()) {
+                    if (failure.getCause() instanceof Exception e) {
+                        failureCollector.unwrapAndCollect(e);
+                    } else {
+                        assert false : "unexpected failure: " + new AssertionError(failure.getCause());
+                        failureCollector.unwrapAndCollect(failure);
+                    }
+                }
+            }
+        }
+        ExceptionsHelper.reThrowIfNotNull(failureCollector.getFailure());
+    }
+
     void runCompute(
         CancellableTask task,
         ComputeContext context,
@@ -581,7 +632,7 @@ public class ComputeService {
             context.foldCtx(),
             shardContexts,
             searchService.getIndicesService().getAnalysis(),
-            defaultDataPartitioning
+            physicalSettings
         );
 
         try {
@@ -597,7 +648,7 @@ public class ComputeService {
                 context.exchangeSinkSupplier(),
                 enrichLookupService,
                 lookupFromIndexService,
-                inferenceRunner,
+                inferenceService,
                 physicalOperationProviders,
                 shardContexts
             );
@@ -786,12 +837,12 @@ public class ComputeService {
         }
 
         @Override
-        public byte[] min(FieldAttribute.FieldName field, DataType dataType) {
+        public Object min(FieldAttribute.FieldName field) {
             throw new UnsupportedOperationException();
         }
 
         @Override
-        public byte[] max(FieldAttribute.FieldName field, DataType dataType) {
+        public Object max(FieldAttribute.FieldName field) {
             throw new UnsupportedOperationException();
         }
 

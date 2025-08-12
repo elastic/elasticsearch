@@ -29,7 +29,7 @@ import java.util.Locale;
  * This class encapsulates all the parameters required to run the KNN index tests.
  */
 record CmdLineArgs(
-    Path docVectors,
+    List<Path> docVectors,
     Path queryVectors,
     int numDocs,
     int numQueries,
@@ -52,7 +52,8 @@ record CmdLineArgs(
     int quantizeBits,
     VectorEncoding vectorEncoding,
     int dimensions,
-    boolean earlyTermination
+    boolean earlyTermination,
+    KnnIndexTester.MergePolicyType mergePolicy
 ) implements ToXContentObject {
 
     static final ParseField DOC_VECTORS_FIELD = new ParseField("doc_vectors");
@@ -79,16 +80,17 @@ record CmdLineArgs(
     static final ParseField EARLY_TERMINATION_FIELD = new ParseField("early_termination");
     static final ParseField FILTER_SELECTIVITY_FIELD = new ParseField("filter_selectivity");
     static final ParseField SEED_FIELD = new ParseField("seed");
+    static final ParseField MERGE_POLICY_FIELD = new ParseField("merge_policy");
 
     static CmdLineArgs fromXContent(XContentParser parser) throws IOException {
         Builder builder = PARSER.apply(parser, null);
         return builder.build();
     }
 
-    static final ObjectParser<CmdLineArgs.Builder, Void> PARSER = new ObjectParser<>("cmd_line_args", true, Builder::new);
+    static final ObjectParser<CmdLineArgs.Builder, Void> PARSER = new ObjectParser<>("cmd_line_args", false, Builder::new);
 
     static {
-        PARSER.declareString(Builder::setDocVectors, DOC_VECTORS_FIELD);
+        PARSER.declareStringArray(Builder::setDocVectors, DOC_VECTORS_FIELD);
         PARSER.declareString(Builder::setQueryVectors, QUERY_VECTORS_FIELD);
         PARSER.declareInt(Builder::setNumDocs, NUM_DOCS_FIELD);
         PARSER.declareInt(Builder::setNumQueries, NUM_QUERIES_FIELD);
@@ -112,13 +114,15 @@ record CmdLineArgs(
         PARSER.declareBoolean(Builder::setEarlyTermination, EARLY_TERMINATION_FIELD);
         PARSER.declareFloat(Builder::setFilterSelectivity, FILTER_SELECTIVITY_FIELD);
         PARSER.declareLong(Builder::setSeed, SEED_FIELD);
+        PARSER.declareString(Builder::setMergePolicy, MERGE_POLICY_FIELD);
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         if (docVectors != null) {
-            builder.field(DOC_VECTORS_FIELD.getPreferredName(), docVectors.toString());
+            List<String> docVectorsStrings = docVectors.stream().map(Path::toString).toList();
+            builder.field(DOC_VECTORS_FIELD.getPreferredName(), docVectorsStrings);
         }
         if (queryVectors != null) {
             builder.field(QUERY_VECTORS_FIELD.getPreferredName(), queryVectors.toString());
@@ -154,7 +158,7 @@ record CmdLineArgs(
     }
 
     static class Builder {
-        private Path docVectors;
+        private List<Path> docVectors;
         private Path queryVectors;
         private int numDocs = 1000;
         private int numQueries = 100;
@@ -178,9 +182,14 @@ record CmdLineArgs(
         private boolean earlyTermination;
         private float filterSelectivity = 1f;
         private long seed = 1751900822751L;
+        private KnnIndexTester.MergePolicyType mergePolicy = null;
 
-        public Builder setDocVectors(String docVectors) {
-            this.docVectors = PathUtils.get(docVectors);
+        public Builder setDocVectors(List<String> docVectors) {
+            if (docVectors == null || docVectors.isEmpty()) {
+                throw new IllegalArgumentException("Document vectors path must be provided");
+            }
+            // Convert list of strings to list of Paths
+            this.docVectors = docVectors.stream().map(PathUtils::get).toList();
             return this;
         }
 
@@ -299,6 +308,11 @@ record CmdLineArgs(
             return this;
         }
 
+        public Builder setMergePolicy(String mergePolicy) {
+            this.mergePolicy = KnnIndexTester.MergePolicyType.valueOf(mergePolicy.toUpperCase(Locale.ROOT));
+            return this;
+        }
+
         public CmdLineArgs build() {
             if (docVectors == null) {
                 throw new IllegalArgumentException("Document vectors path must be provided");
@@ -332,7 +346,8 @@ record CmdLineArgs(
                 quantizeBits,
                 vectorEncoding,
                 dimensions,
-                earlyTermination
+                earlyTermination,
+                mergePolicy
             );
         }
     }

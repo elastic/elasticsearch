@@ -8,10 +8,10 @@
 package org.elasticsearch.compute.lucene.read;
 
 import org.apache.lucene.index.SortedDocValues;
+import org.apache.lucene.index.SortedSetDocValues;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.ElementType;
-import org.elasticsearch.compute.data.SingletonOrdinalsBuilder;
 import org.elasticsearch.index.mapper.BlockLoader;
 
 public abstract class DelegatingBlockLoaderFactory implements BlockLoader.BlockFactory {
@@ -77,6 +77,11 @@ public abstract class DelegatingBlockLoaderFactory implements BlockLoader.BlockF
     }
 
     @Override
+    public BlockLoader.SingletonLongBuilder singletonLongs(int expectedCount) {
+        return new SingletonLongBuilder(expectedCount, factory);
+    }
+
+    @Override
     public BlockLoader.Builder nulls(int expectedCount) {
         return ElementType.NULL.newBlockBuilder(expectedCount, factory);
     }
@@ -84,6 +89,11 @@ public abstract class DelegatingBlockLoaderFactory implements BlockLoader.BlockF
     @Override
     public BlockLoader.SingletonOrdinalsBuilder singletonOrdinalsBuilder(SortedDocValues ordinals, int count) {
         return new SingletonOrdinalsBuilder(factory, ordinals, count);
+    }
+
+    @Override
+    public BlockLoader.SortedSetOrdinalsBuilder sortedSetOrdinalsBuilder(SortedSetDocValues ordinals, int count) {
+        return new SortedSetOrdinalsBuilder(factory, ordinals, count);
     }
 
     @Override

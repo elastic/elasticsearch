@@ -11,13 +11,17 @@ import org.elasticsearch.action.ResolvedIndices;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.InferenceFieldMetadata;
 import org.elasticsearch.common.regex.Regex;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.mapper.IndexFieldMapper;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.TermsQueryBuilder;
+import org.elasticsearch.index.search.QueryParserHelper;
 import org.elasticsearch.plugins.internal.rewriter.QueryRewriteInterceptor;
+
+import static org.elasticsearch.index.IndexSettings.DEFAULT_FIELD_SETTING;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -116,8 +120,16 @@ public abstract class SemanticQueryRewriteInterceptor implements QueryRewriteInt
             Map<String, InferenceFieldMetadata> indexInferenceFields = new HashMap<>();
             Map<String, InferenceFieldMetadata> indexInferenceMetadata = indexMetadata.getInferenceFields();
 
+            // Handle default fields per index when no fields are specified - following RRF pattern
+            Map<String, Float> fieldsToProcess = fieldsWithWeights;
+            if (fieldsToProcess.isEmpty()) {
+                Settings settings = indexMetadata.getSettings();
+                List<String> defaultFields = settings.getAsList(DEFAULT_FIELD_SETTING.getKey(), DEFAULT_FIELD_SETTING.getDefault(settings));
+                fieldsToProcess = QueryParserHelper.parseFieldsAndWeights(defaultFields);
+            }
+
             // Resolve wildcards for inference fields and store boosts
-            for (Map.Entry<String, Float> entry : fieldsWithWeights.entrySet()) {
+            for (Map.Entry<String, Float> entry : fieldsToProcess.entrySet()) {
                 String field = entry.getKey();
                 Float boost = entry.getValue();
 
@@ -138,12 +150,12 @@ public abstract class SemanticQueryRewriteInterceptor implements QueryRewriteInt
             }
 
             // Non-inference fields: original fields minus resolved inference fields
-            Set<String> indexNonInferenceFields = new HashSet<>(fieldsWithWeights.keySet());
+            Set<String> indexNonInferenceFields = new HashSet<>(fieldsToProcess.keySet());
             indexNonInferenceFields.removeAll(indexInferenceFields.keySet());
 
             // Store boosts for non-inference fields in global fieldBoosts map
             for (String nonInferenceField : indexNonInferenceFields) {
-                fieldBoosts.put(nonInferenceField, fieldsWithWeights.get(nonInferenceField));
+                fieldBoosts.put(nonInferenceField, fieldsToProcess.get(nonInferenceField));
             }
 
             if (indexInferenceFields.isEmpty() == false) {

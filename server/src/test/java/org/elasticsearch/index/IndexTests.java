@@ -13,7 +13,6 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractXContentSerializingTestCase;
-import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
@@ -45,11 +44,8 @@ public class IndexTests extends AbstractXContentSerializingTestCase<Index> {
     }
 
     public static Index mutate(Index instance) {
-        return switch (randomInt(1)) {
-            case 0 -> new Index(randomValueOtherThan(instance.getName(), ESTestCase::randomIdentifier), instance.getUUID());
-            case 1 -> new Index(instance.getName(), randomValueOtherThan(instance.getUUID(), UUIDs::randomBase64UUID));
-            default -> throw new RuntimeException("unreachable");
-        };
+        // Index.equals() only compares the UUID, so we can only mutate the UUID.
+        return new Index(instance.getName(), randomValueOtherThan(instance.getUUID(), UUIDs::randomBase64UUID));
     }
 
     public void testToString() {

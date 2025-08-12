@@ -11,6 +11,7 @@ package org.elasticsearch.cluster.routing;
 
 import org.elasticsearch.action.search.SearchShardIteratorTests;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.shard.ShardIdTests;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.EqualsHashCodeTestUtils;
 import org.hamcrest.Matchers;
@@ -25,23 +26,7 @@ public class ShardIteratorTests extends ESTestCase {
         EqualsHashCodeTestUtils.checkEqualsAndHashCode(
             randomPlainShardIterator(),
             i -> new ShardIterator(i.shardId(), i.getShardRoutings()),
-            i -> {
-                ShardId shardId = switch (randomIntBetween(0, 2)) {
-                    case 0 -> new ShardId(i.shardId().getIndex(), i.shardId().getId() + randomIntBetween(1, 1000));
-                    case 1 -> new ShardId(
-                        i.shardId().getIndexName(),
-                        i.shardId().getIndex().getUUID() + randomAlphaOfLengthBetween(1, 3),
-                        i.shardId().getId()
-                    );
-                    case 2 -> new ShardId(
-                        i.shardId().getIndexName() + randomAlphaOfLengthBetween(1, 3),
-                        i.shardId().getIndex().getUUID(),
-                        i.shardId().getId()
-                    );
-                    default -> throw new UnsupportedOperationException();
-                };
-                return new ShardIterator(shardId, i.getShardRoutings());
-            }
+            i -> new ShardIterator(ShardIdTests.mutate(i.shardId()), i.getShardRoutings())
         );
     }
 
@@ -66,13 +51,21 @@ public class ShardIteratorTests extends ESTestCase {
                 ShardIterator greaterIterator = shardIterators.get(j);
                 assertThat(currentIterator, Matchers.lessThan(greaterIterator));
                 assertThat(greaterIterator, Matchers.greaterThan(currentIterator));
-                assertNotEquals(currentIterator, greaterIterator);
+                // ShardId equality does not consider the index name
+                if (currentIterator.shardId().id() != greaterIterator.shardId().id()
+                    || currentIterator.shardId().getIndex().getUUID().equals(greaterIterator.shardId().getIndex().getUUID()) == false) {
+                    assertNotEquals(currentIterator, greaterIterator);
+                }
             }
             for (int j = i - 1; j >= 0; j--) {
                 ShardIterator smallerIterator = shardIterators.get(j);
                 assertThat(smallerIterator, Matchers.lessThan(currentIterator));
                 assertThat(currentIterator, Matchers.greaterThan(smallerIterator));
-                assertNotEquals(currentIterator, smallerIterator);
+                // ShardId equality does not consider the index name
+                if (currentIterator.shardId().id() != smallerIterator.shardId().id()
+                    || currentIterator.shardId().getIndex().getUUID().equals(smallerIterator.shardId().getIndex().getUUID()) == false) {
+                    assertNotEquals(currentIterator, smallerIterator);
+                }
             }
         }
     }

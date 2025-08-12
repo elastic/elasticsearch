@@ -186,13 +186,21 @@ public class SearchShardIteratorTests extends ESTestCase {
                 SearchShardIterator greaterIterator = shardIterators.get(j);
                 assertThat(currentIterator, Matchers.lessThan(greaterIterator));
                 assertThat(greaterIterator, Matchers.greaterThan(currentIterator));
-                assertNotEquals(currentIterator, greaterIterator);
+                // ShardId equality does not consider the index name
+                if (currentIterator.shardId().id() != greaterIterator.shardId().id()
+                    || currentIterator.shardId().getIndex().getUUID().equals(greaterIterator.shardId().getIndex().getUUID()) == false) {
+                    assertNotEquals(currentIterator, greaterIterator);
+                }
             }
             for (int j = i - 1; j >= 0; j--) {
                 SearchShardIterator smallerIterator = shardIterators.get(j);
                 assertThat(smallerIterator, Matchers.lessThan(currentIterator));
                 assertThat(currentIterator, Matchers.greaterThan(smallerIterator));
-                assertNotEquals(currentIterator, smallerIterator);
+                // ShardId equality does not consider the index name
+                if (currentIterator.shardId().id() != smallerIterator.shardId().id()
+                    || currentIterator.shardId().getIndex().getUUID().equals(smallerIterator.shardId().getIndex().getUUID()) == false) {
+                    assertNotEquals(currentIterator, smallerIterator);
+                }
             }
         }
     }

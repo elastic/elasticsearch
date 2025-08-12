@@ -20,6 +20,48 @@ To check for security updates, go to [Security announcements for the Elastic sta
 % ### Fixes [elasticsearch-next-fixes]
 % *
 
+## 9.1.2 [elasticsearch-9.1.2-release-notes]
+
+### Features and enhancements [elasticsearch-9.1.2-features-enhancements]
+
+Authorization:
+* Adds `manage`, `create_index`, `read`, `index`, `write`, and `delete` privileges for the `kibana_system` role on third-party agent indices used by ExtraHop (`logs-extrahop.investigation-*`) and Qualys GAV (`logs-qualys_gav.asset-*`). This ensures ILM policies can delete these indices without permission errors. [#132387](https://github.com/elastic/elasticsearch/pull/132387) (issue: [#131825](https://github.com/elastic/elasticsearch/issues/131825))
+
+### Fixes [elasticsearch-9.1.2-fixes]
+
+Aggregations:
+:::{dropdown} Validates parent aggregation type in `bucket_script`
+The `bucket_script` pipeline aggregation didn’t validate that its parent aggregation was a multi-bucket aggregation.
+This caused a `ClassCastException` at runtime when the parent was not multi-bucket. 
+[#132320](https://github.com/elastic/elasticsearch/pull/132320) adds a validation step so the aggregation fails early, preventing the runtime error. (issue: [#132272](https://github.com/elastic/elasticsearch/issues/132272))
+:::
+
+Codec:
+:::{dropdown} Uses local segment `fieldInfos` for TSDB merge stats
+Merging shrink TSDB or LogsDB indices in versions 8.19 or 9.1+ could fail when using `addIndexes` to combine Lucene segments directly.
+In these cases, the `fieldInfos` value could differ between shards and the merged segment, causing incorrect merge statistics.
+PR [#132597](https://github.com/elastic/elasticsearch/pull/132597) updates the process to use `fieldInfos` from each segment instead of the merged segment, ensuring accurate stats and preventing merge failures.
+:::
+
+ES|QL:
+:::{dropdown} Fixes for `COPY_SIGN` function in ESQL
+The `COPY_SIGN` function has been updated to better support the literal `NULL` in parameters.
+[#132459](https://github.com/elastic/elasticsearch/pull/132459)
+:::
+
+Mapping:
+:::{dropdown} Calculates text string length correctly for code points outside BMP
+Strings parsed with the optimized UTF-8 parsing path had incorrect length calculations for characters outside the basic multilingual plane (BMP).
+These characters require two UTF-16 code units, but the optimized path did not account for this, causing mismatches with the non-optimized path.
+[#132593](https://github.com/elastic/elasticsearch/pull/132593) fixes the calculation to ensure consistent and correct string lengths.
+:::
+
+Search:
+:::{dropdown} Always stops the timer when profiling the fetch phase
+Exceptions in fetch sub-phases (for example, `setNextReader`) left the profiling timer running, causing mismatched start/stop calls and errors.
+[#132570](https://github.com/elastic/elasticsearch/pull/132570) ensures the `timer.stop()` call always stops.
+:::
+
 ## 9.1.1 [elasticsearch-9.1.1-release-notes]
 
 ### Fixes [elasticsearch-9.1.1-fixes]

@@ -44,6 +44,7 @@ import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
 import org.elasticsearch.xpack.esql.analysis.EnrichResolution;
 import org.elasticsearch.xpack.esql.analysis.PreAnalyzer;
 import org.elasticsearch.xpack.esql.analysis.Verifier;
+import org.elasticsearch.xpack.esql.approximate.Approximate;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -180,7 +181,12 @@ public class EsqlSession {
         analyzedPlan(parsed, executionInfo, request.filter(), new EsqlCCSUtils.CssPartialErrorsActionListener(executionInfo, listener) {
             @Override
             public void onResponse(LogicalPlan analyzedPlan) {
-                SubscribableListener.<LogicalPlan>newForked(l -> preOptimizedPlan(analyzedPlan, l))
+                SubscribableListener.<LogicalPlan>newForked(l -> preOptimizedPlan(analyzedPlan, l)).<LogicalPlan>andThen((l, p) -> {
+                    if (request.approximate()) {
+                        new Approximate(p);  // to verify whether the pre-optimized plan is suitable for approximation
+                    }
+                    l.onResponse(p);
+                })
                     .<LogicalPlan>andThen((l, p) -> preMapper.preMapper(optimizedPlan(p), l))
                     .<Result>andThen((l, p) -> executeOptimizedPlan(request, executionInfo, planRunner, p, l))
                     .addListener(listener);
@@ -242,6 +248,11 @@ public class EsqlSession {
         if (subPlan != null) {
             // code-path to execute subplans
             executeSubPlan(new DriverCompletionInfo.Accumulator(), optimizedPlan, subPlan, executionInfo, runner, request, listener);
+        } else if (request.approximate()) {
+            new Approximate(optimizedPlan).approximate(
+                (p, l) -> runner.run(logicalPlanToPhysicalPlan(optimizedPlan(p), request), l),
+                listener
+            );
         } else {
             PhysicalPlan physicalPlan = logicalPlanToPhysicalPlan(optimizedPlan, request);
             // execute main plan

@@ -101,6 +101,22 @@ public class OptimizerVerificationTests extends AbstractLogicalPlanOptimizerTest
             | STATS count(*) BY language_name
             """, analyzer);
 
+        plan("""
+            FROM test
+            | LIMIT 10
+            | EVAL language_code = languages
+            | ENRICH _remote:languages ON language_code
+            | STATS count(*) BY language_name
+            """, analyzer);
+
+        plan("""
+            FROM test
+            | EVAL language_code = languages
+            | ENRICH _remote:languages ON language_code
+            | STATS count(*) BY language_name
+            | LIMIT 10
+            """, analyzer);
+
         err = error("""
             FROM test
             | EVAL language_code = languages
@@ -130,6 +146,7 @@ public class OptimizerVerificationTests extends AbstractLogicalPlanOptimizerTest
             """, analyzer);
         assertThat(err, containsString("6:3: ENRICH with remote policy can't be executed after [STATS count(*) BY language_code]@3:3"));
 
+        // Coordinator after remote is OK
         plan("""
             FROM test
             | EVAL language_code = languages
@@ -300,6 +317,11 @@ public class OptimizerVerificationTests extends AbstractLogicalPlanOptimizerTest
                     + "| LOOKUP JOIN languages_lookup ON language_code",
                 analyzer
             )
+        );
+
+        plan(
+            "FROM test,remote:test | EVAL language_code = languages | LOOKUP JOIN languages_lookup ON language_code | LIMIT 2",
+            analyzer
         );
 
         // Since FORK, RERANK, COMPLETION and CHANGE_POINT are not supported on remote indices, we can't check them here against the remote

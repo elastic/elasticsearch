@@ -73,7 +73,6 @@ public abstract class ValidateTransportVersionDefinitionsTask extends DefaultTas
 
     private static final Pattern NAME_FORMAT = Pattern.compile("[a-z0-9_]+");
 
-    private final Project project;
     private final Path rootPath;
     private final ExecOperations execOperations;
 
@@ -91,8 +90,7 @@ public abstract class ValidateTransportVersionDefinitionsTask extends DefaultTas
     Map<String, TransportVersionLatest> latestByBranch = new HashMap<>();
 
     @Inject
-    public ValidateTransportVersionDefinitionsTask(Project project, ExecOperations execOperations) {
-        this.project = project;
+    public ValidateTransportVersionDefinitionsTask(ExecOperations execOperations) {
         this.execOperations = execOperations;
         this.rootPath = getProject().getRootProject().getLayout().getProjectDirectory().getAsFile().toPath();
     }

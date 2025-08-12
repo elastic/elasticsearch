@@ -209,7 +209,7 @@ public class DenseVectorFieldTypeIT extends AbstractEsqlIntegTestCase {
                 for (int j = 0; j < numDims; j++) {
                     vector.add(randomFloatBetween(0F, 1F, true));
                 }
-                if (similarity == DenseVectorFieldMapper.VectorSimilarity.DOT_PRODUCT) {
+                if ((similarity == DenseVectorFieldMapper.VectorSimilarity.DOT_PRODUCT) || rarely()) {
                     // Normalize the vector
                     float magnitude = DenseVector.getMagnitude(vector);
                     vector.replaceAll(number -> number.floatValue() / magnitude);

@@ -532,11 +532,9 @@ public abstract class BlockDocValuesReader implements BlockLoader.AllReader {
             FloatVectorValues floatVectorValues = context.reader().getFloatVectorValues(fieldName);
             if (floatVectorValues != null) {
                 if (fieldType.isNormalized()) {
-                    return new FloatDenseVectorNormalizedValuesBlockReader(
-                        floatVectorValues,
-                        dimensions,
-                        context.reader().getNumericDocValues(fieldType.name() + COSINE_MAGNITUDE_FIELD_SUFFIX)
-                    );
+                    NumericDocValues magnitudeDocValues = context.reader()
+                        .getNumericDocValues(fieldType.name() + COSINE_MAGNITUDE_FIELD_SUFFIX);
+                    return new FloatDenseVectorNormalizedValuesBlockReader(floatVectorValues, dimensions, magnitudeDocValues);
                 }
                 return new FloatDenseVectorValuesBlockReader(floatVectorValues, dimensions);
             }
@@ -632,8 +630,12 @@ public abstract class BlockDocValuesReader implements BlockLoader.AllReader {
             assert floats.length == dimensions
                 : "unexpected dimensions for vector value; expected " + dimensions + " but got " + floats.length;
 
-            assert magnitudeDocValues.advanceExact(iterator.docID());
-            float magnitude = Float.intBitsToFloat((int) magnitudeDocValues.longValue());
+            float magnitude = 1.0f;
+            // If all vectors are normalized, no doc values will be present. The vector may be normalized already, so we may not have a
+            // stored magnitude for all docs
+            if ((magnitudeDocValues != null) && magnitudeDocValues.advanceExact(iterator.docID())) {
+                magnitude = Float.intBitsToFloat((int) magnitudeDocValues.longValue());
+            }
             for (float aFloat : floats) {
                 builder.appendFloat(aFloat * magnitude);
             }

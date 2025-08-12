@@ -31,7 +31,8 @@ public final class TypeResolutions {
         SECOND,
         THIRD,
         FOURTH,
-        FIFTH;
+        FIFTH,
+        SIXTH;
 
         public static ParamOrdinal fromIndex(int index) {
             return switch (index) {
@@ -40,6 +41,7 @@ public final class TypeResolutions {
                 case 2 -> THIRD;
                 case 3 -> FOURTH;
                 case 4 -> FIFTH;
+                case 5 -> SIXTH;
                 default -> DEFAULT;
             };
         }

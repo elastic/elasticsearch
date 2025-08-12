@@ -44,6 +44,7 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.SumOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Top;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Values;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.WeightedAvg;
+import org.elasticsearch.xpack.esql.expression.function.fulltext.Decay;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.Kql;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.Match;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.MatchPhrase;
@@ -244,7 +245,7 @@ public class EsqlFunctionRegistry {
     }
 
     // Translation table for error messaging in the following function
-    private static final String[] NUM_NAMES = { "zero", "one", "two", "three", "four", "five", };
+    private static final String[] NUM_NAMES = { "zero", "one", "two", "three", "four", "five", "six" };
 
     // list of functions grouped by type of functions (aggregate, statistics, math etc) and ordered alphabetically inside each group
     // a single function will have one entry for itself with its name associated to its instance and, also, one entry for each alias
@@ -456,6 +457,7 @@ public class EsqlFunctionRegistry {
                 def(Split.class, Split::new, "split") },
             // fulltext functions
             new FunctionDefinition[] {
+                def(Decay.class, sen(Decay::new), 3, "decay"),
                 def(Kql.class, uni(Kql::new), "kql"),
                 def(Match.class, tri(Match::new), "match"),
                 def(MultiMatch.class, MultiMatch::new, "multi_match"),
@@ -891,6 +893,8 @@ public class EsqlFunctionRegistry {
         return new FunctionDefinition(primaryName, unmodifiableList(aliases), function, realBuilder);
     }
 
+    // TODO: ternary variadic builder
+
     /**
      * Build a {@linkplain FunctionDefinition} for a no-argument function.
      */
@@ -930,7 +934,7 @@ public class EsqlFunctionRegistry {
      * Build a {@linkplain FunctionDefinition} for multi-arg/n-ary function.
      */
     @SuppressWarnings("overloads") // These are ambiguous if you aren't using ctor references but we always do
-    protected <T extends Function> FunctionDefinition def(Class<T> function, NaryBuilder<T> ctorRef, String... names) {
+    protected static <T extends Function> FunctionDefinition def(Class<T> function, NaryBuilder<T> ctorRef, String... names) {
         FunctionBuilder builder = (source, children, cfg) -> { return ctorRef.build(source, children); };
         return def(function, builder, names);
     }
@@ -955,7 +959,6 @@ public class EsqlFunctionRegistry {
                     Strings.format("function %s expects exactly two arguments, it received %d", Arrays.toString(names), children.size())
                 );
             }
-
             return ctorRef.build(source, children.get(0), children.size() == 2 ? children.get(1) : null);
         };
         return def(function, builder, names);
@@ -992,15 +995,10 @@ public class EsqlFunctionRegistry {
     @SuppressWarnings("overloads")  // These are ambiguous if you aren't using ctor references but we always do
     protected static <T extends Function> FunctionDefinition def(Class<T> function, QuaternaryBuilder<T> ctorRef, String... names) {
         FunctionBuilder builder = (source, children, cfg) -> {
-            if (OptionalArgument.class.isAssignableFrom(function)) {
-                if (children.size() > 4 || children.size() < 3) {
-                    throw new QlIllegalArgumentException("expects three or four arguments");
-                }
-            } else if (TwoOptionalArguments.class.isAssignableFrom(function)) {
-                if (children.size() > 4 || children.size() < 2) {
-                    throw new QlIllegalArgumentException("expects minimum two, maximum four arguments");
-                }
-            } else if (children.size() != 4) {
+            boolean hasMinimumThree = OptionalArgument.class.isAssignableFrom(function);
+            if (hasMinimumThree && (children.size() > 4 || children.size() < 3)) {
+                throw new QlIllegalArgumentException("expects three or four arguments");
+            } else if (hasMinimumThree == false && children.size() != 4) {
                 throw new QlIllegalArgumentException("expects exactly four arguments");
             }
             return ctorRef.build(
@@ -1105,6 +1103,8 @@ public class EsqlFunctionRegistry {
         return def(function, builder, names);
     }
 
+    // TODO: ternary variadic builder
+
     /**
      * Build a {@linkplain FunctionDefinition} for a no-argument function that is configuration aware.
      */
@@ -1192,6 +1192,47 @@ public class EsqlFunctionRegistry {
         T build(Source source, Expression one, Expression two, Expression three, Configuration configuration);
     }
 
+    /**
+     * Build a {@linkplain FunctionDefinition} for a senary function.
+     */
+    @SuppressWarnings("overloads")  // These are ambiguous if you aren't using ctor references but we always do
+    protected static <T extends Function> FunctionDefinition def(
+        Class<T> function,
+        SenaryBuilder<T> ctorRef,
+        int numOptionalParams,
+        String... names
+    ) {
+        FunctionBuilder builder = (source, children, cfg) -> {
+            final int NUM_TOTAL_PARAMS = 6;
+            boolean hasOptionalParams = OptionalArgument.class.isAssignableFrom(function);
+            if (hasOptionalParams && (children.size() > NUM_TOTAL_PARAMS || children.size() < NUM_TOTAL_PARAMS - numOptionalParams)) {
+                throw new QlIllegalArgumentException(
+                    "expects between "
+                        + NUM_NAMES[NUM_TOTAL_PARAMS - numOptionalParams]
+                        + " and "
+                        + NUM_NAMES[NUM_TOTAL_PARAMS]
+                        + " arguments"
+                );
+            } else if (hasOptionalParams == false && children.size() != NUM_TOTAL_PARAMS) {
+                throw new QlIllegalArgumentException("expects exactly " + NUM_NAMES[NUM_TOTAL_PARAMS] + " arguments");
+            }
+            return ctorRef.build(
+                source,
+                children.size() > 0 ? children.get(0) : null,
+                children.size() > 1 ? children.get(1) : null,
+                children.size() > 2 ? children.get(2) : null,
+                children.size() > 3 ? children.get(3) : null,
+                children.size() > 4 ? children.get(4) : null,
+                children.size() > 5 ? children.get(5) : null
+            );
+        };
+        return def(function, builder, names);
+    }
+
+    protected interface SenaryBuilder<T> {
+        T build(Source source, Expression one, Expression two, Expression three, Expression four, Expression five, Expression six);
+    }
+
     //
     // Utility functions to help disambiguate the method handle passed in.
     // They work by providing additional method information to help the compiler know which method to pick.
@@ -1209,6 +1250,10 @@ public class EsqlFunctionRegistry {
     }
 
     private static <T extends Function> QuaternaryBuilder<T> quad(QuaternaryBuilder<T> function) {
+        return function;
+    }
+
+    private static <T extends Function> SenaryBuilder<T> sen(SenaryBuilder<T> function) {
         return function;
     }
 

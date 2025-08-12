@@ -32,6 +32,9 @@ public class FullTextWritables {
             entries.add(Score.ENTRY);
         }
 
+        // TODO: guard behind capability?
+        entries.add(Decay.ENTRY);
+
         return Collections.unmodifiableList(entries);
     }
 }

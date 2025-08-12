@@ -1,0 +1,184 @@
+###############################################
+# Tests for DecayLinear function
+#
+
+intLinear
+
+ROW value = 5, origin = 10, scale = 10 
+| EVAL decay_result = decay(value, origin, scale, 0.0, 0.5, "linear") 
+| KEEP decay_result;
+
+decay_result:double
+0.75
+;
+
+intExp
+
+ROW value = 5, origin = 10, scale = 10 
+| EVAL decay_result = decay(value, origin, scale, 0.0, 0.5, "exp") 
+| KEEP decay_result;
+
+decay_result:double
+0.7071067811865475
+;
+
+intGauss
+
+ROW value = 5, origin = 10, scale = 10 
+| EVAL decay_result = decay(value, origin, scale, 0.0, 0.5, "gauss") 
+| KEEP decay_result;
+
+decay_result:double
+0.8408964152537146
+;
+
+intLinearWithOffset
+
+ROW value = 95, origin = 100, scale = 50 
+| EVAL decay_result = decay(value, origin, scale, 10.0, 0.3, "linear") 
+| KEEP decay_result;
+
+decay_result:double
+1.0
+;
+
+intExpWithOffset
+
+ROW value = 120, origin = 100, scale = 50 
+| EVAL decay_result = decay(value, origin, scale, 5.0, 0.3, "exp") 
+| KEEP decay_result;
+
+decay_result:double
+0.6968453019359488
+;
+
+intGaussWithOffset
+
+ROW value = 120, origin = 100, scale = 50 
+| EVAL decay_result = decay(value, origin, scale, 5.0, 0.3, "gauss") 
+| KEEP decay_result;
+
+decay_result:double
+0.8973067049097825
+;
+
+doubleLinear
+
+ROW value = 5.0, origin = 10.0, scale = 10.0 
+| EVAL decay_result = decay(value, origin, scale, 0.0, 0.5, "linear") 
+| KEEP decay_result;
+
+decay_result:double
+0.75
+;
+
+doubleExp
+
+ROW value = 5.0, origin = 10.0, scale = 10.0 
+| EVAL decay_result = decay(value, origin, scale, 0.0, 0.5, "exp") 
+| KEEP decay_result;
+
+decay_result:double
+0.7071067811865475
+;
+
+doubleGauss
+
+ROW value = 5.0, origin = 10.0, scale = 10.0 
+| EVAL decay_result = decay(value, origin, scale, 0.0, 0.5, "gauss") 
+| KEEP decay_result;
+
+decay_result:double
+0.8408964152537146
+;
+
+longLinear
+
+ROW value = 15::long, origin = 10::long, scale = 10::long
+| EVAL decay_result = decay(value, origin, scale, 0.0, 0.5, "linear") 
+| KEEP decay_result;
+
+decay_result:double
+0.75
+;
+
+cartesianPointLinear1
+
+ROW value = TO_CARTESIANPOINT("POINT(5 5)"), origin = TO_CARTESIANPOINT("POINT(0 0)"), scale = "10m"
+| EVAL decay_result = decay(value, origin, scale, "0m", 0.25, "linear") 
+| KEEP decay_result;
+
+decay_result:double
+0.46966991411008935
+;
+
+cartesianPointLinear2
+
+ROW value = TO_CARTESIANPOINT("POINT(10 0)"), origin = TO_CARTESIANPOINT("POINT(0 0)"), scale = "10m"
+| EVAL decay_result = ROUND(decay(value, origin, scale, "0m", 0.25, "linear"), 10) 
+| KEEP decay_result;
+
+decay_result:double
+0.25
+;
+
+cartesianPointLinearWithOffset
+
+ROW value = TO_CARTESIANPOINT("POINT(10 0)"), origin = TO_CARTESIANPOINT("POINT(0 0)"), scale = "10m"
+| EVAL decay_result = ROUND(decay(value, origin, scale, "5m", 0.25, "linear"), 10) 
+| KEEP decay_result;
+
+decay_result:double
+0.625
+;
+
+
+geoPointLinear
+
+ROW value = TO_GEOPOINT("POINT(0 0)"), origin = TO_GEOPOINT("POINT(1 1)"), scale = "200km"
+| EVAL decay_result = decay(value, origin, scale, "0km", 0.5, "linear") 
+| KEEP decay_result;
+
+decay_result:double
+0.606876005579706
+;
+
+datetimeLinear1
+
+ROW value = TO_DATETIME("2023-01-01T00:00:00Z"), origin = TO_DATETIME("2023-01-01T00:00:00Z"), scale = "24 hours"
+| EVAL decay_result = decay(value, origin, scale, 0 seconds, 0.5, "linear") 
+| KEEP decay_result;
+
+decay_result:double
+1.0
+;
+
+datetimeLinear2
+
+ROW value = TO_DATETIME("2023-01-01T12:00:00Z"), origin = TO_DATETIME("2023-01-01T00:00:00Z"), scale = "24 hours"
+| EVAL decay_result = decay(value, origin, scale, "0 seconds", 0.5, "linear") 
+| KEEP decay_result;
+
+decay_result:double
+0.75
+;
+
+dateNanosLinear1
+
+ROW value = TO_DATE_NANOS("2023-01-01T00:00:00Z"), origin = TO_DATE_NANOS("2023-01-01T00:00:00Z"), scale = "24 hours"
+| EVAL decay_result = decay(value, origin, scale, "0 seconds", 0.5, "linear") 
+| KEEP decay_result;
+
+decay_result:double
+1.0
+;
+
+dateNanosLinear2
+
+ROW value = TO_DATE_NANOS("2023-01-01T12:00:00Z"), origin = TO_DATE_NANOS("2023-01-01T00:00:00Z"), scale = "24 hours"
+| EVAL decay_result = decay(value, origin, scale, "0 seconds", 0.5, "linear") 
+| KEEP decay_result;
+
+decay_result:double
+0.75
+;

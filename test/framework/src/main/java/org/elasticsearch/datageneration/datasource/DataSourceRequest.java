@@ -203,7 +203,8 @@ public interface DataSourceRequest<TResponse extends DataSourceResponse> {
         String fieldName,
         String fieldType,
         Set<String> eligibleCopyToFields,
-        DynamicMapping dynamicMapping
+        DynamicMapping dynamicMapping,
+        boolean includePluginTypesInMultiFields
     ) implements DataSourceRequest<DataSourceResponse.LeafMappingParametersGenerator> {
         public DataSourceResponse.LeafMappingParametersGenerator accept(DataSourceHandler handler) {
             return handler.handle(this);

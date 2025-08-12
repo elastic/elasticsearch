@@ -68,7 +68,8 @@ public class TextFieldWithParentBlockLoaderTests extends MapperServiceTestCase {
                             "_field",
                             FieldType.KEYWORD.toString(),
                             request.eligibleCopyToFields(),
-                            request.dynamicMapping()
+                            request.dynamicMapping(),
+                            request.includePluginTypesInMultiFields()
                         )
                     ).mappingGenerator().get();
 
@@ -78,7 +79,8 @@ public class TextFieldWithParentBlockLoaderTests extends MapperServiceTestCase {
                             "_field",
                             FieldType.TEXT.toString(),
                             request.eligibleCopyToFields(),
-                            request.dynamicMapping()
+                            request.dynamicMapping(),
+                            request.includePluginTypesInMultiFields()
                         )
                     ).mappingGenerator().get();
 

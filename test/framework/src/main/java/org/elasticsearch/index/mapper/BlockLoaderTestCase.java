@@ -176,7 +176,8 @@ public abstract class BlockLoaderTestCase extends MapperServiceTestCase {
                             "_field",
                             request.fieldType(),
                             request.eligibleCopyToFields(),
-                            request.dynamicMapping()
+                            request.dynamicMapping(),
+                            request.includePluginTypesInMultiFields()
                         )
                     ).mappingGenerator().get();
 
@@ -210,6 +211,7 @@ public abstract class BlockLoaderTestCase extends MapperServiceTestCase {
 
     public static DataGeneratorSpecification buildSpecification(Collection<DataSourceHandler> customHandlers) {
         return DataGeneratorSpecification.builder()
+            .withIncludePluginTypes(false)
             .withFullyDynamicMapping(false)
             // Disable dynamic mapping and disabled objects
             .withDataSourceHandlers(List.of(new DataSourceHandler() {

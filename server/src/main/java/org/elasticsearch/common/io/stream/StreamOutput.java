@@ -1131,10 +1131,18 @@ public abstract class StreamOutput extends OutputStream {
      * method. Make sure to read the collection back into the same type as was originally written.
      */
     public <T> void writeCollection(final Collection<T> collection, final Writer<T> writer) throws IOException {
-        writeVInt(collection.size());
+        var size = collection.size();
+        writeVInt(size);
         for (final T val : collection) {
+            size--;
             writer.write(this, val);
         }
+        assert size == 0
+            : "Collection size mismatch: wrote "
+                + (size > 0 ? size : -size)
+                + " elements "
+                + (size > 0 ? "fewer" : "more")
+                + " than expected";
     }
 
     /**

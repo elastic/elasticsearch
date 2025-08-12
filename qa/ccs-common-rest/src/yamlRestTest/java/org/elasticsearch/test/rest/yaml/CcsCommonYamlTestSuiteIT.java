@@ -334,7 +334,6 @@ public class CcsCommonYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
                 final Set<String> combinedNodeVersions = Stream.concat(nodesVersions.stream(), searchNodeVersions.stream())
                     .collect(Collectors.toSet());
 
-
                 combinedTestFeatureServiceRef.set(combinedTestFeatureService);
                 combinedOsSetRef.set(combinedOsSet);
                 combinedNodeVersionsRef.set(combinedNodeVersions);

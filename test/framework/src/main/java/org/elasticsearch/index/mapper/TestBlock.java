@@ -213,11 +213,7 @@ public class TestBlock implements BlockLoader.Block {
 
                     @Override
                     public BlockLoader.SingletonLongBuilder appendLongs(long[] newValues, int from, int length) {
-                        try {
-                            System.arraycopy(newValues, from, values, count, length);
-                        } catch (ArrayIndexOutOfBoundsException e) {
-                            throw e;
-                        }
+                        System.arraycopy(newValues, from, values, count, length);
                         count += length;
                         return this;
                     }
@@ -326,11 +322,7 @@ public class TestBlock implements BlockLoader.Block {
 
             @Override
             public int get(int i) {
-                try {
-                    return docs[i];
-                } catch (ArrayIndexOutOfBoundsException e) {
-                    throw e;
-                }
+                return docs[i];
             }
         };
     }

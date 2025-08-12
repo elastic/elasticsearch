@@ -18,7 +18,6 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.SurrogateLogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes.UsingJoinType;
 
-import java.util.LinkedList;
 import java.util.List;
 
 import static java.util.Collections.emptyList;

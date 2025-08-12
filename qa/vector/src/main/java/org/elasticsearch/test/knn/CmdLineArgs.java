@@ -168,7 +168,7 @@ record CmdLineArgs(
         private KnnIndexTester.IndexType indexType = KnnIndexTester.IndexType.HNSW;
         private int numCandidates = 1000;
         private int k = 10;
-        private double[] visitPercentages = new double[] { 0.01 };
+        private double[] visitPercentages = new double[] { 1.0 };
         private int ivfClusterSize = 1000;
         private int overSamplingFactor = 1;
         private int hnswM = 16;

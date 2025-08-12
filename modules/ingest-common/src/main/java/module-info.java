@@ -20,6 +20,8 @@ module org.elasticsearch.ingest.common {
     requires org.apache.lucene.analysis.common;
     requires org.jruby.joni;
 
+    requires java.xml;
+
     exports org.elasticsearch.ingest.common; // for painless
 
     opens org.elasticsearch.ingest.common to org.elasticsearch.painless.spi; // whitelist resource access

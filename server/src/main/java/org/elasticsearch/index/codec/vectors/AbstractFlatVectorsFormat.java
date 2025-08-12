@@ -17,7 +17,7 @@ import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.MAX_
 
 public abstract class AbstractFlatVectorsFormat extends FlatVectorsFormat {
 
-    protected static final boolean USE_DIRECT_IO = getUseDirectIO();
+    public static final boolean USE_DIRECT_IO = getUseDirectIO();
 
     @SuppressForbidden(
         reason = "TODO Deprecate any lenient usage of Boolean#parseBoolean https://github.com/elastic/elasticsearch/issues/128993"

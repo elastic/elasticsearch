@@ -37,10 +37,10 @@ import static org.apache.lucene.index.VectorSimilarityFunction.EUCLIDEAN;
 import static org.apache.lucene.index.VectorSimilarityFunction.MAXIMUM_INNER_PRODUCT;
 
 /** Vector scorer over binarized vector values */
-public class ES816BinaryFlatVectorsScorer implements FlatVectorsScorer {
+class ES816BinaryFlatVectorsScorer implements FlatVectorsScorer {
     private final FlatVectorsScorer nonQuantizedDelegate;
 
-    public ES816BinaryFlatVectorsScorer(FlatVectorsScorer nonQuantizedDelegate) {
+    ES816BinaryFlatVectorsScorer(FlatVectorsScorer nonQuantizedDelegate) {
         this.nonQuantizedDelegate = nonQuantizedDelegate;
     }
 

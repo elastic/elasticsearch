@@ -138,7 +138,7 @@ public class TransportSimulateBulkActionTests extends ESTestCase {
 
     public void testIndexData() throws IOException {
         Task task = mock(Task.class); // unused
-        BulkRequest bulkRequest = new SimulateBulkRequest(Map.of(), Map.of(), Map.of(), Map.of());
+        BulkRequest bulkRequest = new SimulateBulkRequest(Map.of(), Map.of(), Map.of(), Map.of(), null);
         int bulkItemCount = randomIntBetween(0, 200);
         for (int i = 0; i < bulkItemCount; i++) {
             Map<String, ?> source = Map.of(randomAlphaOfLength(10), randomAlphaOfLength(5));
@@ -225,7 +225,7 @@ public class TransportSimulateBulkActionTests extends ESTestCase {
          * Here we only add a mapping_addition because if there is no mapping at all TransportSimulateBulkAction skips mapping validation
          * altogether, and we need it to run for this test to pass.
          */
-        BulkRequest bulkRequest = new SimulateBulkRequest(Map.of(), Map.of(), Map.of(), Map.of("_doc", Map.of("dynamic", "strict")));
+        BulkRequest bulkRequest = new SimulateBulkRequest(Map.of(), Map.of(), Map.of(), Map.of("_doc", Map.of("dynamic", "strict")), null);
         int bulkItemCount = randomIntBetween(0, 200);
         Map<String, IndexMetadata> indicesMap = new HashMap<>();
         Map<String, IndexTemplateMetadata> v1Templates = new HashMap<>();

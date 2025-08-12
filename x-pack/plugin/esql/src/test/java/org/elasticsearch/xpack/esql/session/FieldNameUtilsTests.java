@@ -59,11 +59,22 @@ public class FieldNameUtilsTests extends ESTestCase {
         );
     }
 
+    public void testSimple2() {
+        assertFieldNames("""
+            FROM employees
+            | WHERE emp_no == "2"
+            """, IndexResolver.ALL_FIELDS);
+    }
+
     public void testDirectFilter() {
         assertFieldNames(
             "from employees | sort emp_no | where still_hired | keep emp_no | limit 3",
             Set.of("emp_no", "emp_no.*", "still_hired", "still_hired.*")
         );
+    }
+
+    public void testForkEval() {
+        assertFieldNames("FROM employees | fork (eval x = 1 | keep x) (eval y = 2 | keep y) (eval z = 3 | keep z)", Set.of("*"));
     }
 
     public void testSort1() {
@@ -2074,7 +2085,7 @@ public class FieldNameUtilsTests extends ESTestCase {
                    (WHERE d > 1000 AND e == "aaa" | EVAL c = a + 200)
             | WHERE x > y
             | KEEP a, b, c, d, x
-            """, ALL_FIELDS);
+            """, Set.of("a", "x", "y", "c", "d", "e", "e.*", "d.*", "y.*", "x.*", "a.*", "c.*"));
     }
 
     public void testForkFieldsWithKeepBeforeFork() {
@@ -2086,7 +2097,7 @@ public class FieldNameUtilsTests extends ESTestCase {
             | FORK (WHERE c > 1 AND a < 10000 | EVAL d = a + 500)
                    (WHERE d > 1000 AND e == "aaa" | EVAL c = a + 200)
             | WHERE x > y
-            """, ALL_FIELDS);
+            """, Set.of("x", "y", "a", "d", "e", "b", "c", "e.*", "d.*", "y.*", "x.*", "a.*", "c.*", "b.*"));
     }
 
     public void testForkFieldsWithNoProjection() {
@@ -2108,21 +2119,25 @@ public class FieldNameUtilsTests extends ESTestCase {
             | FORK (WHERE c > 1 AND a < 10000 | EVAL d = a + 500)
                    (STATS x = count(*), y=min(z))
             | WHERE x > y
-            """, ALL_FIELDS);
+            """, Set.of("x", "y", "a", "c", "z", "y.*", "x.*", "z.*", "a.*", "c.*"));
     }
 
     public void testForkFieldsWithEnrichAndLookupJoins() {
-        assertFieldNames("""
-            FROM test
-            | KEEP a, b, abc, def, z, xyz
-            | ENRICH enrich_policy ON abc
-            | EVAL b = a + 100
-            | LOOKUP JOIN my_lookup_index ON def
-            | FORK (WHERE c > 1 AND a < 10000 | EVAL d = a + 500)
-                   (STATS x = count(*), y=min(z))
-            | LOOKUP JOIN my_lookup_index ON xyz
-            | WHERE x > y OR _fork == "fork1"
-            """, ALL_FIELDS);
+        assertFieldNames(
+            """
+                FROM test
+                | KEEP a, b, abc, def, z, xyz
+                | ENRICH enrich_policy ON abc
+                | EVAL b = a + 100
+                | LOOKUP JOIN my_lookup_index ON def
+                | FORK (WHERE c > 1 AND a < 10000 | EVAL d = a + 500)
+                       (STATS x = count(*), y=min(z))
+                | LOOKUP JOIN my_lookup_index ON xyz
+                | WHERE x > y OR _fork == "fork1"
+                """,
+            Set.of("x", "y", "a", "c", "abc", "b", "def", "z", "xyz", "def.*", "y.*", "x.*", "xyz.*", "z.*", "abc.*", "a.*", "c.*", "b.*"),
+            Set.of("my_lookup_index")
+        );
     }
 
     public void testForkWithStatsInAllBranches() {
@@ -2134,11 +2149,815 @@ public class FieldNameUtilsTests extends ESTestCase {
                    (EVAL z = a * b | STATS m = max(z))
                    (STATS x = count(*), y=min(z))
             | WHERE x > y
-            """, ALL_FIELDS);
+            """, Set.of("x", "y", "c", "a", "z", "y.*", "x.*", "z.*", "a.*", "c.*"));
+    }
+
+    public void testForkWithStatsInAllBranches1() {
+        assertFieldNames("""
+            FROM employees
+            | FORK
+                   ( STATS x = min(last_name))
+                   ( EVAL last_name = first_name  | STATS y = max(last_name))
+            """, Set.of("first_name", "last_name", "first_name.*", "last_name.*"));
+    }
+
+    public void testForkWithStatsInAllBranches2() {
+        assertFieldNames("""
+            FROM employees
+            | FORK
+                   ( EVAL last_name = first_name  | STATS y = VALUES(last_name))
+                   ( STATS x = VALUES(last_name))
+            """, Set.of("first_name", "last_name", "first_name.*", "last_name.*"));
     }
 
     public void testForkWithStatsAndWhere() {
-        assertFieldNames(" FROM employees | FORK ( WHERE true | stats min(salary) by gender) ( WHERE true | LIMIT 3 )", ALL_FIELDS);
+        assertFieldNames(
+            " FROM employees | FORK ( WHERE true | stats min(salary) by gender) ( WHERE true | LIMIT 3 )",
+            IndexResolver.ALL_FIELDS
+        );
+    }
+
+    public void testNullString() {
+        assertFieldNames("""
+             FROM sample_data
+            | EVAL x = null::string
+            | STATS COUNT() BY category=CATEGORIZE(x)
+            | SORT category""", Set.of("_index"));
+    }
+
+    public void testNullStringWithFork() {
+        assertFieldNames("""
+             FROM sample_data
+            | EVAL x = null::string
+            | STATS COUNT() BY category=CATEGORIZE(x)
+            | SORT category
+            | FORK (WHERE true) (WHERE true) | WHERE _fork == "fork1" | DROP _fork""", IndexResolver.ALL_FIELDS);
+    }
+
+    public void testSingleFork() {
+        assertFieldNames("""
+             FROM employees
+            | FORK
+               ( STATS x = count(*))
+               ( WHERE emp_no == "2" )
+            | SORT _fork""", IndexResolver.ALL_FIELDS);
+    }
+
+    public void testForkRefs1() {
+        assertFieldNames("""
+            FROM employees
+            | KEEP first_name, last_name
+            | FORK
+               ( EVAL x = first_name)
+               ( EVAL x = last_name)
+            """, Set.of("first_name", "last_name", "last_name.*", "first_name.*"));
+    }
+
+    public void testForkRefs2() {
+        assertFieldNames("""
+            FROM employees
+            | FORK
+               ( KEEP first_name | EVAL x = first_name)
+               ( KEEP last_name | EVAL x = last_name)
+            """, Set.of("first_name", "last_name", "last_name.*", "first_name.*"));
+    }
+
+    public void testForkRefs3() {
+        assertFieldNames("""
+            FROM employees
+            | FORK
+               ( KEEP first_name | EVAL last_name = first_name)
+               ( KEEP first_name | EVAL x = first_name)
+            """, Set.of("first_name", "first_name.*"));
+    }
+
+    public void testForkRef4() {
+        assertFieldNames("""
+            from employees
+            | sort emp_no
+            | limit 1
+            | FORK
+               (eval x = to_string(languages) | enrich languages_policy on x | keep language_name)
+               (eval y = to_string(emp_no) | enrich languages_policy on y | keep emp_no)
+            """, Set.of("emp_no", "emp_no.*", "languages", "languages.*", "language_name", "language_name.*", "x", "x.*", "y", "y.*"));
+    }
+
+    public void testRerankerAfterFuse() {
+        assertFieldNames("""
+            FROM books METADATA _id, _index, _score
+            | FORK ( WHERE title:"Tolkien" | SORT _score, _id DESC | LIMIT 3 )
+            ( WHERE author:"Tolkien" | SORT _score, _id DESC | LIMIT 3 )
+            | FUSE
+            | RERANK "Tolkien" ON title WITH { "inference_id" : "test_reranker" }
+            | EVAL _score=ROUND(_score, 2)
+            | SORT _score DESC, book_no ASC
+            | LIMIT 2
+            | KEEP book_no, title, author, _score""", Set.of("book_no", "title", "author", "title.*", "author.*", "book_no.*"));
+    }
+
+    public void testSimpleFuse() {
+        assertFieldNames("""
+            FROM employees METADATA _id, _index, _score
+            | FORK ( WHERE emp_no:10001 )
+            ( WHERE emp_no:10002 )
+            | FUSE
+            | EVAL _score = round(_score, 4)
+            | KEEP _score, _fork, emp_no
+            | SORT _score, _fork, emp_no""", Set.of("emp_no", "emp_no.*"));
+    }
+
+    public void testFuseWithMatchAndScore() {
+        assertFieldNames("""
+            FROM books METADATA _id, _index, _score
+            | FORK ( WHERE title:"Tolkien" | SORT _score, _id DESC | LIMIT 3 )
+            ( WHERE author:"Tolkien" | SORT _score, _id DESC | LIMIT 3 )
+            | FUSE
+            | SORT _score DESC, _id, _index
+            | EVAL _fork = mv_sort(_fork)
+            | EVAL _score = round(_score, 5)
+            | KEEP _score, _fork, _id""", Set.of("title", "author", "title.*", "author.*"));
+    }
+
+    public void testFuseWithDisjunctionAndPostFilter() {
+        assertFieldNames("""
+            FROM books METADATA _id, _index, _score
+            | FORK ( WHERE title:"Tolkien" OR author:"Tolkien" | SORT _score, _id DESC | LIMIT 3 )
+            ( WHERE author:"Tolkien" | SORT _score, _id DESC | LIMIT 3 )
+            | FUSE
+            | SORT _score DESC, _id, _index
+            | EVAL _fork = mv_sort(_fork)
+            | EVAL _score = round(_score, 5)
+            | KEEP _score, _fork, _id
+            | WHERE _score > 0.014""", Set.of("title", "author", "title.*", "author.*"));
+    }
+
+    public void testFuseWithStats() {
+        assertFieldNames("""
+            FROM books METADATA _id, _index, _score
+            | FORK ( WHERE title:"Tolkien" | SORT _score, _id DESC | LIMIT 3 )
+            ( WHERE author:"Tolkien" | SORT _score, _id DESC | LIMIT 3 )
+            ( WHERE author:"Ursula K. Le Guin" AND title:"short stories" | SORT _score, _id DESC | LIMIT 3)
+            | FUSE
+            | STATS count_fork=COUNT(*) BY _fork
+            | SORT _fork""", Set.of("title", "author", "title.*", "author.*"));
+    }
+
+    public void testFuseWithMultipleForkBranches() {
+        assertFieldNames("""
+            FROM books METADATA _id, _index, _score
+            | FORK (WHERE author:"Keith Faulkner" AND qstr("author:Rory or author:Beverlie") | SORT _score, _id DESC | LIMIT 3)
+            (WHERE author:"Ursula K. Le Guin" | SORT _score, _id DESC | LIMIT 3)
+            (WHERE title:"Tolkien" AND author:"Tolkien" AND year > 2000 AND mv_count(author) == 1 | SORT _score, _id DESC | LIMIT 3)
+            (WHERE match(author, "Keith Faulkner") AND match(author, "Rory Tyger") | SORT _score, _id DESC | LIMIT 3)
+            | FUSE
+            | SORT _score DESC, _id, _index
+            | EVAL _fork = mv_sort(_fork)
+            | EVAL _score = round(_score, 4)
+            | EVAL title = trim(substring(title, 1, 20))
+            | KEEP _score, author, title, _fork""", Set.of("author", "title", "year", "title.*", "author.*", "year.*"));
+    }
+
+    public void testFuseWithSemanticSearch() {
+        assertFieldNames("""
+            FROM semantic_text METADATA _id, _score, _index
+            | FORK ( WHERE semantic_text_field:"something" | SORT _score DESC | LIMIT 2)
+            ( WHERE semantic_text_field:"something else" | SORT _score DESC | LIMIT 2)
+            | FUSE
+            | SORT _score DESC, _id, _index
+            | EVAL _score = round(_score, 4)
+            | EVAL _fork = mv_sort(_fork)
+            | KEEP _fork, _score, _id, semantic_text_field""", Set.of("semantic_text_field", "semantic_text_field.*"));
+    }
+
+    public void testSimpleFork() {
+        assertFieldNames("""
+            FROM employees
+            | FORK ( WHERE emp_no == 10001 )
+            ( WHERE emp_no == 10002 )
+            | KEEP emp_no, _fork
+            | SORT emp_no""", Set.of("emp_no", "emp_no.*"));
+    }
+
+    public void testSimpleForkWithStats() {
+        assertFieldNames("""
+            FROM books METADATA _score
+            | WHERE author:"Faulkner"
+            | EVAL score = round(_score, 2)
+            | FORK (SORT score DESC, author | LIMIT 5 | KEEP author, score)
+            (STATS total = COUNT(*))
+            | SORT _fork, score DESC, author""", Set.of("score", "author", "score.*", "author.*"));
+    }
+
+    public void testForkWithWhereSortAndLimit() {
+        assertFieldNames("""
+            FROM employees
+            | FORK ( WHERE hire_date < "1985-03-01T00:00:00Z" | SORT first_name | LIMIT 5 )
+            ( WHERE hire_date < "1988-03-01T00:00:00Z" | SORT first_name | LIMIT 5 )
+            | KEEP emp_no, first_name, _fork
+            | SORT emp_no, _fork""", Set.of("emp_no", "first_name", "hire_date", "first_name.*", "hire_date.*", "emp_no.*"));
+    }
+
+    public void testFiveFork() {
+        assertFieldNames("""
+            FROM employees
+            | FORK ( WHERE emp_no == 10005 )
+            ( WHERE emp_no == 10004 )
+            ( WHERE emp_no == 10003 )
+            ( WHERE emp_no == 10002 )
+            ( WHERE emp_no == 10001 )
+            | KEEP  _fork, emp_no
+            | SORT _fork""", Set.of("emp_no", "emp_no.*"));
+    }
+
+    public void testForkWithWhereSortDescAndLimit() {
+        assertFieldNames("""
+            FROM employees
+            | FORK ( WHERE hire_date < "1985-03-01T00:00:00Z" | SORT first_name DESC | LIMIT 2 )
+            ( WHERE hire_date < "1988-03-01T00:00:00Z" | SORT first_name DESC NULLS LAST | LIMIT 2 )
+            | KEEP _fork, emp_no, first_name
+            | SORT _fork, first_name DESC""", Set.of("first_name", "emp_no", "hire_date", "first_name.*", "hire_date.*", "emp_no.*"));
+    }
+
+    public void testForkWithCommonPrefilter() {
+        assertFieldNames("""
+            FROM employees
+            | WHERE emp_no > 10050
+            | FORK ( SORT emp_no ASC | LIMIT 2 )
+            ( SORT emp_no DESC NULLS LAST | LIMIT 2 )
+            | KEEP _fork, emp_no
+            | SORT _fork, emp_no""", Set.of("emp_no", "emp_no.*"));
+    }
+
+    public void testForkWithSemanticSearchAndScore() {
+        assertFieldNames("""
+            FROM semantic_text METADATA _id, _score
+            | FORK ( WHERE semantic_text_field:"something" | SORT _score DESC | LIMIT 2)
+            ( WHERE semantic_text_field:"something else" | SORT _score DESC | LIMIT 2)
+            | EVAL _score = round(_score, 4)
+            | SORT _fork, _score, _id
+            | KEEP _fork, _score, _id, semantic_text_field""", Set.of("semantic_text_field", "semantic_text_field.*"));
+    }
+
+    public void testForkWithEvals() {
+        assertFieldNames("""
+            FROM employees
+            | FORK (WHERE emp_no == 10048 OR emp_no == 10081 | EVAL x = "abc" | EVAL y = 1)
+            (WHERE emp_no == 10081 OR emp_no == 10087 | EVAL x = "def" | EVAL z = 2)
+            | KEEP _fork, emp_no, x, y, z
+            | SORT _fork, emp_no""", Set.of("emp_no", "x", "y", "z", "y.*", "x.*", "z.*", "emp_no.*"));
+    }
+
+    public void testForkWithStats() {
+        assertFieldNames("""
+            FROM employees
+            | FORK (WHERE emp_no == 10048 OR emp_no == 10081)
+            (WHERE emp_no == 10081 OR emp_no == 10087)
+            (STATS x = COUNT(*), y = MAX(emp_no), z = MIN(emp_no))
+            (STATS x = COUNT(*), y = MIN(emp_no))
+            | KEEP _fork, emp_no, x, y, z
+            | SORT _fork, emp_no""", Set.of("emp_no", "x", "y", "z", "y.*", "x.*", "z.*", "emp_no.*"));
+    }
+
+    public void testForkWithDissect() {
+        assertFieldNames(
+            """
+                FROM employees
+                | WHERE emp_no == 10048 OR emp_no == 10081
+                | FORK (EVAL a = CONCAT(first_name, " ", emp_no::keyword, " ", last_name)
+                | DISSECT a "%{x} %{y} %{z}" )
+                (EVAL b = CONCAT(last_name, " ", emp_no::keyword, " ", first_name)
+                | DISSECT b "%{x} %{y} %{w}" )
+                | KEEP _fork, emp_no, x, y, z, w
+                | SORT _fork, emp_no""",
+            Set.of(
+                "emp_no",
+                "x",
+                "y",
+                "z",
+                "w",
+                "first_name",
+                "last_name",
+                "w.*",
+                "y.*",
+                "last_name.*",
+                "x.*",
+                "z.*",
+                "first_name.*",
+                "emp_no.*"
+            )
+        );
+    }
+
+    public void testForkWithMixOfCommands() {
+        assertFieldNames(
+            """
+                FROM employees
+                | WHERE emp_no == 10048 OR emp_no == 10081
+                | FORK ( EVAL a = CONCAT(first_name, " ", emp_no::keyword, " ", last_name)
+                | DISSECT a "%{x} %{y} %{z}"
+                | EVAL y = y::keyword )
+                ( STATS x = COUNT(*)::keyword, y = MAX(emp_no)::keyword, z = MIN(emp_no)::keyword )
+                ( SORT emp_no ASC | LIMIT 2 | EVAL x = last_name )
+                ( EVAL x = "abc" | EVAL y = "aaa" )
+                | KEEP _fork, emp_no, x, y, z, a
+                | SORT _fork, emp_no""",
+            Set.of(
+                "emp_no",
+                "x",
+                "y",
+                "z",
+                "a",
+                "first_name",
+                "last_name",
+                "y.*",
+                "last_name.*",
+                "x.*",
+                "z.*",
+                "first_name.*",
+                "a.*",
+                "emp_no.*"
+            )
+        );
+    }
+
+    public void testForkWithFiltersOnConstantValues() {
+        assertFieldNames("""
+            FROM employees
+            | EVAL z = 1
+            | WHERE z == 1
+            | FORK (WHERE emp_no == 10048 OR emp_no == 10081 | WHERE z - 1 == 0)
+            (WHERE emp_no == 10081 OR emp_no == 10087 | EVAL a = "x" )
+            (STATS x = COUNT(*), y = MAX(emp_no), z = MIN(emp_no) | EVAL a = "y" )
+            (STATS x = COUNT(*), y = MIN(emp_no))
+            | WHERE _fork == "fork2" OR a == "y"
+            | KEEP _fork, emp_no, x, y, z
+            | SORT _fork, emp_no""", Set.of("emp_no", "a", "a.*", "emp_no.*"));
+    }
+
+    public void testForkWithUnsupportedAttributes() {
+        assertFieldNames("""
+            FROM heights
+            | FORK (SORT description DESC | LIMIT 1 | EVAL x = length(description) )
+            (SORT description ASC | LIMIT 1)
+            | SORT _fork""", ALL_FIELDS);
+    }
+
+    public void testForkAfterLookupJoin() {
+        assertFieldNames(
+            """
+                FROM employees
+                | EVAL language_code = languages
+                | LOOKUP JOIN languages_lookup ON language_code
+                | FORK (WHERE emp_no == 10048 OR emp_no == 10081)
+                (WHERE emp_no == 10081 OR emp_no == 10087)
+                (WHERE emp_no == 10081 | EVAL language_name = "Klingon")
+                | KEEP _fork, emp_no, language_code, language_name
+                | SORT _fork, emp_no""",
+            Set.of(
+                "emp_no",
+                "language_code",
+                "language_name",
+                "languages",
+                "_fork",
+                "_fork.*",
+                "language_code.*",
+                "language_name.*",
+                "languages.*",
+                "emp_no.*"
+            )
+        );
+    }
+
+    public void testForkBeforeLookupJoin() {
+        assertFieldNames(
+            """
+                FROM employees
+                | EVAL language_code = languages
+                | FORK (WHERE emp_no == 10048 OR emp_no == 10081)
+                (WHERE emp_no == 10081 OR emp_no == 10087)
+                (WHERE emp_no == 10081 | EVAL language_name = "Klingon")
+                | LOOKUP JOIN languages_lookup ON language_code
+                | KEEP _fork, emp_no, language_code, language_name
+                | SORT _fork, emp_no""",
+            Set.of(
+                "emp_no",
+                "language_code",
+                "language_name",
+                "languages",
+                "_fork",
+                "_fork.*",
+                "language_code.*",
+                "language_name.*",
+                "languages.*",
+                "emp_no.*"
+            )
+        );
+    }
+
+    public void testForkBranchWithLookupJoin() {
+        assertFieldNames(
+            """
+                FROM employees
+                | EVAL language_code = languages
+                | FORK (WHERE emp_no == 10048 OR emp_no == 10081 | LOOKUP JOIN languages_lookup ON language_code)
+                (WHERE emp_no == 10081 OR emp_no == 10087 | LOOKUP JOIN languages_lookup ON language_code)
+                (WHERE emp_no == 10081 | EVAL language_name = "Klingon" | LOOKUP JOIN languages_lookup ON language_code)
+                | KEEP _fork, emp_no, language_code, language_name
+                | SORT _fork, emp_no""",
+            Set.of(
+                "emp_no",
+                "language_code",
+                "language_name",
+                "languages",
+                "_fork",
+                "_fork.*",
+                "language_code.*",
+                "language_name.*",
+                "languages.*",
+                "emp_no.*"
+            )
+        );
+    }
+
+    public void testForkBeforeStats() {
+        assertFieldNames(
+            """
+                FROM employees
+                | WHERE emp_no == 10048 OR emp_no == 10081
+                | FORK ( EVAL a = CONCAT(first_name, " ", emp_no::keyword, " ", last_name)
+                | DISSECT a "%{x} %{y} %{z}"
+                | EVAL y = y::keyword )
+                ( STATS x = COUNT(*)::keyword, y = MAX(emp_no)::keyword, z = MIN(emp_no)::keyword )
+                ( SORT emp_no ASC | LIMIT 2 | EVAL x = last_name )
+                ( EVAL x = "abc" | EVAL y = "aaa" )
+                | STATS c = count(*), m = max(_fork)""",
+            Set.of("first_name", "emp_no", "last_name", "last_name.*", "first_name.*", "emp_no.*")
+        );
+    }
+
+    public void testForkBeforeStatsWithWhere() {
+        assertFieldNames("""
+            FROM employees
+            | WHERE emp_no == 10048 OR emp_no == 10081
+            | FORK ( EVAL a = CONCAT(first_name, " ", emp_no::keyword, " ", last_name)
+            | DISSECT a "%{x} %{y} %{z}"
+            | EVAL y = y::keyword )
+            ( STATS x = COUNT(*)::keyword, y = MAX(emp_no)::keyword, z = MIN(emp_no)::keyword )
+            ( SORT emp_no ASC | LIMIT 2 | EVAL x = last_name )
+            ( EVAL x = "abc" | EVAL y = "aaa" )
+            | STATS a = count(*) WHERE _fork == "fork1",
+            b = max(_fork)""", Set.of("first_name", "emp_no", "last_name", "last_name.*", "first_name.*", "emp_no.*"));
+    }
+
+    public void testForkBeforeStatsByWithWhere() {
+        assertFieldNames("""
+            FROM employees
+            | WHERE emp_no == 10048 OR emp_no == 10081
+            | FORK ( EVAL a = CONCAT(first_name, " ", emp_no::keyword, " ", last_name)
+            | DISSECT a "%{x} %{y} %{z}"
+            | EVAL y = y::keyword )
+            ( STATS x = COUNT(*)::keyword, y = MAX(emp_no)::keyword, z = MIN(emp_no)::keyword )
+            ( SORT emp_no ASC | LIMIT 2 | EVAL x = last_name )
+            ( EVAL x = "abc" | EVAL y = "aaa" )
+            | STATS a = count(*)  WHERE emp_no > 10000,
+            b = max(x) WHERE _fork == "fork1" BY _fork
+            | SORT _fork""", Set.of("emp_no", "x", "first_name", "last_name", "last_name.*", "x.*", "first_name.*", "emp_no.*"));
+    }
+
+    public void testForkAfterDrop() {
+        assertFieldNames("""
+            FROM languages
+            | DROP language_code
+            | FORK ( WHERE language_name == "English" | EVAL x = 1 )
+            ( WHERE language_name != "English" )
+            | SORT _fork, language_name""", ALL_FIELDS);
+    }
+
+    public void testForkBranchWithDrop() {
+        assertFieldNames("""
+            FROM languages
+            | FORK ( EVAL x = 1 | DROP language_code | WHERE language_name == "English" | DROP x )
+            ( WHERE language_name != "English" )
+            | SORT _fork, language_name
+            | KEEP language_name, language_code, _fork""", Set.of("language_name", "language_code", "language_code.*", "language_name.*"));
+    }
+
+    public void testForkBeforeDrop() {
+        assertFieldNames("""
+            FROM languages
+            | FORK (WHERE language_code == 1 OR language_code == 2)
+            (WHERE language_code == 1)
+            | DROP language_code
+            | SORT _fork, language_name""", ALL_FIELDS);
+    }
+
+    public void testForkBranchWithKeep() {
+        assertFieldNames("""
+            FROM languages
+            | FORK ( WHERE language_name == "English" | KEEP language_name, language_code )
+            ( WHERE language_name != "English" )
+            | SORT _fork, language_name""", Set.of("language_name", "language_code", "language_code.*", "language_name.*"));
+    }
+
+    public void testForkBeforeRename() {
+        assertFieldNames("""
+            FROM languages
+            | FORK (WHERE language_code == 1 OR language_code == 2)
+            (WHERE language_code == 1)
+            | RENAME language_code AS code
+            | SORT _fork, language_name""", ALL_FIELDS);
+    }
+
+    public void testForkBranchWithRenameAs() {
+        assertFieldNames("""
+            FROM languages
+            | FORK (RENAME language_code AS code | WHERE code == 1 OR code == 2)
+            (WHERE language_code == 1 | RENAME language_code AS x)
+            | SORT _fork, language_name
+            | KEEP code, language_name, x, _fork""", Set.of("language_name", "language_code", "language_code.*", "language_name.*"));
+    }
+
+    public void testForkBranchWithRenameEquals() {
+        assertFieldNames("""
+            FROM languages
+            | FORK (RENAME code = language_code | WHERE code == 1 OR code == 2)
+            (WHERE language_code == 1 | RENAME x = language_code)
+            | SORT _fork, language_name
+            | KEEP code, language_name, x, _fork""", Set.of("language_name", "language_code", "language_code.*", "language_name.*"));
+    }
+
+    public void testForkAfterRename() {
+        assertFieldNames("""
+            FROM languages
+            | RENAME language_code AS code
+            | FORK (WHERE code == 1 OR code == 2)
+            (WHERE code == 1)
+            | SORT _fork, language_name""", ALL_FIELDS);
+    }
+
+    public void testForkBeforeDissect() {
+        assertFieldNames("""
+            FROM employees
+            | FORK (WHERE emp_no == 10048 OR emp_no == 10081)
+            (WHERE emp_no == 10081 OR emp_no == 10087)
+            | EVAL x = concat(gender, " foobar")
+            | DISSECT x "%{a} %{b}"
+            | SORT _fork, emp_no
+            | KEEP emp_no, gender, x, a, b, _fork""", Set.of("emp_no", "gender", "gender.*", "emp_no.*"));
+    }
+
+    public void testForkBranchWithDissect() {
+        assertFieldNames("""
+            FROM employees
+            | FORK (WHERE emp_no == 10048 OR emp_no == 10081
+            | EVAL x = concat(gender, " foobar")
+            | DISSECT x "%{a} %{b}")
+            (WHERE emp_no == 10081 OR emp_no == 10087)
+            | SORT _fork, emp_no
+            | KEEP emp_no, gender, x, a, b, _fork""", Set.of("emp_no", "gender", "gender.*", "emp_no.*"));
+    }
+
+    public void testForkAfterDissect() {
+        assertFieldNames("""
+            FROM employees
+            | EVAL x = concat(gender, " foobar")
+            | DISSECT x "%{a} %{b}"
+            | FORK (WHERE emp_no == 10048 OR emp_no == 10081)
+            (WHERE emp_no == 10081 OR emp_no == 10087)
+            | SORT _fork, emp_no
+            | KEEP emp_no, gender, x, a, b, _fork""", Set.of("emp_no", "gender", "gender.*", "emp_no.*"));
+    }
+
+    public void testForkAfterEnrich() {
+        assertFieldNames(
+            """
+                FROM addresses
+                | KEEP city.country.continent.planet.name, city.country.name, city.name
+                | EVAL city.name = REPLACE(city.name, "San Francisco", "South San Francisco")
+                | ENRICH city_names ON city.name WITH city.country.continent.planet.name = airport
+                | FORK (WHERE city.name != "Amsterdam")
+                (WHERE city.country.name == "Japan")
+                | SORT _fork, city.name""",
+            Set.of(
+                "city.name",
+                "airport",
+                "city.country.continent.planet.name",
+                "city.country.name",
+                "city.country.continent.planet.name.*",
+                "city.name.*",
+                "city.country.name.*",
+                "airport.*"
+            )
+        );
+    }
+
+    public void testForkBranchWithEnrich() {
+        assertFieldNames(
+            """
+                FROM addresses
+                | KEEP city.country.continent.planet.name, city.country.name, city.name
+                | EVAL city.name = REPLACE(city.name, "San Francisco", "South San Francisco")
+                | FORK (ENRICH city_names ON city.name WITH city.country.continent.planet.name = airport)
+                (ENRICH city_names ON city.name WITH city.country.continent.planet.name = airport)
+                | SORT _fork, city.name""",
+            Set.of(
+                "city.name",
+                "airport",
+                "city.country.continent.planet.name",
+                "city.country.name",
+                "city.country.continent.planet.name.*",
+                "city.name.*",
+                "city.country.name.*",
+                "airport.*"
+            )
+        );
+    }
+
+    public void testForkBeforeEnrich() {
+        assertFieldNames(
+            """
+                FROM addresses
+                | KEEP city.country.continent.planet.name, city.country.name, city.name
+                | EVAL city.name = REPLACE(city.name, "San Francisco", "South San Francisco")
+                | FORK (WHERE city.country.name == "Netherlands")
+                (WHERE city.country.name != "Japan")
+                | ENRICH city_names ON city.name WITH city.country.continent.planet.name = airport
+                | SORT _fork, city.name""",
+            Set.of(
+                "city.name",
+                "airport",
+                "city.country.name",
+                "city.country.continent.planet.name",
+                "city.country.continent.planet.name.*",
+                "city.name.*",
+                "city.country.name.*",
+                "airport.*"
+            )
+        );
+    }
+
+    public void testForkBeforeMvExpand() {
+        assertFieldNames("""
+            FROM employees
+            | KEEP emp_no, job_positions
+            | FORK (WHERE emp_no == 10048 OR emp_no == 10081)
+            (WHERE emp_no == 10081 OR emp_no == 10087)
+            | MV_EXPAND job_positions
+            | SORT _fork, emp_no, job_positions""", Set.of("emp_no", "job_positions", "job_positions.*", "emp_no.*"));
+    }
+
+    public void testForkBranchWithMvExpand() {
+        assertFieldNames("""
+            FROM employees
+            | KEEP emp_no, job_positions
+            | FORK (WHERE emp_no == 10048 OR emp_no == 10081 | MV_EXPAND job_positions)
+            (WHERE emp_no == 10081 OR emp_no == 10087)
+            | SORT _fork, emp_no, job_positions""", Set.of("emp_no", "job_positions", "job_positions.*", "emp_no.*"));
+    }
+
+    public void testForkAfterMvExpand() {
+        assertFieldNames("""
+            FROM employees
+            | KEEP emp_no, job_positions
+            | MV_EXPAND job_positions
+            | FORK (WHERE emp_no == 10048 OR emp_no == 10081)
+            (WHERE emp_no == 10081 OR emp_no == 10087)
+            | SORT _fork, emp_no, job_positions""", Set.of("emp_no", "job_positions", "job_positions.*", "emp_no.*"));
+    }
+
+    public void testForkBeforeInlineStatsIgnore() {
+        assertFieldNames("""
+            FROM employees
+            | KEEP emp_no, languages, gender
+            | FORK (WHERE emp_no == 10048 OR emp_no == 10081)
+            (WHERE emp_no == 10081 OR emp_no == 10087)
+            | INLINESTATS max_lang = MAX(languages) BY gender
+            | SORT emp_no, gender, _fork
+            | LIMIT 5""", Set.of("emp_no", "gender", "languages", "gender.*", "languages.*", "emp_no.*"));
+    }
+
+    public void testForkBranchWithInlineStatsIgnore() {
+        assertFieldNames("""
+            FROM employees
+            | KEEP emp_no, languages, gender
+            | FORK (WHERE emp_no == 10048 OR emp_no == 10081
+            | INLINESTATS x = MAX(languages) BY gender)
+            (WHERE emp_no == 10081 OR emp_no == 10087
+            | INLINESTATS x = MIN(languages))
+            (WHERE emp_no == 10012 OR emp_no == 10012)
+            | SORT emp_no, gender, _fork""", Set.of("emp_no", "gender", "languages", "gender.*", "languages.*", "emp_no.*"));
+    }
+
+    public void testForkAfterInlineStatsIgnore() {
+        assertFieldNames("""
+            FROM employees
+            | KEEP emp_no, languages, gender
+            | INLINESTATS max_lang = MAX(languages) BY gender
+            | FORK (WHERE emp_no == 10048 OR emp_no == 10081)
+            (WHERE emp_no == 10081 OR emp_no == 10087)
+            | SORT emp_no, gender, _fork""", Set.of("emp_no", "gender", "languages", "gender.*", "languages.*", "emp_no.*"));
+    }
+
+    public void testForkBeforeChangePoint() {
+        assertFieldNames("""
+            FROM employees
+            | KEEP emp_no, salary
+            | EVAL salary=CASE(emp_no==10042, 1000000, salary)
+            | FORK (WHERE emp_no > 10100)
+            (WHERE emp_no <= 10100)
+            | CHANGE_POINT salary ON emp_no
+            | STATS COUNT() by type
+            | SORT type""", Set.of("type", "emp_no", "salary", "type.*", "salary.*", "emp_no.*"));
+    }
+
+    public void testForkBranchWithChangePoint() {
+        assertFieldNames("""
+            FROM employees
+            | KEEP emp_no, salary
+            | FORK (EVAL salary=CASE(emp_no==10042, 1000000, salary)
+            | CHANGE_POINT salary ON emp_no)
+            (EVAL salary=CASE(emp_no==10087, 1000000, salary)
+            | CHANGE_POINT salary ON emp_no)
+            | STATS COUNT() by type, _fork
+            | SORT _fork, type""", Set.of("type", "emp_no", "salary", "type.*", "salary.*", "emp_no.*"));
+    }
+
+    public void testForkAfterChangePoint() {
+        assertFieldNames("""
+            FROM employees
+            | KEEP emp_no, salary
+            | EVAL salary = CASE(emp_no==10042, 1000000, salary)
+            | CHANGE_POINT salary ON emp_no
+            | FORK (STATS a = COUNT() by type)
+            (STATS b = VALUES(type))
+            | SORT _fork, a, type, b""", Set.of("a", "type", "b", "emp_no", "salary", "type.*", "a.*", "salary.*", "b.*", "emp_no.*"));
+    }
+
+    public void testForkBeforeCompletion() {
+        assertFieldNames("""
+            FROM employees
+            | KEEP emp_no, first_name, last_name
+            | FORK (WHERE emp_no == 10048 OR emp_no == 10081)
+            (WHERE emp_no == 10081 OR emp_no == 10087)
+            | COMPLETION x=CONCAT(first_name, " ", last_name) WITH { "inference_id" : "test_completion" }
+            | SORT _fork, emp_no""", Set.of("emp_no", "first_name", "last_name", "last_name.*", "first_name.*", "emp_no.*"));
+    }
+
+    public void testForkBranchWithCompletion() {
+        assertFieldNames("""
+            FROM employees
+            | KEEP emp_no, first_name, last_name
+            | FORK (WHERE emp_no == 10048 OR emp_no == 10081
+            | COMPLETION x=CONCAT(first_name, " ", last_name) WITH { "inference_id" : "test_completion" })
+            (WHERE emp_no == 10081 OR emp_no == 10087)
+            | SORT _fork, emp_no""", Set.of("emp_no", "first_name", "last_name", "last_name.*", "first_name.*", "emp_no.*"));
+    }
+
+    public void testForkAfterCompletion() {
+        assertFieldNames("""
+            FROM employees
+            | KEEP emp_no, first_name, last_name
+            | COMPLETION x=CONCAT(first_name, " ", last_name) WITH { "inference_id" : "test_completion" }
+            | FORK (WHERE emp_no == 10048 OR emp_no == 10081)
+            (WHERE emp_no == 10081 OR emp_no == 10087)
+            | SORT _fork, emp_no""", Set.of("emp_no", "first_name", "last_name", "last_name.*", "first_name.*", "emp_no.*"));
+    }
+
+    public void testForkAfterGrok() {
+        assertFieldNames("""
+            FROM employees
+            | EVAL x = concat(gender, " foobar")
+            | GROK x "%{WORD:a} %{WORD:b}"
+            | FORK (WHERE emp_no == 10048 OR emp_no == 10081)
+            (WHERE emp_no == 10081 OR emp_no == 10087)
+            | SORT _fork, emp_no
+            | KEEP emp_no, gender, x, a, b, _fork""", Set.of("emp_no", "gender", "gender.*", "emp_no.*"));
+    }
+
+    public void testForkBranchWithGrok() {
+        assertFieldNames(
+            """
+                FROM employees
+                | WHERE emp_no == 10048 OR emp_no == 10081
+                | FORK (EVAL a = CONCAT(first_name, " ", emp_no::keyword, " ", last_name)
+                | GROK a "%{WORD:x} %{WORD:y} %{WORD:z}" )
+                (EVAL b = CONCAT(last_name, " ", emp_no::keyword, " ", first_name)
+                | GROK b "%{WORD:x} %{WORD:y} %{WORD:z}" )
+                | KEEP _fork, emp_no, x, y, z
+                | SORT _fork, emp_no""",
+            Set.of("emp_no", "x", "y", "z", "first_name", "last_name", "y.*", "last_name.*", "x.*", "z.*", "first_name.*", "emp_no.*")
+        );
+    }
+
+    public void testForkBeforeGrok() {
+        assertFieldNames("""
+            FROM employees
+            | FORK (WHERE emp_no == 10048 OR emp_no == 10081)
+            (WHERE emp_no == 10081 OR emp_no == 10087)
+            | EVAL x = concat(gender, " foobar")
+            | GROK x "%{WORD:a} %{WORD:b}"
+            | SORT _fork, emp_no
+            | KEEP emp_no, gender, x, a, b, _fork""", Set.of("emp_no", "gender", "gender.*", "emp_no.*"));
     }
 
     private void assertFieldNames(String query, Set<String> expected) {

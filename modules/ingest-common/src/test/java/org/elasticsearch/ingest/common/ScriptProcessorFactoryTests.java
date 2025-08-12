@@ -10,6 +10,7 @@
 package org.elasticsearch.ingest.common;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.ingest.TestIngestDocument;
 import org.elasticsearch.script.CtxMap;
@@ -145,7 +146,8 @@ public class ScriptProcessorFactoryTests extends ESTestCase {
                 return null;
             }), Map.of())),
             new HashMap<>(ScriptModule.CORE_CONTEXTS),
-            () -> 1L
+            () -> 1L,
+            TestProjectResolvers.singleProject(randomProjectIdOrDefault())
         );
         factory = new ScriptProcessor.Factory(scriptService);
 

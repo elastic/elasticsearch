@@ -1143,7 +1143,6 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
             // dense
             return new BulkNumericDocValues() {
 
-                private final Thread creationThread = Thread.currentThread();
                 private final int maxDoc = ES819TSDBDocValuesProducer.this.maxDoc;
                 private int doc = -1;
                 private final TSDBDocValuesEncoder decoder = new TSDBDocValuesEncoder(ES819TSDBDocValuesFormat.NUMERIC_BLOCK_SIZE);

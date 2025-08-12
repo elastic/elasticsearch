@@ -58,7 +58,7 @@ public class SnapshotAndRelocationIT extends AbstractSnapshotIntegTestCase {
         final AtomicReference<CheckedRunnable<Exception>> delayedAction = new AtomicReference<>();
         final var delayedActionSetLatch = new CountDownLatch(1);
         MockTransportService.getInstance(masterNode)
-            .addRequestHandlingBehavior(SnapshotsService.UPDATE_SNAPSHOT_STATUS_ACTION_NAME, (handler, request, channel, task) -> {
+            .addRequestHandlingBehavior(TransportUpdateSnapshotStatusAction.NAME, (handler, request, channel, task) -> {
                 if (delayOnce.compareAndSet(false, true)) {
                     delayedAction.set(() -> handler.messageReceived(request, channel, task));
                     delayedActionSetLatch.countDown();

@@ -29,10 +29,14 @@ import org.elasticsearch.index.mapper.BlockLoader.Docs;
 import org.elasticsearch.index.mapper.BlockLoader.DoubleBuilder;
 import org.elasticsearch.index.mapper.BlockLoader.IntBuilder;
 import org.elasticsearch.index.mapper.BlockLoader.LongBuilder;
+import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
+import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.ElementType;
 import org.elasticsearch.index.mapper.vectors.VectorEncoderDecoder;
 import org.elasticsearch.search.fetch.StoredFieldsSpec;
 
 import java.io.IOException;
+
+import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.COSINE_MAGNITUDE_FIELD_SUFFIX;
 
 /**
  * A reader that supports reading doc-values from a Lucene segment in Block fashion.
@@ -511,10 +515,12 @@ public abstract class BlockDocValuesReader implements BlockLoader.AllReader {
     public static class DenseVectorBlockLoader extends DocValuesBlockLoader {
         private final String fieldName;
         private final int dimensions;
+        private final DenseVectorFieldMapper.DenseVectorFieldType fieldType;
 
-        public DenseVectorBlockLoader(String fieldName, int dimensions) {
+        public DenseVectorBlockLoader(String fieldName, int dimensions, DenseVectorFieldMapper.DenseVectorFieldType fieldType) {
             this.fieldName = fieldName;
             this.dimensions = dimensions;
+            this.fieldType = fieldType;
         }
 
         @Override
@@ -524,9 +530,26 @@ public abstract class BlockDocValuesReader implements BlockLoader.AllReader {
 
         @Override
         public AllReader reader(LeafReaderContext context) throws IOException {
-            FloatVectorValues floatVectorValues = context.reader().getFloatVectorValues(fieldName);
-            if (floatVectorValues != null) {
-                return new DenseVectorValuesBlockReader(floatVectorValues, dimensions);
+            switch (fieldType.getElementType()) {
+                case FLOAT -> {
+                    FloatVectorValues floatVectorValues = context.reader().getFloatVectorValues(fieldName);
+                    if (floatVectorValues != null) {
+                        if (fieldType.isNormalized()) {
+                            return new FloatDenseVectorNormalizedValuesBlockReader(
+                                floatVectorValues,
+                                dimensions,
+                                context.reader().getNumericDocValues(fieldType.name() + COSINE_MAGNITUDE_FIELD_SUFFIX)
+                            );
+                        }
+                        return new FloatDenseVectorValuesBlockReader(floatVectorValues, dimensions);
+                    }
+                }
+                case BYTE -> {
+                    ByteVectorValues byteVectorValues = context.reader().getByteVectorValues(fieldName);
+                    if (byteVectorValues != null) {
+                        return new ByteDenseVectorValuesBlockReader(byteVectorValues, dimensions);
+                    }
+                }
             }
             return new ConstantNullsReader();
         }
@@ -580,10 +603,77 @@ public abstract class BlockDocValuesReader implements BlockLoader.AllReader {
         public int docId() {
             return iterator.docID();
         }
+    }
+
+    private static class FloatDenseVectorValuesBlockReader extends DenseVectorValuesBlockReader<FloatVectorValues> {
+
+        FloatDenseVectorValuesBlockReader(FloatVectorValues floatVectorValues, int dimensions) {
+            super(floatVectorValues, dimensions);
+        }
+
+        protected void appendDoc(BlockLoader.FloatBuilder builder) throws IOException {
+            float[] floats = vectorValues.vectorValue(iterator.index());
+            assert floats.length == dimensions
+                : "unexpected dimensions for vector value; expected " + dimensions + " but got " + floats.length;
+            for (float aFloat : floats) {
+                builder.appendFloat(aFloat);
+            }
+        }
 
         @Override
         public String toString() {
-            return "BlockDocValuesReader.FloatVectorValuesBlockReader";
+            return "BlockDocValuesReader.FloatDenseVectorValuesBlockReader";
+        }
+    }
+
+    private static class FloatDenseVectorNormalizedValuesBlockReader extends DenseVectorValuesBlockReader<FloatVectorValues> {
+        private final NumericDocValues magnitudeDocValues;
+
+        FloatDenseVectorNormalizedValuesBlockReader(
+            FloatVectorValues floatVectorValues,
+            int dimensions,
+            NumericDocValues magnitudeDocValues
+        ) {
+            super(floatVectorValues, dimensions);
+            this.magnitudeDocValues = magnitudeDocValues;
+        }
+
+        @Override
+        protected void appendDoc(BlockLoader.FloatBuilder builder) throws IOException {
+            float[] floats = vectorValues.vectorValue(iterator.index());
+            assert floats.length == dimensions
+                : "unexpected dimensions for vector value; expected " + dimensions + " but got " + floats.length;
+
+            assert magnitudeDocValues.advanceExact(iterator.docID());
+            float magnitude = Float.intBitsToFloat((int) magnitudeDocValues.longValue());
+            for (float aFloat : floats) {
+                builder.appendFloat(aFloat * magnitude);
+            }
+        }
+
+        @Override
+        public String toString() {
+            return "BlockDocValuesReader.FloatDenseVectorNormalizedValuesBlockReader";
+        }
+    }
+
+    private static class ByteDenseVectorValuesBlockReader extends DenseVectorValuesBlockReader<ByteVectorValues> {
+        ByteDenseVectorValuesBlockReader(ByteVectorValues floatVectorValues, int dimensions) {
+            super(floatVectorValues, dimensions);
+        }
+
+        protected void appendDoc(BlockLoader.FloatBuilder builder) throws IOException {
+            byte[] bytes = vectorValues.vectorValue(iterator.index());
+            assert bytes.length == dimensions
+                : "unexpected dimensions for vector value; expected " + dimensions + " but got " + bytes.length;
+            for (byte aFloat : bytes) {
+                builder.appendFloat(aFloat);
+            }
+        }
+
+        @Override
+        public String toString() {
+            return "BlockDocValuesReader.ByteDenseVectorValuesBlockReader";
         }
     }
 

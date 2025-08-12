@@ -59,7 +59,7 @@ These characters require two UTF-16 code units, but the optimized path did not a
 Search:
 :::{dropdown} Always stop the timer when profiling the fetch phase
 Exceptions in fetch sub-phases (for example, `setNextReader`) left the profiling timer running, causing mismatched start/stop calls and errors.
-[#132570](https://github.com/elastic/elasticsearch/pull/132570) moves `timer.stop()` to a finally block so the timer always stops.
+[#132570](https://github.com/elastic/elasticsearch/pull/132570) ensures the `timer.stop()` call always stops.
 :::
 
 ## 9.1.1 [elasticsearch-9.1.1-release-notes]

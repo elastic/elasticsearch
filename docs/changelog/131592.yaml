@@ -1,5 +1,5 @@
 pr: 131592
-summary: "[PoC] Limited number of shard snapshot in INIT state per node"
+summary: "Limited number of shard snapshot in INIT state per node"
 area: Snapshot/Restore
 type: enhancement
 issues: []

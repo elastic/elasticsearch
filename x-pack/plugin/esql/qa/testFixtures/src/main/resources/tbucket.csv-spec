@@ -202,3 +202,15 @@ FROM sample_data
 min:datetime             | max:datetime             | bucket:datetime
 2023-10-23T12:15:03.360Z | 2023-10-23T13:55:01.543Z | 2023-01-01T00:00:00.000Z
 ;
+
+reuseGroupingFunction
+required_capability: implicit_casting_string_literal_to_temporal_amount
+required_capability: tbucket
+
+from sample_data
+| stats x = 1 year + tbucket(1 day) by b1d = tbucket(1 day)
+;
+
+x:datetime               | b1d:datetime
+2024-10-23T00:00:00.000Z | 2023-10-23T00:00:00.000Z
+;

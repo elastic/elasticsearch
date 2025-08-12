@@ -45,6 +45,11 @@ public class FirstFloatByTimestampAggregator {
         return new LongFloatState(0, 0);
     }
 
+    public static void first(LongFloatState current, float value, long timestamp) {
+        current.v1(timestamp);
+        current.v2(value);
+    }
+
     public static void combine(LongFloatState current, float value, long timestamp) {
         if (timestamp < current.v1()) {
             current.v1(timestamp);
@@ -54,8 +59,12 @@ public class FirstFloatByTimestampAggregator {
 
     public static void combineIntermediate(LongFloatState current, long timestamp, float value, boolean seen) {
         if (seen) {
-            current.seen(true);
-            combine(current, value, timestamp);
+            if (current.seen()) {
+                combine(current, value, timestamp);
+            } else {
+                first(current, value, timestamp);
+                current.seen(true);
+            }
         }
     }
 

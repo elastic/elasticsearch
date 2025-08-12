@@ -234,7 +234,6 @@ public enum IndexMode {
         public SourceFieldMapper.Mode defaultSourceMode() {
             return SourceFieldMapper.Mode.SYNTHETIC;
         }
-
     },
     LOGSDB("logsdb") {
         @Override
@@ -321,7 +320,6 @@ public enum IndexMode {
         public String getDefaultCodec() {
             return CodecService.BEST_COMPRESSION_CODEC;
         }
-
     },
     LOOKUP("lookup") {
         @Override

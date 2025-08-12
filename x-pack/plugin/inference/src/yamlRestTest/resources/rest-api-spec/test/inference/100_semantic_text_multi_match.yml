@@ -306,7 +306,7 @@ setup:
   - match: { hits.hits.0._id: "doc_1" }
 
 ---
-"Multi-match query error on unsupported type":
+"Multi-match query error on unsupported type with multiple fields":
   - do:
       catch: /multi_match query with type \[cross_fields\] is not supported for semantic_text fields/
       search:
@@ -317,6 +317,19 @@ setup:
               query: "test query"
               fields: ["title", "content"]
               type: "cross_fields"
+
+---
+"Multi-match query error on unsupported type with single field":
+  - do:
+      catch: /multi_match query with type \[phrase\] is not supported for semantic_text fields/
+      search:
+        index: test-semantic-index
+        body:
+          query:
+            multi_match:
+              query: "test query"
+              fields: ["title"]
+              type: "phrase"
 
 ---
 "Multi-match single field optimization":

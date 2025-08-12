@@ -68,11 +68,11 @@ public class SemanticMultiMatchQueryRewriteInterceptor extends SemanticQueryRewr
         assert (queryBuilder instanceof MultiMatchQueryBuilder);
         MultiMatchQueryBuilder originalQuery = (MultiMatchQueryBuilder) queryBuilder;
         String queryValue = getQuery(queryBuilder);
+
+        validateQueryTypeSupported(originalQuery.type());
         Set<String> inferenceFields = indexInformation.getAllInferenceFields();
 
         if (inferenceFields.size() == 1) {
-            // Single inference field - all multi_match types work the same (like original Elasticsearch)
-            // No validation needed since single field queries don't require type-specific combination logic
             String fieldName = inferenceFields.iterator().next();
             SemanticQueryBuilder semanticQuery = new SemanticQueryBuilder(fieldName, queryValue, false);
 
@@ -81,7 +81,6 @@ public class SemanticMultiMatchQueryRewriteInterceptor extends SemanticQueryRewr
             semanticQuery.queryName(originalQuery.queryName());
             return semanticQuery;
         } else {
-            // Multiple inference fields - handle based on multi-match query type (validation happens here)
             detectAndWarnScoreRangeMismatch(indexInformation);
             return buildMultiFieldSemanticQuery(originalQuery, inferenceFields, queryValue, indexInformation);
         }

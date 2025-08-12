@@ -174,7 +174,7 @@ class KibanaOwnedReservedRoleDescriptors {
                     .privileges("write", "delete", "create_index")
                     .allowRestrictedIndices(true)
                     .build(),
-                // Knowledge base. Fleet creates, manages, and uses this index to store knowledge base documents to be consumed by AI
+                // Integrations knowledge base: Fleet creates, manages, and uses this index to store knowledge base documents to be consumed by AI assistants to support integrations
                 // assistants.
                 RoleDescriptor.IndicesPrivileges.builder()
                     .indices(".integration_knowledge*")

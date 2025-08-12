@@ -26,7 +26,6 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
 import org.elasticsearch.xpack.logsdb.LogsDBPlugin;
@@ -42,14 +41,15 @@ import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.BiFunction;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailuresAndResponse;
 
 
-public class PatternedTextRandomTests extends ESIntegTestCase {
-    private static final Logger logger = LogManager.getLogger(PatternedTextRandomTests.class);
+public class PatternedTextVsMatchOnlyTextTests extends ESIntegTestCase {
+    private static final Logger logger = LogManager.getLogger(PatternedTextVsMatchOnlyTextTests.class);
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
@@ -92,45 +92,52 @@ public class PatternedTextRandomTests extends ESIntegTestCase {
         List<String> logMessages = generateMessages(numDocs);
         indexDocs(logMessages);
 
-        var numQueriesWithResults = new AtomicInteger(0);
-        var numQueriesTotal = new AtomicInteger(0);
-        for (var message : logMessages) {
-            List<String> queryTerms = randomQueryValues(message);
-            var patternedTextQueries = generateQueries(PATTERNED_TEXT_FIELD, queryTerms);
-            var matchOnlyQueries = generateQueries(MATCH_ONLY_TEXT_FIELD, queryTerms);
-
-            for (int i = 0; i < patternedTextQueries.size(); ++i) {
-                var ptRequest = client().prepareSearch(INDEX).setQuery(patternedTextQueries.get(i));
-                var motRequest = client().prepareSearch(INDEX).setQuery(matchOnlyQueries.get(i));
-
-                numQueriesTotal.incrementAndGet();
-                assertNoFailuresAndResponse(ptRequest, ptResponse -> {
-                    assertNoFailuresAndResponse(motRequest, motResponse -> {
-
-                        assertEquals(motResponse.getHits().getTotalHits().value(), ptResponse.getHits().getTotalHits().value());
-
-                        var motDocIds = Arrays.stream(motResponse.getHits().getHits()).map(SearchHit::getId).collect(Collectors.toSet());
-                        var ptDocIds = Arrays.stream(ptResponse.getHits().getHits()).map(SearchHit::getId).collect(Collectors.toSet());
-                        assertEquals(motDocIds, ptDocIds);
-
-                        if (motResponse.getHits().getTotalHits().value() > 0) {
-                            numQueriesWithResults.incrementAndGet();
-                        }
-                    });
-                });
-            }
+        var queryTerms = logMessages.stream().flatMap(m -> randomQueryValues(m).stream()).toList();
+        {
+            var ptQueries = buildQueries(PATTERNED_TEXT_FIELD, queryTerms, QueryBuilders::matchPhraseQuery);
+            var motQueries = buildQueries(MATCH_ONLY_TEXT_FIELD, queryTerms, QueryBuilders::matchPhraseQuery);
+            assertQueryResults(ptQueries, motQueries, numDocs, "phrase");
         }
-        logger.info("Ran {} queries, of which {} had matches", numQueriesTotal.get(), numQueriesWithResults.get());
+        {
+            var ptQueries = buildQueries(PATTERNED_TEXT_FIELD, queryTerms, QueryBuilders::matchQuery);
+            var motQueries = buildQueries(MATCH_ONLY_TEXT_FIELD, queryTerms, QueryBuilders::matchQuery);
+            assertQueryResults(ptQueries, motQueries, numDocs, "match");
+        }
+        {
+            var ptQueries = buildQueries(PATTERNED_TEXT_FIELD, queryTerms, QueryBuilders::termQuery);
+            var motQueries = buildQueries(MATCH_ONLY_TEXT_FIELD, queryTerms, QueryBuilders::termQuery);
+            assertQueryResults(ptQueries, motQueries, numDocs, "term");
+        }
     }
 
-    private List<QueryBuilder> generateQueries(String field, List<String> queryTerms) {
-        var results = new ArrayList<QueryBuilder>();
-        for (var queryTerm : queryTerms) {
-            results.add(QueryBuilders.termQuery(field, queryTerm));
-            results.add(QueryBuilders.matchQuery(field, queryTerm));
-            results.add(QueryBuilders.matchPhraseQuery(field, queryTerm));
+    private void assertQueryResults(List<QueryBuilder> patternedTextQueries, List<QueryBuilder> matchOnlyTextQueries, int numDocs, String queryType) {
+        var numQueriesWithResults = new AtomicInteger(0);
+        var numQueriesTotal = new AtomicInteger(0);
+        for (int i = 0; i < patternedTextQueries.size(); ++i) {
+            var ptRequest = client().prepareSearch(INDEX).setQuery(patternedTextQueries.get(i)).setSize(numDocs);
+            var motRequest = client().prepareSearch(INDEX).setQuery(matchOnlyTextQueries.get(i)).setSize(numDocs);
+
+            numQueriesTotal.incrementAndGet();
+            assertNoFailuresAndResponse(ptRequest, ptResponse -> {
+                assertNoFailuresAndResponse(motRequest, motResponse -> {
+
+                    assertEquals(motResponse.getHits().getTotalHits().value(), ptResponse.getHits().getTotalHits().value());
+
+                    var motDocIds = Arrays.stream(motResponse.getHits().getHits()).map(SearchHit::getId).collect(Collectors.toSet());
+                    var ptDocIds = Arrays.stream(ptResponse.getHits().getHits()).map(SearchHit::getId).collect(Collectors.toSet());
+                    assertEquals(motDocIds, ptDocIds);
+
+                    if (motResponse.getHits().getTotalHits().value() > 0) {
+                        numQueriesWithResults.incrementAndGet();
+                    }
+                });
+            });
         }
-        return results;
+        logger.info("Ran {} {} queries, of which {} had matches", numQueriesTotal.get(), queryType, numQueriesWithResults.get());
+    }
+
+    private List<QueryBuilder> buildQueries(String field, List<String> terms, BiFunction<String, Object, QueryBuilder> queryBuilder) {
+        return terms.stream().map(t -> queryBuilder.apply(field, t)).toList();
     }
 
     private static List<String> randomQueryValues(String value) {
@@ -211,7 +218,7 @@ public class PatternedTextRandomTests extends ESIntegTestCase {
                     () -> randomRealisticUnicodeOfCodepointLength(randomIntBetween(1, 20)),
                     () -> UUID.randomUUID().toString(),
                     () -> randomIp(randomBoolean()),
-                    PatternedTextRandomTests::randomTimestamp,
+                    PatternedTextVsMatchOnlyTextTests::randomTimestamp,
                     ESTestCase::randomInt,
                     ESTestCase::randomDouble
                 );

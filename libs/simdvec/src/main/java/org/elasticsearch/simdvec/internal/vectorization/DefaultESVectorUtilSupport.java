@@ -80,10 +80,11 @@ final class DefaultESVectorUtilSupport implements ESVectorUtilSupport {
         float dbb = 0;
         float dax = 0;
         float dbx = 0;
+        float invPmOnes = 1f / (points - 1f);
         for (int i = 0; i < target.length; ++i) {
             float v = target[i];
             float k = quantize[i];
-            float s = k / (points - 1);
+            float s = k * invPmOnes;
             float ms = 1f - s;
             daa = fma(ms, ms, daa);
             dab = fma(ms, s, dab);
@@ -292,5 +293,31 @@ final class DefaultESVectorUtilSupport implements ESVectorUtilSupport {
             destination[h] = assignment;
         }
         return sumQuery;
+    }
+
+    @Override
+    public void squareDistanceBulk(float[] query, float[] v0, float[] v1, float[] v2, float[] v3, float[] distances) {
+        distances[0] = VectorUtil.squareDistance(query, v0);
+        distances[1] = VectorUtil.squareDistance(query, v1);
+        distances[2] = VectorUtil.squareDistance(query, v2);
+        distances[3] = VectorUtil.squareDistance(query, v3);
+    }
+
+    @Override
+    public void soarDistanceBulk(
+        float[] v1,
+        float[] c0,
+        float[] c1,
+        float[] c2,
+        float[] c3,
+        float[] originalResidual,
+        float soarLambda,
+        float rnorm,
+        float[] distances
+    ) {
+        distances[0] = soarDistance(v1, c0, originalResidual, soarLambda, rnorm);
+        distances[1] = soarDistance(v1, c1, originalResidual, soarLambda, rnorm);
+        distances[2] = soarDistance(v1, c2, originalResidual, soarLambda, rnorm);
+        distances[3] = soarDistance(v1, c3, originalResidual, soarLambda, rnorm);
     }
 }

@@ -2592,7 +2592,7 @@ public final class InternalTestCluster extends TestCluster {
             Set<ShardId> shardIds = env.lockedShards();
             for (ShardId id : shardIds) {
                 try {
-                    env.shardLock(id, "InternalTestCluster assert after test", TimeUnit.SECONDS.toMillis(50000)).close();
+                    env.shardLock(id, "InternalTestCluster assert after test", TimeUnit.SECONDS.toMillis(5)).close();
                 } catch (ShardLockObtainFailedException ex) {
                     throw new AssertionError("Shard " + id + " is still locked after 5 sec waiting", ex);
                 }

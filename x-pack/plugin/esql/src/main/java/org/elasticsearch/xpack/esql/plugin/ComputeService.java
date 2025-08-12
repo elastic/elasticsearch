@@ -838,12 +838,12 @@ public class ComputeService {
 
         @Override
         public Object min(FieldAttribute.FieldName field) {
-            throw new UnsupportedOperationException();
+            return null;
         }
 
         @Override
         public Object max(FieldAttribute.FieldName field) {
-            throw new UnsupportedOperationException();
+            return null;
         }
 
         @Override

@@ -347,7 +347,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                 }
             }
             final var doAcquire = ActionRunnable.supply(listener, () -> {
-                final List<ComputeSearchContext> searchContexts = new ArrayList<>(targetShards.size());
+                var searchContexts = new ArrayList<ComputeSearchContext>(targetShards.size());
                 for (int i = 0; i < targetShards.size(); i++) {
                     IndexShard shard = targetShards.get(i);
                     SearchContext context = null;

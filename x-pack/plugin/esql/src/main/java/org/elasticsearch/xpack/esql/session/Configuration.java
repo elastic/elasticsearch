@@ -285,7 +285,6 @@ public class Configuration implements Writeable {
             && profile == that.profile
             && tables.equals(that.tables)
             && allowPartialResults == that.allowPartialResults;
-
     }
 
     @Override

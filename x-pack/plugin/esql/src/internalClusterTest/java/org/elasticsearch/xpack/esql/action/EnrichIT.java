@@ -148,7 +148,7 @@ public class EnrichIT extends AbstractEsqlIntegTestCase {
                 setRequestCircuitBreakerLimit(null);
             }
         }
-        return client.execute(EsqlQueryAction.INSTANCE, request).actionGet(3000, TimeUnit.SECONDS);
+        return client.execute(EsqlQueryAction.INSTANCE, request).actionGet(30, TimeUnit.SECONDS);
     }
 
     static EnrichPolicy policy = new EnrichPolicy("match", null, List.of("songs"), "song_id", List.of("title", "artist", "length"));

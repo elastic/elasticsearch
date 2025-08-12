@@ -154,6 +154,7 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestCancellableNodeClient;
 import org.elasticsearch.script.MockScriptService;
 import org.elasticsearch.search.ConcurrentSearchTestPlugin;
+import org.elasticsearch.search.MockSearchService;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchResponseUtils;
 import org.elasticsearch.search.SearchService;
@@ -2452,9 +2453,9 @@ public abstract class ESIntegTestCase extends ESTestCase {
             if (addMockInternalEngine() && randomBoolean()) {
                 mocks.add(MockEngineFactoryPlugin.class);
             }
-            // if (randomBoolean()) {
-            // mocks.add(MockSearchService.TestPlugin.class);
-            // }
+            if (randomBoolean()) {
+                mocks.add(MockSearchService.TestPlugin.class);
+            }
             if (randomBoolean()) {
                 mocks.add(MockFieldFilterPlugin.class);
             }

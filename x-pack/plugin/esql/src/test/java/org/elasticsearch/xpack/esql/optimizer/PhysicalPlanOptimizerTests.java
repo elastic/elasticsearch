@@ -8006,11 +8006,8 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             | LIMIT %d
             """, limit));
         Tuple<PhysicalPlan, PhysicalPlan> plans = PlannerUtils.breakPlanBetweenCoordinatorAndDataNode(plan, config);
-        throw new AssertionError("TODO(gal) NOCOMMIT");
-        // PhysicalPlan reduction = PlannerUtils.reductionPlan(plans.v2());
-        // TopNExec reductionTopN = as(reduction, TopNExec.class);
-        // assertThat(reductionTopN.estimatedRowSize(), equalTo(allFieldRowSize));
-        // assertThat(reductionTopN.limit().fold(FoldContext.small()), equalTo(limit));
+        PlannerUtils.PlanReduction reduction = PlannerUtils.reductionPlan(plans.v2());
+        assertThat(reduction, equalTo(PlannerUtils.SimplePlanReduction.TOP_N));
     }
 
     public void testReductionPlanForAggs() {

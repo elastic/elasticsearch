@@ -46,10 +46,14 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
     }
 
     public PhysicalPlan localOptimize(PhysicalPlan plan) {
-        return verify(execute(plan), plan.output());
+        PhysicalPlan result = execute(plan);
+        return switch (context().removeProjectAfterTopN()) {
+            case REMOVE -> result; // If we remove the Project after TopN, then the plan's output definitely *has* changed!
+            case KEEP -> verify(result, plan.output());
+        };
     }
 
-    PhysicalPlan verify(PhysicalPlan optimizedPlan, List<Attribute> expectedOutputAttributes) {
+    private PhysicalPlan verify(PhysicalPlan optimizedPlan, List<Attribute> expectedOutputAttributes) {
         Failures failures = verifier.verify(optimizedPlan, true, expectedOutputAttributes);
         if (failures.hasFailures()) {
             throw new VerificationException(failures);

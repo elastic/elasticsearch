@@ -9,7 +9,6 @@
 
 package org.elasticsearch;
 
-import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.VersionId;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -83,18 +82,22 @@ public record TransportVersion(String name, int id, TransportVersion nextPatchVe
         this(null, id, null);
     }
 
+    interface BufferedReaderParser<T> {
+        T parse(String component, String path, BufferedReader bufferedReader);
+    }
+
     static <T> T parseFromBufferedReader(
         String component,
         String path,
         Function<String, InputStream> nameToStream,
-        TriFunction<String, String, BufferedReader, T> parser
+        BufferedReaderParser<T> parser
     ) {
         try (InputStream inputStream = nameToStream.apply(path)) {
             if (inputStream == null) {
                 return null;
             }
             try (BufferedReader bufferedReader = new BufferedReader(new InputStreamReader(inputStream, StandardCharsets.UTF_8))) {
-                return parser.apply(component, path, bufferedReader);
+                return parser.parse(component, path, bufferedReader);
             }
         } catch (IOException ioe) {
             throw new UncheckedIOException("parsing error [" + component + ":" + path + "]", ioe);

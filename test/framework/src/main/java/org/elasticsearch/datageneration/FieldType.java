@@ -79,7 +79,7 @@ public enum FieldType {
             case IP -> new IpFieldDataGenerator(dataSource);
             case CONSTANT_KEYWORD -> new ConstantKeywordFieldDataGenerator();
             case WILDCARD -> new WildcardFieldDataGenerator(dataSource);
-            default -> null;
+            case PASSTHROUGH -> throw new IllegalArgumentException("Passthrough field type does not have a default generator");
         };
     }
 
@@ -103,7 +103,8 @@ public enum FieldType {
             case "ip" -> FieldType.IP;
             case "constant_keyword" -> FieldType.CONSTANT_KEYWORD;
             case "wildcard" -> FieldType.WILDCARD;
-            default -> null;
+            case "passthrough" -> FieldType.PASSTHROUGH;
+            default -> throw new IllegalArgumentException("Unknown field type: " + name);
         };
     }
 

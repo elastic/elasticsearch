@@ -11,7 +11,6 @@ import org.elasticsearch.Build;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.admin.indices.template.put.TransportPutComposableIndexTemplateAction;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
-import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
@@ -19,14 +18,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.datageneration.DataGeneratorSpecification;
-import org.elasticsearch.datageneration.DocumentGenerator;
-import org.elasticsearch.datageneration.FieldType;
-import org.elasticsearch.datageneration.Mapping;
-import org.elasticsearch.datageneration.MappingGenerator;
-import org.elasticsearch.datageneration.Template;
-import org.elasticsearch.datageneration.TemplateGenerator;
-import org.elasticsearch.datageneration.fields.PredefinedField;
 import org.elasticsearch.datastreams.DataStreamsPlugin;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
@@ -48,9 +39,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Set;
 import java.util.stream.Collectors;
-import java.util.stream.IntStream;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.closeTo;
@@ -61,115 +50,7 @@ public class GenerativeTSIT extends AbstractEsqlIntegTestCase {
     private static final Long NUM_DOCS = 1000L;
     private static final String DATASTREAM_NAME = "tsit_ds";
     private List<XContentBuilder> documents = null;
-    private DataGenerationHelper dataGenerationHelper;
-
-    private static final class DataGenerationHelper {
-
-        private static Object randomDimensionValue(String dimensionName) {
-            // We use dimensionName to determine the type of the value.
-            var isNumeric = dimensionName.hashCode() % 5 == 0;
-            if (isNumeric) {
-                // Numeric values are sometimes passed as integers and sometimes as strings.
-                return ESTestCase.randomBoolean()
-                    ? ESTestCase.randomIntBetween(1, 1000)
-                    : Integer.toString(ESTestCase.randomIntBetween(1, 1000));
-            } else {
-                return ESTestCase.randomAlphaOfLengthBetween(1, 20);
-            }
-        }
-
-        DataGenerationHelper(long numDocs) {
-            // Metrics coming into our system have a pre-set group of attributes.
-            // Making a list-to-set-to-list to ensure uniqueness.
-            this.numDocs = numDocs;
-            attributesForMetrics = List.copyOf(
-                Set.copyOf(ESTestCase.randomList(1, 300, () -> ESTestCase.randomAlphaOfLengthBetween(2, 30)))
-            );
-            numTimeSeries = ESTestCase.randomIntBetween(10, (int) Math.sqrt(numDocs));
-            // System.out.println("Total of time series: " + numTimeSeries);
-            // allTimeSeries contains the list of dimension-values for each time series.
-            List<List<Tuple<String, Object>>> allTimeSeries = IntStream.range(0, numTimeSeries).mapToObj(tsIdx -> {
-                List<String> dimensionsInMetric = ESTestCase.randomNonEmptySubsetOf(attributesForMetrics);
-                // TODO: How do we handle the case when there are no dimensions? (i.e. regular randomSubsetof(...)
-                return dimensionsInMetric.stream().map(attr -> new Tuple<>(attr, randomDimensionValue(attr))).collect(Collectors.toList());
-            }).toList();
-
-            spec = DataGeneratorSpecification.builder()
-                .withMaxFieldCountPerLevel(0)
-                .withPredefinedFields(
-                    List.of(
-                        new PredefinedField.WithGenerator(
-                            "@timestamp",
-                            FieldType.DATE,
-                            Map.of("type", "date"),
-                            fieldMapping -> ESTestCase.randomInstantBetween(Instant.now().minusSeconds(2 * 60 * 60), Instant.now())
-                        ),
-                        new PredefinedField.WithGenerator(
-                            "attributes",
-                            FieldType.PASSTHROUGH,
-                            Map.of("type", "passthrough", "time_series_dimension", true, "dynamic", true, "priority", 1),
-                            (ignored) -> {
-                                var tsDimensions = ESTestCase.randomFrom(allTimeSeries);
-                                return tsDimensions.stream().collect(Collectors.toMap(Tuple::v1, Tuple::v2));
-                            }
-                        ),
-                        new PredefinedField.WithGenerator(
-                            "metrics",
-                            FieldType.PASSTHROUGH,
-                            Map.of("type", "passthrough", "dynamic", true, "priority", 10),
-                            (ignored) -> Map.of("gauge_hdd.bytes.used", Randomness.get().nextLong(0, 1000000000L))
-                        )
-                    )
-                )
-                .build();
-
-            documentGenerator = new DocumentGenerator(spec);
-            template = new TemplateGenerator(spec).generate();
-            mapping = new MappingGenerator(spec).generate(template);
-            var doc = mapping.raw().get("_doc");
-            @SuppressWarnings("unchecked")
-            Map<String, Object> docMap = ((Map<String, Object>) doc);
-            // Add dynamic templates to the mapping
-            docMap.put(
-                "dynamic_templates",
-                List.of(
-                    Map.of(
-                        "counter_long",
-                        Map.of("path_match", "metrics.counter_*", "mapping", Map.of("type", "long", "time_series_metric", "counter"))
-                    ),
-                    Map.of(
-                        "gauge_long",
-                        Map.of("path_match", "metrics.gauge_*", "mapping", Map.of("type", "long", "time_series_metric", "gauge"))
-                    ),
-                    Map.of(
-                        "counter_double",
-                        Map.of("path_match", "metrics.counter_*", "mapping", Map.of("type", "double", "time_series_metric", "counter"))
-                    ),
-                    Map.of(
-                        "gauge_double",
-                        Map.of("path_match", "metrics.gauge_*", "mapping", Map.of("type", "double", "time_series_metric", "gauge"))
-                    )
-                )
-            );
-        }
-
-        final DataGeneratorSpecification spec;
-        final DocumentGenerator documentGenerator;
-        final Template template;
-        final Mapping mapping;
-        final int numTimeSeries;
-        final long numDocs;
-        final List<String> attributesForMetrics;
-
-        XContentBuilder generateDocument(Map<String, Object> additionalFields) throws IOException {
-            var doc = XContentFactory.jsonBuilder();
-            var generated = documentGenerator.generate(template, mapping);
-            generated.putAll(additionalFields);
-
-            doc.map(generated);
-            return doc;
-        }
-    }
+    private TSDataGenerationHelper dataGenerationHelper;
 
     Map<List<String>, List<Map<String, Object>>> groupedRows(
         List<XContentBuilder> docs,
@@ -255,7 +136,7 @@ public class GenerativeTSIT extends AbstractEsqlIntegTestCase {
 
     @Before
     public void populateIndex() throws IOException {
-        dataGenerationHelper = new DataGenerationHelper(NUM_DOCS);
+        dataGenerationHelper = new TSDataGenerationHelper(NUM_DOCS);
         final XContentBuilder builder = XContentFactory.jsonBuilder();
         builder.map(dataGenerationHelper.mapping.raw());
         final String jsonMappings = Strings.toString(builder);
@@ -274,10 +155,16 @@ public class GenerativeTSIT extends AbstractEsqlIntegTestCase {
         }
     }
 
+    /**
+     * This test validates Gauge metrics aggregation with grouping by time bucket and a subset of dimensions.
+     * The subset of dimensions is a random subset of the dimensions present in the data.
+     * The test checks that the max, min, and avg values of the gauge metric - and calculates
+     * the same values from the documents in the group.
+     */
     public void testGroupBySubset() {
         var dimensions = ESTestCase.randomNonEmptySubsetOf(dataGenerationHelper.attributesForMetrics);
         var dimensionsStr = dimensions.stream().map(d -> "attributes." + d).collect(Collectors.joining(", "));
-        try (var resp = run(String.format(Locale.ROOT, """
+        try (EsqlQueryResponse resp = run(String.format(Locale.ROOT, """
             TS %s
             | STATS max(max_over_time(metrics.gauge_hdd.bytes.used)),
                 min(min_over_time(metrics.gauge_hdd.bytes.used)),
@@ -294,19 +181,22 @@ public class GenerativeTSIT extends AbstractEsqlIntegTestCase {
             });
             for (List<Object> row : rows) {
                 var rowKey = getRowKey(row, dimensions);
-                var pointsInGroup = groups.get(rowKey);
+                List<Map<String, Object>> pointsInGroup = groups.get(rowKey);
                 @SuppressWarnings("unchecked")
                 var docValues = pointsInGroup.stream()
                     .map(doc -> ((Map<String, Integer>) doc.get("metrics")).get("gauge_hdd.bytes.used"))
                     .toList();
+                // Verify that the first column is the max value (the query gets max, avg, min in that order)
                 docValues.stream().max(Integer::compareTo).ifPresentOrElse(maxValue -> {
                     var res = ((Long) row.getFirst()).intValue();
                     assertThat(res, equalTo(maxValue));
                 }, () -> { throw new AssertionError("No values found for group: " + rowKey); });
+                // Verify that the second column is the min value (thus why row.get(1))
                 docValues.stream().min(Integer::compareTo).ifPresentOrElse(minValue -> {
                     var res = ((Long) row.get(1)).intValue();
                     assertThat(res, equalTo(minValue));
                 }, () -> { throw new AssertionError("No values found for group: " + rowKey); });
+                // Verify that the second column is the avg value (thus why row.get(2))
                 docValues.stream().mapToDouble(Integer::doubleValue).average().ifPresentOrElse(avgValue -> {
                     var res = (Double) row.get(2);
                     assertThat(res, closeTo(avgValue, res * 0.5));
@@ -315,8 +205,14 @@ public class GenerativeTSIT extends AbstractEsqlIntegTestCase {
         }
     }
 
+    /**
+     * This test validates Gauge metrics aggregation with grouping by time bucket only.
+     * The test checks that the max, min, and avg values of the gauge metric - and calculates
+     * the same values from the documents in the group. Because there is no grouping by dimensions,
+     * there is only one metric group per time bucket.
+     */
     public void testGroupByNothing() {
-        try (var resp = run(String.format(Locale.ROOT, """
+        try (EsqlQueryResponse resp = run(String.format(Locale.ROOT, """
             TS %s
             | STATS
                 max(max_over_time(metrics.gauge_hdd.bytes.used)),
@@ -333,15 +229,17 @@ public class GenerativeTSIT extends AbstractEsqlIntegTestCase {
             var groups = groupedRows(documents, List.of(), 60);
             for (List<Object> row : rows) {
                 var windowStart = windowStart(row.get(3), 60);
-                var windowDataPoints = groups.get(List.of(Long.toString(windowStart)));
+                List<Map<String, Object>> windowDataPoints = groups.get(List.of(Long.toString(windowStart)));
                 @SuppressWarnings("unchecked")
                 var docValues = windowDataPoints.stream()
                     .map(doc -> ((Map<String, Integer>) doc.get("metrics")).get("gauge_hdd.bytes.used"))
                     .toList();
+                // Verify that the first column is the max value (the query gets max, avg, min in that order)
                 docValues.stream().max(Integer::compareTo).ifPresentOrElse(maxValue -> {
                     var res = ((Long) row.getFirst()).intValue();
                     assertThat(res, equalTo(maxValue));
                 }, () -> { throw new AssertionError("No values found for window starting at " + windowStart); });
+                // Verify that the second column is the avg value (thus why row.get(1))
                 docValues.stream().mapToDouble(Integer::doubleValue).average().ifPresentOrElse(avgValue -> {
                     var res = (Double) row.get(1);
                     assertThat(res, closeTo(avgValue, res * 0.5));
@@ -349,6 +247,7 @@ public class GenerativeTSIT extends AbstractEsqlIntegTestCase {
                     ;
                     throw new AssertionError("No values found for window starting at " + windowStart);
                 });
+                // Verify that the third column is the min value (thus why row.get(2))
                 docValues.stream().min(Integer::compareTo).ifPresentOrElse(minValue -> {
                     var res = ((Long) row.get(2)).intValue();
                     assertThat(res, equalTo(minValue));

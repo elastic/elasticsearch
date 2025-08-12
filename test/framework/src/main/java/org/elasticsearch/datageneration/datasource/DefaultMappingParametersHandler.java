@@ -48,7 +48,7 @@ public class DefaultMappingParametersHandler implements DataSourceHandler {
             case IP -> ipMapping();
             case CONSTANT_KEYWORD -> constantKeywordMapping();
             case WILDCARD -> wildcardMapping();
-            default -> throw new IllegalArgumentException("Unsupported field type: " + fieldType);
+            case PASSTHROUGH -> throw new IllegalArgumentException("Unsupported field type: " + fieldType);
         });
     }
 

@@ -1227,7 +1227,7 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
                             int remainingBlockLength = Math.min(ES819TSDBDocValuesFormat.NUMERIC_BLOCK_SIZE - blockInIndex, docsCount - i);
                             for (int newLength = remainingBlockLength; newLength > 1; newLength = newLength >> 1) {
                                 int lastIndex = i + newLength - 1;
-                                if (lastIndex < docsCount && isDense(index, docs.get(lastIndex), newLength)) {
+                                if (isDense(index, docs.get(lastIndex), newLength)) {
                                     length = newLength;
                                     break;
                                 }

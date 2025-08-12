@@ -30,7 +30,7 @@ Authorization:
 ### Fixes [elasticsearch-9.1.2-fixes]
 
 Aggregations:
-:::{dropdown} Validate parent aggregation type in `bucket_script`
+:::{dropdown} Validates parent aggregation type in `bucket_script`
 The `bucket_script` pipeline aggregation didn’t validate that its parent aggregation was a multi-bucket aggregation.
 This caused a `ClassCastException` at runtime when the parent was not multi-bucket. 
 [#132320](https://github.com/elastic/elasticsearch/pull/132320) adds a validation step so the aggregation fails early, preventing the runtime error. (issue: [#132272](https://github.com/elastic/elasticsearch/issues/132272))

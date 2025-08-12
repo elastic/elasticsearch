@@ -998,9 +998,12 @@ public class GetActionIT extends ESIntegTestCase {
         assertTrue(translog3.isExists());
         switch (sourceMode) {
             case STORED -> {
-                assertThat(translog1.getSourceAsBytesRef().utf8ToString(), equalTo(source1));
-                assertThat(translog2.getSourceAsBytesRef().utf8ToString(), equalTo(source2));
-                assertThat(translog3.getSourceAsBytesRef().utf8ToString(), equalTo(source3));
+                assertThat(translog1.getSourceAsBytesRef().utf8ToString(), equalTo("""
+                    {"title":["t1"],"author":[{"name":"a1"}]}"""));
+                assertThat(translog2.getSourceAsBytesRef().utf8ToString(), equalTo("""
+                    {"title":["t1","t2"],"author":[{"name":"a1"},{"name":"a2"}]}"""));
+                assertThat(translog3.getSourceAsBytesRef().utf8ToString(), equalTo("""
+                    {"title":["t1","t3","t2"]}"""));
             }
             case SYNTHETIC -> {
                 assertThat(translog1.getSourceAsBytesRef().utf8ToString(), equalTo("""

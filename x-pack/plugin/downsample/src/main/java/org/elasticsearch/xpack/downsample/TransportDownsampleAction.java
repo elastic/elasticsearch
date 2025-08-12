@@ -941,9 +941,9 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
             builder.putList(IndexMetadata.INDEX_DIMENSIONS.getKey(), sourceIndexMetadata.getDimensions());
         }
         builder.put(
-                IndexSettings.TIME_SERIES_START_TIME.getKey(),
-                sourceIndexMetadata.getSettings().get(IndexSettings.TIME_SERIES_START_TIME.getKey())
-            )
+            IndexSettings.TIME_SERIES_START_TIME.getKey(),
+            sourceIndexMetadata.getSettings().get(IndexSettings.TIME_SERIES_START_TIME.getKey())
+        )
             .put(
                 IndexSettings.TIME_SERIES_END_TIME.getKey(),
                 sourceIndexMetadata.getSettings().get(IndexSettings.TIME_SERIES_END_TIME.getKey())

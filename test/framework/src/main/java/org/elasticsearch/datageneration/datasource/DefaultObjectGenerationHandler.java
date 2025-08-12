@@ -69,15 +69,14 @@ public class DefaultObjectGenerationHandler implements DataSourceHandler {
     // UNSIGNED_LONG is excluded because it is mapped as long
     // and values larger than long fail to parse.
     private static final Set<FieldType> EXCLUDED_FROM_DYNAMIC_MAPPING = Set.of(FieldType.UNSIGNED_LONG, FieldType.PASSTHROUGH);
+    private static final Set<FieldType> ALLOWED_FIELD_TYPES = Arrays.stream(FieldType.values())
+        .filter(fieldType -> EXCLUDED_FROM_DYNAMIC_MAPPING.contains(fieldType) == false)
+        .collect(Collectors.toSet());
 
     @Override
     public DataSourceResponse.FieldTypeGenerator handle(DataSourceRequest.FieldTypeGenerator request) {
         return new DataSourceResponse.FieldTypeGenerator(() -> {
-            // All field types minus the excluded ones.
-            var fieldTypes = Arrays.stream(FieldType.values())
-                .filter(fieldType -> EXCLUDED_FROM_DYNAMIC_MAPPING.contains(fieldType) == false)
-                .collect(Collectors.toSet());
-            var fieldType = ESTestCase.randomFrom(fieldTypes);
+            var fieldType = ESTestCase.randomFrom(ALLOWED_FIELD_TYPES);
             return new DataSourceResponse.FieldTypeGenerator.FieldTypeInfo(fieldType.toString());
         });
     }

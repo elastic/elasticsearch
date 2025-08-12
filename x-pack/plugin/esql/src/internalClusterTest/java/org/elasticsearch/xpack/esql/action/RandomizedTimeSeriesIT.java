@@ -39,18 +39,29 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
 
-public class GenerativeTSIT extends AbstractEsqlIntegTestCase {
+public class RandomizedTimeSeriesIT extends AbstractEsqlIntegTestCase {
 
-    private static final Long NUM_DOCS = 1000L;
+    private static final Long NUM_DOCS = 2500L;
     private static final String DATASTREAM_NAME = "tsit_ds";
     private List<XContentBuilder> documents = null;
     private TSDataGenerationHelper dataGenerationHelper;
+
+    List<List<Object>> consumeRows(EsqlQueryResponse resp) {
+        List<List<Object>> rows = new ArrayList<>();
+        resp.rows().forEach(rowIter -> {
+            List<Object> row = new ArrayList<>();
+            rowIter.forEach(row::add);
+            rows.add(row);
+        });
+        return rows;
+    }
 
     Map<List<String>, List<Map<String, Object>>> groupedRows(
         List<XContentBuilder> docs,
@@ -80,8 +91,36 @@ public class GenerativeTSIT extends AbstractEsqlIntegTestCase {
     }
 
     static Long windowStart(Object timestampCell, int secondsInWindow) {
-        // The timestamp is in the 4th column (index 3)
+        // This calculation looks a little weird, but it simply performs an integer division that
+        // throws away the remainder of the division by secondsInWindow. It rounds down
+        // the timestamp to the nearest multiple of secondsInWindow.
         return Instant.parse((String) timestampCell).toEpochMilli() / 1000 / secondsInWindow * secondsInWindow;
+    }
+
+    enum Agg {
+        MAX,
+        MIN,
+        AVG
+    }
+
+    static List<Integer> valuesInWindow(List<Map<String, Object>> pointsInGroup, String metricName) {
+        @SuppressWarnings("unchecked")
+        var values = pointsInGroup.stream()
+            .map(doc -> ((Map<String, Integer>) doc.get("metrics")).get(metricName))
+            .filter(Objects::nonNull)
+            .collect(Collectors.toList());
+        return values;
+    }
+
+    static Double aggregateValuesInWindow(List<Integer> values, Agg agg) {
+        if (values.isEmpty()) {
+            throw new IllegalArgumentException("No values to aggregate for " + agg + " operation");
+        }
+        return switch (agg) {
+            case MAX -> Double.valueOf(values.stream().max(Integer::compareTo).orElseThrow());
+            case MIN -> Double.valueOf(values.stream().min(Integer::compareTo).orElseThrow());
+            case AVG -> values.stream().mapToDouble(Integer::doubleValue).average().orElseThrow();
+        };
     }
 
     static List<String> getRowKey(List<Object> row, List<String> groupingAttributes) {
@@ -121,7 +160,7 @@ public class GenerativeTSIT extends AbstractEsqlIntegTestCase {
         CompressedXContent mappings = mappingString == null ? null : CompressedXContent.fromJSON(mappingString);
         // print the mapping
         TransportPutComposableIndexTemplateAction.Request request = new TransportPutComposableIndexTemplateAction.Request(
-            GenerativeTSIT.DATASTREAM_NAME
+            RandomizedTimeSeriesIT.DATASTREAM_NAME
         );
         request.indexTemplate(
             ComposableIndexTemplate.builder()
@@ -173,34 +212,20 @@ public class GenerativeTSIT extends AbstractEsqlIntegTestCase {
             | SORT tbucket
             | LIMIT 1000""", DATASTREAM_NAME, dimensionsStr))) {
             var groups = groupedRows(documents, dimensions, 60);
-            List<List<Object>> rows = new ArrayList<>();
-            resp.rows().forEach(rowIter -> {
-                List<Object> row = new ArrayList<>();
-                rowIter.forEach(row::add);
-                rows.add(row);
-            });
+            List<List<Object>> rows = consumeRows(resp);
             for (List<Object> row : rows) {
                 var rowKey = getRowKey(row, dimensions);
-                List<Map<String, Object>> pointsInGroup = groups.get(rowKey);
-                @SuppressWarnings("unchecked")
-                var docValues = pointsInGroup.stream()
-                    .map(doc -> ((Map<String, Integer>) doc.get("metrics")).get("gauge_hdd.bytes.used"))
-                    .toList();
-                // Verify that the first column is the max value (the query gets max, avg, min in that order)
-                docValues.stream().max(Integer::compareTo).ifPresentOrElse(maxValue -> {
-                    var res = ((Long) row.getFirst()).intValue();
-                    assertThat(res, equalTo(maxValue));
-                }, () -> { throw new AssertionError("No values found for group: " + rowKey); });
-                // Verify that the second column is the min value (thus why row.get(1))
-                docValues.stream().min(Integer::compareTo).ifPresentOrElse(minValue -> {
-                    var res = ((Long) row.get(1)).intValue();
-                    assertThat(res, equalTo(minValue));
-                }, () -> { throw new AssertionError("No values found for group: " + rowKey); });
-                // Verify that the second column is the avg value (thus why row.get(2))
-                docValues.stream().mapToDouble(Integer::doubleValue).average().ifPresentOrElse(avgValue -> {
-                    var res = (Double) row.get(2);
-                    assertThat(res, closeTo(avgValue, res * 0.5));
-                }, () -> { throw new AssertionError("No values found for group: " + rowKey); });
+                var docValues = valuesInWindow(groups.get(rowKey), "gauge_hdd.bytes.used");
+                // Max of int is always int, so we can safely round the result.
+                assertThat(row.getFirst(), equalTo(Math.round(aggregateValuesInWindow(docValues, Agg.MAX))));
+                assertThat(row.get(1), equalTo(Math.round(aggregateValuesInWindow(docValues, Agg.MIN))));
+                // We check the expected vs ES-calculated average. We divide them to normalize the error
+                // and allow for a 20% error margin.
+                Double esAvg = (Double) row.get(2);
+                Double expectedAvg = aggregateValuesInWindow(docValues, Agg.AVG);
+                var ratio = esAvg / expectedAvg;
+                assertThat(ratio, closeTo(1, 0.2));
+
             }
         }
     }
@@ -216,42 +241,24 @@ public class GenerativeTSIT extends AbstractEsqlIntegTestCase {
             TS %s
             | STATS
                 max(max_over_time(metrics.gauge_hdd.bytes.used)),
-                avg(avg_over_time(metrics.gauge_hdd.bytes.used)),
-                min(min_over_time(metrics.gauge_hdd.bytes.used)) BY tbucket=bucket(@timestamp, 1 minute)
+                min(min_over_time(metrics.gauge_hdd.bytes.used)),
+                avg(avg_over_time(metrics.gauge_hdd.bytes.used)) BY tbucket=bucket(@timestamp, 1 minute)
             | SORT tbucket
             | LIMIT 1000""", DATASTREAM_NAME))) {
-            List<List<Object>> rows = new ArrayList<>();
-            resp.rows().forEach(rowIter -> {
-                List<Object> row = new ArrayList<>();
-                rowIter.forEach(row::add);
-                rows.add(row);
-            });
+            List<List<Object>> rows = consumeRows(resp);
             var groups = groupedRows(documents, List.of(), 60);
             for (List<Object> row : rows) {
                 var windowStart = windowStart(row.get(3), 60);
-                List<Map<String, Object>> windowDataPoints = groups.get(List.of(Long.toString(windowStart)));
-                @SuppressWarnings("unchecked")
-                var docValues = windowDataPoints.stream()
-                    .map(doc -> ((Map<String, Integer>) doc.get("metrics")).get("gauge_hdd.bytes.used"))
-                    .toList();
-                // Verify that the first column is the max value (the query gets max, avg, min in that order)
-                docValues.stream().max(Integer::compareTo).ifPresentOrElse(maxValue -> {
-                    var res = ((Long) row.getFirst()).intValue();
-                    assertThat(res, equalTo(maxValue));
-                }, () -> { throw new AssertionError("No values found for window starting at " + windowStart); });
-                // Verify that the second column is the avg value (thus why row.get(1))
-                docValues.stream().mapToDouble(Integer::doubleValue).average().ifPresentOrElse(avgValue -> {
-                    var res = (Double) row.get(1);
-                    assertThat(res, closeTo(avgValue, res * 0.5));
-                }, () -> {
-                    ;
-                    throw new AssertionError("No values found for window starting at " + windowStart);
-                });
-                // Verify that the third column is the min value (thus why row.get(2))
-                docValues.stream().min(Integer::compareTo).ifPresentOrElse(minValue -> {
-                    var res = ((Long) row.get(2)).intValue();
-                    assertThat(res, equalTo(minValue));
-                }, () -> { throw new AssertionError("No values found for window starting at " + windowStart); });
+                var docValues = valuesInWindow(groups.get(List.of(Long.toString(windowStart))), "gauge_hdd.bytes.used");
+                // Min and Max of int are always int, so we can safely round the result.
+                assertThat(row.getFirst(), equalTo(Math.round(aggregateValuesInWindow(docValues, Agg.MAX))));
+                assertThat(row.get(1), equalTo(Math.round(aggregateValuesInWindow(docValues, Agg.MIN))));
+                // We check the expected vs ES-calculated average. We divide them to normalize the error
+                // and allow for a 20% error margin.
+                Double esAvg = (Double) row.get(2);
+                Double expectedAvg = aggregateValuesInWindow(docValues, Agg.AVG);
+                var ratio = esAvg / expectedAvg;
+                assertThat(ratio, closeTo(1, 0.2));
             }
         }
     }

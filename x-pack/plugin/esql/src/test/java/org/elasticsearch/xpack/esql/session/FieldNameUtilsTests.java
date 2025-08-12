@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
@@ -2969,9 +2970,23 @@ public class FieldNameUtilsTests extends ESTestCase {
     }
 
     private void assertFieldNames(String query, EnrichResolution enrichResolution, Set<String> expected, Set<String> wildCardIndices) {
-        var preAnalysisResult = FieldNameUtils.resolveFieldNames(parser.createStatement(query, EsqlTestUtils.TEST_CFG), enrichResolution);
+        EsqlSession.PreAnalysisResult preAnalysisResult = FieldNameUtils.resolveFieldNames(
+            parser.createStatement(query, EsqlTestUtils.TEST_CFG),
+            enrichResolution
+        );
         assertThat("Query-wide field names", preAnalysisResult.fieldNames(), equalTo(expected));
         assertThat("Lookup Indices that expect wildcard lookups", preAnalysisResult.wildcardJoinIndices(), equalTo(wildCardIndices));
+        assertThat(preAnalysisResult.collectAllDimensions(), equalTo(false));
+
+        // try again with TS command
+        String tsQuery = query.toLowerCase(Locale.ROOT).replaceFirst("^from", "ts");
+        if (tsQuery.equals(query)) {
+            return;
+        }
+        preAnalysisResult = FieldNameUtils.resolveFieldNames(parser.createStatement(tsQuery, EsqlTestUtils.TEST_CFG), enrichResolution);
+        assertThat("Query-wide field names", preAnalysisResult.fieldNames(), equalTo(expected));
+        assertThat("Lookup Indices that expect wildcard lookups", preAnalysisResult.wildcardJoinIndices(), equalTo(wildCardIndices));
+        assertThat(preAnalysisResult.collectAllDimensions(), equalTo(true));
     }
 
     private static EnrichResolution enrichResolutionWith(String enrichPolicyMatchField) {

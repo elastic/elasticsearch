@@ -26,6 +26,7 @@ import org.elasticsearch.xpack.esql.expression.UnresolvedNamePattern;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Drop;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
+import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
@@ -71,10 +72,19 @@ public class FieldNameUtils {
             inlinestatsAggs.add(((InlineStats) i).aggregate());
         }
 
+        boolean shouldCollectAllDimensions = false;
+        // Detect if we are in TS mode
+        List<LogicalPlan> relations = parsed.collect(UnresolvedRelation.class::isInstance);
+        for (LogicalPlan i : relations) {
+            if (((UnresolvedRelation) i).isTimeSeriesMode()) {
+                shouldCollectAllDimensions = true;
+            }
+        }
+
         if (false == parsed.anyMatch(p -> shouldCollectReferencedFields(p, inlinestatsAggs))) {
             // no explicit columns selection, for example "from employees"
             // also, inlinestats only adds columns to the existent output, its Aggregate shouldn't interfere with potentially using "*"
-            return new PreAnalysisResult(enrichResolution, IndexResolver.ALL_FIELDS, Set.of(), false);
+            return new PreAnalysisResult(enrichResolution, IndexResolver.ALL_FIELDS, Set.of(), shouldCollectAllDimensions);
         }
 
         Holder<Boolean> projectAll = new Holder<>(false);
@@ -86,7 +96,7 @@ public class FieldNameUtils {
         });
 
         if (projectAll.get()) {
-            return new PreAnalysisResult(enrichResolution, IndexResolver.ALL_FIELDS, Set.of(), false);
+            return new PreAnalysisResult(enrichResolution, IndexResolver.ALL_FIELDS, Set.of(), shouldCollectAllDimensions);
         }
 
         var referencesBuilder = new Holder<>(AttributeSet.builder());
@@ -221,7 +231,7 @@ public class FieldNameUtils {
         parsed.forEachDownMayReturnEarly(forEachDownProcessor.get());
 
         if (projectAll.get()) {
-            return new PreAnalysisResult(enrichResolution, IndexResolver.ALL_FIELDS, Set.of(), false);
+            return new PreAnalysisResult(enrichResolution, IndexResolver.ALL_FIELDS, Set.of(), shouldCollectAllDimensions);
         }
 
         // Add JOIN ON column references afterward to avoid Alias removal
@@ -235,7 +245,12 @@ public class FieldNameUtils {
 
         if (fieldNames.isEmpty() && enrichPolicyMatchFields.isEmpty()) {
             // there cannot be an empty list of fields, we'll ask the simplest and lightest one instead: _index
-            return new PreAnalysisResult(enrichResolution, IndexResolver.INDEX_METADATA_FIELD, wildcardJoinIndices, false);
+            return new PreAnalysisResult(
+                enrichResolution,
+                IndexResolver.INDEX_METADATA_FIELD,
+                wildcardJoinIndices,
+                shouldCollectAllDimensions
+            );
         } else {
             fieldNames.addAll(subfields(fieldNames));
             fieldNames.addAll(enrichPolicyMatchFields);

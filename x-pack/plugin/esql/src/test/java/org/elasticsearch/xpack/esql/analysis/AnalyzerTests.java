@@ -2432,7 +2432,7 @@ public class AnalyzerTests extends ESTestCase {
         var scalar = as(alias.child(), Magnitude.class);
         var child = as(scalar.field(), Literal.class);
         assertThat(child.dataType(), is(DENSE_VECTOR));
-        assertThat(child.value(), equalTo(List.of(1.0, 2.0, 3.0)));
+        assertThat(child.value(), equalTo(List.of(1.0f, 2.0f, 3.0f)));
     }
 
     public void testNoDenseVectorFailsForMagnitude() {

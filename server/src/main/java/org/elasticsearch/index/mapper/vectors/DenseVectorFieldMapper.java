@@ -1682,7 +1682,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 return dims >= BBQ_MIN_DIMS;
             }
         },
-        BBQ_IVF("bbq_ivf", true) {
+        BBQ_DISK("bbq_disk", true) {
             @Override
             public DenseVectorIndexOptions parseIndexOptions(String fieldName, Map<String, ?> indexOptionsMap, IndexVersion indexVersion) {
                 Object clusterSizeNode = indexOptionsMap.remove("cluster_size");
@@ -1829,7 +1829,8 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 || update.type.equals(VectorIndexType.INT4_HNSW)
                 || update.type.equals(VectorIndexType.BBQ_HNSW)
                 || update.type.equals(VectorIndexType.INT4_FLAT)
-                || update.type.equals(VectorIndexType.BBQ_FLAT);
+                || update.type.equals(VectorIndexType.BBQ_FLAT)
+                || update.type.equals(VectorIndexType.BBQ_DISK);
         }
     }
 
@@ -1954,6 +1955,8 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 updatable = int4HnswIndexOptions.m >= this.m && confidenceInterval == int4HnswIndexOptions.confidenceInterval;
             } else if (update.type.equals(VectorIndexType.BBQ_HNSW)) {
                 updatable = ((BBQHnswIndexOptions) update).m >= m;
+            } else {
+                updatable = update.type.equals(VectorIndexType.BBQ_DISK);
             }
             return updatable;
         }
@@ -2018,7 +2021,8 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 || update.type.equals(VectorIndexType.INT8_HNSW)
                 || update.type.equals(VectorIndexType.INT4_HNSW)
                 || update.type.equals(VectorIndexType.BBQ_HNSW)
-                || update.type.equals(VectorIndexType.BBQ_FLAT);
+                || update.type.equals(VectorIndexType.BBQ_FLAT)
+                || update.type.equals(VectorIndexType.BBQ_DISK);
         }
 
     }
@@ -2105,7 +2109,8 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     || int8HnswIndexOptions.confidenceInterval != null
                         && confidenceInterval.equals(int8HnswIndexOptions.confidenceInterval);
             } else {
-                updatable = update.type.equals(VectorIndexType.INT4_HNSW) && ((Int4HnswIndexOptions) update).m >= this.m
+                updatable = update.type.equals(VectorIndexType.BBQ_DISK)
+                    || update.type.equals(VectorIndexType.INT4_HNSW) && ((Int4HnswIndexOptions) update).m >= this.m
                     || (update.type.equals(VectorIndexType.BBQ_HNSW) && ((BBQHnswIndexOptions) update).m >= m);
             }
             return updatable;
@@ -2139,6 +2144,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 updatable = hnswIndexOptions.m >= this.m;
             }
             return updatable
+                || update.type.equals(VectorIndexType.BBQ_DISK)
                 || (update.type.equals(VectorIndexType.INT8_HNSW) && ((Int8HnswIndexOptions) update).m >= m)
                 || (update.type.equals(VectorIndexType.INT4_HNSW) && ((Int4HnswIndexOptions) update).m >= m)
                 || (update.type.equals(VectorIndexType.BBQ_HNSW) && ((BBQHnswIndexOptions) update).m >= m);
@@ -2198,7 +2204,8 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
         @Override
         public boolean updatableTo(DenseVectorIndexOptions update) {
-            return update.type.equals(this.type) && ((BBQHnswIndexOptions) update).m >= this.m;
+            return (update.type.equals(this.type) && ((BBQHnswIndexOptions) update).m >= this.m)
+                || update.type.equals(VectorIndexType.BBQ_DISK);
         }
 
         @Override
@@ -2263,7 +2270,9 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
         @Override
         public boolean updatableTo(DenseVectorIndexOptions update) {
-            return update.type.equals(this.type) || update.type.equals(VectorIndexType.BBQ_HNSW);
+            return update.type.equals(this.type)
+                || update.type.equals(VectorIndexType.BBQ_HNSW)
+                || update.type.equals(VectorIndexType.BBQ_DISK);
         }
 
         @Override
@@ -2310,7 +2319,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
         final int defaultNProbe;
 
         BBQIVFIndexOptions(int clusterSize, int defaultNProbe, RescoreVector rescoreVector) {
-            super(VectorIndexType.BBQ_IVF, rescoreVector);
+            super(VectorIndexType.BBQ_DISK, rescoreVector);
             this.clusterSize = clusterSize;
             this.defaultNProbe = defaultNProbe;
         }
@@ -2318,7 +2327,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
         @Override
         KnnVectorsFormat getVectorsFormat(ElementType elementType) {
             assert elementType == ElementType.FLOAT;
-            return new IVFVectorsFormat(clusterSize);
+            return new IVFVectorsFormat(clusterSize, IVFVectorsFormat.DEFAULT_CENTROIDS_PER_PARENT_CLUSTER);
         }
 
         @Override

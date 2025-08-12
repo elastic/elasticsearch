@@ -50,7 +50,7 @@ import org.elasticsearch.indices.SystemDataStreamDescriptor;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.snapshots.SnapshotInProgressException;
-import org.elasticsearch.snapshots.SnapshotsService;
+import org.elasticsearch.snapshots.SnapshotsServiceUtils;
 import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -305,7 +305,7 @@ public class MetadataRolloverService {
         boolean isFailureStoreRollover
     ) throws Exception {
         final ProjectMetadata metadata = projectState.metadata();
-        Set<String> snapshottingDataStreams = SnapshotsService.snapshottingDataStreams(
+        Set<String> snapshottingDataStreams = SnapshotsServiceUtils.snapshottingDataStreams(
             projectState,
             Collections.singleton(dataStream.getName())
         );

@@ -286,7 +286,6 @@ import static org.hamcrest.Matchers.startsWith;
  * </ul>
  */
 @LuceneTestCase.SuppressFileSystems("ExtrasFS") // doesn't work with potential multi data path from test cluster yet
-@ESTestCase.WithoutEntitlements // ES-12042
 public abstract class ESIntegTestCase extends ESTestCase {
 
     /** node names of the corresponding clusters will start with these prefixes */
@@ -550,6 +549,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
                 // close the previous one and create a new one
                 if (testCluster != null) {
                     IOUtils.closeWhileHandlingException(testCluster::close);
+                    TEST_ENTITLEMENTS.revokeAllEntitledNodePaths();
                 }
                 testCluster = buildTestCluster(currentClusterScope, seed);
             }
@@ -1382,6 +1382,15 @@ public abstract class ESIntegTestCase extends ESTestCase {
         }
     }
 
+    /**
+     * Verifies that all nodes in the cluster see the same master node and cluster UUID and use the same JSON serialization.
+     * <ul>
+     * <li> Fetches the cluster state from every node in the cluster </li>
+     * <li> Fetches the master node's view of the cluster state </li>
+     * <li> Compares each node's view with the master node's </li>
+     * </ul>
+     * @param namedWriteableRegistry
+     */
     protected final void doEnsureClusterStateConsistency(NamedWriteableRegistry namedWriteableRegistry) {
         // This check has very little value in external test clusters and there is no guaranteed method of obtaining the master cluster
         // state in those clusters.
@@ -1409,6 +1418,10 @@ public abstract class ESIntegTestCase extends ESTestCase {
                 );
                 Map<String, Object> masterStateMap = convertToMap(masterClusterState, xContentParams());
                 String masterId = masterClusterState.nodes().getMasterNodeId();
+                if (masterId == null) {
+                    logger.warn("Failed to find an elected master in the cluster state: " + masterClusterState);
+                    throw new AssertionError("Unable to find master in cluster state. Expecting a stable master node");
+                }
                 for (SubscribableListener<ClusterStateResponse> localStateListener : localStates) {
                     localStateListener.andThenAccept(localClusterStateResponse -> {
                         byte[] localClusterStateBytes = ClusterState.Builder.toBytes(localClusterStateResponse.getState());
@@ -2337,7 +2350,8 @@ public abstract class ESIntegTestCase extends ESTestCase {
             getClientWrapper(),
             forbidPrivateIndexSettings(),
             forceSingleDataPath(),
-            autoManageVotingExclusions()
+            autoManageVotingExclusions(),
+            TEST_ENTITLEMENTS::addEntitledNodePaths
         );
     }
 

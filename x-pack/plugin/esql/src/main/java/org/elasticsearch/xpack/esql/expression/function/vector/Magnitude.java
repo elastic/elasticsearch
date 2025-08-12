@@ -66,6 +66,6 @@ public class Magnitude extends VectorScalarFunction {
     }
 
     public static float calculateScalar(float[] scratch) {
-        return (float) Math.sqrt(VectorUtil.squareDistance(scratch, scratch));
+        return (float) Math.sqrt(VectorUtil.dotProduct(scratch, scratch));
     }
 }

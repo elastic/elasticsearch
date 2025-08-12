@@ -5,25 +5,25 @@
  
 // tag::vector-magnitude[]
  from colors
- | eval similarity = v_magnitude(rgb_vector) 
- | sort similarity desc, color asc 
+ | eval magnitude = v_magnitude(rgb_vector) 
+ | sort magnitude desc, color asc 
 // end::vector-magnitude[]
  | limit 10
- | keep color, similarity
+ | keep color, magnitude
  ;
  
 // tag::vector-magnitude-result[]
-color:text | similarity:double
-red        | 441.6729431152344
-maroon     | 382.6669616699219
-crimson    | 376.36419677734375
-orange     | 371.68536376953125
-gold       | 362.8360595703125
-black      | 360.62445068359375
-magenta    | 360.62445068359375
-yellow     | 360.62445068359375
-firebrick  | 359.67486572265625
-tomato     | 351.0227966308594
+color:text | magnitude:double
+white      | 441.6729431152344
+snow       | 435.9185791015625
+azure      | 433.1858825683594
+ivory      | 433.1858825683594
+mint cream | 433.0704345703125
+sea shell  | 426.25579833984375
+honeydew   | 424.5291442871094
+old lace   | 420.6352233886719
+corn silk  | 418.2451477050781
+linen      | 415.93267822265625
 // end::vector-magnitude-result[] 
 ;
 
@@ -38,16 +38,16 @@ tomato     | 351.0227966308594
  ;
 
 color:text | score:double
-red        | 221.836
-maroon     | 192.333
-crimson    | 189.182
-orange     | 186.843
-gold       | 182.418
-black      | 181.312
-magenta    | 181.312
-yellow     | 181.312
-firebrick  | 180.837
-tomato     | 176.511
+white      | 221.836
+snow       | 218.959
+azure      | 217.593
+ivory      | 217.593
+mint cream | 217.535
+sea shell  | 214.128
+honeydew   | 213.265
+old lace   | 211.318
+corn silk  | 210.123
+linen      | 208.966
 ;
 
 magnitudeWithLiteralVectors
@@ -59,7 +59,7 @@ row a = 1
 ;
 
 magnitude:double
-1.732
+3.742
 ;
 
  magnitudeWithStats
@@ -71,5 +71,5 @@ magnitude:double
  ;
 
 avg:double | min:double | max:double
-274.974    | 0.0        | 441.673
+313.692    | 0.0        | 441.673
 ;

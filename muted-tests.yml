@@ -143,8 +143,6 @@ tests:
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
   method: test {p0=nodes.stats/11_indices_metrics/indices mappings exact count test for indices level}
   issue: https://github.com/elastic/elasticsearch/issues/120950
-- class: org.elasticsearch.test.rest.yaml.CcsCommonYamlTestSuiteIT
-  issue: https://github.com/elastic/elasticsearch/issues/121407
 - class: org.elasticsearch.analysis.common.CommonAnalysisClientYamlTestSuiteIT
   method: test {yaml=analysis-common/40_token_filters/stemmer_override file access}
   issue: https://github.com/elastic/elasticsearch/issues/121625
@@ -461,9 +459,6 @@ tests:
 - class: org.elasticsearch.test.rest.yaml.RcsCcsCommonYamlTestSuiteIT
   method: test {p0=search/600_flattened_ignore_above/flattened ignore_above multi-value field}
   issue: https://github.com/elastic/elasticsearch/issues/131967
-- class: org.elasticsearch.xpack.remotecluster.CrossClusterEsqlRCS1EnrichUnavailableRemotesIT
-  method: testEsqlEnrichWithSkipUnavailable
-  issue: https://github.com/elastic/elasticsearch/issues/132078
 - class: org.elasticsearch.index.engine.MergeWithLowDiskSpaceIT
   method: testRelocationWhileForceMerging
   issue: https://github.com/elastic/elasticsearch/issues/131789
@@ -515,12 +510,15 @@ tests:
 - class: org.elasticsearch.xpack.sql.action.SqlSearchPageTimeoutIT
   method: testSearchContextIsCleanedUpAfterPageTimeoutForAggregationQueries
   issue: https://github.com/elastic/elasticsearch/issues/132619
-- class: org.elasticsearch.repositories.SnapshotMetricsIT
-  method: testSnapshotAPMMetrics
-  issue: https://github.com/elastic/elasticsearch/issues/132672
 - class: org.elasticsearch.xpack.ml.integration.TextEmbeddingQueryIT
   method: testHybridSearch
   issue: https://github.com/elastic/elasticsearch/issues/132703
+- class: org.elasticsearch.test.rest.ClientYamlTestSuiteIT
+  method: test {yaml=indices.simulate_index_template/10_basic/Simulate index template with data stream with mapping and setting overrides}
+  issue: https://github.com/elastic/elasticsearch/issues/132702
+- class: org.elasticsearch.xpack.ml.integration.RevertModelSnapshotIT
+  method: testRevertModelSnapshot
+  issue: https://github.com/elastic/elasticsearch/issues/132733
 
 # Examples:
 #

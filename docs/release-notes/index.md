@@ -25,7 +25,7 @@ To check for security updates, go to [Security announcements for the Elastic sta
 ### Features and enhancements [elasticsearch-9.1.2-features-enhancements]
 
 Authorization:
-* Adds `manage`, `create_index`, `read`, `index`, `write`, and `delete` privileges for the `kibana_system` role on third-party agent indices used by ExtraHop (logs-extrahop.investigation-*) and Qualys GAV (logs-qualys_gav.asset-*). This ensures ILM policies can delete these indices without permission errors. [#132387](https://github.com/elastic/elasticsearch/pull/132387) (issue: [#131825](https://github.com/elastic/elasticsearch/issues/131825))
+* Adds `manage`, `create_index`, `read`, `index`, `write`, and `delete` privileges for the `kibana_system` role on third-party agent indices used by ExtraHop (`logs-extrahop.investigation-*`) and Qualys GAV (`logs-qualys_gav.asset-*`). This ensures ILM policies can delete these indices without permission errors. [#132387](https://github.com/elastic/elasticsearch/pull/132387) (issue: [#131825](https://github.com/elastic/elasticsearch/issues/131825))
 
 ### Fixes [elasticsearch-9.1.2-fixes]
 

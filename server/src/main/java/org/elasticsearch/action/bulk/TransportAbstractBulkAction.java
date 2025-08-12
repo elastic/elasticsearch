@@ -26,6 +26,7 @@ import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.ComponentTemplate;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
+import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.project.ProjectResolver;
@@ -36,6 +37,7 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.ingest.IngestService;
@@ -70,6 +72,7 @@ public abstract class TransportAbstractBulkAction extends HandledTransportAction
     protected final Executor coordinationExecutor;
     protected final Executor systemCoordinationExecutor;
     private final ActionType<BulkResponse> bulkAction;
+    protected final FeatureService featureService;
 
     public TransportAbstractBulkAction(
         ActionType<BulkResponse> action,
@@ -82,7 +85,8 @@ public abstract class TransportAbstractBulkAction extends HandledTransportAction
         IndexingPressure indexingPressure,
         SystemIndices systemIndices,
         ProjectResolver projectResolver,
-        LongSupplier relativeTimeNanosProvider
+        LongSupplier relativeTimeNanosProvider,
+        FeatureService featureService
     ) {
         super(action.name(), transportService, actionFilters, requestReader, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.threadPool = threadPool;
@@ -94,6 +98,7 @@ public abstract class TransportAbstractBulkAction extends HandledTransportAction
         this.coordinationExecutor = threadPool.executor(ThreadPool.Names.WRITE_COORDINATION);
         this.systemCoordinationExecutor = threadPool.executor(ThreadPool.Names.SYSTEM_WRITE_COORDINATION);
         this.ingestForwarder = new IngestActionForwarder(transportService);
+        this.featureService = featureService;
         clusterService.addStateApplier(this.ingestForwarder);
         this.relativeTimeNanosProvider = relativeTimeNanosProvider;
         this.bulkAction = action;
@@ -416,11 +421,19 @@ public abstract class TransportAbstractBulkAction extends HandledTransportAction
                             + "] stream instead"
                     );
                     Boolean failureStoreEnabled = resolveFailureStore(req.index(), projectMetadata, threadPool.absoluteTimeInMillis());
-                    if (Boolean.TRUE.equals(failureStoreEnabled)) {
-                        bulkRequestModifier.markItemForFailureStore(i, req.index(), e);
+
+                    if (featureService.clusterHasFeature(clusterService.state(), DataStream.DATA_STREAM_FAILURE_STORE_FEATURE)) {
+                        if (Boolean.TRUE.equals(failureStoreEnabled)) {
+                            bulkRequestModifier.markItemForFailureStore(i, req.index(), e);
+                        } else if (Boolean.FALSE.equals(failureStoreEnabled)) {
+                            bulkRequestModifier.markItemAsFailed(i, e, IndexDocFailureStoreStatus.NOT_ENABLED);
+                        } else {
+                            bulkRequestModifier.markItemAsFailed(i, e, IndexDocFailureStoreStatus.NOT_APPLICABLE_OR_UNKNOWN);
+                        }
                     } else {
                         bulkRequestModifier.markItemAsFailed(i, e, IndexDocFailureStoreStatus.NOT_APPLICABLE_OR_UNKNOWN);
                     }
+
                     break;
                 }
             }

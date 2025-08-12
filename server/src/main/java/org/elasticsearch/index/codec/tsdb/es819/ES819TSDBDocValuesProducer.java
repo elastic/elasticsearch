@@ -1224,7 +1224,7 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
                             // Instead of iterating over docs and find the max length, take an optimistic approach to avoid as
                             // many comparisons as there are remaining docs and instead do at most 7 comparisons:
                             int length = 1;
-                            int remainingBlockLength = ES819TSDBDocValuesFormat.NUMERIC_BLOCK_SIZE - blockInIndex;
+                            int remainingBlockLength = Math.min(ES819TSDBDocValuesFormat.NUMERIC_BLOCK_SIZE - blockInIndex, docsCount - i);
                             for (int newLength = remainingBlockLength; newLength > 1; newLength = newLength >> 1) {
                                 int lastIndex = i + newLength - 1;
                                 if (lastIndex < docsCount && isDense(index, docs.get(lastIndex), newLength)) {
@@ -1240,6 +1240,9 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
                 }
 
                 static boolean isDense(int firstDocId, int lastDocId, int length) {
+                    // This does not detect duplicate docids (e.g [1, 1, 2, 4] would be detected as dense),
+                    // this can happen with enrich or lookup. However this codec isn't used for enrich / lookup.
+                    // This codec is only used in the context of logsdb and tsdb, so this is fine here.
                     return lastDocId - firstDocId == length - 1;
                 }
 

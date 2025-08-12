@@ -363,6 +363,10 @@ public class CancellableTasksIT extends ESIntegTestCase {
             allowEntireRequest(rootRequest);
             cancelFuture.actionGet();
             ensureBansAndCancellationsConsistency();
+            // This method will call the cluster health API with wait_for_tasks set to Priority#LANGUID. This will ensure that all tasks
+            // currently submitted to the master service (included re-election after a disconnect) are processed before returning. This
+            // ensures cluster stability for the post-test consistency checks.
+            ensureStableCluster(nodes.size());
         }
     }
 

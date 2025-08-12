@@ -316,7 +316,8 @@ public abstract class EngineTestCase extends ESTestCase {
             config.isPromotableToPrimary(),
             config.getMapperService(),
             config.getEngineResetLock(),
-            config.getMergeMetrics()
+            config.getMergeMetrics(),
+            config.getIndexDeletionPolicyWrapper()
         );
     }
 
@@ -351,7 +352,8 @@ public abstract class EngineTestCase extends ESTestCase {
             config.isPromotableToPrimary(),
             config.getMapperService(),
             config.getEngineResetLock(),
-            config.getMergeMetrics()
+            config.getMergeMetrics(),
+            config.getIndexDeletionPolicyWrapper()
         );
     }
 
@@ -386,7 +388,8 @@ public abstract class EngineTestCase extends ESTestCase {
             config.isPromotableToPrimary(),
             config.getMapperService(),
             config.getEngineResetLock(),
-            config.getMergeMetrics()
+            config.getMergeMetrics(),
+            config.getIndexDeletionPolicyWrapper()
         );
     }
 
@@ -788,7 +791,8 @@ public abstract class EngineTestCase extends ESTestCase {
             globalCheckpointSupplier,
             retentionLeasesSupplier,
             new NoneCircuitBreakerService(),
-            null
+            null,
+            Function.identity()
         );
     }
 
@@ -814,7 +818,8 @@ public abstract class EngineTestCase extends ESTestCase {
             maybeGlobalCheckpointSupplier,
             maybeGlobalCheckpointSupplier == null ? null : () -> RetentionLeases.EMPTY,
             breakerService,
-            null
+            null,
+            Function.identity()
         );
     }
 
@@ -829,7 +834,8 @@ public abstract class EngineTestCase extends ESTestCase {
         final @Nullable LongSupplier maybeGlobalCheckpointSupplier,
         final @Nullable Supplier<RetentionLeases> maybeRetentionLeasesSupplier,
         final CircuitBreakerService breakerService,
-        final @Nullable Engine.IndexCommitListener indexCommitListener
+        final @Nullable Engine.IndexCommitListener indexCommitListener,
+        final @Nullable Function<ElasticsearchIndexDeletionPolicy, ElasticsearchIndexDeletionPolicy> indexDeletionPolicyWrapper
     ) {
         final IndexWriterConfig iwc = newIndexWriterConfig();
         final TranslogConfig translogConfig = new TranslogConfig(shardId, translogPath, indexSettings, BigArrays.NON_RECYCLING_INSTANCE);
@@ -893,7 +899,8 @@ public abstract class EngineTestCase extends ESTestCase {
             true,
             mapperService,
             new EngineResetLock(),
-            mergeMetrics
+            mergeMetrics,
+            indexDeletionPolicyWrapper == null ? Function.identity() : indexDeletionPolicyWrapper
         );
     }
 
@@ -936,7 +943,8 @@ public abstract class EngineTestCase extends ESTestCase {
             config.isPromotableToPrimary(),
             config.getMapperService(),
             config.getEngineResetLock(),
-            config.getMergeMetrics()
+            config.getMergeMetrics(),
+            config.getIndexDeletionPolicyWrapper()
         );
     }
 

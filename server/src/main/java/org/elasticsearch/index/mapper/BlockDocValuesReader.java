@@ -21,6 +21,7 @@ import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.ByteArrayStreamInput;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.codec.tsdb.es819.BulkNumericDocValues;
 import org.elasticsearch.index.mapper.BlockLoader.BlockFactory;
 import org.elasticsearch.index.mapper.BlockLoader.BooleanBuilder;
 import org.elasticsearch.index.mapper.BlockLoader.Builder;
@@ -84,6 +85,7 @@ public abstract class BlockDocValuesReader implements BlockLoader.AllReader {
         public SortedSetDocValues ordinals(LeafReaderContext context) throws IOException {
             throw new UnsupportedOperationException();
         }
+
     }
 
     public static class LongsBlockLoader extends DocValuesBlockLoader {
@@ -116,8 +118,8 @@ public abstract class BlockDocValuesReader implements BlockLoader.AllReader {
         }
     }
 
-    private static class SingletonLongs extends BlockDocValuesReader {
-        private final NumericDocValues numericDocValues;
+    static class SingletonLongs extends BlockDocValuesReader {
+        final NumericDocValues numericDocValues;
 
         SingletonLongs(NumericDocValues numericDocValues) {
             this.numericDocValues = numericDocValues;
@@ -125,6 +127,9 @@ public abstract class BlockDocValuesReader implements BlockLoader.AllReader {
 
         @Override
         public BlockLoader.Block read(BlockFactory factory, Docs docs, int offset) throws IOException {
+            if (numericDocValues instanceof BulkNumericDocValues bulkDv) {
+                return bulkDv.read(factory, docs, offset);
+            }
             try (BlockLoader.LongBuilder builder = factory.longsFromDocValues(docs.count() - offset)) {
                 int lastDoc = -1;
                 for (int i = offset; i < docs.count(); i++) {
@@ -164,7 +169,7 @@ public abstract class BlockDocValuesReader implements BlockLoader.AllReader {
         }
     }
 
-    private static class Longs extends BlockDocValuesReader {
+    static class Longs extends BlockDocValuesReader {
         private final SortedNumericDocValues numericDocValues;
         private int docID = -1;
 
@@ -548,11 +553,7 @@ public abstract class BlockDocValuesReader implements BlockLoader.AllReader {
             // Doubles from doc values ensures that the values are in order
             try (BlockLoader.FloatBuilder builder = factory.denseVectors(docs.count() - offset, dimensions)) {
                 for (int i = offset; i < docs.count(); i++) {
-                    int doc = docs.get(i);
-                    if (doc < iterator.docID()) {
-                        throw new IllegalStateException("docs within same block must be in order");
-                    }
-                    read(doc, builder);
+                    read(docs.get(i), builder);
                 }
                 return builder.build();
             }
@@ -564,7 +565,9 @@ public abstract class BlockDocValuesReader implements BlockLoader.AllReader {
         }
 
         private void read(int doc, BlockLoader.FloatBuilder builder) throws IOException {
-            if (iterator.advance(doc) == doc) {
+            if (iterator.docID() > doc) {
+                builder.appendNull();
+            } else if (iterator.docID() == doc || iterator.advance(doc) == doc) {
                 builder.beginPositionEntry();
                 float[] floats = floatVectorValues.vectorValue(iterator.index());
                 assert floats.length == dimensions

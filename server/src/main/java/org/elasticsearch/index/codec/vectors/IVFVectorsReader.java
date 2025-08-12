@@ -22,7 +22,6 @@ import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.index.VectorEncoding;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.internal.hppc.IntObjectHashMap;
-import org.apache.lucene.search.AbstractKnnCollector;
 import org.apache.lucene.search.KnnCollector;
 import org.apache.lucene.store.ChecksumIndexInput;
 import org.apache.lucene.store.DataInput;
@@ -30,13 +29,10 @@ import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.BitSet;
 import org.apache.lucene.util.Bits;
-import org.apache.lucene.util.FixedBitSet;
-import org.apache.lucene.util.hnsw.NeighborQueue;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.search.vectors.IVFKnnSearchStrategy;
 
 import java.io.IOException;
-import java.util.function.IntPredicate;
 
 import static org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsReader.SIMILARITY_FUNCTIONS;
 import static org.elasticsearch.index.codec.vectors.IVFVectorsFormat.DYNAMIC_NPROBE;
@@ -89,7 +85,7 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
         }
     }
 
-    abstract CentroidQueryScorer getCentroidScorer(FieldInfo fieldInfo, int numCentroids, IndexInput centroids, float[] target)
+    abstract CentroidIterator getCentroidIterator(FieldInfo fieldInfo, int numCentroids, IndexInput centroids, float[] target)
         throws IOException;
 
     private static IndexInput openDataInput(
@@ -154,8 +150,12 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
         final long centroidOffset = input.readLong();
         final long centroidLength = input.readLong();
         final float[] globalCentroid = new float[info.getVectorDimension()];
+        long postingListOffset = -1;
+        long postingListLength = -1;
         float globalCentroidDp = 0;
         if (centroidLength > 0) {
+            postingListOffset = input.readLong();
+            postingListLength = input.readLong();
             input.readFloats(globalCentroid, 0, globalCentroid.length);
             globalCentroidDp = Float.intBitsToFloat(input.readInt());
         }
@@ -165,6 +165,8 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
             numCentroids,
             centroidOffset,
             centroidLength,
+            postingListOffset,
+            postingListLength,
             globalCentroid,
             globalCentroidDp
         );
@@ -220,15 +222,6 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
             percentFiltered = Math.max(0f, Math.min(1f, (float) bitSet.approximateCardinality() / bitSet.length()));
         }
         int numVectors = rawVectorsReader.getFloatVectorValues(field).size();
-        BitSet visitedDocs = new FixedBitSet(state.segmentInfo.maxDoc() + 1);
-        IntPredicate needsScoring = docId -> {
-            if (acceptDocs != null && acceptDocs.get(docId) == false) {
-                return false;
-            }
-            return visitedDocs.getAndSet(docId) == false;
-        };
-        assert knnCollector instanceof AbstractKnnCollector;
-        AbstractKnnCollector knnCollectorImpl = (AbstractKnnCollector) knnCollector;
         int nProbe = DYNAMIC_NPROBE;
         // Search strategy may be null if this is being called from checkIndex (e.g. from a test)
         if (knnCollector.getSearchStrategy() instanceof IVFKnnSearchStrategy ivfSearchStrategy) {
@@ -236,23 +229,17 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
         }
 
         FieldEntry entry = fields.get(fieldInfo.number);
-        CentroidQueryScorer centroidQueryScorer = getCentroidScorer(
-            fieldInfo,
-            entry.numCentroids,
-            entry.centroidSlice(ivfCentroids),
-            target
-        );
         if (nProbe == DYNAMIC_NPROBE) {
             // empirically based, and a good dynamic to get decent recall while scaling a la "efSearch"
             // scaling by the number of centroids vs. the nearest neighbors requested
             // not perfect, but a comparative heuristic.
             // we might want to utilize the total vector count as well, but this is a good start
-            nProbe = (int) Math.round(Math.log10(centroidQueryScorer.size()) * Math.sqrt(knnCollector.k()));
+            nProbe = (int) Math.round(Math.log10(entry.numCentroids) * Math.sqrt(knnCollector.k()));
             // clip to be between 1 and the number of centroids
-            nProbe = Math.max(Math.min(nProbe, centroidQueryScorer.size()), 1);
+            nProbe = Math.max(Math.min(nProbe, entry.numCentroids), 1);
         }
-        final NeighborQueue centroidQueue = scorePostingLists(fieldInfo, knnCollector, centroidQueryScorer, nProbe);
-        PostingVisitor scorer = getPostingVisitor(fieldInfo, ivfClusters, target, needsScoring);
+        CentroidIterator centroidIterator = getCentroidIterator(fieldInfo, entry.numCentroids, entry.centroidSlice(ivfCentroids), target);
+        PostingVisitor scorer = getPostingVisitor(fieldInfo, entry.postingListSlice(ivfClusters), target, acceptDocs);
         int centroidsVisited = 0;
         long expectedDocs = 0;
         long actualDocs = 0;
@@ -260,22 +247,23 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
         // Note, numCollected is doing the bare minimum here.
         // TODO do we need to handle nested doc counts similarly to how we handle
         // filtering? E.g. keep exploring until we hit an expected number of parent documents vs. child vectors?
-        while (centroidQueue.size() > 0 && (centroidsVisited < nProbe || knnCollectorImpl.numCollected() < knnCollector.k())) {
+        while (centroidIterator.hasNext()
+            && (centroidsVisited < nProbe || knnCollector.minCompetitiveSimilarity() == Float.NEGATIVE_INFINITY)) {
             ++centroidsVisited;
             // todo do we actually need to know the score???
-            int centroidOrdinal = centroidQueue.pop();
+            long offset = centroidIterator.nextPostingListOffset();
             // todo do we need direct access to the raw centroid???, this is used for quantizing, maybe hydrating and quantizing
             // is enough?
-            expectedDocs += scorer.resetPostingsScorer(centroidQueryScorer.postingListOffset(centroidOrdinal));
+            expectedDocs += scorer.resetPostingsScorer(offset);
             actualDocs += scorer.visit(knnCollector);
         }
         if (acceptDocs != null) {
             float unfilteredRatioVisited = (float) expectedDocs / numVectors;
             int filteredVectors = (int) Math.ceil(numVectors * percentFiltered);
             float expectedScored = Math.min(2 * filteredVectors * unfilteredRatioVisited, expectedDocs / 2f);
-            while (centroidQueue.size() > 0 && (actualDocs < expectedScored || actualDocs < knnCollector.k())) {
-                int centroidOrdinal = centroidQueue.pop();
-                scorer.resetPostingsScorer(centroidQueryScorer.postingListOffset(centroidOrdinal));
+            while (centroidIterator.hasNext() && (actualDocs < expectedScored || actualDocs < knnCollector.k())) {
+                long offset = centroidIterator.nextPostingListOffset();
+                scorer.resetPostingsScorer(offset);
                 actualDocs += scorer.visit(knnCollector);
             }
         }
@@ -294,13 +282,6 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
         }
     }
 
-    abstract NeighborQueue scorePostingLists(
-        FieldInfo fieldInfo,
-        KnnCollector knnCollector,
-        CentroidQueryScorer centroidQueryScorer,
-        int nProbe
-    ) throws IOException;
-
     @Override
     public void close() throws IOException {
         IOUtils.close(rawVectorsReader, ivfCentroids, ivfClusters);
@@ -312,23 +293,27 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
         int numCentroids,
         long centroidOffset,
         long centroidLength,
+        long postingListOffset,
+        long postingListLength,
         float[] globalCentroid,
         float globalCentroidDp
     ) {
         IndexInput centroidSlice(IndexInput centroidFile) throws IOException {
             return centroidFile.slice("centroids", centroidOffset, centroidLength);
         }
+
+        IndexInput postingListSlice(IndexInput postingListFile) throws IOException {
+            return postingListFile.slice("postingLists", postingListOffset, postingListLength);
+        }
     }
 
-    abstract PostingVisitor getPostingVisitor(FieldInfo fieldInfo, IndexInput postingsLists, float[] target, IntPredicate needsScoring)
+    abstract PostingVisitor getPostingVisitor(FieldInfo fieldInfo, IndexInput postingsLists, float[] target, Bits needsScoring)
         throws IOException;
 
-    interface CentroidQueryScorer {
-        int size();
+    interface CentroidIterator {
+        boolean hasNext();
 
-        long postingListOffset(int centroidOrdinal) throws IOException;
-
-        void bulkScore(NeighborQueue queue) throws IOException;
+        long nextPostingListOffset() throws IOException;
     }
 
     interface PostingVisitor {

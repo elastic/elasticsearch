@@ -117,5 +117,5 @@
     "FROM k8s\n| STATS last_bytes_in = LAST(network.bytes_in, @timestamp) BY pod\n| SORT pod ASC"
   ],
   "preview" : false,
-  "snapshot_only" : false
+  "snapshot_only" : true
 }

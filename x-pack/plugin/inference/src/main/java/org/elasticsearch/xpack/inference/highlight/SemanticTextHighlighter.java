@@ -21,6 +21,7 @@ import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.Weight;
+import org.apache.lucene.search.join.ToParentBlockJoinQuery;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.DenseVectorFieldType;
@@ -304,6 +305,8 @@ public class SemanticTextHighlighter implements Highlighter {
             public void visitLeaf(Query query) {
                 if (query instanceof MatchAllDocsQuery) {
                     queries.add(new MatchAllDocsQuery());
+                } else if (query instanceof ToParentBlockJoinQuery toParentBlockJoinQuery) {
+                    queries.add(toParentBlockJoinQuery.getChildQuery());
                 }
             }
         });

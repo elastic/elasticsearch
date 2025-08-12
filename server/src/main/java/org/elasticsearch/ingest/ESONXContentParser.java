@@ -39,7 +39,6 @@ import java.util.List;
  */
 public class ESONXContentParser extends AbstractXContentParser {
 
-    private final ESONIndexed.ESONObject root;
     private final ESONSource.Values values;
     private final XContentType xContentType;
 
@@ -73,17 +72,16 @@ public class ESONXContentParser extends AbstractXContentParser {
     }
 
     public ESONXContentParser(
-        ESONIndexed.ESONObject root,
+        ESONFlat esonFlat,
         NamedXContentRegistry registry,
         DeprecationHandler deprecationHandler,
         XContentType xContentType
     ) {
         super(registry, deprecationHandler);
-        this.root = root;
-        this.values = root.esonFlat().values();
+        this.values = esonFlat.values();
         this.xContentType = xContentType;
 
-        this.keyArray = root.esonFlat().keys();
+        this.keyArray = esonFlat.keys();
     }
 
     @Override

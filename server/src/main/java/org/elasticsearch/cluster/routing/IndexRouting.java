@@ -357,9 +357,10 @@ public abstract class IndexRouting {
         public int indexShard(String id, @Nullable String routing, XContentType sourceType, ESONIndexed.ESONObject structuredSource) {
             assert Transports.assertNotTransportThread("parsing the _source can get slow");
             checkNoRouting(routing);
+            // TODO: ESONFlat will return an unmutated version whereas Indexed can be mutated right now.
             try (
                 XContentParser parser = new ESONXContentParser(
-                    structuredSource,
+                    structuredSource.esonFlat(),
                     NamedXContentRegistry.EMPTY,
                     DeprecationHandler.IGNORE_DEPRECATIONS,
                     sourceType

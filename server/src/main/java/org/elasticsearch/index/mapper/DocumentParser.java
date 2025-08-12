@@ -25,7 +25,7 @@ import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
-import org.elasticsearch.ingest.ESONIndexed;
+import org.elasticsearch.ingest.ESONFlat;
 import org.elasticsearch.ingest.ESONXContentParser;
 import org.elasticsearch.plugins.internal.XContentMeteringParserDecorator;
 import org.elasticsearch.search.lookup.SearchLookup;
@@ -36,7 +36,6 @@ import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xcontent.support.MapXContentParser;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -122,17 +121,13 @@ public final class DocumentParser {
         };
     }
 
-    private XContentParser getParser(SourceToParse source, @Nullable Map<String, Object> structuredSource, XContentType xContentType)
+    private XContentParser getParser(SourceToParse source, @Nullable ESONFlat structuredSource, XContentType xContentType)
         throws IOException {
         XContentParserConfiguration config = parserConfiguration.withIncludeSourceOnError(source.getIncludeSourceOnError());
         if (structuredSource == null) {
             return XContentHelper.createParser(config, source.source(), xContentType);
         } else {
-            if (structuredSource instanceof ESONIndexed.ESONObject esonObject) {
-                return new ESONXContentParser(esonObject, config.registry(), config.deprecationHandler(), xContentType);
-            } else {
-                return new MapXContentParser(config.registry(), config.deprecationHandler(), structuredSource, xContentType);
-            }
+            return new ESONXContentParser(structuredSource, config.registry(), config.deprecationHandler(), xContentType);
         }
     }
 

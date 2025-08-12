@@ -12,6 +12,7 @@ package org.elasticsearch.index.mapper;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.ingest.ESONFlat;
 import org.elasticsearch.plugins.internal.XContentMeteringParserDecorator;
 import org.elasticsearch.xcontent.XContentType;
 
@@ -34,7 +35,7 @@ public class SourceToParse {
 
     private final XContentMeteringParserDecorator meteringParserDecorator;
     @Nullable
-    private Map<String, Object> structuredSource;
+    private ESONFlat structuredSource;
 
     public SourceToParse(
         @Nullable String id,
@@ -44,7 +45,7 @@ public class SourceToParse {
         Map<String, String> dynamicTemplates,
         boolean includeSourceOnError,
         XContentMeteringParserDecorator meteringParserDecorator,
-        @Nullable Map<String, Object> structuredSource
+        @Nullable ESONFlat structuredSource
     ) {
         this.id = id;
         // we always convert back to byte array, since we store it and Field only supports bytes..
@@ -81,7 +82,7 @@ public class SourceToParse {
     }
 
     @Nullable
-    public Map<String, Object> getStructuredSource() {
+    public ESONFlat getStructuredSource() {
         return structuredSource;
     }
 

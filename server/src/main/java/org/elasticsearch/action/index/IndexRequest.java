@@ -40,18 +40,12 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.ingest.ESONFlat;
 import org.elasticsearch.ingest.ESONIndexed;
-import org.elasticsearch.ingest.ESONSource;
-import org.elasticsearch.ingest.ESONXContentSerializer;
 import org.elasticsearch.ingest.IngestService;
-import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
-import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -106,9 +100,6 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
     private String routing;
 
     private ModernSource modernSource;
-    private BytesReference source;
-    private ESONFlat structuredSource;
-    private boolean useStructuredSource = false;
 
     private OpType opType = OpType.INDEX;
 
@@ -175,15 +166,21 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
         }
         id = in.readOptionalString();
         routing = in.readOptionalString();
+        final ESONFlat structuredSource;
+        final int originalSourceSize;
         if (in.getTransportVersion().onOrAfter(TransportVersions.STRUCTURED_SOURCE)) {
             if (in.readBoolean()) {
-                useStructuredSource = true;
                 structuredSource = new ESONFlat(in);
+                originalSourceSize = in.readVInt();
             } else {
-                source = in.readBytesReference();
+                BytesReference source = in.readBytesReference();
+                structuredSource = null;
+                originalSourceSize = source.length();
             }
         } else {
-            source = in.readBytesReference();
+            BytesReference source = in.readBytesReference();
+            structuredSource = null;
+            originalSourceSize = source.length();
         }
         opType = OpType.fromId(in.readByte());
         version = in.readLong();
@@ -199,6 +196,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
         } else {
             contentType = null;
         }
+        modernSource = new ModernSource(contentType, originalSourceSize, structuredSource);
         ifSeqNo = in.readZLong();
         ifPrimaryTerm = in.readVLong();
         requireAlias = in.readBoolean();
@@ -269,7 +267,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
     @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = super.validate();
-        if ((useStructuredSource == false && source == null) || (useStructuredSource && structuredSource == null)) {
+        if (modernSource == null) {
             validationException = addValidationError("source is missing", validationException);
         }
         if (contentType == null) {
@@ -431,59 +429,31 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
      * The source of the document to index, recopied to a new array if it is unsafe.
      */
     public BytesReference source() {
-        if (useStructuredSource) {
-            try (XContentBuilder builder = XContentFactory.contentBuilder(contentType)) {
-                ESONXContentSerializer.flattenToXContent(structuredSource, builder, ToXContent.EMPTY_PARAMS);
-                return BytesReference.bytes(builder);
-            } catch (IOException e) {
-                throw new UncheckedIOException(e);
-            }
-        } else {
-            return source;
-        }
+        return modernSource.originalSourceBytes();
     }
 
     public int sourceSize() {
-        return useStructuredSource ? structuredSource.values().data().length() : source.length();
+        return modernSource.originalSourceSize();
     }
 
     public void setStructuredSource(ESONIndexed.ESONObject esonSource) {
-        this.useStructuredSource = true;
-        this.structuredSource = esonSource.esonFlat();
-        this.source = null;
+        this.modernSource = new ModernSource(contentType, modernSource.originalSourceSize(), ESONIndexed.flatten(esonSource));
     }
 
     public void ensureStructureSource() {
-        if (useStructuredSource == false) {
-            this.useStructuredSource = true;
-            createStructuredSource();
-        }
-    }
-
-    private void createStructuredSource() {
-        ESONSource.Builder builder = new ESONSource.Builder((int) (source.length() * 0.70));
-        try (XContentParser parser = XContentHelper.createParser(XContentParserConfiguration.EMPTY, source, contentType)) {
-            structuredSource = builder.parse(parser).esonFlat();
-        } catch (IOException e) {
-            throw new UncheckedIOException(e);
-        }
+        modernSource.ensureStructured();
     }
 
     public boolean isStructuredSource() {
-        return useStructuredSource;
+        return modernSource.isStructured();
     }
 
-    public ESONIndexed.ESONObject structuredSource() {
-        return ESONIndexed.fromFlat(structuredSource);
+    public ESONFlat structuredSource() {
+        return modernSource.structuredSource();
     }
 
     public Map<String, Object> sourceAsMap() {
-        if (useStructuredSource) {
-            assert structuredSource != null;
-            return ESONIndexed.fromFlat(structuredSource);
-        } else {
-            return XContentHelper.convertToMap(source, false, contentType).v2();
-        }
+        return ESONIndexed.fromFlat(modernSource.structuredSource());
     }
 
     /**
@@ -600,12 +570,8 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
      * Sets the document to index in bytes form.
      */
     public IndexRequest source(BytesReference source, XContentType xContentType) {
-        this.source = Objects.requireNonNull(source);
         this.contentType = Objects.requireNonNull(xContentType);
-        if (useStructuredSource) {
-            createStructuredSource();
-        }
-        this.modernSource = new ModernSource(source, null);
+        this.modernSource = new ModernSource(Objects.requireNonNull(source), xContentType);
         return this;
     }
 
@@ -837,8 +803,10 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
         out.writeOptionalString(id);
         out.writeOptionalString(routing);
         if (out.getTransportVersion().onOrAfter(TransportVersions.STRUCTURED_SOURCE)) {
-            out.writeBoolean(useStructuredSource);
-            if (useStructuredSource) {
+            out.writeBoolean(modernSource.isStructured());
+            if (modernSource.isStructured()) {
+                ESONFlat structuredSource = modernSource.structuredSource();
+                out.writeVInt(modernSource.originalSourceSize());
                 out.writeBytesReference(structuredSource.getSerializedKeyBytes());
                 out.writeBytesReference(structuredSource.values().data());
             } else {
@@ -898,13 +866,13 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
     public String toString() {
         String sSource = "_na_";
         try {
-            if (source.length() > MAX_SOURCE_LENGTH_IN_TOSTRING) {
+            if (modernSource.originalSourceSize() > MAX_SOURCE_LENGTH_IN_TOSTRING) {
                 sSource = "n/a, actual length: ["
-                    + ByteSizeValue.ofBytes(source.length()).toString()
+                    + ByteSizeValue.ofBytes(modernSource.originalSourceSize()).toString()
                     + "], max length: "
                     + ByteSizeValue.ofBytes(MAX_SOURCE_LENGTH_IN_TOSTRING).toString();
             } else {
-                sSource = XContentHelper.convertToJson(source, false);
+                sSource = XContentHelper.convertToJson(modernSource.originalSourceBytes(), false);
             }
         } catch (Exception e) {
             // ignore
@@ -939,7 +907,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
 
     @Override
     public long ramBytesUsed() {
-        return SHALLOW_SIZE + RamUsageEstimator.sizeOf(id) + (source == null ? 0 : source.length());
+        return SHALLOW_SIZE + RamUsageEstimator.sizeOf(id) + (modernSource == null ? 0 : modernSource.originalSourceSize());
     }
 
     @Override
@@ -994,8 +962,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
 
     @Override
     public int route(IndexRouting indexRouting) {
-        if (useStructuredSource) {
-            assert structuredSource != null;
+        if (modernSource.isStructured()) {
             // TODO: Need to implement filtering
             // return indexRouting.indexShard(id, routing, contentType, structuredSource);
             return indexRouting.indexShard(id, routing, contentType, source());

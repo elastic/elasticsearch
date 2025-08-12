@@ -536,7 +536,7 @@ public class ESONIndexed {
         return index;
     }
 
-    public static ESONIndexed.ESONObject flatten(ESONIndexed.ESONObject original) {
+    public static ESONFlat flatten(ESONIndexed.ESONObject original) {
         // TODO: Add a better estimate of the size to be added
         BytesStreamOutput newValuesOut = new BytesStreamOutput(128);
         List<ESONEntry> flatKeyArray = new ArrayList<>(original.esonFlat.keys().size());
@@ -551,7 +551,7 @@ public class ESONIndexed {
 
         // Return new ESONObject with flattened structure
         BytesReference data = CompositeBytesReference.of(originalData, newValuesOut.bytes());
-        return new ESONIndexed.ESONObject(0, new ESONFlat(flatKeyArray, new ESONSource.Values(data)));
+        return new ESONFlat(flatKeyArray, new ESONSource.Values(data));
     }
 
     /**

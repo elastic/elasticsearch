@@ -1432,7 +1432,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
             request.version(),
             request.routing(),
             request.versionType(),
-            new MapStructuredSource(request.structuredSource())
+            new MapStructuredSource(ESONIndexed.fromFlat(request.structuredSource()))
         );
     }
 
@@ -1475,7 +1475,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         assert ensureNoSelfReferences == false;
         MapStructuredSource source = (MapStructuredSource) document.getSource();
         ESONIndexed.ESONObject esonSource = (ESONIndexed.ESONObject) source.map();
-        request.setStructuredSource(ESONIndexed.flatten(esonSource));
+        request.setStructuredSource(esonSource);
     }
 
     /**

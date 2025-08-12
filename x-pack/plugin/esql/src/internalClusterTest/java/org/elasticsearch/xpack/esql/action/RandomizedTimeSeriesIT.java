@@ -94,7 +94,8 @@ public class RandomizedTimeSeriesIT extends AbstractEsqlIntegTestCase {
         // This calculation looks a little weird, but it simply performs an integer division that
         // throws away the remainder of the division by secondsInWindow. It rounds down
         // the timestamp to the nearest multiple of secondsInWindow.
-        return Instant.parse((String) timestampCell).toEpochMilli() / 1000 / secondsInWindow * secondsInWindow;
+        var timestampSeconds = Instant.parse((String) timestampCell).toEpochMilli() / 1000;
+        return (timestampSeconds / secondsInWindow) * secondsInWindow;
     }
 
     enum Agg {
@@ -156,9 +157,7 @@ public class RandomizedTimeSeriesIT extends AbstractEsqlIntegTestCase {
         Settings.Builder settingsBuilder = Settings.builder();
         // Ensure it will be a TSDB data stream
         settingsBuilder.put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES);
-        settingsBuilder.putList("index.routing_path", List.of("attributes.*"));
         CompressedXContent mappings = mappingString == null ? null : CompressedXContent.fromJSON(mappingString);
-        // print the mapping
         TransportPutComposableIndexTemplateAction.Request request = new TransportPutComposableIndexTemplateAction.Request(
             RandomizedTimeSeriesIT.DATASTREAM_NAME
         );

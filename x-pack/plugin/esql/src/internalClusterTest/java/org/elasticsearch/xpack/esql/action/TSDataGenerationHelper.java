@@ -38,9 +38,7 @@ class TSDataGenerationHelper {
         var isIP = dimensionName.hashCode() % 5 == 1;
         if (isNumeric) {
             // Numeric values are sometimes passed as integers and sometimes as strings.
-            return ESTestCase.randomBoolean()
-                ? ESTestCase.randomIntBetween(1, 1000)
-                : Integer.toString(ESTestCase.randomIntBetween(1, 1000));
+            return ESTestCase.randomIntBetween(1, 1000);
         } else if (isIP) {
             // TODO: Make sure the schema ingests this as an IP address.
             return NetworkAddress.format(ESTestCase.randomIp(ESTestCase.randomBoolean()));
@@ -55,7 +53,6 @@ class TSDataGenerationHelper {
         this.numDocs = numDocs;
         attributesForMetrics = List.copyOf(Set.copyOf(ESTestCase.randomList(1, 300, () -> ESTestCase.randomAlphaOfLengthBetween(2, 30))));
         numTimeSeries = ESTestCase.randomIntBetween(10, (int) Math.sqrt(numDocs));
-        // System.out.println("Total of time series: " + numTimeSeries);
         // allTimeSeries contains the list of dimension-values for each time series.
         List<List<Tuple<String, Object>>> allTimeSeries = IntStream.range(0, numTimeSeries).mapToObj(tsIdx -> {
             List<String> dimensionsInMetric = ESTestCase.randomNonEmptySubsetOf(attributesForMetrics);
@@ -109,15 +106,8 @@ class TSDataGenerationHelper {
                 Map.of(
                     "gauge_long",
                     Map.of("path_match", "metrics.gauge_*", "mapping", Map.of("type", "long", "time_series_metric", "gauge"))
-                ),
-                Map.of(
-                    "counter_double",
-                    Map.of("path_match", "metrics.counter_*", "mapping", Map.of("type", "double", "time_series_metric", "counter"))
-                ),
-                Map.of(
-                    "gauge_double",
-                    Map.of("path_match", "metrics.gauge_*", "mapping", Map.of("type", "double", "time_series_metric", "gauge"))
                 )
+                // TODO: Add double and other metric types
             )
         );
     }

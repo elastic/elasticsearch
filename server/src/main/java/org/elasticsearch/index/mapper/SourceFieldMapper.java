@@ -436,7 +436,7 @@ public class SourceFieldMapper extends MetadataFieldMapper {
     @Override
     public void preParse(DocumentParserContext context) throws IOException {
         SourceToParse sourceToParse = context.sourceToParse();
-        ModernSource modernSource = sourceToParse.modernSource();
+        ModernSource modernSource = sourceToParse.source();
         XContentType contentType = sourceToParse.getXContentType();
 
         final var storedSource = stored()

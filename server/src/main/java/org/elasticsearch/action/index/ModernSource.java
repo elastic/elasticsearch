@@ -90,6 +90,16 @@ public class ModernSource {
         return structuredSource;
     }
 
+    public boolean isSourceEmpty() {
+        // TODO: check this logic. What does an empty source get converted into?
+        if (structuredSource != null) {
+            return false;
+        } else {
+            return originalSource == null || originalSource.length() == 0;
+        }
+
+    }
+
     @Override
     public boolean equals(Object o) {
         // TODO: Improve

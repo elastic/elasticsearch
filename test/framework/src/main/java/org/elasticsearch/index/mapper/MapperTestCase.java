@@ -283,11 +283,11 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         });
         DocumentParsingException e = expectThrows(
             DocumentParsingException.class,
-            "didn't throw while parsing " + source.source().utf8ToString(),
+            "didn't throw while parsing " + source.source().originalSourceBytes().utf8ToString(),
             () -> mapperService.documentMapper().parse(source)
         );
         assertThat(
-            "incorrect exception while parsing " + source.source().utf8ToString(),
+            "incorrect exception while parsing " + source.source().originalSourceBytes().utf8ToString(),
             e.getCause().getMessage(),
             exceptionMessageMatcher
         );

@@ -79,7 +79,8 @@ public final class DocumentParser {
      * @throws DocumentParsingException whenever there's a problem parsing the document
      */
     public ParsedDocument parseDocument(SourceToParse source, MappingLookup mappingLookup) throws DocumentParsingException {
-        if (source.source() != null && source.source().length() == 0) {
+        ModernSource modernSource = source.source();
+        if (modernSource.isSourceEmpty()) {
             throw new DocumentParsingException(new XContentLocation(0, 0), "failed to parse, document is empty");
         }
         final RootDocumentParserContext context;
@@ -123,7 +124,7 @@ public final class DocumentParser {
 
     private XContentParser getParser(SourceToParse source, XContentType xContentType) throws IOException {
         XContentParserConfiguration config = parserConfiguration.withIncludeSourceOnError(source.getIncludeSourceOnError());
-        ModernSource modernSource = source.modernSource();
+        ModernSource modernSource = source.source();
         if (modernSource.isStructured()) {
             return new ESONXContentParser(modernSource.structuredSource(), config.registry(), config.deprecationHandler(), xContentType);
         } else {
@@ -184,7 +185,7 @@ public final class DocumentParser {
                     fto
                 )
             ).build(new IndexFieldDataCache.None(), new NoneCircuitBreakerService()),
-            (ctx, doc) -> Source.fromBytes(context.sourceToParse().modernSource().originalSourceBytes())
+            (ctx, doc) -> Source.fromBytes(context.sourceToParse().source().originalSourceBytes())
         );
         // field scripts can be called both by the loop at the end of this method and via
         // the document reader, so to ensure that we don't run them multiple times we

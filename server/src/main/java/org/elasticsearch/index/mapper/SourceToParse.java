@@ -90,11 +90,7 @@ public class SourceToParse {
         this(id, source, xContentType, routing, dynamicTemplates, true, XContentMeteringParserDecorator.NOOP);
     }
 
-    public BytesReference source() {
-        return this.modernSource().originalSourceBytes();
-    }
-
-    public ModernSource modernSource() {
+    public ModernSource source() {
         return this.modernSource;
     }
 

@@ -516,6 +516,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.CsvTests
   method: test {csv-spec:spatial.ConvertFromStringParseError}
   issue: https://github.com/elastic/elasticsearch/issues/132805
+- class: org.elasticsearch.xpack.esql.CsvTests
+  method: test {csv-spec:floats.ScalbWithHugeScaleFactor}
+  issue: https://github.com/elastic/elasticsearch/issues/132806
 
 # Examples:
 #

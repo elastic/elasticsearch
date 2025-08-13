@@ -96,7 +96,7 @@ public class ElasticInferenceServiceAuthorizationHandlerTests extends ESTestCase
         handlerRef.set(
             new ElasticInferenceServiceAuthorizationHandler(
                 createWithEmptySettings(taskQueue.getThreadPool()),
-                modelRegistry,
+                mockModelRegistry(taskQueue.getThreadPool()),
                 requestHandler,
                 initDefaultEndpoints(),
                 EnumSet.of(TaskType.SPARSE_EMBEDDING, TaskType.CHAT_COMPLETION),

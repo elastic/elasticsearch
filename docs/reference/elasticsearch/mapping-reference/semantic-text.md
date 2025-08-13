@@ -107,7 +107,6 @@ PUT my-index-000003
 ```
 
 ### Using ELSER on EIS
-
 ```{applies_to}
 stack: preview 9.1
 serverless: preview
@@ -236,7 +235,6 @@ to [this tutorial](docs-content://solutions/search/semantic-search/semantic-sear
 to learn more about semantic search using `semantic_text`.
 
 ### Pre-chunking [pre-chunking]
-
 ```{applies_to}
 stack: ga 9.1
 ```
@@ -289,7 +287,6 @@ PUT test-index/_doc/1
       the input.
 
 ## Retrieving indexed chunks
-
 ```{applies_to}
 stack: ga 9.2
 serverless: ga

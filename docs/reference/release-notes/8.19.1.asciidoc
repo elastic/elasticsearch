@@ -144,8 +144,3 @@ This caused unintended timeouts or cancellations during subsequent phases under 
 
 Engine::
 * Available disk space is now recorded when merge tasks are scheduled, helping to diagnose issues caused by running merges despite low disk space on nodes. This information appears in heap dumps and can inform adjustments to `indices.merge.disk.watermark.high` or inspire future enhancements such as aborting already running merges. {es-pull}131711[#131711]
-
-
-
-
-

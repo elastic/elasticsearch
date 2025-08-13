@@ -40,6 +40,9 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -49,8 +52,10 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
+import java.util.function.LongSupplier;
 
 /**
  * This is a cache for {@link BitSet} instances that are used with the {@link DocumentSubsetReader}.
@@ -120,18 +125,27 @@ public final class DocumentSubsetBitsetCache implements IndexReader.ClosedListen
     private final Cache<BitsetCacheKey, BitSet> bitsetCache;
     private final Map<IndexReader.CacheKey, Set<BitsetCacheKey>> keysByIndex;
     private final AtomicLong cacheFullWarningTime;
+    private final AtomicLong hitsTimeTakenNanos;
+    private final AtomicLong missesTimeTakenNanos;
+    private final LongSupplier relativeNanoTimeProvider;
 
     public DocumentSubsetBitsetCache(Settings settings, ThreadPool threadPool) {
-        this(settings, threadPool.executor(ThreadPool.Names.GENERIC));
+        this(settings, threadPool.executor(ThreadPool.Names.GENERIC), System::nanoTime);
+    }
+
+    // visible for testing
+    DocumentSubsetBitsetCache(Settings settings, ExecutorService cleanupExecutor) {
+        this(settings, cleanupExecutor, System::nanoTime);
     }
 
     /**
      * @param settings The global settings object for this node
      * @param cleanupExecutor An executor on which the cache cleanup tasks can be run. Due to the way the cache is structured internally,
      *                        it is sometimes necessary to run an asynchronous task to synchronize the internal state.
+     * @param relativeNanoTimeProvider Provider of nanos for code that needs to measure relative time.
      */
     // visible for testing
-    DocumentSubsetBitsetCache(Settings settings, ExecutorService cleanupExecutor) {
+    DocumentSubsetBitsetCache(Settings settings, ExecutorService cleanupExecutor, LongSupplier relativeNanoTimeProvider) {
         final ReentrantReadWriteLock readWriteLock = new ReentrantReadWriteLock();
         this.cacheEvictionLock = new ReleasableLock(readWriteLock.writeLock());
         this.cacheModificationLock = new ReleasableLock(readWriteLock.readLock());
@@ -148,6 +162,9 @@ public final class DocumentSubsetBitsetCache implements IndexReader.ClosedListen
 
         this.keysByIndex = new ConcurrentHashMap<>();
         this.cacheFullWarningTime = new AtomicLong(0);
+        this.hitsTimeTakenNanos = new AtomicLong();
+        this.missesTimeTakenNanos = new AtomicLong();
+        this.relativeNanoTimeProvider = Objects.requireNonNull(relativeNanoTimeProvider);
     }
 
     @Override
@@ -220,6 +237,8 @@ public final class DocumentSubsetBitsetCache implements IndexReader.ClosedListen
      */
     @Nullable
     public BitSet getBitSet(final Query query, final LeafReaderContext context) throws ExecutionException {
+        final long startTime = relativeNanoTimeProvider.getAsLong();
+
         final IndexReader.CacheHelper coreCacheHelper = context.reader().getCoreCacheHelper();
         if (coreCacheHelper == null) {
             try {
@@ -233,7 +252,9 @@ public final class DocumentSubsetBitsetCache implements IndexReader.ClosedListen
         final BitsetCacheKey cacheKey = new BitsetCacheKey(indexKey, query);
 
         try (ReleasableLock ignored = cacheModificationLock.acquire()) {
+            final AtomicBoolean cacheKeyWasPresent = new AtomicBoolean(true);
             final BitSet bitSet = bitsetCache.computeIfAbsent(cacheKey, ignore1 -> {
+                cacheKeyWasPresent.set(false);
                 // This ensures all insertions into the set are guarded by ConcurrentHashMap's atomicity guarantees.
                 keysByIndex.compute(indexKey, (ignore2, set) -> {
                     if (set == null) {
@@ -262,6 +283,11 @@ public final class DocumentSubsetBitsetCache implements IndexReader.ClosedListen
                 }
                 return result;
             });
+            if (cacheKeyWasPresent.get()) {
+                hitsTimeTakenNanos.addAndGet(relativeNanoTimeProvider.getAsLong() - startTime);
+            } else {
+                missesTimeTakenNanos.addAndGet(relativeNanoTimeProvider.getAsLong() - startTime);
+            }
             if (bitSet == NULL_MARKER) {
                 return null;
             } else {
@@ -320,7 +346,18 @@ public final class DocumentSubsetBitsetCache implements IndexReader.ClosedListen
 
     public Map<String, Object> usageStats() {
         final ByteSizeValue ram = ByteSizeValue.ofBytes(ramBytesUsed());
-        return Map.of("count", entryCount(), "memory", ram.toString(), "memory_in_bytes", ram.getBytes());
+        final Cache.Stats bitsetCacheStats = bitsetCache.stats();
+
+        final HashMap<String, Object> stats = new LinkedHashMap<>();
+        stats.put("count", entryCount());
+        stats.put("memory", ram.toString());
+        stats.put("memory_in_bytes", ram.getBytes());
+        stats.put("hits", bitsetCacheStats.getHits());
+        stats.put("misses", bitsetCacheStats.getMisses());
+        stats.put("evictions", bitsetCacheStats.getEvictions());
+        stats.put("hits_time_in_millis", TimeValue.nsecToMSec(hitsTimeTakenNanos.get()));
+        stats.put("misses_time_in_millis", TimeValue.nsecToMSec(missesTimeTakenNanos.get()));
+        return Collections.unmodifiableMap(stats);
     }
 
     private static final class BitsetCacheKey {

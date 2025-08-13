@@ -43,7 +43,7 @@ public class GlobalTransportVersionManagementPlugin implements Plugin<Project> {
         }
 
         var validateTask = project.getTasks()
-            .register("validateTransportVersionDefinitions", ValidateTransportVersionResourcesTask.class, t -> {
+            .register("validateTransportVersionDefinitions", ValidateTransportVersionDefinitionsTask.class, t -> {
                 t.setGroup("Transport Versions");
                 t.setDescription("Validates that all defined TransportVersion constants are used in at least one project");
                 Directory resourcesDir = getResourcesDirectory(project);

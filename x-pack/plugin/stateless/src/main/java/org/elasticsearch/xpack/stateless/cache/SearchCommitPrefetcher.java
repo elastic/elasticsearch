@@ -82,6 +82,7 @@ public class SearchCommitPrefetcher {
     public static final Setting<Boolean> PREFETCH_COMMITS_UPON_NOTIFICATIONS_ENABLED_SETTING = Setting.boolSetting(
         "stateless.search.prefetch_commits.enabled",
         false,
+        Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );
     public static final Setting<Boolean> BACKGROUND_PREFETCH_ENABLED_SETTING = Setting.boolSetting(
@@ -98,6 +99,7 @@ public class SearchCommitPrefetcher {
         "stateless.search.prefetch_commits.search_idle_time",
         DEFAULT_SEARCH_IDLE_TIME,
         TimeValue.ZERO,
+        Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );
     public static final Setting<ByteSizeValue> PREFETCH_REQUEST_SIZE_LIMIT_INDEX_NODE_SETTING = Setting.byteSizeSetting(
@@ -119,13 +121,13 @@ public class SearchCommitPrefetcher {
     private final CacheBlobReaderSupplier cacheBlobReaderSupplier;
     private final Executor executor;
     private final ThreadPool threadPool;
-    private final boolean prefetchEnabled;
     private final boolean prefetchInBackground;
     private final boolean prefetchNonUploadedCommits;
-    private final long prefetchSearchIdleTimeInMillis;
     private final long maxBytesToFetchFromIndexingNode;
     private final boolean forcePrefetch;
     private final AtomicLong totalPrefetchedBytes = new AtomicLong();
+    private volatile boolean prefetchEnabled;
+    private volatile long prefetchSearchIdleTimeInMillis;
 
     private final AtomicReference<BCCPreFetchedOffset> maxPrefetchedOffset = new AtomicReference<>(BCCPreFetchedOffset.ZERO);
 
@@ -142,10 +144,13 @@ public class SearchCommitPrefetcher {
         this.cacheBlobReaderSupplier = cacheBlobReaderSupplier;
         this.executor = executor;
         this.threadPool = threadPool;
-        this.prefetchEnabled = clusterSettings.get(PREFETCH_COMMITS_UPON_NOTIFICATIONS_ENABLED_SETTING);
+        clusterSettings.initializeAndWatch(PREFETCH_COMMITS_UPON_NOTIFICATIONS_ENABLED_SETTING, value -> this.prefetchEnabled = value);
+        clusterSettings.initializeAndWatch(
+            PREFETCH_SEARCH_IDLE_TIME_SETTING,
+            value -> this.prefetchSearchIdleTimeInMillis = value.millis()
+        );
         this.prefetchInBackground = clusterSettings.get(BACKGROUND_PREFETCH_ENABLED_SETTING);
         this.prefetchNonUploadedCommits = clusterSettings.get(PREFETCH_NON_UPLOADED_COMMITS_SETTING);
-        this.prefetchSearchIdleTimeInMillis = clusterSettings.get(PREFETCH_SEARCH_IDLE_TIME_SETTING).millis();
         this.maxBytesToFetchFromIndexingNode = clusterSettings.get(PREFETCH_REQUEST_SIZE_LIMIT_INDEX_NODE_SETTING).getBytes();
         this.forcePrefetch = clusterSettings.get(FORCE_PREFETCH_SETTING);
     }

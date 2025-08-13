@@ -13,6 +13,7 @@ import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesFailure;
 import org.elasticsearch.action.search.ShardSearchFailure;
+import org.elasticsearch.action.support.CountDownActionListener;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.compute.data.Block;
@@ -84,7 +85,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.stream.Collectors;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Stream;
 
 import static java.util.stream.Collectors.toSet;
@@ -398,52 +399,53 @@ public class EsqlSession {
         PreAnalyzer.PreAnalysis preAnalysis = preAnalyzer.preAnalyze(parsed);
         var unresolvedPolicies = preAnalysis.enriches.stream().map(EnrichPolicyResolver.UnresolvedPolicy::from).collect(toSet());
 
-//        EsqlCCSUtils.initCrossClusterState(indicesExpressionGrouper, verifier.licenseState(), preAnalysis.indices, executionInfo);
-
-        var listener = SubscribableListener.<EnrichResolution>newForked(
-            l -> enrichPolicyResolver.resolvePolicies(unresolvedPolicies, executionInfo, l)
-        )
+        SubscribableListener.<EnrichResolution>newForked(l -> enrichPolicyResolver.resolvePolicies(unresolvedPolicies, executionInfo, l))
             .<PreAnalysisResult>andThenApply(enrichResolution -> FieldNameUtils.resolveFieldNames(parsed, enrichResolution))
-            .<PreAnalysisResult>andThen((l, preAnalysisResult) -> resolveInferences(parsed, preAnalysisResult, l));
-        // first resolve the lookup indices, then the main indices
-        for (var index : preAnalysis.lookupIndices) {
-            listener = listener.andThen((l, preAnalysisResult) -> preAnalyzeLookupIndex(index, preAnalysisResult, executionInfo, l));
-        }
-        listener.<PreAnalysisResult>andThen((l, result) -> {
-            // resolve the main indices
-            preAnalyzeMainIndices(preAnalysis, executionInfo, result, requestFilter, l);
-        }).<PreAnalysisResult>andThen((l, result) -> {
-            // TODO in follow-PR (for skip_unavailable handling of missing concrete indexes) add some tests for
-            // invalid index resolution to updateExecutionInfo
-            // If we run out of clusters to search due to unavailability we can stop the analysis right here
-            if (result.indices.isValid() && allCCSClustersSkipped(executionInfo, result, logicalPlanListener)) return;
-            // whatever tuple we have here (from CCS-special handling or from the original pre-analysis), pass it on to the next step
-            l.onResponse(result);
-        }).<PreAnalysisResult>andThen((l, result) -> {
-            // first attempt (maybe the only one) at analyzing the plan
-            analyzeAndMaybeRetry(analyzeAction, requestFilter, result, executionInfo, logicalPlanListener, l);
-        }).<PreAnalysisResult>andThen((l, result) -> {
-            assert requestFilter != null : "The second pre-analysis shouldn't take place when there is no index filter in the request";
+            .<PreAnalysisResult>andThen((l, preAnalysisResult) -> resolveInferences(parsed, preAnalysisResult, l))
+            .<PreAnalysisResult>andThen((l, result) -> preAnalyzeMainIndices(preAnalysis, executionInfo, result, requestFilter, l))
+            .<PreAnalysisResult>andThen((l, result) -> {
+                // TODO unify into a single field caps call
+                var group = new CountDownActionListener(preAnalysis.lookupIndices.size(), l.map(v -> result));
+                for (var lookup : preAnalysis.lookupIndices) {
+                    preAnalyzeLookupIndex(lookup, result, executionInfo, group.map(r -> null));
+                }
+            })
+            .<PreAnalysisResult>andThen((l, result) -> {
+                // TODO in follow-PR (for skip_unavailable handling of missing concrete indexes) add some tests for
+                // invalid index resolution to updateExecutionInfo
+                // If we run out of clusters to search due to unavailability we can stop the analysis right here
+                if (result.indices.isValid() && allCCSClustersSkipped(executionInfo, result, logicalPlanListener)) return;
+                // whatever tuple we have here (from CCS-special handling or from the original pre-analysis), pass it on to the next step
+                l.onResponse(result);
+            })
+            .<PreAnalysisResult>andThen((l, result) -> {
+                // first attempt (maybe the only one) at analyzing the plan
+                analyzeAndMaybeRetry(analyzeAction, requestFilter, result, executionInfo, logicalPlanListener, l);
+            })
+            .<PreAnalysisResult>andThen((l, result) -> {
+                assert requestFilter != null : "The second pre-analysis shouldn't take place when there is no index filter in the request";
 
-            // here the requestFilter is set to null, performing the pre-analysis after the first step failed
-            preAnalyzeMainIndices(preAnalysis, executionInfo, result, null, l);
-        }).<LogicalPlan>andThen((l, result) -> {
-            assert requestFilter != null : "The second analysis shouldn't take place when there is no index filter in the request";
-            LOGGER.debug("Analyzing the plan (second attempt, without filter)");
-            LogicalPlan plan;
-            try {
-                // the order here is tricky - if the cluster has been filtered and later became unavailable,
-                // do we want to declare it successful or skipped? For now, unavailability takes precedence.
-                EsqlCCSUtils.updateExecutionInfoWithUnavailableClusters(executionInfo, result.indices.failures());
-                EsqlCCSUtils.updateExecutionInfoWithClustersWithNoMatchingIndices(executionInfo, result.indices, false);
-                plan = analyzeAction.apply(result);
-            } catch (Exception e) {
-                l.onFailure(e);
-                return;
-            }
-            LOGGER.debug("Analyzed plan (second attempt, without filter):\n{}", plan);
-            l.onResponse(plan);
-        }).addListener(logicalPlanListener);
+                // here the requestFilter is set to null, performing the pre-analysis after the first step failed
+                preAnalyzeMainIndices(preAnalysis, executionInfo, result, null, l);
+            })
+            .<LogicalPlan>andThen((l, result) -> {
+                assert requestFilter != null : "The second analysis shouldn't take place when there is no index filter in the request";
+                LOGGER.debug("Analyzing the plan (second attempt, without filter)");
+                LogicalPlan plan;
+                try {
+                    // the order here is tricky - if the cluster has been filtered and later became unavailable,
+                    // do we want to declare it successful or skipped? For now, unavailability takes precedence.
+                    EsqlCCSUtils.updateExecutionInfoWithUnavailableClusters(executionInfo, result.indices.failures());
+                    EsqlCCSUtils.updateExecutionInfoWithClustersWithNoMatchingIndices(executionInfo, result.indices, false);
+                    plan = analyzeAction.apply(result);
+                } catch (Exception e) {
+                    l.onFailure(e);
+                    return;
+                }
+                LOGGER.debug("Analyzed plan (second attempt, without filter):\n{}", plan);
+                l.onResponse(plan);
+            })
+            .addListener(logicalPlanListener);
     }
 
     private void preAnalyzeLookupIndex(
@@ -452,33 +454,27 @@ public class EsqlSession {
         EsqlExecutionInfo executionInfo,
         ActionListener<PreAnalysisResult> listener
     ) {
-        String localPattern = lookupIndexPattern.indexPattern();
-        assert RemoteClusterAware.isRemoteIndexName(localPattern) == false
-            : "Lookup index name should not include remote, but got: " + localPattern;
         assert ThreadPool.assertCurrentThreadPool(
             ThreadPool.Names.SEARCH,
             ThreadPool.Names.SEARCH_COORDINATION,
             ThreadPool.Names.SYSTEM_READ
         );
-        Set<String> fieldNames = result.wildcardJoinIndices().contains(localPattern) ? IndexResolver.ALL_FIELDS : result.fieldNames;
 
-        String patternWithRemotes;
+        String localPattern = lookupIndexPattern.indexPattern();
+        assert RemoteClusterAware.isRemoteIndexName(localPattern) == false
+            : "Lookup index name should not include remote, but got: " + localPattern;
+        String pattern = executionInfo.getClusters().isEmpty() // TODO check this is always non empty
+            ? localPattern
+            : EsqlCCSUtils.createQualifiedAllClustersIndexExpression(localPattern, executionInfo);
 
-        if (executionInfo.getClusters().isEmpty()) {
-            patternWithRemotes = localPattern;
-        } else {
-            // convert index -> cluster1:index,cluster2:index, etc.for each running cluster
-            patternWithRemotes = executionInfo.getClusterStates(EsqlExecutionInfo.Cluster.Status.RUNNING)
-                .map(c -> RemoteClusterAware.buildRemoteIndexName(c.getClusterAlias(), localPattern))
-                .collect(Collectors.joining(","));
-        }
-        if (patternWithRemotes.isEmpty()) {
+        if (pattern.isEmpty()) {
+            // TODO check this never happens as this never completes the listener
             return;
         }
         // call the EsqlResolveFieldsAction (field-caps) to resolve indices and get field types
         indexResolver.resolveAsMergedMapping(
-            patternWithRemotes,
-            fieldNames,
+            pattern,
+            result.wildcardJoinIndices().contains(localPattern) ? IndexResolver.ALL_FIELDS : result.fieldNames,
             null,
             listener.map(indexResolution -> receiveLookupIndexResolution(result, localPattern, executionInfo, indexResolution))
         );
@@ -579,9 +575,8 @@ public class EsqlSession {
         });
 
         // These are clusters that are still in the running, we need to have the index on all of them
-        Stream<EsqlExecutionInfo.Cluster> clusters = executionInfo.getClusterStates(EsqlExecutionInfo.Cluster.Status.RUNNING);
         // Verify that all active clusters have the lookup index resolved
-        clusters.forEach(cluster -> {
+        executionInfo.getClusterStates(EsqlExecutionInfo.Cluster.Status.RUNNING).forEach(cluster -> {
             String clusterAlias = cluster.getClusterAlias();
             if (clustersWithResolvedIndices.containsKey(clusterAlias) == false) {
                 // Missing cluster resolution
@@ -668,7 +663,7 @@ public class EsqlSession {
         switch (preAnalysis.indices.size()) {
             // occurs when dealing with local relations (row a = 1)
             case 0 -> listener.onResponse(result.withIndexResolution(IndexResolution.invalid("[none specified]")));
-            case 1-> {
+            case 1 -> {
                 if (preAnalysis.indexMode == IndexMode.TIME_SERIES) {
                     // TODO: Maybe if no indices are returned, retry without index mode and provide a clearer error message.
                     var indexModeFilter = new TermQueryBuilder(IndexModeFieldMapper.NAME, IndexMode.TIME_SERIES.getName());
@@ -821,7 +816,7 @@ public class EsqlSession {
     ) {
 
         public PreAnalysisResult(EnrichResolution enrichResolution, Set<String> fieldNames, Set<String> wildcardJoinIndices) {
-            this(null, new HashMap<>(), enrichResolution, fieldNames, wildcardJoinIndices, InferenceResolution.EMPTY);
+            this(null, new ConcurrentHashMap<>(), enrichResolution, fieldNames, wildcardJoinIndices, InferenceResolution.EMPTY);
         }
 
         PreAnalysisResult withInferenceResolution(InferenceResolution newInferenceResolution) {

@@ -45,7 +45,6 @@ import java.util.stream.Collectors;
 import static java.util.stream.Collectors.groupingBy;
 import static java.util.stream.Collectors.joining;
 import static java.util.stream.Collectors.mapping;
-import static java.util.stream.Collectors.toList;
 
 public class EsqlCCSUtils {
 
@@ -376,10 +375,9 @@ public class EsqlCCSUtils {
         var groupedIndices = indexResolution.resolvedIndices()
             .stream()
             .map(RemoteClusterAware::splitIndexName)
-            .collect(groupingBy(
-                it -> it[0] != null ? it[0] : RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY,
-                mapping(it -> it[1], joining(","))
-            ));
+            .collect(
+                groupingBy(it -> it[0] != null ? it[0] : RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY, mapping(it -> it[1], joining(",")))
+            );
 
         if (groupedIndices.size() > 1 || groupedIndices.containsKey(RemoteClusterService.LOCAL_CLUSTER_GROUP_KEY) == false) {
             if (EsqlLicenseChecker.isCcsAllowed(licenseState) == false) {
@@ -395,6 +393,12 @@ public class EsqlCCSUtils {
         });
 
         updateExecutionInfoWithUnavailableClusters(executionInfo, indexResolution.failures());
+    }
+
+    public static String createQualifiedAllClustersIndexExpression(String localPattern, EsqlExecutionInfo executionInfo) {
+        return executionInfo.getClusterStates(EsqlExecutionInfo.Cluster.Status.RUNNING)
+            .map(c -> RemoteClusterAware.buildRemoteIndexName(c.getClusterAlias(), localPattern))
+            .collect(joining(","));
     }
 
     /**

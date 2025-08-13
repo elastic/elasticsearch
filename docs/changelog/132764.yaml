@@ -1,5 +1,5 @@
 pr: 132764
-summary: Undeprecate `LegacyStackTemplateRegistry`
+summary: Undeprecate metrics, logs, and synthetics legacy ILM policies
 area: Indices APIs
 type: enhancement
 issues: []

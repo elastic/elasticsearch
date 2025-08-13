@@ -56,7 +56,7 @@ public abstract class AbstractVectorScalarFunctionTestCase extends AbstractScala
                 List.of(new TestCaseSupplier.TypedData(array, DENSE_VECTOR, "vector")),
                 evaluatorName,
                 DOUBLE,
-                equalTo(expected) // Random vectors should have cosine similarity close to 0
+                equalTo(expected)
             );
         }));
 

@@ -9,8 +9,6 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.apache.lucene.document.Field;
-import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.document.StoredField;
@@ -26,7 +24,6 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.automaton.CompiledAutomaton;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.network.CIDRUtils;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.core.Nullable;
@@ -693,64 +690,6 @@ public class IpFieldMapper extends FieldMapper {
         }
         if (stored) {
             doc.add(new StoredField(fieldType().name(), address.binaryValue()));
-        }
-    }
-
-    private static class ESInetAddressPoint extends Field {
-        private static final FieldType TYPE;
-
-        static {
-            TYPE = new FieldType();
-            TYPE.setDimensions(1, InetAddressPoint.BYTES);
-            TYPE.freeze();
-        }
-
-        private final XContentString ipString;
-        private final InetAddress inetAddress;
-
-        protected ESInetAddressPoint(String name, XContentString ipString) {
-            super(name, TYPE);
-            this.fieldsData = new BytesRef(InetAddresses.encodeAsIpv6(ipString));
-            this.ipString = ipString;
-            this.inetAddress = null;
-        }
-
-        protected ESInetAddressPoint(String name, InetAddress inetAddress) {
-            super(name, TYPE);
-            this.fieldsData = new BytesRef(CIDRUtils.encode(inetAddress.getAddress()));
-            this.inetAddress = inetAddress;
-            this.ipString = null;
-        }
-
-        public InetAddress getInetAddress() {
-            if (ipString != null) {
-                return InetAddresses.forString(ipString.bytes());
-            }
-            if (inetAddress != null) {
-                return inetAddress;
-            }
-            throw new IllegalStateException("Neither ipString nor inetAddress is set");
-        }
-
-        @Override
-        public String toString() {
-            StringBuilder result = new StringBuilder();
-            result.append(getClass().getSimpleName());
-            result.append(" <");
-            result.append(name);
-            result.append(':');
-
-            InetAddress address = getInetAddress();
-            if (address.getAddress().length == 16) {
-                result.append('[');
-                result.append(NetworkAddress.format(address));
-                result.append(']');
-            } else {
-                result.append(NetworkAddress.format(address));
-            }
-
-            result.append('>');
-            return result.toString();
         }
     }
 

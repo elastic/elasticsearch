@@ -110,4 +110,66 @@ public class EvalOperator extends AbstractPageMappingOperator {
         }
     };
     private static final String CONSTANT_NULL_NAME = "ConstantNull";
+
+    public static ExpressionEvaluator.Factory DoubleFactory(double value) {
+        return new ExpressionEvaluator.Factory() {
+            @Override
+            public ExpressionEvaluator get(DriverContext driverContext) {
+                return new ExpressionEvaluator() {
+                    @Override
+                    public Block eval(Page page) {
+                        return driverContext.blockFactory().newConstantDoubleBlockWith(value, page.getPositionCount());
+                    }
+
+                    @Override
+                    public void close() {
+
+                    }
+
+                    @Override
+                    public String toString() {
+                        return CONSTANT_DOUBLE_NAME + "[" + value + "]";
+                    }
+                };
+            }
+
+            @Override
+            public String toString() {
+                return CONSTANT_DOUBLE_NAME + "[" + value + "]";
+            }
+        };
+    }
+
+    private static final String CONSTANT_DOUBLE_NAME = "ConstantDouble";
+
+    public static ExpressionEvaluator.Factory BytesRefFactory(org.apache.lucene.util.BytesRef value) {
+        return new ExpressionEvaluator.Factory() {
+            @Override
+            public ExpressionEvaluator get(DriverContext driverContext) {
+                return new ExpressionEvaluator() {
+                    @Override
+                    public Block eval(Page page) {
+                        return driverContext.blockFactory().newConstantBytesRefBlockWith(value, page.getPositionCount());
+                    }
+
+                    @Override
+                    public void close() {
+
+                    }
+
+                    @Override
+                    public String toString() {
+                        return CONSTANT_BYTES_REF_NAME + "[" + value.utf8ToString() + "]";
+                    }
+                };
+            }
+
+            @Override
+            public String toString() {
+                return CONSTANT_BYTES_REF_NAME + "[" + value.utf8ToString() + "]";
+            }
+        };
+    }
+
+    private static final String CONSTANT_BYTES_REF_NAME = "ConstantBytesRef";
 }

@@ -236,7 +236,7 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
             // not perfect, but a comparative heuristic.
             // TODO: we might want to consider the density of the centroids as experiments shows that for fewer vectors per centroid,
             // the least vectors we need to score to get a good recall.
-            maxVectorVisited = (long) (2.0 * Math.round(Math.log10(numVectors) * Math.log10(numVectors)) * (knnCollector.k()));
+            maxVectorVisited = Math.round(1.75f * Math.log10(knnCollector.k()) * Math.log10(knnCollector.k()) * (knnCollector.k()));
             // clip so we visit at least one vector
             maxVectorVisited = Math.max(maxVectorVisited, 1L);
         } else {

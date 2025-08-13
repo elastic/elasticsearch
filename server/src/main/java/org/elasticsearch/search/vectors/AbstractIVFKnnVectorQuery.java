@@ -54,7 +54,7 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
     protected final int k;
     protected final int numCands;
     protected final Query filter;
-    protected final KnnSearchStrategy searchStrategy;
+    protected final IVFKnnSearchStrategy searchStrategy;
     protected int vectorOpsCount;
 
     protected AbstractIVFKnnVectorQuery(String field, float visitRatio, int k, int numCands, Query filter) {

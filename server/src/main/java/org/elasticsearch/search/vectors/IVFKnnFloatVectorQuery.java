@@ -15,6 +15,7 @@ import org.apache.lucene.search.KnnCollector;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.knn.KnnCollectorManager;
+import org.apache.lucene.search.knn.KnnSearchStrategy;
 import org.apache.lucene.util.Bits;
 
 import java.io.IOException;
@@ -79,17 +80,24 @@ public class IVFKnnFloatVectorQuery extends AbstractIVFKnnVectorQuery {
         int visitedLimit,
         KnnCollectorManager knnCollectorManager
     ) throws IOException {
-        KnnCollector knnCollector = knnCollectorManager.newCollector(visitedLimit, searchStrategy, context);
-        if (knnCollector == null) {
-            return NO_RESULTS;
-        }
         LeafReader reader = context.reader();
         FloatVectorValues floatVectorValues = reader.getFloatVectorValues(field);
         if (floatVectorValues == null) {
             FloatVectorValues.checkField(reader, field);
             return NO_RESULTS;
         }
-        if (Math.min(knnCollector.k(), floatVectorValues.size()) == 0) {
+        if (floatVectorValues.size() == 0) {
+            return NO_RESULTS;
+        }
+        KnnSearchStrategy strategy = searchStrategy;
+        if (searchStrategy.getVisitRatio() == 0.0f) {
+            // dynamically set the percentage
+            float expected = (float) Math.round(1.75f * Math.log10(numCands) * Math.log10(numCands) * (numCands));
+            float ratio = expected / floatVectorValues.size();
+            strategy = new IVFKnnSearchStrategy(ratio);
+        }
+        KnnCollector knnCollector = knnCollectorManager.newCollector(visitedLimit, strategy, context);
+        if (knnCollector == null) {
             return NO_RESULTS;
         }
         reader.searchNearestVectors(field, query, knnCollector, acceptDocs);

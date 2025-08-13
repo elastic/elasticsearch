@@ -29,7 +29,6 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.engine.TranslogOperationAsserter;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.search.lookup.Source;
 
 import java.io.Closeable;
 import java.io.IOException;

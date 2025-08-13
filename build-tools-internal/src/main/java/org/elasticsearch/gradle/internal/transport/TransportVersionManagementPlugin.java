@@ -17,6 +17,9 @@ import org.gradle.api.file.Directory;
 import org.gradle.api.tasks.SourceSet;
 import org.gradle.language.base.plugins.LifecycleBasePlugin;
 
+import static org.elasticsearch.gradle.internal.transport.TransportVersionUtils.getDefinitionsDirectory;
+import static org.elasticsearch.gradle.internal.transport.TransportVersionUtils.getResourcesDirectory;
+
 public class TransportVersionManagementPlugin implements Plugin<Project> {
 
     @Override
@@ -43,7 +46,7 @@ public class TransportVersionManagementPlugin implements Plugin<Project> {
             .register("validateTransportVersionReferences", ValidateTransportVersionReferencesTask.class, t -> {
                 t.setGroup("Transport Versions");
                 t.setDescription("Validates that all TransportVersion references used in the project have an associated definition file");
-                Directory definitionsDir = TransportVersionUtils.getDefinitionsDirectory(project);
+                Directory definitionsDir = getDefinitionsDirectory(getResourcesDirectory(project));
                 if (definitionsDir.getAsFile().exists()) {
                     t.getDefinitionsDirectory().set(definitionsDir);
                 }

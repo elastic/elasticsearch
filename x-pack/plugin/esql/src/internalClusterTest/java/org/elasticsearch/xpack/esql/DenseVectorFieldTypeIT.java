@@ -29,8 +29,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
-import java.util.function.Function;
-import java.util.function.Supplier;
 
 import static org.elasticsearch.index.IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING;
 import static org.elasticsearch.index.mapper.SourceFieldMapper.Mode.SYNTHETIC;
@@ -54,36 +52,33 @@ public class DenseVectorFieldTypeIT extends AbstractEsqlIntegTestCase {
     private final ElementType elementType;
     private final DenseVectorFieldMapper.VectorSimilarity similarity;
     private final boolean synthetic;
-    private final String indexType;
     private final boolean index;
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() throws Exception {
         List<Object[]> params = new ArrayList<>();
-        // Indexed field types
-        Supplier<ElementType> elementTypeProvider = () -> ElementType.FLOAT;
-        Function<ElementType, String> indexTypeProvider = e -> randomFrom(ALL_DENSE_VECTOR_INDEX_TYPES);
-        Supplier<DenseVectorFieldMapper.VectorSimilarity> vectorSimilarityProvider = () -> randomFrom(
-            DenseVectorFieldMapper.VectorSimilarity.values()
-        );
-        params.add(new Object[] { elementTypeProvider, indexTypeProvider, vectorSimilarityProvider, true, false });
+
+        // Test all similarities
+        for (DenseVectorFieldMapper.VectorSimilarity similarity : DenseVectorFieldMapper.VectorSimilarity.values()) {
+            params.add(new Object[] { ElementType.FLOAT, similarity, true, false });
+        }
+
         // No indexing
-        params.add(new Object[] { elementTypeProvider, null, null, false, false });
+        params.add(new Object[] { ElementType.FLOAT, null, false, false });
         // No indexing, synthetic source
-        params.add(new Object[] { elementTypeProvider, null, null, false, true });
+        params.add(new Object[] { ElementType.FLOAT, null, false, true });
+
         return params;
     }
 
     public DenseVectorFieldTypeIT(
-        @Name("elementType") Supplier<ElementType> elementTypeProvider,
-        @Name("indexType") Function<ElementType, String> indexTypeProvider,
-        @Name("similarity") Supplier<DenseVectorFieldMapper.VectorSimilarity> similarityProvider,
+        @Name("elementType") ElementType elementType,
+        @Name("similarity") DenseVectorFieldMapper.VectorSimilarity similarity,
         @Name("index") boolean index,
         @Name("synthetic") boolean synthetic
     ) {
-        this.elementType = elementTypeProvider.get();
-        this.indexType = indexTypeProvider == null ? null : indexTypeProvider.apply(this.elementType);
-        this.similarity = similarityProvider == null ? null : similarityProvider.get();
+        this.elementType = elementType;
+        this.similarity = similarity;
         this.index = index;
         this.synthetic = synthetic;
     }
@@ -207,7 +202,11 @@ public class DenseVectorFieldTypeIT extends AbstractEsqlIntegTestCase {
                 indexedVectors.put(i, null);
             } else {
                 for (int j = 0; j < numDims; j++) {
-                    vector.add(randomFloatBetween(0F, 1F, true));
+                    switch (elementType) {
+                        case FLOAT -> vector.add(randomFloatBetween(0F, 1F, true));
+                        case BYTE -> vector.add((byte) (randomFloatBetween(0F, 1F, true) * 127.0f));
+                        default -> throw new IllegalArgumentException("Unexpected element type: " + elementType);
+                    }
                 }
                 if ((similarity == DenseVectorFieldMapper.VectorSimilarity.DOT_PRODUCT) || rarely()) {
                     // Normalize the vector
@@ -236,8 +235,7 @@ public class DenseVectorFieldTypeIT extends AbstractEsqlIntegTestCase {
             .field("index", index);
         if (index) {
             mapping.field("similarity", similarity.name().toLowerCase(Locale.ROOT));
-        }
-        if (indexType != null) {
+            String indexType = randomFrom(ALL_DENSE_VECTOR_INDEX_TYPES);
             mapping.startObject("index_options").field("type", indexType).endObject();
         }
         mapping.endObject().endObject().endObject();

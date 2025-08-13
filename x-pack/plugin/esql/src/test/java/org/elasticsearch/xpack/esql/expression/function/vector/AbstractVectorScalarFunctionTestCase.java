@@ -13,7 +13,6 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
-import org.hamcrest.Matcher;
 import org.junit.Before;
 
 import java.util.ArrayList;

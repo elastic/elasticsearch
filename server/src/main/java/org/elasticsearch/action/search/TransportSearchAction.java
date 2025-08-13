@@ -1618,6 +1618,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 shardIterators.size(),
                 exc -> searchTransportService.cancelSearchTask(task, "failed to merge result [" + exc.getMessage() + "]")
             );
+            final ActionListener<SearchResponse> releasingListener = ActionListener.runAfter(listener, queryResultConsumer::close);
             boolean success = false;
             try {
                 final AbstractSearchAsyncAction<?> searchPhase;
@@ -1632,7 +1633,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                         executor,
                         queryResultConsumer,
                         searchRequest,
-                        listener,
+                        releasingListener,
                         shardIterators,
                         timeProvider,
                         clusterState,
@@ -1652,7 +1653,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                         executor,
                         queryResultConsumer,
                         searchRequest,
-                        listener,
+                        releasingListener,
                         shardIterators,
                         timeProvider,
                         clusterState,

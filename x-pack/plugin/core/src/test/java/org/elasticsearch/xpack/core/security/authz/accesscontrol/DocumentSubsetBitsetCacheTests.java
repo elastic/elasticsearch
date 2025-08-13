@@ -53,6 +53,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.IdentityHashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -64,6 +65,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
@@ -396,9 +398,9 @@ public class DocumentSubsetBitsetCacheTests extends ESTestCase {
                 cache.verifyInternalConsistency();
 
                 // Due to cache evictions, we must get more bitsets than fields
-                assertThat(uniqueBitSets.size(), Matchers.greaterThan(FIELD_COUNT));
+                assertThat(uniqueBitSets.size(), greaterThan(FIELD_COUNT));
                 // Due to cache evictions, we must have seen more bitsets than the cache currently holds
-                assertThat(uniqueBitSets.size(), Matchers.greaterThan(cache.entryCount()));
+                assertThat(uniqueBitSets.size(), greaterThan(cache.entryCount()));
                 // Even under concurrent pressure, the cache should hit the expected size
                 assertThat(cache.entryCount(), is(maxCacheCount));
                 assertThat(cache.ramBytesUsed(), is(maxCacheBytes));
@@ -515,6 +517,53 @@ public class DocumentSubsetBitsetCacheTests extends ESTestCase {
         assertTrue(DocumentSubsetBitsetCache.isEffectiveMatchAllDocsQuery(new MatchAllDocsQuery()));
         assertTrue(DocumentSubsetBitsetCache.isEffectiveMatchAllDocsQuery(new ConstantScoreQuery(new MatchAllDocsQuery())));
         assertFalse(DocumentSubsetBitsetCache.isEffectiveMatchAllDocsQuery(new TermQuery(new Term("term"))));
+    }
+
+    public void testHitsMissesAndEvictionsStats() throws Exception {
+        // cache that will evict all-but-one element, to test evictions
+        final long maxCacheBytes = EXPECTED_BYTES_PER_BIT_SET + (EXPECTED_BYTES_PER_BIT_SET / 2);
+        final Settings settings = Settings.builder()
+            .put(DocumentSubsetBitsetCache.CACHE_SIZE_SETTING.getKey(), maxCacheBytes + "b")
+            .build();
+        final DocumentSubsetBitsetCache cache = newCache(settings);
+
+        final Map<String, Object> expectedStats = new LinkedHashMap<>();
+        expectedStats.put("count", 0);
+        expectedStats.put("memory", "0b");
+        expectedStats.put("memory_in_bytes", 0L);
+        expectedStats.put("hits", 0L);
+        expectedStats.put("misses", 0L);
+        expectedStats.put("evictions", 0L);
+        assertThat(cache.usageStats(), equalTo(expectedStats));
+
+        runTestOnIndex((searchExecutionContext, leafContext) -> {
+            // first lookup - miss
+            final Query query1 = QueryBuilders.termQuery("field-1", "value-1").toQuery(searchExecutionContext);
+            final BitSet bitSet1 = cache.getBitSet(query1, leafContext);
+            assertThat(bitSet1, notNullValue());
+
+            // second same lookup - hit
+            final BitSet bitSet1Again = cache.getBitSet(query1, leafContext);
+            assertThat(bitSet1Again, sameInstance(bitSet1));
+
+            expectedStats.put("hits", 1L);
+            expectedStats.put("misses", 1L);
+            expectedStats.put("count", 1);
+            expectedStats.put("memory", EXPECTED_BYTES_PER_BIT_SET + "b");
+            expectedStats.put("memory_in_bytes", EXPECTED_BYTES_PER_BIT_SET);
+            assertThat(cache.usageStats(), equalTo(expectedStats));
+
+            // second query - miss, should evict the first one
+            final Query query2 = QueryBuilders.termQuery("field-2", "value-2").toQuery(searchExecutionContext);
+            final BitSet bitSet2 = cache.getBitSet(query2, leafContext);
+            assertThat(bitSet2, notNullValue());
+
+            // szymon: bug I believe, created issue: https://github.com/elastic/elasticsearch/issues/132842
+            // assertBusy can be removed once the bug is fixed.
+            expectedStats.put("misses", 3L);
+            expectedStats.put("evictions", 1L);
+            assertBusy(() -> { assertThat(cache.usageStats(), equalTo(expectedStats)); }, 200, TimeUnit.MILLISECONDS);
+        });
     }
 
     private void runTestOnIndex(CheckedBiConsumer<SearchExecutionContext, LeafReaderContext, Exception> body) throws Exception {
@@ -638,5 +687,4 @@ public class DocumentSubsetBitsetCacheTests extends ESTestCase {
     private DocumentSubsetBitsetCache newCache(Settings settings) {
         return new DocumentSubsetBitsetCache(settings, singleThreadExecutor);
     }
-
 }

@@ -1338,6 +1338,11 @@ public class EsqlCapabilities {
         CATEGORIZE_OPTIONS,
 
         /**
+         * FIRST and LAST aggregate functions.
+         */
+        AGG_FIRST_LAST(Build.current().isSnapshot()),
+
+        /**
          * Support correct counting of skipped shards.
          */
         CORRECT_SKIPPED_SHARDS_COUNT;

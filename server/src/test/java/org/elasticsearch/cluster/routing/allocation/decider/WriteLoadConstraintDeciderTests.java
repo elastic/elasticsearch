@@ -36,9 +36,122 @@ import static org.elasticsearch.common.settings.ClusterSettings.createBuiltInClu
 
 public class WriteLoadConstraintDeciderTests extends ESAllocationTestCase {
 
-    public void testWriteLoadDecider() {
+    /**
+     * Test the write load decider behavior when disabled
+     */
+    public void testWriteLoadDeciderDisabled() {
         String indexName = "test-index";
+        var testHarness = createClusterStateAndRoutingAllocation(indexName);
 
+        // The write load decider is disabled by default.
+
+        var writeLoadDecider = createWriteLoadConstraintDecider(Settings.builder().build());
+
+        assertEquals(
+            Decision.Type.YES,
+            writeLoadDecider.canAllocate(
+                testHarness.shardRouting2,
+                testHarness.exceedingThresholdRoutingNode,
+                testHarness.routingAllocation
+            ).type()
+        );
+        assertEquals(
+            Decision.Type.YES,
+            writeLoadDecider.canAllocate(testHarness.shardRouting1, testHarness.belowThresholdRoutingNode, testHarness.routingAllocation)
+                .type()
+        );
+        assertEquals(
+            Decision.Type.YES,
+            writeLoadDecider.canAllocate(testHarness.shardRouting1, testHarness.nearThresholdRoutingNode, testHarness.routingAllocation)
+                .type()
+        );
+        assertEquals(
+            Decision.Type.YES,
+            writeLoadDecider.canAllocate(
+                testHarness.thirdRoutingNoWriteLoad,
+                testHarness.exceedingThresholdRoutingNode,
+                testHarness.routingAllocation
+            ).type()
+        );
+
+        assertEquals(
+            Decision.Type.YES,
+            writeLoadDecider.canRemain(
+                testHarness.clusterState.metadata().getProject().index(indexName),
+                testHarness.shardRouting1,
+                testHarness.exceedingThresholdRoutingNode,
+                testHarness.routingAllocation
+            ).type()
+        );
+    }
+
+    /**
+     * Test the {@link WriteLoadConstraintDecider#canAllocate} implementation.
+     */
+    public void testWriteLoadDeciderCanAllocate() {
+        String indexName = "test-index";
+        var testHarness = createClusterStateAndRoutingAllocation(indexName);
+
+        var writeLoadDecider = createWriteLoadConstraintDecider(
+            Settings.builder()
+                .put(
+                    WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_ENABLED_SETTING.getKey(),
+                    randomBoolean()
+                        ? WriteLoadConstraintSettings.WriteLoadDeciderStatus.ENABLED
+                        : WriteLoadConstraintSettings.WriteLoadDeciderStatus.LOW_THRESHOLD_ONLY
+                )
+                .build()
+        );
+        assertEquals(
+            "Assigning a new shard to a node that is above the threshold should fail",
+            Decision.Type.NO,
+            writeLoadDecider.canAllocate(
+                testHarness.shardRouting2,
+                testHarness.exceedingThresholdRoutingNode,
+                testHarness.routingAllocation
+            ).type()
+        );
+        assertEquals(
+            "Assigning a new shard to a node that has capacity should succeed",
+            Decision.Type.YES,
+            writeLoadDecider.canAllocate(testHarness.shardRouting1, testHarness.belowThresholdRoutingNode, testHarness.routingAllocation)
+                .type()
+        );
+        assertEquals(
+            "Assigning a new shard without a write load estimate should _not_ be blocked by lack of capacity",
+            Decision.Type.YES,
+            writeLoadDecider.canAllocate(
+                testHarness.thirdRoutingNoWriteLoad,
+                testHarness.exceedingThresholdRoutingNode,
+                testHarness.routingAllocation
+            ).type()
+        );
+        assertEquals(
+            "Assigning a new shard that would cause the node to exceed capacity should fail",
+            Decision.Type.NO,
+            writeLoadDecider.canAllocate(testHarness.shardRouting1, testHarness.nearThresholdRoutingNode, testHarness.routingAllocation)
+                .type()
+        );
+    }
+
+    /**
+     * Carries all the cluster state objects needed for testing after {@link #createClusterStateAndRoutingAllocation} sets them up.
+     */
+    private record TestHarness(
+        ClusterState clusterState,
+        RoutingAllocation routingAllocation,
+        RoutingNode exceedingThresholdRoutingNode,
+        RoutingNode belowThresholdRoutingNode,
+        RoutingNode nearThresholdRoutingNode,
+        ShardRouting shardRouting1,
+        ShardRouting shardRouting2,
+        ShardRouting thirdRoutingNoWriteLoad
+    ) {}
+
+    /**
+     * Creates all the cluster state and objects needed to test the {@link WriteLoadConstraintDecider}.
+     */
+    private TestHarness createClusterStateAndRoutingAllocation(String indexName) {
         /**
          * Create the ClusterState for multiple nodes and multiple index shards.
          */
@@ -152,55 +265,15 @@ public class WriteLoadConstraintDeciderTests extends ESAllocationTestCase {
             new ShardRouting[] {}
         );
 
-        /**
-         * Test the write load decider
-         */
-
-        // The write load decider is disabled by default.
-
-        var writeLoadDecider = createWriteLoadConstraintDecider(Settings.builder().build());
-        assertEquals(
-            Decision.Type.YES,
-            writeLoadDecider.canAllocate(shardRouting2, exceedingThresholdRoutingNode, routingAllocation).type()
-        );
-        assertEquals(Decision.Type.YES, writeLoadDecider.canAllocate(shardRouting1, belowThresholdRoutingNode, routingAllocation).type());
-        assertEquals(Decision.Type.YES, writeLoadDecider.canAllocate(shardRouting1, nearThresholdRoutingNode, routingAllocation).type());
-        assertEquals(
-            Decision.Type.YES,
-            writeLoadDecider.canAllocate(thirdRoutingNoWriteLoad, exceedingThresholdRoutingNode, routingAllocation).type()
-        );
-
-        // Check that the answers change when enabled.
-
-        writeLoadDecider = createWriteLoadConstraintDecider(
-            Settings.builder()
-                .put(
-                    WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_ENABLED_SETTING.getKey(),
-                    randomBoolean()
-                        ? WriteLoadConstraintSettings.WriteLoadDeciderStatus.ENABLED
-                        : WriteLoadConstraintSettings.WriteLoadDeciderStatus.LOW_THRESHOLD_ONLY
-                )
-                .build()
-        );
-        assertEquals(
-            "Assigning a new shard to a node that is above the threshold should fail",
-            Decision.Type.NO,
-            writeLoadDecider.canAllocate(shardRouting2, exceedingThresholdRoutingNode, routingAllocation).type()
-        );
-        assertEquals(
-            "Assigning a new shard to a node that has capacity should succeed",
-            Decision.Type.YES,
-            writeLoadDecider.canAllocate(shardRouting1, belowThresholdRoutingNode, routingAllocation).type()
-        );
-        assertEquals(
-            "Assigning a new shard without a write load estimate should _not_ be blocked by lack of capacity",
-            Decision.Type.YES,
-            writeLoadDecider.canAllocate(thirdRoutingNoWriteLoad, exceedingThresholdRoutingNode, routingAllocation).type()
-        );
-        assertEquals(
-            "Assigning a new shard that would cause the node to exceed capacity should fail",
-            Decision.Type.NO,
-            writeLoadDecider.canAllocate(shardRouting1, nearThresholdRoutingNode, routingAllocation).type()
+        return new TestHarness(
+            clusterState,
+            routingAllocation,
+            exceedingThresholdRoutingNode,
+            belowThresholdRoutingNode,
+            nearThresholdRoutingNode,
+            shardRouting1,
+            shardRouting2,
+            thirdRoutingNoWriteLoad
         );
     }
 

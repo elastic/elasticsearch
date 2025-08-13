@@ -672,6 +672,42 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         var source = as(aggregate.child(), EsRelation.class);
     }
 
+    /*
+     * Limit[1000[INTEGER]]
+     * \_LocalRelation[[count(salary) where false{r}#3],[LongVectorBlock[vector=ConstantLongVector[positions=1, value=0]]]]
+     */
+    public void testReplaceStatsFilteredAggWithEvalNotTrue() {
+        var plan = plan("""
+            from test
+            | stats count(salary) where not true
+            """);
+
+        var limit = as(plan, Limit.class);
+        var source = as(limit.child(), LocalRelation.class);
+        assertThat(Expressions.names(source.output()), contains("count(salary) where not true"));
+        Block[] blocks = source.supplier().get();
+        assertThat(blocks.length, is(1));
+        var block = as(blocks[0], LongVectorBlock.class);
+        assertThat(block.getPositionCount(), is(1));
+        assertThat(block.asVector().getLong(0), is(0L));
+    }
+
+    /*
+     * Limit[1000[INTEGER],false]
+     * \_Aggregate[[],[COUNT(salary{f}#10,true[BOOLEAN]) AS m1#4]]
+     * \_EsRelation[test][_meta_field{f}#11, emp_no{f}#5, first_name{f}#6, ge..]
+     */
+    public void testReplaceStatsFilteredAggWithEvalNotFalse() {
+        var plan = plan("""
+            from test
+            | stats m1 = count(salary) where not false
+            """);
+        var limit = as(plan, Limit.class);
+        var aggregate = as(limit.child(), Aggregate.class);
+        assertThat(Expressions.names(aggregate.aggregates()), contains("m1"));
+        var source = as(aggregate.child(), EsRelation.class);
+    }
+
     /**
      * <pre>{@code
      * Limit[1000[INTEGER]]
@@ -695,42 +731,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     }
 
     /**
-     * Limit[1000[INTEGER]]
-     * \_LocalRelation[[count(salary) where false{r}#3],[LongVectorBlock[vector=ConstantLongVector[positions=1, value=0]]]]
-     */
-    public void testReplaceStatsFilteredAggWithEvalNotTrue() {
-        var plan = plan("""
-            from test
-            | stats count(salary) where not true
-            """);
-
-        var limit = as(plan, Limit.class);
-        var source = as(limit.child(), LocalRelation.class);
-        assertThat(Expressions.names(source.output()), contains("count(salary) where not true"));
-        Block[] blocks = source.supplier().get();
-        assertThat(blocks.length, is(1));
-        var block = as(blocks[0], LongVectorBlock.class);
-        assertThat(block.getPositionCount(), is(1));
-        assertThat(block.asVector().getLong(0), is(0L));
-    }
-
-    /*
-    * Limit[1000[INTEGER],false]
-    * \_Aggregate[[],[COUNT(salary{f}#10,true[BOOLEAN]) AS m1#4]]
-    * \_EsRelation[test][_meta_field{f}#11, emp_no{f}#5, first_name{f}#6, ge..]
-    */
-    public void testReplaceStatsFilteredAggWithEvalNotFalse() {
-        var plan = plan("""
-            from test
-            | stats m1 = count(salary) where not false
-            """);
-        var limit = as(plan, Limit.class);
-        var aggregate = as(limit.child(), Aggregate.class);
-        assertThat(Expressions.names(aggregate.aggregates()), contains("m1"));
-        var source = as(aggregate.child(), EsRelation.class);
-    }
-
-    /*
+     * <pre>{@code
      * Project[[count_distinct(salary + 2) + 3 where false{r}#3]]
      * \_Eval[[$$COUNTDISTINCT$count_distinct(>$0{r$}#15 + 3[INTEGER] AS count_distinct(salary + 2) + 3 where false]]
      *   \_Limit[1000[INTEGER]]
@@ -6718,7 +6719,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     public void testReplaceStringCasingWithInsensitiveEqualsEquals() {
         for (var fn : List.of("TO_LOWER", "TO_UPPER")) {
             var value = fn.equals("TO_LOWER") ? fn.toLowerCase(Locale.ROOT) : fn.toUpperCase(Locale.ROOT);
-            value += "�✈��"; // these should not cause folding, they're not in the upper/lower char class
+            value += "🐔✈🔥🎉"; // these should not cause folding, they're not in the upper/lower char class
             var plan = optimizedPlan("FROM test | WHERE " + fn + "(first_name) == \"" + value + "\"");
             var limit = as(plan, Limit.class);
             var filter = as(limit.child(), Filter.class);
@@ -6733,7 +6734,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     public void testReplaceStringCasingWithInsensitiveEqualsNotEquals() {
         for (var fn : List.of("TO_LOWER", "TO_UPPER")) {
             var value = fn.equals("TO_LOWER") ? fn.toLowerCase(Locale.ROOT) : fn.toUpperCase(Locale.ROOT);
-            value += "�✈��"; // these should not cause folding, they're not in the upper/lower char class
+            value += "🐔✈🔥🎉"; // these should not cause folding, they're not in the upper/lower char class
             var plan = optimizedPlan("FROM test | WHERE " + fn + "(first_name) != \"" + value + "\"");
             var limit = as(plan, Limit.class);
             var filter = as(limit.child(), Filter.class);

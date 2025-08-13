@@ -11,6 +11,7 @@ package org.elasticsearch.search.vectors;
 
 import com.carrotsearch.hppc.IntHashSet;
 
+import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
@@ -50,11 +51,10 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
     static final TopDocs NO_RESULTS = TopDocsCollector.EMPTY_TOPDOCS;
 
     protected final String field;
-    protected final float visitRatio;
+    protected final float providedVisitRatio;
     protected final int k;
     protected final int numCands;
     protected final Query filter;
-    protected final IVFKnnSearchStrategy searchStrategy;
     protected int vectorOpsCount;
 
     protected AbstractIVFKnnVectorQuery(String field, float visitRatio, int k, int numCands, Query filter) {
@@ -68,11 +68,10 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
             throw new IllegalArgumentException("numCands must be at least k, got: " + numCands);
         }
         this.field = field;
-        this.visitRatio = visitRatio;
+        this.providedVisitRatio = visitRatio;
         this.k = k;
         this.filter = filter;
         this.numCands = numCands;
-        this.searchStrategy = new IVFKnnSearchStrategy(visitRatio);
     }
 
     @Override
@@ -90,12 +89,12 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
         return k == that.k
             && Objects.equals(field, that.field)
             && Objects.equals(filter, that.filter)
-            && Objects.equals(visitRatio, that.visitRatio);
+            && Objects.equals(providedVisitRatio, that.providedVisitRatio);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(field, k, filter, visitRatio);
+        return Objects.hash(field, k, filter, providedVisitRatio);
     }
 
     @Override
@@ -116,6 +115,7 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
         } else {
             filterWeight = null;
         }
+
         // we request numCands as we are using it as an approximation measure
         // we need to ensure we are getting at least 2*k results to ensure we cover overspill duplicates
         // TODO move the logic for automatically adjusting percentages to the query, so we can only pass
@@ -123,9 +123,28 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
         KnnCollectorManager knnCollectorManager = getKnnCollectorManager(Math.max(Math.round(2f * k), numCands), indexSearcher);
         TaskExecutor taskExecutor = indexSearcher.getTaskExecutor();
         List<LeafReaderContext> leafReaderContexts = reader.leaves();
+
+        int totalVectors = 0;
+        for (LeafReaderContext leafReaderContext : leafReaderContexts) {
+            LeafReader leafReader = leafReaderContext.reader();
+            FloatVectorValues floatVectorValues = leafReader.getFloatVectorValues(field);
+            if (floatVectorValues != null) {
+                totalVectors += floatVectorValues.size();
+            }
+        }
+
+        final float visitRatio;
+        if (providedVisitRatio == 0.0f) {
+            // dynamically set the percentage
+            float expected = (float) Math.round(1.75f * Math.log10(numCands) * Math.log10(numCands) * (numCands));
+            visitRatio = expected / totalVectors;
+        } else {
+            visitRatio = providedVisitRatio;
+        }
+
         List<Callable<TopDocs>> tasks = new ArrayList<>(leafReaderContexts.size());
         for (LeafReaderContext context : leafReaderContexts) {
-            tasks.add(() -> searchLeaf(context, filterWeight, knnCollectorManager));
+            tasks.add(() -> searchLeaf(context, filterWeight, knnCollectorManager, visitRatio));
         }
         TopDocs[] perLeafResults = taskExecutor.invokeAll(tasks).toArray(TopDocs[]::new);
 
@@ -138,8 +157,9 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
         return new KnnScoreDocQuery(topK.scoreDocs, reader);
     }
 
-    private TopDocs searchLeaf(LeafReaderContext ctx, Weight filterWeight, KnnCollectorManager knnCollectorManager) throws IOException {
-        TopDocs results = getLeafResults(ctx, filterWeight, knnCollectorManager);
+    private TopDocs searchLeaf(LeafReaderContext ctx, Weight filterWeight, KnnCollectorManager knnCollectorManager, float visitRatio)
+        throws IOException {
+        TopDocs results = getLeafResults(ctx, filterWeight, knnCollectorManager, visitRatio);
         IntHashSet dedup = new IntHashSet(results.scoreDocs.length * 4 / 3);
         int deduplicateCount = 0;
         for (ScoreDoc scoreDoc : results.scoreDocs) {
@@ -159,12 +179,13 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
         return new TopDocs(results.totalHits, deduplicatedScoreDocs);
     }
 
-    TopDocs getLeafResults(LeafReaderContext ctx, Weight filterWeight, KnnCollectorManager knnCollectorManager) throws IOException {
+    TopDocs getLeafResults(LeafReaderContext ctx, Weight filterWeight, KnnCollectorManager knnCollectorManager, float visitRatio)
+        throws IOException {
         final LeafReader reader = ctx.reader();
         final Bits liveDocs = reader.getLiveDocs();
 
         if (filterWeight == null) {
-            return approximateSearch(ctx, liveDocs, Integer.MAX_VALUE, knnCollectorManager);
+            return approximateSearch(ctx, liveDocs, Integer.MAX_VALUE, knnCollectorManager, visitRatio);
         }
 
         Scorer scorer = filterWeight.scorer(ctx);
@@ -174,14 +195,15 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
 
         BitSet acceptDocs = createBitSet(scorer.iterator(), liveDocs, reader.maxDoc());
         final int cost = acceptDocs.cardinality();
-        return approximateSearch(ctx, acceptDocs, cost + 1, knnCollectorManager);
+        return approximateSearch(ctx, acceptDocs, cost + 1, knnCollectorManager, visitRatio);
     }
 
     abstract TopDocs approximateSearch(
         LeafReaderContext context,
         Bits acceptDocs,
         int visitedLimit,
-        KnnCollectorManager knnCollectorManager
+        KnnCollectorManager knnCollectorManager,
+        float visitRatio
     ) throws IOException;
 
     protected KnnCollectorManager getKnnCollectorManager(int k, IndexSearcher searcher) {

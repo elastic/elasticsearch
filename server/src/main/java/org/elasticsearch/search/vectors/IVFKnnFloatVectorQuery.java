@@ -78,7 +78,8 @@ public class IVFKnnFloatVectorQuery extends AbstractIVFKnnVectorQuery {
         LeafReaderContext context,
         Bits acceptDocs,
         int visitedLimit,
-        KnnCollectorManager knnCollectorManager
+        KnnCollectorManager knnCollectorManager,
+        float visitRatio
     ) throws IOException {
         LeafReader reader = context.reader();
         FloatVectorValues floatVectorValues = reader.getFloatVectorValues(field);
@@ -89,13 +90,7 @@ public class IVFKnnFloatVectorQuery extends AbstractIVFKnnVectorQuery {
         if (floatVectorValues.size() == 0) {
             return NO_RESULTS;
         }
-        KnnSearchStrategy strategy = searchStrategy;
-        if (searchStrategy.getVisitRatio() == 0.0f) {
-            // dynamically set the percentage
-            float expected = (float) Math.round(1.75f * Math.log10(numCands) * Math.log10(numCands) * (numCands));
-            float ratio = expected / floatVectorValues.size();
-            strategy = new IVFKnnSearchStrategy(ratio);
-        }
+        KnnSearchStrategy strategy = new IVFKnnSearchStrategy(visitRatio);
         KnnCollector knnCollector = knnCollectorManager.newCollector(visitedLimit, strategy, context);
         if (knnCollector == null) {
             return NO_RESULTS;

@@ -95,16 +95,19 @@ public abstract class AsyncOperator<Fetched> implements Operator {
         driverContext.addAsyncAction();
         boolean success = false;
         try {
-            final ActionListener<Fetched> listener = ActionListener.wrap(output -> buffers.put(seqNo, output), e -> {
+            final ActionListener<Fetched> listener = ActionListener.wrap(output -> {
+                buffers.put(seqNo, output);
+                onSeqNoCompleted(seqNo);
+            }, e -> {
                 releasePageOnAnyThread(input);
                 failureCollector.unwrapAndCollect(e);
+                onSeqNoCompleted(seqNo);
             });
             final long startNanos = System.nanoTime();
             performAsync(input, ActionListener.runAfter(listener, () -> {
                 responseHeadersCollector.collect();
-                processNanos.add(System.nanoTime() - startNanos);
-                onSeqNoCompleted(seqNo);
                 driverContext.removeAsyncAction();
+                processNanos.add(System.nanoTime() - startNanos);
             }));
             success = true;
         } finally {

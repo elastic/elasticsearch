@@ -6,10 +6,12 @@
  */
 package org.elasticsearch.xpack.core.security;
 
+import org.apache.lucene.index.DirectoryReader;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
@@ -20,6 +22,7 @@ import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.store.RoleRetrievalResult;
 
+import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -119,6 +122,23 @@ public interface SecurityExtension {
      * @param settings The configured settings for the node
      */
     default AuthorizationEngine getAuthorizationEngine(Settings settings) {
+        return null;
+    }
+
+    /**
+     * Provides an optional {@link DirectoryReader} wrapper to be applied to each index.
+     * <p>
+     * This allows security plugins or extensions to inject custom logic for transforming
+     * Lucene readers — such as for field value masking.
+     * <p>
+     * The default implementation returns {@code null}, indicating no additional wrapping is applied.
+     * Implementations may return a non-null {@link CheckedFunction} to participate in the
+     * {@code IndexModule.setReaderWrapper()} chain.
+     *
+     * @param securityContext the current {@link SecurityContext} providing user and request context
+     * @return a {@link CheckedFunction} to wrap a {@link DirectoryReader}, or {@code null} if none
+     */
+    default CheckedFunction<DirectoryReader, DirectoryReader, IOException> getIndexReaderWrapper(SecurityContext securityContext) {
         return null;
     }
 

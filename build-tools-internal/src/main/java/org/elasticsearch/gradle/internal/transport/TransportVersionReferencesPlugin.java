@@ -20,7 +20,7 @@ import org.gradle.language.base.plugins.LifecycleBasePlugin;
 import static org.elasticsearch.gradle.internal.transport.TransportVersionUtils.getDefinitionsDirectory;
 import static org.elasticsearch.gradle.internal.transport.TransportVersionUtils.getResourcesDirectory;
 
-public class TransportVersionManagementPlugin implements Plugin<Project> {
+public class TransportVersionReferencesPlugin implements Plugin<Project> {
 
     @Override
     public void apply(Project project) {
@@ -38,7 +38,7 @@ public class TransportVersionManagementPlugin implements Plugin<Project> {
         Configuration tvReferencesConfig = project.getConfigurations().create("transportVersionReferences", c -> {
             c.setCanBeConsumed(true);
             c.setCanBeResolved(false);
-            c.attributes(TransportVersionUtils::addTransportVersionReferencesAttribute);
+            c.attributes(TransportVersionReference::addArtifactAttribute);
         });
         project.getArtifacts().add(tvReferencesConfig.getName(), collectTask);
 

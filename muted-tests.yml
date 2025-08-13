@@ -444,9 +444,6 @@ tests:
 - class: org.elasticsearch.test.rest.yaml.RcsCcsCommonYamlTestSuiteIT
   method: test {p0=search/600_flattened_ignore_above/flattened ignore_above multi-value field}
   issue: https://github.com/elastic/elasticsearch/issues/131967
-- class: org.elasticsearch.index.engine.MergeWithLowDiskSpaceIT
-  method: testRelocationWhileForceMerging
-  issue: https://github.com/elastic/elasticsearch/issues/131789
 - class: org.elasticsearch.test.rest.yaml.MDPYamlTestSuiteIT
   method: test {yaml=mdp/10_basic/Index using shared data path}
   issue: https://github.com/elastic/elasticsearch/issues/132223
@@ -462,9 +459,6 @@ tests:
 - class: org.elasticsearch.xpack.ml.integration.AutodetectMemoryLimitIT
   method: testTooManyByAndOverFields
   issue: https://github.com/elastic/elasticsearch/issues/132310
-- class: org.elasticsearch.xpack.esql.action.CrossClusterAsyncQueryIT
-  method: testBadAsyncId
-  issue: https://github.com/elastic/elasticsearch/issues/132353
 - class: org.elasticsearch.xpack.esql.inference.completion.CompletionOperatorTests
   method: testSimpleCircuitBreaking
   issue: https://github.com/elastic/elasticsearch/issues/132382
@@ -513,6 +507,15 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeForkIT
   method: test {csv-spec:lookup-join.MvJoinKeyFromRowExpanded}
   issue: https://github.com/elastic/elasticsearch/issues/132778
+- class: org.elasticsearch.gradle.internal.transport.TransportVersionManagementPluginFuncTest
+  method: definitions have primary ids which cannot change
+  issue: https://github.com/elastic/elasticsearch/issues/132788
+- class: org.elasticsearch.gradle.internal.transport.TransportVersionManagementPluginFuncTest
+  method: latest files cannot change base id
+  issue: https://github.com/elastic/elasticsearch/issues/132789
+- class: org.elasticsearch.gradle.internal.transport.TransportVersionManagementPluginFuncTest
+  method: cannot change committed ids to a branch
+  issue: https://github.com/elastic/elasticsearch/issues/132790
 
 # Examples:
 #

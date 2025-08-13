@@ -563,10 +563,10 @@ tests:
   issue: TBD
 - class: org.elasticsearch.search.CCSDuelIT
   method: testTermsAggs
-  issue: TBD
+  issue: https://github.com/elastic/elasticsearch/issues/132879
 - class: org.elasticsearch.search.CCSDuelIT
   method: testTermsAggsWithProfile
-  issue: TBD
+  issue: https://github.com/elastic/elasticsearch/issues/132880
 
 # Examples:
 #

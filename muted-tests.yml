@@ -585,6 +585,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.CsvTests
   method: test {csv-spec:string.ConcatOfText}
   issue: https://github.com/elastic/elasticsearch/issues/132840
+- class: org.elasticsearch.xpack.esql.CsvTests
+  method: test {csv-spec:floats.EqualToOrEqualToMultivalue}
+  issue: https://github.com/elastic/elasticsearch/issues/132841
 
 # Examples:
 #

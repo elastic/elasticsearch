@@ -267,11 +267,6 @@ public class QueryTranslatorFailTests extends AbstractQueryTranslatorTestCase {
         plan("sequence [any where true] [any where true] until [any where true]");
     }
 
-    public void testSequenceWithNegativeUntil() throws Exception {
-        String s = errorParsing("sequence [any where true] [any where true] until ![any where true]");
-        assertEquals("1:2: UNTIL clause cannot be a negative clause (missing event)", s);
-    }
-
     public void testSequenceWithIncorrectOption() throws Exception {
         EqlClientException e = expectThrows(EqlClientException.class, () -> plan("sequence [any where true] with repeat=123"));
         String msg = e.getMessage();

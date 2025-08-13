@@ -334,9 +334,6 @@ public abstract class LogicalPlanBuilder extends ExpressionBuilder {
                 throw new ParsingException(source, "A sequence requires a minimum of 2 queries (excluding UNTIL clause), found [1]");
             }
             until = queries.remove(queries.size() - 1);
-            if (until.isMissingEventFilter()) {
-                throw new ParsingException(source, "UNTIL clause cannot be a negative clause (missing event)");
-            }
         } else {
             until = defaultUntil(source);
         }

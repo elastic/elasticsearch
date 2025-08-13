@@ -519,6 +519,9 @@ tests:
 - class: org.elasticsearch.index.mapper.LongFieldMapperTests
   method: testFetchCoerced
   issue: TBD
+- class: org.elasticsearch.index.mapper.LongFieldMapperTests
+  method: testSyntheticSource
+  issue: TBD
 - class: org.elasticsearch.xpack.eql.planner.QueryTranslatorTests
   method: testMatchOptimization
   issue: TBD

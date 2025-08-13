@@ -755,26 +755,24 @@ public class EsqlSession {
                 EsqlCCSUtils.updateExecutionInfoWithClustersWithNoMatchingIndices(executionInfo, result.indices, requestFilter != null);
             }
             plan = analyzeAction.apply(result);
-        } catch (Exception e) {
-            if (e instanceof VerificationException ve) {
-                LOGGER.debug(
-                    "Analyzing the plan ({} attempt, {} filter) failed with {}",
-                    attemptMessage,
-                    filterPresentMessage,
-                    ve.getDetailedMessage()
-                );
-                if (requestFilter == null) {
-                    // if the initial request didn't have a filter, then just pass the exception back to the user
-                    logicalPlanListener.onFailure(ve);
-                } else {
-                    // interested only in a VerificationException, but this time we are taking out the index filter
-                    // to try and make the index resolution work without any index filtering. In the next step... to be continued
-                    l.onResponse(result);
-                }
+        } catch (VerificationException ve) {
+            LOGGER.debug(
+                "Analyzing the plan ({} attempt, {} filter) failed with {}",
+                attemptMessage,
+                filterPresentMessage,
+                ve.getDetailedMessage()
+            );
+            if (requestFilter == null) {
+                // if the initial request didn't have a filter, then just pass the exception back to the user
+                logicalPlanListener.onFailure(ve);
             } else {
-                // if the query failed with any other type of exception, then just pass the exception back to the user
-                logicalPlanListener.onFailure(e);
+                // interested only in a VerificationException, but this time we are taking out the index filter
+                // to try and make the index resolution work without any index filtering. In the next step... to be continued
+                l.onResponse(result);
             }
+            return;
+        } catch (Exception e) {
+            logicalPlanListener.onFailure(e);
             return;
         }
         LOGGER.debug("Analyzed plan ({} attempt, {} filter):\n{}", attemptMessage, filterPresentMessage, plan);

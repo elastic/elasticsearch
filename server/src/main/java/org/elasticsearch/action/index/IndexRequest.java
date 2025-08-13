@@ -170,8 +170,8 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
         final int originalSourceSize;
         if (in.getTransportVersion().onOrAfter(TransportVersions.STRUCTURED_SOURCE)) {
             if (in.readBoolean()) {
-                structuredSource = new ESONFlat(in);
                 originalSourceSize = in.readVInt();
+                structuredSource = new ESONFlat(in);
             } else {
                 BytesReference source = in.readBytesReference();
                 structuredSource = null;
@@ -453,7 +453,8 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
     }
 
     public Map<String, Object> sourceAsMap() {
-        return ESONIndexed.fromFlat(modernSource.structuredSource());
+        // TODO: Improve and remove need to do the bytes.
+        return XContentHelper.convertToMap(modernSource.originalSourceBytes(), false, contentType).v2();
     }
 
     /**
@@ -805,8 +806,8 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
         if (out.getTransportVersion().onOrAfter(TransportVersions.STRUCTURED_SOURCE)) {
             out.writeBoolean(modernSource.isStructured());
             if (modernSource.isStructured()) {
-                ESONFlat structuredSource = modernSource.structuredSource();
                 out.writeVInt(modernSource.originalSourceSize());
+                ESONFlat structuredSource = modernSource.structuredSource();
                 out.writeBytesReference(structuredSource.getSerializedKeyBytes());
                 out.writeBytesReference(structuredSource.values().data());
             } else {

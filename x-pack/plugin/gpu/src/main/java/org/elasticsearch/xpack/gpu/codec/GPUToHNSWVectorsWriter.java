@@ -203,7 +203,7 @@ final class GPUToHNSWVectorsWriter extends KnnVectorsWriter {
         }
 
         int size() {
-            return dataset != null ? (int)dataset.size() : vectors.length;
+            return dataset != null ? (int) dataset.size() : vectors.length;
         }
 
         CuVSMatrix getDataset() {
@@ -290,11 +290,7 @@ final class GPUToHNSWVectorsWriter extends KnnVectorsWriter {
         var index = indexBuilder.build();
         cuVSResourceManager.finishedComputation(cuVSResources);
         if (logger.isDebugEnabled()) {
-            logger.debug(
-                "Carga index created in: {} ms; #num vectors: {}",
-                (System.nanoTime() - startTime) / 1_000_000.0,
-                dataset.size()
-            );
+            logger.debug("Carga index created in: {} ms; #num vectors: {}", (System.nanoTime() - startTime) / 1_000_000.0, dataset.size());
         }
         return index;
     }
@@ -302,8 +298,8 @@ final class GPUToHNSWVectorsWriter extends KnnVectorsWriter {
     private HnswGraph writeGraph(CuVSMatrix cagraGraph, int[][] levelNodeOffsets) throws IOException {
         long startTime = System.nanoTime();
 
-        int maxElementCount = (int)cagraGraph.size();
-        int maxGraphDegree = (int)cagraGraph.columns();
+        int maxElementCount = (int) cagraGraph.size();
+        int maxGraphDegree = (int) cagraGraph.columns();
         int[] neighbors = new int[maxGraphDegree];
 
         // write the cagra graph to the Lucene vectorIndex file

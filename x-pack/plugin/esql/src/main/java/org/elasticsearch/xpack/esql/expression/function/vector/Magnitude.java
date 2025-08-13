@@ -41,7 +41,7 @@ public class Magnitude extends UnaryScalarFunction implements EvaluatorMapper, V
     static final ScalarEvaluatorFunction SCALAR_FUNCTION = Magnitude::calculateScalar;
 
     @FunctionInfo(
-        returnType = "float",
+        returnType = "double",
         preview = true,
         description = "Calculates the magnitude of a dense_vector.",
         examples = { @Example(file = "vector-magnitude", tag = "vector-magnitude") },
@@ -79,7 +79,7 @@ public class Magnitude extends UnaryScalarFunction implements EvaluatorMapper, V
 
     @Override
     public DataType dataType() {
-        return DataType.FLOAT;
+        return DataType.DOUBLE;
     }
 
     @Override
@@ -138,7 +138,7 @@ public class Magnitude extends UnaryScalarFunction implements EvaluatorMapper, V
                         }
 
                         float[] scratch = new float[dimensions];
-                        try (var builder = context.blockFactory().newFloatBlockBuilder(positionCount * dimensions)) {
+                        try (var builder = context.blockFactory().newDoubleBlockBuilder(positionCount * dimensions)) {
                             for (int p = 0; p < positionCount; p++) {
                                 int dims = block.getValueCount(p);
                                 if (dims == 0) {
@@ -148,7 +148,7 @@ public class Magnitude extends UnaryScalarFunction implements EvaluatorMapper, V
                                 }
                                 readFloatArray(block, block.getFirstValueIndex(p), dimensions, scratch);
                                 float result = scalarFunction.calculateScalar(scratch);
-                                builder.appendFloat(result);
+                                builder.appendDouble(result);
                             }
                             return builder.build();
                         }

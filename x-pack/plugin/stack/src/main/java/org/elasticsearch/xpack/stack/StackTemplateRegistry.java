@@ -73,6 +73,7 @@ public class StackTemplateRegistry extends IndexTemplateRegistry {
     //////////////////////////////////////////////////////////
     public static final String LOGS_MAPPINGS_COMPONENT_TEMPLATE_NAME = "logs@mappings";
     public static final String LOGS_SETTINGS_COMPONENT_TEMPLATE_NAME = "logs@settings";
+    public static final String LEGACY_LOGS_ILM_POLICY_NAME = "logs";
     public static final String LOGS_ILM_POLICY_NAME = "logs@lifecycle";
     public static final String LOGS_INDEX_TEMPLATE_NAME = "logs";
 
@@ -82,6 +83,7 @@ public class StackTemplateRegistry extends IndexTemplateRegistry {
     public static final String METRICS_MAPPINGS_COMPONENT_TEMPLATE_NAME = "metrics@mappings";
     public static final String METRICS_SETTINGS_COMPONENT_TEMPLATE_NAME = "metrics@settings";
     public static final String METRICS_TSDB_SETTINGS_COMPONENT_TEMPLATE_NAME = "metrics@tsdb-settings";
+    public static final String LEGACY_METRICS_ILM_POLICY_NAME = "metrics";
     public static final String METRICS_ILM_POLICY_NAME = "metrics@lifecycle";
     public static final String METRICS_INDEX_TEMPLATE_NAME = "metrics";
 
@@ -97,6 +99,7 @@ public class StackTemplateRegistry extends IndexTemplateRegistry {
     //////////////////////////////////////////////////////////
     public static final String SYNTHETICS_MAPPINGS_COMPONENT_TEMPLATE_NAME = "synthetics@mappings";
     public static final String SYNTHETICS_SETTINGS_COMPONENT_TEMPLATE_NAME = "synthetics@settings";
+    public static final String LEGACY_SYNTHETICS_ILM_POLICY_NAME = "synthetics";
     public static final String SYNTHETICS_ILM_POLICY_NAME = "synthetics@lifecycle";
     public static final String SYNTHETICS_INDEX_TEMPLATE_NAME = "synthetics";
 
@@ -260,8 +263,11 @@ public class StackTemplateRegistry extends IndexTemplateRegistry {
     }
 
     private static final List<LifecyclePolicyConfig> LIFECYCLE_POLICY_CONFIGS = List.of(
+        new LifecyclePolicyConfig(LEGACY_LOGS_ILM_POLICY_NAME, "/logs@lifecycle.json", ADDITIONAL_TEMPLATE_VARIABLES),
         new LifecyclePolicyConfig(LOGS_ILM_POLICY_NAME, "/logs@lifecycle.json", ADDITIONAL_TEMPLATE_VARIABLES),
+        new LifecyclePolicyConfig(LEGACY_METRICS_ILM_POLICY_NAME, "/metrics@lifecycle.json", ADDITIONAL_TEMPLATE_VARIABLES),
         new LifecyclePolicyConfig(METRICS_ILM_POLICY_NAME, "/metrics@lifecycle.json", ADDITIONAL_TEMPLATE_VARIABLES),
+        new LifecyclePolicyConfig(LEGACY_SYNTHETICS_ILM_POLICY_NAME, "/synthetics@lifecycle.json", ADDITIONAL_TEMPLATE_VARIABLES),
         new LifecyclePolicyConfig(SYNTHETICS_ILM_POLICY_NAME, "/synthetics@lifecycle.json", ADDITIONAL_TEMPLATE_VARIABLES),
         new LifecyclePolicyConfig(TRACES_ILM_POLICY_NAME, "/traces@lifecycle.json", ADDITIONAL_TEMPLATE_VARIABLES),
         new LifecyclePolicyConfig(ILM_7_DAYS_POLICY_NAME, "/7-days@lifecycle.json", ADDITIONAL_TEMPLATE_VARIABLES),

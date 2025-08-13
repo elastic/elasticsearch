@@ -131,7 +131,8 @@ public class StackTemplateRegistryTests extends ESTestCase {
         assertThat(
             // We have a naming convention that internal ILM policies contain `@`. See also put-lifecycle.asciidoc.
             disabledRegistry.getLifecyclePolicies().stream().filter(p -> p.getName().contains("@") == false).collect(Collectors.toSet()),
-            empty()
+            // 3 duplicate legacy ILM policies do not follow this convention: metrics, logs, synthetics
+            hasSize(3)
         );
     }
 
@@ -173,8 +174,11 @@ public class StackTemplateRegistryTests extends ESTestCase {
                 assertThat(
                     putRequest.getPolicy().getName(),
                     anyOf(
+                        equalTo(StackTemplateRegistry.LEGACY_LOGS_ILM_POLICY_NAME),
                         equalTo(StackTemplateRegistry.LOGS_ILM_POLICY_NAME),
+                        equalTo(StackTemplateRegistry.LEGACY_METRICS_ILM_POLICY_NAME),
                         equalTo(StackTemplateRegistry.METRICS_ILM_POLICY_NAME),
+                        equalTo(StackTemplateRegistry.LEGACY_SYNTHETICS_ILM_POLICY_NAME),
                         equalTo(StackTemplateRegistry.SYNTHETICS_ILM_POLICY_NAME),
                         equalTo(StackTemplateRegistry.TRACES_ILM_POLICY_NAME),
                         equalTo(StackTemplateRegistry.ILM_7_DAYS_POLICY_NAME),
@@ -200,7 +204,7 @@ public class StackTemplateRegistryTests extends ESTestCase {
 
         ClusterChangedEvent event = createClusterChangedEvent(Collections.emptyMap(), nodes);
         registry.clusterChanged(event);
-        assertBusy(() -> assertThat(calledTimes.get(), equalTo(9)));
+        assertBusy(() -> assertThat(calledTimes.get(), equalTo(12)));
     }
 
     public void testPolicyAlreadyExists() {
@@ -209,7 +213,7 @@ public class StackTemplateRegistryTests extends ESTestCase {
 
         Map<String, LifecyclePolicy> policyMap = new HashMap<>();
         List<LifecyclePolicy> policies = registry.getLifecyclePolicies();
-        assertThat(policies, hasSize(9));
+        assertThat(policies, hasSize(12));
         policies.forEach(p -> policyMap.put(p.getName(), p));
 
         client.setVerifier((action, request, listener) -> {
@@ -280,7 +284,7 @@ public class StackTemplateRegistryTests extends ESTestCase {
         Map<String, LifecyclePolicy> policyMap = new HashMap<>();
         String policyStr = "{\"phases\":{\"delete\":{\"min_age\":\"1m\",\"actions\":{\"delete\":{}}}}}";
         List<LifecyclePolicy> policies = registry.getLifecyclePolicies();
-        assertThat(policies, hasSize(9));
+        assertThat(policies, hasSize(12));
         policies.forEach(p -> policyMap.put(p.getName(), p));
 
         client.setVerifier((action, request, listener) -> {

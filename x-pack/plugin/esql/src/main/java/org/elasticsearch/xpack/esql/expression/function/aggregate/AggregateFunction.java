@@ -16,7 +16,9 @@ import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.expression.function.Function;
+import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.CollectionUtils;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
@@ -66,6 +68,39 @@ public abstract class AggregateFunction extends Function implements PostAnalysis
                 ? in.readNamedWriteableCollectionAsList(Expression.class)
                 : emptyList()
         );
+    }
+
+    /**
+     * Read a generic AggregateFunction from the stream input. This is used for BWC when the subclass requires a generic instance;
+     * then convert the parameters to the specific ones.
+     */
+    protected static AggregateFunction readGenericAggregateFunction(StreamInput in) throws IOException {
+        return new AggregateFunction(in) {
+            @Override
+            public AggregateFunction withFilter(Expression filter) {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public DataType dataType() {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public Expression replaceChildren(List<Expression> newChildren) {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            protected NodeInfo<? extends Expression> info() {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public String getWriteableName() {
+                throw new UnsupportedOperationException();
+            }
+        };
     }
 
     @Override

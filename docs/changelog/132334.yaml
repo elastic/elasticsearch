@@ -1,6 +1,0 @@
-pr: 132334
-summary: Do not look over `TaskCancelledException` when looking at failures while
-  updating CCS info for clusters
-area: CCS
-type: bug
-issues: []

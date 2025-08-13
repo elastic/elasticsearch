@@ -138,7 +138,7 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
         List<LeafReaderContext> leafReaderContexts = reader.leaves();
 
         long totalDocsWVectors = 0;
-        for(LeafReaderContext leafReaderContext : leafReaderContexts) {
+        for (LeafReaderContext leafReaderContext : leafReaderContexts) {
             LeafReader leafReader = leafReaderContext.reader();
             FieldInfo fieldInfo = leafReader.getFieldInfos().fieldInfo(field);
             VectorScorer scorer = createVectorScorer(leafReaderContext, fieldInfo);
@@ -217,8 +217,7 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
         return new KnnScoreDocQuery(topK.scoreDocs, reader);
     }
 
-    abstract VectorScorer createVectorScorer(LeafReaderContext context, FieldInfo fi)
-        throws IOException;
+    abstract VectorScorer createVectorScorer(LeafReaderContext context, FieldInfo fi) throws IOException;
 
     private float adjustVisitRatioForSegment(double affinityScore, double affinityThreshold, int maxAdjustment, float visitRatio) {
         // for high affinity scores, increase visited ratio

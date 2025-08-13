@@ -8,7 +8,6 @@
  */
 package org.elasticsearch.search.vectors;
 
-import org.apache.lucene.index.ByteVectorValues;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.index.LeafReader;

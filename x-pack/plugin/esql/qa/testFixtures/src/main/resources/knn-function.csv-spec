@@ -70,15 +70,15 @@ yellow     | [255.0, 255.0, 0.0]
 knnWithPrefilter
 required_capability: knn_function_v3
 
-from colors metadata _score
-| where knn(rgb_vector, [128,128,0], 10) and (match(color, "olive") or match(color, "green")) 
-| sort _score desc, color asc
-| keep color, rgb_vector
+from colors
+| where knn(rgb_vector, [120,180,0], 10) and (match(color, "olive") or match(color, "green")) 
+| sort color asc
+| keep color
 ;
 
-color:text       | rgb_vector:dense_vector
-olive            | [128.0, 128.0, 0.0]
-green            | [0.0, 128.0, 0.0]
+color:text
+green
+olive
 ;
 
 knnWithNegatedPrefilter

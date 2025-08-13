@@ -22,11 +22,15 @@ There are no deprecations associated with this release.
 
 ## 9.1.1 [elasticsearch-9.1.1-deprecations]
 
-There are no deprecations associated with this release.
+No deprecations in this version.
 
 ## 9.1.0 [elasticsearch-9.1.0-deprecations]
 
-There are no deprecations associated with this release.
+No deprecations in this version.
+
+## 9.0.5 [elasticsearch-9.0.5-deprecations]
+
+No deprecations in this version.
 
 ## 9.0.5 [elasticsearch-9.0.5-deprecations]
 

@@ -18,7 +18,7 @@ There are no breaking changes associated with this release.
 
 ## 9.1.1 [elasticsearch-9.1.1-breaking-changes]
 
-There are no breaking changes associated with this release.
+No breaking changes in this version.
 
 ## 9.1.0 [elasticsearch-9.1.0-breaking-changes]
 
@@ -126,7 +126,7 @@ For more information, view [#126843](https://github.com/elastic/elasticsearch/pu
 
 ## 9.0.5 [elasticsearch-9.0.5-breaking-changes]
 
-There are no breaking changes associated with this release.
+No breaking changes in this version.
 
 ## 9.0.4 [elasticsearch-9.0.4-breaking-changes]
 

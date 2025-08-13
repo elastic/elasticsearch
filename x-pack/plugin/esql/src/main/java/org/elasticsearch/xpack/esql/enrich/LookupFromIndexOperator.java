@@ -62,7 +62,7 @@ public final class LookupFromIndexOperator extends AsyncOperator<LookupFromIndex
                     .append(" inputChannel=")
                     .append(matchField.channel());
             }
-            stringBuilder.append(" rightPreJoinPlan=").append(rightPreJoinPlan);
+            stringBuilder.append(" right_pre_join_plan=").append(rightPreJoinPlan);
             stringBuilder.append("]");
             return stringBuilder.toString();
         }

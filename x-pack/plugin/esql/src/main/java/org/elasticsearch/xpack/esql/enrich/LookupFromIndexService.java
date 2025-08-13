@@ -220,7 +220,7 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
                 source = new Source(source.source(), sourceText);
             }
             PhysicalPlan rightPreJoinPlan = null;
-            if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_LOOKUP_JOIN_ON_MANY_FIELDS)) {
+            if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_LOOKUP_JOIN_PRE_JOIN_FILTER)) {
                 rightPreJoinPlan = planIn.readOptionalNamedWriteable(PhysicalPlan.class);
             }
             TransportRequest result = new TransportRequest(
@@ -275,7 +275,7 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
             if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_LOOKUP_JOIN_SOURCE_TEXT)) {
                 out.writeString(source.text());
             }
-            if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_LOOKUP_JOIN_ON_MANY_FIELDS)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_LOOKUP_JOIN_PRE_JOIN_FILTER)) {
                 planOut.writeOptionalNamedWriteable(rightPreJoinPlan);
             } else if (rightPreJoinPlan != null) {
                 throw new EsqlIllegalArgumentException("LOOKUP JOIN with pre-join filter is not supported on remote node");

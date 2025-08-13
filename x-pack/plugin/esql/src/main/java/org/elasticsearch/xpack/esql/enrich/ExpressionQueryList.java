@@ -85,8 +85,8 @@ public class ExpressionQueryList implements LookupEnrichQueryGenerator, PostJoin
             } catch (IOException e) {
                 throw new IllegalArgumentException("Failed to translate pre-join filter: " + esQueryExec, e);
             }
-        } else {
-            throw new IllegalArgumentException("Unsupported pre-join filter type: " + preJoinFilters.getClass().getName());
+        } else if (rightPreJoinPlan != null) {
+            throw new IllegalArgumentException("Unsupported pre-join filter type: " + rightPreJoinPlan.getClass().getName());
         }
     }
 

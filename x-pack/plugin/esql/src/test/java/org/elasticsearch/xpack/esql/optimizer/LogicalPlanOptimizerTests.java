@@ -7055,7 +7055,9 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         assertThat(literal.value(), equalTo(1));
 
         var leftRel = as(filter.child(), EsRelation.class);
-        var rightRel = as(join.right(), EsRelation.class);
+        var filterRight = as(join.right(), Filter.class);
+        assertEquals("language_name == \"English\"", filterRight.condition().toString());
+        var rightRel = as(filterRight.child(), EsRelation.class);
     }
 
     /**

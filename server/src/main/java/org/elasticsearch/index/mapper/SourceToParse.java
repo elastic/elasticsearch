@@ -13,7 +13,6 @@ import org.elasticsearch.action.index.ModernSource;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.ingest.ESONFlat;
 import org.elasticsearch.plugins.internal.XContentMeteringParserDecorator;
 import org.elasticsearch.xcontent.XContentType;
 
@@ -103,11 +102,6 @@ public class SourceToParse {
 
     public ModernSource modernSource() {
         return this.modernSource;
-    }
-
-    @Nullable
-    public ESONFlat getStructuredSource() {
-        return modernSource.structuredSource();
     }
 
     /**

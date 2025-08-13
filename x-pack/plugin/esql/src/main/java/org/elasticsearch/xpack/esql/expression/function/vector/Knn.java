@@ -13,6 +13,8 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.search.vectors.ExactKnnQueryBuilder;
+import org.elasticsearch.search.vectors.VectorData;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.capabilities.PostAnalysisPlanVerificationAware;
 import org.elasticsearch.xpack.esql.capabilities.TranslationAware;
@@ -275,11 +277,7 @@ public class Knn extends FullTextFunction implements OptionalArgument, VectorFun
 
         Check.notNull(fieldAttribute, "Knn must have a field attribute as the first argument");
         String fieldName = getNameFromFieldAttribute(fieldAttribute);
-        List<Number> queryFolded = queryAsObject();
-        float[] queryAsFloats = new float[queryFolded.size()];
-        for (int i = 0; i < queryFolded.size(); i++) {
-            queryAsFloats[i] = queryFolded.get(i).floatValue();
-        }
+        float[] queryAsFloats = queryAsFloats();
         int kValue = getKIntValue();
 
         Map<String, Object> opts = queryOptions();
@@ -289,8 +287,8 @@ public class Knn extends FullTextFunction implements OptionalArgument, VectorFun
         for (Expression filterExpression : filterExpressions()) {
             if (filterExpression instanceof TranslationAware translationAware) {
                 // We can only translate filter expressions that are translatable. In case any is not translatable,
-                // Knn won't be pushed down as it will not be translatable so it's safe not to translate all filters and check them
-                // when creating an evaluator for the non-pushed down query
+                // Knn won't be pushed down so it's safe not to translate all filters and check them when creating an evaluator
+                // for the non-pushed down query
                 if (translationAware.translatable(pushdownPredicates) == Translatable.YES) {
                     filterQueries.add(handler.asQuery(pushdownPredicates, filterExpression).toQueryBuilder());
                 }
@@ -298,6 +296,15 @@ public class Knn extends FullTextFunction implements OptionalArgument, VectorFun
         }
 
         return new KnnQuery(source(), fieldName, queryAsFloats, opts, filterQueries);
+    }
+
+    private float[] queryAsFloats() {
+        List<Number> queryFolded = queryAsObject();
+        float[] queryAsFloats = new float[queryFolded.size()];
+        for (int i = 0; i < queryFolded.size(); i++) {
+            queryAsFloats[i] = queryFolded.get(i).floatValue();
+        }
+        return queryAsFloats;
     }
 
     public Expression withFilters(List<Expression> filterExpressions) {
@@ -310,6 +317,16 @@ public class Knn extends FullTextFunction implements OptionalArgument, VectorFun
             Options.populateMap((MapExpression) options(), options, source(), FOURTH, ALLOWED_OPTIONS);
         }
         return options;
+    }
+
+    protected QueryBuilder evaluatorQueryBuilder() {
+        // Either we couldn't push down due to non-pushable filters, or becauses it's part of a disjuncion. Use exact query.
+        var fieldAttribute = Match.fieldAsFieldAttribute(field());
+        Check.notNull(fieldAttribute, "Knn must have a field attribute as the first argument");
+        String fieldName = getNameFromFieldAttribute(fieldAttribute);
+        Map<String, Object> opts = queryOptions();
+
+        return new ExactKnnQueryBuilder(VectorData.fromFloats(queryAsFloats()), fieldName, (Float) opts.get(VECTOR_SIMILARITY_FIELD));
     }
 
     @Override

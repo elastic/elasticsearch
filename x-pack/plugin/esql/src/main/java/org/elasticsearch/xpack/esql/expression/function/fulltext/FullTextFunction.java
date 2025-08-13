@@ -383,9 +383,13 @@ public abstract class FullTextFunction extends Function
         ShardConfig[] shardConfigs = new ShardConfig[shardContexts.size()];
         int i = 0;
         for (EsPhysicalOperationProviders.ShardContext shardContext : shardContexts) {
-            shardConfigs[i++] = new ShardConfig(shardContext.toQuery(queryBuilder()), shardContext.searcher());
+            shardConfigs[i++] = new ShardConfig(shardContext.toQuery(evaluatorQueryBuilder()), shardContext.searcher());
         }
         return new LuceneQueryExpressionEvaluator.Factory(shardConfigs);
+    }
+
+    protected QueryBuilder evaluatorQueryBuilder() {
+        return queryBuilder();
     }
 
     @Override
@@ -394,7 +398,7 @@ public abstract class FullTextFunction extends Function
         ShardConfig[] shardConfigs = new ShardConfig[shardContexts.size()];
         int i = 0;
         for (EsPhysicalOperationProviders.ShardContext shardContext : shardContexts) {
-            shardConfigs[i++] = new ShardConfig(shardContext.toQuery(queryBuilder()), shardContext.searcher());
+            shardConfigs[i++] = new ShardConfig(shardContext.toQuery(evaluatorQueryBuilder()), shardContext.searcher());
         }
         return new LuceneQueryScoreEvaluator.Factory(shardConfigs);
     }

@@ -594,6 +594,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.CsvTests
   method: test {csv-spec:ip.CidrMatchFunctionArg}
   issue: https://github.com/elastic/elasticsearch/issues/132850
+- class: org.elasticsearch.xpack.esql.CsvTests
+  method: test {csv-spec:conditional.CaseOnMv}
+  issue: https://github.com/elastic/elasticsearch/issues/132851
 
 # Examples:
 #

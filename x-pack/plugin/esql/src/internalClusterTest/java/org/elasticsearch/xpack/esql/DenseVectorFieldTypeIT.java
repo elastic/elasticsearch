@@ -219,13 +219,14 @@ public class DenseVectorFieldTypeIT extends AbstractEsqlIntegTestCase {
                         default -> throw new IllegalArgumentException("Unexpected element type: " + elementType);
                     }
                 }
-                if (similarity == DenseVectorFieldMapper.VectorSimilarity.DOT_PRODUCT || rarely()) {
+                if ((elementType == ElementType.FLOAT) && (similarity == DenseVectorFieldMapper.VectorSimilarity.DOT_PRODUCT || rarely())) {
                     // Normalize the vector
                     float magnitude = DenseVector.getMagnitude(vector);
-                    switch (elementType) {
-                        case FLOAT -> vector.replaceAll(number -> number.floatValue() / magnitude);
-                        case BYTE -> vector.replaceAll(number -> (byte) (number.byteValue() / magnitude));
-                    }
+                    vector.replaceAll(number -> number.floatValue() / magnitude);
+                }
+                if (vector.stream().allMatch(v -> v.floatValue() == 0.0f)) {
+                    // Avoid zero vectors
+                    vector.set(randomIntBetween(0, numDims - 1), 1.0f);
                 }
                 docs[i] = prepareIndex("test").setId("" + i).setSource("id", String.valueOf(i), "vector", vector);
                 indexedVectors.put(i, vector);

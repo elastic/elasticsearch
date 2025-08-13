@@ -38,6 +38,7 @@ import org.elasticsearch.search.fetch.StoredFieldsSpec;
 import java.io.IOException;
 
 import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.COSINE_MAGNITUDE_FIELD_SUFFIX;
+import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.ElementType.BYTE;
 
 /**
  * A reader that supports reading doc-values from a Lucene segment in Block fashion.
@@ -540,9 +541,8 @@ public abstract class BlockDocValuesReader implements BlockLoader.AllReader {
                                 .getNumericDocValues(fieldType.name() + COSINE_MAGNITUDE_FIELD_SUFFIX);
                             return new FloatDenseVectorNormalizedValuesBlockReader(floatVectorValues, dimensions, magnitudeDocValues);
                         }
-                        }
-                        return new FloatDenseVectorValuesBlockReader(floatVectorValues, dimensions);
                     }
+                    return new FloatDenseVectorValuesBlockReader(floatVectorValues, dimensions);
                 }
                 case BYTE -> {
                     ByteVectorValues byteVectorValues = context.reader().getByteVectorValues(fieldName);
@@ -656,7 +656,6 @@ public abstract class BlockDocValuesReader implements BlockLoader.AllReader {
 
         @Override
         public String toString() {
-            return "BlockDocValuesReader.FloatDenseVectorNormalizedValuesBlockReader";
             return "BlockDocValuesReader.FloatDenseVectorNormalizedValuesBlockReader";
         }
     }

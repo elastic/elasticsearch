@@ -103,8 +103,8 @@ public class DecayTests extends AbstractScalarFunctionTestCase {
 
         testCaseSuppliers.addAll(
             dateNanosScaleTextTestCase(
-                dateOne.toEpochMilli() + dateOne.getNano(),
-                dateTwo.toEpochMilli() + dateTwo.getNano(),
+                dateOne.getEpochSecond() * 1_000_000_000L + dateOne.getNano(),
+                dateTwo.getEpochSecond() * 1_000_000_000L + dateTwo.getNano(),
                 "24 hours",
                 "0 seconds",
                 0.5,
@@ -114,8 +114,8 @@ public class DecayTests extends AbstractScalarFunctionTestCase {
         );
         testCaseSuppliers.addAll(
             dateNanosScaleKeywordTestCase(
-                dateOne.toEpochMilli() + dateOne.getNano(),
-                dateTwo.toEpochMilli() + dateTwo.getNano(),
+                dateOne.getEpochSecond() * 1_000_000_000L + dateOne.getNano(),
+                dateTwo.getEpochSecond() * 1_000_000_000L + dateTwo.getNano(),
                 "24 hours",
                 "0 seconds",
                 0.5,
@@ -125,8 +125,8 @@ public class DecayTests extends AbstractScalarFunctionTestCase {
         );
         testCaseSuppliers.addAll(
             dateNanosTestCase(
-                dateOne.toEpochMilli() + dateOne.getNano(),
-                dateTwo.toEpochMilli() + dateTwo.getNano(),
+                dateOne.getEpochSecond() * 1_000_000_000L + dateOne.getNano(),
+                dateTwo.getEpochSecond() * 1_000_000_000L + dateTwo.getNano(),
                 Period.ofDays(1),
                 "0 seconds",
                 0.5,
@@ -136,8 +136,8 @@ public class DecayTests extends AbstractScalarFunctionTestCase {
         );
         testCaseSuppliers.addAll(
             dateNanosTestCase(
-                dateOne.toEpochMilli() + dateOne.getNano(),
-                dateTwo.toEpochMilli() + dateTwo.getNano(),
+                dateOne.getEpochSecond() * 1_000_000_000L + dateOne.getNano(),
+                dateTwo.getEpochSecond() * 1_000_000_000L + dateTwo.getNano(),
                 Duration.ofDays(1),
                 "0 seconds",
                 0.5,

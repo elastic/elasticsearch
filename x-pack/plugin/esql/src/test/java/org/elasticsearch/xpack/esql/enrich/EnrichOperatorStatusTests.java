@@ -72,8 +72,8 @@ public class EnrichOperatorStatusTests extends AbstractWireSerializingTestCase<E
             {
               "process_nanos" : 10000,
               "process_time" : "10micros",
-              "received_pages" : 100,
-              "completed_pages" : 50,
+              "pages_received" : 100,
+              "pages_completed" : 50,
               "total_terms" : 120
             }"""));
     }

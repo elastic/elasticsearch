@@ -62,8 +62,8 @@ public class AsyncOperatorStatusTests extends AbstractWireSerializingTestCase<As
             {
               "process_nanos" : 10,
               "process_time" : "10nanos",
-              "received_pages" : 100,
-              "completed_pages" : 50
+              "pages_received" : 100,
+              "pages_completed" : 50
             }"""));
     }
 }

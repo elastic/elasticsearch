@@ -303,8 +303,8 @@ public final class LookupFromIndexOperator extends AsyncOperator<LookupFromIndex
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
             super.innerToXContent(builder);
-            builder.field("emitted_pages", emittedPages);
-            builder.field("emitted_rows", emittedRows);
+            builder.field("pages_emitted", emittedPages);
+            builder.field("rows_emitted", emittedRows);
             builder.field("total_terms", totalTerms);
             return builder.endObject();
         }

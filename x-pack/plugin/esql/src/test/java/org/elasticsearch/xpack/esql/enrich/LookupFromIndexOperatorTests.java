@@ -280,8 +280,8 @@ public class LookupFromIndexOperatorTests extends OperatorTestCase {
         var totalOutputRows = input.stream().mapToLong(p -> p.getPositionCount()).sum();
 
         assertThat(status, hasEntry(is("total_terms"), matchNumberEqualTo(totalInutValues)));
-        assertThat(status, hasEntry(is("completed_pages"), matchNumberEqualTo(totalPages)));
-        assertThat(status, hasEntry(is("emitted_pages"), matchNumberGreaterThanOrEqualTo(totalPages)));
-        assertThat(status, hasEntry(is("emitted_rows"), matchNumberGreaterThanOrEqualTo(totalOutputRows)));
+        assertThat(status, hasEntry(is("pages_completed"), matchNumberEqualTo(totalPages)));
+        assertThat(status, hasEntry(is("pages_emitted"), matchNumberGreaterThanOrEqualTo(totalPages)));
+        assertThat(status, hasEntry(is("rows_emitted"), matchNumberGreaterThanOrEqualTo(totalOutputRows)));
     }
 }

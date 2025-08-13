@@ -62,10 +62,10 @@ public class LookupFromIndexOperatorStatusTests extends AbstractWireSerializingT
             {
               "process_nanos" : 10,
               "process_time" : "10nanos",
-              "received_pages" : 100,
-              "completed_pages" : 50,
-              "emitted_pages" : 88,
-              "emitted_rows" : 800,
+              "pages_received" : 100,
+              "pages_completed" : 50,
+              "pages_emitted" : 88,
+              "rows_emitted" : 800,
               "total_terms" : 120
             }"""));
     }

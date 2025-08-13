@@ -159,8 +159,8 @@ public abstract class AnyOperatorTestCase extends ComputeTestCase {
                 assertThat(map, hasEntry(is("pages_received"), inputPagesMatcher));
                 assertThat(map, hasEntry(is("rows_received"), inputRowsMatcher));
             } else if (operator instanceof AsyncOperator) {
-                assertThat(map, hasEntry(is("received_pages"), nonNegativeMatcher));
-                assertThat(map, hasEntry(is("completed_pages"), nonNegativeMatcher));
+                assertThat(map, hasEntry(is("pages_received"), nonNegativeMatcher));
+                assertThat(map, hasEntry(is("pages_completed"), nonNegativeMatcher));
                 assertThat(map, hasEntry(is("process_nanos"), nonNegativeMatcher));
             } else {
                 assertThat(

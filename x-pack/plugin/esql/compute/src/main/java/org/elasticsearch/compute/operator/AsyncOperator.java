@@ -313,8 +313,8 @@ public abstract class AsyncOperator<Fetched> implements Operator {
             if (builder.humanReadable()) {
                 builder.field("process_time", TimeValue.timeValueNanos(processNanos));
             }
-            builder.field("received_pages", receivedPages);
-            builder.field("completed_pages", completedPages);
+            builder.field("pages_received", receivedPages);
+            builder.field("pages_completed", completedPages);
             return builder;
         }
 

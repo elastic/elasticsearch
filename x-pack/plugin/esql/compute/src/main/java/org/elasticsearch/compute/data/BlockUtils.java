@@ -13,7 +13,6 @@ import org.elasticsearch.compute.data.AggregateMetricDoubleBlockBuilder.Aggregat
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 
-import java.lang.reflect.Array;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;

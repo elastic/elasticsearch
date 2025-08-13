@@ -71,18 +71,33 @@ public class EsqlFunctionRegistryTests extends ESTestCase {
         assertThat(e.getMessage(), containsString("expects exactly two arguments"));
     }
 
-    public void testSenaryFunctionNoOptionalArguments(){
-        UnresolvedFunction unresolvedFunction = uf(DEFAULT, mock(Expression.class), mock(Expression.class), mock(Expression.class), mock(Expression.class), mock(Expression.class), mock(Expression.class));
-        EsqlFunctionRegistry registry = new EsqlFunctionRegistry(def(DummyFunction.class, (Source source, Expression exp1, Expression exp2, Expression exp3, Expression exp4, Expression exp5, Expression exp6) -> {
-            assertSame(exp1, unresolvedFunction.children().get(0));
-            assertSame(exp2, unresolvedFunction.children().get(1));
-            assertSame(exp3, unresolvedFunction.children().get(2));
-            assertSame(exp4, unresolvedFunction.children().get(3));
-            assertSame(exp5, unresolvedFunction.children().get(4));
-            assertSame(exp6, unresolvedFunction.children().get(5));
+    public void testSenaryFunctionNoOptionalArguments() {
+        UnresolvedFunction unresolvedFunction = uf(
+            DEFAULT,
+            mock(Expression.class),
+            mock(Expression.class),
+            mock(Expression.class),
+            mock(Expression.class),
+            mock(Expression.class),
+            mock(Expression.class)
+        );
+        EsqlFunctionRegistry registry = new EsqlFunctionRegistry(
+            def(
+                DummyFunction.class,
+                (Source source, Expression exp1, Expression exp2, Expression exp3, Expression exp4, Expression exp5, Expression exp6) -> {
+                    assertSame(exp1, unresolvedFunction.children().get(0));
+                    assertSame(exp2, unresolvedFunction.children().get(1));
+                    assertSame(exp3, unresolvedFunction.children().get(2));
+                    assertSame(exp4, unresolvedFunction.children().get(3));
+                    assertSame(exp5, unresolvedFunction.children().get(4));
+                    assertSame(exp6, unresolvedFunction.children().get(5));
 
-            return new DummyFunction(source);
-        }, 0, "dummyFunction"));
+                    return new DummyFunction(source);
+                },
+                0,
+                "dummyFunction"
+            )
+        );
 
         FunctionDefinition def = registry.resolveFunction(unresolvedFunction.name());
         assertEquals(unresolvedFunction.source(), unresolvedFunction.buildResolved(randomConfiguration(), def).source());

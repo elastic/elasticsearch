@@ -33,7 +33,6 @@ public class CompletionOperatorOutputBuilder implements InferenceOperator.Output
     @Override
     public void close() {
         Releasables.close(outputBlockBuilder);
-        releasePageOnAnyThread(inputPage);
     }
 
     /**
@@ -72,13 +71,13 @@ public class CompletionOperatorOutputBuilder implements InferenceOperator.Output
     }
 
     /**
-     * Builds the final output page by appending the completion output block to a shallow copy of the input page.
+     * Builds the final output page by appending the completion output block to the input page.
      */
     @Override
     public Page buildOutput() {
         Block outputBlock = outputBlockBuilder.build();
         assert outputBlock.getPositionCount() == inputPage.getPositionCount();
-        return inputPage.shallowCopy().appendBlock(outputBlock);
+        return inputPage.appendBlock(outputBlock);
     }
 
     private ChatCompletionResults inferenceResults(InferenceAction.Response inferenceResponse) {

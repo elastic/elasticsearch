@@ -543,6 +543,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.CsvTests
   method: test {csv-spec:ip.PushDownIPWithIn}
   issue: https://github.com/elastic/elasticsearch/issues/132822
+- class: org.elasticsearch.xpack.esql.CsvTests
+  method: test {csv-spec:floats.ScalbWithHugeconstantFirstArgument}
+  issue: https://github.com/elastic/elasticsearch/issues/132823
 
 # Examples:
 #

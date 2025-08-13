@@ -131,9 +131,9 @@ public record TransportVersion(String name, int id, TransportVersion nextPatchVe
             String name = null;
             if (ignoreName == false) {
                 if (nameInFile) {
-                    name = path.substring(path.lastIndexOf('/') + 1, path.length() - 4);
-                } else {
                     name = parts[0];
+                } else {
+                    name = path.substring(path.lastIndexOf('/') + 1, path.length() - 4);
                 }
             }
             List<Integer> ids = new ArrayList<>();

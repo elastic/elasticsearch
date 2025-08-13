@@ -29,6 +29,7 @@ public class PatternedTextValueProcessor {
         Parts(String template, List<String> args, List<ArgSchema> schemas) {
             this(template, PatternedTextValueProcessor.templateId(template), args, schemas);
         }
+
         Parts(String template, List<String> args, String encodedArgsSchema) throws IOException {
             this(template, PatternedTextValueProcessor.templateId(template), args, decodeArgumentSchema(encodedArgsSchema));
         }

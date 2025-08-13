@@ -211,7 +211,12 @@ public class PatternedTextFieldMapper extends FieldMapper {
             () -> new CompositeSyntheticFieldLoader(
                 leafName(),
                 fullPath(),
-                new PatternedTextSyntheticFieldLoaderLayer(fieldType().name(), fieldType().templateFieldName(), fieldType().argsFieldName(), fieldType().argsSchemaFieldName())
+                new PatternedTextSyntheticFieldLoaderLayer(
+                    fieldType().name(),
+                    fieldType().templateFieldName(),
+                    fieldType().argsFieldName(),
+                    fieldType().argsSchemaFieldName()
+                )
             )
         );
     }

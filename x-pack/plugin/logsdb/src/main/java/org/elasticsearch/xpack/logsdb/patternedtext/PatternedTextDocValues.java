@@ -27,7 +27,8 @@ public class PatternedTextDocValues extends BinaryDocValues {
         this.argsSchemaDocValues = argsSchemaDocValues;
     }
 
-    static PatternedTextDocValues from(LeafReader leafReader, String templateFieldName, String argsFieldName, String argsSchemaFieldName) throws IOException {
+    static PatternedTextDocValues from(LeafReader leafReader, String templateFieldName, String argsFieldName, String argsSchemaFieldName)
+        throws IOException {
         SortedSetDocValues templateDocValues = DocValues.getSortedSet(leafReader, templateFieldName);
         if (templateDocValues.getValueCount() == 0) {
             return null;
@@ -41,8 +42,9 @@ public class PatternedTextDocValues extends BinaryDocValues {
     private String getNextStringValue() throws IOException {
         assert templateDocValues.docValueCount() == 1;
         String template = templateDocValues.lookupOrd(templateDocValues.nextOrd()).utf8ToString();
-        List<PatternedTextValueProcessor.ArgSchema> argsSchema =
-            PatternedTextValueProcessor.decodeArgumentSchema(argsSchemaDocValues.lookupOrd(argsSchemaDocValues.nextOrd()).utf8ToString());
+        List<PatternedTextValueProcessor.ArgSchema> argsSchema = PatternedTextValueProcessor.decodeArgumentSchema(
+            argsSchemaDocValues.lookupOrd(argsSchemaDocValues.nextOrd()).utf8ToString()
+        );
 
         if (argsSchema.isEmpty() == false) {
             assert argsDocValues.docValueCount() == 1;

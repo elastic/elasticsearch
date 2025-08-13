@@ -73,7 +73,7 @@ These errors are often related to <<task-queue-backlog,backlogged tasks>>,
 <<docs-bulk,bulk index>> sizing, or the ingest target's
 <<index-modules,`refresh_interval` setting>>.
 
-NOTE: Another cause of indexing pressure rejections might be the use of the <<semantic_text,semantic_text>> field type, which can cause rejections when indexing large batches of documents if the batch may otherwise incur an Out of Memory (OOM) error.
+NOTE: Another cause of indexing pressure rejections might be the use of the <<semantic_text,`semantic_text`>> field type, which can cause rejections when indexing large batches of documents if the batch may otherwise incur an Out of Memory (OOM) error.
 
 [discrete]
 [[prevent-rejected-requests]]

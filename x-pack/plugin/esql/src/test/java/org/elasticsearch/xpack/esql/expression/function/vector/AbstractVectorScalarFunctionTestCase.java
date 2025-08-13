@@ -53,7 +53,7 @@ public abstract class AbstractVectorScalarFunctionTestCase extends AbstractScala
             float[] array = listToFloatArray(input);
             double expected = scalarFunction.calculateScalar(array);
             return new TestCaseSupplier.TestCase(
-                List.of(new TestCaseSupplier.TypedData(array, DENSE_VECTOR, "vector1")),
+                List.of(new TestCaseSupplier.TypedData(array, DENSE_VECTOR, "vector")),
                 evaluatorName,
                 DOUBLE,
                 equalTo(expected) // Random vectors should have cosine similarity close to 0

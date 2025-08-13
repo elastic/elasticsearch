@@ -67,8 +67,8 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
     // Updates to the Cluster occur with the updateCluster method that given the key to map transforms an
     // old Cluster Object to a new Cluster Object with the remapping function.
     public final ConcurrentMap<String, Cluster> clusterInfo;
-    // Did we initialize the clusterInfo map? If not, then we will serialize it as empty.
-    private transient volatile boolean clusterInfoInitialized = true;
+    // Is the clusterInfo map iinitialization in progress? If so, we should not try to serialize it.
+    private transient volatile boolean clusterInfoInitializing;
     // whether the user has asked for CCS metadata to be in the JSON response (the overall took will always be present)
     private final boolean includeCCSMetadata;
 
@@ -125,7 +125,7 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeOptionalTimeValue(overallTook);
-        if (clusterInfo != null && clusterInfoInitialized) {
+        if (clusterInfo != null && clusterInfoInitializing == false) {
             out.writeCollection(clusterInfo.values());
         } else {
             out.writeCollection(Collections.emptyList());
@@ -352,8 +352,8 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
         return isStopped;
     }
 
-    public void clusterInfoInitialized(boolean clusterInfoInitialized) {
-        this.clusterInfoInitialized = clusterInfoInitialized;
+    public void clusterInfoInitializing(boolean clusterInfoInitializing) {
+        this.clusterInfoInitializing = clusterInfoInitializing;
     }
 
     /**

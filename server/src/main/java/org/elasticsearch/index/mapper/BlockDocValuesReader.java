@@ -577,6 +577,9 @@ public abstract class BlockDocValuesReader implements BlockLoader.AllReader {
         }
 
         private void read(int doc, BlockLoader.FloatBuilder builder) throws IOException {
+            assert vectorValues.dimension() == dimensions
+                : "unexpected dimensions for vector value; expected " + dimensions + " but got " + vectorValues.dimension();
+
             if (iterator.docID() > doc) {
                 builder.appendNull();
             } else if (iterator.docID() == doc || iterator.advance(doc) == doc) {
@@ -604,8 +607,6 @@ public abstract class BlockDocValuesReader implements BlockLoader.AllReader {
 
         protected void appendDoc(BlockLoader.FloatBuilder builder) throws IOException {
             float[] floats = vectorValues.vectorValue(iterator.index());
-            assert floats.length == dimensions
-                : "unexpected dimensions for vector value; expected " + dimensions + " but got " + floats.length;
             for (float aFloat : floats) {
                 builder.appendFloat(aFloat);
             }
@@ -631,16 +632,13 @@ public abstract class BlockDocValuesReader implements BlockLoader.AllReader {
 
         @Override
         protected void appendDoc(BlockLoader.FloatBuilder builder) throws IOException {
-            float[] floats = vectorValues.vectorValue(iterator.index());
-            assert floats.length == dimensions
-                : "unexpected dimensions for vector value; expected " + dimensions + " but got " + floats.length;
-
             float magnitude = 1.0f;
             // If all vectors are normalized, no doc values will be present. The vector may be normalized already, so we may not have a
             // stored magnitude for all docs
             if ((magnitudeDocValues != null) && magnitudeDocValues.advanceExact(iterator.docID())) {
                 magnitude = Float.intBitsToFloat((int) magnitudeDocValues.longValue());
             }
+            float[] floats = vectorValues.vectorValue(iterator.index());
             for (float aFloat : floats) {
                 builder.appendFloat(aFloat * magnitude);
             }

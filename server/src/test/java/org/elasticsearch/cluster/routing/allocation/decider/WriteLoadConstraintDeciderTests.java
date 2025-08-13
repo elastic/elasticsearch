@@ -44,7 +44,7 @@ public class WriteLoadConstraintDeciderTests extends ESAllocationTestCase {
          */
 
         ClusterState clusterState = ClusterStateCreationUtils.stateWithAssignedPrimariesAndReplicas(new String[] { indexName }, 3, 1);
-        // The number of data nodes the util method above creates is numberOfReplicas+1.
+        // The number of data nodes the util method above creates is numberOfReplicas+1, and three data nodes are needed for this test.
         assertEquals(3, clusterState.nodes().size());
         assertEquals(1, clusterState.metadata().getTotalNumberOfIndices());
 
@@ -176,7 +176,9 @@ public class WriteLoadConstraintDeciderTests extends ESAllocationTestCase {
             Settings.builder()
                 .put(
                     WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_ENABLED_SETTING.getKey(),
-                    WriteLoadConstraintSettings.WriteLoadDeciderStatus.ENABLED
+                    randomBoolean()
+                        ? WriteLoadConstraintSettings.WriteLoadDeciderStatus.ENABLED
+                        : WriteLoadConstraintSettings.WriteLoadDeciderStatus.LOW_THRESHOLD_ONLY
                 )
                 .build()
         );

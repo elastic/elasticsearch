@@ -304,7 +304,7 @@ public class LookupFromIndexOperatorTests extends OperatorTestCase {
     }
 
     @Override
-    public void testOperatorStatus() {
+    protected void assertEmptyStatus(Map<String, Object> map) {
         assumeFalse("not yet standardized", true);
     }
 }

@@ -447,6 +447,7 @@ public class ClusterModule extends AbstractModule {
         addAllocationDecider(deciders, new SnapshotInProgressAllocationDecider());
         addAllocationDecider(deciders, new RestoreInProgressAllocationDecider());
         addAllocationDecider(deciders, new NodeShutdownAllocationDecider());
+        addAllocationDecider(deciders, new WriteLoadConstraintDecider(clusterSettings));
         addAllocationDecider(deciders, new NodeReplacementAllocationDecider());
         addAllocationDecider(deciders, new FilterAllocationDecider(settings, clusterSettings));
         addAllocationDecider(deciders, new SameShardAllocationDecider(clusterSettings));
@@ -454,7 +455,6 @@ public class ClusterModule extends AbstractModule {
         addAllocationDecider(deciders, new ThrottlingAllocationDecider(clusterSettings));
         addAllocationDecider(deciders, new ShardsLimitAllocationDecider(clusterSettings));
         addAllocationDecider(deciders, new AwarenessAllocationDecider(settings, clusterSettings));
-        addAllocationDecider(deciders, new WriteLoadConstraintDecider(clusterSettings));
 
         clusterPlugins.stream()
             .flatMap(p -> p.createAllocationDeciders(settings, clusterSettings).stream())

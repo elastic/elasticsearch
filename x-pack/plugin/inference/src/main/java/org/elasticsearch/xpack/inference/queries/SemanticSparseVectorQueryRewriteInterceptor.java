@@ -41,6 +41,11 @@ public class SemanticSparseVectorQueryRewriteInterceptor extends SemanticQueryRe
     }
 
     @Override
+    protected boolean isResolveInferenceFieldWildcardsRequired(QueryBuilder queryBuilder) {
+        return false;
+    }
+
+    @Override
     protected QueryBuilder buildInferenceQuery(QueryBuilder queryBuilder, InferenceIndexInformationForField indexInformation) {
         Map<String, List<String>> inferenceIdsIndices = indexInformation.getInferenceIdsIndices();
         QueryBuilder finalQueryBuilder;

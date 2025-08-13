@@ -48,10 +48,11 @@ public abstract class SemanticQueryRewriteInterceptor implements QueryRewriteInt
             return queryBuilder;
         }
 
-        boolean resolveInferenceFieldWildcards = extractResolveInferenceFieldWildcards(queryBuilder);
+        boolean resolveInferenceFieldWildcards =
+            isResolveInferenceFieldWildcardsRequired(queryBuilder);
         InferenceIndexInformationForField indexInformation = resolveIndicesForFields(
-            queryBuilder, 
-            resolvedIndices, 
+            queryBuilder,
+            resolvedIndices,
             resolveInferenceFieldWildcards
         );
         if (indexInformation.hasInferenceFields() == false) {
@@ -92,6 +93,15 @@ public abstract class SemanticQueryRewriteInterceptor implements QueryRewriteInt
     protected abstract String getQuery(QueryBuilder queryBuilder);
 
     /**
+     * Determines if inference field wildcards should be resolved.
+     * This is typically used to expand wildcard queries to all inference fields.
+     *
+     * @param queryBuilder {@link QueryBuilder}
+     * @return true if inference field wildcards should be resolved, false otherwise.
+     */
+    protected abstract boolean isResolveInferenceFieldWildcardsRequired(QueryBuilder queryBuilder);
+
+    /**
      * Builds the inference query
      *
      * @param queryBuilder {@link QueryBuilder}
@@ -113,8 +123,8 @@ public abstract class SemanticQueryRewriteInterceptor implements QueryRewriteInt
     );
 
     private InferenceIndexInformationForField resolveIndicesForFields(
-        QueryBuilder queryBuilder, 
-        ResolvedIndices resolvedIndices, 
+        QueryBuilder queryBuilder,
+        ResolvedIndices resolvedIndices,
         boolean resolveInferenceFieldWildcards
     ) {
         Map<String, Float> fieldsWithWeights = getFieldsWithWeights(queryBuilder);
@@ -177,13 +187,6 @@ public abstract class SemanticQueryRewriteInterceptor implements QueryRewriteInt
         }
 
         return new InferenceIndexInformationForField(inferenceFieldsPerIndex, nonInferenceFieldsPerIndex, fieldBoosts);
-    }
-
-    private boolean extractResolveInferenceFieldWildcards(QueryBuilder queryBuilder) {
-        if (queryBuilder instanceof org.elasticsearch.index.query.MultiMatchQueryBuilder multiMatchQuery) {
-            return multiMatchQuery.resolveInferenceFieldWildcards();
-        }
-        return false;
     }
 
     protected QueryBuilder createSubQueryForIndices(Collection<String> indices, QueryBuilder queryBuilder) {

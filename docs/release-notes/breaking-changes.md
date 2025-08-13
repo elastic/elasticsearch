@@ -12,6 +12,14 @@ If you are migrating from a version prior to version 9.0, you must first upgrade
 
 % ## Next version [elasticsearch-nextversion-breaking-changes]
 
+## 9.1.2 [elasticsearch-9.1.2-breaking-changes]
+
+There are no breaking changes associated with this release.
+
+## 9.1.1 [elasticsearch-9.1.1-breaking-changes]
+
+There are no breaking changes associated with this release.
+
 ## 9.1.0 [elasticsearch-9.1.0-breaking-changes]
 
 Discovery-Plugins:
@@ -115,6 +123,10 @@ Test the upgrade in a non-production environment. Adapt your configuration to th
 
 For more information, view [#126843](https://github.com/elastic/elasticsearch/pull/126843) (issue: [#120993](https://github.com/elastic/elasticsearch/issues/120993))
 :::
+
+## 9.0.5 [elasticsearch-9.0.5-breaking-changes]
+
+There are no breaking changes associated with this release.
 
 ## 9.0.4 [elasticsearch-9.0.4-breaking-changes]
 

@@ -116,7 +116,7 @@ class TransportVersionUtils {
 
         IdComponents(int value, int numDigits) {
             this.value = value;
-            this.max = (int) Math.pow(10, numDigits-1);
+            this.max = (int) Math.pow(10, numDigits - 1);
         }
     }
 

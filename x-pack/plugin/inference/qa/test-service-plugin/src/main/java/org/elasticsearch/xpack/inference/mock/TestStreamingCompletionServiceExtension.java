@@ -177,7 +177,7 @@ public class TestStreamingCompletionServiceExtension implements InferenceService
                     @Override
                     public void request(long n) {
                         if (responseIter.hasNext()) {
-                            subscriber.onNext(completionChunk(responseIter.next()));
+                            subscriber.onNext(new TestCompletionChunk(responseIter.next()));
                         } else {
                             subscriber.onComplete();
                         }
@@ -199,33 +199,6 @@ public class TestStreamingCompletionServiceExtension implements InferenceService
                 embeddings.add(new TextEmbeddingFloatResults.Embedding(values));
             }
             return new TextEmbeddingFloatResults(embeddings);
-        }
-
-        private InferenceServiceResults.Result completionChunk(String delta) {
-            return new InferenceServiceResults.Result() {
-                @Override
-                public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
-                    return ChunkedToXContentHelper.chunk(
-                        (b, p) -> b.startObject()
-                            .startArray(COMPLETION)
-                            .startObject()
-                            .field("delta", delta)
-                            .endObject()
-                            .endArray()
-                            .endObject()
-                    );
-                }
-
-                @Override
-                public void writeTo(StreamOutput out) throws IOException {
-                    out.writeString(delta);
-                }
-
-                @Override
-                public String getWriteableName() {
-                    return "test_completionChunk";
-                }
-            };
         }
 
         private StreamingUnifiedChatCompletionResults makeUnifiedResults(UnifiedCompletionRequest request) {
@@ -376,6 +349,31 @@ public class TestStreamingCompletionServiceExtension implements InferenceService
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             return builder.startObject().field("model", modelId()).endObject();
+        }
+    }
+
+    public record TestCompletionChunk(String delta) implements InferenceServiceResults.Result {
+        public static final String NAME = "test_completionChunk";
+
+        public TestCompletionChunk(StreamInput in) throws IOException {
+            this(in.readString());
+        }
+
+        @Override
+        public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
+            return ChunkedToXContentHelper.chunk(
+                (b, p) -> b.startObject().startArray(COMPLETION).startObject().field("delta", delta).endObject().endArray().endObject()
+            );
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeString(delta);
+        }
+
+        @Override
+        public String getWriteableName() {
+            return NAME;
         }
     }
 }

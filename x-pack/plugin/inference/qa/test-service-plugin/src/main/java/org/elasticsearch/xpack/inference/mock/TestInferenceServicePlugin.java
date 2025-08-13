@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.inference.mock;
 
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.SecretSettings;
 import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.inference.TaskSettings;
@@ -59,6 +60,11 @@ public class TestInferenceServicePlugin extends Plugin {
                 ServiceSettings.class,
                 TestCompletionServiceExtension.TestServiceSettings.NAME,
                 TestCompletionServiceExtension.TestServiceSettings::new
+            ),
+            new NamedWriteableRegistry.Entry(
+                InferenceServiceResults.Result.class,
+                TestStreamingCompletionServiceExtension.TestCompletionChunk.NAME,
+                TestStreamingCompletionServiceExtension.TestCompletionChunk::new
             )
         );
     }

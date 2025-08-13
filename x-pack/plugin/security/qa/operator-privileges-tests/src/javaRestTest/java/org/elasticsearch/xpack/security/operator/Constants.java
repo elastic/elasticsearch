@@ -327,6 +327,7 @@ public class Constants {
         "cluster:internal/remote_cluster/nodes",
         "cluster:internal/xpack/inference",
         "cluster:internal/xpack/inference/unified",
+        "cluster:internal/xpack/inference/node/streaming",
         "cluster:internal/xpack/ml/coordinatedinference",
         "cluster:internal/xpack/ml/datafeed/isolate",
         "cluster:internal/xpack/ml/datafeed/running_state",

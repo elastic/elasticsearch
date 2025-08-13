@@ -289,7 +289,7 @@ public abstract class AsyncOperator<Fetched> implements Operator {
             return completedPages;
         }
 
-        public long processNanos() {
+        public long procesNanos() {
             return processNanos;
         }
 

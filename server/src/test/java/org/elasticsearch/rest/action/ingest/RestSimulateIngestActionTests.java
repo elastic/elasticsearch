@@ -245,6 +245,7 @@ public class RestSimulateIngestActionTests extends ESTestCase {
                 XContentType.JSON,
                 List.of("pipeline1", "pipeline2"),
                 List.of("abc", "def"),
+                null,
                 null
             )
         );

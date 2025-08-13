@@ -243,7 +243,8 @@ stack: ga 9.1
 
 You can pre-chunk the input by sending it to Elasticsearch as an array of
 strings.
-Example:
+
+For example:
 
 ```console
 PUT test-index
@@ -545,7 +546,6 @@ POST test-index/_search
 
 This will return verbose chunked embeddings content that is used to perform
 semantic search for `semantic_text` fields.
-
 
 ## Limitations [limitations]
 

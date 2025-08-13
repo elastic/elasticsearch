@@ -225,7 +225,7 @@ gradlePlugin {
       implementationClass = 'org.elasticsearch.gradle.internal.transport.TransportVersionReferencesPlugin'
     }
     transportVersionResourcesPlugin {
-      id = 'elasticsearch.global-transport-version-resources'
+      id = 'elasticsearch.transport-version-resources'
       implementationClass = 'org.elasticsearch.gradle.internal.transport.TransportVersionResourcesPlugin'
     }
   }

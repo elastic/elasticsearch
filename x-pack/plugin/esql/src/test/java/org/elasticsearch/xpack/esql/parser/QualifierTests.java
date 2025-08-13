@@ -110,6 +110,12 @@ public class QualifierTests extends AbstractStatementParserTests {
             "field",
             2
         );
+        assertQualifiedAttributeInExpressions(
+            sourceQuery + "DROP pat*ern, qualified field, other_pat*ern, qualified `field`, yet*other*pattern",
+            "qualified",
+            "field",
+            2
+        );
     }
 
     public void testUnsupportedQualifiers() {
@@ -132,6 +138,11 @@ public class QualifierTests extends AbstractStatementParserTests {
             sourceQuery + "COMPLETION qualified field = \"prompt\" WITH {\"inference_id\" : \"foo\"}",
             "Qualified names are not supported in field definitions, found [qualified field]"
         );
+
+        expectError(sourceQuery + "DROP qualified pat*ern", "Qualified names are not supported in patterns, found [qualified pat*ern]");
+        expectError(sourceQuery + "DROP qual*fied field", "Qualified names are not supported in patterns, found [qual*fied field]");
+        expectError(sourceQuery + "DROP qualified *", "Qualified names are not supported in patterns, found [qualified *]");
+        expectError(sourceQuery + "DROP qual*fied *", "Qualified names are not supported in patterns, found [qual*fied *]");
 
         expectError(
             sourceQuery + "EVAL qualified field = \"foo\"",

@@ -149,6 +149,14 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
         return visitList(this, contexts, Expression.class);
     }
 
+    protected static ParsingException qualifiersUnsupportedInFieldDefinitions(Source source, String qualifiedName) {
+        return new ParsingException(source, "Qualified names are not supported in field definitions, found [{}]", qualifiedName);
+    }
+
+    protected static ParsingException qualifiersUnsupportedInPatterns(Source source, String qualifiedNamePattern) {
+        return new ParsingException(source, "Qualified names are not supported in patterns, found [{}]", qualifiedNamePattern);
+    }
+
     @Override
     public Literal visitBooleanValue(EsqlBaseParser.BooleanValueContext ctx) {
         Source source = source(ctx);
@@ -323,7 +331,7 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
 
     @Override
     public NamedExpression visitQualifiedNamePattern(EsqlBaseParser.QualifiedNamePatternContext qualifiedCtx) {
-        // TODO: Disallow qualifier + wildcard and qualifier + param (for now)
+        // TODO: Disallow qualifier + param (for now)
         if (qualifiedCtx == null) {
             return null;
         }
@@ -363,6 +371,10 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
                 }
             }
             if (unresolvedStar) {
+                if (qualifier != null) {
+                    throw qualifiersUnsupportedInPatterns(src, qualifier + " " + WILDCARD);
+                }
+
                 return new UnresolvedStar(src, null);
             }
         }
@@ -478,8 +490,17 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
                 patternString.toString(),
                 nameString.toString()
             );
+
+            if (qualifier != null) {
+                throw qualifiersUnsupportedInPatterns(src, qualifier + " " + result.name());
+            }
         } else {
             result = new UnresolvedAttribute(src, qualifier, Strings.collectionToDelimitedString(objects, ""), null);
+
+            if (qualifier != null && qualifier.contains(WILDCARD)) {
+                // TODO: much more rigorous check for unallowed characters in the qualifier
+                throw qualifiersUnsupportedInPatterns(src, ((UnresolvedAttribute) result).qualifiedName());
+            }
         }
         return result;
     }
@@ -881,15 +902,11 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
     private Alias visitField(EsqlBaseParser.FieldContext ctx, Source source) {
         UnresolvedAttribute id = visitQualifiedName(ctx.qualifiedName());
         if (id != null && id.qualifier() != null) {
-            throw qualifiersUnsupportedInFields(source, id.qualifier() + " " + id.name());
+            throw qualifiersUnsupportedInFieldDefinitions(source, id.qualifier() + " " + id.name());
         }
         Expression value = expression(ctx.booleanExpression());
         String name = id == null ? source.text() : id.name();
         return new Alias(source, name, value);
-    }
-
-    protected ParsingException qualifiersUnsupportedInFields(Source source, String qualifiedName) {
-        return new ParsingException(source, "Qualified names are not supported in field definitions, found [{}]", qualifiedName);
     }
 
     @Override

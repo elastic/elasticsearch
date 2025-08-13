@@ -506,11 +506,11 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         UnresolvedAttribute parsedTargetPvalueColumn = visitQualifiedName(ctx.targetPvalue);
 
         if (parsedTargetTypeColumn != null && parsedTargetTypeColumn.qualifier() != null) {
-            throw qualifiersUnsupportedInFields(parsedTargetTypeColumn.source(), parsedTargetTypeColumn.qualifiedName());
+            throw qualifiersUnsupportedInFieldDefinitions(parsedTargetTypeColumn.source(), parsedTargetTypeColumn.qualifiedName());
         }
 
         if (parsedTargetPvalueColumn != null && parsedTargetPvalueColumn.qualifier() != null) {
-            throw qualifiersUnsupportedInFields(parsedTargetPvalueColumn.source(), parsedTargetPvalueColumn.qualifiedName());
+            throw qualifiersUnsupportedInFieldDefinitions(parsedTargetPvalueColumn.source(), parsedTargetPvalueColumn.qualifiedName());
         }
 
         Attribute targetType = new ReferenceAttribute(
@@ -808,7 +808,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         Attribute targetField = visitQualifiedName(ctx.targetField, new UnresolvedAttribute(source, Completion.DEFAULT_OUTPUT_FIELD_NAME));
 
         if (targetField.qualifier() != null) {
-            throw qualifiersUnsupportedInFields(targetField.source(), targetField.qualifiedName());
+            throw qualifiersUnsupportedInFieldDefinitions(targetField.source(), targetField.qualifiedName());
         }
 
         return p -> {

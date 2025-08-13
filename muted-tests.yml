@@ -597,6 +597,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.CsvTests
   method: test {csv-spec:conditional.CaseOnMv}
   issue: https://github.com/elastic/elasticsearch/issues/132851
+- class: org.elasticsearch.xpack.esql.CsvTests
+  method: test {csv-spec:floats.EqualToMultivalue}
+  issue: https://github.com/elastic/elasticsearch/issues/132852
 
 # Examples:
 #

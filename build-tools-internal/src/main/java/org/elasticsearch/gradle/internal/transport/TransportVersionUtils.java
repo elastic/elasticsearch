@@ -52,9 +52,6 @@ class TransportVersionUtils {
     record TransportVersionDefinition(String name, List<TransportVersionId> ids) {
         TransportVersionDefinition {
             validateNameFormat(name);
-            if (Comparators.isInOrder(ids, Comparator.reverseOrder()) == false) {
-                throw new IllegalArgumentException("Ids are not in decreasing order");
-            }
         }
 
         public static TransportVersionDefinition fromString(String filename, String contents) {

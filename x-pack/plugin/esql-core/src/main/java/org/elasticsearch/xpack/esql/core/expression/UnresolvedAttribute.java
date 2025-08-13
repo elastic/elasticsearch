@@ -129,7 +129,7 @@ public class UnresolvedAttribute extends Attribute implements Unresolvable {
 
     @Override
     public String toString() {
-        return UNRESOLVED_PREFIX + name();
+        return UNRESOLVED_PREFIX + qualifiedName();
     }
 
     @Override

@@ -125,6 +125,8 @@ public class QualifierTests extends AbstractStatementParserTests {
         assertQualifiedAttributeInExpressions(sourceQuery + "EVAL qualified field/qualified field", "qualified", "field", 2);
         assertQualifiedAttributeInExpressions(sourceQuery + "EVAL x=qualified field/qualified field, y = foo", "qualified", "field", 2);
 
+        assertQualifiedAttributeInExpressions(sourceQuery + "FORK (WHERE qualified field) (EVAL qualified field/2)", "qualified", "field", 2);
+
         assertQualifiedAttributeInExpressions(sourceQuery + "WHERE qualified field", "qualified", "field", 1);
     }
 
@@ -192,6 +194,10 @@ public class QualifierTests extends AbstractStatementParserTests {
                 sourceQuery + "EVAL field = x, qualified field = \"foo\"",
                 "Qualified names are not supported in field definitions, found [qualified field]"
         );
+        expectError(
+                sourceQuery + "EVAL field = x, quali*ied field = \"foo\"",
+                "mismatched input '='"
+        );
     }
 
     public void testIllegalQualifiers() {
@@ -207,11 +213,16 @@ public class QualifierTests extends AbstractStatementParserTests {
 
     private void assertQualifiedAttributeInExpressions(String query, String qualifier, String name, int expectedCount) {
         LogicalPlan plan = statement(query);
-        int count = 0;
-        for (Expression expr : plan.expressions()) {
-            count += countAttribute(expr, qualifier, name);
-        }
-        assertEquals(expectedCount, count);
+        Holder<Integer> count = new Holder<>(0);
+
+        plan.forEachExpressionDown(UnresolvedAttribute.class, expr -> {
+            int numOccurrences = countAttribute(expr, qualifier, name);
+            if (numOccurrences > 0) {
+                count.set(count.get() + numOccurrences);
+            }
+        });
+
+        assertEquals(expectedCount, (int) count.get());
     }
 
     private static int countAttribute(Expression expr, String qualifier, String name) {

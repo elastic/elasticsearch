@@ -166,7 +166,7 @@ public final class UnsupportedAttribute extends FieldAttribute implements Unreso
 
     @Override
     public String toString() {
-        return "!" + name();
+        return "!" + qualifiedName();
     }
 
     @Override

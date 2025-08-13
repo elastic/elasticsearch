@@ -19,6 +19,7 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.index.query.MultiMatchQueryBuilder;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.builder.PointInTimeBuilder;
@@ -376,6 +377,146 @@ public class RRFRetrieverBuilderTests extends ESTestCase {
         assertTrue(rewritten instanceof RRFRetrieverBuilder);
     }
 
+    public void testLexicalFieldWeightPropagation() {
+        final String indexName = "test-index";
+        final ResolvedIndices resolvedIndices = createMockResolvedIndices(indexName, List.of(), null);
+        final QueryRewriteContext queryRewriteContext = new QueryRewriteContext(
+            parserConfig(),
+            null,
+            null,
+            resolvedIndices,
+            new PointInTimeBuilder(new BytesArray("pitid")),
+            null
+        );
+
+        RRFRetrieverBuilder rrfRetrieverBuilder = new RRFRetrieverBuilder(
+            null,
+            List.of("field_1^2.0", "field_2^0.5"),
+            "test query",
+            DEFAULT_RANK_WINDOW_SIZE,
+            RRFRetrieverBuilder.DEFAULT_RANK_CONSTANT,
+            new float[0]
+        );
+
+        RetrieverBuilder rewritten = rrfRetrieverBuilder.doRewrite(queryRewriteContext);
+        assertTrue(rewritten instanceof RRFRetrieverBuilder);
+        RRFRetrieverBuilder rewrittenRrf = (RRFRetrieverBuilder) rewritten;
+
+        // Find the StandardRetrieverBuilder with MultiMatchQuery
+        StandardRetrieverBuilder standardRetriever = null;
+        for (CompoundRetrieverBuilder.RetrieverSource source : rewrittenRrf.innerRetrievers()) {
+            if (source.retriever() instanceof StandardRetrieverBuilder stdRetriever) {
+                QueryBuilder topDocsQuery = stdRetriever.topDocsQuery();
+                if (topDocsQuery instanceof MultiMatchQueryBuilder) {
+                    standardRetriever = stdRetriever;
+                    break;
+                }
+            }
+        }
+
+        assertNotNull("StandardRetrieverBuilder with MultiMatchQuery should exist", standardRetriever);
+        MultiMatchQueryBuilder multiMatch = (MultiMatchQueryBuilder) standardRetriever.topDocsQuery();
+        Map<String, Float> actualFields = multiMatch.fields();
+        Map<String, Float> expectedFields = Map.of("field_1", 2.0f, "field_2", 0.5f);
+        assertEquals(expectedFields, actualFields);
+    }
+
+    public void testInferenceFieldWeights() {
+        final String indexName = "test-index";
+        final List<String> testInferenceFields = List.of("semantic_field_1", "semantic_field_2");
+        final ResolvedIndices resolvedIndices = createMockResolvedIndices(indexName, testInferenceFields, null);
+        final QueryRewriteContext queryRewriteContext = new QueryRewriteContext(
+            parserConfig(),
+            null,
+            null,
+            resolvedIndices,
+            new PointInTimeBuilder(new BytesArray("pitid")),
+            null
+        );
+
+        RRFRetrieverBuilder rrfRetrieverBuilder = new RRFRetrieverBuilder(
+            null,
+            List.of("semantic_field_1^3.0", "semantic_field_2^0.5"),
+            "test query",
+            DEFAULT_RANK_WINDOW_SIZE,
+            RRFRetrieverBuilder.DEFAULT_RANK_CONSTANT,
+            new float[0]
+        );
+
+        RetrieverBuilder rewritten = rrfRetrieverBuilder.doRewrite(queryRewriteContext);
+        assertTrue(rewritten instanceof RRFRetrieverBuilder);
+        RRFRetrieverBuilder rewrittenRrf = (RRFRetrieverBuilder) rewritten;
+
+        // Find the inner RRFRetrieverBuilder produced by innerNormalizerGenerator
+        RRFRetrieverBuilder innerRrf = null;
+        for (CompoundRetrieverBuilder.RetrieverSource source : rewrittenRrf.innerRetrievers()) {
+            if (source.retriever() instanceof RRFRetrieverBuilder) {
+                innerRrf = (RRFRetrieverBuilder) source.retriever();
+                break;
+            }
+        }
+
+        assertNotNull("Inner RRFRetrieverBuilder should exist", innerRrf);
+        float[] actualWeights = innerRrf.weights();
+        float[] expectedWeights = new float[] { 3.0f, 0.5f };
+        assertArrayEquals(expectedWeights, actualWeights, 0.001f);
+    }
+
+    public void testNegativeWeightsRejected() {
+        final String indexName = "test-index";
+        final ResolvedIndices resolvedIndices = createMockResolvedIndices(indexName, List.of(), null);
+        final QueryRewriteContext queryRewriteContext = new QueryRewriteContext(
+            parserConfig(),
+            null,
+            null,
+            resolvedIndices,
+            new PointInTimeBuilder(new BytesArray("pitid")),
+            null
+        );
+
+        RRFRetrieverBuilder rrfRetrieverBuilder = new RRFRetrieverBuilder(
+            null,
+            List.of("field^-1"),
+            "test query",
+            DEFAULT_RANK_WINDOW_SIZE,
+            RRFRetrieverBuilder.DEFAULT_RANK_CONSTANT,
+            new float[0]
+        );
+
+        IllegalArgumentException iae = expectThrows(
+            IllegalArgumentException.class,
+            () -> rrfRetrieverBuilder.doRewrite(queryRewriteContext)
+        );
+        assertEquals("[rrf] per-field weights must be non-negative", iae.getMessage());
+    }
+
+    public void testZeroWeightsAccepted() {
+        final String indexName = "test-index";
+        final ResolvedIndices resolvedIndices = createMockResolvedIndices(indexName, List.of(), null);
+        final QueryRewriteContext queryRewriteContext = new QueryRewriteContext(
+            parserConfig(),
+            null,
+            null,
+            resolvedIndices,
+            new PointInTimeBuilder(new BytesArray("pitid")),
+            null
+        );
+
+        RRFRetrieverBuilder rrfRetrieverBuilder = new RRFRetrieverBuilder(
+            null,
+            List.of("field^0"),
+            "test query",
+            DEFAULT_RANK_WINDOW_SIZE,
+            RRFRetrieverBuilder.DEFAULT_RANK_CONSTANT,
+            new float[0]
+        );
+
+        // This should not throw an exception
+        RetrieverBuilder rewritten = rrfRetrieverBuilder.doRewrite(queryRewriteContext);
+        assertNotSame(rrfRetrieverBuilder, rewritten);
+        assertTrue(rewritten instanceof RRFRetrieverBuilder);
+    }
+
     @Override
     protected NamedXContentRegistry xContentRegistry() {
         List<NamedXContentRegistry.Entry> entries = new SearchModule(Settings.EMPTY, List.of()).getNamedXContents();
@@ -446,11 +587,16 @@ public class RRFRetrieverBuilderTests extends ESTestCase {
                         .fields(expectedNonInferenceFields)
                 )
             ),
-            Set.of(expectedInferenceFields.entrySet().stream().map(e -> 
-                CompoundRetrieverBuilder.RetrieverSource.from(
-                    new StandardRetrieverBuilder(new MatchQueryBuilder(e.getKey(), expectedQuery))
-                )
-            ).toArray())
+            Set.of(
+                expectedInferenceFields.entrySet()
+                    .stream()
+                    .map(
+                        e -> CompoundRetrieverBuilder.RetrieverSource.from(
+                            new StandardRetrieverBuilder(new MatchQueryBuilder(e.getKey(), expectedQuery))
+                        )
+                    )
+                    .toArray()
+            )
         );
 
         RetrieverBuilder rewritten = retriever.doRewrite(ctx);

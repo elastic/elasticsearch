@@ -1,0 +1,6 @@
+pr: 132781
+summary: Rewrite `RoundTo` to `QueryAndTags` and merge range queries on `RoundTo`
+  field
+area: ES|QL
+type: enhancement
+issues: []

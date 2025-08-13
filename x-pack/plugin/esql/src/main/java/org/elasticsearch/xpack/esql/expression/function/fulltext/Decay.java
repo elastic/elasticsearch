@@ -177,26 +177,34 @@ public class Decay extends EsqlScalarFunction implements OptionalArgument {
 
         // Spatial decay
         if (isSpatialPoint(valueDataType)) {
-            TypeResolution originResolution = isNotNull(origin, sourceText(), SECOND).and(isType(origin, DataType::isSpatialPoint, sourceText(), SECOND, "spatial point"));
+            TypeResolution originResolution = isNotNull(origin, sourceText(), SECOND).and(
+                isType(origin, DataType::isSpatialPoint, sourceText(), SECOND, "spatial point")
+            );
             if (originResolution.unresolved()) {
                 return originResolution;
             }
 
             // For a spatial decay the scale should be a distance unit string (e.g. "100km")
-            TypeResolution scaleResolution = isNotNull(scale, sourceText(), THIRD).and(isType(scale, DataType::isString, sourceText(), THIRD, "keyword or text"));
+            TypeResolution scaleResolution = isNotNull(scale, sourceText(), THIRD).and(
+                isType(scale, DataType::isString, sourceText(), THIRD, "keyword or text")
+            );
             if (scaleResolution.unresolved()) {
                 return scaleResolution;
             }
         }
         // Temporal decay
         else if (isMillisOrNanos(valueDataType)) {
-            TypeResolution originResolution = isNotNull(origin, sourceText(), SECOND).and(isType(origin, DataType::isMillisOrNanos, sourceText(), SECOND, "datetime or date_nanos"));
+            TypeResolution originResolution = isNotNull(origin, sourceText(), SECOND).and(
+                isType(origin, DataType::isMillisOrNanos, sourceText(), SECOND, "datetime or date_nanos")
+            );
             if (originResolution.unresolved()) {
                 return originResolution;
             }
 
             // For a temporal decay the scale should be a time value string (e.g. "5h")
-            TypeResolution scaleResolution = isNotNull(scale, sourceText(), THIRD).and(isType(scale, DataType::isString, sourceText(), THIRD, "date_period or time_duration"));
+            TypeResolution scaleResolution = isNotNull(scale, sourceText(), THIRD).and(
+                isType(scale, DataType::isString, sourceText(), THIRD, "date_period or time_duration")
+            );
             if (scaleResolution.unresolved()) {
                 return scaleResolution;
             }

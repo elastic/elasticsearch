@@ -2346,41 +2346,35 @@ public class VerifierTests extends ESTestCase {
 
     }
 
-    public void testDecayFunctionNullArgs(){
+    public void testDecayFunctionNullArgs() {
         assumeTrue("Decay function not enabled", EsqlCapabilities.Cap.DECAY_FUNCTION.isEnabled());
 
         // First arg cannot be null
         assertEquals(
             "2:23: first argument of [decay(null, origin, scale, 0, 0.5, \"linear\")] cannot be null, received [null]",
-            error("row origin = 10, scale = 10\n"
-                + "| eval decay_result = decay(null, origin, scale, 0, 0.5, \"linear\")")
+            error("row origin = 10, scale = 10\n" + "| eval decay_result = decay(null, origin, scale, 0, 0.5, \"linear\")")
         );
 
         // Second arg cannot be null
         assertEquals(
             "2:23: second argument of [decay(value, null, scale, 0, 0.5, \"linear\")] cannot be null, received [null]",
-            error("row value = 10, scale = 10\n"
-                + "| eval decay_result = decay(value, null, scale, 0, 0.5, \"linear\")")
+            error("row value = 10, scale = 10\n" + "| eval decay_result = decay(value, null, scale, 0, 0.5, \"linear\")")
         );
 
         // Third arg cannot be null
         assertEquals(
             "2:23: third argument of [decay(value, origin, null, 0, 0.5, \"linear\")] cannot be null, received [null]",
-            error("row value = 10, origin = 10\n"
-                + "| eval decay_result = decay(value, origin, null, 0, 0.5, \"linear\")")
+            error("row value = 10, origin = 10\n" + "| eval decay_result = decay(value, origin, null, 0, 0.5, \"linear\")")
         );
 
         // Fourth arg can be null
-        query("row value = 10, origin = 10, scale = 10\n"
-            + "| eval decay_result = decay(value, origin, scale, null, 0.5, \"linear\")");
+        query("row value = 10, origin = 10, scale = 10\n" + "| eval decay_result = decay(value, origin, scale, null, 0.5, \"linear\")");
 
         // Fifth arg can be null
-        query("row value = 10, origin = 10, scale = 10\n"
-            + "| eval decay_result = decay(value, origin, scale, 0, null, \"linear\")");
+        query("row value = 10, origin = 10, scale = 10\n" + "| eval decay_result = decay(value, origin, scale, 0, null, \"linear\")");
 
         // Sixth arg can be null
-        query("row value = 10, origin = 10, scale = 10\n"
-            + "| eval decay_result = decay(value, origin, scale, 0, 0.5, null)");
+        query("row value = 10, origin = 10, scale = 10\n" + "| eval decay_result = decay(value, origin, scale, 0, 0.5, null)");
     }
 
     private void checkFullTextFunctionsInStats(String functionInvocation) {

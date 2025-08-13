@@ -43,7 +43,7 @@ public class TransportVersionManagementPlugin implements Plugin<Project> {
         project.getArtifacts().add(tvReferencesConfig.getName(), collectTask);
 
         var validateTask = project.getTasks()
-            .register("validateTransportVersionReferences", ValidateTransportVersionReferencesTask.class, t -> {
+            .register("validateTransportVersionReferences", ValidateTransportVersionDefinitionsTask.class, t -> {
                 t.setGroup("Transport Versions");
                 t.setDescription("Validates that all TransportVersion references used in the project have an associated definition file");
                 Directory definitionsDir = getDefinitionsDirectory(getResourcesDirectory(project));

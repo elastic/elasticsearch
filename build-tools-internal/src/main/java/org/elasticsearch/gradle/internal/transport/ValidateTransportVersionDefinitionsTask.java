@@ -29,7 +29,7 @@ import java.util.function.Predicate;
  * Validates that each transport version named reference has a constant definition.
  */
 @CacheableTask
-public abstract class ValidateTransportVersionReferencesTask extends DefaultTask {
+public abstract class ValidateTransportVersionDefinitionsTask extends DefaultTask {
 
     @InputDirectory
     @Optional

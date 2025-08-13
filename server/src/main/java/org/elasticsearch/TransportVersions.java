@@ -149,7 +149,6 @@ public class TransportVersions {
     public static final TransportVersion INITIAL_ELASTICSEARCH_8_18_2 = def(8_840_0_04);
     public static final TransportVersion INITIAL_ELASTICSEARCH_8_18_3 = def(8_840_0_05);
     public static final TransportVersion INITIAL_ELASTICSEARCH_8_18_4 = def(8_840_0_06);
-    public static final TransportVersion INITIAL_ELASTICSEARCH_8_18_5 = def(8_840_0_07);
     public static final TransportVersion INITIAL_ELASTICSEARCH_8_18_6 = def(8_840_0_08);
     public static final TransportVersion INITIAL_ELASTICSEARCH_8_19 = def(8_841_0_00);
     public static final TransportVersion COHERE_BIT_EMBEDDING_TYPE_SUPPORT_ADDED_BACKPORT_8_X = def(8_841_0_01);
@@ -216,12 +215,12 @@ public class TransportVersions {
     public static final TransportVersion ESQL_FIXED_INDEX_LIKE_8_19 = def(8_841_0_64);
     public static final TransportVersion INITIAL_ELASTICSEARCH_8_19_1 = def(8_841_0_65);
     public static final TransportVersion INITIAL_ELASTICSEARCH_8_19_2 = def(8_841_0_66);
+    public static final TransportVersion INITIAL_ELASTICSEARCH_8_19_3 = def(8_841_0_67);
     public static final TransportVersion V_9_0_0 = def(9_000_0_09);
     public static final TransportVersion INITIAL_ELASTICSEARCH_9_0_1 = def(9_000_0_10);
     public static final TransportVersion INITIAL_ELASTICSEARCH_9_0_2 = def(9_000_0_11);
     public static final TransportVersion INITIAL_ELASTICSEARCH_9_0_3 = def(9_000_0_12);
     public static final TransportVersion INITIAL_ELASTICSEARCH_9_0_4 = def(9_000_0_13);
-    public static final TransportVersion INITIAL_ELASTICSEARCH_9_0_5 = def(9_000_0_14);
     public static final TransportVersion INITIAL_ELASTICSEARCH_9_0_6 = def(9_000_0_15);
     public static final TransportVersion COHERE_BIT_EMBEDDING_TYPE_SUPPORT_ADDED = def(9_001_0_00);
     public static final TransportVersion REMOVE_SNAPSHOT_FAILURES = def(9_002_0_00);
@@ -338,6 +337,7 @@ public class TransportVersions {
     public static final TransportVersion ESQL_SAMPLE_OPERATOR_STATUS_9_1 = def(9_112_0_03);
     public static final TransportVersion INITIAL_ELASTICSEARCH_9_1_1 = def(9_112_0_04);
     public static final TransportVersion INITIAL_ELASTICSEARCH_9_1_2 = def(9_112_0_05);
+    public static final TransportVersion INITIAL_ELASTICSEARCH_9_1_3 = def(9_112_0_06);
     public static final TransportVersion PROJECT_STATE_REGISTRY_RECORDS_DELETIONS = def(9_113_0_00);
     public static final TransportVersion ESQL_SERIALIZE_TIMESERIES_FIELD_TYPE = def(9_114_0_00);
     public static final TransportVersion ML_INFERENCE_IBM_WATSONX_COMPLETION_ADDED = def(9_115_0_00);
@@ -430,7 +430,7 @@ public class TransportVersions {
      * Reference to the minimum transport version that can be used with CCS.
      * This should be the transport version used by the previous minor release.
      */
-    public static final TransportVersion MINIMUM_CCS_VERSION = INITIAL_ELASTICSEARCH_9_0_5;
+    public static final TransportVersion MINIMUM_CCS_VERSION = INITIAL_ELASTICSEARCH_9_1_2;
 
     /**
      * Sorted list of all versions defined in this class

@@ -67,9 +67,10 @@ public class ExtractSnippets extends EsqlScalarFunction implements OptionalArgum
     );
 
     private static final int DEFAULT_NUM_SNIPPETS = 1;
-    private static final int DEFAULT_SNIPPET_LENGTH = 10; // TODO determine a good default. 512 * 5?
+    // TODO: This default should be in line with the text similarity reranker. Set artificially low here for POC purposes.
+    private static final int DEFAULT_SNIPPET_LENGTH = 10;
 
-    // TODO better names?
+    // TODO: better names?
     private final Expression field, str, numSnippets, snippetLength;
     private final QueryBuilder queryBuilder;
 
@@ -218,13 +219,12 @@ public class ExtractSnippets extends EsqlScalarFunction implements OptionalArgum
                 // TODO: Reduce duplication between this method and TextSimilarityRerankingRankFeaturePhaseRankShardContext#prepareForFetch
                 HighlightBuilder highlightBuilder = new HighlightBuilder();
                 if (queryBuilder != null) {
-                    // TODO validate this works and determine why this is not working in query builder resolver
+                    // TODO: Ideally we'd only need to rewrite in the QueryBuilderResolver, but we need semantic rewrites to happen
+                    // on both coordinator and data nodes.
                     QueryBuilder rewritten = Rewriteable.rewrite(queryBuilder, searchExecutionContext);
                     highlightBuilder.highlightQuery(rewritten);
                 }
-                // Stripping pre/post tags as they're not useful for snippet creation
                 highlightBuilder.field(field.sourceText()).preTags("").postTags("");
-                // Return highest scoring fragments
                 highlightBuilder.order(HighlightBuilder.Order.SCORE);
 
                 highlightBuilder.numOfFragments(numSnippets);

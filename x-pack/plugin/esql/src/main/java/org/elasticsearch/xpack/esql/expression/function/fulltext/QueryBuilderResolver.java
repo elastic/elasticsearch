@@ -90,7 +90,7 @@ public final class QueryBuilderResolver {
                         ? translationAware.asQuery(LucenePushdownPredicates.DEFAULT, TranslatorHandler.TRANSLATOR_HANDLER).toQueryBuilder()
                         : builder;
                     try {
-                        // builder = builder.rewrite(ctx);
+                        // TODO: Even when changing this to Rewriteable#rewrite, this still doesn't execute the full rewrite phase. Bug?
                         builder = Rewriteable.rewrite(builder, ctx);
                     } catch (IOException e) {
                         exceptionHolder.setIfAbsent(e);

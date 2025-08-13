@@ -505,7 +505,6 @@ public class EsqlFunctionRegistry {
                 def(DotProduct.class, DotProduct::new, "v_dot_product"),
                 def(L1Norm.class, L1Norm::new, "v_l1_norm"),
                 def(L2Norm.class, L2Norm::new, "v_l2_norm"),
-                def(CosineSimilarity.class, CosineSimilarity::new, "v_cosine"),
                 def(ExtractSnippets.class, quad(ExtractSnippets::new), "extract_snippets") } };
     }
 

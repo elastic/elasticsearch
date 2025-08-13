@@ -60,9 +60,9 @@ public class DefaultHighlighter implements Highlighter {
     @Override
     public HighlightField highlight(FieldHighlightContext fieldContext) throws IOException {
         @SuppressWarnings("unchecked")
-        Map<String, CustomUnifiedHighlighter> cache = (Map<String, CustomUnifiedHighlighter>) fieldContext.cache.getOrDefault(
+        Map<String, CustomUnifiedHighlighter> cache = (Map<String, CustomUnifiedHighlighter>) fieldContext.cache.computeIfAbsent(
             UnifiedHighlighter.class.getName(),
-            new HashMap<>()
+            k -> new HashMap<>()
         );
         if (cache.containsKey(fieldContext.fieldName) == false) {
             cache.put(fieldContext.fieldName, buildHighlighter(fieldContext));

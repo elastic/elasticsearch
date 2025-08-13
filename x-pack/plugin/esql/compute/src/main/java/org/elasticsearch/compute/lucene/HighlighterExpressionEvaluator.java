@@ -42,6 +42,8 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.core.RefCounted.ALWAYS_REFERENCED;
+
 public class HighlighterExpressionEvaluator extends LuceneQueryEvaluator<BytesRefBlock.Builder>
     implements
         EvalOperator.ExpressionEvaluator {
@@ -94,10 +96,11 @@ public class HighlighterExpressionEvaluator extends LuceneQueryEvaluator<BytesRe
         SourceLoader sourceLoader = searchContext.newSourceLoader(null);
         FetchContext fetchContext = new FetchContext(searchContext, sourceLoader);
         MappedFieldType fieldType = searchContext.getSearchExecutionContext().getFieldType(fieldName);
-        SearchHit searchHit = new SearchHit(docId);
+        SearchHit searchHit = new SearchHit(docId, null, null, ALWAYS_REFERENCED);
         Source source = Source.lazy(lazyStoredSourceLoader(leafReaderContext, docId));
         Highlighter highlighter = highlighters.getOrDefault(fieldType.getDefaultHighlighter(), new DefaultHighlighter());
 
+        // TODO: Consolidate these options with the ones built in the text similarity reranker
         SearchHighlightContext.FieldOptions.Builder optionsBuilder = new SearchHighlightContext.FieldOptions.Builder();
         optionsBuilder.numberOfFragments(numFragments != null ? numFragments : HighlightBuilder.DEFAULT_NUMBER_OF_FRAGMENTS);
         optionsBuilder.fragmentCharSize(fragmentLength != null ? fragmentLength : HighlightBuilder.DEFAULT_FRAGMENT_CHAR_SIZE);

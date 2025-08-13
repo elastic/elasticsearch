@@ -923,16 +923,6 @@ public class SearchModule {
         return unmodifiableMap(highlighters.getRegistry());
     }
 
-    /**
-     * Sets the static highlighters map for access by other plugins
-     */
-    private static void setStaticHighlighters(Map<String, Highlighter> highlighters) {
-        staticHighlighters = Map.copyOf(highlighters);
-    }
-
-    /**
-     * Gets the static highlighters map for other plugin access
-     */
     public static Map<String, Highlighter> getStaticHighlighters() {
         return staticHighlighters;
     }
@@ -1076,7 +1066,8 @@ public class SearchModule {
         registerFetchSubPhase(new HighlightPhase(highlighters));
         registerFetchSubPhase(new FetchScorePhase());
 
-        setStaticHighlighters(highlighters);
+        // Store highlighters in a static map for other plugins to access
+        staticHighlighters = Map.copyOf(highlighters);
 
         FetchPhaseConstructionContext context = new FetchPhaseConstructionContext(highlighters);
         registerFromPlugin(plugins, p -> p.getFetchSubPhases(context), this::registerFetchSubPhase);

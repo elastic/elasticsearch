@@ -973,7 +973,11 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
         if (modernSource.isStructured()) {
             // TODO: Need to implement filtering
             // return indexRouting.indexShard(id, routing, contentType, structuredSource);
-            return indexRouting.indexShard(id, routing, contentType, source());
+            if (indexRouting instanceof IndexRouting.ExtractFromSource) {
+                return indexRouting.indexShard(id, routing, contentType, source());
+            } else {
+                return indexRouting.indexShard(id, routing, contentType, (BytesReference) null);
+            }
         } else {
             return indexRouting.indexShard(id, routing, contentType, source());
         }

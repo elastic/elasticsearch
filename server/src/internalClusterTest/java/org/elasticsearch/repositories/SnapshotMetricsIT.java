@@ -9,6 +9,8 @@
 
 package org.elasticsearch.repositories;
 
+import org.elasticsearch.action.ActionFuture;
+import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.action.admin.indices.stats.IndexStats;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
@@ -114,11 +116,12 @@ public class SnapshotMetricsIT extends AbstractSnapshotIntegTestCase {
         blockAllDataNodes(repositoryName);
         final String snapshotName = randomIdentifier();
         final long beforeCreateSnapshotNanos = System.nanoTime();
+        final ActionFuture<CreateSnapshotResponse> snapshotFuture;
         try {
-            clusterAdmin().prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, repositoryName, snapshotName)
+            snapshotFuture = clusterAdmin().prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, repositoryName, snapshotName)
                 .setIndices(indexName)
-                .setWaitForCompletion(false)
-                .get();
+                .setWaitForCompletion(true)
+                .execute();
 
             waitForBlockOnAnyDataNode(repositoryName);
             collectMetrics();
@@ -132,7 +135,7 @@ public class SnapshotMetricsIT extends AbstractSnapshotIntegTestCase {
         }
 
         // wait for snapshot to finish to test the other metrics
-        awaitNumberOfSnapshotsInProgress(0);
+        safeGet(snapshotFuture);
         final TimeValue snapshotElapsedTime = TimeValue.timeValueNanos(System.nanoTime() - beforeCreateSnapshotNanos);
         collectMetrics();
 
@@ -237,11 +240,13 @@ public class SnapshotMetricsIT extends AbstractSnapshotIntegTestCase {
         blockAllDataNodes(repositoryName);
 
         final String snapshotName = randomIdentifier();
+        final ActionFuture<CreateSnapshotResponse> firstSnapshotFuture;
+        final ActionFuture<CreateSnapshotResponse> secondSnapshotFuture;
         try {
-            clusterAdmin().prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, repositoryName, snapshotName)
+            firstSnapshotFuture = clusterAdmin().prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, repositoryName, snapshotName)
                 .setIndices(indexName)
-                .setWaitForCompletion(false)
-                .get();
+                .setWaitForCompletion(true)
+                .execute();
 
             waitForBlockOnAnyDataNode(repositoryName);
 
@@ -252,10 +257,12 @@ public class SnapshotMetricsIT extends AbstractSnapshotIntegTestCase {
             assertThat(snapshotStates.get(SnapshotsInProgress.State.STARTED), equalTo(1L));
 
             // Queue up another snapshot
-            clusterAdmin().prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, repositoryName, randomIdentifier())
+            secondSnapshotFuture = clusterAdmin().prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, repositoryName, randomIdentifier())
                 .setIndices(indexName)
-                .setWaitForCompletion(false)
-                .get();
+                .setWaitForCompletion(true)
+                .execute();
+
+            awaitNumberOfSnapshotsInProgress(2);
 
             // Should be {numShards} in QUEUED and INIT states, and 2 STARTED snapshots
             shardStates = getShardStates();
@@ -268,7 +275,8 @@ public class SnapshotMetricsIT extends AbstractSnapshotIntegTestCase {
         }
 
         // All statuses should return to zero when the snapshots complete
-        awaitNumberOfSnapshotsInProgress(0);
+        safeGet(firstSnapshotFuture);
+        safeGet(secondSnapshotFuture);
         getShardStates().forEach((key, value) -> assertThat(value, equalTo(0L)));
         getSnapshotStates().forEach((key, value) -> assertThat(value, equalTo(0L)));
 
@@ -309,12 +317,13 @@ public class SnapshotMetricsIT extends AbstractSnapshotIntegTestCase {
         blockNodeOnAnyFiles(repositoryName, nodeForRemoval);
 
         final ClusterService clusterService = internalCluster().getCurrentMasterNodeInstance(ClusterService.class);
+        final ActionFuture<CreateSnapshotResponse> snapshotFuture;
         try {
             // Kick off a snapshot
-            clusterAdmin().prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, repositoryName, randomIdentifier())
+            snapshotFuture = clusterAdmin().prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, repositoryName, randomIdentifier())
                 .setIndices(indexName)
-                .setWaitForCompletion(false)
-                .get();
+                .setWaitForCompletion(true)
+                .execute();
 
             // Wait till we're blocked
             waitForBlock(nodeForRemoval, repositoryName);
@@ -337,7 +346,7 @@ public class SnapshotMetricsIT extends AbstractSnapshotIntegTestCase {
         clearShutdownMetadata(clusterService);
 
         // All statuses should return to zero when the snapshot completes
-        awaitNumberOfSnapshotsInProgress(0);
+        safeGet(snapshotFuture);
         getShardStates().forEach((key, value) -> assertThat(value, equalTo(0L)));
         getSnapshotStates().forEach((key, value) -> assertThat(value, equalTo(0L)));
 
@@ -395,10 +404,14 @@ public class SnapshotMetricsIT extends AbstractSnapshotIntegTestCase {
         safeAwait(handoffRequestBarrier);
 
         // Kick off a snapshot
-        clusterAdmin().prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, repositoryName, randomIdentifier())
-            .setIndices(indexName)
-            .setWaitForCompletion(false)
-            .get();
+        ActionFuture<CreateSnapshotResponse> snapshotFuture = clusterAdmin().prepareCreateSnapshot(
+            TEST_REQUEST_TIMEOUT,
+            repositoryName,
+            randomIdentifier()
+        ).setIndices(indexName).setWaitForCompletion(true).execute();
+
+        // Wait for the snapshot to start
+        awaitNumberOfSnapshotsInProgress(1);
 
         // Wait till we see a shard in WAITING state
         createSnapshotInStateListener(clusterService(), repositoryName, indexName, 1, SnapshotsInProgress.ShardState.WAITING);
@@ -413,7 +426,7 @@ public class SnapshotMetricsIT extends AbstractSnapshotIntegTestCase {
         safeAwait(handoffRequestBarrier);
 
         // All statuses should return to zero when the snapshot completes
-        awaitNumberOfSnapshotsInProgress(0);
+        safeGet(snapshotFuture);
         getShardStates().forEach((key, value) -> assertThat(value, equalTo(0L)));
         getSnapshotStates().forEach((key, value) -> assertThat(value, equalTo(0L)));
 

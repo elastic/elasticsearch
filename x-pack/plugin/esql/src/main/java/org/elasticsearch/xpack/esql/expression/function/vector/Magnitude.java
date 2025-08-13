@@ -30,7 +30,7 @@ public class Magnitude extends VectorScalarFunction {
     @FunctionInfo(
         returnType = "double",
         preview = true,
-        description = "Calculates the magnitude of a vector.",
+        description = "Calculates the magnitude of a dense_vector.",
         examples = { @Example(file = "vector-magnitude", tag = "vector-magnitude") },
         appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.DEVELOPMENT) }
     )

@@ -20,6 +20,9 @@ import org.gradle.language.base.plugins.LifecycleBasePlugin;
 
 import java.util.Map;
 
+import static org.elasticsearch.gradle.internal.transport.TransportVersionUtils.getDefinitionsDirectory;
+import static org.elasticsearch.gradle.internal.transport.TransportVersionUtils.getResourcesDirectory;
+
 public class GlobalTransportVersionManagementPlugin implements Plugin<Project> {
 
     @Override
@@ -30,7 +33,7 @@ public class GlobalTransportVersionManagementPlugin implements Plugin<Project> {
         Configuration tvReferencesConfig = project.getConfigurations().create("globalTvReferences");
         tvReferencesConfig.setCanBeConsumed(false);
         tvReferencesConfig.setCanBeResolved(true);
-        tvReferencesConfig.attributes(TransportVersionUtils::addTransportVersionReferencesAttribute);
+        tvReferencesConfig.attributes(TransportVersionReference::addArtifactAttribute);
 
         // iterate through all projects, and if the management plugin is applied, add that project back as a dep to check
         for (Project subProject : project.getRootProject().getSubprojects()) {
@@ -43,9 +46,9 @@ public class GlobalTransportVersionManagementPlugin implements Plugin<Project> {
             .register("validateTransportVersionDefinitions", ValidateTransportVersionDefinitionsTask.class, t -> {
                 t.setGroup("Transport Versions");
                 t.setDescription("Validates that all defined TransportVersion constants are used in at least one project");
-                Directory definitionsDir = TransportVersionUtils.getDefinitionsDirectory(project);
-                if (definitionsDir.getAsFile().exists()) {
-                    t.getDefinitionsDirectory().set(definitionsDir);
+                Directory resourcesDir = getResourcesDirectory(project);
+                if (resourcesDir.getAsFile().exists()) {
+                    t.getResourcesDirectory().set(resourcesDir);
                 }
                 t.getReferencesFiles().setFrom(tvReferencesConfig);
             });
@@ -55,7 +58,7 @@ public class GlobalTransportVersionManagementPlugin implements Plugin<Project> {
             .register("generateTransportVersionManifest", GenerateTransportVersionManifestTask.class, t -> {
                 t.setGroup("Transport Versions");
                 t.setDescription("Generate a manifest resource for all the known transport version definitions");
-                t.getDefinitionsDirectory().set(TransportVersionUtils.getDefinitionsDirectory(project));
+                t.getDefinitionsDirectory().set(getDefinitionsDirectory(getResourcesDirectory(project)));
                 t.getManifestFile().set(project.getLayout().getBuildDirectory().file("generated-resources/manifest.txt"));
             });
         project.getTasks().named(JavaPlugin.PROCESS_RESOURCES_TASK_NAME, Copy.class).configure(t -> {

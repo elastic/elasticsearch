@@ -534,6 +534,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.CsvTests
   method: test {csv-spec:floats.InMultivalue}
   issue: https://github.com/elastic/elasticsearch/issues/132859
+- class: org.elasticsearch.xpack.esql.CsvTests
+  method: test {csv-spec:ip.CdirMatchEqualsInsOrs}
+  issue: https://github.com/elastic/elasticsearch/issues/132860
 
 # Examples:
 #

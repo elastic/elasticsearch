@@ -525,6 +525,12 @@ tests:
 - class: org.elasticsearch.xpack.deprecation.DeprecationHttpIT
   method: testUniqueDeprecationResponsesMergedTogether
   issue: TBD
+- class: org.elasticsearch.search.CCSDuelIT
+  method: testTermsAggs
+  issue: TBD
+- class: org.elasticsearch.search.CCSDuelIT
+  method: testTermsAggsWithProfile
+  issue: TBD
 - class: org.elasticsearch.index.codec.vectors.cluster.HierarchicalKMeansTests
   method: testHKmeans
   issue: https://github.com/elastic/elasticsearch/issues/132771

@@ -14,6 +14,7 @@ import com.carrotsearch.hppc.IntHashSet;
 import org.apache.lucene.codecs.KnnVectorsReader;
 import org.apache.lucene.codecs.perfield.PerFieldKnnVectorsFormat;
 import org.apache.lucene.index.FieldInfo;
+import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
@@ -136,8 +137,12 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
         List<LeafReaderContext> leafReaderContexts = reader.leaves();
 
         int totalVectors = 0;
-        for (LeafReaderContext leafReaderContext : leafReaderContexts) {
-            totalVectors += leafReaderContext.reader().leaves().size();
+        for( LeafReaderContext leafReaderContext : leafReaderContexts) {
+            LeafReader leafReader = leafReaderContext.reader();
+            FloatVectorValues floatVectorValues = leafReader.getFloatVectorValues(field);
+            if(floatVectorValues != null) {
+                totalVectors += floatVectorValues.size();
+            }
         }
 
         final float visitRatio;
@@ -149,7 +154,8 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
             visitRatio = providedVisitRatio;
         }
 
-        int totalBudget = (int) (totalVectors * visitRatio);
+        // FIXME: pick a reasonable min budget and make sure visitRatio is used appropriately throughout and not pushing the budget to zero
+        int totalBudget = Math.max(100, (int) (totalVectors * visitRatio));
 
         List<Callable<TopDocs>> tasks;
         if (leafReaderContexts.isEmpty() == false) {

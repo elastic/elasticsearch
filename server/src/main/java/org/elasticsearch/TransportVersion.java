@@ -170,7 +170,7 @@ public record TransportVersion(String name, int id, TransportVersion nextPatchVe
         if (latest != null) {
             List<String> versionFilesNames = parseFromBufferedReader(
                 component,
-                "/transport/defined/manifest.txt",
+                "/transport/definitions/manifest.txt",
                 nameToStream,
                 (c, p, br) -> br.lines().filter(line -> line.isBlank() == false).toList()
             );
@@ -179,12 +179,15 @@ public record TransportVersion(String name, int id, TransportVersion nextPatchVe
                 for (String versionFileName : versionFilesNames) {
                     TransportVersion transportVersion = parseFromBufferedReader(
                         component,
-                        "/transport/defined/" + versionFileName,
+                        "/transport/definitions/" + versionFileName,
                         nameToStream,
                         (c, p, br) -> fromBufferedReader(c, p, false, br, latest.id())
                     );
                     if (transportVersion != null) {
-                        transportVersions.put(versionFileName.substring(0, versionFileName.length() - 4), transportVersion);
+                        transportVersions.put(
+                            versionFileName.substring(versionFileName.lastIndexOf("/") + 1, versionFileName.length() - 4),
+                            transportVersion
+                        );
                     }
                 }
                 return transportVersions;

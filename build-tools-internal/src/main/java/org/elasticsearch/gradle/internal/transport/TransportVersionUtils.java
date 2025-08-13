@@ -20,7 +20,7 @@ import java.nio.file.Path;
 class TransportVersionUtils {
 
     static Path definitionFilePath(Directory resourcesDirectory, String name) {
-        return getDefinitionsDirectory(resourcesDirectory).getAsFile().toPath().resolve(name + ".csv");
+        return getDefinitionsDirectory(resourcesDirectory).getAsFile().toPath().resolve("named/" + name + ".csv");
     }
 
     static Path latestFilePath(Directory resourcesDirectory, String name) {
@@ -38,7 +38,7 @@ class TransportVersionUtils {
     }
 
     static Directory getDefinitionsDirectory(Directory resourcesDirectory) {
-        return resourcesDirectory.dir("defined");
+        return resourcesDirectory.dir("definitions");
     }
 
     static Directory getLatestDirectory(Directory resourcesDirectory) {

@@ -228,7 +228,7 @@ public class TransportVersionTests extends ESTestCase {
     public void testLatest() {
         TransportVersion latest = TransportVersion.parseFromBufferedReader(
             "<test>",
-            "/transport/defined/" + Version.CURRENT.major + "." + Version.CURRENT.minor + ".csv",
+            "/transport/definitions/" + Version.CURRENT.major + "." + Version.CURRENT.minor + ".csv",
             TransportVersion.class::getResourceAsStream,
             (c, p, br) -> TransportVersion.fromBufferedReader(c, p, true, br, Integer.MAX_VALUE)
         );

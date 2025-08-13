@@ -236,6 +236,11 @@ public class EsqlCapabilities {
         FN_SCALB,
 
         /**
+         * Support for function DAY_NAME
+         */
+        FN_DAY_NAME,
+
+        /**
          * Fixes for multiple functions not serializing their source, and emitting warnings with wrong line number and text.
          */
         FUNCTIONS_SOURCE_SERIALIZATION_WARNINGS,
@@ -1331,6 +1336,11 @@ public class EsqlCapabilities {
          * Support for the options field of CATEGORIZE.
          */
         CATEGORIZE_OPTIONS,
+
+        /**
+         * FIRST and LAST aggregate functions.
+         */
+        AGG_FIRST_LAST(Build.current().isSnapshot()),
 
         /**
          * Support correct counting of skipped shards.

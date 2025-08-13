@@ -17,6 +17,7 @@ import org.elasticsearch.action.ingest.SimulateIndexResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
+import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
@@ -30,6 +31,7 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.index.IndexSettingProviders;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
@@ -79,6 +81,7 @@ public class TransportSimulateBulkActionTests extends ESTestCase {
     private ClusterService clusterService;
     private TestThreadPool threadPool;
     private IndicesService indicesService;
+    private FeatureService mockFeatureService;
 
     private TestTransportSimulateBulkAction bulkAction;
 
@@ -96,7 +99,8 @@ public class TransportSimulateBulkActionTests extends ESTestCase {
                 TestProjectResolvers.DEFAULT_PROJECT_ONLY,
                 indicesService,
                 NamedXContentRegistry.EMPTY,
-                new IndexSettingProviders(Set.of())
+                new IndexSettingProviders(Set.of()),
+                mockFeatureService
             );
         }
     }
@@ -126,6 +130,8 @@ public class TransportSimulateBulkActionTests extends ESTestCase {
         transportService.acceptIncomingRequests();
         indicesService = mock(IndicesService.class);
         bulkAction = new TestTransportSimulateBulkAction();
+        mockFeatureService = mock(FeatureService.class);
+        when(mockFeatureService.clusterHasFeature(clusterService.state(), DataStream.DATA_STREAM_FAILURE_STORE_FEATURE)).thenReturn(false);
     }
 
     @After

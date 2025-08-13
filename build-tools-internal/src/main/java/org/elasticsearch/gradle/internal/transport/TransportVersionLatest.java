@@ -19,6 +19,6 @@ record TransportVersionLatest(String branch, String name, TransportVersionId id)
             throw new IllegalStateException("Invalid transport version latest file [" + filename + "]: " + contents);
         }
 
-        return new TransportVersionLatest(branch, parts[0], TransportVersionUtils.parseId(parts[1]));
+        return new TransportVersionLatest(branch, parts[0], TransportVersionId.fromString(parts[1]));
     }
 }

@@ -21,7 +21,7 @@ record TransportVersionDefinition(String name, List<TransportVersionId> ids) {
         if (contents.isEmpty() == false) {
             for (String rawId : contents.split(",")) {
                 try {
-                    ids.add(TransportVersionUtils.parseId(rawId));
+                    ids.add(TransportVersionId.fromString(rawId));
                 } catch (NumberFormatException e) {
                     throw new IllegalStateException("Failed to parse id " + rawId + " in " + filename, e);
                 }

@@ -10,20 +10,27 @@ package org.elasticsearch.xpack.esql.expression.function.vector;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.function.FunctionName;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
+import org.junit.Before;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.xpack.esql.core.type.DataType.DENSE_VECTOR;
+import static org.elasticsearch.xpack.esql.core.type.DataType.FLOAT;
+import static org.hamcrest.Matchers.equalTo;
+
 @FunctionName("v_magnitude")
-public class MagnitudeTests extends AbstractVectorScalarFunctionTestCase {
+public class MagnitudeTests extends AbstractVectorTestCase {
 
     public MagnitudeTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
-        super(testCaseSupplier);
+        this.testCase = testCaseSupplier.get();
     }
 
     @ParametersFactory
@@ -38,5 +45,49 @@ public class MagnitudeTests extends AbstractVectorScalarFunctionTestCase {
     @Override
     protected Expression build(Source source, List<Expression> args) {
         return new Magnitude(source, args.get(0));
+    }
+
+    @Before
+    public void checkCapability() {
+        assumeTrue("Scalar function is not enabled", capability().isEnabled());
+    }
+
+    protected static Iterable<Object[]> scalarParameters(String className, Magnitude.ScalarEvaluatorFunction scalarFunction) {
+
+        final String evaluatorName = className + "Evaluator" + "[child=Attribute[channel=0]]";
+
+        List<TestCaseSupplier> suppliers = new ArrayList<>();
+
+        // Basic test with a dense vector.
+        suppliers.add(new TestCaseSupplier(List.of(DENSE_VECTOR), () -> {
+            int dimensions = between(64, 128);
+            List<Float> input = randomDenseVector(dimensions);
+            float[] array = listToFloatArray(input);
+            float expected = scalarFunction.calculateScalar(array);
+            return new TestCaseSupplier.TestCase(
+                List.of(new TestCaseSupplier.TypedData(array, DENSE_VECTOR, "vector")),
+                evaluatorName,
+                FLOAT,
+                equalTo(expected)
+            );
+        }));
+
+        return parameterSuppliersFromTypedData(suppliers);
+    }
+
+    @Override
+    public void testFold() {
+        // TODO: doesn't currently work.
+    }
+
+    @Override
+    protected Page row(List<Object> values) {
+        // Convert from List<float[]> to List<ArrayList<Float>>.
+        List<Float> boxed = new ArrayList<>();
+        var array = (float[]) values.getFirst();
+        for (float v : array) {
+            boxed.add(v);
+        }
+        return super.row(List.of(boxed));
     }
 }

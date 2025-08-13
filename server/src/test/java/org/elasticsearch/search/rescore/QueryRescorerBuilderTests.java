@@ -356,31 +356,43 @@ public class QueryRescorerBuilderTests extends ESTestCase {
             RescorerBuilder.parseFromXContent(parser, searchUsage::trackRescorerUsage);
         }
 
-        rescoreElement = "{\n" +
-            "    \"window_size\" : 20,\n" +
-            "    \"script\" : {} \n"
-            + "}\n";
+        rescoreElement = """
+            {
+                "window_size" : 20,
+                "script" : { "script" : {"source": "Math.log(_score * 2)"}},\s
+                "query" : { "rescore_query" : { "match_all" : { } } }\s
+            }
+            """;
         try (XContentParser parser = createParser(rescoreElement)) {
-            Exception e = expectThrows(IllegalArgumentException.class, () -> RescorerBuilder.parseFromXContent(parser));
-            assertEquals("must specify either [source] for an inline script or [id] for a stored script", e.getMessage());
+            Exception e = expectThrows(
+                ParsingException.class,
+                () -> RescorerBuilder.parseFromXContent(parser, searchUsage::trackRescorerUsage)
+            );
+            assertEquals(e.getMessage(), "Can't have more than one rescore type in a [rescore] object");
         }
 
-        rescoreElement = "{\n" +
-            "    \"window_size\" : 20,\n" +
-            "    \"script\" : { \"source\" : \"\" }  \n"
-            + "}\n";
+        rescoreElement = """
+            {
+                "window_size" : 20,
+                "script" : { "script" : {}}
+            }
+            """;
         try (XContentParser parser = createParser(rescoreElement)) {
-            RescorerBuilder.parseFromXContent(parser);
+            Exception e = expectThrows(
+                XContentParseException.class,
+                () -> RescorerBuilder.parseFromXContent(parser, searchUsage::trackRescorerUsage)
+            );
+            assertThat(e.getMessage(), containsString("failed to parse field [script]"));
         }
 
-        rescoreElement = "{\n" +
-            "    \"window_size\" : 20,\n" +
-            "    \"query\" : { \"rescore_query\" : { \"match_all\" : { } } }, \n" +
-            "    \"script\" : { \"source\" : \"\" } \n"
-            + "}\n";
+        rescoreElement = """
+            {
+                "window_size" : 20,
+                "script" : { "script" : {"source": "Math.log(_score * 2)"}}
+            }
+            """;
         try (XContentParser parser = createParser(rescoreElement)) {
-            Exception e = expectThrows(ParsingException.class, () -> RescorerBuilder.parseFromXContent(parser));
-            assertEquals("you can either define [query] or [script], not both.", e.getMessage());
+            RescorerBuilder.parseFromXContent(parser, searchUsage::trackRescorerUsage);
         }
     }
 

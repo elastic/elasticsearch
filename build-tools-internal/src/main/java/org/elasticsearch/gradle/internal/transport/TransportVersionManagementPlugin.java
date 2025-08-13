@@ -38,7 +38,7 @@ public class TransportVersionManagementPlugin implements Plugin<Project> {
         Configuration tvReferencesConfig = project.getConfigurations().create("transportVersionReferences", c -> {
             c.setCanBeConsumed(true);
             c.setCanBeResolved(false);
-            c.attributes(TransportVersionUtils::addTransportVersionReferencesAttribute);
+            c.attributes(TransportVersionReference::addArtifactAttribute);
         });
         project.getArtifacts().add(tvReferencesConfig.getName(), collectTask);
 

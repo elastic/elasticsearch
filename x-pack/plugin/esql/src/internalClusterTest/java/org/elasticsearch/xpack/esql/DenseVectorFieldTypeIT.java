@@ -29,8 +29,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
-import java.util.function.Function;
-import java.util.function.Supplier;
 
 import static org.elasticsearch.index.IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING;
 import static org.elasticsearch.index.mapper.SourceFieldMapper.Mode.SYNTHETIC;
@@ -54,40 +52,39 @@ public class DenseVectorFieldTypeIT extends AbstractEsqlIntegTestCase {
     private final ElementType elementType;
     private final DenseVectorFieldMapper.VectorSimilarity similarity;
     private final boolean synthetic;
-    private final String indexType;
     private final boolean index;
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() throws Exception {
         List<Object[]> params = new ArrayList<>();
-        // Indexed field types
-        Supplier<ElementType> elementTypeProvider = () -> randomFrom(ElementType.FLOAT, ElementType.BYTE);
-        Function<ElementType, String> indexTypeProvider = e -> e == ElementType.FLOAT
-            ? randomFrom(ALL_DENSE_VECTOR_INDEX_TYPES)
-            : randomFrom(NON_QUANTIZED_DENSE_VECTOR_INDEX_TYPES);
-        Supplier<DenseVectorFieldMapper.VectorSimilarity> vectorSimilarityProvider = () -> randomFrom(
+        List<DenseVectorFieldMapper.VectorSimilarity> similarities = List.of(
             DenseVectorFieldMapper.VectorSimilarity.DOT_PRODUCT,
             DenseVectorFieldMapper.VectorSimilarity.L2_NORM,
             DenseVectorFieldMapper.VectorSimilarity.MAX_INNER_PRODUCT
         );
-        params.add(new Object[] { elementTypeProvider, indexTypeProvider, vectorSimilarityProvider, true, false });
-        // No indexing
-        params.add(new Object[] { elementTypeProvider, null, null, false, false });
-        // No indexing, synthetic source
-        params.add(new Object[] { elementTypeProvider, null, null, false, true });
+
+        for (ElementType elementType : List.of(ElementType.BYTE, ElementType.FLOAT)) {
+            // Test all similarities for element types
+            for (DenseVectorFieldMapper.VectorSimilarity similarity : similarities) {
+                params.add(new Object[] { elementType, similarity, true, false });
+            }
+
+            // No indexing
+            params.add(new Object[] { elementType, null, false, false });
+            // No indexing, synthetic source
+            params.add(new Object[] { elementType, null, false, true });
+        }
         return params;
     }
 
     public DenseVectorFieldTypeIT(
-        @Name("elementType") Supplier<ElementType> elementTypeProvider,
-        @Name("indexType") Function<ElementType, String> indexTypeProvider,
-        @Name("similarity") Supplier<DenseVectorFieldMapper.VectorSimilarity> similarityProvider,
+        @Name("elementType") ElementType elementType,
+        @Name("similarity") DenseVectorFieldMapper.VectorSimilarity similarity,
         @Name("index") boolean index,
         @Name("synthetic") boolean synthetic
     ) {
-        this.elementType = elementTypeProvider.get();
-        this.indexType = indexTypeProvider == null ? null : indexTypeProvider.apply(this.elementType);
-        this.similarity = similarityProvider == null ? null : similarityProvider.get();
+        this.elementType = elementType;
+        this.similarity = similarity == null ? null : similarity;
         this.index = index;
         this.synthetic = synthetic;
     }
@@ -244,8 +241,9 @@ public class DenseVectorFieldTypeIT extends AbstractEsqlIntegTestCase {
             .field("index", index);
         if (index) {
             mapping.field("similarity", similarity.name().toLowerCase(Locale.ROOT));
-        }
-        if (indexType != null) {
+            String indexType = elementType == ElementType.FLOAT
+                ? randomFrom(ALL_DENSE_VECTOR_INDEX_TYPES)
+                : randomFrom(NON_QUANTIZED_DENSE_VECTOR_INDEX_TYPES);
             mapping.startObject("index_options").field("type", indexType).endObject();
         }
         mapping.endObject().endObject().endObject();

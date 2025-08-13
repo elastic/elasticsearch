@@ -623,11 +623,16 @@ public class RRFRetrieverBuilderTests extends ESTestCase {
                         .fields(expectedNonInferenceFields)
                 )
             ),
-            Set.of(expectedInferenceFields.entrySet().stream().map(e -> 
-                CompoundRetrieverBuilder.RetrieverSource.from(
-                    new StandardRetrieverBuilder(new MatchQueryBuilder(e.getKey(), expectedQuery))
-                )
-            ).toArray())
+            Set.of(
+                expectedInferenceFields.entrySet()
+                    .stream()
+                    .map(
+                        e -> CompoundRetrieverBuilder.RetrieverSource.from(
+                            new StandardRetrieverBuilder(new MatchQueryBuilder(e.getKey(), expectedQuery))
+                        )
+                    )
+                    .toArray()
+            )
         );
 
         RetrieverBuilder rewritten = retriever.doRewrite(ctx);

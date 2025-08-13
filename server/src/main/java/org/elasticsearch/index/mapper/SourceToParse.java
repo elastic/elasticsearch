@@ -97,7 +97,7 @@ public class SourceToParse {
     }
 
     public BytesReference source() {
-        return this.source;
+        return this.modernSource().originalSourceBytes();
     }
 
     public ModernSource modernSource() {

@@ -440,7 +440,7 @@ public class SourceFieldMapper extends MetadataFieldMapper {
         XContentType contentType = sourceToParse.getXContentType();
 
         final var storedSource = stored()
-            ? removeSyntheticVectorFields(context.mappingLookup(), sourceToParse.source(), contentType)
+            ? removeSyntheticVectorFields(context.mappingLookup(), modernSource.originalSourceBytes(), contentType)
             : null;
         final var adaptedStoredSource = applyFilters(context.mappingLookup(), storedSource, contentType, false);
 
@@ -466,7 +466,8 @@ public class SourceFieldMapper extends MetadataFieldMapper {
             // If the source is missing (due to synthetic source or disabled mode)
             // or has been altered (via source filtering), store a reduced recovery source.
             // This includes the original source with synthetic vector fields removed for operation-based recovery.
-            var recoverySource = removeSyntheticVectorFields(context.mappingLookup(), sourceToParse.source(), contentType).toBytesRef();
+            var recoverySource = removeSyntheticVectorFields(context.mappingLookup(), modernSource.originalSourceBytes(), contentType)
+                .toBytesRef();
             context.doc().add(new StoredField(RECOVERY_SOURCE_NAME, recoverySource.bytes, recoverySource.offset, recoverySource.length));
             context.doc().add(new NumericDocValuesField(RECOVERY_SOURCE_NAME, 1));
         }

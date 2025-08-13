@@ -223,6 +223,10 @@ generated from it. When querying, the individual passages will be automatically
 searched for each document, and the most relevant passage will be used to
 compute a score.
 
+Chunks are stored as start and end character offsets rather than as separate
+text strings. These offsets point to the exact location of each chunk within the
+original input text.
+
 For more details on chunking and how to configure chunking settings,
 see [Configuring chunking](https://www.elastic.co/docs/api/doc/elasticsearch/group/endpoint-inference)
 in the Inference API documentation.
@@ -232,6 +236,7 @@ to [this tutorial](docs-content://solutions/search/semantic-search/semantic-sear
 to learn more about semantic search using `semantic_text`.
 
 ### Pre-chunking [pre-chunking]
+
 ```{applies_to}
 stack: ga 9.1
 ```
@@ -283,6 +288,7 @@ PUT test-index/_doc/1
       the input.
 
 ## Retrieving indexed chunks
+
 ```{applies_to}
 stack: ga 9.2
 serverless: ga

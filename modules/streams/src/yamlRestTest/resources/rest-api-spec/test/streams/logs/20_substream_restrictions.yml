@@ -1,4 +1,9 @@
 ---
+teardown:
+  - do:
+      streams.logs_disable: { }
+
+---
 "Check User Can't Write To Substream Directly":
   - do:
       streams.logs_enable: { }

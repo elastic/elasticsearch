@@ -1,0 +1,101 @@
+version: 9.0.5
+released: false
+generated: 2025-08-11T18:17:36.232343699Z
+changelogs:
+  - pr: 124918
+    summary: Fix EQL double invoking listener
+    area: EQL
+    type: bug
+    issues: []
+  - pr: 129282
+    summary: "Fix query rewrite logic to preserve `boosts` and `queryName` for `match`, `knn`, and `sparse_vector` queries on semantic_text fields"
+    area: Search
+    type: bug
+    issues: []
+  - pr: 129745
+    summary: "ESQL: Fix `mv_expand` inconsistent column order"
+    area: ES|QL
+    type: bug
+    issues:
+      - 129000
+  - pr: 130279
+    summary: Fix missing removal of query cancellation callback in QueryPhase
+    area: Search
+    type: bug
+    issues:
+      - 130071
+  - pr: 131236
+    summary: Correctly handling `download_database_on_pipeline_creation` within a pipeline processor within a default or final pipeline
+    area: Ingest Node
+    type: bug
+    issues: []
+  - pr: 131391
+    summary: Fix bug in point in time response
+    area: Search
+    type: bug
+    issues:
+      - 131026
+  - pr: 131426
+    summary: Disallow remote enrich after lu join
+    area: ES|QL
+    type: bug
+    issues:
+      - 129372
+  - pr: 131429
+    summary: Prevent auto-sharding for data streams in LOOKUP index mode
+    area: Data streams
+    type: bug
+    issues: []
+  - pr: 131630
+    summary: Fix memory usage estimation for ELSER models
+    area: Machine Learning
+    type: bug
+    issues: []
+  - pr: 131677
+    summary: Throw better exception if verifying empty repo
+    area: Snapshot/Restore
+    type: bug
+    issues: []
+  - pr: 131680
+    summary: Grant server module read/write entitlements for deprecated path setting "path.shared_data"
+    area: Infra/Core
+    type: bug
+    issues: []
+  - pr: 131711
+    summary: Track & log when there is insufficient disk space available to execute merges
+    area: Engine
+    type: enhancement
+    issues: []
+  - pr: 131990
+    summary: Prevent the trained model deployment memory estimation from double-counting allocations
+    area: Machine Learning
+    type: bug
+    issues: []
+  - pr: 132018
+    summary: Fix decoding of non-ascii field names in ignored source
+    area: Mapping
+    type: bug
+    issues: []
+  - pr: 132101
+    summary: Simulate ingest API uses existing index mapping when `mapping_addition` is given
+    area: Ingest Node
+    type: bug
+    issues: []
+  - pr: 132167
+    summary: Deal with internally created IN in a different way for EQL
+    area: EQL
+    type: bug
+    issues:
+      - 118621
+  - pr: 132260
+    summary: FIx Driver creating status with a live list of operators
+    area: ES|QL
+    type: bug
+    issues:
+      - 131564
+  - pr: 132320
+    summary: "Aggs: Add validation to Bucket script pipeline agg"
+    area: Aggregations
+    type: bug
+    issues:
+      - 132272

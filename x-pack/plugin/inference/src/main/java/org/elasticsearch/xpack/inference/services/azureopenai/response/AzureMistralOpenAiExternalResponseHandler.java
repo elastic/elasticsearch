@@ -63,13 +63,8 @@ public class AzureMistralOpenAiExternalResponseHandler extends BaseResponseHandl
     }
 
     @Override
-    public void validateResponse(
-        ThrottlerManager throttlerManager,
-        Logger logger,
-        Request request,
-        HttpResult result,
-        boolean checkForErrorObject
-    ) throws RetryException {
+    public void validateResponse(ThrottlerManager throttlerManager, Logger logger, Request request, HttpResult result)
+        throws RetryException {
         checkForFailureStatusCode(request, result);
         checkForEmptyBody(throttlerManager, logger, request, result);
     }

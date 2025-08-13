@@ -111,8 +111,8 @@ public abstract class VectorScalarFunction extends UnaryScalarFunction implement
                             for (int p = 0; p < positionCount; p++) {
                                 int dims = block.getValueCount(p);
                                 if (dims == 0) {
-                                    // A null value for the vector, by default append 0 as result.
-                                    builder.appendDouble(0.0);
+                                    // A null value for the vector, by default append null as result.
+                                    builder.appendNull();
                                     continue;
                                 }
                                 readFloatArray(block, block.getFirstValueIndex(p), dimensions, scratch);

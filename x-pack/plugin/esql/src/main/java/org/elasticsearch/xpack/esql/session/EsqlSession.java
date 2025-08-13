@@ -413,13 +413,6 @@ public class EsqlSession {
             // resolve the main indices
             preAnalyzeMainIndices(preAnalysis, executionInfo, result, requestFilter, l);
         }).<PreAnalysisResult>andThen((l, result) -> {
-            // TODO in follow-PR (for skip_unavailable handling of missing concrete indexes) add some tests for
-            // invalid index resolution to updateExecutionInfo
-            // If we run out of clusters to search due to unavailability we can stop the analysis right here
-            if (result.indices.isValid() && allCCSClustersSkipped(executionInfo, result, logicalPlanListener)) return;
-            // whatever tuple we have here (from CCS-special handling or from the original pre-analysis), pass it on to the next step
-            l.onResponse(result);
-        }).<PreAnalysisResult>andThen((l, result) -> {
             // first attempt (maybe the only one) at analyzing the plan
             analyzeWithRetry(analyzeAction, requestFilter, result, executionInfo, logicalPlanListener, l);
         }).<PreAnalysisResult>andThen((l, result) -> {
@@ -711,30 +704,6 @@ public class EsqlSession {
         }
     }
 
-    /**
-     * Check if there are any clusters to search.
-     *
-     * @return true if there are no clusters to search, false otherwise
-     */
-    private boolean allCCSClustersSkipped(
-        EsqlExecutionInfo executionInfo,
-        PreAnalysisResult result,
-        ActionListener<LogicalPlan> logicalPlanListener
-    ) {
-        IndexResolution indexResolution = result.indices;
-        EsqlCCSUtils.updateExecutionInfoWithUnavailableClusters(executionInfo, indexResolution.failures());
-        if (executionInfo.isCrossClusterSearch()
-            && executionInfo.getClusterStates(EsqlExecutionInfo.Cluster.Status.RUNNING).findAny().isEmpty()) {
-            // for a CCS, if all clusters have been marked as SKIPPED, nothing to search so send a sentinel Exception
-            // to let the LogicalPlanActionListener decide how to proceed
-            LOGGER.debug("No more clusters to search, ending analysis stage");
-            logicalPlanListener.onFailure(new NoClustersToSearchException());
-            return true;
-        }
-
-        return false;
-    }
-
     private static void analyzeWithRetry(
         CheckedFunction<PreAnalysisResult, LogicalPlan, Exception> analyzeAction,
         QueryBuilder requestFilter,
@@ -743,6 +712,18 @@ public class EsqlSession {
         ActionListener<LogicalPlan> logicalPlanListener,
         ActionListener<PreAnalysisResult> stepListener
     ) {
+        if (result.indices.isValid()) {
+            EsqlCCSUtils.updateExecutionInfoWithUnavailableClusters(executionInfo, result.indices.failures());
+            if (executionInfo.isCrossClusterSearch()
+                && executionInfo.getClusterStates(EsqlExecutionInfo.Cluster.Status.RUNNING).findAny().isEmpty()) {
+                // for a CCS, if all clusters have been marked as SKIPPED, nothing to search so send a sentinel Exception
+                // to let the LogicalPlanActionListener decide how to proceed
+                LOGGER.debug("No more clusters to search, ending analysis stage");
+                logicalPlanListener.onFailure(new NoClustersToSearchException());
+                return;
+            }
+        }
+
         var description = requestFilter == null ? "the only attempt without filter" : "first attempt with filter";
         LOGGER.debug("Analyzing the plan ({})", description);
 

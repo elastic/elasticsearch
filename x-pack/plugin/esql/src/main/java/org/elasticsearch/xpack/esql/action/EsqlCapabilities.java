@@ -1289,7 +1289,12 @@ public class EsqlCapabilities {
         /**
          * Support for the options field of CATEGORIZE.
          */
-        CATEGORIZE_OPTIONS;
+        CATEGORIZE_OPTIONS,
+
+        /**
+         * Decay function for custom scoring
+         */
+        DECAY_FUNCTION;
 
         private final boolean enabled;
 

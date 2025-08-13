@@ -177,38 +177,38 @@ public class Decay extends EsqlScalarFunction implements OptionalArgument {
 
         // Spatial decay
         if (isSpatialPoint(valueDataType)) {
-            TypeResolution originResolution = isType(origin, DataType::isSpatialPoint, sourceText(), SECOND, "spatial point");
+            TypeResolution originResolution = isNotNull(origin, sourceText(), SECOND).and(isType(origin, DataType::isSpatialPoint, sourceText(), SECOND, "spatial point"));
             if (originResolution.unresolved()) {
                 return originResolution;
             }
 
             // For a spatial decay the scale should be a distance unit string (e.g. "100km")
-            TypeResolution scaleResolution = isType(scale, DataType::isString, sourceText(), THIRD, "keyword or text");
+            TypeResolution scaleResolution = isNotNull(scale, sourceText(), THIRD).and(isType(scale, DataType::isString, sourceText(), THIRD, "keyword or text"));
             if (scaleResolution.unresolved()) {
                 return scaleResolution;
             }
         }
         // Temporal decay
         else if (isMillisOrNanos(valueDataType)) {
-            TypeResolution originResolution = isType(origin, DataType::isMillisOrNanos, sourceText(), SECOND, "datetime or date_nanos");
+            TypeResolution originResolution = isNotNull(origin, sourceText(), SECOND).and(isType(origin, DataType::isMillisOrNanos, sourceText(), SECOND, "datetime or date_nanos"));
             if (originResolution.unresolved()) {
                 return originResolution;
             }
 
             // For a temporal decay the scale should be a time value string (e.g. "5h")
-            TypeResolution scaleResolution = isType(scale, DataType::isString, sourceText(), THIRD, "date_period or time_duration");
+            TypeResolution scaleResolution = isNotNull(scale, sourceText(), THIRD).and(isType(scale, DataType::isString, sourceText(), THIRD, "date_period or time_duration"));
             if (scaleResolution.unresolved()) {
                 return scaleResolution;
             }
         }
         // Numeric decay
         else {
-            TypeResolution originResolution = isNumeric(origin, sourceText(), SECOND);
+            TypeResolution originResolution = isNotNull(origin, sourceText(), SECOND).and(isNumeric(origin, sourceText(), SECOND));
             if (originResolution.unresolved()) {
                 return originResolution;
             }
 
-            TypeResolution scaleResolution = isNumeric(scale, sourceText(), THIRD);
+            TypeResolution scaleResolution = isNotNull(scale, sourceText(), THIRD).and(isNumeric(scale, sourceText(), THIRD));
             if (scaleResolution.unresolved()) {
                 return scaleResolution;
             }

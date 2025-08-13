@@ -168,19 +168,21 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
         routing = in.readOptionalString();
         final ESONFlat structuredSource;
         final int originalSourceSize;
+        final BytesReference source;
         if (in.getTransportVersion().onOrAfter(TransportVersions.STRUCTURED_SOURCE)) {
             if (in.readBoolean()) {
                 originalSourceSize = in.readVInt();
                 structuredSource = new ESONFlat(in);
+                source = null;
             } else {
-                BytesReference source = in.readBytesReference();
-                structuredSource = null;
+                source = in.readBytesReference();
                 originalSourceSize = source.length();
+                structuredSource = null;
             }
         } else {
-            BytesReference source = in.readBytesReference();
-            structuredSource = null;
+            source = in.readBytesReference();
             originalSourceSize = source.length();
+            structuredSource = null;
         }
         opType = OpType.fromId(in.readByte());
         version = in.readLong();
@@ -196,7 +198,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
         } else {
             contentType = null;
         }
-        modernSource = new ModernSource(contentType, originalSourceSize, structuredSource);
+        modernSource = new ModernSource(source, contentType, originalSourceSize, structuredSource);
         ifSeqNo = in.readZLong();
         ifPrimaryTerm = in.readVLong();
         requireAlias = in.readBoolean();

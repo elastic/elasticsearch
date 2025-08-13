@@ -109,6 +109,10 @@ public class DefaultIVFVectorsReader extends IVFVectorsReader implements OffHeap
         );
         long offset = centroids.getFilePointer();
         return new CentroidIterator() {
+
+            // FIXME: clean this up
+            long postingListLength = -1;
+
             @Override
             public boolean hasNext() {
                 return neighborQueue.size() > 0;
@@ -117,8 +121,18 @@ public class DefaultIVFVectorsReader extends IVFVectorsReader implements OffHeap
             @Override
             public long nextPostingListOffset() throws IOException {
                 int centroidOrdinal = neighborQueue.pop();
-                centroids.seek(offset + (long) Long.BYTES * centroidOrdinal);
-                return centroids.readLong();
+                centroids.seek(offset + (long) Long.BYTES * 2 * centroidOrdinal);
+                long postingListOffset = centroids.readLong();
+                postingListLength = centroids.readLong();
+                return postingListOffset;
+            }
+
+            @Override
+            public long curPostingListLength() throws IOException {
+                if (postingListLength == -1) {
+                    throw new IllegalStateException("nextPostingListOffset must be called before curPostingListLength");
+                }
+                return postingListLength;
             }
         };
     }
@@ -179,6 +193,9 @@ public class DefaultIVFVectorsReader extends IVFVectorsReader implements OffHeap
         }
         final long childrenFileOffsets = childrenOffset + centroidQuantizeSize * numCentroids;
         return new CentroidIterator() {
+            // FIXME: clean this up
+            long postingListLength = -1;
+
             @Override
             public boolean hasNext() {
                 return neighborQueue.size() > 0;
@@ -188,8 +205,18 @@ public class DefaultIVFVectorsReader extends IVFVectorsReader implements OffHeap
             public long nextPostingListOffset() throws IOException {
                 int centroidOrdinal = neighborQueue.pop();
                 updateQueue(); // add one children if available so the queue remains fully populated
-                centroids.seek(childrenFileOffsets + (long) Long.BYTES * centroidOrdinal);
-                return centroids.readLong();
+                centroids.seek(childrenFileOffsets + (long) Long.BYTES * 2 * centroidOrdinal);
+                long postingListOffset = centroids.readLong();
+                postingListLength = centroids.readLong();
+                return postingListOffset;
+            }
+
+            @Override
+            public long curPostingListLength() throws IOException {
+                if (postingListLength == -1) {
+                    throw new IllegalStateException("nextPostingListOffset must be called before curPostingListLength");
+                }
+                return postingListLength;
             }
 
             private void updateQueue() throws IOException {
@@ -361,6 +388,17 @@ public class DefaultIVFVectorsReader extends IVFVectorsReader implements OffHeap
         }
 
         @Override
+        public void prefetch(long offset) throws IOException {
+            // long postingLength = vectors / entry.postingListLength();
+
+            // long vIntFakeMax = 5; // FIXME: need to know exact number here
+            // long centroidLength = (long) fieldInfo.getVectorDimension() * Float.BYTES +
+            // Integer.BYTES + vIntFakeMax + (long) vectors * Integer.BYTES
+
+            indexInput.prefetch(offset, slicePos + vectors * quantizedByteLength);
+        }
+
+        @Override
         public int resetPostingsScorer(long offset) throws IOException {
             quantized = false;
             indexInput.seek(offset);
@@ -452,6 +490,7 @@ public class DefaultIVFVectorsReader extends IVFVectorsReader implements OffHeap
             int scoredDocs = 0;
             int limit = vectors - BULK_SIZE + 1;
             int i = 0;
+
             for (; i < limit; i += BULK_SIZE) {
                 final int docsToBulkScore = acceptDocs == null ? BULK_SIZE : docToBulkScore(docIdsScratch, i, acceptDocs);
                 if (docsToBulkScore == 0) {

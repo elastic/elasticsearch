@@ -239,7 +239,8 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
             nProbe = Math.max(Math.min(nProbe, entry.numCentroids), 1);
         }
         CentroidIterator centroidIterator = getCentroidIterator(fieldInfo, entry.numCentroids, entry.centroidSlice(ivfCentroids), target);
-        PostingVisitor scorer = getPostingVisitor(fieldInfo, entry.postingListSlice(ivfClusters), target, acceptDocs);
+        IndexInput postListSlice = entry.postingListSlice(ivfClusters);
+        PostingVisitor scorer = getPostingVisitor(fieldInfo, postListSlice, target, acceptDocs);
         int centroidsVisited = 0;
         long expectedDocs = 0;
         long actualDocs = 0;
@@ -247,13 +248,45 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
         // Note, numCollected is doing the bare minimum here.
         // TODO do we need to handle nested doc counts similarly to how we handle
         // filtering? E.g. keep exploring until we hit an expected number of parent documents vs. child vectors?
+        long nextOffset = -1;
+        long nextLength = -1;
         while (centroidIterator.hasNext()
             && (centroidsVisited < nProbe || knnCollector.minCompetitiveSimilarity() == Float.NEGATIVE_INFINITY)) {
             ++centroidsVisited;
             // todo do we actually need to know the score???
-            long offset = centroidIterator.nextPostingListOffset();
+
+            // FIXME: opportunistically prefetch here?? (could do nProbe of these ... how does this help with low memory???
+            // FIXME: prefetch the next one not the current one
+            // FIXME: deal with last one correctly
+            long offset;
+            if (nextOffset == -1) {
+                offset = centroidIterator.nextPostingListOffset();
+                if (centroidIterator.hasNext()) {
+                    nextOffset = centroidIterator.nextPostingListOffset();
+                    nextLength = centroidIterator.curPostingListLength();
+                    // scorer.prefetch(offset, length);
+                    // scorer.prefetch(nextOffset);
+                    // FIXME: clean this up
+                    if (nextLength == -2) {
+                        nextLength = postListSlice.length() - nextOffset;
+                    }
+                    postListSlice.prefetch(nextOffset, nextLength);
+                }
+            } else {
+                offset = nextOffset;
+
+                nextOffset = centroidIterator.nextPostingListOffset();
+                nextLength = centroidIterator.curPostingListLength();
+                // FIXME: clean this up
+                if (nextLength == -2) {
+                    nextLength = postListSlice.length() - nextOffset;
+                }
+                postListSlice.prefetch(nextOffset, nextLength);
+                // scorer.prefetch(nextOffset);
+            }
             // todo do we need direct access to the raw centroid???, this is used for quantizing, maybe hydrating and quantizing
             // is enough?
+
             expectedDocs += scorer.resetPostingsScorer(offset);
             actualDocs += scorer.visit(knnCollector);
         }
@@ -262,6 +295,7 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
             int filteredVectors = (int) Math.ceil(numVectors * percentFiltered);
             float expectedScored = Math.min(2 * filteredVectors * unfilteredRatioVisited, expectedDocs / 2f);
             while (centroidIterator.hasNext() && (actualDocs < expectedScored || actualDocs < knnCollector.k())) {
+                // FIXME: add prefetching logic here as well
                 long offset = centroidIterator.nextPostingListOffset();
                 scorer.resetPostingsScorer(offset);
                 actualDocs += scorer.visit(knnCollector);
@@ -314,10 +348,14 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
         boolean hasNext();
 
         long nextPostingListOffset() throws IOException;
+
+        long curPostingListLength() throws IOException;
     }
 
     interface PostingVisitor {
         // TODO maybe we can not specifically pass the centroid...
+
+        void prefetch(long offset) throws IOException;
 
         /** returns the number of documents in the posting list */
         int resetPostingsScorer(long offset) throws IOException;

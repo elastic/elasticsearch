@@ -285,6 +285,7 @@ class KMeansLocal {
             int currAssignment = assignments[i];
             float[] currentCentroid = centroids[currAssignment];
             // TODO: cache these?
+            // FIXME: if close to current don't do SOAR assignments
             float vectorCentroidDist = VectorUtil.squareDistance(vector, currentCentroid);
             if (vectorCentroidDist <= SOAR_MIN_DISTANCE) {
                 spilledAssignments[i] = -1; // no SOAR assignment

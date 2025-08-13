@@ -536,13 +536,8 @@ public abstract class BlockDocValuesReader implements BlockLoader.AllReader {
                 case FLOAT -> {
                     FloatVectorValues floatVectorValues = context.reader().getFloatVectorValues(fieldName);
                     if (floatVectorValues != null) {
-                        if (fieldType.isNormalized()) {
-                            NumericDocValues magnitudeDocValues = context.reader()
-                                .getNumericDocValues(fieldType.name() + COSINE_MAGNITUDE_FIELD_SUFFIX);
-                            return new FloatDenseVectorNormalizedValuesBlockReader(floatVectorValues, dimensions, magnitudeDocValues);
-                        }
+                        return new FloatDenseVectorValuesBlockReader(floatVectorValues, dimensions);
                     }
-                    return new FloatDenseVectorValuesBlockReader(floatVectorValues, dimensions);
                 }
                 case BYTE -> {
                     ByteVectorValues byteVectorValues = context.reader().getByteVectorValues(fieldName);
@@ -622,41 +617,6 @@ public abstract class BlockDocValuesReader implements BlockLoader.AllReader {
         @Override
         public String toString() {
             return "BlockDocValuesReader.FloatDenseVectorValuesBlockReader";
-        }
-    }
-
-    private static class FloatDenseVectorNormalizedValuesBlockReader extends DenseVectorValuesBlockReader<FloatVectorValues> {
-        private final NumericDocValues magnitudeDocValues;
-
-        FloatDenseVectorNormalizedValuesBlockReader(
-            FloatVectorValues floatVectorValues,
-            int dimensions,
-            NumericDocValues magnitudeDocValues
-        ) {
-            super(floatVectorValues, dimensions);
-            this.magnitudeDocValues = magnitudeDocValues;
-        }
-
-        @Override
-        protected void appendDoc(BlockLoader.FloatBuilder builder) throws IOException {
-            float[] floats = vectorValues.vectorValue(iterator.index());
-            assert floats.length == dimensions
-                : "unexpected dimensions for vector value; expected " + dimensions + " but got " + floats.length;
-
-            float magnitude = 1.0f;
-            // If all vectors are normalized, no doc values will be present. The vector may be normalized already, so we may not have a
-            // stored magnitude for all docs
-            if ((magnitudeDocValues != null) && magnitudeDocValues.advanceExact(iterator.docID())) {
-                magnitude = Float.intBitsToFloat((int) magnitudeDocValues.longValue());
-            }
-            for (float aFloat : floats) {
-                builder.appendFloat(aFloat * magnitude);
-            }
-        }
-
-        @Override
-        public String toString() {
-            return "BlockDocValuesReader.FloatDenseVectorNormalizedValuesBlockReader";
         }
     }
 

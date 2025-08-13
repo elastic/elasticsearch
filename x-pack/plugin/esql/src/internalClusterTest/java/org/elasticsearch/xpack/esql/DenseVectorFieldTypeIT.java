@@ -66,7 +66,9 @@ public class DenseVectorFieldTypeIT extends AbstractEsqlIntegTestCase {
             ? randomFrom(ALL_DENSE_VECTOR_INDEX_TYPES)
             : randomFrom(NON_QUANTIZED_DENSE_VECTOR_INDEX_TYPES);
         Supplier<DenseVectorFieldMapper.VectorSimilarity> vectorSimilarityProvider = () -> randomFrom(
-            DenseVectorFieldMapper.VectorSimilarity.values()
+            DenseVectorFieldMapper.VectorSimilarity.DOT_PRODUCT,
+            DenseVectorFieldMapper.VectorSimilarity.L2_NORM,
+            DenseVectorFieldMapper.VectorSimilarity.MAX_INNER_PRODUCT
         );
         params.add(new Object[] { elementTypeProvider, indexTypeProvider, vectorSimilarityProvider, true, false });
         // No indexing
@@ -136,10 +138,6 @@ public class DenseVectorFieldTypeIT extends AbstractEsqlIntegTestCase {
             FROM test
             | KEEP id, vector
             """;
-
-        indexedVectors.forEach((i, v) -> {
-            System.out.println("ID: " + i + ", Vector: " + v);
-        });
 
         try (var resp = run(query)) {
             List<List<Object>> valuesList = EsqlTestUtils.getValuesList(resp);

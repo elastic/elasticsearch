@@ -142,7 +142,9 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
             LeafReader leafReader = leafReaderContext.reader();
             FieldInfo fieldInfo = leafReader.getFieldInfos().fieldInfo(field);
             VectorScorer scorer = createVectorScorer(leafReaderContext, fieldInfo);
-            totalDocsWVectors += scorer.iterator().cost();
+            if (scorer != null) {
+                totalDocsWVectors += scorer.iterator().cost();
+            }
         }
 
         final float visitRatio;

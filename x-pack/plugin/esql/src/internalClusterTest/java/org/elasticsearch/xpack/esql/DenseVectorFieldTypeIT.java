@@ -219,7 +219,7 @@ public class DenseVectorFieldTypeIT extends AbstractEsqlIntegTestCase {
                         default -> throw new IllegalArgumentException("Unexpected element type: " + elementType);
                     }
                 }
-                if (similarity == DenseVectorFieldMapper.VectorSimilarity.DOT_PRODUCT) {
+                if (similarity == DenseVectorFieldMapper.VectorSimilarity.DOT_PRODUCT || rarely()) {
                     // Normalize the vector
                     float magnitude = DenseVector.getMagnitude(vector);
                     switch (elementType) {
@@ -248,10 +248,7 @@ public class DenseVectorFieldTypeIT extends AbstractEsqlIntegTestCase {
             .field("element_type", elementType.toString().toLowerCase(Locale.ROOT))
             .field("index", index);
         if (index) {
-            mapping.field(
-                "similarity",
-                similarity.name().toLowerCase(Locale.ROOT)
-            );
+            mapping.field("similarity", similarity.name().toLowerCase(Locale.ROOT));
         }
         if (indexType != null) {
             mapping.startObject("index_options").field("type", indexType).endObject();

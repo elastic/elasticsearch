@@ -1335,6 +1335,38 @@ public class TimestampFormatFinderTests extends TextStructureTestCase {
 
     }
 
+    public void testFindFormatGivenYyyyMmDdWithSlashes() {
+
+        Consumer<Boolean> testFindFormatGivenYyyyMmDdWithSlashesAndEcsCompatibility = (ecsCompatibility) -> {
+            validateTimestampMatch(
+                "2018/05/15 17:14:56",
+                "TIMESTAMP_YMD",
+                "\\b\\d{4}[./-]\\d{2}[./-]\\d{2} \\d{2}:\\d{2}:\\d{2}\\b",
+                List.of("yyyy/MM/dd HH:mm:ss", "yyyy-MM-dd HH:mm:ss", "yyyy.MM.dd HH:mm:ss"),
+                1526400896000L,
+                ecsCompatibility
+            );
+        };
+
+        ecsCompatibilityModes.forEach(testFindFormatGivenYyyyMmDdWithSlashesAndEcsCompatibility);
+    }
+
+    public void testFindFormatGivenMmmDCommaYyyy() {
+
+        Consumer<Boolean> testFindFormatGivenMmmDCommaYyyyAndEcsCompatibility = (ecsCompatibility) -> {
+            validateTimestampMatch(
+                "May 15, 2018",
+                "CUSTOM_TIMESTAMP",
+                "\\b[A-Z][a-z]{2} \\d{1,2}, \\d{4}\\b",
+                "MMM d, yyyy",
+                1526338800000L,
+                ecsCompatibility
+            );
+        };
+
+        ecsCompatibilityModes.forEach(testFindFormatGivenMmmDCommaYyyyAndEcsCompatibility);
+    }
+
     public void testCustomOverrideMatchingBuiltInFormat() {
 
         String overrideFormat = "yyyy-MM-dd HH:mm:ss,SSS";

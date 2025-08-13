@@ -214,6 +214,7 @@ public class TransportVersions {
     public static final TransportVersion ESQL_FIXED_INDEX_LIKE_8_19 = def(8_841_0_64);
     public static final TransportVersion INITIAL_ELASTICSEARCH_8_19_1 = def(8_841_0_65);
     public static final TransportVersion INITIAL_ELASTICSEARCH_8_19_2 = def(8_841_0_66);
+    public static final TransportVersion MULTI_MATCH_SEMANTIC_TEXT_SUPPORT_8_19 = def(8_841_0_67);
     public static final TransportVersion V_9_0_0 = def(9_000_0_09);
     public static final TransportVersion INITIAL_ELASTICSEARCH_9_0_1 = def(9_000_0_10);
     public static final TransportVersion INITIAL_ELASTICSEARCH_9_0_2 = def(9_000_0_11);
@@ -360,6 +361,7 @@ public class TransportVersions {
     public static final TransportVersion INDEX_TEMPLATE_TRACKING_INFO = def(9_136_0_00);
     public static final TransportVersion EXTENDED_SNAPSHOT_STATS_IN_NODE_INFO = def(9_137_0_00);
     public static final TransportVersion SIMULATE_INGEST_MAPPING_MERGE_TYPE = def(9_138_0_00);
+    public static final TransportVersion MULTI_MATCH_SEMANTIC_TEXT_SUPPORT = def(9_139_0_00);
 
     /*
      * STOP! READ THIS FIRST! No, really,

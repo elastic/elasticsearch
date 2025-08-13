@@ -43,9 +43,6 @@ toolchainManagement {
       repository('archivedOracleJdks') {
         resolverClass = ArchivedOracleJdkToolchainResolver
       }
-      repository('EarlyAccessCatalogJdks') {
-        resolverClass = EarlyAccessCatalogJdkToolchainResolver
-      }
     }
   }
 }

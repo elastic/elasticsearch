@@ -12,8 +12,12 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 import org.apache.commons.io.IOUtils;
+import org.elasticsearch.gradle.Architecture;
+import org.elasticsearch.gradle.OS;
 import org.elasticsearch.gradle.VersionProperties;
 import org.elasticsearch.gradle.internal.BwcVersions;
+import org.elasticsearch.gradle.internal.Jdk;
+import org.elasticsearch.gradle.internal.JdkDownloadPlugin;
 import org.elasticsearch.gradle.internal.conventions.GitInfoPlugin;
 import org.elasticsearch.gradle.internal.conventions.info.GitInfo;
 import org.elasticsearch.gradle.internal.conventions.info.ParallelDetector;
@@ -22,6 +26,7 @@ import org.elasticsearch.gradle.util.GradleUtils;
 import org.gradle.api.Action;
 import org.gradle.api.GradleException;
 import org.gradle.api.JavaVersion;
+import org.gradle.api.NamedDomainObjectContainer;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
 import org.gradle.api.logging.Logger;
@@ -52,12 +57,14 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.UncheckedIOException;
+import java.lang.reflect.Field;
 import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Random;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -94,6 +101,7 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
 
     @Override
     public void apply(Project project) {
+
         if (project != project.getRootProject()) {
             throw new IllegalStateException(this.getClass().getName() + " can only be applied to the root project.");
         }
@@ -272,7 +280,9 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
     private InstallationLocation getJavaInstallation(File javaHome) {
         return getAvailableJavaInstallationLocationSteam().filter(installationLocation -> isSameFile(javaHome, installationLocation))
             .findFirst()
-            .orElseThrow(() -> new GradleException("Could not locate available Java installation in Gradle registry at: " + javaHome));
+            .orElse(
+                InstallationLocation.userDefined(javaHome, "Manually resolved JavaHome (not auto-detected by Gradle toolchain service)")
+            );
     }
 
     private boolean isSameFile(File javaHome, InstallationLocation installationLocation) {
@@ -337,11 +347,15 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
     }
 
     private Provider<File> findRuntimeJavaHome() {
-        String runtimeJavaProperty = System.getProperty("runtime.java");
-
+        Integer runtimeJavaProperty = Integer.getInteger("runtime.java");
         if (runtimeJavaProperty != null) {
-            System.out.println("GlobalBuildInfoPlugin.findRuntimeJavaHome");
-            return resolveJavaHomeFromToolChainService(runtimeJavaProperty);
+            if (runtimeJavaProperty > Integer.parseInt(VersionProperties.getBundledJdkMajorVersion())) {
+                // handle EA builds differently due to lack of support in Gradle toolchain service
+                // we resolve them using JdkDownloadPlugin for now.
+                return resolveEarlyAccessJavaHome(runtimeJavaProperty);
+            } else {
+                return resolveJavaHomeFromToolChainService(runtimeJavaProperty.toString());
+            }
         }
         if (System.getenv("RUNTIME_JAVA_HOME") != null) {
             return providers.provider(() -> new File(System.getenv("RUNTIME_JAVA_HOME")));
@@ -356,28 +370,31 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
         });
     }
 
+    private Provider<File> resolveEarlyAccessJavaHome(Integer runtimeJavaProperty) {
+        NamedDomainObjectContainer<Jdk> container = project.getPlugins().apply(JdkDownloadPlugin.class).getContainer(project);
+        Integer buildNumber = Integer.getInteger("runtime.java.build");
+        if (buildNumber == null) {
+            buildNumber = Integer.getInteger("runtime.java." + runtimeJavaProperty + ".build");
+        }
+        if (buildNumber == null) {
+            buildNumber = findLatestEABuildNumber(runtimeJavaProperty);
+        }
+        String eaVersionString = String.format("%d-ea+%d", runtimeJavaProperty, buildNumber);
+        Jdk jdk = container.create("ea_jdk_" + runtimeJavaProperty, j -> {
+            j.setVersion(eaVersionString);
+            j.setVendor("openjdk");
+            j.setPlatform(OS.current().javaOsReference);
+            j.setArchitecture(Architecture.current().javaClassifier);
+            j.setDistributionVersion("ea");
+        });
+        return providers.provider(() -> new File(jdk.getJavaHomePath().toString()));
+    }
+
     @NotNull
     private Provider<File> resolveJavaHomeFromToolChainService(String version) {
-        JavaLanguageVersion languageVersion = JavaLanguageVersion.of(version);
-        Property<JavaLanguageVersion> value = objectFactory.property(JavaLanguageVersion.class).value(languageVersion);
-        return toolChainService.launcherFor(javaToolchainSpec -> {
-            javaToolchainSpec.getLanguageVersion().value(value);
-
-            if (Integer.parseInt(VersionProperties.getBundledJdkMajorVersion()) < Integer.parseInt(version)) {
-                // If the requested version is higher than the bundled JDK, we need trick the toolchain into using our early access catalog
-                // Otherwise, we use the default implementation
-                Integer buildNumber = Integer.getInteger("runtime.java.build");
-
-                if (buildNumber == null) {
-                    buildNumber = Integer.getInteger("runtime.java." + version + ".build");
-                }
-                if (buildNumber == null) {
-                    buildNumber = findLatestEABuildNumber(languageVersion);
-                }
-                javaToolchainSpec.getVendor()
-                    .set(DefaultJvmVendorSpec.of("Oracle[" + languageVersion + "/" + buildNumber + "]"));
-            }
-        }).map(launcher -> launcher.getMetadata().getInstallationPath().getAsFile());
+        Property<JavaLanguageVersion> value = objectFactory.property(JavaLanguageVersion.class).value(JavaLanguageVersion.of(version));
+        return toolChainService.launcherFor(javaToolchainSpec -> javaToolchainSpec.getLanguageVersion().value(value))
+            .map(launcher -> launcher.getMetadata().getInstallationPath().getAsFile());
     }
 
     public static String getResourceContents(String resourcePath) {

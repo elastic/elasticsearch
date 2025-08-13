@@ -9,6 +9,7 @@
 
 package org.elasticsearch.gradle.internal.toolchain
 
+import org.elasticsearch.gradle.VersionProperties
 import org.gradle.api.services.BuildServiceParameters
 import org.gradle.jvm.toolchain.JavaLanguageVersion
 import org.gradle.jvm.toolchain.JavaToolchainResolver
@@ -27,42 +28,35 @@ class EarlyAccessCatalogJdkToolchainResolverSpec extends AbstractToolchainResolv
                 return null
             }
         }
-        resolver.earlyAccessJdkBuildResolver = () -> {
+        resolver.earlyAccessJdkBuildResolver = (JavaLanguageVersion version) -> {
             return Optional.of(
-                new EarlyAccessCatalogJdkToolchainResolver.EarlyAccessJdkBuild(JavaLanguageVersion.of(25), 31),
-                new EarlyAccessCatalogJdkToolchainResolver.EarlyAccessJdkBuild(JavaLanguageVersion.of(26), 6)
+                new EarlyAccessCatalogJdkToolchainResolver.EarlyAccessJdkBuild(version, 30)
             )
         }
         return resolver
     }
 
-    def anyVendorMatch() {
-        return JvmVendorSpec.ANY
-    }
     @Override
     def supportedRequests() {
         return [
-            [25, vSpec(
-                25,
-                30
-            ), LINUX, X86_64, "https://builds.es-jdk-archive.com/jdks/openjdk/25/openjdk-25-ea+30/openjdk-25-ea+30_linux-x64_bin.tar.gz"],
-            [26, vSpec(
-                26,
-                6
-            ), WINDOWS, X86_64, "https://builds.es-jdk-archive.com/jdks/openjdk/26/openjdk-26-ea+6/openjdk-26-ea+6_windows-x64_bin.zip"],
-            [26, vSpec(
-                26,
-                6
-            ), MAC_OS, AARCH64, "https://builds.es-jdk-archive.com/jdks/openjdk/26/openjdk-26-ea+6/openjdk-26-ea+6_macos-aarch64_bin.tar.gz"]
-        ]
-    }
+            [25, anyVendor(), LINUX, X86_64, "https://builds.es-jdk-archive.com/jdks/openjdk/25/openjdk-25-ea+30/openjdk-25-ea+30_linux-x64_bin.tar.gz"],
+            [25, anyVendor(), LINUX, AARCH64, "https://builds.es-jdk-archive.com/jdks/openjdk/25/openjdk-25-ea+30/openjdk-25-ea+30_linux-aarch64_bin.tar.gz"],
+            [25, anyVendor(), MAC_OS, X86_64, "https://builds.es-jdk-archive.com/jdks/openjdk/25/openjdk-25-ea+30/openjdk-25-ea+30_macos-x64_bin.tar.gz"],
+            [25, anyVendor(), MAC_OS, AARCH64, "https://builds.es-jdk-archive.com/jdks/openjdk/25/openjdk-25-ea+30/openjdk-25-ea+30_macos-aarch64_bin.tar.gz"],
+            [25, anyVendor(), WINDOWS, X86_64, "https://builds.es-jdk-archive.com/jdks/openjdk/25/openjdk-25-ea+30/openjdk-25-ea+30_windows-x64_bin.zip"],
 
-    private JvmVendorSpec vSpec(int version, int build) {
-        return org.gradle.jvm.toolchain.internal.DefaultJvmVendorSpec.of("EarlyAccessJvmCatalog[" + version + "/" + build + "]");
+            [26, anyVendor(), LINUX, X86_64, "https://builds.es-jdk-archive.com/jdks/openjdk/26/openjdk-26-ea+30/openjdk-26-ea+30_linux-x64_bin.tar.gz"],
+            [26, anyVendor(), LINUX, AARCH64, "https://builds.es-jdk-archive.com/jdks/openjdk/26/openjdk-26-ea+30/openjdk-26-ea+30_linux-aarch64_bin.tar.gz"],
+            [26, anyVendor(), MAC_OS, X86_64, "https://builds.es-jdk-archive.com/jdks/openjdk/26/openjdk-26-ea+30/openjdk-26-ea+30_macos-x64_bin.tar.gz"],
+            [26, anyVendor(), MAC_OS, AARCH64, "https://builds.es-jdk-archive.com/jdks/openjdk/26/openjdk-26-ea+30/openjdk-26-ea+30_macos-aarch64_bin.tar.gz"],
+            [26, anyVendor(), WINDOWS, X86_64, "https://builds.es-jdk-archive.com/jdks/openjdk/26/openjdk-26-ea+30/openjdk-26-ea+30_windows-x64_bin.zip"]
+        ]
     }
 
     @Override
     def unsupportedRequests() {
-        return []
+        [
+            [Integer.parseInt(VersionProperties.bundledJdkMajorVersion) + 1, anyVendor(), WINDOWS, AARCH64],
+        ]
     }
 }

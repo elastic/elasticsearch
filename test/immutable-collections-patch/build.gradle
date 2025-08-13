@@ -31,16 +31,12 @@ generatePatch.configure {
 
   classpath = sourceSets.main.runtimeClasspath
   mainClass = 'org.elasticsearch.jdk.patch.ImmutableCollectionsPatcher'
-  if (buildParams.getIsRuntimeJavaHomeSet()) {
-    executable = "${buildParams.runtimeJavaHome.get()}/bin/java" + (OS.current() == OS.WINDOWS ? '.exe' : '')
-  } else {
     javaLauncher = javaToolchains.launcherFor {
       languageVersion = JavaLanguageVersion.of(VersionProperties.bundledJdkMajorVersion)
       vendor = VersionProperties.bundledJdkVendor == "openjdk" ?
         JvmVendorSpec.ORACLE :
         JvmVendorSpec.matching(VersionProperties.bundledJdkVendor)
     }
-  }
   doFirst {
     args outputDir.get().getAsFile().toString()
   }

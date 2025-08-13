@@ -18,8 +18,6 @@ import org.gradle.jvm.toolchain.JavaLanguageVersion;
 import org.gradle.jvm.toolchain.JavaToolchainDownload;
 import org.gradle.jvm.toolchain.JavaToolchainRequest;
 import org.gradle.jvm.toolchain.JavaToolchainSpec;
-import org.gradle.jvm.toolchain.JvmVendorSpec;
-import org.gradle.jvm.toolchain.internal.DefaultJvmVendorSpec;
 import org.gradle.platform.Architecture;
 import org.gradle.platform.BuildPlatform;
 import org.gradle.platform.OperatingSystem;
@@ -32,9 +30,17 @@ import java.net.URL;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
+/**
+ * A toolchain resolver that resolves early access JDKs from the Elasticsearch JDK archive.
+ * <p>
+ * This resolver can used to resolve JDKs that are not bundled with Elasticsearch but are available in the early access catalog.
+ * It supports resolving JDKs based on their language version and build number.
+ *
+ * Currently the gradle toolchain support does not support querying specific versions (e.g. 26-ea+6) so. For now
+ * this only supports resolving the latest early access build for a given language version.
+ * <p>
+ */
 public abstract class EarlyAccessCatalogJdkToolchainResolver extends AbstractCustomJavaToolchainResolver {
 
     interface JdkBuild {
@@ -43,35 +49,9 @@ public abstract class EarlyAccessCatalogJdkToolchainResolver extends AbstractCus
         String url(String os, String arch, String extension);
     }
 
-    private static final Pattern PATTERN = Pattern.compile("Oracle\\[(\\d+)/(\\d+)\\]");
-
-    public static class EaCatalogVendorSpec extends JvmVendorSpec {
-
-        private final JavaLanguageVersion languageVersion;
-        private final int buildNumber;
-
-        private EaCatalogVendorSpec(JavaLanguageVersion languageVersion, int buildNumber) {
-            this.languageVersion = languageVersion;
-            this.buildNumber = buildNumber;
-        }
-
-        public static EaCatalogVendorSpec of(JavaLanguageVersion languageVersion, int buildNumber) {
-            return new EaCatalogVendorSpec(languageVersion, buildNumber);
-        }
-
-        @Override
-        public boolean matches(String vendor) {
-            return false;
-        }
-
-        public int getBuildNumber() {
-            return buildNumber;
-        }
-    }
-
     @FunctionalInterface
     interface EarlyAccessJdkBuildResolver {
-        Optional<? extends JdkBuild> findLatestEABuild(JavaLanguageVersion languageVersion);
+        Optional<EarlyAccessJdkBuild> findLatestEABuild(JavaLanguageVersion languageVersion);
     }
 
     // allow overriding for testing
@@ -109,14 +89,6 @@ public abstract class EarlyAccessCatalogJdkToolchainResolver extends AbstractCus
         OperatingSystem.WINDOWS
     );
 
-    // static EarlyAccessJdkBuild getEarlyAccessBuild(JavaLanguageVersion languageVersion, String buildNumber) {
-    // // first try the unversioned override, then the versioned override which has higher precedence
-    // buildNumber = System.getProperty("runtime.java.build", buildNumber);
-    // buildNumber = System.getProperty("runtime.java." + languageVersion.asInt() + ".build", buildNumber);
-    //
-    // return new EarlyAccessJdkBuild(languageVersion, buildNumber);
-    // }
-
     /**
      * We need some place to map JavaLanguageVersion to buildNumber, minor version etc.
      * */
@@ -141,7 +113,7 @@ public abstract class EarlyAccessCatalogJdkToolchainResolver extends AbstractCus
      * Check if request can be full-filled by this resolver:
      * 1. Aarch64 windows images are not supported
      */
-    private Optional<? extends JdkBuild> findSupportedBuild(JavaToolchainRequest request) {
+    private Optional<EarlyAccessJdkBuild> findSupportedBuild(JavaToolchainRequest request) {
         JavaToolchainSpec javaToolchainSpec = request.getJavaToolchainSpec();
         BuildPlatform buildPlatform = request.getBuildPlatform();
         Architecture architecture = buildPlatform.getArchitecture();
@@ -153,23 +125,10 @@ public abstract class EarlyAccessCatalogJdkToolchainResolver extends AbstractCus
         }
 
         JavaLanguageVersion languageVersion = javaToolchainSpec.getLanguageVersion().get();
-        // resolve from vendor spec if available
-        if (javaToolchainSpec.getVendor().isPresent() && javaToolchainSpec.getVendor().get() instanceof DefaultJvmVendorSpec) {
-            DefaultJvmVendorSpec spec = (DefaultJvmVendorSpec) javaToolchainSpec.getVendor().get();
-            String criteria = spec.toCriteria();
-            Matcher matcher = PATTERN.matcher(criteria);
-            if (matcher.matches()) {
-                int level = Integer.parseInt(matcher.group(1));
-                int build = Integer.parseInt(matcher.group(2));
-                assert level == languageVersion.asInt() : "Language version does not match: " + level + " != " + languageVersion.asInt();
-                return Optional.of(new EarlyAccessJdkBuild(languageVersion, build));
-            }
-        }
-        return findLatestEABuild(languageVersion);
+        return earlyAccessJdkBuildResolver.findLatestEABuild(languageVersion);
     }
 
     private static Optional<EarlyAccessJdkBuild> findLatestEABuild(JavaLanguageVersion languageVersion) {
-        System.out.println("CatalogJdkToolchainResolver.findLatestEABuild");
         try {
             URL url = new URL("https://storage.googleapis.com/elasticsearch-jdk-archive/jdks/openjdk/latest.json");
             try (InputStream is = url.openStream()) {
@@ -195,7 +154,7 @@ public abstract class EarlyAccessCatalogJdkToolchainResolver extends AbstractCus
         }
     }
 
-    public static int findLatestEABuildNumber(JavaLanguageVersion languageVersion) {
-        return findLatestEABuild(languageVersion).map(ea -> ea.buildNumber()).get();
+    public static int findLatestEABuildNumber(int languageVersion) {
+        return findLatestEABuild(JavaLanguageVersion.of(languageVersion)).map(ea -> ea.buildNumber()).get();
     }
 }

@@ -486,9 +486,6 @@ tests:
 - class: org.elasticsearch.xpack.ml.integration.RevertModelSnapshotIT
   method: testRevertModelSnapshot_DeleteInterveningResults
   issue: https://github.com/elastic/elasticsearch/issues/132349
-- class: org.elasticsearch.xpack.sql.action.SqlSearchPageTimeoutIT
-  method: testSearchContextIsCleanedUpAfterPageTimeoutForAggregationQueries
-  issue: https://github.com/elastic/elasticsearch/issues/132619
 - class: org.elasticsearch.xpack.ml.integration.TextEmbeddingQueryIT
   method: testHybridSearch
   issue: https://github.com/elastic/elasticsearch/issues/132703

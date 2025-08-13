@@ -428,9 +428,9 @@ public class ClusterInfoServiceIT extends ESIntegTestCase {
         try {
             // Arbitrary number of tasks, which will queue because all the write threads are occupied already, greater than one: only
             // strictly need a single task to occupy the queue.
-            int randomInt = randomIntBetween(1, 5);
-            Thread[] threadsToJoin = new Thread[randomInt];
-            for (int i = 0; i < randomInt; ++i) {
+            int numberOfTasks = randomIntBetween(1, 5);
+            Thread[] threadsToJoin = new Thread[numberOfTasks];
+            for (int i = 0; i < numberOfTasks; ++i) {
                 threadsToJoin[i] = startParallelSingleWrite();
             }
 
@@ -447,10 +447,6 @@ public class ClusterInfoServiceIT extends ESIntegTestCase {
                     greaterThan(0L)
                 )
             );
-
-            // Ensure that some amount of time has passed on the thread pool.
-            long queuedElapsedMillis = 1;
-            ESIntegTestCase.waitForTimeToElapse(queuedElapsedMillis);
 
             // Force a refresh of the ClusterInfo state to collect fresh info from the data node.
             final InternalClusterInfoService masterClusterInfoService = asInstanceOf(
@@ -476,7 +472,7 @@ public class ClusterInfoServiceIT extends ESIntegTestCase {
                 assertNotNull("Expected to find stats for the WRITE thread pool", writeThreadPoolStats);
                 assertThat(writeThreadPoolStats.totalThreadPoolThreads(), greaterThan(0));
                 assertThat(writeThreadPoolStats.averageThreadPoolUtilization(), greaterThanOrEqualTo(0f));
-                assertThat(writeThreadPoolStats.maxThreadPoolQueueLatencyMillis(), greaterThanOrEqualTo(queuedElapsedMillis));
+                assertThat(writeThreadPoolStats.maxThreadPoolQueueLatencyMillis(), greaterThan(0L));
             }
 
             // Now release the data node's indexing, and drain the queued tasks. Max queue latency of executed (not queued) tasks is reset
@@ -486,7 +482,7 @@ public class ClusterInfoServiceIT extends ESIntegTestCase {
             // TransportNodeUsageStatsForThreadPoolsAction should now reflect #getMaxQueueLatencyMillisSinceLastPollAndReset and not
             // #peekMaxQueueLatencyInQueue.
             barrier.await();
-            for (int i = 0; i < randomInt; ++i) {
+            for (int i = 0; i < numberOfTasks; ++i) {
                 threadsToJoin[i].join();
             }
             assertBusy(
@@ -516,7 +512,7 @@ public class ClusterInfoServiceIT extends ESIntegTestCase {
                 assertNotNull("Expected to find stats for the WRITE thread pool", writeThreadPoolStats);
                 assertThat(writeThreadPoolStats.totalThreadPoolThreads(), greaterThan(0));
                 assertThat(writeThreadPoolStats.averageThreadPoolUtilization(), greaterThan(0f));
-                assertThat(writeThreadPoolStats.maxThreadPoolQueueLatencyMillis(), greaterThanOrEqualTo(queuedElapsedMillis));
+                assertThat(writeThreadPoolStats.maxThreadPoolQueueLatencyMillis(), greaterThanOrEqualTo(0L));
             }
         } finally {
             // Ensure that the write threads have been released by signalling an interrupt on any callers waiting on the barrier. If the

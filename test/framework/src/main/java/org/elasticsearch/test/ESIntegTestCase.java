@@ -2921,30 +2921,6 @@ public abstract class ESIntegTestCase extends ESTestCase {
         );
     }
 
-    public static void waitForTimeToElapse(long elapsedMillis) throws InterruptedException {
-        final ThreadPool[] threadPools = StreamSupport.stream(internalCluster().getInstances(ClusterService.class).spliterator(), false)
-            .map(ClusterService::threadPool)
-            .toArray(ThreadPool[]::new);
-        final long[] startTimes = Arrays.stream(threadPools).mapToLong(ThreadPool::relativeTimeInMillis).toArray();
-
-        final var startNanoTime = System.nanoTime();
-        while (TimeUnit.MILLISECONDS.convert(System.nanoTime() - startNanoTime, TimeUnit.NANOSECONDS) <= elapsedMillis) {
-            // noinspection BusyWait
-            Thread.sleep(elapsedMillis);
-        }
-
-        outer: do {
-            for (int i = 0; i < threadPools.length; i++) {
-                if (threadPools[i].relativeTimeInMillis() <= startTimes[i]) {
-                    // noinspection BusyWait
-                    Thread.sleep(elapsedMillis);
-                    continue outer;
-                }
-            }
-            return;
-        } while (true);
-    }
-
     /**
      * Submits as many tasks to the given data node's write thread pool as there are write threads. These tasks will wait on the barrier
      * that is returned, which waits for total-write-threads + 1 callers. The caller can release the tasks by calling

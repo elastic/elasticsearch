@@ -11,6 +11,7 @@ package org.elasticsearch.repositories.azure;
 
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -84,13 +85,20 @@ public class AzureRepositoryPlugin extends Plugin implements RepositoryPlugin, R
     @Override
     public Collection<?> createComponents(PluginServices services) {
         AzureClientProvider azureClientProvider = AzureClientProvider.create(services.threadPool(), settings);
-        azureStoreService.set(createAzureStorageService(settings, azureClientProvider));
+        azureStoreService.set(
+            createAzureStorageService(settings, azureClientProvider, services.clusterService(), services.projectResolver())
+        );
         assert assertRepositoryAzureMaxThreads(settings, services.threadPool());
         return List.of(azureClientProvider);
     }
 
-    AzureStorageService createAzureStorageService(Settings settingsToUse, AzureClientProvider azureClientProvider) {
-        return new AzureStorageService(settingsToUse, azureClientProvider);
+    AzureStorageService createAzureStorageService(
+        Settings settingsToUse,
+        AzureClientProvider azureClientProvider,
+        ClusterService clusterService,
+        ProjectResolver projectResolver
+    ) {
+        return new AzureStorageService(settingsToUse, azureClientProvider, clusterService, projectResolver);
     }
 
     @Override
@@ -140,7 +148,7 @@ public class AzureRepositoryPlugin extends Plugin implements RepositoryPlugin, R
         final Map<String, AzureStorageSettings> clientsSettings = AzureStorageSettings.load(settingsToLoad);
         AzureStorageService storageService = azureStoreService.get();
         assert storageService != null;
-        storageService.refreshSettings(clientsSettings);
+        storageService.refreshClusterClientSettings(clientsSettings);
     }
 
     private static boolean assertRepositoryAzureMaxThreads(Settings settings, ThreadPool threadPool) {

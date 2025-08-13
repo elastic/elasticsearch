@@ -22,6 +22,7 @@ import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.ByteArrayStreamInput;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.codec.tsdb.es819.BulkNumericDocValues;
 import org.elasticsearch.index.mapper.BlockLoader.BlockFactory;
 import org.elasticsearch.index.mapper.BlockLoader.BooleanBuilder;
 import org.elasticsearch.index.mapper.BlockLoader.Builder;
@@ -89,6 +90,7 @@ public abstract class BlockDocValuesReader implements BlockLoader.AllReader {
         public SortedSetDocValues ordinals(LeafReaderContext context) throws IOException {
             throw new UnsupportedOperationException();
         }
+
     }
 
     public static class LongsBlockLoader extends DocValuesBlockLoader {
@@ -121,8 +123,8 @@ public abstract class BlockDocValuesReader implements BlockLoader.AllReader {
         }
     }
 
-    private static class SingletonLongs extends BlockDocValuesReader {
-        private final NumericDocValues numericDocValues;
+    static class SingletonLongs extends BlockDocValuesReader {
+        final NumericDocValues numericDocValues;
 
         SingletonLongs(NumericDocValues numericDocValues) {
             this.numericDocValues = numericDocValues;
@@ -130,6 +132,9 @@ public abstract class BlockDocValuesReader implements BlockLoader.AllReader {
 
         @Override
         public BlockLoader.Block read(BlockFactory factory, Docs docs, int offset) throws IOException {
+            if (numericDocValues instanceof BulkNumericDocValues bulkDv) {
+                return bulkDv.read(factory, docs, offset);
+            }
             try (BlockLoader.LongBuilder builder = factory.longsFromDocValues(docs.count() - offset)) {
                 int lastDoc = -1;
                 for (int i = offset; i < docs.count(); i++) {
@@ -169,7 +174,7 @@ public abstract class BlockDocValuesReader implements BlockLoader.AllReader {
         }
     }
 
-    private static class Longs extends BlockDocValuesReader {
+    static class Longs extends BlockDocValuesReader {
         private final SortedNumericDocValues numericDocValues;
         private int docID = -1;
 

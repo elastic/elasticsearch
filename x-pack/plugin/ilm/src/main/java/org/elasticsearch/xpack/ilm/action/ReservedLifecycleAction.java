@@ -22,6 +22,7 @@ import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicy;
 import org.elasticsearch.xpack.core.ilm.action.DeleteLifecycleAction;
 import org.elasticsearch.xpack.core.ilm.action.PutLifecycleRequest;
+import org.elasticsearch.xpack.ilm.PutLifecycleMetadataService;
 
 import java.io.IOException;
 import java.util.ArrayList;

@@ -23,6 +23,7 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ilm.IndexLifecycleMetadata;
 import org.elasticsearch.xpack.core.ilm.action.ILMActions;
 import org.elasticsearch.xpack.core.ilm.action.PutLifecycleRequest;
+import org.elasticsearch.xpack.ilm.PutLifecycleMetadataService;
 
 import java.util.Optional;
 import java.util.Set;

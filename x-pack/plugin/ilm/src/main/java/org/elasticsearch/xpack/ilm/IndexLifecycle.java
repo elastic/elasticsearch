@@ -60,7 +60,6 @@ import org.elasticsearch.xpack.core.ilm.action.GetLifecycleAction;
 import org.elasticsearch.xpack.core.ilm.action.GetStatusAction;
 import org.elasticsearch.xpack.core.ilm.action.ILMActions;
 import org.elasticsearch.xpack.core.ilm.action.RemoveIndexLifecyclePolicyAction;
-import org.elasticsearch.xpack.ilm.action.PutLifecycleMetadataService;
 import org.elasticsearch.xpack.ilm.action.ReservedLifecycleAction;
 import org.elasticsearch.xpack.ilm.action.RestDeleteLifecycleAction;
 import org.elasticsearch.xpack.ilm.action.RestExplainLifecycleAction;

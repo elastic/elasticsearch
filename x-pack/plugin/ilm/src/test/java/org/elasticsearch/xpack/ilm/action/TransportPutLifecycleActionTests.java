@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.core.ilm.LifecyclePolicy;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicyMetadata;
 import org.elasticsearch.xpack.core.ilm.action.PutLifecycleRequest;
 import org.elasticsearch.xpack.ilm.LifecyclePolicyTestsUtils;
+import org.elasticsearch.xpack.ilm.PutLifecycleMetadataService;
 
 import java.util.Map;
 

@@ -98,7 +98,7 @@ public class SnapshotMetricsIT extends AbstractSnapshotIntegTestCase {
         final String repositoryName = randomIdentifier();
 
         // we want to ensure some throttling, but not so much that it makes the test excessively slow.
-        final int shardSizeMultipleToEnsureThrottling = 2;
+        final int shardSizeMultipleToEnsureThrottling = 1;
         createRepository(
             repositoryName,
             "mock",
@@ -404,7 +404,7 @@ public class SnapshotMetricsIT extends AbstractSnapshotIntegTestCase {
         safeAwait(handoffRequestBarrier);
 
         // Kick off a snapshot
-        ActionFuture<CreateSnapshotResponse> snapshotFuture = clusterAdmin().prepareCreateSnapshot(
+        final ActionFuture<CreateSnapshotResponse> snapshotFuture = clusterAdmin().prepareCreateSnapshot(
             TEST_REQUEST_TIMEOUT,
             repositoryName,
             randomIdentifier()

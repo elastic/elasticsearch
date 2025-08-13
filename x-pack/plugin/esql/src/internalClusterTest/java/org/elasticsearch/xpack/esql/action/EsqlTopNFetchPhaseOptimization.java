@@ -27,7 +27,6 @@ import org.junit.Before;
 
 import java.util.Collection;
 import java.util.concurrent.TimeUnit;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.singleValue;
 import static org.hamcrest.Matchers.equalTo;
@@ -99,7 +98,6 @@ public class EsqlTopNFetchPhaseOptimization extends AbstractEsqlIntegTestCase {
 
     private static ValuesSourceReaderOperatorStatus getValueSourceReaderOperatorStatus(EsqlQueryResponse response, String driverName) {
         DriverProfile driverProfile = response.profile().drivers().stream().filter(d -> d.description().equals(driverName)).findAny().get();
-        System.out.println(driverProfile.operators().stream().map(Object::toString).collect(Collectors.joining("\n")));
         OperatorStatus operatorStatus = singleValue(
             Strings.format(
                 "Only a single ValuesSourceReaderOperator should be present in driver '%s'; "

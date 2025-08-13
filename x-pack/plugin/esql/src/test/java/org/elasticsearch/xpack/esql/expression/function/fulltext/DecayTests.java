@@ -11,6 +11,7 @@ import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -55,10 +56,10 @@ public class DecayTests extends AbstractScalarFunctionTestCase {
 
         // GeoPoint
         testCaseSuppliers.addAll(
-            geoPointTestCase(new Point(0.0, 0.0), new Point(1.0, 1.0), "200km", "0km", 0.5, "linear", 0.606876005579706)
+            geoPointTestCase("POINT (1 1)", "POINT (1 1)", "200km", "0km", 0.5, "linear", 1.0)
         );
         testCaseSuppliers.addAll(
-            geoPointOffsetKeywordTestCase(new Point(0.0, 0.0), new Point(1.0, 1.0), "200km", "0km", 0.5, "linear", 0.606876005579706)
+            geoPointOffsetKeywordTestCase("POINT (1 1)", "POINT (1 1)", "200km", "0km", 0.5, "linear", 1.0)
         );
 
         // CartesianPoint
@@ -311,8 +312,8 @@ public class DecayTests extends AbstractScalarFunctionTestCase {
 
     // TODO: geo point
     private static List<TestCaseSupplier> geoPointTestCase(
-        Point value,
-        Point origin,
+        String valueWkt,
+        String originWkt,
         String scale,
         String offset,
         double decay,
@@ -324,8 +325,8 @@ public class DecayTests extends AbstractScalarFunctionTestCase {
                 List.of(DataType.GEO_POINT, DataType.GEO_POINT, DataType.TEXT, DataType.TEXT, DataType.DOUBLE, DataType.KEYWORD),
                 () -> new TestCaseSupplier.TestCase(
                     List.of(
-                        new TestCaseSupplier.TypedData(new BytesRef(GEO.asWkt(value)), DataType.GEO_POINT, "value"),
-                        new TestCaseSupplier.TypedData(new BytesRef(GEO.asWkt(origin)), DataType.GEO_POINT, "origin"),
+                        new TestCaseSupplier.TypedData(GEO.wktToWkb(valueWkt), DataType.GEO_POINT, "value"),
+                        new TestCaseSupplier.TypedData(GEO.wktToWkb(originWkt), DataType.GEO_POINT, "origin"),
                         new TestCaseSupplier.TypedData(scale, DataType.TEXT, "scale"),
                         new TestCaseSupplier.TypedData(offset, DataType.TEXT, "offset"),
                         new TestCaseSupplier.TypedData(decay, DataType.DOUBLE, "decay"),
@@ -340,8 +341,8 @@ public class DecayTests extends AbstractScalarFunctionTestCase {
     }
 
     private static List<TestCaseSupplier> geoPointOffsetKeywordTestCase(
-        Point value,
-        Point origin,
+        String valueWkt,
+        String originWkt,
         String scale,
         String offset,
         double decay,
@@ -353,8 +354,8 @@ public class DecayTests extends AbstractScalarFunctionTestCase {
                 List.of(DataType.GEO_POINT, DataType.GEO_POINT, DataType.TEXT, DataType.KEYWORD, DataType.DOUBLE, DataType.KEYWORD),
                 () -> new TestCaseSupplier.TestCase(
                     List.of(
-                        new TestCaseSupplier.TypedData(new BytesRef(GEO.asWkt(value)), DataType.GEO_POINT, "value"),
-                        new TestCaseSupplier.TypedData(new BytesRef(GEO.asWkt(origin)), DataType.GEO_POINT, "origin"),
+                        new TestCaseSupplier.TypedData(GEO.wktToWkb(valueWkt), DataType.GEO_POINT, "value"),
+                        new TestCaseSupplier.TypedData(GEO.wktToWkb(originWkt), DataType.GEO_POINT, "origin"),
                         new TestCaseSupplier.TypedData(scale, DataType.TEXT, "scale"),
                         new TestCaseSupplier.TypedData(offset, DataType.KEYWORD, "offset"),
                         new TestCaseSupplier.TypedData(decay, DataType.DOUBLE, "decay"),

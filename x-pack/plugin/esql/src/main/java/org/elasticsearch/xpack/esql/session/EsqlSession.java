@@ -741,10 +741,8 @@ public class EsqlSession {
         PreAnalysisResult result,
         EsqlExecutionInfo executionInfo,
         ActionListener<LogicalPlan> logicalPlanListener,
-        ActionListener<PreAnalysisResult> l
+        ActionListener<PreAnalysisResult> stepListener
     ) {
-        LogicalPlan plan = null;
-
         var description = requestFilter == null ? "the only attempt without filter" : "first attempt with filter";
         LOGGER.debug("Analyzing the plan ({})", description);
 
@@ -754,25 +752,22 @@ public class EsqlSession {
                 // when the resolution result is not valid for a different reason.
                 EsqlCCSUtils.updateExecutionInfoWithClustersWithNoMatchingIndices(executionInfo, result.indices, requestFilter != null);
             }
-            plan = analyzeAction.apply(result);
+            LogicalPlan plan = analyzeAction.apply(result);
+            LOGGER.debug("Analyzed plan ({}):\n{}", description, plan);
+            // the analysis succeeded from the first attempt, irrespective if it had a filter or not, just continue with the planning
+            logicalPlanListener.onResponse(plan);
         } catch (VerificationException ve) {
             LOGGER.debug("Analyzing the plan ({}) failed with {}", description, ve.getDetailedMessage());
             if (requestFilter == null) {
                 // if the initial request didn't have a filter, then just pass the exception back to the user
                 logicalPlanListener.onFailure(ve);
             } else {
-                // interested only in a VerificationException, but this time we are taking out the index filter
-                // to try and make the index resolution work without any index filtering. In the next step... to be continued
-                l.onResponse(result);
+                // retrying and make the index resolution work without any index filtering.
+                stepListener.onResponse(result);
             }
-            return;
         } catch (Exception e) {
             logicalPlanListener.onFailure(e);
-            return;
         }
-        LOGGER.debug("Analyzed plan ({}):\n{}", description, plan);
-        // the analysis succeeded from the first attempt, irrespective if it had a filter or not, just continue with the planning
-        logicalPlanListener.onResponse(plan);
     }
 
     private void resolveInferences(LogicalPlan plan, PreAnalysisResult preAnalysisResult, ActionListener<PreAnalysisResult> l) {

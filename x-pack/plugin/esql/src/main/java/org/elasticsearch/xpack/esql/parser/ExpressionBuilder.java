@@ -886,6 +886,14 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
     }
 
     private NamedExpression enrichFieldName(EsqlBaseParser.QualifiedNamePatternContext ctx) {
+        if (ctx != null && ctx.qualifier != null) {
+            throw new ParsingException(
+                source(ctx),
+                "Using qualifiers in ENRICH WITH projections is not allowed, found [{}]",
+                ctx.qualifier.getText() + " " + ctx.unqualifiedNamePattern().getText()
+            );
+        }
+
         return visitQualifiedNamePattern(ctx, ne -> {
             if (ne instanceof UnresolvedNamePattern || ne instanceof UnresolvedStar) {
                 var src = ne.source();

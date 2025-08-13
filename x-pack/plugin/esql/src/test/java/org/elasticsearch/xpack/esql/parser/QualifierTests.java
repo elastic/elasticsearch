@@ -116,6 +116,9 @@ public class QualifierTests extends AbstractStatementParserTests {
             "field",
             2
         );
+
+        assertQualifiedAttributeInExpressions(sourceQuery + "ENRICH policy ON qualified field", "qualified", "field", 1);
+        assertQualifiedAttributeInExpressions(sourceQuery + "ENRICH policy ON qualified field WITH x = y", "qualified", "field", 1);
     }
 
     public void testUnsupportedQualifiers() {
@@ -143,6 +146,36 @@ public class QualifierTests extends AbstractStatementParserTests {
         expectError(sourceQuery + "DROP qual*fied field", "Qualified names are not supported in patterns, found [qual*fied field]");
         expectError(sourceQuery + "DROP qualified *", "Qualified names are not supported in patterns, found [qualified *]");
         expectError(sourceQuery + "DROP qual*fied *", "Qualified names are not supported in patterns, found [qual*fied *]");
+
+        expectError(
+            sourceQuery + "ENRICH policy ON field WITH qualified field = y",
+            "Using qualifiers in ENRICH WITH projections is not allowed, found [qualified field]"
+        );
+        expectError(
+            sourceQuery + "ENRICH policy ON field WITH new_field = qualified field",
+            "Using qualifiers in ENRICH WITH projections is not allowed, found [qualified field]"
+        );
+        expectError(
+            sourceQuery + "ENRICH policy ON field WITH qualified f*eld = y",
+            "Using qualifiers in ENRICH WITH projections is not allowed, found [qualified f*eld]"
+        );
+        expectError(
+            sourceQuery + "ENRICH policy ON field WITH qualified * = y",
+            "Using qualifiers in ENRICH WITH projections is not allowed, found [qualified *]"
+        );
+        expectError(
+            sourceQuery + "ENRICH policy WITH quali*ied field = y",
+            "Using qualifiers in ENRICH WITH projections is not allowed, found [quali*ied field]"
+        );
+        expectError(
+            sourceQuery + "ENRICH policy WITH * field = y",
+            "Using qualifiers in ENRICH WITH projections is not allowed, found [* field]"
+        );
+        expectError(
+            sourceQuery + "ENRICH policy ON quali*ied field",
+            "Qualified names are not supported in patterns, found [quali*ied field]"
+        );
+        expectError(sourceQuery + "ENRICH policy ON * field", "Qualified names are not supported in patterns, found [* field]");
 
         expectError(
             sourceQuery + "EVAL qualified field = \"foo\"",

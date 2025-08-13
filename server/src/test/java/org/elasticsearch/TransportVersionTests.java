@@ -230,7 +230,7 @@ public class TransportVersionTests extends ESTestCase {
             "<test>",
             "/transport/definitions/" + Version.CURRENT.major + "." + Version.CURRENT.minor + ".csv",
             TransportVersion.class::getResourceAsStream,
-            (c, p, br) -> TransportVersion.fromBufferedReader(c, p, true, br, Integer.MAX_VALUE)
+            (c, p, br) -> TransportVersion.fromBufferedReader(c, p, true, false, br, Integer.MAX_VALUE)
         );
         // TODO: once placeholder is removed, test the latest known version can be found fromName
         // assertThat(latest, is(TransportVersion.fromName(latest.name())));
@@ -241,6 +241,7 @@ public class TransportVersionTests extends ESTestCase {
         TransportVersion test0 = TransportVersion.fromBufferedReader(
             "<test>",
             "testSupports0",
+            false,
             false,
             new BufferedReader(new InputStreamReader(new ByteArrayInputStream(data0), StandardCharsets.UTF_8)),
             5000000
@@ -253,6 +254,7 @@ public class TransportVersionTests extends ESTestCase {
         TransportVersion test1 = TransportVersion.fromBufferedReader(
             "<test>",
             "testSupports1",
+            false,
             false,
             new BufferedReader(new InputStreamReader(new ByteArrayInputStream(data1), StandardCharsets.UTF_8)),
             5000000
@@ -268,6 +270,7 @@ public class TransportVersionTests extends ESTestCase {
         TransportVersion test2 = TransportVersion.fromBufferedReader(
             "<test>",
             "testSupports2",
+            false,
             false,
             new BufferedReader(new InputStreamReader(new ByteArrayInputStream(data2), StandardCharsets.UTF_8)),
             5000000
@@ -296,6 +299,7 @@ public class TransportVersionTests extends ESTestCase {
             "<test>",
             "testSupports3",
             false,
+            false,
             new BufferedReader(new InputStreamReader(new ByteArrayInputStream(data3), StandardCharsets.UTF_8)),
             5000000
         );
@@ -323,6 +327,7 @@ public class TransportVersionTests extends ESTestCase {
         TransportVersion test4 = TransportVersion.fromBufferedReader(
             "<test>",
             "testSupports3",
+            false,
             false,
             new BufferedReader(new InputStreamReader(new ByteArrayInputStream(data4), StandardCharsets.UTF_8)),
             5000000

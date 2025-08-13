@@ -107,7 +107,7 @@ public abstract class ValidateTransportVersionDefinitionsTask extends DefaultTas
         // now load all definitions, do some validation and record them by various keys for later quick lookup
         // NOTE: this must run after loading referenced names and existing definitions
         // NOTE: this is sorted so that the order of cross validation is deterministic
-        for (String subDir: List.of("initial", "named")) {
+        for (String subDir : List.of("initial", "named")) {
             try (var definitionsStream = Files.list(definitionsDir.resolve(subDir)).sorted()) {
                 for (var definitionFile : definitionsStream.toList()) {
                     recordAndValidateDefinition(readDefinitionFile(definitionFile));

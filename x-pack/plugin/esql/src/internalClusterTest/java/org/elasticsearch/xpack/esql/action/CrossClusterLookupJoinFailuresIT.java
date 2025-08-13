@@ -94,6 +94,7 @@ public class CrossClusterLookupJoinFailuresIT extends AbstractCrossClusterTestCa
             } */
 
             try (
+                // This only calls REMOTE_CLUSTER_1 which is skip_unavailable=true
                 EsqlQueryResponse resp = runQuery(
                     "FROM logs-*,c*:logs-* | EVAL lookup_key = v | LOOKUP JOIN values_lookup ON lookup_key",
                     randomBoolean()
@@ -112,9 +113,8 @@ public class CrossClusterLookupJoinFailuresIT extends AbstractCrossClusterTestCa
                 assertThat(remoteCluster.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SKIPPED));
                 assertThat(remoteCluster.getFailures(), not(empty()));
                 var failure = remoteCluster.getFailures().get(0);
-                // FIXME: this produces a wrong message currently
-                // assertThat(failure.reason(), containsString(simulatedFailure.getMessage()));
-                assertThat(failure.reason(), containsString("lookup index [values_lookup] is not available in remote cluster [cluster-a]"));
+                assertThat(failure.reason(), containsString(simulatedFailure.getMessage()));
+                assertThat(failure.reason(), containsString("lookup failed in remote cluster [cluster-a] for index [values_lookup]"));
             }
 
             try (
@@ -138,24 +138,26 @@ public class CrossClusterLookupJoinFailuresIT extends AbstractCrossClusterTestCa
                 assertThat(remoteCluster2.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SUCCESSFUL));
                 assertThat(remoteCluster.getFailures(), not(empty()));
                 var failure = remoteCluster.getFailures().get(0);
-                // FIXME: this produces a wrong message currently
-                // assertThat(failure.reason(), containsString(simulatedFailure.getMessage()));
-                assertThat(failure.reason(), containsString("lookup index [values_lookup] is not available in remote cluster [cluster-a]"));
+                assertThat(failure.reason(), containsString(simulatedFailure.getMessage()));
+                assertThat(failure.reason(), containsString("lookup failed in remote cluster [cluster-a] for index [values_lookup]"));
             }
 
             // now fail
             setSkipUnavailable(REMOTE_CLUSTER_1, false);
+            // c*: only calls REMOTE_CLUSTER_1 which is skip_unavailable=false now
             Exception ex = expectThrows(
                 VerificationException.class,
                 () -> runQuery("FROM logs-*,c*:logs-* | EVAL lookup_key = v | LOOKUP JOIN values_lookup ON lookup_key", randomBoolean())
             );
-            assertThat(ex.getMessage(), containsString("lookup index [values_lookup] is not available in remote cluster [cluster-a]"));
+            assertThat(ex.getMessage(), containsString("lookup failed in remote cluster [cluster-a] for index [values_lookup]"));
+            String message = ex.getCause() == null ? ex.getMessage() : ex.getCause().getMessage();
+            assertThat(message, containsString(simulatedFailure.getMessage()));
 
             ex = expectThrows(
                 Exception.class,
                 () -> runQuery("FROM c*:logs-* | EVAL lookup_key = v | LOOKUP JOIN values_lookup ON lookup_key", randomBoolean())
             );
-            String message = ex.getCause() == null ? ex.getMessage() : ex.getCause().getMessage();
+            message = ex.getCause() == null ? ex.getMessage() : ex.getCause().getMessage();
             assertThat(message, containsString(simulatedFailure.getMessage()));
         } finally {
             for (TransportService transportService : cluster(REMOTE_CLUSTER_1).getInstances(TransportService.class)) {

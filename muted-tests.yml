@@ -552,6 +552,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.CsvTests
   method: test {csv-spec:change_point.Values null column}
   issue: https://github.com/elastic/elasticsearch/issues/132825
+- class: org.elasticsearch.xpack.esql.CsvTests
+  method: test {csv-spec:string.MvStringEqualsLongString}
+  issue: https://github.com/elastic/elasticsearch/issues/132826
 
 # Examples:
 #

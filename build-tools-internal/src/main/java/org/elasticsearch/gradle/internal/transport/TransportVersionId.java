@@ -54,7 +54,7 @@ record TransportVersionId(int complete, int major, int server, int subsidiary, i
         int newId = zeroesCleared + component.value;
         if ((newId / component.value) % component.max == 0) {
             throw new IllegalStateException(
-                    "Insufficient" + component.name() + " version section in TransportVersion: " + complete + ", Cannot bump."
+                "Insufficient" + component.name() + " version section in TransportVersion: " + complete + ", Cannot bump."
             );
         }
         return fromInt(newId);

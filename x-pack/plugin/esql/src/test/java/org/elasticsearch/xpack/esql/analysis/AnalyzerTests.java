@@ -2383,8 +2383,8 @@ public class AnalyzerTests extends ESTestCase {
             checkDenseVectorImplicitCastingSimilarityFunction("v_l1_norm(byte_vector, [1, 2, 3])", List.of(1f, 2f, 3f));
         }
         if (EsqlCapabilities.Cap.L2_NORM_VECTOR_SIMILARITY_FUNCTION.isEnabled()) {
-            checkDenseVectorImplicitCastingSimilarityFunction("v_l2_norm(vector, [0.342, 0.164, 0.234])", List.of(0.342f, 0.164f, 0.234f));
-            checkDenseVectorImplicitCastingSimilarityFunction("v_l2_norm(vector, [1, 2, 3])", List.of(1f, 2f, 3f));
+            checkDenseVectorImplicitCastingSimilarityFunction("v_l2_norm(float_vector, [0.342, 0.164, 0.234])", List.of(0.342f, 0.164f, 0.234f));
+            checkDenseVectorImplicitCastingSimilarityFunction("v_l2_norm(float_vector, [1, 2, 3])", List.of(1f, 2f, 3f));
         }
     }
 

@@ -115,7 +115,7 @@ public class Jdk implements Buildable, Iterable<File> {
     }
 
     public String getDistributionVersion() {
-        return distributionVersion.get();
+        return distributionVersion.getOrNull();
     }
 
     public void setDistributionVersion(String distributionVersion) {

@@ -114,12 +114,8 @@ public class JdkDownloadPlugin implements Plugin<Project> {
                     + jdk.getBuild()
                     + "/[module]/[classifier]/jdk/hotspot/normal/adoptium";
             }
-        } else if (jdk.getVendor().equals(VENDOR_OPENJDK) && jdk.getDistributionVersion().equals("ea")) {
-
-            // "https://builds.es-jdk-archive.com/jdks/openjdk/25/openjdk-25-ea+30/openjdk-25-ea+30_linux-x64_bin.tar.gz"],
-            // /jdks/openjdk/25/openjdk-25-ea+30/openjdk-25-ea+30_linux
+        } else if (jdk.getVendor().equals(VENDOR_OPENJDK) && "ea".equals(jdk.getDistributionVersion())) {
             repoUrl = "https://builds.es-jdk-archive.com/";
-
             // current pattern since 12.0.1
             artifactPattern = "jdks/openjdk/"
                 + jdk.getMajor()

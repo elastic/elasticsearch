@@ -734,8 +734,7 @@ public class ComputeService {
             return plan.replaceChild(source);
         }
 
-        PlannerUtils.PlanReduction res = PlannerUtils.reductionPlan(plan);
-        PhysicalPlan newPlan = switch (res) {
+        PhysicalPlan newPlan = switch (PlannerUtils.reductionPlan(plan)) {
             case PlannerUtils.SimplePlanReduction.NO_REDUCTION -> source;
             case PlannerUtils.SimplePlanReduction.TOP_N ->
                 // In the case of TopN, the source output type is replaced since we're pulling the FieldExtractExec to the reduction node,
@@ -743,7 +742,7 @@ public class ComputeService {
                 // we also need the original plan, since we add the project in the reduction node.
                 fixTopNSource(flags, configuration, foldCtx, plan).filter(unused -> features == ReductionPlanFeatures.ALL)
                     .orElseGet(() -> plan.replaceChildren(List.of(source)));
-            case PlannerUtils.ReducedPlan(var p) -> p.replaceChildren(List.of(source));
+            case PlannerUtils.ReducedPlan rp -> rp.plan().replaceChildren(List.of(source));
         };
         return plan.replaceChild(newPlan);
     }

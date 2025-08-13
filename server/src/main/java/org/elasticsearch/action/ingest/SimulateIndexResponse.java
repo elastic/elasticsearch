@@ -58,7 +58,7 @@ public class SimulateIndexResponse extends IndexResponse {
             this.ignoredFields = List.of();
         }
         if (in.getTransportVersion().onOrAfter(TransportVersions.SIMULATE_INGEST_EFFECTIVE_MAPPING)) {
-            if(in.readBoolean()) {
+            if (in.readBoolean()) {
                 this.effectiveMapping = CompressedXContent.readCompressedString(in);
             } else {
                 this.effectiveMapping = null;
@@ -79,7 +79,7 @@ public class SimulateIndexResponse extends IndexResponse {
         Collection<String> ignoredFields,
         @Nullable Exception exception,
         @Nullable CompressedXContent effectiveMapping
-        ) {
+    ) {
         // We don't actually care about most of the IndexResponse fields:
         super(
             new ShardId(index, "", 0),
@@ -125,7 +125,10 @@ public class SimulateIndexResponse extends IndexResponse {
         if (effectiveMapping == null) {
             builder.field("effective_mapping", Map.of());
         } else {
-            builder.field("effective_mapping", XContentHelper.convertToMap(effectiveMapping.uncompressed(), true, builder.contentType()).v2());
+            builder.field(
+                "effective_mapping",
+                XContentHelper.convertToMap(effectiveMapping.uncompressed(), true, builder.contentType()).v2()
+            );
         }
         return builder;
     }

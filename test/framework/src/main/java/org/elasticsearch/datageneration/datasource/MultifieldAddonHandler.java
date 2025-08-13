@@ -19,7 +19,7 @@ import java.util.stream.Collectors;
 
 public class MultifieldAddonHandler implements DataSourceHandler {
 
-    private static final String PLACEHOLDER_NAME = "_an_improbably_placeholder_name";
+    private static final String PLACEHOLDER_NAME = "_an_improbable_placeholder_name";
     private static final float DEFAULT_CHANCE_OF_CHILD_FIELD = 0.5f;
     private final Map<FieldType, List<FieldType>> subfieldTypes;
     private final float chanceOfChildField;

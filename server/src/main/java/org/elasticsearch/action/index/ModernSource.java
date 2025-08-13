@@ -89,4 +89,17 @@ public class ModernSource {
         }
         return structuredSource;
     }
+
+    @Override
+    public boolean equals(Object o) {
+        // TODO: Improve
+        if (o == null || getClass() != o.getClass()) return false;
+        return ((ModernSource) o).originalSourceBytes().equals(originalSourceBytes());
+    }
+
+    @Override
+    public int hashCode() {
+        // TODO: Improve
+        return originalSourceBytes().hashCode();
+    }
 }

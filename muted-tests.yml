@@ -292,9 +292,6 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/117591
 - class: org.elasticsearch.repositories.s3.RepositoryS3ClientYamlTestSuiteIT
   issue: https://github.com/elastic/elasticsearch/issues/117596
-- class: org.elasticsearch.search.ccs.CrossClusterIT
-  method: testCancel
-  issue: https://github.com/elastic/elasticsearch/issues/108061
 - class: org.elasticsearch.xpack.ml.integration.RegressionIT
   method: testTwoJobsWithSameRandomizeSeedUseSameTrainingSet
   issue: https://github.com/elastic/elasticsearch/issues/117805
@@ -489,3 +486,51 @@ tests:
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
   method: test {p0=msearch/10_basic/Least impact smoke test}
   issue: https://github.com/elastic/elasticsearch/issues/131561
+- class: org.elasticsearch.gradle.LoggedExecFuncTest
+  method: failed tasks output logged to console when spooling true
+  issue: https://github.com/elastic/elasticsearch/issues/119509
+- class: org.elasticsearch.packaging.test.DockerTests
+  method: test050BasicApiTests
+  issue: https://github.com/elastic/elasticsearch/issues/120911
+- class: org.elasticsearch.packaging.test.DockerTests
+  method: test140CgroupOsStatsAreAvailable
+  issue: https://github.com/elastic/elasticsearch/issues/131372
+- class: org.elasticsearch.packaging.test.PackageUpgradeTests
+  method: test12SetupBwcVersion
+  issue: https://github.com/elastic/elasticsearch/issues/131791
+- class: org.elasticsearch.packaging.test.DockerTests
+  method: test151MachineDependentHeapWithSizeOverride
+  issue: https://github.com/elastic/elasticsearch/issues/120978
+- class: org.elasticsearch.packaging.test.PackageTests
+  method: test32JavaHomeOverride
+  issue: https://github.com/elastic/elasticsearch/issues/131842
+- class: org.elasticsearch.packaging.test.ArchiveTests
+  method: test61EsJavaHomeOverride
+  issue: https://github.com/elastic/elasticsearch/issues/131839
+- class: org.elasticsearch.packaging.test.DockerTests
+  method: test070BindMountCustomPathConfAndJvmOptions
+  issue: https://github.com/elastic/elasticsearch/issues/131366
+- class: org.elasticsearch.packaging.test.PackageUpgradeTests
+  method: test21CheckUpgradedVersion
+  issue: https://github.com/elastic/elasticsearch/issues/123380
+- class: org.elasticsearch.packaging.test.PackageTests
+  method: test42BundledJdkRemoved
+  issue: https://github.com/elastic/elasticsearch/issues/131890
+- class: org.elasticsearch.packaging.test.ArchiveTests
+  method: test63BundledJdkRemoved
+  issue: https://github.com/elastic/elasticsearch/issues/131891
+- class: org.elasticsearch.packaging.test.DockerTests
+  method: test071BindMountCustomPathWithDifferentUID
+  issue: https://github.com/elastic/elasticsearch/issues/120917
+- class: org.elasticsearch.packaging.test.ArchiveTests
+  method: test64JavaHomeWithSpecialCharacters
+  issue: https://github.com/elastic/elasticsearch/issues/131932
+- class: org.elasticsearch.packaging.test.DockerTests
+  method: test072RunEsAsDifferentUserAndGroup
+  issue: https://github.com/elastic/elasticsearch/issues/131412
+- class: org.elasticsearch.packaging.test.DockerTests
+  method: test130JavaHasCorrectOwnership
+  issue: https://github.com/elastic/elasticsearch/issues/131369
+- class: org.elasticsearch.packaging.test.DebPreservationTests
+  method: test40RestartOnUpgrade
+  issue: https://github.com/elastic/elasticsearch/issues/125821

@@ -63,6 +63,12 @@ IMPORTANT: Users building custom docker images based on this Dockerfile may have
 See https://github.com/elastic/connectors/pull/3063[*PR 3063*].
 
 [discrete]
+[[es-connectors-release-notes-8-17-9]]
+=== 8.17.9
+
+No notable changes in this release.
+
+[discrete]
 [[es-connectors-release-notes-8-17-8]]
 === 8.17.8
 
@@ -166,6 +172,9 @@ Users should migrate to the new `integrations` namespace as soon as possible to 
 [discrete]
 [[es-connectors-release-notes-8-16-0-enhancements]]
 ==== Enhancements
+
+* Connectors now support working with index aliases.
+See https://github.com/elastic/connectors/pull/2796[*PR 2796*].
 
 * Docker images now use Chainguard's Wolfi base image (`docker.elastic.co/wolfi/jdk:openjdk-11-dev`), replacing the previous `ubuntu:focal` base.
 

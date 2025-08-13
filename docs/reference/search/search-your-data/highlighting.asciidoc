@@ -1,7 +1,7 @@
 [[highlighting]]
 === Highlighting
 
-Highlighters enable you to get highlighted snippets from one or more fields
+Highlighters enable you to retrieve the best-matching highlighted snippets from one or more fields
 in your search results so you can show users where the query matches are.
 When you request highlights, the response contains an additional `highlight`
 element for each search hit that includes the highlighted fields and the

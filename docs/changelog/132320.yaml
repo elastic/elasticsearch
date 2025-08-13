@@ -1,6 +1,0 @@
-pr: 132320
-summary: "Aggs: Add validation to Bucket script pipeline agg"
-area: Aggregations
-type: bug
-issues:
- - 132272

@@ -37,7 +37,6 @@ import org.elasticsearch.search.fetch.StoredFieldsSpec;
 
 import java.io.IOException;
 
-import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.COSINE_MAGNITUDE_FIELD_SUFFIX;
 import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.ElementType.BYTE;
 
 /**

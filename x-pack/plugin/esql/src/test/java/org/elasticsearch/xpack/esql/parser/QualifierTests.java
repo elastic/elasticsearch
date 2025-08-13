@@ -89,8 +89,6 @@ public class QualifierTests extends AbstractStatementParserTests {
         // We do not check the lookup join specifically; it only serves as an example source of qualifiers for the WHERE.
         String sourceQuery = "ROW x = 1 | LOOKUP JOIN lu_idx AS qualified ON x | ";
 
-        assertQualifiedAttributeInExpressions(sourceQuery + "WHERE qualified field", "qualified", "field", 1);
-
         assertQualifiedAttributeInExpressions(
             sourceQuery + "CHANGE_POINT qualified field ON qualified field AS type_name, pvalue_name",
             "qualified",
@@ -119,6 +117,15 @@ public class QualifierTests extends AbstractStatementParserTests {
 
         assertQualifiedAttributeInExpressions(sourceQuery + "ENRICH policy ON qualified field", "qualified", "field", 1);
         assertQualifiedAttributeInExpressions(sourceQuery + "ENRICH policy ON qualified field WITH x = y", "qualified", "field", 1);
+
+        assertQualifiedAttributeInExpressions(sourceQuery + "EVAL qualified field", "qualified", "field", 1);
+        assertQualifiedAttributeInExpressions(sourceQuery + "EVAL x = qualified field", "qualified", "field", 1);
+        assertQualifiedAttributeInExpressions(sourceQuery + "EVAL x = qualified field, y = qualified field", "qualified", "field", 2);
+        assertQualifiedAttributeInExpressions(sourceQuery + "EVAL x = (qualified field)", "qualified", "field", 1);
+        assertQualifiedAttributeInExpressions(sourceQuery + "EVAL qualified field/qualified field", "qualified", "field", 2);
+        assertQualifiedAttributeInExpressions(sourceQuery + "EVAL x=qualified field/qualified field, y = foo", "qualified", "field", 2);
+
+        assertQualifiedAttributeInExpressions(sourceQuery + "WHERE qualified field", "qualified", "field", 1);
     }
 
     public void testUnsupportedQualifiers() {
@@ -180,6 +187,10 @@ public class QualifierTests extends AbstractStatementParserTests {
         expectError(
             sourceQuery + "EVAL qualified field = \"foo\"",
             "Qualified names are not supported in field definitions, found [qualified field]"
+        );
+        expectError(
+                sourceQuery + "EVAL field = x, qualified field = \"foo\"",
+                "Qualified names are not supported in field definitions, found [qualified field]"
         );
     }
 

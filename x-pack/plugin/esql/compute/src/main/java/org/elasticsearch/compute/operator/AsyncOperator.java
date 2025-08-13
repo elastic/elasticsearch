@@ -238,7 +238,7 @@ public abstract class AsyncOperator<Fetched> implements Operator {
 
     @Override
     public final Operator.Status status() {
-        return status(checkpoint.getMaxSeqNo() + 1, checkpoint.getProcessedCheckpoint() + 1, processNanos.sum());
+        return status(Math.max(0L, checkpoint.getMaxSeqNo()), Math.max(0L, checkpoint.getProcessedCheckpoint()), processNanos.sum());
     }
 
     protected Operator.Status status(long receivedPages, long completedPages, long processNanos) {

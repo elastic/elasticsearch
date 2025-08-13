@@ -27,12 +27,14 @@ import org.elasticsearch.script.TemplateScript;
 
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Base64;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Date;
+import java.util.Deque;
 import java.util.HashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -72,6 +74,13 @@ public final class IngestDocument {
 
     // Contains all pipelines that have been executed for this document
     private final Set<String> executedPipelines = new LinkedHashSet<>();
+
+    /**
+     * Maintains the stack of access patterns for each pipeline that this document is currently being processed by.
+     * When a pipeline with one access pattern calls another pipeline with a different one, we must ensure the access patterns
+     * are correctly restored when returning from a nested pipeline to an enclosing pipeline.
+     */
+    private final Deque<IngestPipelineFieldAccessPattern> accessPatternStack = new ArrayDeque<>();
 
     /**
      * An ordered set of the values of the _index that have been used for this document.
@@ -114,12 +123,13 @@ public final class IngestDocument {
             deepCopyMap(other.ingestMetadata)
         );
         /*
-         * The executedPipelines field is clearly execution-centric rather than data centric. Despite what the comment above says, we're
-         * copying it here anyway. THe reason is that this constructor is only called from two non-test locations, and both of those
-         * involve the simulate pipeline logic. The simulate pipeline logic needs this information. Rather than making the code more
-         * complicated, we're just copying this over here since it does no harm.
+         * The executedPipelines and accessPatternStack fields are clearly execution-centric rather than data centric.
+         * Despite what the comment above says, we're copying it here anyway. THe reason is that this constructor is only called from
+         * two non-test locations, and both of those involve the simulate pipeline logic. The simulate pipeline logic needs this
+         * information. Rather than making the code more complicated, we're just copying them over here since it does no harm.
          */
         this.executedPipelines.addAll(other.executedPipelines);
+        this.accessPatternStack.addAll(other.accessPatternStack);
     }
 
     /**
@@ -856,8 +866,17 @@ public final class IngestDocument {
             );
         } else if (executedPipelines.add(pipeline.getId())) {
             Object previousPipeline = ingestMetadata.put("pipeline", pipeline.getId());
+            IngestPipelineFieldAccessPattern previousAccessPattern = accessPatternStack.peek();
+            accessPatternStack.push(pipeline.getFieldAccessPattern());
             pipeline.execute(this, (result, e) -> {
                 executedPipelines.remove(pipeline.getId());
+                accessPatternStack.poll();
+                assert previousAccessPattern == accessPatternStack.peek()
+                    : "Cleared access pattern from nested pipeline and found inconsistent stack state. Expected ["
+                        + previousAccessPattern
+                        + "] but found ["
+                        + accessPatternStack.peek()
+                        + "]";
                 if (previousPipeline != null) {
                     ingestMetadata.put("pipeline", previousPipeline);
                 } else {
@@ -877,6 +896,13 @@ public final class IngestDocument {
         List<String> pipelineStack = new ArrayList<>(executedPipelines);
         Collections.reverse(pipelineStack);
         return pipelineStack;
+    }
+
+    /**
+     * @return The access pattern for any currently executing pipelines, or null if no pipelines are in progress for this doc
+     */
+    public IngestPipelineFieldAccessPattern getCurrentAccessPattern() {
+        return accessPatternStack.peek();
     }
 
     /**

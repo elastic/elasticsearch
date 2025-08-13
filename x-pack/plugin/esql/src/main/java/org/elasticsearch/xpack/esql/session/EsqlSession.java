@@ -76,6 +76,7 @@ import org.elasticsearch.xpack.esql.planner.mapper.Mapper;
 import org.elasticsearch.xpack.esql.planner.premapper.PreMapper;
 import org.elasticsearch.xpack.esql.plugin.TransportActionServices;
 import org.elasticsearch.xpack.esql.telemetry.PlanTelemetry;
+import org.elasticsearch.xpack.ml.MachineLearning;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -179,19 +180,31 @@ public class EsqlSession {
         analyzedPlan(parsed, executionInfo, request.filter(), new EsqlCCSUtils.CssPartialErrorsActionListener(executionInfo, listener) {
             @Override
             public void onResponse(LogicalPlan analyzedPlan) {
-                SubscribableListener.<LogicalPlan>newForked(l -> preOptimizedPlan(analyzedPlan, l))
-                    .<LogicalPlan>andThen((l, p) -> preMapper.preMapper(optimizedPlan(p), l))
-                    .<Result>andThen((l, p) -> executeOptimizedPlan(request, executionInfo, planRunner, p, l))
-                    .addListener(listener);
+                optimizeAndExecute(request, executionInfo, planRunner, analyzedPlan, listener);
             }
         });
+    }
+
+    // visible for testing in CsvTests
+    public void optimizeAndExecute(
+        EsqlQueryRequest request,
+        EsqlExecutionInfo executionInfo,
+        PlanRunner planRunner,
+        LogicalPlan analyzedPlan,
+        ActionListener<Result> listener
+    ) {
+        SubscribableListener.<LogicalPlan>newForked(l -> logicalPlanPreOptimizer.preOptimize(analyzedPlan, l))
+            .andThenApply(this::optimizedPlan)
+            .<LogicalPlan>andThen((l, p) -> preMapper.preMapper(p, l))
+            .<Result>andThen((l, p) -> executeOptimizedPlan(request, executionInfo, planRunner, p, l))
+            .addListener(listener);
     }
 
     /**
      * Execute an analyzed plan. Most code should prefer calling {@link #execute} but
      * this is public for testing.
      */
-    public void executeOptimizedPlan(
+    private void executeOptimizedPlan(
         EsqlQueryRequest request,
         EsqlExecutionInfo executionInfo,
         PlanRunner planRunner,
@@ -202,7 +215,8 @@ public class EsqlSession {
             TcpTransport.TRANSPORT_WORKER_THREAD_NAME_PREFIX,
             ThreadPool.Names.SYSTEM_READ,
             ThreadPool.Names.SEARCH,
-            ThreadPool.Names.SEARCH_COORDINATION
+            ThreadPool.Names.SEARCH_COORDINATION,
+            MachineLearning.NATIVE_INFERENCE_COMMS_THREAD_POOL_NAME
         );
         if (explainMode) {// TODO: INLINESTATS come back to the explain mode branch and reevaluate
             PhysicalPlan physicalPlan = logicalPlanToPhysicalPlan(optimizedPlan, request);
@@ -790,7 +804,7 @@ public class EsqlSession {
         return EstimatesRowSize.estimateRowSize(0, physicalPlan);
     }
 
-    public LogicalPlan optimizedPlan(LogicalPlan logicalPlan) {
+    private LogicalPlan optimizedPlan(LogicalPlan logicalPlan) {
         if (logicalPlan.preOptimized() == false) {
             throw new IllegalStateException("Expected pre-optimized plan");
         }
@@ -799,11 +813,7 @@ public class EsqlSession {
         return plan;
     }
 
-    public void preOptimizedPlan(LogicalPlan logicalPlan, ActionListener<LogicalPlan> listener) {
-        logicalPlanPreOptimizer.preOptimize(logicalPlan, listener);
-    }
-
-    public PhysicalPlan physicalPlan(LogicalPlan optimizedPlan) {
+    private PhysicalPlan physicalPlan(LogicalPlan optimizedPlan) {
         if (optimizedPlan.optimized() == false) {
             throw new IllegalStateException("Expected optimized plan");
         }
@@ -813,7 +823,7 @@ public class EsqlSession {
         return plan;
     }
 
-    public PhysicalPlan optimizedPhysicalPlan(LogicalPlan optimizedPlan) {
+    private PhysicalPlan optimizedPhysicalPlan(LogicalPlan optimizedPlan) {
         var plan = physicalPlanOptimizer.optimize(physicalPlan(optimizedPlan));
         LOGGER.debug("Optimized physical plan:\n{}", plan);
         return plan;

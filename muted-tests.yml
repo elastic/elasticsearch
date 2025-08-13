@@ -558,6 +558,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.CsvTests
   method: test {csv-spec:stats.WeightedAvgFieldMvWarning}
   issue: https://github.com/elastic/elasticsearch/issues/132827
+- class: org.elasticsearch.test.rest.yaml.CcsCommonYamlTestSuiteIT
+  method: test {p0=search/160_exists_query/Test exists query on mapped date field with no doc values}
+  issue: https://github.com/elastic/elasticsearch/issues/132828
 
 # Examples:
 #

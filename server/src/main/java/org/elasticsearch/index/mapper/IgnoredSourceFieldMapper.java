@@ -272,7 +272,7 @@ public class IgnoredSourceFieldMapper extends MetadataFieldMapper {
 
             @Override
             public void writeIgnoredFields(Collection<NameValue> ignoredFieldValues) {
-                throw new UnsupportedOperationException();
+                assert false : "cannot write " + ignoredFieldValues.size() + " values with format NO_IGNORED_SOURCE";
             }
         },
         SINGLE_IGNORED_SOURCE {

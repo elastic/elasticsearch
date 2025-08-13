@@ -48,7 +48,12 @@ public abstract class SemanticQueryRewriteInterceptor implements QueryRewriteInt
             return queryBuilder;
         }
 
-        InferenceIndexInformationForField indexInformation = resolveIndicesForFields(queryBuilder, resolvedIndices);
+        boolean resolveInferenceFieldWildcards = extractResolveInferenceFieldWildcards(queryBuilder);
+        InferenceIndexInformationForField indexInformation = resolveIndicesForFields(
+            queryBuilder, 
+            resolvedIndices, 
+            resolveInferenceFieldWildcards
+        );
         if (indexInformation.hasInferenceFields() == false) {
             // No inference fields were identified, so return the original query.
             return queryBuilder;
@@ -107,7 +112,11 @@ public abstract class SemanticQueryRewriteInterceptor implements QueryRewriteInt
         InferenceIndexInformationForField indexInformation
     );
 
-    private InferenceIndexInformationForField resolveIndicesForFields(QueryBuilder queryBuilder, ResolvedIndices resolvedIndices) {
+    private InferenceIndexInformationForField resolveIndicesForFields(
+        QueryBuilder queryBuilder, 
+        ResolvedIndices resolvedIndices, 
+        boolean resolveInferenceFieldWildcards
+    ) {
         Map<String, Float> fieldsWithWeights = getFieldsWithWeights(queryBuilder);
         Collection<IndexMetadata> indexMetadataCollection = resolvedIndices.getConcreteLocalIndicesMetadata().values();
 
@@ -133,12 +142,12 @@ public abstract class SemanticQueryRewriteInterceptor implements QueryRewriteInt
                 String field = entry.getKey();
                 Float boost = entry.getValue();
 
-                if (Regex.isMatchAllPattern(field)) {
+                if (resolveInferenceFieldWildcards && Regex.isMatchAllPattern(field)) {
                     indexInferenceMetadata.keySet().forEach(f -> {
                         indexInferenceFields.put(f, indexInferenceMetadata.get(f));
                         fieldBoosts.put(f, boost);
                     });
-                } else if (Regex.isSimpleMatchPattern(field)) {
+                } else if (resolveInferenceFieldWildcards && Regex.isSimpleMatchPattern(field)) {
                     indexInferenceMetadata.keySet().stream().filter(f -> Regex.simpleMatch(field, f)).forEach(f -> {
                         indexInferenceFields.put(f, indexInferenceMetadata.get(f));
                         fieldBoosts.put(f, boost);
@@ -168,6 +177,13 @@ public abstract class SemanticQueryRewriteInterceptor implements QueryRewriteInt
         }
 
         return new InferenceIndexInformationForField(inferenceFieldsPerIndex, nonInferenceFieldsPerIndex, fieldBoosts);
+    }
+
+    private boolean extractResolveInferenceFieldWildcards(QueryBuilder queryBuilder) {
+        if (queryBuilder instanceof org.elasticsearch.index.query.MultiMatchQueryBuilder multiMatchQuery) {
+            return multiMatchQuery.resolveInferenceFieldWildcards();
+        }
+        return false;
     }
 
     protected QueryBuilder createSubQueryForIndices(Collection<String> indices, QueryBuilder queryBuilder) {

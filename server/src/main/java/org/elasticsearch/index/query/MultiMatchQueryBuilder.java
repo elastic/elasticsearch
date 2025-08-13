@@ -52,6 +52,7 @@ public final class MultiMatchQueryBuilder extends AbstractQueryBuilder<MultiMatc
     public static final int DEFAULT_MAX_EXPANSIONS = FuzzyQuery.defaultMaxExpansions;
     public static final ZeroTermsQueryOption DEFAULT_ZERO_TERMS_QUERY = MatchQueryParser.DEFAULT_ZERO_TERMS_QUERY;
     public static final boolean DEFAULT_FUZZY_TRANSPOSITIONS = FuzzyQuery.defaultTranspositions;
+    private boolean resolveInferenceFieldWildcards = false;
 
     public static final ParseField BOOST_FIELD = new ParseField("boost");
     public static final ParseField SLOP_FIELD = new ParseField("slop");
@@ -228,6 +229,12 @@ public final class MultiMatchQueryBuilder extends AbstractQueryBuilder<MultiMatc
         zeroTermsQuery = ZeroTermsQueryOption.readFromStream(in);
         autoGenerateSynonymsPhraseQuery = in.readBoolean();
         fuzzyTranspositions = in.readBoolean();
+        if (in.getTransportVersion().isPatchFrom(TransportVersions.MULTI_MATCH_SEMANTIC_TEXT_SUPPORT_8_19)
+            || in.getTransportVersion().onOrAfter(TransportVersions.MULTI_MATCH_SEMANTIC_TEXT_SUPPORT)) {
+            resolveInferenceFieldWildcards = in.readBoolean();
+        } else {
+            resolveInferenceFieldWildcards = false;
+        }
     }
 
     @Override
@@ -251,6 +258,10 @@ public final class MultiMatchQueryBuilder extends AbstractQueryBuilder<MultiMatc
         zeroTermsQuery.writeTo(out);
         out.writeBoolean(autoGenerateSynonymsPhraseQuery);
         out.writeBoolean(fuzzyTranspositions);
+        if (out.getTransportVersion().isPatchFrom(TransportVersions.MULTI_MATCH_SEMANTIC_TEXT_SUPPORT_8_19)
+            || out.getTransportVersion().onOrAfter(TransportVersions.MULTI_MATCH_SEMANTIC_TEXT_SUPPORT)) {
+            out.writeBoolean(resolveInferenceFieldWildcards);
+        }
     }
 
     public Object value() {
@@ -510,6 +521,15 @@ public final class MultiMatchQueryBuilder extends AbstractQueryBuilder<MultiMatc
      */
     public MultiMatchQueryBuilder fuzzyTranspositions(boolean fuzzyTranspositions) {
         this.fuzzyTranspositions = fuzzyTranspositions;
+        return this;
+    }
+
+    public boolean resolveInferenceFieldWildcards() {
+        return resolveInferenceFieldWildcards;
+    }
+
+    public MultiMatchQueryBuilder resolveInferenceFieldWildcards(boolean resolveInferenceFieldWildcards) {
+        this.resolveInferenceFieldWildcards = resolveInferenceFieldWildcards;
         return this;
     }
 
@@ -797,7 +817,8 @@ public final class MultiMatchQueryBuilder extends AbstractQueryBuilder<MultiMatc
             lenient,
             zeroTermsQuery,
             autoGenerateSynonymsPhraseQuery,
-            fuzzyTranspositions
+            fuzzyTranspositions,
+            resolveInferenceFieldWildcards
         );
     }
 
@@ -818,7 +839,8 @@ public final class MultiMatchQueryBuilder extends AbstractQueryBuilder<MultiMatc
             && Objects.equals(lenient, other.lenient)
             && Objects.equals(zeroTermsQuery, other.zeroTermsQuery)
             && Objects.equals(autoGenerateSynonymsPhraseQuery, other.autoGenerateSynonymsPhraseQuery)
-            && Objects.equals(fuzzyTranspositions, other.fuzzyTranspositions);
+            && Objects.equals(fuzzyTranspositions, other.fuzzyTranspositions)
+            && Objects.equals(resolveInferenceFieldWildcards, other.resolveInferenceFieldWildcards);
     }
 
     @Override

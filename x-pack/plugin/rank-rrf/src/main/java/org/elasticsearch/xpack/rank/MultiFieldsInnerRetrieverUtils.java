@@ -207,7 +207,7 @@ public class MultiFieldsInnerRetrieverUtils {
         if (nonInferenceFields.isEmpty() == false) {
             MultiMatchQueryBuilder nonInferenceFieldQueryBuilder = new MultiMatchQueryBuilder(query).type(
                 MultiMatchQueryBuilder.Type.MOST_FIELDS
-            ).fields(nonInferenceFields);
+            ).fields(nonInferenceFields).resolveInferenceFieldWildcards(false);
             innerRetrievers.add(new StandardRetrieverBuilder(nonInferenceFieldQueryBuilder));
         }
         if (inferenceFields.isEmpty() == false) {

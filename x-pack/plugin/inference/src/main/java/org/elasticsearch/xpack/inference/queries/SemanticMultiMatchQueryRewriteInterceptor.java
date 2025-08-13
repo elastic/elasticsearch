@@ -301,6 +301,7 @@ public class SemanticMultiMatchQueryRewriteInterceptor extends SemanticQueryRewr
         target.zeroTermsQuery(original.zeroTermsQuery());
         target.autoGenerateSynonymsPhraseQuery(original.autoGenerateSynonymsPhraseQuery());
         target.tieBreaker(original.tieBreaker());
+        target.resolveInferenceFieldWildcards(original.resolveInferenceFieldWildcards());
 
         if (original.fuzziness() != null) {
             target.fuzziness(original.fuzziness());

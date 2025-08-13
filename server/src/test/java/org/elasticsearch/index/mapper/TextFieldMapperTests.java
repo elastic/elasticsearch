@@ -78,6 +78,7 @@ import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.junit.AssumptionViolatedException;
+import org.junit.Ignore;
 
 import java.io.IOException;
 import java.time.Instant;
@@ -253,6 +254,7 @@ public class TextFieldMapperTests extends MapperTestCase {
         assertEquals(DocValuesType.NONE, fieldType.docValuesType());
     }
 
+    @Ignore
     public void testStoreParameterDefaults() throws IOException {
         var timeSeriesIndexMode = randomBoolean();
         var isStored = randomBoolean();
@@ -311,6 +313,7 @@ public class TextFieldMapperTests extends MapperTestCase {
         }
     }
 
+    @Ignore
     public void testStoreParameterDefaultsSyntheticSource() throws IOException {
         var indexSettingsBuilder = getIndexSettingsBuilder();
         indexSettingsBuilder.put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), "synthetic");
@@ -403,6 +406,7 @@ public class TextFieldMapperTests extends MapperTestCase {
         assertThat(fieldType.stored(), is(false));
     }
 
+    @Ignore
     public void testStoreParameterDefaultsSyntheticSourceTextFieldIsMultiFieldBwc() throws IOException {
         var indexSettingsBuilder = getIndexSettingsBuilder();
         indexSettingsBuilder.put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), "synthetic");

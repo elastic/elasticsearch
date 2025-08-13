@@ -10,8 +10,6 @@ package org.elasticsearch.xpack.esql.expression.function.fulltext;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
-import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.geometry.Point;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -58,9 +56,7 @@ public class DecayTests extends AbstractScalarFunctionTestCase {
         testCaseSuppliers.addAll(geoPointOffsetKeywordTestCase("POINT (1 1)", "POINT (1 1)", "200km", "0km", 0.5, "linear", 1.0));
 
         // CartesianPoint
-        testCaseSuppliers.addAll(
-            cartesianPointTestCase("POINT (5 5)", "POINT (0 0)", "10m", "0m", 0.25, "linear", 0.46966991411008935)
-        );
+        testCaseSuppliers.addAll(cartesianPointTestCase("POINT (5 5)", "POINT (0 0)", "10m", "0m", 0.25, "linear", 0.46966991411008935));
 
         // Datetime
         testCaseSuppliers.addAll(

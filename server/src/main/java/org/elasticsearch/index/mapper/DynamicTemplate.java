@@ -23,6 +23,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.function.Predicate;
@@ -30,6 +31,8 @@ import java.util.regex.Pattern;
 import java.util.regex.PatternSyntaxException;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+
+import static org.elasticsearch.index.mapper.TimeSeriesParams.TIME_SERIES_DIMENSION_PARAM;
 
 public class DynamicTemplate implements ToXContentObject {
 
@@ -445,6 +448,24 @@ public class DynamicTemplate implements ToXContentObject {
 
     public List<String> match() {
         return match;
+    }
+
+    public boolean isTimeSeriesDimension() {
+        return Optional.of(mapping)
+            .flatMap(m -> Optional.ofNullable(m.get(TIME_SERIES_DIMENSION_PARAM)))
+            .filter(Boolean.class::isInstance)
+            .map(Boolean.class::cast)
+            .orElse(false);
+    }
+
+    public boolean isSimplePathMath() {
+        return pathMatch.isEmpty() == false
+            && pathUnmatch.isEmpty()
+            && match.isEmpty()
+            && unmatch.isEmpty()
+            && matchMappingType.isEmpty()
+            && unmatchMappingType.isEmpty()
+            && matchType != MatchType.REGEX;
     }
 
     public boolean match(String templateName, String path, String fieldName, XContentFieldType xcontentFieldType) {

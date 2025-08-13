@@ -16,6 +16,7 @@ import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MapperService;
 
 import java.io.IOException;
@@ -51,6 +52,10 @@ public interface IndexSettingProvider {
         Settings indexTemplateAndCreateRequestSettings,
         List<CompressedXContent> combinedTemplateMappings
     );
+
+    default Settings onUpdateMappings(IndexMetadata indexMetadata, DocumentMapper indexMetadataBuilder) {
+        return Settings.EMPTY;
+    }
 
     /**
      * Infrastructure class that holds services that can be used by {@link IndexSettingProvider} instances.

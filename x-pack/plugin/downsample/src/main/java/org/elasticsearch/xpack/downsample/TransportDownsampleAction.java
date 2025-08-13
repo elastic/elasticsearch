@@ -933,12 +933,17 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
             .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), "-1")
             .put(IndexMetadata.INDEX_DOWNSAMPLE_STATUS.getKey(), DownsampleTaskStatus.STARTED)
             .put(IndexMetadata.INDEX_DOWNSAMPLE_INTERVAL.getKey(), downsampleInterval)
-            .put(IndexSettings.MODE.getKey(), sourceIndexMetadata.getIndexMode())
-            .putList(IndexMetadata.INDEX_ROUTING_PATH.getKey(), sourceIndexMetadata.getRoutingPaths())
-            .put(
-                IndexSettings.TIME_SERIES_START_TIME.getKey(),
-                sourceIndexMetadata.getSettings().get(IndexSettings.TIME_SERIES_START_TIME.getKey())
-            )
+            .put(IndexSettings.MODE.getKey(), sourceIndexMetadata.getIndexMode());
+        if (sourceIndexMetadata.getRoutingPaths().isEmpty() == false) {
+            builder.putList(IndexMetadata.INDEX_ROUTING_PATH.getKey(), sourceIndexMetadata.getRoutingPaths());
+        }
+        if (sourceIndexMetadata.getDimensions().isEmpty() == false) {
+            builder.putList(IndexMetadata.INDEX_DIMENSIONS.getKey(), sourceIndexMetadata.getDimensions());
+        }
+        builder.put(
+            IndexSettings.TIME_SERIES_START_TIME.getKey(),
+            sourceIndexMetadata.getSettings().get(IndexSettings.TIME_SERIES_START_TIME.getKey())
+        )
             .put(
                 IndexSettings.TIME_SERIES_END_TIME.getKey(),
                 sourceIndexMetadata.getSettings().get(IndexSettings.TIME_SERIES_END_TIME.getKey())
@@ -961,7 +966,7 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
             projectId,
             downsampleIndexName,
             downsampleIndexName
-        ).settings(builder.build()).mappings(mapping).waitForActiveShards(ActiveShardCount.ONE);
+        ).settings(builder.build()).settingsSystemProvided(true).mappings(mapping).waitForActiveShards(ActiveShardCount.ONE);
         var delegate = new AllocationActionListener<>(listener, threadPool.getThreadContext());
         taskQueue.submitTask("create-downsample-index [" + downsampleIndexName + "]", new DownsampleClusterStateUpdateTask(listener) {
             @Override

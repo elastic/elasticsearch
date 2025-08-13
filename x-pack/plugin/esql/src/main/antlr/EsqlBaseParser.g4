@@ -162,7 +162,10 @@ unqualifiedName
     ;
 
 qualifiedNamePattern
-    : {this.isDevVersion()}? qualifier=UNQUOTED_IDENTIFIER name=unqualifiedNamePattern
+    // TODO: super duper restrict what's allowed in the qualifier, e.g. no dots, no wildcards, no QUOTES etc.
+    // Can't easily do that via the lexer rules, as whatever token we use for the qualifier also needs to be a valid
+    // token for the unqualifiedNamePattern.
+    : {this.isDevVersion()}? qualifier=ID_PATTERN name=unqualifiedNamePattern
     | name=unqualifiedNamePattern
     ;
 

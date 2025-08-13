@@ -91,7 +91,12 @@ public class QualifierTests extends AbstractStatementParserTests {
 
         assertQualifiedAttributeInExpressions(sourceQuery + "WHERE qualified field", "qualified", "field", 1);
 
-        assertQualifiedAttributeInExpressions(sourceQuery + "CHANGE_POINT qualified field ON qualified field AS type_name, pvalue_name", "qualified", "field", 2);
+        assertQualifiedAttributeInExpressions(
+            sourceQuery + "CHANGE_POINT qualified field ON qualified field AS type_name, pvalue_name",
+            "qualified",
+            "field",
+            2
+        );
 
         assertQualifiedAttributeInExpressions(sourceQuery + "DISSECT qualified field \"%{foo}\"", "qualified", "field", 1);
         assertQualifiedAttributeInExpressions(sourceQuery + "DISSECT qualified `field` \"%{foo}\"", "qualified", "field", 1);
@@ -99,7 +104,12 @@ public class QualifierTests extends AbstractStatementParserTests {
 
         assertQualifiedAttributeInExpressions(sourceQuery + "DROP qualified field", "qualified", "field", 1);
         assertQualifiedAttributeInExpressions(sourceQuery + "DROP qualified `field`", "qualified", "field", 1);
-        assertQualifiedAttributeInExpressions(sourceQuery + "DROP qualified field, field, qualified `field`, otherfield", "qualified", "field", 2);
+        assertQualifiedAttributeInExpressions(
+            sourceQuery + "DROP qualified field, field, qualified `field`, otherfield",
+            "qualified",
+            "field",
+            2
+        );
     }
 
     public void testUnsupportedQualifiers() {
@@ -109,12 +119,24 @@ public class QualifierTests extends AbstractStatementParserTests {
 
         expectError("ROW qualified field = 1", "Qualified names are not supported in field definitions, found [qualified field]");
 
-        expectError(sourceQuery + "CHANGE_POINT value_field ON key_field AS qualified type_name, pvalue_name", "Qualified names are not supported in field definitions, found [qualified type_name]");
-        expectError(sourceQuery + "CHANGE_POINT value_field ON key_field AS type_name, qualified pvalue_name", "Qualified names are not supported in field definitions, found [qualified pvalue_name]");
+        expectError(
+            sourceQuery + "CHANGE_POINT value_field ON key_field AS qualified type_name, pvalue_name",
+            "Qualified names are not supported in field definitions, found [qualified type_name]"
+        );
+        expectError(
+            sourceQuery + "CHANGE_POINT value_field ON key_field AS type_name, qualified pvalue_name",
+            "Qualified names are not supported in field definitions, found [qualified pvalue_name]"
+        );
 
-        expectError(sourceQuery + "COMPLETION qualified field = \"prompt\" WITH {\"inference_id\" : \"foo\"}", "Qualified names are not supported in field definitions, found [qualified field]");
+        expectError(
+            sourceQuery + "COMPLETION qualified field = \"prompt\" WITH {\"inference_id\" : \"foo\"}",
+            "Qualified names are not supported in field definitions, found [qualified field]"
+        );
 
-        expectError(sourceQuery + "EVAL qualified field = \"foo\"", "Qualified names are not supported in field definitions, found [qualified field]");
+        expectError(
+            sourceQuery + "EVAL qualified field = \"foo\"",
+            "Qualified names are not supported in field definitions, found [qualified field]"
+        );
     }
 
     public void testIllegalQualifiers() {
@@ -141,7 +163,7 @@ public class QualifierTests extends AbstractStatementParserTests {
         Holder<Integer> numOccurrences = new Holder<>(0);
 
         expr.forEachDown(UnresolvedAttribute.class, a -> {
-            if (a.qualifier().equals(qualifier) && a.name().equals(name)) {
+            if (a.qualifier() != null && a.qualifier().equals(qualifier) && a.name().equals(name)) {
                 numOccurrences.set(numOccurrences.get() + 1);
             }
         });

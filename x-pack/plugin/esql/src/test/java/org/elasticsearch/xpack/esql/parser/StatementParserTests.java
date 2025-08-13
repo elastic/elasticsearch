@@ -2330,11 +2330,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testSpaceNotAllowedInIdPattern() {
-        expectError("ROW a = 1| RENAME a AS this is `not okay`", "mismatched input 'is' expecting {<EOF>, '|', ',', '.'}");
-    }
-
-    public void testSpaceNotAllowedInIdPatternKeep() {
-        expectError("ROW a = 1, b = 1| KEEP a b", "extraneous input 'b'");
+        expectError("ROW a = 1| RENAME a AS this is `not okay`", "extraneous input '`not okay`");
     }
 
     public void testEnrichOnMatchField() {

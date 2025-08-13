@@ -889,11 +889,7 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
     }
 
     protected ParsingException qualifiersUnsupportedInFields(Source source, String qualifiedName) {
-        return new ParsingException(
-            source,
-            "Qualified names are not supported in field definitions, found [{}]",
-            qualifiedName
-        );
+        return new ParsingException(source, "Qualified names are not supported in field definitions, found [{}]", qualifiedName);
     }
 
     @Override

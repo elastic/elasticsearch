@@ -2100,7 +2100,7 @@ public class EsqlBaseParser extends ParserConfig {
   public static class QualifiedNamePatternContext extends ParserRuleContext {
     public Token qualifier;
     public UnqualifiedNamePatternContext name;
-    public TerminalNode UNQUOTED_IDENTIFIER() { return getToken(EsqlBaseParser.UNQUOTED_IDENTIFIER, 0); }
+    public TerminalNode ID_PATTERN() { return getToken(EsqlBaseParser.ID_PATTERN, 0); }
     public UnqualifiedNamePatternContext unqualifiedNamePattern() {
       return getRuleContext(UnqualifiedNamePatternContext.class,0);
     }
@@ -2137,7 +2137,7 @@ public class EsqlBaseParser extends ParserConfig {
         setState(344);
         if (!(this.isDevVersion())) throw new FailedPredicateException(this, "this.isDevVersion()");
         setState(345);
-        ((QualifiedNamePatternContext)_localctx).qualifier = match(UNQUOTED_IDENTIFIER);
+        ((QualifiedNamePatternContext)_localctx).qualifier = match(ID_PATTERN);
         setState(346);
         ((QualifiedNamePatternContext)_localctx).name = unqualifiedNamePattern();
         }
@@ -7736,7 +7736,7 @@ public class EsqlBaseParser extends ParserConfig {
     "\u0157\u0001\u0000\u0000\u0000\u0155\u0153\u0001\u0000\u0000\u0000\u0155"+
     "\u0156\u0001\u0000\u0000\u0000\u01563\u0001\u0000\u0000\u0000\u0157\u0155"+
     "\u0001\u0000\u0000\u0000\u0158\u0159\u0004\u001a\b\u0000\u0159\u015a\u0005"+
-    "e\u0000\u0000\u015a\u015d\u00036\u001b\u0000\u015b\u015d\u00036\u001b"+
+    "\u0080\u0000\u0000\u015a\u015d\u00036\u001b\u0000\u015b\u015d\u00036\u001b"+
     "\u0000\u015c\u0158\u0001\u0000\u0000\u0000\u015c\u015b\u0001\u0000\u0000"+
     "\u0000\u015d5\u0001\u0000\u0000\u0000\u015e\u0163\u0003<\u001e\u0000\u015f"+
     "\u0160\u0005@\u0000\u0000\u0160\u0162\u0003<\u001e\u0000\u0161\u015f\u0001"+

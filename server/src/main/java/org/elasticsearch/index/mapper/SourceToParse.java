@@ -10,7 +10,6 @@
 package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.action.index.ModernSource;
-import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.plugins.internal.XContentMeteringParserDecorator;
@@ -22,7 +21,6 @@ import java.util.Objects;
 public class SourceToParse {
 
     private final ModernSource modernSource;
-    private final BytesReference source;
 
     private final String id;
 
@@ -67,10 +65,6 @@ public class SourceToParse {
     ) {
         this.id = id;
         this.modernSource = source;
-        // we always convert back to byte array, since we store it and Field only supports bytes..
-        // so, we might as well do it here, and improve the performance of working with direct byte arrays
-        BytesReference sourceBytes = source.originalSourceBytes();
-        this.source = sourceBytes.hasArray() ? sourceBytes : new BytesArray(sourceBytes.toBytesRef());
         this.xContentType = Objects.requireNonNull(xContentType);
         this.routing = routing;
         this.dynamicTemplates = Objects.requireNonNull(dynamicTemplates);

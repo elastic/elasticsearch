@@ -513,6 +513,9 @@ tests:
 - class: org.elasticsearch.gradle.internal.transport.TransportVersionManagementPluginFuncTest
   method: cannot change committed ids to a branch
   issue: https://github.com/elastic/elasticsearch/issues/132790
+- class: org.elasticsearch.xpack.esql.CsvTests
+  method: test {csv-spec:spatial.ConvertFromStringParseError}
+  issue: https://github.com/elastic/elasticsearch/issues/132805
 
 # Examples:
 #

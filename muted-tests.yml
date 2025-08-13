@@ -537,6 +537,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.CsvTests
   method: test {csv-spec:string.RepeatNegative}
   issue: https://github.com/elastic/elasticsearch/issues/132818
+- class: org.elasticsearch.xpack.esql.CsvTests
+  method: test {csv-spec:stats.WeightedAvgWeightMvWarning}
+  issue: https://github.com/elastic/elasticsearch/issues/132821
 
 # Examples:
 #

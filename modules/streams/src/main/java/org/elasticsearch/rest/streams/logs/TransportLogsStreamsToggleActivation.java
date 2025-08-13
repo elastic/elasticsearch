@@ -29,6 +29,7 @@ import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
 import org.elasticsearch.common.Priority;
+import org.elasticsearch.common.streams.StreamType;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
@@ -79,7 +80,7 @@ public class TransportLogsStreamsToggleActivation extends AcknowledgedTransportM
         LogsStreamsActivationToggleAction.Request request,
         ClusterState state,
         ActionListener<AcknowledgedResponse> listener
-    ) throws Exception {
+    ) {
         ProjectId projectId = projectResolver.getProjectId();
         ProjectMetadata projectMetadata = state.metadata().getProject(projectId);
         StreamsMetadata streamsState = projectMetadata.custom(StreamsMetadata.TYPE, StreamsMetadata.EMPTY);
@@ -108,7 +109,8 @@ public class TransportLogsStreamsToggleActivation extends AcknowledgedTransportM
     }
 
     private boolean logsIndexExists(ProjectMetadata projectMetadata) {
-        return Arrays.stream(projectMetadata.getConcreteAllIndices()).anyMatch(name -> name.equals("logs") || name.startsWith("logs."));
+        return Arrays.stream(projectMetadata.getConcreteAllIndices())
+            .anyMatch(name -> name.equals(StreamType.LOGS.getStreamName()) || name.startsWith(StreamType.LOGS.getStreamName() + "."));
     }
 
     @Override
@@ -132,7 +134,7 @@ public class TransportLogsStreamsToggleActivation extends AcknowledgedTransportM
         }
 
         @Override
-        public ClusterState execute(ClusterState currentState) throws Exception {
+        public ClusterState execute(ClusterState currentState) {
             return currentState.copyAndUpdateProject(
                 projectId,
                 builder -> builder.putCustom(StreamsMetadata.TYPE, new StreamsMetadata(enabled))

@@ -11,8 +11,6 @@ package org.elasticsearch.gradle.internal.transport;
 
 import com.google.common.collect.Comparators;
 
-import org.elasticsearch.gradle.Version;
-import org.elasticsearch.gradle.VersionProperties;
 import org.elasticsearch.gradle.internal.transport.TransportVersionUtils.TransportVersionDefinition;
 import org.elasticsearch.gradle.internal.transport.TransportVersionUtils.TransportVersionId;
 import org.elasticsearch.gradle.internal.transport.TransportVersionUtils.TransportVersionLatest;
@@ -130,36 +128,11 @@ public abstract class ValidateTransportVersionDefinitionsTask extends DefaultTas
 
         // now load all latest versions and do validation
         // NOTE: this must run after definition recording and idsByBase cleanup
-        List<Path> latestFiles = new ArrayList<>();
         try (var latestStream = Files.list(latestDir)) {
             for (var latestFile : latestStream.toList()) {
-                latestFiles.add(latestFile);
+                recordAndValidateLatest(readLatestFile(latestFile));
             }
         }
-        if (latestFiles.size() > 1) {
-            // only check all files on main, otherwise just check the current major/minor version
-            // NOTE: this implicitly works for serverless because it only has one version so we skip parsing
-            Version currentVersion = VersionProperties.getElasticsearchVersion();
-            boolean onMain = true;
-            for (Path latestFile : latestFiles) {
-                String[] branchParts = latestFile.getFileName().toString().split("\\.");
-                int major = Integer.parseInt(branchParts[0]);
-                int minor = Integer.parseInt(branchParts[1]);
-                if (major > currentVersion.getMajor() || major == currentVersion.getMajor() && minor > currentVersion.getMinor()) {
-                    onMain = false;
-                    break;
-                }
-            }
-
-            if (onMain == false) {
-                String currentBranch = currentVersion.getMajor() + "." + currentVersion.getMinor();
-                latestFiles = List.of(TransportVersionUtils.latestFilePath(getResourcesDirectory().get(), currentBranch));
-            }
-        }
-        for (Path latestFile : latestFiles) {
-            recordAndValidateLatest(readLatestFile(latestFile));
-        }
-
     }
 
     private String gitCommand(String... args) {

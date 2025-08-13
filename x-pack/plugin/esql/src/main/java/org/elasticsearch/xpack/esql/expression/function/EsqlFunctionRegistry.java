@@ -995,10 +995,15 @@ public class EsqlFunctionRegistry {
     @SuppressWarnings("overloads")  // These are ambiguous if you aren't using ctor references but we always do
     protected static <T extends Function> FunctionDefinition def(Class<T> function, QuaternaryBuilder<T> ctorRef, String... names) {
         FunctionBuilder builder = (source, children, cfg) -> {
-            boolean hasMinimumThree = OptionalArgument.class.isAssignableFrom(function);
-            if (hasMinimumThree && (children.size() > 4 || children.size() < 3)) {
-                throw new QlIllegalArgumentException("expects three or four arguments");
-            } else if (hasMinimumThree == false && children.size() != 4) {
+            if (OptionalArgument.class.isAssignableFrom(function)) {
+                if (children.size() > 4 || children.size() < 3) {
+                    throw new QlIllegalArgumentException("expects three or four arguments");
+                }
+            } else if (TwoOptionalArguments.class.isAssignableFrom(function)) {
+                if (children.size() > 4 || children.size() < 2) {
+                    throw new QlIllegalArgumentException("expects minimum two, maximum four arguments");
+                }
+            } else if (children.size() != 4) {
                 throw new QlIllegalArgumentException("expects exactly four arguments");
             }
             return ctorRef.build(

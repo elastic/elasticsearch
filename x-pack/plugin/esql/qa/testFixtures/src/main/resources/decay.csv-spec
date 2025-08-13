@@ -146,7 +146,7 @@ decay_result:double
 datetimeLinear1
 
 ROW value = TO_DATETIME("2023-01-01T00:00:00Z"), origin = TO_DATETIME("2023-01-01T00:00:00Z"), scale = "24 hours"
-| EVAL decay_result = decay(value, origin, scale, 0 seconds, 0.5, "linear") 
+| EVAL decay_result = decay(value, origin, scale, "0 seconds", 0.5, "linear") 
 | KEEP decay_result;
 
 decay_result:double

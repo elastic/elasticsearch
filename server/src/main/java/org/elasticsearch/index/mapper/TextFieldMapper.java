@@ -1395,35 +1395,35 @@ public final class TextFieldMapper extends TextFamilyFieldMapper {
 
     @Override
     protected void parseCreateField(DocumentParserContext context) throws IOException {
-        final var value = context.parser().optimizedTextOrNull();
+        final String value = context.parser().textOrNull();
 
         if (value == null) {
             return;
         }
 
         if (isIndexed() || fieldType.stored()) {
-            Field field = new Field(fieldType().name(), value.string(), fieldType);
+            Field field = new Field(fieldType().name(), value, fieldType);
             context.doc().add(field);
             if (fieldType.omitNorms()) {
                 context.addToFieldNames(fieldType().name());
             }
             if (prefixFieldInfo != null) {
-                context.doc().add(new Field(prefixFieldInfo.field, value.string(), prefixFieldInfo.fieldType));
+                context.doc().add(new Field(prefixFieldInfo.field, value, prefixFieldInfo.fieldType));
             }
             if (phraseFieldInfo != null) {
-                context.doc().add(new Field(phraseFieldInfo.field, value.string(), phraseFieldInfo.fieldType));
+                context.doc().add(new Field(phraseFieldInfo.field, value, phraseFieldInfo.fieldType));
             }
         } else if (needsToSupportSyntheticSource() && fieldType.stored() == false) {
             // if synthetic source needs to be supported, yet the field isn't stored, then we need to rely on something
             // else to support synthetic source
 
             // if we can rely on the synthetic source delegate for synthetic source, then return
-            if (fieldType().canUseSyntheticSourceDelegateForSyntheticSource(value.string())) {
+            if (fieldType().canUseSyntheticSourceDelegateForSyntheticSource(value)) {
                 return;
             }
 
             final String fieldName = fieldType().syntheticSourceFallbackFieldName(true);
-            context.doc().add(new StoredField(fieldName, value.string()));
+            context.doc().add(new StoredField(fieldName, value));
         }
     }
 

@@ -59,7 +59,7 @@ public class DecayTests extends AbstractScalarFunctionTestCase {
 
         // CartesianPoint
         testCaseSuppliers.addAll(
-            cartesianPointTestCase(new Point(5.0, 5.0), new Point(0.0, 0.0), "10m", "0m", 0.25, "linear", 0.46966991411008935)
+            cartesianPointTestCase("POINT (5 5)", "POINT (0 0)", "10m", "0m", 0.25, "linear", 0.46966991411008935)
         );
 
         // Datetime
@@ -365,8 +365,8 @@ public class DecayTests extends AbstractScalarFunctionTestCase {
     }
 
     private static List<TestCaseSupplier> cartesianPointTestCase(
-        Point value,
-        Point origin,
+        String valueWkt,
+        String originWkt,
         String scale,
         String offset,
         double decay,
@@ -385,8 +385,8 @@ public class DecayTests extends AbstractScalarFunctionTestCase {
                 ),
                 () -> new TestCaseSupplier.TestCase(
                     List.of(
-                        new TestCaseSupplier.TypedData(new BytesRef(CARTESIAN.asWkt(value)), DataType.CARTESIAN_POINT, "value"),
-                        new TestCaseSupplier.TypedData(new BytesRef(CARTESIAN.asWkt(origin)), DataType.CARTESIAN_POINT, "origin"),
+                        new TestCaseSupplier.TypedData(CARTESIAN.wktToWkb(valueWkt), DataType.CARTESIAN_POINT, "value"),
+                        new TestCaseSupplier.TypedData(CARTESIAN.wktToWkb(originWkt), DataType.CARTESIAN_POINT, "origin"),
                         new TestCaseSupplier.TypedData(scale, DataType.TEXT, "scale"),
                         new TestCaseSupplier.TypedData(offset, DataType.TEXT, "offset"),
                         new TestCaseSupplier.TypedData(decay, DataType.DOUBLE, "decay"),

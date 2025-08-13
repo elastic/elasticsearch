@@ -1274,6 +1274,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
                 out.writeString(MapperService.SINGLE_MAPPING_NAME);
             }
             if (source.isStructured()) {
+                // TODO: clearly broken for recoveries
                 ESONFlat structuredSource = source.structuredSource();
                 out.writeBytesReference(structuredSource.getSerializedKeyBytes());
                 out.writeBytesReference(structuredSource.values().data());

@@ -20,7 +20,7 @@ repositories {
 dependencies {
   compileOnly project(path: xpackModule('core'))
   compileOnly project(':server')
-  implementation 'com.nvidia.cuvs:cuvs-java:25.08.0'
+  implementation 'com.nvidia.cuvs:cuvs-java:25.10.0'
   testImplementation(testArtifact(project(xpackModule('core'))))
   testImplementation(testArtifact(project(':server')))
   clusterModules project(xpackModule('gpu'))

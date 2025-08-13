@@ -7,11 +7,9 @@
 
 package org.elasticsearch.xpack.gpu.codec;
 
-import com.nvidia.cuvs.Dataset;
+import com.nvidia.cuvs.CuVSMatrix;
 
 import org.apache.lucene.store.MemorySegmentAccessInput;
-
-import java.io.IOException;
 
 /** Stubb holder - never executed. */
 public class DatasetUtilsImpl implements DatasetUtils {
@@ -21,7 +19,7 @@ public class DatasetUtilsImpl implements DatasetUtils {
     }
 
     @Override
-    public Dataset fromInput(MemorySegmentAccessInput input, int numVectors, int dims) throws IOException {
+    public CuVSMatrix fromInput(MemorySegmentAccessInput input, int numVectors, int dims) {
         throw new UnsupportedOperationException("should not reach here");
     }
 }

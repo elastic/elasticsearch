@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.gpu.codec;
 
 import com.nvidia.cuvs.CagraIndex;
 import com.nvidia.cuvs.CagraIndexParams;
-import com.nvidia.cuvs.Dataset;
+import com.nvidia.cuvs.CuVSMatrix;
 
 import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.codecs.KnnFieldVectorsWriter;
@@ -35,7 +35,6 @@ import org.apache.lucene.util.RamUsageEstimator;
 import org.apache.lucene.util.hnsw.HnswGraph;
 import org.apache.lucene.util.hnsw.HnswGraph.NodesIterator;
 import org.apache.lucene.util.packed.DirectMonotonicWriter;
-import org.elasticsearch.common.lucene.store.IndexOutputOutputStream;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.logging.LogManager;
@@ -177,21 +176,21 @@ final class GPUToHNSWVectorsWriter extends KnnVectorsWriter {
     }
 
     private static final class DatasetOrVectors {
-        private final Dataset dataset;
+        private final CuVSMatrix dataset;
         private final float[][] vectors;
 
         static DatasetOrVectors fromArray(float[][] vectors) {
             return new DatasetOrVectors(
-                vectors.length < MIN_NUM_VECTORS_FOR_GPU_BUILD ? null : Dataset.ofArray(vectors),
+                vectors.length < MIN_NUM_VECTORS_FOR_GPU_BUILD ? null : CuVSMatrix.ofArray(vectors),
                 vectors.length < MIN_NUM_VECTORS_FOR_GPU_BUILD ? vectors : null
             );
         }
 
-        static DatasetOrVectors fromDataset(Dataset dataset) {
+        static DatasetOrVectors fromDataset(CuVSMatrix dataset) {
             return new DatasetOrVectors(dataset, null);
         }
 
-        private DatasetOrVectors(Dataset dataset, float[][] vectors) {
+        private DatasetOrVectors(CuVSMatrix dataset, float[][] vectors) {
             this.dataset = dataset;
             this.vectors = vectors;
             validateState();
@@ -204,10 +203,10 @@ final class GPUToHNSWVectorsWriter extends KnnVectorsWriter {
         }
 
         int size() {
-            return dataset != null ? dataset.size() : vectors.length;
+            return dataset != null ? (int)dataset.size() : vectors.length;
         }
 
-        Dataset getDataset() {
+        CuVSMatrix getDataset() {
             return dataset;
         }
 
@@ -243,9 +242,21 @@ final class GPUToHNSWVectorsWriter extends KnnVectorsWriter {
                 }
                 mockGraph = writeGraph(vectors, graphLevelNodeOffsets);
             } else {
-                String tempCagraHNSWFileName = buildGPUIndex(fieldInfo.getVectorSimilarityFunction(), datasetOrVectors.dataset);
-                assert tempCagraHNSWFileName != null : "GPU index should be built for field: " + fieldInfo.name;
-                mockGraph = writeGraph(tempCagraHNSWFileName, graphLevelNodeOffsets);
+                var dataset = datasetOrVectors.dataset;
+                var cuVSResources = cuVSResourceManager.acquire((int) dataset.size(), (int) dataset.columns());
+                try {
+                    var index = buildGPUIndex(cuVSResources, fieldInfo.getVectorSimilarityFunction(), dataset);
+                    try {
+                        assert index != null : "GPU index should be built for field: " + fieldInfo.name;
+                        mockGraph = writeGraph(index.getGraph(), graphLevelNodeOffsets);
+                    } finally {
+                        if (index != null) {
+                            index.destroyIndex();
+                        }
+                    }
+                } finally {
+                    cuVSResourceManager.release(cuVSResources);
+                }
             }
             long vectorIndexLength = vectorIndex.getFilePointer() - vectorIndexOffset;
             writeMeta(fieldInfo, vectorIndexOffset, vectorIndexLength, datasetOrVectors.size(), mockGraph, graphLevelNodeOffsets);
@@ -256,8 +267,11 @@ final class GPUToHNSWVectorsWriter extends KnnVectorsWriter {
         }
     }
 
-    @SuppressForbidden(reason = "require usage of Lucene's IOUtils#deleteFilesIgnoringExceptions(...)")
-    private String buildGPUIndex(VectorSimilarityFunction similarityFunction, Dataset dataset) throws Throwable {
+    private CagraIndex buildGPUIndex(
+        CuVSResourceManager.ManagedCuVSResources cuVSResources,
+        VectorSimilarityFunction similarityFunction,
+        CuVSMatrix dataset
+    ) throws Throwable {
         CagraIndexParams.CuvsDistanceType distanceType = switch (similarityFunction) {
             case EUCLIDEAN -> CagraIndexParams.CuvsDistanceType.L2Expanded;
             case DOT_PRODUCT, MAXIMUM_INNER_PRODUCT -> CagraIndexParams.CuvsDistanceType.InnerProduct;
@@ -271,134 +285,53 @@ final class GPUToHNSWVectorsWriter extends KnnVectorsWriter {
             .withMetric(distanceType)
             .build();
 
-        var cuVSResources = cuVSResourceManager.acquire(dataset.size(), dataset.dimensions());
-        try {
-            long startTime = System.nanoTime();
-            var indexBuilder = CagraIndex.newBuilder(cuVSResources).withDataset(dataset).withIndexParams(params);
-            var index = indexBuilder.build();
-            cuVSResourceManager.finishedComputation(cuVSResources);
-            if (logger.isDebugEnabled()) {
-                logger.debug(
-                    "Carga index created in: {} ms; #num vectors: {}",
-                    (System.nanoTime() - startTime) / 1_000_000.0,
-                    dataset.size()
-                );
-            }
-
-            // TODO: do serialization through MemorySegment instead of a temp file
-            // serialize index for CPU consumption to the hnwslib format
-            startTime = System.nanoTime();
-            IndexOutput tempCagraHNSW = null;
-            boolean success = false;
-            try {
-                tempCagraHNSW = segmentWriteState.directory.createTempOutput(
-                    vectorIndex.getName(),
-                    "cagra_hnws_temp",
-                    segmentWriteState.context
-                );
-                var tempCagraHNSWOutputStream = new IndexOutputOutputStream(tempCagraHNSW);
-                index.serializeToHNSW(tempCagraHNSWOutputStream);
-                if (logger.isDebugEnabled()) {
-                    logger.debug("Carga index serialized to hnswlib format in: {} ms", (System.nanoTime() - startTime) / 1_000_000.0);
-                }
-                success = true;
-            } finally {
-                index.destroyIndex();
-                if (success) {
-                    org.elasticsearch.core.IOUtils.close(tempCagraHNSW);
-                } else {
-                    if (tempCagraHNSW != null) {
-                        IOUtils.closeWhileHandlingException(tempCagraHNSW);
-                        org.apache.lucene.util.IOUtils.deleteFilesIgnoringExceptions(segmentWriteState.directory, tempCagraHNSW.getName());
-                    }
-                }
-            }
-            return tempCagraHNSW.getName();
-        } finally {
-            cuVSResourceManager.release(cuVSResources);
+        long startTime = System.nanoTime();
+        var indexBuilder = CagraIndex.newBuilder(cuVSResources).withDataset(dataset).withIndexParams(params);
+        var index = indexBuilder.build();
+        cuVSResourceManager.finishedComputation(cuVSResources);
+        if (logger.isDebugEnabled()) {
+            logger.debug(
+                "Carga index created in: {} ms; #num vectors: {}",
+                (System.nanoTime() - startTime) / 1_000_000.0,
+                dataset.size()
+            );
         }
+        return index;
     }
 
-    @SuppressForbidden(reason = "require usage of Lucene's IOUtils#deleteFilesIgnoringExceptions(...)")
-    private HnswGraph writeGraph(String tempCagraHNSWFileName, int[][] levelNodeOffsets) throws IOException {
+    private HnswGraph writeGraph(CuVSMatrix cagraGraph, int[][] levelNodeOffsets) throws IOException {
         long startTime = System.nanoTime();
-        boolean success = false;
-        IndexInput tempCagraHNSWInput = null;
-        int maxElementCount;
-        int maxGraphDegree;
 
-        try {
-            tempCagraHNSWInput = segmentWriteState.directory.openInput(tempCagraHNSWFileName, segmentWriteState.context);
-            // read the metadata from the hnlswlib format;
-            // some of them are not used in the Lucene HNSW format
-            tempCagraHNSWInput.readLong(); // offSetLevel0
-            maxElementCount = (int) tempCagraHNSWInput.readLong();
-            tempCagraHNSWInput.readLong(); // currElementCount
-            tempCagraHNSWInput.readLong(); // sizeDataPerElement
-            long labelOffset = tempCagraHNSWInput.readLong();
-            long dataOffset = tempCagraHNSWInput.readLong();
-            int maxLevel = tempCagraHNSWInput.readInt();
-            tempCagraHNSWInput.readInt(); // entryPointNode
-            tempCagraHNSWInput.readLong(); // maxM
-            long maxM0 = tempCagraHNSWInput.readLong(); // number of graph connections
-            tempCagraHNSWInput.readLong(); // M
-            tempCagraHNSWInput.readLong(); // mult
-            tempCagraHNSWInput.readLong(); // efConstruction
+        int maxElementCount = (int)cagraGraph.size();
+        int maxGraphDegree = (int)cagraGraph.columns();
+        int[] neighbors = new int[maxGraphDegree];
 
-            assert (maxLevel == 1) : "Cagra index is flat, maxLevel must be: 1, got: " + maxLevel;
-            maxGraphDegree = (int) maxM0;
-            int[] neighbors = new int[maxGraphDegree];
-            int dimension = (int) ((labelOffset - dataOffset) / Float.BYTES);
-            // assert (dimension == dimensionCalculated)
-            // : "Cagra index vector dimension must be: " + dimension + ", got: " + dimensionCalculated;
+        // write the cagra graph to the Lucene vectorIndex file
+        int[] scratch = new int[maxGraphDegree];
+        for (int node = 0; node < maxElementCount; node++) {
+            cagraGraph.getRow(node).toArray(neighbors);
 
-            levelNodeOffsets[0] = new int[maxElementCount];
-
-            // read graph from the cagra_hnswlib index and write it to the Lucene vectorIndex file
-            int[] scratch = new int[maxGraphDegree];
-            for (int node = 0; node < maxElementCount; node++) {
-                // read from the cagra_hnswlib index
-                int nodeDegree = tempCagraHNSWInput.readInt();
-                assert (nodeDegree == maxGraphDegree)
-                    : "In Cagra graph all nodes must have the same number of connections : " + maxGraphDegree + ", got" + nodeDegree;
-                for (int i = 0; i < nodeDegree; i++) {
-                    neighbors[i] = tempCagraHNSWInput.readInt();
+            // write to the Lucene vectorIndex file
+            long offsetStart = vectorIndex.getFilePointer();
+            Arrays.sort(neighbors);
+            int actualSize = 0;
+            scratch[actualSize++] = neighbors[0];
+            for (int i = 1; i < maxGraphDegree; i++) {
+                assert neighbors[i] < maxElementCount : "node too large: " + neighbors[i] + ">=" + maxElementCount;
+                if (neighbors[i - 1] == neighbors[i]) {
+                    continue;
                 }
-                // Skip over the vector data
-                tempCagraHNSWInput.seek(tempCagraHNSWInput.getFilePointer() + dimension * Float.BYTES);
-                // Skip over the label/id
-                tempCagraHNSWInput.seek(tempCagraHNSWInput.getFilePointer() + Long.BYTES);
-
-                // write to the Lucene vectorIndex file
-                long offsetStart = vectorIndex.getFilePointer();
-                Arrays.sort(neighbors);
-                int actualSize = 0;
-                scratch[actualSize++] = neighbors[0];
-                for (int i = 1; i < nodeDegree; i++) {
-                    assert neighbors[i] < maxElementCount : "node too large: " + neighbors[i] + ">=" + maxElementCount;
-                    if (neighbors[i - 1] == neighbors[i]) {
-                        continue;
-                    }
-                    scratch[actualSize++] = neighbors[i] - neighbors[i - 1];
-                }
-                // Write the size after duplicates are removed
-                vectorIndex.writeVInt(actualSize);
-                for (int i = 0; i < actualSize; i++) {
-                    vectorIndex.writeVInt(scratch[i]);
-                }
-                levelNodeOffsets[0][node] = Math.toIntExact(vectorIndex.getFilePointer() - offsetStart);
+                scratch[actualSize++] = neighbors[i] - neighbors[i - 1];
             }
-            if (logger.isDebugEnabled()) {
-                logger.debug("cagra_hnws index serialized to Lucene HNSW in: {} ms", (System.nanoTime() - startTime) / 1_000_000.0);
+            // Write the size after duplicates are removed
+            vectorIndex.writeVInt(actualSize);
+            for (int i = 0; i < actualSize; i++) {
+                vectorIndex.writeVInt(scratch[i]);
             }
-            success = true;
-        } finally {
-            if (success) {
-                IOUtils.close(tempCagraHNSWInput);
-            } else {
-                IOUtils.closeWhileHandlingException(tempCagraHNSWInput);
-            }
-            org.apache.lucene.util.IOUtils.deleteFilesIgnoringExceptions(segmentWriteState.directory, tempCagraHNSWFileName);
+            levelNodeOffsets[0][node] = Math.toIntExact(vectorIndex.getFilePointer() - offsetStart);
+        }
+        if (logger.isDebugEnabled()) {
+            logger.debug("cagra_hnws index serialized to Lucene HNSW in: {} ms", (System.nanoTime() - startTime) / 1_000_000.0);
         }
         return createMockGraph(maxElementCount, maxGraphDegree);
     }

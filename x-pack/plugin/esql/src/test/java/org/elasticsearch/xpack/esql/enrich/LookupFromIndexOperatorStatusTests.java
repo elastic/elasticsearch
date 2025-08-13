@@ -39,7 +39,7 @@ public class LookupFromIndexOperatorStatusTests extends AbstractWireSerializingT
         long receivedPages = in.receivedPages();
         long completedPages = in.completedPages();
         long procesNanos = in.procesNanos();
-        long totalTerms = in.totalTerms();
+        long totalTerms = in.totalRows();
         long emittedPages = in.emittedPages();
         switch (randomIntBetween(0, 4)) {
             case 0 -> receivedPages = randomValueOtherThan(receivedPages, ESTestCase::randomNonNegativeLong);
@@ -62,7 +62,7 @@ public class LookupFromIndexOperatorStatusTests extends AbstractWireSerializingT
               "received_pages" : 100,
               "completed_pages" : 50,
               "emitted_pages" : 88,
-              "total_terms" : 120
+              "total_rows" : 120
             }"""));
     }
 }

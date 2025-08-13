@@ -243,8 +243,8 @@ public class ResolveIndexTests extends ESTestCase {
         String tomorrowSuffix = dateFormatter.format(now.plus(Duration.ofDays(1L)));
         Object[][] indices = new Object[][] {
             // name, isClosed, isHidden, isFrozen, dataStream, aliases
-            { "logs-pgsql-prod-" + todaySuffix, false, true, false, false, null, Strings.EMPTY_ARRAY },
-            { "logs-pgsql-prod-" + tomorrowSuffix, false, true, false, false, null, Strings.EMPTY_ARRAY } };
+            { "logs-pgsql-prod-" + todaySuffix, false, true, false, false, null, Strings.EMPTY_ARRAY, IndexMode.STANDARD },
+            { "logs-pgsql-prod-" + tomorrowSuffix, false, true, false, false, null, Strings.EMPTY_ARRAY, IndexMode.STANDARD } };
         final ProjectMetadata project = buildProjectMetadata(randomProjectIdOrDefault(), new Object[][] {}, indices).build();
         String[] requestedIndex = new String[] { "<logs-pgsql-prod-{now/d}>" };
         Set<ResolvedExpression> resolvedIndices = resolver.resolveExpressions(

@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.sql.qa.jdbc;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.elasticsearch.xpack.ql.SpecReader;
 import org.junit.Assume;
 import org.junit.ClassRule;
 
@@ -21,6 +22,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.TimeZone;
 
+import static org.elasticsearch.xpack.ql.SpecReader.Parser;
 import static org.elasticsearch.xpack.ql.TestUtils.classpathResources;
 
 /**
@@ -41,7 +43,7 @@ public abstract class SqlSpecTestCase extends SpecBaseIntegrationTestCase {
     public static List<Object[]> readScriptSpec() throws Exception {
         List<URL> urls = classpathResources("/*.sql-spec");
         assertTrue("Not enough specs found " + urls.toString(), urls.size() > 10);
-        return readScriptSpec(urls, specParser());
+        return SpecReader.readScriptSpec(urls, specParser());
     }
 
     private static class SqlSpecParser implements Parser {

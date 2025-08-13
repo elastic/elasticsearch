@@ -8,6 +8,7 @@ package org.elasticsearch.upgrades;
 
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
+import org.elasticsearch.rest.RestStatus;
 
 import java.util.Map;
 
@@ -28,7 +29,7 @@ public class BasicLicenseUpgradeIT extends AbstractUpgradeTestCase {
         final Request request = new Request("GET", "/_license");
         // This avoids throwing a ResponseException when the license is not ready yet
         // allowing to retry the check using assertBusy
-        request.addParameter("ignore", "404");
+        setIgnoredErrorResponseCodes(request, RestStatus.NOT_FOUND);
         Response licenseResponse = client().performRequest(request);
         assertOK(licenseResponse);
         Map<String, Object> licenseResponseMap = entityAsMap(licenseResponse);
@@ -42,7 +43,7 @@ public class BasicLicenseUpgradeIT extends AbstractUpgradeTestCase {
         final Request request = new Request("GET", "/_license");
         // This avoids throwing a ResponseException when the license is not ready yet
         // allowing to retry the check using assertBusy
-        request.addParameter("ignore", "404");
+        setIgnoredErrorResponseCodes(request, RestStatus.NOT_FOUND);
         Response licenseResponse = client().performRequest(request);
         assertOK(licenseResponse);
         Map<String, Object> licenseResponseMap = entityAsMap(licenseResponse);

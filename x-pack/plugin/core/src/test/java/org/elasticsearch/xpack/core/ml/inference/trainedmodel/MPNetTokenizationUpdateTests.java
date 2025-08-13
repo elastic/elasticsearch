@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.core.ml.inference.trainedmodel;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
 
@@ -67,7 +68,7 @@ public class MPNetTokenizationUpdateTests extends AbstractBWCWireSerializationTe
 
     @Override
     protected MPNetTokenizationUpdate mutateInstanceForVersion(MPNetTokenizationUpdate instance, TransportVersion version) {
-        if (version.before(TransportVersion.V_8_2_0)) {
+        if (version.before(TransportVersions.V_8_2_0)) {
             return new MPNetTokenizationUpdate(instance.getTruncate(), null);
         }
 

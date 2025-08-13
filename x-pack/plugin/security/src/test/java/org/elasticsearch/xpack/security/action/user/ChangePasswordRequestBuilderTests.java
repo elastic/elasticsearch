@@ -16,7 +16,6 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.security.action.user.ChangePasswordRequest;
-import org.elasticsearch.xpack.core.security.action.user.ChangePasswordRequestBuilder;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 
 import java.io.IOException;
@@ -77,17 +76,16 @@ public class ChangePasswordRequestBuilderTests extends ESTestCase {
     }
 
     public void testWithHashedPasswordNotHash() {
-        final Hasher systemHasher = Hasher.valueOf(randomFrom(Hasher.getAvailableAlgoStoredHash()).toUpperCase(Locale.ROOT));
+        final Hasher systemHasher = Hasher.valueOf(randomFrom(Hasher.getAvailableAlgoStoredPasswordHash()).toUpperCase(Locale.ROOT));
         final char[] hash = randomAlphaOfLength(20).toCharArray();
         final String json = Strings.format("""
             {
                 "password_hash": "%s"
             }""", new String(hash));
         ChangePasswordRequestBuilder builder = new ChangePasswordRequestBuilder(mock(Client.class));
-        final IllegalArgumentException e = expectThrows(
-            IllegalArgumentException.class,
-            () -> { builder.source(new BytesArray(json.getBytes(StandardCharsets.UTF_8)), XContentType.JSON, systemHasher).request(); }
-        );
+        final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> {
+            builder.source(new BytesArray(json.getBytes(StandardCharsets.UTF_8)), XContentType.JSON, systemHasher).request();
+        });
         assertThat(
             e.getMessage(),
             containsString("The provided password hash is not a hash or it could not be resolved to a supported hash algorithm.")
@@ -106,10 +104,9 @@ public class ChangePasswordRequestBuilderTests extends ESTestCase {
         );
 
         ChangePasswordRequestBuilder builder = new ChangePasswordRequestBuilder(mock(Client.class));
-        final IllegalArgumentException e = expectThrows(
-            IllegalArgumentException.class,
-            () -> { builder.source(json, XContentType.JSON, hasher).request(); }
-        );
+        final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> {
+            builder.source(json, XContentType.JSON, hasher).request();
+        });
         assertThat(e.getMessage(), containsString("password_hash has already been set"));
 
     }

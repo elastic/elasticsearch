@@ -38,12 +38,12 @@ public class TimeField extends AbstractField {
     }
 
     @Override
-    public Object[] value(SearchHit hit) {
+    public Object[] value(SearchHit hit, SourceSupplier source) {
         Object[] value = getFieldValue(hit);
         if (value.length != 1) {
             return value;
         }
-        if (value[0]instanceof String stringValue) { // doc_value field with the epoch_millis format
+        if (value[0] instanceof String stringValue) { // doc_value field with the epoch_millis format
             value[0] = TimeUtils.parseToEpochMs(stringValue);
         } else if (value[0] instanceof Long == false) { // pre-6.0 field
             throw new IllegalStateException("Unexpected value for a time field: " + value[0].getClass());

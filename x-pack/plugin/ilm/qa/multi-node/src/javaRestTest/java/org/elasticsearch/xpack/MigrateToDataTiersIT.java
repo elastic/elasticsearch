@@ -46,7 +46,6 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
-import static java.util.Collections.singletonMap;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.createIndexWithSettings;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.createNewSingletonPolicy;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.createPolicy;
@@ -101,11 +100,11 @@ public class MigrateToDataTiersIT extends ESRestTestCase {
         Map<String, LifecycleAction> warmActions = new HashMap<>();
         warmActions.put(SetPriorityAction.NAME, new SetPriorityAction(50));
         warmActions.put(ForceMergeAction.NAME, new ForceMergeAction(1, null));
-        warmActions.put(AllocateAction.NAME, new AllocateAction(null, null, singletonMap("data", "warm"), null, null));
-        warmActions.put(ShrinkAction.NAME, new ShrinkAction(1, null));
+        warmActions.put(AllocateAction.NAME, new AllocateAction(null, null, Map.of("data", "warm"), null, null));
+        warmActions.put(ShrinkAction.NAME, new ShrinkAction(1, null, false));
         Map<String, LifecycleAction> coldActions = new HashMap<>();
         coldActions.put(SetPriorityAction.NAME, new SetPriorityAction(0));
-        coldActions.put(AllocateAction.NAME, new AllocateAction(0, null, null, null, singletonMap("data", "cold")));
+        coldActions.put(AllocateAction.NAME, new AllocateAction(0, null, null, null, Map.of("data", "cold")));
 
         createPolicy(
             client(),
@@ -114,7 +113,7 @@ public class MigrateToDataTiersIT extends ESRestTestCase {
             new Phase("warm", TimeValue.ZERO, warmActions),
             new Phase("cold", TimeValue.timeValueDays(100), coldActions),
             null,
-            new Phase("delete", TimeValue.ZERO, singletonMap(DeleteAction.NAME, DeleteAction.WITH_SNAPSHOT_DELETE))
+            new Phase("delete", TimeValue.ZERO, Map.of(DeleteAction.NAME, DeleteAction.WITH_SNAPSHOT_DELETE))
         );
 
         createIndexWithSettings(
@@ -170,6 +169,8 @@ public class MigrateToDataTiersIT extends ESRestTestCase {
             Response response = client().performRequest(new Request("GET", "_ilm/status"));
             assertThat(EntityUtils.toString(response.getEntity()), containsString(OperationMode.STOPPED.toString()));
         });
+        // Wait for cluster state to be published to all nodes.
+        waitForClusterUpdates();
 
         String indexWithDataWarmRouting = "indexwithdatawarmrouting";
         Settings.Builder settings = Settings.builder()
@@ -306,7 +307,7 @@ public class MigrateToDataTiersIT extends ESRestTestCase {
         String composableTemplate = "no_need_to_migrate_composable_template";
         {
             Request composableTemplateRequest = new Request("PUT", "/_index_template/" + composableTemplate);
-            Settings indexSettings = Settings.builder().put("index.number_of_shards", 1).put("index.number_of_replicas", 0).build();
+            Settings indexSettings = indexSettings(1, 0).build();
             composableTemplateRequest.setJsonEntity(
                 "{\"index_patterns\":  [\"1notreallyimportant-*\"], \"template\":{\"settings\":  " + Strings.toString(indexSettings) + "}}"
             );
@@ -341,6 +342,8 @@ public class MigrateToDataTiersIT extends ESRestTestCase {
                 Response response = client().performRequest(new Request("GET", "_ilm/status"));
                 assertThat(EntityUtils.toString(response.getEntity()), containsString(OperationMode.STOPPED.toString()));
             });
+            // Wait for cluster state to be published to all nodes.
+            waitForClusterUpdates();
         }
 
         Request migrateRequest = new Request("POST", "_ilm/migrate_to_data_tiers");
@@ -377,11 +380,11 @@ public class MigrateToDataTiersIT extends ESRestTestCase {
         Map<String, LifecycleAction> warmActions = new HashMap<>();
         warmActions.put(SetPriorityAction.NAME, new SetPriorityAction(50));
         warmActions.put(ForceMergeAction.NAME, new ForceMergeAction(1, null));
-        warmActions.put(AllocateAction.NAME, new AllocateAction(null, null, singletonMap("data", "warm"), null, null));
-        warmActions.put(ShrinkAction.NAME, new ShrinkAction(1, null));
+        warmActions.put(AllocateAction.NAME, new AllocateAction(null, null, Map.of("data", "warm"), null, null));
+        warmActions.put(ShrinkAction.NAME, new ShrinkAction(1, null, false));
         Map<String, LifecycleAction> coldActions = new HashMap<>();
         coldActions.put(SetPriorityAction.NAME, new SetPriorityAction(0));
-        coldActions.put(AllocateAction.NAME, new AllocateAction(0, null, null, null, singletonMap("data", "cold")));
+        coldActions.put(AllocateAction.NAME, new AllocateAction(0, null, null, null, Map.of("data", "cold")));
 
         createPolicy(
             client(),
@@ -390,7 +393,7 @@ public class MigrateToDataTiersIT extends ESRestTestCase {
             new Phase("warm", TimeValue.ZERO, warmActions),
             new Phase("cold", TimeValue.timeValueDays(100), coldActions),
             null,
-            new Phase("delete", TimeValue.ZERO, singletonMap(DeleteAction.NAME, DeleteAction.WITH_SNAPSHOT_DELETE))
+            new Phase("delete", TimeValue.ZERO, Map.of(DeleteAction.NAME, DeleteAction.WITH_SNAPSHOT_DELETE))
         );
 
         createIndexWithSettings(

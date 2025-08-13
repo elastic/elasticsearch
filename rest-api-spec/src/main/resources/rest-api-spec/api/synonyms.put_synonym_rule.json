@@ -1,0 +1,48 @@
+{
+  "synonyms.put_synonym_rule": {
+    "documentation": {
+      "url": "https://www.elastic.co/guide/en/elasticsearch/reference/master/put-synonym-rule.html",
+      "description": "Creates or updates a synonym rule in a synonym set"
+    },
+    "stability": "stable",
+    "visibility": "public",
+    "headers": {
+      "accept": [
+        "application/json"
+      ],
+      "content_type": [
+        "application/json"
+      ]
+    },
+    "url": {
+      "paths": [
+        {
+          "path": "/_synonyms/{set_id}/{rule_id}",
+          "methods": [
+            "PUT"
+          ],
+          "parts": {
+            "set_id": {
+              "type": "string",
+              "description": "The id of the synonym set to be updated with the synonym rule"
+            },
+            "rule_id": {
+              "type": "string",
+              "description": "The id of the synonym rule to be updated or created"
+            }
+          }
+        }
+      ]
+    },
+    "params": {
+      "refresh": {
+        "type": "boolean",
+        "description": "Refresh search analyzers to update synonyms"
+      }
+    },
+    "body": {
+      "description": "Synonym rule",
+      "required": true
+    }
+  }
+}

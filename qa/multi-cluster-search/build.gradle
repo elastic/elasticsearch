@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 /*
@@ -14,7 +15,6 @@
 
 
 import org.elasticsearch.gradle.Version
-import org.elasticsearch.gradle.internal.info.BuildParams
 import org.elasticsearch.gradle.internal.test.RestIntegTestTask
 
 apply plugin: 'elasticsearch.internal-testclusters'
@@ -23,7 +23,8 @@ apply plugin: 'elasticsearch.bwc-test'
 apply plugin: 'elasticsearch.rest-resources'
 
 dependencies {
-  testImplementation project(":client:rest-high-level")
+  testImplementation project(':modules:aggregations')
+  testImplementation project(':modules:parent-join')
 }
 
 def ccsSupportedVersion = bwcVersion -> {
@@ -33,7 +34,7 @@ def ccsSupportedVersion = bwcVersion -> {
   return currentVersion.minor == 0 || (currentVersion.major == bwcVersion.major && currentVersion.minor - bwcVersion.minor <= 1)
 }
 
-BuildParams.bwcVersions.withWireCompatible(ccsSupportedVersion) { bwcVersion, baseName ->
+buildParams.bwcVersions.withWireCompatible(ccsSupportedVersion) { bwcVersion, baseName ->
 
   def remoteCluster = testClusters.register("${baseName}-remote") {
     numberOfNodes = 2
@@ -47,6 +48,7 @@ BuildParams.bwcVersions.withWireCompatible(ccsSupportedVersion) { bwcVersion, ba
     setting 'cluster.remote.connections_per_cluster', '1'
     setting 'cluster.remote.my_remote_cluster.seeds',
       { "\"${remoteCluster.get().getAllTransportPortURI().get(0)}\"" }
+    setting 'cluster.remote.my_remote_cluster.skip_unavailable', 'false'
   }
 
   tasks.register("${baseName}#remote-cluster", RestIntegTestTask) {

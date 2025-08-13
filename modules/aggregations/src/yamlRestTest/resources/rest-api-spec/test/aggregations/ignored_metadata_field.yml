@@ -1,0 +1,302 @@
+setup:
+  - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            properties:
+              city:
+                type: keyword
+                ignore_above: 10
+              email:
+                type: keyword
+                ignore_above: 20
+              date_of_birth:
+                type: date
+                format: "dd-MM-yyyy"
+                ignore_malformed: true
+              newsletter:
+                type: boolean
+                ignore_malformed: true
+              ip_address:
+                type: ip
+                ignore_malformed: true
+              products:
+                type: keyword
+                ignore_above: 12
+              total_price:
+                type: double
+                ignore_malformed: true
+              location:
+                type: geo_point
+                ignore_malformed: true
+              order_datetime:
+                type: date
+                format: "yyyy-MM-dd HH:mm:ss"
+                ignore_malformed: true
+
+  - do:
+      bulk:
+        index: test
+        refresh: true
+        body:
+          - { "index": { "_id": "001" } }
+          - { "city": "Milano", email: "alice@gmail.com", date_of_birth: "12-03-1990", newsletter: true, ip_address: "130.34.45.202", products: ["it-002-4567", "it-001-6679"], total_price: "57.99", location: [45.46, 9.16], order_datetime: "2021-05-01 20:01:37" }
+          - { "index": { "_id": "002" } }
+          - { "city": "Roma", email: "bob@gmail.com", date_of_birth: "15-05-1991", newsletter: false, ip_address: "2001:0db8:85a3:0000:0000:8a2e:0370:7334", products: [ "it-002-112467", "it-002-5579" ], total_price: "10.99", location: [ -44.78, 19.20 ], order_datetime: "2021-05-01 20:01:37" }
+          - { "index": { "_id": "003" } }
+          - { "city": "Venezia", email: "alice@gmail.com", date_of_birth: "01-09-1994", newsletter: false, ip_address: "fe80::1", products: [ "it-002", "it-003-17171717" ], total_price: "-12.99", location: [ 182.22, "20.12" ], order_datetime: "2021-05-02" }
+          - { "index": { "_id": "004" } }
+          - { "city": "Cortina d'Ampezzo", email: "a-very-long-email-address-that-should-be-ignored@gmail.com", date_of_birth: "05-06-1989", newsletter: t, ip_address: "::1", products: [ "it101020203030", "it" ], total_price: "57", location: [ 0, 9.16 ], order_datetime: "2021-05-01-20:01:37" }
+          - { "index": { "_id": "005" } }
+          - { "city": "Cortina d'Ampezzo", email: "dave@gmail.com", date_of_birth: "12-03-1990 12:30:45", newsletter: t, ip_address: "130.999.36.201", products: [ "it-002-2213", "it-001-7709" ], total_price: "twentytree/12", location: [ "45.33, 8.20" ], order_datetime: "20210501 20:01:37" }
+          - { "index": { "_id": "006" } }
+          - { "city": "Milano", email: "eric@gmail.com", date_of_birth: "19-12-90", newsletter: f, ip_address: "130.34.45", products: [ "it-002-555", "it-001-5589990000" ], total_price: "", location: [ "45.99", "9.16" ], order_datetime: "2021-05-01 20:01:37.123" }
+          - { "index": { "_id": "007" } }
+          - { "city": "Venezia", email: "luke-skywalker@gmail.com", date_of_birth: "20/03/1992", newsletter: f, ip_address: "130..45.202", products: [ "it-002-1234", "it-001-1213" ], total_price: "57.99.12", location: [ 45, 20 ], order_datetime: "2021-05-03 19:38:22" }
+          - { "index": { "_id": "008" } }
+          - { "city": "Firenze", email: "bob@gmail.com", date_of_birth: "02311988", newsletter: "", ip_address: ":::1", products: ["", ""], total_price: "0.0", location: [ 46.22, 11.22 ], order_datetime: "2021-05-03 20:01" }
+          - { "index": { "_id": "009" } }
+          - { "city": "Firenze", email: "tom@gmail.com", date_of_birth: "16-11-1990", newsletter: "not_sure", ip_address: "2001:0db8::1234:5678::", products: "it-002-4567", total_price: "0,99", location: [ 18.18, 19.19 ], order_datetime: "2021-05-03 20-01-55" }
+          - { "index": { "_id": "010" } }
+          - { "city": "Cortina d'Ampezzo", email: "alice@gmail.com", date_of_birth: "18-12-1992", newsletter: "false", ip_address: ":::1", products: "it-002-1890994567", total_price: "14,27", location: [ 45.46-9.16 ], order_datetime: "2021-05-01 20:05:37" }
+          - { "index": { "_id": "011" } }
+          - { "city": "Roma", email: "paul@gmail.com", date_of_birth: "17.15.1990", newsletter: "true", ip_address: "", products: [ "it-002-1019", "it-001-5578", "it-009-9901256" ], total_price: "49.99", location: 45.22, order_datetime: "2021-05-01T20:02:00" }
+
+---
+"terms aggregation on _ignored metadata field":
+  - requires:
+      cluster_features: "gte_v8.15.0"
+      reason: "_ignored metadata field aggregation support added in 8.15"
+  - do:
+      search:
+        body:
+          size: 0
+          aggs:
+            ignored_terms:
+              terms:
+                field: _ignored
+
+  - match: { hits.total.value: 11 }
+  - length: { aggregations.ignored_terms.buckets: 9 }
+  - match: { aggregations.ignored_terms.buckets.0.key: "ip_address" }
+  - match: { aggregations.ignored_terms.buckets.0.doc_count: 7 }
+  - match: { aggregations.ignored_terms.buckets.1.key: "order_datetime" }
+  - match: { aggregations.ignored_terms.buckets.1.doc_count: 7 }
+  - match: { aggregations.ignored_terms.buckets.2.key: "products" }
+  - match: { aggregations.ignored_terms.buckets.2.doc_count: 6 }
+  - match: { aggregations.ignored_terms.buckets.3.key: "date_of_birth" }
+  - match: { aggregations.ignored_terms.buckets.3.doc_count: 5 }
+  - match: { aggregations.ignored_terms.buckets.4.key: "newsletter" }
+  - match: { aggregations.ignored_terms.buckets.4.doc_count: 5 }
+  - match: { aggregations.ignored_terms.buckets.5.key: "total_price" }
+  - match: { aggregations.ignored_terms.buckets.5.doc_count: 4 }
+  - match: { aggregations.ignored_terms.buckets.6.key: "city" }
+  - match: { aggregations.ignored_terms.buckets.6.doc_count: 3 }
+  - match: { aggregations.ignored_terms.buckets.7.key: "location" }
+  - match: { aggregations.ignored_terms.buckets.7.doc_count: 3 }
+  - match: { aggregations.ignored_terms.buckets.8.key: "email" }
+  - match: { aggregations.ignored_terms.buckets.8.doc_count: 2 }
+
+---
+"terms aggregation on _ignored metadata field with top hits":
+  - requires:
+      cluster_features: "gte_v8.15.0"
+      reason: "_ignored metadata field aggregation support added in 8.15"
+  - do:
+      search:
+        body:
+          size: 0
+          aggs:
+            ignored_terms:
+              terms:
+                field: _ignored
+                size: 3
+              aggs:
+                top_by_datetime:
+                  top_hits:
+                    sort:
+                      - order_datetime: { order: desc }
+                    size: 1
+
+  - match: { hits.total.value: 11 }
+  - length: { aggregations.ignored_terms.buckets: 3 }
+
+  - match: { aggregations.ignored_terms.buckets.0.key: "ip_address" }
+  - match: { aggregations.ignored_terms.buckets.0.doc_count: 7 }
+  - match: { aggregations.ignored_terms.buckets.0.top_by_datetime.hits.hits.0._ignored: ["date_of_birth", "email", "ip_address", "newsletter", "total_price"]}
+
+  - match: { aggregations.ignored_terms.buckets.1.key: "order_datetime" }
+  - match: { aggregations.ignored_terms.buckets.1.doc_count: 7 }
+  - match: { aggregations.ignored_terms.buckets.1.top_by_datetime.hits.hits.0._ignored: ["order_datetime", "products"]}
+
+  - match: { aggregations.ignored_terms.buckets.2.key: "products" }
+  - match: { aggregations.ignored_terms.buckets.2.doc_count: 6 }
+  - match: { aggregations.ignored_terms.buckets.2.top_by_datetime.hits.hits.0._ignored: ["city", "ip_address", "location", "products", "total_price"]}
+
+---
+"date histogram aggregation with terms on _ignored metadata field":
+  - requires:
+      cluster_features: "gte_v8.15.0"
+      reason: "_ignored metadata field aggregation support added in 8.15"
+  - do:
+      search:
+        body:
+          size: 0
+          aggs:
+            order_datetime_histo:
+              date_histogram:
+                field: order_datetime
+                calendar_interval: day
+              aggs:
+                ignored_terms:
+                  terms:
+                    field: _ignored
+                    size: 2
+
+  - match: { hits.total.value: 11 }
+  - length: { aggregations.order_datetime_histo.buckets: 3 }
+
+  - match: { aggregations.order_datetime_histo.buckets.0.key_as_string: "2021-05-01 00:00:00" }
+  - match: { aggregations.order_datetime_histo.buckets.0.doc_count: 3 }
+  - match: { aggregations.order_datetime_histo.buckets.0.ignored_terms.buckets.0: { key: "products", doc_count: 2 } }
+
+  - match: { aggregations.order_datetime_histo.buckets.1.key_as_string: "2021-05-02 00:00:00" }
+  - match: { aggregations.order_datetime_histo.buckets.1.doc_count: 0 }
+  - length: { aggregations.order_datetime_histo.buckets.1.ignored_terms.buckets: 0 }
+
+  - match: { aggregations.order_datetime_histo.buckets.2.key_as_string: "2021-05-03 00:00:00" }
+  - match: { aggregations.order_datetime_histo.buckets.2.doc_count: 1 }
+  - match: { aggregations.order_datetime_histo.buckets.2.ignored_terms.buckets.0: { key: "date_of_birth", doc_count: 1 } }
+  - match: { aggregations.order_datetime_histo.buckets.2.ignored_terms.buckets.1: { key: "email", doc_count: 1 } }
+
+---
+"cardinality aggregation on _ignored metadata field":
+  - requires:
+      cluster_features: "gte_v8.15.0"
+      reason: "_ignored metadata field aggregation support added in 8.15"
+  - do:
+      search:
+        body:
+          size: 0
+          aggs:
+            ignored_cardinality:
+              cardinality:
+                field: _ignored
+
+  - match: { hits.total.value: 11 }
+  - match: {aggregations.ignored_cardinality.value: 9 }
+
+---
+"value count aggregation on _ignored metadata field":
+  - requires:
+      cluster_features: "gte_v8.15.0"
+      reason: "_ignored metadata field aggregation support added in 8.15"
+  - do:
+      search:
+        body:
+          size: 0
+          aggs:
+            ignored_value_count:
+              value_count:
+                field: _ignored
+
+  - match: { hits.total.value: 11 }
+  - match: {aggregations.ignored_value_count.value: 42 }
+
+---
+"date range aggregation with terms on _ignored metadata field":
+  - requires:
+      cluster_features: "gte_v8.15.0"
+      reason: "_ignored metadata field aggregation support added in 8.15"
+  - do:
+      search:
+        body:
+          size: 0
+          aggs:
+            order_datetime_range:
+              date_range:
+                field: order_datetime
+                format: "dd-MM-yyyy"
+                ranges:
+                  - to: "03-05-2021"
+                  - from: "02-05-2021"
+              aggs:
+                ignored_terms:
+                  terms:
+                    field: _ignored
+
+  - match: { hits.total.value: 11 }
+  - length: { aggregations.order_datetime_range.buckets: 2 }
+
+  - match: { aggregations.order_datetime_range.buckets.0.to_as_string: "03-05-2021" }
+  - match: { aggregations.order_datetime_range.buckets.0.doc_count: 3 }
+  - length: { aggregations.order_datetime_range.buckets.0.ignored_terms.buckets: 5 }
+  - match: { aggregations.order_datetime_range.buckets.0.ignored_terms.buckets.0: { key: "products", doc_count: 2 } }
+  - match: { aggregations.order_datetime_range.buckets.0.ignored_terms.buckets.1: { key: "city", doc_count: 1 } }
+  - match: { aggregations.order_datetime_range.buckets.0.ignored_terms.buckets.2: { key: "ip_address", doc_count: 1 } }
+  - match: { aggregations.order_datetime_range.buckets.0.ignored_terms.buckets.3: { key: "location", doc_count: 1 } }
+  - match: { aggregations.order_datetime_range.buckets.0.ignored_terms.buckets.4: { key: "total_price", doc_count: 1 } }
+
+  - match: { aggregations.order_datetime_range.buckets.1.from_as_string: "02-05-2021" }
+  - match: { aggregations.order_datetime_range.buckets.1.doc_count: 1 }
+  - length: { aggregations.order_datetime_range.buckets.1.ignored_terms.buckets: 5 }
+  - match: { aggregations.order_datetime_range.buckets.1.ignored_terms.buckets.0: { key: "date_of_birth", doc_count: 1 } }
+  - match: { aggregations.order_datetime_range.buckets.1.ignored_terms.buckets.1: { key: "email", doc_count: 1 } }
+  - match: { aggregations.order_datetime_range.buckets.1.ignored_terms.buckets.2: { key: "ip_address", doc_count: 1 } }
+  - match: { aggregations.order_datetime_range.buckets.1.ignored_terms.buckets.3: { key: "newsletter", doc_count: 1 } }
+  - match: { aggregations.order_datetime_range.buckets.1.ignored_terms.buckets.4: { key: "total_price", doc_count: 1 } }
+
+---
+"random sampler aggregation with terms on _ignored metadata field":
+  - requires:
+      cluster_features: "gte_v8.15.0"
+      reason: "_ignored metadata field aggregation support added in 8.15"
+  - do:
+      search:
+        body:
+          size: 0
+          aggs:
+            sample:
+              random_sampler:
+                probability: 1.0 # make sure buckets count is consistent
+                seed: 43
+              aggs:
+                ignored_terms:
+                  terms:
+                    field: _ignored
+
+  - match: { hits.total.value: 11 }
+  - length: { aggregations.sample.ignored_terms.buckets: 9 }
+  - match: { aggregations.sample.ignored_terms.buckets.0: { key: "ip_address", doc_count: 7 } }
+  - match: { aggregations.sample.ignored_terms.buckets.1: { key: "order_datetime", doc_count: 7 } }
+  - match: { aggregations.sample.ignored_terms.buckets.2: { key: "products", doc_count: 6 } }
+  - match: { aggregations.sample.ignored_terms.buckets.3: { key: "date_of_birth", doc_count: 5 } }
+  - match: { aggregations.sample.ignored_terms.buckets.4: { key: "newsletter", doc_count: 5 } }
+  - match: { aggregations.sample.ignored_terms.buckets.5: { key: "total_price", doc_count: 4 } }
+  - match: { aggregations.sample.ignored_terms.buckets.6: { key: "city", doc_count: 3 } }
+  - match: { aggregations.sample.ignored_terms.buckets.7: { key: "location", doc_count: 3 } }
+  - match: { aggregations.sample.ignored_terms.buckets.8: { key: "email", doc_count: 2 } }
+
+---
+"filter aggregation on _ignored metadata field":
+  - requires:
+      cluster_features: "gte_v8.15.0"
+      reason: "_ignored metadata field aggregation support added in 8.15"
+      test_runner_features: close_to
+  - do:
+      search:
+        body:
+          size: 0
+          aggs:
+            total:
+              sum:
+                field: total_price
+            filter_ignored:
+              filter:
+                term:
+                  _ignored: "email"
+
+  - match: { hits.total.value: 11 }
+  - close_to: { aggregations.total.value: { value: 162.98, error: 0.01 } }
+  - match: { aggregations.filter_ignored.doc_count: 2 }

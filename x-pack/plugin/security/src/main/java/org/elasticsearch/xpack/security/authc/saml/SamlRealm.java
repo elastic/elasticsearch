@@ -49,9 +49,11 @@ import org.elasticsearch.xpack.core.security.authc.support.UserRoleMapper;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.core.ssl.CertParsingUtils;
 import org.elasticsearch.xpack.core.ssl.SSLService;
+import org.elasticsearch.xpack.security.PrivilegedFileWatcher;
 import org.elasticsearch.xpack.security.authc.Realms;
 import org.elasticsearch.xpack.security.authc.TokenService;
 import org.elasticsearch.xpack.security.authc.support.DelegatedAuthorizationSupport;
+import org.elasticsearch.xpack.security.authc.support.mapper.ExcludingRoleMapper;
 import org.opensaml.core.criterion.EntityIdCriterion;
 import org.opensaml.saml.common.xml.SAMLConstants;
 import org.opensaml.saml.criterion.EntityRoleCriterion;
@@ -110,6 +112,7 @@ import javax.net.ssl.X509KeyManager;
 
 import static org.elasticsearch.common.Strings.collectionToCommaDelimitedString;
 import static org.elasticsearch.core.Strings.format;
+import static org.elasticsearch.transport.Transports.assertNotTransportThread;
 import static org.elasticsearch.xpack.core.security.authc.saml.SamlRealmSettings.CLOCK_SKEW;
 import static org.elasticsearch.xpack.core.security.authc.saml.SamlRealmSettings.DN_ATTRIBUTE;
 import static org.elasticsearch.xpack.core.security.authc.saml.SamlRealmSettings.ENCRYPTION_KEY_ALIAS;
@@ -129,13 +132,9 @@ import static org.elasticsearch.xpack.core.security.authc.saml.SamlRealmSettings
 import static org.elasticsearch.xpack.core.security.authc.saml.SamlRealmSettings.NAME_ATTRIBUTE;
 import static org.elasticsearch.xpack.core.security.authc.saml.SamlRealmSettings.POPULATE_USER_METADATA;
 import static org.elasticsearch.xpack.core.security.authc.saml.SamlRealmSettings.PRINCIPAL_ATTRIBUTE;
-import static org.elasticsearch.xpack.core.security.authc.saml.SamlRealmSettings.REQUESTED_AUTHN_CONTEXT_CLASS_REF;
 import static org.elasticsearch.xpack.core.security.authc.saml.SamlRealmSettings.SIGNING_KEY_ALIAS;
 import static org.elasticsearch.xpack.core.security.authc.saml.SamlRealmSettings.SIGNING_MESSAGE_TYPES;
 import static org.elasticsearch.xpack.core.security.authc.saml.SamlRealmSettings.SIGNING_SETTING_KEY;
-import static org.elasticsearch.xpack.core.security.authc.saml.SamlRealmSettings.SP_ACS;
-import static org.elasticsearch.xpack.core.security.authc.saml.SamlRealmSettings.SP_ENTITY_ID;
-import static org.elasticsearch.xpack.core.security.authc.saml.SamlRealmSettings.SP_LOGOUT;
 
 /**
  * This class is {@link Releasable} because it uses a library that thinks timers and timer tasks
@@ -162,7 +161,6 @@ public final class SamlRealm extends Realm implements Releasable {
     // to assume that there's any relationship between SAML realms. However, because all the metadata loading code is in static methods, we
     // live with this limitation for now.
     private static final AtomicBoolean REFRESHING_METADATA = new AtomicBoolean(false);
-
     private final List<Releasable> releasables;
 
     private final SamlAuthenticator authenticator;
@@ -173,6 +171,7 @@ public final class SamlRealm extends Realm implements Releasable {
     private final Supplier<EntityDescriptor> idpDescriptor;
 
     private final SpConfiguration serviceProvider;
+    private final SamlRealmSettings.UserAttributeNameConfiguration userAttributeNameConfiguration;
     private final SamlAuthnRequestBuilder.NameIDPolicySettings nameIdPolicy;
     private final Boolean forceAuthn;
     private final boolean useSingleLogout;
@@ -195,7 +194,8 @@ public final class SamlRealm extends Realm implements Releasable {
         RealmConfig config,
         SSLService sslService,
         ResourceWatcherService watcherService,
-        UserRoleMapper roleMapper
+        UserRoleMapper roleMapper,
+        SpConfiguration serviceProvider
     ) throws Exception {
         SamlUtils.initialize(logger);
 
@@ -214,8 +214,6 @@ public final class SamlRealm extends Realm implements Releasable {
         final AbstractReloadingMetadataResolver metadataResolver = tuple.v1();
         final Supplier<EntityDescriptor> idpDescriptor = tuple.v2();
 
-        final SpConfiguration serviceProvider = getSpConfiguration(config);
-
         final Clock clock = Clock.systemUTC();
         final IdpConfiguration idpConfiguration = getIdpConfiguration(config, metadataResolver, idpDescriptor);
         final TimeValue maxSkew = config.getSetting(CLOCK_SKEW);
@@ -227,6 +225,8 @@ public final class SamlRealm extends Realm implements Releasable {
             serviceProvider,
             maxSkew
         );
+        SamlRealmSettings.UserAttributeNameConfiguration userAttributeNameConfiguration = SamlRealmSettings.UserAttributeNameConfiguration
+            .fromConfig(config);
 
         final SamlRealm realm = new SamlRealm(
             config,
@@ -235,7 +235,8 @@ public final class SamlRealm extends Realm implements Releasable {
             logoutHandler,
             logoutResponseHandler,
             idpDescriptor,
-            serviceProvider
+            serviceProvider,
+            userAttributeNameConfiguration
         );
 
         // the metadata resolver needs to be destroyed since it runs a timer task in the background and destroying stops it!
@@ -256,17 +257,23 @@ public final class SamlRealm extends Realm implements Releasable {
         SamlLogoutRequestHandler logoutHandler,
         SamlLogoutResponseHandler logoutResponseHandler,
         Supplier<EntityDescriptor> idpDescriptor,
-        SpConfiguration spConfiguration
+        SpConfiguration spConfiguration,
+        SamlRealmSettings.UserAttributeNameConfiguration userAttributeNameConfiguration
     ) throws Exception {
         super(config);
 
-        this.roleMapper = roleMapper;
+        if (config.hasSetting(SamlRealmSettings.EXCLUDE_ROLES)) {
+            this.roleMapper = new ExcludingRoleMapper(roleMapper, config.getSetting(SamlRealmSettings.EXCLUDE_ROLES));
+        } else {
+            this.roleMapper = roleMapper;
+        }
         this.authenticator = authenticator;
         this.logoutHandler = logoutHandler;
         this.logoutResponseHandler = logoutResponseHandler;
 
         this.idpDescriptor = idpDescriptor;
         this.serviceProvider = spConfiguration;
+        this.userAttributeNameConfiguration = userAttributeNameConfiguration;
 
         this.nameIdPolicy = new SamlAuthnRequestBuilder.NameIDPolicySettings(
             config.getSetting(NAMEID_FORMAT),
@@ -278,7 +285,7 @@ public final class SamlRealm extends Realm implements Releasable {
         this.populateUserMetadata = config.getSetting(POPULATE_USER_METADATA);
         this.principalAttribute = AttributeParser.forSetting(logger, PRINCIPAL_ATTRIBUTE, config, true);
 
-        this.groupsAttribute = AttributeParser.forSetting(logger, GROUPS_ATTRIBUTE, config, false);
+        this.groupsAttribute = AttributeParser.forSetting(logger, GROUPS_ATTRIBUTE, config);
         this.dnAttribute = AttributeParser.forSetting(logger, DN_ATTRIBUTE, config, false);
         this.nameAttribute = AttributeParser.forSetting(logger, NAME_ATTRIBUTE, config, false);
         this.mailAttribute = AttributeParser.forSetting(logger, MAIL_ATTRIBUTE, config, false);
@@ -292,6 +299,10 @@ public final class SamlRealm extends Realm implements Releasable {
             throw new IllegalStateException("Realm has already been initialized");
         }
         delegatedRealms = new DelegatedAuthorizationSupport(realms, config, licenseState);
+    }
+
+    static String require(RealmConfig config, Function<String, Setting.AffixSetting<String>> settingFactory) {
+        return require(config, settingFactory.apply(config.type()));
     }
 
     static String require(RealmConfig config, Setting.AffixSetting<String> setting) {
@@ -380,36 +391,20 @@ public final class SamlRealm extends Realm implements Releasable {
         }
     }
 
-    static SpConfiguration getSpConfiguration(RealmConfig config) throws IOException, GeneralSecurityException {
-        final String serviceProviderId = require(config, SP_ENTITY_ID);
-        final String assertionConsumerServiceURL = require(config, SP_ACS);
-        final String logoutUrl = config.getSetting(SP_LOGOUT);
-        final List<String> reqAuthnCtxClassRef = config.getSetting(REQUESTED_AUTHN_CONTEXT_CLASS_REF);
-        return new SpConfiguration(
-            serviceProviderId,
-            assertionConsumerServiceURL,
-            logoutUrl,
-            buildSigningConfiguration(config),
-            buildEncryptionCredential(config),
-            reqAuthnCtxClassRef
-        );
-    }
-
-    // Package-private for testing
-    static List<X509Credential> buildEncryptionCredential(RealmConfig config) throws IOException, GeneralSecurityException {
+    public static List<X509Credential> buildEncryptionCredential(RealmConfig config) throws IOException, GeneralSecurityException {
         return buildCredential(
             config,
             RealmSettings.realmSettingPrefix(config.identifier()) + ENCRYPTION_SETTING_KEY,
-            ENCRYPTION_KEY_ALIAS,
+            ENCRYPTION_KEY_ALIAS.apply(config.type()),
             true
         );
     }
 
-    static SigningConfiguration buildSigningConfiguration(RealmConfig config) throws IOException, GeneralSecurityException {
+    public static SigningConfiguration buildSigningConfiguration(RealmConfig config) throws IOException, GeneralSecurityException {
         final List<X509Credential> credentials = buildCredential(
             config,
             RealmSettings.realmSettingPrefix(config.identifier()) + SIGNING_SETTING_KEY,
-            SIGNING_KEY_ALIAS,
+            SIGNING_KEY_ALIAS.apply(config.type()),
             false
         );
         if (credentials == null || credentials.isEmpty()) {
@@ -566,7 +561,7 @@ public final class SamlRealm extends Realm implements Releasable {
     }
 
     private void buildUser(SamlAttributes attributes, ActionListener<AuthenticationResult<User>> baseListener) {
-        final String principal = resolveSingleValueAttribute(attributes, principalAttribute, PRINCIPAL_ATTRIBUTE.name(config));
+        final String principal = resolveSingleValueAttribute(attributes, principalAttribute, userAttributeNameConfiguration.principal());
         if (Strings.isNullOrEmpty(principal)) {
             final String msg = principalAttribute
                 + " not found in saml attributes"
@@ -579,15 +574,15 @@ public final class SamlRealm extends Realm implements Releasable {
         }
 
         final Map<String, Object> tokenMetadata = createTokenMetadata(attributes.name(), attributes.session());
-        ActionListener<AuthenticationResult<User>> wrappedListener = ActionListener.wrap(auth -> {
+        ActionListener<AuthenticationResult<User>> wrappedListener = baseListener.delegateFailureAndWrap((l, auth) -> {
             if (auth.isAuthenticated()) {
                 // Add the SAML token details as metadata on the authentication
                 Map<String, Object> metadata = new HashMap<>(auth.getMetadata());
                 metadata.put(CONTEXT_TOKEN_DATA, tokenMetadata);
                 auth = AuthenticationResult.success(auth.getValue(), metadata);
             }
-            baseListener.onResponse(auth);
-        }, baseListener::onFailure);
+            l.onResponse(auth);
+        });
 
         if (delegatedRealms.hasDelegation()) {
             delegatedRealms.resolve(principal, wrappedListener);
@@ -612,16 +607,16 @@ public final class SamlRealm extends Realm implements Releasable {
         final Map<String, Object> userMeta = Map.copyOf(userMetaBuilder);
 
         final List<String> groups = groupsAttribute.getAttribute(attributes);
-        final String dn = resolveSingleValueAttribute(attributes, dnAttribute, DN_ATTRIBUTE.name(config));
-        final String name = resolveSingleValueAttribute(attributes, nameAttribute, NAME_ATTRIBUTE.name(config));
-        final String mail = resolveSingleValueAttribute(attributes, mailAttribute, MAIL_ATTRIBUTE.name(config));
+        final String dn = resolveSingleValueAttribute(attributes, dnAttribute, userAttributeNameConfiguration.dn());
+        final String name = resolveSingleValueAttribute(attributes, nameAttribute, userAttributeNameConfiguration.name());
+        final String mail = resolveSingleValueAttribute(attributes, mailAttribute, userAttributeNameConfiguration.mail());
         UserRoleMapper.UserData userData = new UserRoleMapper.UserData(principal, dn, groups, userMeta, config);
         logger.debug("SAML attribute mapping = [{}]", userData);
-        roleMapper.resolveRoles(userData, ActionListener.wrap(roles -> {
+        roleMapper.resolveRoles(userData, wrappedListener.delegateFailureAndWrap((l, roles) -> {
             final User user = new User(principal, roles.toArray(new String[roles.size()]), name, mail, userMeta, true);
             logger.debug("SAML user = [{}]", user);
-            wrappedListener.onResponse(AuthenticationResult.success(user));
-        }, wrappedListener::onFailure));
+            l.onResponse(AuthenticationResult.success(user));
+        }));
     }
 
     public Map<String, Object> createTokenMetadata(SamlNameId nameId, String session) {
@@ -644,7 +639,7 @@ public final class SamlRealm extends Realm implements Releasable {
         return tokenMeta;
     }
 
-    private String resolveSingleValueAttribute(SamlAttributes attributes, AttributeParser parser, String name) {
+    private static String resolveSingleValueAttribute(SamlAttributes attributes, AttributeParser parser, String name) {
         final List<String> list = parser.getAttribute(attributes);
         switch (list.size()) {
             case 0:
@@ -746,6 +741,7 @@ public final class SamlRealm extends Realm implements Releasable {
 
         @Override
         protected byte[] fetchMetadata() throws ResolverException {
+            assert assertNotTransportThread("fetching SAML metadata from a URL");
             try {
                 return AccessController.doPrivileged(
                     (PrivilegedExceptionAction<byte[]>) () -> PrivilegedHTTPMetadataResolver.super.fetchMetadata()
@@ -757,6 +753,24 @@ public final class SamlRealm extends Realm implements Releasable {
 
     }
 
+    @SuppressForbidden(reason = "uses java.io.File")
+    private static final class SamlFilesystemMetadataResolver extends FilesystemMetadataResolver {
+
+        SamlFilesystemMetadataResolver(final java.io.File metadata) throws ResolverException {
+            super(metadata);
+        }
+
+        @Override
+        protected byte[] fetchMetadata() throws ResolverException {
+            assert assertNotTransportThread("fetching SAML metadata from a file");
+            try {
+                return AccessController.doPrivileged((PrivilegedExceptionAction<byte[]>) () -> super.fetchMetadata());
+            } catch (PrivilegedActionException e) {
+                throw (ResolverException) e.getException();
+            }
+        }
+    }
+
     @SuppressForbidden(reason = "uses toFile")
     private static Tuple<AbstractReloadingMetadataResolver, Supplier<EntityDescriptor>> parseFileSystemMetadata(
         Logger logger,
@@ -766,14 +780,14 @@ public final class SamlRealm extends Realm implements Releasable {
     ) throws ResolverException, ComponentInitializationException, IOException, PrivilegedActionException {
 
         final String entityId = require(config, IDP_ENTITY_ID);
-        final Path path = config.env().configFile().resolve(metadataPath);
-        final FilesystemMetadataResolver resolver = new FilesystemMetadataResolver(path.toFile());
+        final Path path = config.env().configDir().resolve(metadataPath);
+        final FilesystemMetadataResolver resolver = new SamlFilesystemMetadataResolver(path.toFile());
 
         for (var httpSetting : List.of(IDP_METADATA_HTTP_REFRESH, IDP_METADATA_HTTP_MIN_REFRESH, IDP_METADATA_HTTP_FAIL_ON_ERROR)) {
-            if (config.hasSetting(httpSetting)) {
+            if (config.hasSetting(httpSetting.apply(config.type()))) {
                 logger.info(
                     "Ignoring setting [{}] because the IdP metadata is being loaded from a file",
-                    RealmSettings.getFullSettingKey(config, httpSetting)
+                    RealmSettings.getFullSettingKey(config, httpSetting.apply(config.type()))
                 );
             }
         }
@@ -785,7 +799,7 @@ public final class SamlRealm extends Realm implements Releasable {
         resolver.setMaxRefreshDelay(oneDayMs);
         initialiseResolver(resolver, config);
 
-        FileWatcher watcher = new FileWatcher(path);
+        FileWatcher watcher = new PrivilegedFileWatcher(path);
         watcher.addListener(new FileListener(logger, resolver::refresh));
         watcherService.add(watcher, ResourceWatcherService.Frequency.MEDIUM);
         return new Tuple<>(resolver, () -> resolveEntityDescriptor(resolver, entityId, path.toString(), true));
@@ -1002,6 +1016,83 @@ public final class SamlRealm extends Realm implements Releasable {
         @Override
         public String toString() {
             return name;
+        }
+
+        static AttributeParser forSetting(
+            Logger logger,
+            Function<String, SamlRealmSettings.AttributeSettingWithDelimiter> settingFactory,
+            RealmConfig realmConfig
+        ) {
+            return forSetting(logger, settingFactory.apply(realmConfig.type()), realmConfig);
+        }
+
+        static AttributeParser forSetting(Logger logger, SamlRealmSettings.AttributeSettingWithDelimiter setting, RealmConfig realmConfig) {
+            SamlRealmSettings.AttributeSetting attributeSetting = setting.getAttributeSetting();
+            if (realmConfig.hasSetting(setting.getDelimiter())) {
+                if (realmConfig.hasSetting(attributeSetting.getAttribute()) == false) {
+                    throw new SettingsException(
+                        "Setting ["
+                            + RealmSettings.getFullSettingKey(realmConfig, setting.getDelimiter())
+                            + "] cannot be set unless ["
+                            + RealmSettings.getFullSettingKey(realmConfig, attributeSetting.getAttribute())
+                            + "] is also set"
+                    );
+                }
+                if (realmConfig.hasSetting(attributeSetting.getPattern())) {
+                    throw new SettingsException(
+                        "Setting ["
+                            + RealmSettings.getFullSettingKey(realmConfig, attributeSetting.getPattern())
+                            + "] can not be set when ["
+                            + RealmSettings.getFullSettingKey(realmConfig, setting.getDelimiter())
+                            + "] is set"
+                    );
+                }
+
+                String attributeName = realmConfig.getSetting(attributeSetting.getAttribute());
+                String delimiter = realmConfig.getSetting(setting.getDelimiter());
+                return new AttributeParser(
+                    "SAML Attribute ["
+                        + attributeName
+                        + "] with delimiter ["
+                        + delimiter
+                        + "] for ["
+                        + attributeSetting.name(realmConfig)
+                        + "]",
+                    attributes -> {
+                        List<String> attributeValues = attributes.getAttributeValues(attributeName);
+                        if (attributeValues.size() > 1) {
+                            throw SamlUtils.samlException(
+                                "Expected single string value for attribute: ["
+                                    + attributeName
+                                    + "], but got list with "
+                                    + attributeValues.size()
+                                    + " values"
+                            );
+                        }
+                        return attributeValues.stream()
+                            .map(s -> s.split(Pattern.quote(delimiter)))
+                            .flatMap(Arrays::stream)
+                            .filter(attribute -> {
+                                if (Strings.isNullOrEmpty(attribute)) {
+                                    logger.debug("Attribute [{}] has empty components when using delimiter [{}]", attributeName, delimiter);
+                                    return false;
+                                }
+                                return true;
+                            })
+                            .collect(Collectors.toList());
+                    }
+                );
+            }
+            return AttributeParser.forSetting(logger, attributeSetting, realmConfig, false);
+        }
+
+        static AttributeParser forSetting(
+            Logger logger,
+            Function<String, SamlRealmSettings.AttributeSetting> settingFactory,
+            RealmConfig realmConfig,
+            boolean required
+        ) {
+            return forSetting(logger, settingFactory.apply(realmConfig.type()), realmConfig, required);
         }
 
         static AttributeParser forSetting(

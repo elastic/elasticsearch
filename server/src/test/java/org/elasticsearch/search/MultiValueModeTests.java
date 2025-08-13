@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search;
@@ -222,7 +223,6 @@ public class MultiValueModeTests extends ESTestCase {
                     missingValue,
                     rootDocs,
                     new BitSetIterator(innerDocs, 0L),
-                    maxDoc,
                     maxChildren
                 );
                 int prevRoot = -1;
@@ -424,7 +424,6 @@ public class MultiValueModeTests extends ESTestCase {
                     missingValue,
                     rootDocs,
                     new BitSetIterator(innerDocs, 0L),
-                    maxDoc,
                     maxChildren
                 );
                 int prevRoot = -1;
@@ -610,7 +609,6 @@ public class MultiValueModeTests extends ESTestCase {
                     missingValue,
                     rootDocs,
                     new BitSetIterator(innerDocs, 0L),
-                    maxDoc,
                     maxChildren
                 );
                 int prevRoot = -1;
@@ -716,11 +714,8 @@ public class MultiValueModeTests extends ESTestCase {
 
             @Override
             public long nextOrd() {
-                if (i < array[doc].length) {
-                    return array[doc][i++];
-                } else {
-                    return NO_MORE_ORDS;
-                }
+                assert i < array[doc].length;
+                return array[doc][i++];
             }
 
             @Override
@@ -764,7 +759,8 @@ public class MultiValueModeTests extends ESTestCase {
                 }
                 int expected = -1;
                 if (values.advanceExact(i)) {
-                    for (long ord = values.nextOrd(); ord != SortedSetDocValues.NO_MORE_ORDS; ord = values.nextOrd()) {
+                    for (int j = 0; j < values.docValueCount(); j++) {
+                        long ord = values.nextOrd();
                         if (expected == -1) {
                             expected = (int) ord;
                         } else {
@@ -812,7 +808,8 @@ public class MultiValueModeTests extends ESTestCase {
                         if (++count > maxChildren) {
                             break;
                         }
-                        for (long ord = values.nextOrd(); ord != SortedSetDocValues.NO_MORE_ORDS; ord = values.nextOrd()) {
+                        for (int i = 0; i < values.docValueCount(); i++) {
+                            long ord = values.nextOrd();
                             if (expected == -1) {
                                 expected = (int) ord;
                             } else {

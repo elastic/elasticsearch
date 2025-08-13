@@ -7,7 +7,7 @@
 package org.elasticsearch.xpack.core.security.action.role;
 
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 
@@ -18,16 +18,7 @@ import java.io.IOException;
  */
 public class GetRolesResponse extends ActionResponse {
 
-    private RoleDescriptor[] roles;
-
-    public GetRolesResponse(StreamInput in) throws IOException {
-        super(in);
-        int size = in.readVInt();
-        roles = new RoleDescriptor[size];
-        for (int i = 0; i < size; i++) {
-            roles[i] = new RoleDescriptor(in);
-        }
-    }
+    private final RoleDescriptor[] roles;
 
     public GetRolesResponse(RoleDescriptor... roles) {
         this.roles = roles;
@@ -43,9 +34,6 @@ public class GetRolesResponse extends ActionResponse {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeVInt(roles.length);
-        for (RoleDescriptor role : roles) {
-            role.writeTo(out);
-        }
+        TransportAction.localOnly();
     }
 }

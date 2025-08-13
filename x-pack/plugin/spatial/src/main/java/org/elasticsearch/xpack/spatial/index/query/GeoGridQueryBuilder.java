@@ -9,10 +9,12 @@ package org.elasticsearch.xpack.spatial.index.query;
 
 import org.apache.lucene.geo.GeoEncodingUtils;
 import org.apache.lucene.geo.LatLonGeometry;
+import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -283,7 +285,7 @@ public class GeoGridQueryBuilder extends AbstractQueryBuilder<GeoGridQueryBuilde
                 throw new QueryShardException(context, "failed to find geo field [" + fieldName + "]");
             }
         }
-        return grid.toQuery(context, fieldName, fieldType, gridId);
+        return new ConstantScoreQuery(grid.toQuery(context, fieldName, fieldType, gridId));
     }
 
     @Override
@@ -398,6 +400,6 @@ public class GeoGridQueryBuilder extends AbstractQueryBuilder<GeoGridQueryBuilde
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersion.V_8_3_0;
+        return TransportVersions.V_8_3_0;
     }
 }

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.indices.analysis;
 
@@ -65,7 +66,7 @@ import static org.elasticsearch.core.Strings.format;
  *
  * @see org.elasticsearch.index.analysis.HunspellTokenFilterFactory
  */
-public class HunspellService {
+public final class HunspellService {
 
     private static final Logger logger = LogManager.getLogger(HunspellService.class);
 
@@ -98,7 +99,7 @@ public class HunspellService {
             try {
                 return loadDictionary(locale, settings, env);
             } catch (Exception e) {
-                throw new IllegalStateException("failed to load hunspell dictionary for locale: " + locale, e);
+                throw new IllegalArgumentException("failed to load hunspell dictionary for locale: " + locale, e);
             }
         };
         if (HUNSPELL_LAZY_LOAD.get(settings) == false) {
@@ -121,7 +122,7 @@ public class HunspellService {
     }
 
     private static Path resolveHunspellDirectory(Environment env) {
-        return env.configFile().resolve("hunspell");
+        return env.configDir().resolve("hunspell");
     }
 
     /**
@@ -192,7 +193,7 @@ public class HunspellService {
 
             affixStream = Files.newInputStream(affixFiles[0]);
 
-            try (Directory tmp = new NIOFSDirectory(env.tmpFile())) {
+            try (Directory tmp = new NIOFSDirectory(env.tmpDir())) {
                 return new Dictionary(tmp, "hunspell", affixStream, dicStreams, ignoreCase);
             }
 

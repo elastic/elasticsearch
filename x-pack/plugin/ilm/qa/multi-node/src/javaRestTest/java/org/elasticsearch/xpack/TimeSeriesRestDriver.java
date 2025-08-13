@@ -12,6 +12,7 @@ import org.apache.http.entity.StringEntity;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.client.Request;
+import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -40,7 +41,6 @@ import org.elasticsearch.xpack.core.ilm.Step;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
@@ -49,7 +49,6 @@ import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
-import static java.util.Collections.singletonMap;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.test.ESTestCase.randomAlphaOfLengthBetween;
 import static org.elasticsearch.test.ESTestCase.randomBoolean;
@@ -60,6 +59,7 @@ import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.core.ilm.ShrinkIndexNameSupplier.SHRUNKEN_INDEX_PREFIX;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
 import static org.junit.Assert.assertThat;
 
 /**
@@ -93,9 +93,17 @@ public final class TimeSeriesRestDriver {
 
     public static Map<String, Map<String, Object>> explain(RestClient client, String indexPattern, boolean onlyErrors, boolean onlyManaged)
         throws IOException {
+        RequestOptions consumeWarningsOptions = RequestOptions.DEFAULT.toBuilder()
+            .setWarningsHandler(warnings -> warnings.isEmpty() == false && List.of("""
+                [indices.lifecycle.rollover.only_if_has_documents] setting was deprecated in Elasticsearch \
+                and will be removed in a future release. \
+                See the deprecation documentation for the next major version.""").equals(warnings) == false)
+            .build();
+
         Request explainRequest = new Request("GET", indexPattern + "/_ilm/explain");
         explainRequest.addParameter("only_errors", Boolean.toString(onlyErrors));
         explainRequest.addParameter("only_managed", Boolean.toString(onlyManaged));
+        explainRequest.setOptions(consumeWarningsOptions);
         Response response = client.performRequest(explainRequest);
         Map<String, Object> responseMap;
         try (InputStream is = response.getEntity().getContent()) {
@@ -145,14 +153,14 @@ public final class TimeSeriesRestDriver {
         LifecycleAction action,
         TimeValue after
     ) throws IOException {
-        Phase phase = new Phase(phaseName, after, singletonMap(action.getWriteableName(), action));
-        LifecyclePolicy lifecyclePolicy = new LifecyclePolicy(policyName, singletonMap(phase.getName(), phase));
+        Phase phase = new Phase(phaseName, after, Map.of(action.getWriteableName(), action));
+        LifecyclePolicy lifecyclePolicy = new LifecyclePolicy(policyName, Map.of(phase.getName(), phase));
         XContentBuilder builder = jsonBuilder();
         lifecyclePolicy.toXContent(builder, null);
         final StringEntity entity = new StringEntity("{ \"policy\":" + Strings.toString(builder) + "}", ContentType.APPLICATION_JSON);
         Request request = new Request("PUT", "_ilm/policy/" + policyName);
         request.setEntity(entity);
-        client.performRequest(request);
+        assertOK(client.performRequest(request));
     }
 
     public static void createComposableTemplate(RestClient client, String templateName, String indexPattern, Template template)
@@ -193,12 +201,12 @@ public final class TimeSeriesRestDriver {
             new AllocateAction(
                 1,
                 null,
-                singletonMap("_name", "javaRestTest-0,javaRestTest-1," + "javaRestTest-2," + "javaRestTest-3"),
+                Map.of("_name", "javaRestTest-0,javaRestTest-1," + "javaRestTest-2," + "javaRestTest-3"),
                 null,
                 null
             )
         );
-        warmActions.put(ShrinkAction.NAME, new ShrinkAction(1, null));
+        warmActions.put(ShrinkAction.NAME, new ShrinkAction(1, null, false));
         Map<String, LifecycleAction> coldActions = new HashMap<>();
         coldActions.put(SetPriorityAction.NAME, new SetPriorityAction(0));
         coldActions.put(
@@ -206,7 +214,7 @@ public final class TimeSeriesRestDriver {
             new AllocateAction(
                 0,
                 null,
-                singletonMap("_name", "javaRestTest-0,javaRestTest-1," + "javaRestTest-2," + "javaRestTest-3"),
+                Map.of("_name", "javaRestTest-0,javaRestTest-1," + "javaRestTest-2," + "javaRestTest-3"),
                 null,
                 null
             )
@@ -215,7 +223,7 @@ public final class TimeSeriesRestDriver {
         phases.put("hot", new Phase("hot", hotTime, hotActions));
         phases.put("warm", new Phase("warm", TimeValue.ZERO, warmActions));
         phases.put("cold", new Phase("cold", TimeValue.ZERO, coldActions));
-        phases.put("delete", new Phase("delete", TimeValue.ZERO, singletonMap(DeleteAction.NAME, DeleteAction.WITH_SNAPSHOT_DELETE)));
+        phases.put("delete", new Phase("delete", TimeValue.ZERO, Map.of(DeleteAction.NAME, DeleteAction.WITH_SNAPSHOT_DELETE)));
         LifecyclePolicy lifecyclePolicy = new LifecyclePolicy(policyName, phases);
         // PUT policy
         XContentBuilder builder = jsonBuilder();
@@ -291,7 +299,7 @@ public final class TimeSeriesRestDriver {
             Map<String, Object> responseMap = XContentHelper.convertToMap(XContentType.JSON.xContent(), is, true);
             Map<String, Object> indexSettings = (Map<String, Object>) responseMap.get(index);
             if (indexSettings == null) {
-                return Collections.emptyMap();
+                return Map.of();
             }
             return (Map<String, Object>) indexSettings.get("settings");
         }
@@ -448,6 +456,9 @@ public final class TimeSeriesRestDriver {
                     "GET",
                     SHRUNKEN_INDEX_PREFIX + "*" + originalIndex + "," + originalIndex + "/_ilm/explain"
                 );
+                // Sometimes, the original index might already have been deleted, so we need to ignore unavailable (concrete) indices.
+                explainRequest.addParameter("ignore_unavailable", Boolean.toString(true));
+                explainRequest.addParameter("expand_wildcards", "open,hidden");
                 explainRequest.addParameter("only_errors", Boolean.toString(false));
                 explainRequest.addParameter("only_managed", Boolean.toString(false));
                 Response response = client.performRequest(explainRequest);
@@ -482,6 +493,24 @@ public final class TimeSeriesRestDriver {
         }, 30, TimeUnit.SECONDS);
         logger.info("--> original index name is [{}], shrunken index name is [{}]", originalIndex, shrunkenIndexName[0]);
         return shrunkenIndexName[0];
+    }
+
+    @SuppressWarnings("unchecked")
+    public static List<String> getBackingIndices(RestClient client, String dataStreamName) throws IOException {
+        Response getDataStream = client.performRequest(new Request("GET", "_data_stream/" + dataStreamName));
+        Map<String, Object> responseMap;
+        try (InputStream is = getDataStream.getEntity().getContent()) {
+            responseMap = XContentHelper.convertToMap(XContentType.JSON.xContent(), is, true);
+        }
+
+        List<Map<String, Object>> dataStreams = (List<Map<String, Object>>) responseMap.get("data_streams");
+        assertThat(dataStreams.size(), is(1));
+        Map<String, Object> dataStream = dataStreams.get(0);
+        assertThat(dataStream.get("name"), is(dataStreamName));
+        List<String> indices = ((List<Map<String, Object>>) dataStream.get("indices")).stream()
+            .map(indexMap -> (String) indexMap.get("index_name"))
+            .toList();
+        return indices;
     }
 
     private static void executeDummyClusterStateUpdate(RestClient client) throws IOException {

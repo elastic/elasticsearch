@@ -14,7 +14,6 @@ import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.WriteRequest;
-import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.ClusterChangedEvent;
@@ -161,7 +160,7 @@ public class TrainedModelStatsService {
         scheduledFuture = threadPool.scheduleWithFixedDelay(
             this::updateStats,
             PERSISTENCE_INTERVAL,
-            MachineLearning.UTILITY_THREAD_POOL_NAME
+            threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME)
         );
     }
 
@@ -237,11 +236,11 @@ public class TrainedModelStatsService {
             return false;
         }
         for (String index : indices) {
-            if (clusterState.metadata().hasIndex(index) == false) {
+            if (clusterState.metadata().getProject().hasIndex(index) == false) {
                 return false;
             }
             IndexRoutingTable routingTable = clusterState.getRoutingTable().index(index);
-            if (routingTable == null || routingTable.allPrimaryShardsActive() == false) {
+            if (routingTable == null || routingTable.allPrimaryShardsActive() == false || routingTable.readyForSearch() == false) {
                 return false;
             }
         }
@@ -254,15 +253,16 @@ public class TrainedModelStatsService {
             client,
             clusterState,
             indexNameExpressionResolver,
-            MasterNodeRequest.DEFAULT_MASTER_NODE_TIMEOUT,
+            MachineLearning.HARD_CODED_MACHINE_LEARNING_MASTER_NODE_TIMEOUT,
             ActionListener.wrap(
                 r -> ElasticsearchMappings.addDocMappingIfMissing(
                     MlStatsIndex.writeAlias(),
                     MlStatsIndex::wrappedMapping,
                     client,
                     clusterState,
-                    MasterNodeRequest.DEFAULT_MASTER_NODE_TIMEOUT,
-                    listener
+                    MachineLearning.HARD_CODED_MACHINE_LEARNING_MASTER_NODE_TIMEOUT,
+                    listener,
+                    MlStatsIndex.STATS_INDEX_MAPPINGS_VERSION
                 ),
                 listener::onFailure
             )

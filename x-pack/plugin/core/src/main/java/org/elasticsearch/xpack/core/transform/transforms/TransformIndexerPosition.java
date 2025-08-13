@@ -52,9 +52,9 @@ public class TransformIndexerPosition implements Writeable, ToXContentObject {
     }
 
     public TransformIndexerPosition(StreamInput in) throws IOException {
-        Map<String, Object> position = in.readMap();
+        Map<String, Object> position = in.readGenericMap();
         indexerPosition = position == null ? null : Collections.unmodifiableMap(position);
-        position = in.readMap();
+        position = in.readGenericMap();
         bucketPosition = position == null ? null : Collections.unmodifiableMap(position);
     }
 

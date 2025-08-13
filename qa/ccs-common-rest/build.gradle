@@ -10,12 +10,12 @@ apply plugin: 'elasticsearch.internal-yaml-rest-test'
 
 restResources {
   restApi {
-    include '_common', 'bulk', 'count', 'cluster', 'field_caps', 'knn_search', 'index', 'indices', 'msearch',
-      'search', 'async_search', 'graph', '*_point_in_time', 'info', 'scroll', 'clear_scroll', 'search_mvt'
+    include 'capabilities', 'cat.shards', '_common', 'bulk', 'count', 'cluster', 'field_caps', 'get', 'knn_search', 'index', 'indices', 'msearch',
+      "nodes.stats", 'search', 'async_search', 'graph', '*_point_in_time', 'info', 'scroll', 'clear_scroll', 'search_mvt', 'eql', 'sql', 'update'
   }
   restTests {
     includeCore 'field_caps', 'msearch', 'search', 'suggest', 'scroll', "indices.resolve_index"
-    includeXpack 'async_search', 'vector-tile'
+    includeXpack 'async_search', 'vector-tile', 'sql'
   }
 }
 
@@ -27,6 +27,8 @@ dependencies {
   clusterModules project(':x-pack:plugin:analytics')
   clusterModules project(':x-pack:plugin:vector-tile')
   clusterModules project(':modules:legacy-geo')
+  clusterModules project(':x-pack:plugin:eql')
+  clusterModules project(':x-pack:plugin:sql')
 }
 
 tasks.named("yamlRestTest") {
@@ -38,7 +40,7 @@ tasks.named("yamlRestTest") {
       'search.aggregation/220_filters_bucket/cache hits', // node_selector?
       'search.aggregation/50_filter/Standard queries get cached',
       'search.aggregation/50_filter/Terms lookup gets cached', // terms lookup by "index" doesn't seem to work correctly
-      'search.aggregation/70_adjacency_matrix/Terms lookup', // terms lookup by "index" doesn't seem to work correctly
+      'search.aggregation/70_adjacency_matrix/Terms lookup' // terms lookup by "index" doesn't seem to work correctly
     ].join(',')
 }
 

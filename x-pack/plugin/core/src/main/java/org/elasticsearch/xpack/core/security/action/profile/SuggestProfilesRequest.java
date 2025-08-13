@@ -8,8 +8,8 @@
 package org.elasticsearch.xpack.core.security.action.profile;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.LegacyActionRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -30,7 +30,7 @@ import java.util.Set;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
-public class SuggestProfilesRequest extends ActionRequest {
+public class SuggestProfilesRequest extends LegacyActionRequest {
 
     private final Set<String> dataKeys;
     /**
@@ -50,7 +50,7 @@ public class SuggestProfilesRequest extends ActionRequest {
 
     public SuggestProfilesRequest(StreamInput in) throws IOException {
         super(in);
-        this.dataKeys = in.readSet(StreamInput::readString);
+        this.dataKeys = in.readCollectionAsSet(StreamInput::readString);
         this.name = in.readOptionalString();
         this.size = in.readVInt();
         this.hint = in.readOptionalWriteable(Hint::new);
@@ -139,8 +139,8 @@ public class SuggestProfilesRequest extends ActionRequest {
         }
 
         public Hint(StreamInput in) throws IOException {
-            this.uids = in.readStringList();
-            this.labels = in.readMapOfLists(StreamInput::readString, StreamInput::readString);
+            this.uids = in.readStringCollectionAsList();
+            this.labels = in.readMapOfLists(StreamInput::readString);
         }
 
         public List<String> getUids() {
@@ -161,7 +161,7 @@ public class SuggestProfilesRequest extends ActionRequest {
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeStringCollection(uids);
-            out.writeMapOfLists(labels, StreamOutput::writeString, StreamOutput::writeString);
+            out.writeMap(labels, StreamOutput::writeStringCollection);
         }
 
         private ActionRequestValidationException validate(ActionRequestValidationException validationException) {

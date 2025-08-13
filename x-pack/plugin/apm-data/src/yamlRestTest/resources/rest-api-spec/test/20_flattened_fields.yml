@@ -1,0 +1,72 @@
+---
+setup:
+  - do:
+      cluster.health:
+        wait_for_events: languid
+
+---
+"Test traces-apm-* flattened fields":
+  - do:
+      bulk:
+        index: traces-apm-testing
+        refresh: true
+        body:
+          # http.request.headers should be mapped as flattened, allowing
+          # differing types to be used, and to avoid creating arbitrarily
+          # many fields.
+          - create: {}
+          - '{"@timestamp": "2017-06-22", "http.request.headers": {"a": "b"}}'
+          - create: {}
+          - '{"@timestamp": "2017-06-22", "http.request.headers": {"c": ["d", "e"]}}'
+
+          # http.response.headers has the same requirements as http.request.headers.
+          - create: {}
+          - '{"@timestamp": "2017-06-22", "http.response.headers": {"a": "b"}}'
+          - create: {}
+          - '{"@timestamp": "2017-06-22", "http.response.headers": {"c": ["d", "e"]}}'
+
+  - is_false: errors
+
+  - do:
+      search:
+        index: traces-apm-testing
+        body:
+          fields: ["http.request.headers", "http.response.headers"]
+  - length: { hits.hits: 4 }
+  - match: { hits.hits.0.fields: {"http.request.headers": [{"a": "b"}]} }
+  - match: { hits.hits.1.fields: {"http.request.headers": [{"c": ["d", "e"]}]} }
+  - match: { hits.hits.2.fields: {"http.response.headers": [{"a": "b"}]} }
+  - match: { hits.hits.3.fields: {"http.response.headers": [{"c": ["d", "e"]}]} }
+
+---
+"Test logs-apm.error-* flattened fields":
+  - do:
+      bulk:
+        index: logs-apm.error-testing
+        refresh: true
+        body:
+          # http.request.headers has the same requirements as http.request.headers
+          # in traces-apm-* data streams.
+          - create: {}
+          - '{"@timestamp": "2017-06-22", "http.request.headers": {"a": "b"}}'
+          - create: {}
+          - '{"@timestamp": "2017-06-22", "http.request.headers": {"c": ["d", "e"]}}'
+
+          # http.response.headers has the same requirements as http.request.headers.
+          - create: {}
+          - '{"@timestamp": "2017-06-22", "http.response.headers": {"a": "b"}}'
+          - create: {}
+          - '{"@timestamp": "2017-06-22", "http.response.headers": {"c": ["d", "e"]}}'
+
+  - is_false: errors
+
+  - do:
+      search:
+        index: logs-apm.error-testing
+        body:
+          fields: ["http.request.headers", "http.response.headers"]
+  - length: { hits.hits: 4 }
+  - match: { hits.hits.0.fields: {"http.request.headers": [{"a": "b"}]} }
+  - match: { hits.hits.1.fields: {"http.request.headers": [{"c": ["d", "e"]}]} }
+  - match: { hits.hits.2.fields: {"http.response.headers": [{"a": "b"}]} }
+  - match: { hits.hits.3.fields: {"http.response.headers": [{"c": ["d", "e"]}]} }

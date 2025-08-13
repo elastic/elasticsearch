@@ -7,34 +7,39 @@
 package org.elasticsearch.xpack.core.search.action;
 
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.StatusToXContentObject;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestActions;
+import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Objects;
 
-import static org.elasticsearch.rest.RestStatus.OK;
-
 /**
  * A response of an async search status request.
  */
-public class AsyncStatusResponse extends ActionResponse implements SearchStatusResponse, StatusToXContentObject {
+public class AsyncStatusResponse extends ActionResponse implements SearchStatusResponse, ToXContentObject {
     private final String id;
     private final boolean isRunning;
     private final boolean isPartial;
     private final long startTimeMillis;
     private final long expirationTimeMillis;
+    private final Long completionTimeMillis;
     private final int totalShards;
     private final int successfulShards;
     private final int skippedShards;
     private final int failedShards;
     private final RestStatus completionStatus;
+
+    // Non-null for cross cluster searches
+    @Nullable
+    private final SearchResponse.Clusters clusters;
 
     public AsyncStatusResponse(
         String id,
@@ -42,22 +47,26 @@ public class AsyncStatusResponse extends ActionResponse implements SearchStatusR
         boolean isPartial,
         long startTimeMillis,
         long expirationTimeMillis,
+        Long completionTimeMillis,
         int totalShards,
         int successfulShards,
         int skippedShards,
         int failedShards,
-        RestStatus completionStatus
+        RestStatus completionStatus,
+        SearchResponse.Clusters clusters
     ) {
         this.id = id;
         this.isRunning = isRunning;
         this.isPartial = isPartial;
         this.startTimeMillis = startTimeMillis;
         this.expirationTimeMillis = expirationTimeMillis;
+        this.completionTimeMillis = completionTimeMillis;
         this.totalShards = totalShards;
         this.successfulShards = successfulShards;
         this.skippedShards = skippedShards;
         this.failedShards = failedShards;
         this.completionStatus = completionStatus;
+        this.clusters = clusters;
     }
 
     /**
@@ -76,6 +85,7 @@ public class AsyncStatusResponse extends ActionResponse implements SearchStatusR
         int successfulShards = 0;
         int skippedShards = 0;
         int failedShards = 0;
+        SearchResponse.Clusters clusters = null;
         RestStatus completionStatus = null;
         SearchResponse searchResponse = asyncSearchResponse.getSearchResponse();
         if (searchResponse != null) {
@@ -83,15 +93,18 @@ public class AsyncStatusResponse extends ActionResponse implements SearchStatusR
             successfulShards = searchResponse.getSuccessfulShards();
             skippedShards = searchResponse.getSkippedShards();
             failedShards = searchResponse.getFailedShards();
+            if (searchResponse.getClusters() != null && searchResponse.getClusters() != SearchResponse.Clusters.EMPTY) {
+                clusters = searchResponse.getClusters();
+            }
         }
         if (asyncSearchResponse.isRunning() == false) {
-            if (searchResponse != null) {
+            Exception failure = asyncSearchResponse.getFailure();
+            if (failure != null) {
+                completionStatus = ExceptionsHelper.status(ExceptionsHelper.unwrapCause(failure));
+            } else if (searchResponse != null) {
                 completionStatus = searchResponse.status();
             } else {
-                Exception failure = asyncSearchResponse.getFailure();
-                if (failure != null) {
-                    completionStatus = ExceptionsHelper.status(ExceptionsHelper.unwrapCause(failure));
-                }
+                throw new IllegalStateException("Unable to retrieve async_search status. No SearchResponse or Exception could be found.");
             }
         }
         return new AsyncStatusResponse(
@@ -100,11 +113,13 @@ public class AsyncStatusResponse extends ActionResponse implements SearchStatusR
             asyncSearchResponse.isPartial(),
             asyncSearchResponse.getStartTime(),
             expirationTimeMillis,
+            asyncSearchResponse.getCompletionTime(),
             totalShards,
             successfulShards,
             skippedShards,
             failedShards,
-            completionStatus
+            completionStatus,
+            clusters
         );
     }
 
@@ -119,6 +134,16 @@ public class AsyncStatusResponse extends ActionResponse implements SearchStatusR
         this.skippedShards = in.readVInt();
         this.failedShards = in.readVInt();
         this.completionStatus = (this.isRunning == false) ? RestStatus.readFrom(in) : null;
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)) {
+            this.clusters = in.readOptionalWriteable(SearchResponse.Clusters::new);
+        } else {
+            this.clusters = null;
+        }
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_10_X)) {
+            this.completionTimeMillis = in.readOptionalVLong();
+        } else {
+            this.completionTimeMillis = null;
+        }
     }
 
     @Override
@@ -135,11 +160,13 @@ public class AsyncStatusResponse extends ActionResponse implements SearchStatusR
         if (isRunning == false) {
             RestStatus.writeTo(out, completionStatus);
         }
-    }
-
-    @Override
-    public RestStatus status() {
-        return OK;
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)) {
+            // optional since only CCS uses is; it is null for local-only searches
+            out.writeOptionalWriteable(clusters);
+        }
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_10_X)) {
+            out.writeOptionalVLong(completionTimeMillis);
+        }
     }
 
     @Override
@@ -148,9 +175,15 @@ public class AsyncStatusResponse extends ActionResponse implements SearchStatusR
         builder.field("id", id);
         builder.field("is_running", isRunning);
         builder.field("is_partial", isPartial);
-        builder.timeField("start_time_in_millis", "start_time", startTimeMillis);
-        builder.timeField("expiration_time_in_millis", "expiration_time", expirationTimeMillis);
+        builder.timestampFieldsFromUnixEpochMillis("start_time_in_millis", "start_time", startTimeMillis);
+        builder.timestampFieldsFromUnixEpochMillis("expiration_time_in_millis", "expiration_time", expirationTimeMillis);
+        if (completionTimeMillis != null) {
+            builder.timestampFieldsFromUnixEpochMillis("completion_time_in_millis", "completion_time", completionTimeMillis);
+        }
         RestActions.buildBroadcastShardsHeader(builder, params, totalShards, successfulShards, skippedShards, failedShards, null);
+        if (clusters != null) {
+            builder = clusters.toXContent(builder, params);
+        }
         if (isRunning == false) { // completion status information is only available for a completed search
             builder.field("completion_status", completionStatus.getStatus());
         }
@@ -172,7 +205,8 @@ public class AsyncStatusResponse extends ActionResponse implements SearchStatusR
             && successfulShards == other.successfulShards
             && skippedShards == other.skippedShards
             && failedShards == other.failedShards
-            && Objects.equals(completionStatus, other.completionStatus);
+            && Objects.equals(completionStatus, other.completionStatus)
+            && Objects.equals(clusters, other.clusters);
     }
 
     @Override
@@ -187,7 +221,8 @@ public class AsyncStatusResponse extends ActionResponse implements SearchStatusR
             successfulShards,
             skippedShards,
             failedShards,
-            completionStatus
+            completionStatus,
+            clusters
         );
     }
 
@@ -231,6 +266,13 @@ public class AsyncStatusResponse extends ActionResponse implements SearchStatusR
     }
 
     /**
+     * @return completion_time_in_millis if set, otherwise null
+     */
+    public Long getCompletionTime() {
+        return completionTimeMillis;
+    }
+
+    /**
      * Returns the total number of shards the search is executed on.
      */
     public int getTotalShards() {
@@ -264,5 +306,13 @@ public class AsyncStatusResponse extends ActionResponse implements SearchStatusR
      */
     public RestStatus getCompletionStatus() {
         return completionStatus;
+    }
+
+    /**
+     * @return For CCS, clusters object that has information about the clustes being searched, such as total count
+     * successful count and skipped. Will be null for local-only searches.
+     */
+    public SearchResponse.Clusters getClusters() {
+        return clusters;
     }
 }

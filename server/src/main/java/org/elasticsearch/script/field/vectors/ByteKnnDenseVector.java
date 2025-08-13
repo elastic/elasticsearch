@@ -1,15 +1,17 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.script.field.vectors;
 
 import org.apache.lucene.util.VectorUtil;
 import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.simdvec.ESVectorUtil;
 
 import java.util.List;
 
@@ -50,12 +52,12 @@ public class ByteKnnDenseVector implements DenseVector {
 
     @Override
     public int dotProduct(byte[] queryVector) {
-        return (int) VectorUtil.dotProduct(docVector, queryVector);
+        return VectorUtil.dotProduct(queryVector, docVector);
     }
 
     @Override
     public double dotProduct(float[] queryVector) {
-        throw new UnsupportedOperationException("use [int dotProduct(byte[] queryVector)] instead");
+        return ESVectorUtil.ipFloatByte(queryVector, docVector);
     }
 
     @Override
@@ -70,7 +72,7 @@ public class ByteKnnDenseVector implements DenseVector {
     }
 
     @SuppressForbidden(reason = "used only for bytes so it cannot overflow")
-    private int abs(int value) {
+    private static int abs(int value) {
         return Math.abs(value);
     }
 
@@ -102,15 +104,22 @@ public class ByteKnnDenseVector implements DenseVector {
     }
 
     @Override
-    public double l2Norm(byte[] queryVector) {
-        int result = 0;
-        int i = 0;
-        while (i < docVector.length) {
-            int diff = docVector[i] - queryVector[i];
-            result += diff * diff;
-            i++;
+    public int hamming(byte[] queryVector) {
+        return VectorUtil.xorBitCount(queryVector, docVector);
+    }
+
+    @Override
+    public int hamming(List<Number> queryVector) {
+        int distance = 0;
+        for (int i = 0; i < queryVector.size(); i++) {
+            distance += Integer.bitCount((queryVector.get(i).intValue() ^ docVector[i]) & 0xFF);
         }
-        return Math.sqrt(result);
+        return distance;
+    }
+
+    @Override
+    public double l2Norm(byte[] queryVector) {
+        return Math.sqrt(VectorUtil.squareDistance(docVector, queryVector));
     }
 
     @Override
@@ -137,7 +146,11 @@ public class ByteKnnDenseVector implements DenseVector {
 
     @Override
     public double cosineSimilarity(float[] queryVector, boolean normalizeQueryVector) {
-        throw new UnsupportedOperationException("use [double cosineSimilarity(byte[] queryVector, float qvMagnitude)] instead");
+        if (normalizeQueryVector) {
+            return dotProduct(queryVector) / (DenseVector.getMagnitude(queryVector) * getMagnitude());
+        }
+
+        return dotProduct(queryVector) / getMagnitude();
     }
 
     @Override

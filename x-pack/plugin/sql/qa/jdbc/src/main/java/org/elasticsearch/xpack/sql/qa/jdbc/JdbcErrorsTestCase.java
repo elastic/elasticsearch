@@ -78,6 +78,7 @@ public abstract class JdbcErrorsTestCase extends JdbcIntegrationTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/105840")
     public void testSelectOrderByScoreInAggContext() throws IOException, SQLException {
         index("test", body -> body.field("foo", 1));
         try (Connection c = esJdbc()) {
@@ -111,6 +112,7 @@ public abstract class JdbcErrorsTestCase extends JdbcIntegrationTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/105840")
     public void testHardLimitForSortOnAggregate() throws IOException, SQLException {
         index("test", body -> body.field("a", 1).field("b", 2));
         try (Connection c = esJdbc()) {

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.lucene.grouping;
 
@@ -99,7 +100,7 @@ abstract class GroupingDocValuesSelector<T> extends GroupSelector<T> {
                             public boolean advanceExact(int target) throws IOException {
                                 if (sorted.advanceExact(target)) {
                                     if (sorted.docValueCount() > 1) {
-                                        throw new IllegalStateException(
+                                        throw new IllegalArgumentException(
                                             "failed to extract doc:" + target + ", the grouping field must be single valued"
                                         );
                                     }
@@ -123,7 +124,7 @@ abstract class GroupingDocValuesSelector<T> extends GroupSelector<T> {
                         };
                     }
                 }
-                default -> throw new IllegalStateException("unexpected doc values type " + type + "` for field `" + field + "`");
+                default -> throw new IllegalArgumentException("unexpected doc values type " + type + "` for field `" + field + "`");
             }
         }
 
@@ -198,12 +199,12 @@ abstract class GroupingDocValuesSelector<T> extends GroupSelector<T> {
                             @Override
                             public boolean advanceExact(int target) throws IOException {
                                 if (sorted.advanceExact(target)) {
-                                    ord = (int) sorted.nextOrd();
-                                    if (sorted.nextOrd() != SortedSetDocValues.NO_MORE_ORDS) {
-                                        throw new IllegalStateException(
+                                    if (sorted.docValueCount() > 1) {
+                                        throw new IllegalArgumentException(
                                             "failed to extract doc:" + target + ", the grouping field must be single valued"
                                         );
                                     }
+                                    ord = (int) sorted.nextOrd();
                                     return true;
                                 } else {
                                     return false;
@@ -232,7 +233,7 @@ abstract class GroupingDocValuesSelector<T> extends GroupSelector<T> {
                         };
                     }
                 }
-                default -> throw new IllegalStateException("unexpected doc values type " + type + "` for field `" + field + "`");
+                default -> throw new IllegalArgumentException("unexpected doc values type " + type + "` for field `" + field + "`");
             }
         }
 

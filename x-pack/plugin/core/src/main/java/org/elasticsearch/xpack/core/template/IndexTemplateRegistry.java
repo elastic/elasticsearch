@@ -10,22 +10,39 @@ package org.elasticsearch.xpack.core.template;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.indices.rollover.RolloverAction;
+import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
+import org.elasticsearch.action.admin.indices.rollover.RolloverResponse;
 import org.elasticsearch.action.admin.indices.template.put.PutComponentTemplateAction;
-import org.elasticsearch.action.admin.indices.template.put.PutComposableIndexTemplateAction;
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequest;
+import org.elasticsearch.action.admin.indices.template.put.TransportPutComposableIndexTemplateAction;
+import org.elasticsearch.action.ingest.PutPipelineRequest;
+import org.elasticsearch.action.ingest.PutPipelineTransportAction;
+import org.elasticsearch.action.support.GroupedActionListener;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.metadata.ComponentTemplate;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
+import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
+import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.gateway.GatewayService;
+import org.elasticsearch.ingest.IngestMetadata;
+import org.elasticsearch.ingest.PipelineConfiguration;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
@@ -33,12 +50,15 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.ilm.IndexLifecycleMetadata;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicy;
-import org.elasticsearch.xpack.core.ilm.action.PutLifecycleAction;
+import org.elasticsearch.xpack.core.ilm.action.ILMActions;
+import org.elasticsearch.xpack.core.ilm.action.PutLifecycleRequest;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
@@ -48,23 +68,33 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.cluster.metadata.DataStreamLifecycle.isDataStreamsLifecycleOnlyMode;
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 
 /**
- * Abstracts the logic of managing versioned index templates and lifecycle policies for plugins that require such things.
+ * Abstracts the logic of managing versioned index templates, ingest pipelines and lifecycle policies for plugins that require such things.
  */
 public abstract class IndexTemplateRegistry implements ClusterStateListener {
+
     private static final Logger logger = LogManager.getLogger(IndexTemplateRegistry.class);
+
+    private static final TimeValue REGISTRY_ACTION_TIMEOUT = TimeValue.THIRTY_SECONDS; // TODO should this be longer?
 
     protected final Settings settings;
     protected final Client client;
     protected final ThreadPool threadPool;
     protected final NamedXContentRegistry xContentRegistry;
     protected final ClusterService clusterService;
-    protected final ConcurrentMap<String, AtomicBoolean> templateCreationsInProgress = new ConcurrentHashMap<>();
-    protected final ConcurrentMap<String, AtomicBoolean> policyCreationsInProgress = new ConcurrentHashMap<>();
+    protected final ConcurrentMap<ProjectId, ConcurrentHashMap<String, AtomicBoolean>> templateCreationsInProgress =
+        new ConcurrentHashMap<>();
+    protected final ConcurrentMap<ProjectId, ConcurrentHashMap<String, AtomicBoolean>> policyCreationsInProgress =
+        new ConcurrentHashMap<>();
+    protected final ConcurrentMap<ProjectId, ConcurrentHashMap<String, AtomicBoolean>> pipelineCreationsInProgress =
+        new ConcurrentHashMap<>();
+    protected final List<LifecyclePolicy> lifecyclePolicies;
 
+    @SuppressWarnings("this-escape")
     public IndexTemplateRegistry(
         Settings nodeSettings,
         ClusterService clusterService,
@@ -77,6 +107,28 @@ public abstract class IndexTemplateRegistry implements ClusterStateListener {
         this.threadPool = threadPool;
         this.xContentRegistry = xContentRegistry;
         this.clusterService = clusterService;
+        if (isDataStreamsLifecycleOnlyMode(clusterService.getSettings()) == false) {
+            this.lifecyclePolicies = getLifecycleConfigs().stream()
+                .map(config -> config.load(LifecyclePolicyConfig.DEFAULT_X_CONTENT_REGISTRY))
+                .toList();
+        } else {
+            this.lifecyclePolicies = List.of();
+        }
+    }
+
+    /**
+     * Returns the configured configurations for the lifecycle policies. Subclasses should provide
+     * the ILM configurations and they will be loaded if we're not running data stream only mode (controlled via
+     * {@link org.elasticsearch.cluster.metadata.DataStreamLifecycle#DATA_STREAMS_LIFECYCLE_ONLY_SETTING_NAME}).
+     *
+     * The loaded lifecycle configurations will be installed if returned by {@link #getLifecyclePolicies()}. Child classes
+     * have a chance to override {@link #getLifecyclePolicies()} in case they want additional control over if these
+     * policies should be installed or not (say, if they belong to functionalities that can be enabled/disabled via a flag).
+     *
+     * @return The lifecycle policies configurations that pertain to this template registry.
+     */
+    protected List<LifecyclePolicyConfig> getLifecycleConfigs() {
+        return List.of();
     }
 
     /**
@@ -118,9 +170,18 @@ public abstract class IndexTemplateRegistry implements ClusterStateListener {
     /**
      * Retrieves a list of {@link LifecyclePolicy} that represents the ILM
      * policies that should be installed and managed. Only called if ILM is enabled.
-     * @return The configurations for the lifecycle policies that should be installed.
+     * @return The lifecycle policies that should be installed.
      */
-    protected List<LifecyclePolicy> getPolicyConfigs() {
+    protected List<LifecyclePolicy> getLifecyclePolicies() {
+        return lifecyclePolicies;
+    }
+
+    /**
+     * Retrieves a list of {@link IngestPipelineConfig} that represents the ingest pipelines
+     * that should be installed and managed.
+     * @return The configurations for ingest pipelines that should be installed.
+     */
+    protected List<IngestPipelineConfig> getIngestPipelines() {
         return Collections.emptyList();
     }
 
@@ -169,15 +230,31 @@ public abstract class IndexTemplateRegistry implements ClusterStateListener {
             return;
         }
 
+        if (isClusterReady(event) == false) {
+            return;
+        }
+
         // if this node is newer than the master node, we probably need to add the template, which might be newer than the
         // template the master node has, so we need potentially add new templates despite being not the master node
         DiscoveryNode localNode = event.state().getNodes().getLocalNode();
         boolean localNodeVersionAfterMaster = localNode.getVersion().after(masterNode.getVersion());
 
-        if (event.localNodeMaster() || localNodeVersionAfterMaster) {
-            addTemplatesIfMissing(state);
-            addIndexLifecyclePoliciesIfMissing(state);
+        if (event.localNodeMaster() == false && localNodeVersionAfterMaster == false) {
+            return;
         }
+        for (ProjectMetadata project : event.state().metadata().projects().values()) {
+            addIngestPipelinesIfMissing(project);
+            addTemplatesIfMissing(project);
+            addIndexLifecyclePoliciesIfMissing(project);
+        }
+    }
+
+    /**
+     * A method that can be overridden to add additional conditions to be satisfied
+     * before installing the template registry components.
+     */
+    protected boolean isClusterReady(ClusterChangedEvent event) {
+        return true;
     }
 
     /**
@@ -189,22 +266,27 @@ public abstract class IndexTemplateRegistry implements ClusterStateListener {
         return false;
     }
 
-    private void addTemplatesIfMissing(ClusterState state) {
-        addLegacyTemplatesIfMissing(state);
-        addComponentTemplatesIfMissing(state);
-        addComposableTemplatesIfMissing(state);
+    private void addTemplatesIfMissing(ProjectMetadata project) {
+        addLegacyTemplatesIfMissing(project);
+        addComponentTemplatesIfMissing(project);
+        addComposableTemplatesIfMissing(project);
     }
 
-    private void addLegacyTemplatesIfMissing(ClusterState state) {
+    private void addLegacyTemplatesIfMissing(ProjectMetadata project) {
+        if (isDataStreamsLifecycleOnlyMode(clusterService.getSettings())) {
+            // data stream lifecycle cannot be configured via legacy templates
+            return;
+        }
         final List<IndexTemplateConfig> indexTemplates = getLegacyTemplateConfigs();
         for (IndexTemplateConfig newTemplate : indexTemplates) {
             final String templateName = newTemplate.getTemplateName();
-            final AtomicBoolean creationCheck = templateCreationsInProgress.computeIfAbsent(templateName, key -> new AtomicBoolean(false));
+            final AtomicBoolean creationCheck = templateCreationsInProgress.computeIfAbsent(project.id(), key -> new ConcurrentHashMap<>())
+                .computeIfAbsent(templateName, key -> new AtomicBoolean(false));
             if (creationCheck.compareAndSet(false, true)) {
-                IndexTemplateMetadata currentTemplate = state.metadata().getTemplates().get(templateName);
+                IndexTemplateMetadata currentTemplate = project.templates().get(templateName);
                 if (Objects.isNull(currentTemplate)) {
                     logger.debug("adding legacy template [{}] for [{}], because it doesn't exist", templateName, getOrigin());
-                    putLegacyTemplate(newTemplate, creationCheck);
+                    putLegacyTemplate(project.id(), newTemplate, creationCheck);
                 } else if (Objects.isNull(currentTemplate.getVersion()) || newTemplate.getVersion() > currentTemplate.getVersion()) {
                     // IndexTemplateConfig now enforces templates contain a `version` property, so if the template doesn't have one we can
                     // safely assume it's an old version of the template.
@@ -215,7 +297,7 @@ public abstract class IndexTemplateRegistry implements ClusterStateListener {
                         currentTemplate.getVersion(),
                         newTemplate.getVersion()
                     );
-                    putLegacyTemplate(newTemplate, creationCheck);
+                    putLegacyTemplate(project.id(), newTemplate, creationCheck);
                 } else {
                     creationCheck.set(false);
                     logger.trace(
@@ -235,16 +317,24 @@ public abstract class IndexTemplateRegistry implements ClusterStateListener {
         }
     }
 
-    private void addComponentTemplatesIfMissing(ClusterState state) {
+    private void addComponentTemplatesIfMissing(ProjectMetadata project) {
         final Map<String, ComponentTemplate> indexTemplates = getComponentTemplateConfigs();
         for (Map.Entry<String, ComponentTemplate> newTemplate : indexTemplates.entrySet()) {
             final String templateName = newTemplate.getKey();
-            final AtomicBoolean creationCheck = templateCreationsInProgress.computeIfAbsent(templateName, key -> new AtomicBoolean(false));
+            final AtomicBoolean creationCheck = templateCreationsInProgress.computeIfAbsent(project.id(), key -> new ConcurrentHashMap<>())
+                .computeIfAbsent(templateName, key -> new AtomicBoolean(false));
             if (creationCheck.compareAndSet(false, true)) {
-                ComponentTemplate currentTemplate = state.metadata().componentTemplates().get(templateName);
-                if (Objects.isNull(currentTemplate)) {
+                ComponentTemplate currentTemplate = project.componentTemplates().get(templateName);
+                if (templateDependenciesSatisfied(project, newTemplate.getValue()) == false) {
+                    creationCheck.set(false);
+                    logger.trace(
+                        "not adding index template [{}] for [{}] because its required dependencies do not exist",
+                        templateName,
+                        getOrigin()
+                    );
+                } else if (Objects.isNull(currentTemplate)) {
                     logger.debug("adding component template [{}] for [{}], because it doesn't exist", templateName, getOrigin());
-                    putComponentTemplate(templateName, newTemplate.getValue(), creationCheck);
+                    putComponentTemplate(project.id(), templateName, newTemplate.getValue(), creationCheck);
                 } else if (Objects.isNull(currentTemplate.version()) || newTemplate.getValue().version() > currentTemplate.version()) {
                     // IndexTemplateConfig now enforces templates contain a `version` property, so if the template doesn't have one we can
                     // safely assume it's an old version of the template.
@@ -255,7 +345,7 @@ public abstract class IndexTemplateRegistry implements ClusterStateListener {
                         currentTemplate.version(),
                         newTemplate.getValue().version()
                     );
-                    putComponentTemplate(templateName, newTemplate.getValue(), creationCheck);
+                    putComponentTemplate(project.id(), templateName, newTemplate.getValue(), creationCheck);
                 } else {
                     creationCheck.set(false);
                     logger.trace(
@@ -275,24 +365,54 @@ public abstract class IndexTemplateRegistry implements ClusterStateListener {
         }
     }
 
-    private void addComposableTemplatesIfMissing(ClusterState state) {
+    /**
+     * Returns true if the cluster state contains all of the dependencies required by the provided component template
+     */
+    private static boolean templateDependenciesSatisfied(ProjectMetadata project, ComponentTemplate indexTemplate) {
+        Template template = indexTemplate.template();
+        if (template == null) {
+            return true;
+        }
+        Settings settings = template.settings();
+        if (settings == null) {
+            return true;
+        }
+        IngestMetadata ingestMetadata = project.custom(IngestMetadata.TYPE);
+        String defaultPipeline = settings.get("index.default_pipeline");
+        if (defaultPipeline != null) {
+            if (ingestMetadata == null || ingestMetadata.getPipelines().containsKey(defaultPipeline) == false) {
+                return false;
+            }
+        }
+        String finalPipeline = settings.get("index.final_pipeline");
+        if (finalPipeline != null) {
+            return ingestMetadata != null && ingestMetadata.getPipelines().containsKey(finalPipeline);
+        }
+        return true;
+    }
+
+    private void addComposableTemplatesIfMissing(ProjectMetadata project) {
         final Map<String, ComposableIndexTemplate> indexTemplates = getComposableTemplateConfigs();
         for (Map.Entry<String, ComposableIndexTemplate> newTemplate : indexTemplates.entrySet()) {
             final String templateName = newTemplate.getKey();
-            final AtomicBoolean creationCheck = templateCreationsInProgress.computeIfAbsent(templateName, key -> new AtomicBoolean(false));
+            final AtomicBoolean creationCheck = templateCreationsInProgress.computeIfAbsent(project.id(), key -> new ConcurrentHashMap<>())
+                .computeIfAbsent(templateName, key -> new AtomicBoolean(false));
             if (creationCheck.compareAndSet(false, true)) {
-                ComposableIndexTemplate currentTemplate = state.metadata().templatesV2().get(templateName);
-                boolean componentTemplatesAvailable = componentTemplatesExist(state, newTemplate.getValue());
+                ComposableIndexTemplate currentTemplate = project.templatesV2().get(templateName);
+                boolean componentTemplatesAvailable = componentTemplatesInstalled(project, newTemplate.getValue());
                 if (componentTemplatesAvailable == false) {
                     creationCheck.set(false);
-                    logger.trace(
-                        "not adding composable template [{}] for [{}] because its required component templates do not exist",
-                        templateName,
-                        getOrigin()
-                    );
+                    if (logger.isTraceEnabled()) {
+                        logger.trace(
+                            "not adding composable template [{}] for [{}] because its required component templates do not exist or do not "
+                                + "have the right version",
+                            templateName,
+                            getOrigin()
+                        );
+                    }
                 } else if (Objects.isNull(currentTemplate)) {
                     logger.debug("adding composable template [{}] for [{}], because it doesn't exist", templateName, getOrigin());
-                    putComposableTemplate(templateName, newTemplate.getValue(), creationCheck);
+                    putComposableTemplate(project, templateName, newTemplate.getValue(), creationCheck);
                 } else if (Objects.isNull(currentTemplate.version()) || newTemplate.getValue().version() > currentTemplate.version()) {
                     // IndexTemplateConfig now enforces templates contain a `version` property, so if the template doesn't have one we can
                     // safely assume it's an old version of the template.
@@ -303,7 +423,7 @@ public abstract class IndexTemplateRegistry implements ClusterStateListener {
                         currentTemplate.version(),
                         newTemplate.getValue().version()
                     );
-                    putComposableTemplate(templateName, newTemplate.getValue(), creationCheck);
+                    putComposableTemplate(project, templateName, newTemplate.getValue(), creationCheck);
                 } else {
                     creationCheck.set(false);
                     logger.trace(
@@ -324,19 +444,42 @@ public abstract class IndexTemplateRegistry implements ClusterStateListener {
     }
 
     /**
-     * Returns true if the cluster state contains all of the component templates needed by the composable template
+     * Returns true if the cluster state contains all of the component templates needed by the composable template. If this registry
+     * requires automatic rollover after index template upgrades (see {@link #applyRolloverAfterTemplateV2Update()}), this method also
+     * verifies that the installed components templates are of the right version.
      */
-    private static boolean componentTemplatesExist(ClusterState state, ComposableIndexTemplate indexTemplate) {
-        return state.metadata().componentTemplates().keySet().containsAll(indexTemplate.composedOf());
+    private boolean componentTemplatesInstalled(ProjectMetadata project, ComposableIndexTemplate indexTemplate) {
+        if (applyRolloverAfterTemplateV2Update() == false) {
+            // component templates and index templates can be updated independently, we only need to know that the required component
+            // templates are available
+            return project.componentTemplates().keySet().containsAll(indexTemplate.getRequiredComponentTemplates());
+        }
+        Map<String, ComponentTemplate> componentTemplateConfigs = getComponentTemplateConfigs();
+        Map<String, ComponentTemplate> installedTemplates = project.componentTemplates();
+        for (String templateName : indexTemplate.getRequiredComponentTemplates()) {
+            ComponentTemplate installedTemplate = installedTemplates.get(templateName);
+            // if a required component templates is not installed - the current cluster state cannot allow this index template yet
+            if (installedTemplate == null) {
+                return false;
+            }
+            ComponentTemplate templateConfig = componentTemplateConfigs.get(templateName);
+            // note: currently we only take care of component templates that are installed by the same registry as the index template. We
+            // don't enforce proper version for component templates that come from outside of this registry.
+            // See https://github.com/elastic/elasticsearch/issues/99647
+            if (templateConfig != null && templateConfig.version().equals(installedTemplate.version()) == false) {
+                return false;
+            }
+        }
+        return true;
     }
 
-    private void putLegacyTemplate(final IndexTemplateConfig config, final AtomicBoolean creationCheck) {
+    private void putLegacyTemplate(final ProjectId projectId, final IndexTemplateConfig config, final AtomicBoolean creationCheck) {
         final Executor executor = threadPool.generic();
         executor.execute(() -> {
             final String templateName = config.getTemplateName();
 
             PutIndexTemplateRequest request = new PutIndexTemplateRequest(templateName).source(config.loadBytes(), XContentType.JSON);
-            request.masterNodeTimeout(TimeValue.timeValueMinutes(1));
+            request.masterNodeTimeout(TimeValue.MAX_VALUE);
             executeAsyncWithOrigin(
                 client.threadPool().getThreadContext(),
                 getOrigin(),
@@ -360,16 +503,21 @@ public abstract class IndexTemplateRegistry implements ClusterStateListener {
                         onPutTemplateFailure(templateName, e);
                     }
                 },
-                client.admin().indices()::putTemplate
+                client.projectClient(projectId).admin().indices()::putTemplate
             );
         });
     }
 
-    private void putComponentTemplate(final String templateName, final ComponentTemplate template, final AtomicBoolean creationCheck) {
+    private void putComponentTemplate(
+        final ProjectId projectId,
+        final String templateName,
+        final ComponentTemplate template,
+        final AtomicBoolean creationCheck
+    ) {
         final Executor executor = threadPool.generic();
         executor.execute(() -> {
             PutComponentTemplateAction.Request request = new PutComponentTemplateAction.Request(templateName).componentTemplate(template);
-            request.masterNodeTimeout(TimeValue.timeValueMinutes(1));
+            request.masterNodeTimeout(TimeValue.MAX_VALUE);
             executeAsyncWithOrigin(
                 client.threadPool().getThreadContext(),
                 getOrigin(),
@@ -393,22 +541,22 @@ public abstract class IndexTemplateRegistry implements ClusterStateListener {
                         onPutTemplateFailure(templateName, e);
                     }
                 },
-                (req, listener) -> client.execute(PutComponentTemplateAction.INSTANCE, req, listener)
+                (req, listener) -> client.projectClient(projectId).execute(PutComponentTemplateAction.INSTANCE, req, listener)
             );
         });
     }
 
     private void putComposableTemplate(
+        final ProjectMetadata project,
         final String templateName,
         final ComposableIndexTemplate indexTemplate,
         final AtomicBoolean creationCheck
     ) {
         final Executor executor = threadPool.generic();
         executor.execute(() -> {
-            PutComposableIndexTemplateAction.Request request = new PutComposableIndexTemplateAction.Request(templateName).indexTemplate(
-                indexTemplate
-            );
-            request.masterNodeTimeout(TimeValue.timeValueMinutes(1));
+            TransportPutComposableIndexTemplateAction.Request request = new TransportPutComposableIndexTemplateAction.Request(templateName)
+                .indexTemplate(indexTemplate);
+            request.masterNodeTimeout(TimeValue.MAX_VALUE);
             executeAsyncWithOrigin(
                 client.threadPool().getThreadContext(),
                 getOrigin(),
@@ -416,8 +564,14 @@ public abstract class IndexTemplateRegistry implements ClusterStateListener {
                 new ActionListener<AcknowledgedResponse>() {
                     @Override
                     public void onResponse(AcknowledgedResponse response) {
-                        creationCheck.set(false);
-                        if (response.isAcknowledged() == false) {
+                        if (response.isAcknowledged()) {
+                            if (applyRolloverAfterTemplateV2Update()) {
+                                invokeRollover(project, templateName, indexTemplate, () -> creationCheck.set((false)));
+                            } else {
+                                creationCheck.set(false);
+                            }
+                        } else {
+                            creationCheck.set(false);
                             logger.error(
                                 "error adding composable template [{}] for [{}], request was not acknowledged",
                                 templateName,
@@ -432,25 +586,29 @@ public abstract class IndexTemplateRegistry implements ClusterStateListener {
                         onPutTemplateFailure(templateName, e);
                     }
                 },
-                (req, listener) -> client.execute(PutComposableIndexTemplateAction.INSTANCE, req, listener)
+                (req, listener) -> client.projectClient(project.id()).execute(TransportPutComposableIndexTemplateAction.TYPE, req, listener)
             );
         });
     }
 
-    private void addIndexLifecyclePoliciesIfMissing(ClusterState state) {
-        Optional<IndexLifecycleMetadata> maybeMeta = Optional.ofNullable(state.metadata().custom(IndexLifecycleMetadata.TYPE));
-        for (LifecyclePolicy policy : getPolicyConfigs()) {
-            final AtomicBoolean creationCheck = policyCreationsInProgress.computeIfAbsent(
-                policy.getName(),
-                key -> new AtomicBoolean(false)
-            );
+    private void addIndexLifecyclePoliciesIfMissing(ProjectMetadata project) {
+        if (isDataStreamsLifecycleOnlyMode(clusterService.getSettings())) {
+            logger.trace("running in data stream lifecycle only mode. skipping the installation of ILM policies.");
+            return;
+        }
+        final IndexLifecycleMetadata metadata = project.custom(IndexLifecycleMetadata.TYPE);
+        final Map<String, LifecyclePolicy> policies = metadata != null ? metadata.getPolicies() : Map.of();
+        for (LifecyclePolicy policy : getLifecyclePolicies()) {
+            final AtomicBoolean creationCheck = policyCreationsInProgress.computeIfAbsent(project.id(), key -> new ConcurrentHashMap<>())
+                .computeIfAbsent(policy.getName(), key -> new AtomicBoolean(false));
             if (creationCheck.compareAndSet(false, true)) {
-                final boolean policyNeedsToBeCreated = maybeMeta.flatMap(
-                    ilmMeta -> Optional.ofNullable(ilmMeta.getPolicies().get(policy.getName()))
-                ).isPresent() == false;
-                if (policyNeedsToBeCreated) {
+                final LifecyclePolicy currentPolicy = policies.get(policy.getName());
+                if (Objects.isNull(currentPolicy)) {
                     logger.debug("adding lifecycle policy [{}] for [{}], because it doesn't exist", policy.getName(), getOrigin());
-                    putPolicy(policy, creationCheck);
+                    putPolicy(project.id(), policy, creationCheck);
+                } else if (isUpgradeRequired(currentPolicy, policy)) {
+                    logger.info("upgrading lifecycle policy [{}] for [{}]", policy.getName(), getOrigin());
+                    putPolicy(project.id(), policy, creationCheck);
                 } else {
                     logger.trace("not adding lifecycle policy [{}] for [{}], because it already exists", policy.getName(), getOrigin());
                     creationCheck.set(false);
@@ -459,11 +617,22 @@ public abstract class IndexTemplateRegistry implements ClusterStateListener {
         }
     }
 
-    private void putPolicy(final LifecyclePolicy policy, final AtomicBoolean creationCheck) {
+    /**
+     * Determines whether an index lifecycle policy should be upgraded to a newer version.
+     *
+     * @param currentPolicy The current lifecycle policy. Never null.
+     * @param newPolicy The new lifecycle policy. Never null.
+     * @return <code>true</code> if <code>newPolicy</code> should replace <code>currentPolicy</code>.
+     */
+    protected boolean isUpgradeRequired(LifecyclePolicy currentPolicy, LifecyclePolicy newPolicy) {
+        return false;
+    }
+
+    private void putPolicy(ProjectId projectId, final LifecyclePolicy policy, final AtomicBoolean creationCheck) {
         final Executor executor = threadPool.generic();
         executor.execute(() -> {
-            PutLifecycleAction.Request request = new PutLifecycleAction.Request(policy);
-            request.masterNodeTimeout(TimeValue.timeValueMinutes(1));
+            PutLifecycleRequest request = new PutLifecycleRequest(REGISTRY_ACTION_TIMEOUT, REGISTRY_ACTION_TIMEOUT, policy);
+            request.masterNodeTimeout(TimeValue.MAX_VALUE);
             executeAsyncWithOrigin(
                 client.threadPool().getThreadContext(),
                 getOrigin(),
@@ -487,21 +656,255 @@ public abstract class IndexTemplateRegistry implements ClusterStateListener {
                         onPutPolicyFailure(policy, e);
                     }
                 },
-                (req, listener) -> client.execute(PutLifecycleAction.INSTANCE, req, listener)
+                (req, listener) -> client.projectClient(projectId).execute(ILMActions.PUT, req, listener)
             );
         });
     }
 
     protected static Map<String, ComposableIndexTemplate> parseComposableTemplates(IndexTemplateConfig... config) {
         return Arrays.stream(config).collect(Collectors.toUnmodifiableMap(IndexTemplateConfig::getTemplateName, indexTemplateConfig -> {
-            try {
-                return ComposableIndexTemplate.parse(
-                    JsonXContent.jsonXContent.createParser(XContentParserConfiguration.EMPTY, indexTemplateConfig.loadBytes())
-                );
+            try (var parser = JsonXContent.jsonXContent.createParser(XContentParserConfiguration.EMPTY, indexTemplateConfig.loadBytes())) {
+                return ComposableIndexTemplate.parse(parser);
             } catch (IOException e) {
                 throw new AssertionError(e);
             }
         }));
     }
 
+    private void addIngestPipelinesIfMissing(ProjectMetadata project) {
+        for (IngestPipelineConfig requiredPipeline : getIngestPipelines()) {
+            final AtomicBoolean creationCheck = pipelineCreationsInProgress.computeIfAbsent(project.id(), key -> new ConcurrentHashMap<>())
+                .computeIfAbsent(requiredPipeline.getId(), key -> new AtomicBoolean(false));
+
+            if (creationCheck.compareAndSet(false, true)) {
+                List<String> pipelineDependencies = requiredPipeline.getPipelineDependencies();
+                if (pipelineDependencies != null && pipelineDependenciesExist(project, pipelineDependencies) == false) {
+                    creationCheck.set(false);
+                    logger.trace(
+                        "not adding ingest pipeline [{}] for [{}] because its dependencies do not exist",
+                        requiredPipeline.getId(),
+                        getOrigin()
+                    );
+                } else {
+                    PipelineConfiguration existingPipeline = findInstalledPipeline(project, requiredPipeline.getId());
+                    if (existingPipeline != null) {
+                        Integer existingPipelineVersion = existingPipeline.getVersion();
+                        if (existingPipelineVersion == null || existingPipelineVersion < requiredPipeline.getVersion()) {
+                            logger.info(
+                                "upgrading ingest pipeline [{}] for [{}] from version [{}] to version [{}]",
+                                requiredPipeline.getId(),
+                                getOrigin(),
+                                existingPipelineVersion,
+                                requiredPipeline.getVersion()
+                            );
+                            putIngestPipeline(project.id(), requiredPipeline, creationCheck);
+                        } else {
+                            creationCheck.set(false);
+                            logger.debug(
+                                "not adding ingest pipeline [{}] for [{}], because it already exists",
+                                requiredPipeline.getId(),
+                                getOrigin()
+                            );
+                        }
+                    } else {
+                        logger.debug(
+                            "adding ingest pipeline [{}] for [{}], because it doesn't exist",
+                            requiredPipeline.getId(),
+                            getOrigin()
+                        );
+                        putIngestPipeline(project.id(), requiredPipeline, creationCheck);
+                    }
+                }
+            }
+        }
+    }
+
+    private static boolean pipelineDependenciesExist(ProjectMetadata project, List<String> dependencies) {
+        for (String dependency : dependencies) {
+            if (findInstalledPipeline(project, dependency) == null) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    @Nullable
+    private static PipelineConfiguration findInstalledPipeline(ProjectMetadata project, String pipelineId) {
+        Optional<IngestMetadata> maybeMeta = Optional.ofNullable(project.custom(IngestMetadata.TYPE));
+        return maybeMeta.map(ingestMetadata -> ingestMetadata.getPipelines().get(pipelineId)).orElse(null);
+    }
+
+    private void putIngestPipeline(ProjectId projectId, final IngestPipelineConfig pipelineConfig, final AtomicBoolean creationCheck) {
+        final Executor executor = threadPool.generic();
+        executor.execute(() -> {
+            PutPipelineRequest request = new PutPipelineRequest(
+                MasterNodeRequest.INFINITE_MASTER_NODE_TIMEOUT,
+                MasterNodeRequest.INFINITE_MASTER_NODE_TIMEOUT,
+                pipelineConfig.getId(),
+                pipelineConfig.loadConfig(),
+                pipelineConfig.getXContentType()
+            );
+
+            executeAsyncWithOrigin(
+                client.threadPool().getThreadContext(),
+                getOrigin(),
+                request,
+                new ActionListener<AcknowledgedResponse>() {
+                    @Override
+                    public void onResponse(AcknowledgedResponse response) {
+                        creationCheck.set(false);
+                        if (response.isAcknowledged() == false) {
+                            logger.error(
+                                "error adding ingest pipeline [{}] for [{}], request was not acknowledged",
+                                pipelineConfig.getId(),
+                                getOrigin()
+                            );
+                        } else {
+                            logger.info("adding ingest pipeline {}", pipelineConfig.getId());
+                        }
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        creationCheck.set(false);
+                        onPutPipelineFailure(pipelineConfig.getId(), e);
+                    }
+                },
+                (req, listener) -> client.projectClient(projectId).execute(PutPipelineTransportAction.TYPE, req, listener)
+            );
+        });
+    }
+
+    /**
+     * Allows registries to opt-in for automatic rollover of "relevant" data streams immediately after a composable index template gets
+     * updated, including its initial installation. If set to {@code true}, then every time a composable index template is being updated,
+     * all data streams of which name matches this template's index patterns AND of all matching templates the upgraded one has the highest
+     * priority, will be rolled over.
+     *
+     * @return {@code true} if this registry wants to apply automatic rollovers after template V2 upgrades
+     */
+    protected boolean applyRolloverAfterTemplateV2Update() {
+        return false;
+    }
+
+    /**
+     * Called when creation of an ingest pipeline fails.
+     *
+     * @param pipelineId the pipeline that failed to be created.
+     * @param e The exception that caused the failure.
+     */
+    protected void onPutPipelineFailure(String pipelineId, Exception e) {
+        logger.error(() -> format("error adding ingest pipeline template [%s] for [%s]", pipelineId, getOrigin()), e);
+    }
+
+    /**
+     * invokeRollover rolls over any data streams matching the index template,
+     * and then invokes runAfter.
+     */
+    private void invokeRollover(
+        final ProjectMetadata project,
+        final String templateName,
+        final ComposableIndexTemplate indexTemplate,
+        final Runnable runAfter
+    ) {
+        final Executor executor = threadPool.generic();
+        executor.execute(() -> {
+            List<String> rolloverTargets = findRolloverTargetDataStreams(project, templateName, indexTemplate);
+            if (rolloverTargets.isEmpty()) {
+                runAfter.run();
+                return;
+            }
+            GroupedActionListener<RolloverResponse> groupedActionListener = new GroupedActionListener<>(
+                rolloverTargets.size(),
+                new ActionListener<>() {
+                    @Override
+                    public void onResponse(Collection<RolloverResponse> rolloverResponses) {
+                        runAfter.run();
+                        onRolloversBulkResponse(project.id(), rolloverResponses);
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        runAfter.run();
+                        onRolloverFailure(project.id(), e);
+                    }
+                }
+            );
+            for (String rolloverTarget : rolloverTargets) {
+                logger.info(
+                    "rolling over data stream [{}] lazily as a followup to the upgrade of the [{}] index template [{}]",
+                    rolloverTarget,
+                    getOrigin(),
+                    templateName
+                );
+                RolloverRequest request = new RolloverRequest(rolloverTarget, null);
+                request.lazy(true);
+                request.masterNodeTimeout(TimeValue.MAX_VALUE);
+                executeAsyncWithOrigin(
+                    client.threadPool().getThreadContext(),
+                    getOrigin(),
+                    request,
+                    groupedActionListener,
+                    (req, listener) -> client.projectClient(project.id()).execute(RolloverAction.INSTANCE, req, listener)
+                );
+            }
+        });
+    }
+
+    void onRolloversBulkResponse(ProjectId projectId, Collection<RolloverResponse> rolloverResponses) {
+        for (RolloverResponse rolloverResponse : rolloverResponses) {
+            assert rolloverResponse.isLazy() && rolloverResponse.isRolledOver() == false
+                : Strings.format(
+                    "Expected rollover of the [%s] index [%s] in project [%s] to be lazy",
+                    getOrigin(),
+                    projectId,
+                    rolloverResponse.getOldIndex()
+                );
+        }
+    }
+
+    void onRolloverFailure(ProjectId projectId, Exception e) {
+        logger.error(String.format(Locale.ROOT, "[%s] related rollover failed in project [%s]", getOrigin(), projectId), e);
+        for (Throwable throwable : e.getSuppressed()) {
+            logger.error(String.format(Locale.ROOT, "[%s] related rollover failed in project [%s]", getOrigin(), projectId), throwable);
+        }
+    }
+
+    /**
+     * Finds rollover target data streams based on the provided index template. A matching rollover target data stream is such that:
+     * <ol>
+     *     <li> matches the provided index template's index patterns
+     *     <li> of all index templates that have index patterns matching its name, the one with the highest priority is the one provided
+     *     as argument
+     * </ol>
+     *
+     * @param project the project metadata from the cluster state
+     * @param templateName    the ID by which the provided index template is being registered
+     * @param indexTemplate   the index template for which a data stream is looked up as rollover target
+     * @return the list of rollover targets matching the provided index template
+     */
+    static List<String> findRolloverTargetDataStreams(ProjectMetadata project, String templateName, ComposableIndexTemplate indexTemplate) {
+        return project.dataStreams()
+            .values()
+            .stream()
+            // Limit to checking data streams that match any of the index template's index patterns
+            .filter(ds -> indexTemplate.indexPatterns().stream().anyMatch(pattern -> Regex.simpleMatch(pattern, ds.getName())))
+            .filter(ds -> {
+                final String dsTemplateName = MetadataIndexTemplateService.findV2Template(project, ds.getName(), ds.isHidden());
+                if (templateName.equals(dsTemplateName)) {
+                    return true;
+                }
+                // findV2Template did not match templateName, which implies one of two things:
+                // - indexTemplate has a lower priority than the index template matching for ds, OR
+                // - indexTemplate does not yet exist in cluster state (i.e. because it's in the process of being
+                // installed or updated)
+                //
+                // Because of the second case, we must check if indexTemplate's priority is greater than the matching
+                // index template, in case it would take precedence after installation/update.
+                final ComposableIndexTemplate dsTemplate = project.templatesV2().get(dsTemplateName);
+                return dsTemplate == null || indexTemplate.priorityOrZero() > dsTemplate.priorityOrZero();
+            })
+            .map(DataStream::getName)
+            .collect(Collectors.toList());
+    }
 }

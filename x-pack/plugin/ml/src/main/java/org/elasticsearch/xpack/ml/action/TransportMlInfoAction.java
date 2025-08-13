@@ -11,28 +11,38 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.unit.Processors;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xpack.core.ml.MachineLearningField;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.action.MlInfoAction;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.job.config.AnalysisLimits;
 import org.elasticsearch.xpack.core.ml.job.config.CategorizationAnalyzerConfig;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
+import org.elasticsearch.xpack.ml.MachineLearning;
+import org.elasticsearch.xpack.ml.job.NodeLoadDetector;
 import org.elasticsearch.xpack.ml.process.MlControllerHolder;
+import org.elasticsearch.xpack.ml.utils.MlProcessors;
 import org.elasticsearch.xpack.ml.utils.NativeMemoryCalculator;
 
 import java.io.IOException;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.OptionalLong;
 import java.util.concurrent.TimeoutException;
 
 public class TransportMlInfoAction extends HandledTransportAction<MlInfoAction.Request, MlInfoAction.Response> {
@@ -51,7 +61,7 @@ public class TransportMlInfoAction extends HandledTransportAction<MlInfoAction.R
         NamedXContentRegistry xContentRegistry,
         MlControllerHolder mlControllerHolder
     ) {
-        super(MlInfoAction.NAME, transportService, actionFilters, MlInfoAction.Request::new);
+        super(MlInfoAction.NAME, transportService, actionFilters, MlInfoAction.Request::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.clusterService = clusterService;
         this.xContentRegistry = xContentRegistry;
 
@@ -114,7 +124,7 @@ public class TransportMlInfoAction extends HandledTransportAction<MlInfoAction.R
         return defaultLimit;
     }
 
-    private Map<String, Object> datafeedsDefaults() {
+    private static Map<String, Object> datafeedsDefaults() {
         Map<String, Object> anomalyDetectorsDefaults = new HashMap<>();
         anomalyDetectorsDefaults.put(DatafeedConfig.SCROLL_SIZE.getPreferredName(), DatafeedConfig.DEFAULT_SCROLL_SIZE);
         return anomalyDetectorsDefaults;
@@ -136,6 +146,38 @@ public class TransportMlInfoAction extends HandledTransportAction<MlInfoAction.R
             limits.put("effective_max_model_memory_limit", effectiveMaxModelMemoryLimit.getStringRep());
         }
         limits.put("total_ml_memory", NativeMemoryCalculator.calculateTotalMlMemory(clusterSettings, nodes).getStringRep());
+
+        // Add processor information _if_ known with certainty. It won't be known with certainty if autoscaling is enabled.
+        // If we can scale up in terms of memory, assume we can also scale up in terms of processors.
+        List<DiscoveryNode> mlNodes = nodes.stream().filter(MachineLearning::isMlNode).toList();
+        if (areMlNodesBiggestSize(clusterSettings.get(MachineLearning.MAX_ML_NODE_SIZE), mlNodes)) {
+            Processors singleNodeProcessors = MlProcessors.getMaxMlNodeProcessors(
+                nodes,
+                clusterSettings.get(MachineLearning.ALLOCATED_PROCESSORS_SCALE)
+            );
+            if (singleNodeProcessors.count() > 0) {
+                limits.put("max_single_ml_node_processors", singleNodeProcessors.roundUp());
+            }
+            Processors totalMlProcessors = MlProcessors.getTotalMlNodeProcessors(
+                nodes,
+                clusterSettings.get(MachineLearning.ALLOCATED_PROCESSORS_SCALE)
+            );
+            if (totalMlProcessors.count() > 0) {
+                int potentialExtraProcessors = Math.max(0, clusterSettings.get(MachineLearningField.MAX_LAZY_ML_NODES) - mlNodes.size())
+                    * singleNodeProcessors.roundUp();
+                limits.put("total_ml_processors", totalMlProcessors.roundUp() + potentialExtraProcessors);
+            }
+        }
         return limits;
+    }
+
+    static boolean areMlNodesBiggestSize(ByteSizeValue maxMLNodeSize, Collection<DiscoveryNode> mlNodes) {
+        if (maxMLNodeSize.getBytes() == 0) {
+            return true;
+        }
+
+        OptionalLong smallestMLNode = mlNodes.stream().map(NodeLoadDetector::getNodeSize).flatMapToLong(OptionalLong::stream).min();
+
+        return smallestMLNode.isPresent() && smallestMLNode.getAsLong() >= maxMLNodeSize.getBytes();
     }
 }

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.gateway;
@@ -68,12 +69,8 @@ public class MetadataNodesIT extends ESIntegTestCase {
         assertIndexDirectoryDeleted(masterNode, resolveIndex);
 
         logger.debug("relocating index...");
-        client().admin()
-            .indices()
-            .prepareUpdateSettings(index)
-            .setSettings(Settings.builder().put(IndexMetadata.INDEX_ROUTING_INCLUDE_GROUP_SETTING.getKey() + "_name", node2))
-            .get();
-        client().admin().cluster().prepareHealth().setWaitForNoRelocatingShards(true).get();
+        updateIndexSettings(Settings.builder().put(IndexMetadata.INDEX_ROUTING_INCLUDE_GROUP_SETTING.getKey() + "_name", node2), index);
+        clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT).setWaitForNoRelocatingShards(true).get();
         ensureGreen();
         assertIndexDirectoryDeleted(node1, resolveIndex);
         assertIndexInMetaState(node2, index);
@@ -81,7 +78,7 @@ public class MetadataNodesIT extends ESIntegTestCase {
         assertIndexInMetaState(masterNode, index);
         assertIndexDirectoryDeleted(masterNode, resolveIndex);
 
-        client().admin().indices().prepareDelete(index).get();
+        indicesAdmin().prepareDelete(index).get();
         assertIndexDirectoryDeleted(node1, resolveIndex);
         assertIndexDirectoryDeleted(node2, resolveIndex);
     }
@@ -100,15 +97,16 @@ public class MetadataNodesIT extends ESIntegTestCase {
         assertIndexInMetaState(masterNode, index);
 
         logger.info("--> close index");
-        client().admin().indices().prepareClose(index).get();
+        indicesAdmin().prepareClose(index).get();
         // close the index
-        ClusterStateResponse clusterStateResponse = client().admin().cluster().prepareState().get();
-        assertThat(clusterStateResponse.getState().getMetadata().index(index).getState().name(), equalTo(IndexMetadata.State.CLOSE.name()));
+        ClusterStateResponse clusterStateResponse = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get();
+        assertThat(
+            clusterStateResponse.getState().getMetadata().getProject().index(index).getState().name(),
+            equalTo(IndexMetadata.State.CLOSE.name())
+        );
 
         // update the mapping. this should cause the new meta data to be written although index is closed
-        client().admin()
-            .indices()
-            .preparePutMapping(index)
+        indicesAdmin().preparePutMapping(index)
             .setSource(
                 jsonBuilder().startObject()
                     .startObject("properties")
@@ -120,7 +118,7 @@ public class MetadataNodesIT extends ESIntegTestCase {
             )
             .get();
 
-        GetMappingsResponse getMappingsResponse = client().admin().indices().prepareGetMappings(index).get();
+        GetMappingsResponse getMappingsResponse = indicesAdmin().prepareGetMappings(TEST_REQUEST_TIMEOUT, index).get();
         assertNotNull(
             ((Map<String, ?>) (getMappingsResponse.getMappings().get(index).getSourceAsMap().get("properties"))).get("integer_field")
         );
@@ -139,9 +137,7 @@ public class MetadataNodesIT extends ESIntegTestCase {
          * what we write. This is why we explicitly test for it.
          */
         internalCluster().restartNode(dataNode, new RestartCallback());
-        client().admin()
-            .indices()
-            .preparePutMapping(index)
+        indicesAdmin().preparePutMapping(index)
             .setSource(
                 jsonBuilder().startObject()
                     .startObject("properties")
@@ -153,7 +149,7 @@ public class MetadataNodesIT extends ESIntegTestCase {
             )
             .get();
 
-        getMappingsResponse = client().admin().indices().prepareGetMappings(index).get();
+        getMappingsResponse = indicesAdmin().prepareGetMappings(TEST_REQUEST_TIMEOUT, index).get();
         assertNotNull(
             ((Map<String, ?>) (getMappingsResponse.getMappings().get(index).getSourceAsMap().get("properties"))).get("float_field")
         );
@@ -164,7 +160,7 @@ public class MetadataNodesIT extends ESIntegTestCase {
         assertThat(indicesMetadata.get(index).getState(), equalTo(IndexMetadata.State.CLOSE));
 
         // finally check that meta data is also written of index opened again
-        assertAcked(client().admin().indices().prepareOpen(index).get());
+        assertAcked(indicesAdmin().prepareOpen(index).get());
         // make sure index is fully initialized and nothing is changed anymore
         ensureGreen();
         indicesMetadata = getIndicesMetadataOnNode(dataNode);
@@ -215,6 +211,6 @@ public class MetadataNodesIT extends ESIntegTestCase {
 
     private Map<String, IndexMetadata> getIndicesMetadataOnNode(String nodeName) {
         final Coordinator coordinator = internalCluster().getInstance(Coordinator.class, nodeName);
-        return coordinator.getApplierState().getMetadata().getIndices();
+        return coordinator.getApplierState().getMetadata().getProject().indices();
     }
 }

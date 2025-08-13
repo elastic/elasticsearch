@@ -17,6 +17,6 @@ public final class SamlPrepareAuthenticationAction extends ActionType<SamlPrepar
     public static final SamlPrepareAuthenticationAction INSTANCE = new SamlPrepareAuthenticationAction();
 
     private SamlPrepareAuthenticationAction() {
-        super(NAME, SamlPrepareAuthenticationResponse::new);
+        super(NAME);
     }
 }

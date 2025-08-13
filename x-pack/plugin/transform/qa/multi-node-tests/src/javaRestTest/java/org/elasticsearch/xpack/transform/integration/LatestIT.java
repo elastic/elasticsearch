@@ -126,7 +126,7 @@ public class LatestIT extends TransformRestTestCase {
         waitUntilCheckpoint(transformConfig.getId(), 1L);
         stopTransform(transformConfig.getId());
 
-        refreshIndex(destIndexName, RequestOptions.DEFAULT);
+        refreshIndex(destIndexName);
         var mappings = getIndexMapping(destIndexName, RequestOptions.DEFAULT);
         assertThat(
             (Map<String, Object>) XContentMapValues.extractValue(destIndexName + ".mappings", mappings),

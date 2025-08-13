@@ -6,27 +6,17 @@
  */
 package org.elasticsearch.xpack.core.ml;
 
-import org.elasticsearch.KnownTransportVersions;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
-import org.elasticsearch.test.TransportVersionUtils;
 
 import java.io.IOException;
-import java.util.List;
-import java.util.stream.Collectors;
+import java.util.Collection;
+
+import static org.elasticsearch.test.BWCVersions.DEFAULT_BWC_VERSIONS;
 
 public abstract class AbstractBWCWireSerializationTestCase<T extends Writeable> extends AbstractWireSerializingTestCase<T> {
-
-    static final List<TransportVersion> ALL_VERSIONS = KnownTransportVersions.ALL_VERSIONS;
-
-    public static List<TransportVersion> getAllBWCVersions(TransportVersion version) {
-        return ALL_VERSIONS.stream()
-            .filter(v -> v.before(version) && TransportVersionUtils.isCompatible(version, v))
-            .collect(Collectors.toList());
-    }
-
-    static final List<TransportVersion> DEFAULT_BWC_VERSIONS = getAllBWCVersions(TransportVersion.CURRENT);
 
     /**
      * Returns the expected instance if serialized from the given version.
@@ -36,7 +26,7 @@ public abstract class AbstractBWCWireSerializationTestCase<T extends Writeable> 
     /**
      * The bwc versions to test serialization against
      */
-    protected List<TransportVersion> bwcVersions() {
+    protected Collection<TransportVersion> bwcVersions() {
         return DEFAULT_BWC_VERSIONS;
     }
 
@@ -68,8 +58,10 @@ public abstract class AbstractBWCWireSerializationTestCase<T extends Writeable> 
      * @param version The version which serialized
      */
     protected void assertOnBWCObject(T bwcSerializedObject, T testInstance, TransportVersion version) {
-        assertNotSame(version.toString(), bwcSerializedObject, testInstance);
-        assertEquals(version.toString(), bwcSerializedObject, testInstance);
-        assertEquals(version.toString(), bwcSerializedObject.hashCode(), testInstance.hashCode());
+        var errorMessage = Strings.format("Failed for TransportVersion [%s]", version.toString());
+
+        assertNotSame(errorMessage, bwcSerializedObject, testInstance);
+        assertEquals(errorMessage, bwcSerializedObject, testInstance);
+        assertEquals(errorMessage, bwcSerializedObject.hashCode(), testInstance.hashCode());
     }
 }

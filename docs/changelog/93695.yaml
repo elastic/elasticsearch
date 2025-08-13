@@ -1,5 +1,0 @@
-pr: 93695
-summary: Fix `GetPipelineResponse` equality
-area: Distributed
-type: bug
-issues: []

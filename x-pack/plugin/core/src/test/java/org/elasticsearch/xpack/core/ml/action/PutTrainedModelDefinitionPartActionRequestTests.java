@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.core.ml.action;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -25,7 +26,8 @@ public class PutTrainedModelDefinitionPartActionRequestTests extends AbstractBWC
             new BytesArray(randomAlphaOfLength(20)),
             randomIntBetween(0, 10),
             randomLongBetween(1, Long.MAX_VALUE),
-            randomIntBetween(10, 100)
+            randomIntBetween(10, 100),
+            randomBoolean()
         );
     }
 
@@ -35,14 +37,14 @@ public class PutTrainedModelDefinitionPartActionRequestTests extends AbstractBWC
     }
 
     public void testValidate() {
-        Request badRequest = new Request(randomAlphaOfLength(10), new BytesArray(randomAlphaOfLength(10)), -1, -1, -1);
+        Request badRequest = new Request(randomAlphaOfLength(10), new BytesArray(randomAlphaOfLength(10)), -1, -1, -1, randomBoolean());
 
         ValidationException exception = badRequest.validate();
         assertThat(exception.getMessage(), containsString("[part] must be greater or equal to 0"));
         assertThat(exception.getMessage(), containsString("[total_parts] must be greater than 0"));
         assertThat(exception.getMessage(), containsString("[total_definition_length] must be greater than 0"));
 
-        badRequest = new Request(randomAlphaOfLength(10), new BytesArray(randomAlphaOfLength(10)), 5, 10, 5);
+        badRequest = new Request(randomAlphaOfLength(10), new BytesArray(randomAlphaOfLength(10)), 5, 10, 5, randomBoolean());
 
         exception = badRequest.validate();
         assertThat(exception.getMessage(), containsString("[part] must be less than total_parts"));
@@ -52,7 +54,8 @@ public class PutTrainedModelDefinitionPartActionRequestTests extends AbstractBWC
             new BytesArray(randomAlphaOfLength(10)),
             5,
             10L,
-            randomIntBetween(MAX_NUM_NATIVE_DEFINITION_PARTS + 1, Integer.MAX_VALUE)
+            randomIntBetween(MAX_NUM_NATIVE_DEFINITION_PARTS + 1, Integer.MAX_VALUE),
+            randomBoolean()
         );
 
         exception = badRequest.validate();
@@ -69,6 +72,17 @@ public class PutTrainedModelDefinitionPartActionRequestTests extends AbstractBWC
 
     @Override
     protected Request mutateInstanceForVersion(Request instance, TransportVersion version) {
+        if (version.before(TransportVersions.V_8_10_X)) {
+            return new Request(
+                instance.getModelId(),
+                instance.getDefinition(),
+                instance.getPart(),
+                instance.getTotalDefinitionLength(),
+                instance.getTotalParts(),
+                false
+            );
+        }
+
         return instance;
     }
 }

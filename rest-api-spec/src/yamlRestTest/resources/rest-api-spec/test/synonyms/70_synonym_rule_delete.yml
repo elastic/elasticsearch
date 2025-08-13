@@ -1,0 +1,135 @@
+setup:
+  - requires:
+      cluster_features: ["gte_v8.10.0"]
+      reason: Introduced in 8.10.0
+  - do:
+      synonyms.put_synonym:
+        id: test-synonyms
+        body:
+          synonyms_set:
+            - synonyms: "hello, hi"
+              id: "test-id-1"
+            - synonyms: "bye => goodbye"
+              id: "test-id-2"
+            - synonyms: "test => check"
+              id: "test-id-3"
+
+---
+"Delete synonym rule":
+  - do:
+      synonyms.delete_synonym_rule:
+        set_id: test-synonyms
+        rule_id: test-id-2
+
+  - match: { result: "deleted" }
+  - match: { reload_analyzers_details._shards.total: 0 }
+  - length: { reload_analyzers_details.reload_details: 0 }
+
+  - do:
+      catch: missing
+      synonyms.get_synonym_rule:
+        set_id: test-synonyms
+        rule_id: test-id-2
+
+  - do:
+      synonyms.get_synonym:
+        id: test-synonyms
+
+  - match:
+      count: 2
+  - match:
+      synonyms_set:
+        - synonyms: "hello, hi"
+          id: "test-id-1"
+        - synonyms: "test => check"
+          id: "test-id-3"
+
+---
+"Refresh can be specified":
+
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: PUT
+          path: /_synonyms/{rule_id}
+          capabilities: [ synonyms_refresh_param ]
+      reason: "synonyms refresh param capability needed"
+
+  - do:
+      synonyms.delete_synonym_rule:
+        set_id: test-synonyms
+        rule_id: test-id-2
+        refresh: false
+
+  - match: { result: "deleted" }
+  # Reload analyzers info is not included
+  - not_exists: reload_analyzers_details
+
+---
+"Delete synonym rule - missing synonym set":
+  - do:
+      catch: missing
+      synonyms.delete_synonym_rule:
+        set_id: test-non-existing-synonyms
+        rule_id: test-id-2
+
+---
+"Delete synonym rule - missing synonym rule":
+  - do:
+      catch: missing
+      synonyms.delete_synonym_rule:
+        set_id: test-synonyms
+        rule_id: test-non-existing-id
+
+---
+"Delete synonym rule - does not impact other synonym sets":
+  - do:
+      synonyms.put_synonym:
+        id: test-other-synonyms
+        body:
+          synonyms_set:
+            - synonyms: "hola, hi"
+              id: "test-id-1"
+            - synonyms: "test => check"
+              id: "test-id-2"
+  - do:
+      synonyms.delete_synonym_rule:
+        set_id: test-synonyms
+        rule_id: test-id-1
+
+  - do:
+      synonyms.get_synonym:
+        id: test-other-synonyms
+
+  - match:
+      count: 2
+  - match:
+      synonyms_set:
+        - synonyms: "hola, hi"
+          id: "test-id-1"
+        - synonyms: "test => check"
+          id: "test-id-2"
+
+---
+"Delete synonym rules - delete all synonym rules leave an empty synonym set":
+  - do:
+      synonyms.delete_synonym_rule:
+        set_id: test-synonyms
+        rule_id: test-id-1
+
+  - do:
+      synonyms.delete_synonym_rule:
+        set_id: test-synonyms
+        rule_id: test-id-2
+
+  - do:
+      synonyms.delete_synonym_rule:
+        set_id: test-synonyms
+        rule_id: test-id-3
+
+  - do:
+      synonyms.get_synonym:
+        id: test-synonyms
+
+  - match: { count: 0 }
+  - match: { synonyms_set: [] }

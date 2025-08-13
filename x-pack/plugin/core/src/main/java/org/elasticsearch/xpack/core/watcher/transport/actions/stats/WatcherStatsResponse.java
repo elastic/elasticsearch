@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.core.watcher.transport.actions.stats;
 
 import org.elasticsearch.action.FailedNodeException;
+import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.action.support.nodes.BaseNodeResponse;
 import org.elasticsearch.action.support.nodes.BaseNodesResponse;
 import org.elasticsearch.cluster.ClusterName;
@@ -31,11 +32,6 @@ public class WatcherStatsResponse extends BaseNodesResponse<WatcherStatsResponse
 
     private final WatcherMetadata watcherMetadata;
 
-    public WatcherStatsResponse(StreamInput in) throws IOException {
-        super(in);
-        watcherMetadata = new WatcherMetadata(in.readBoolean());
-    }
-
     public WatcherStatsResponse(
         ClusterName clusterName,
         WatcherMetadata watcherMetadata,
@@ -48,18 +44,17 @@ public class WatcherStatsResponse extends BaseNodesResponse<WatcherStatsResponse
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
-        out.writeBoolean(watcherMetadata.manuallyStopped());
+        TransportAction.localOnly();
     }
 
     @Override
     protected List<Node> readNodesFrom(StreamInput in) throws IOException {
-        return in.readList(Node::new);
+        return TransportAction.localOnly();
     }
 
     @Override
     protected void writeNodesTo(StreamOutput out, List<Node> nodes) throws IOException {
-        out.writeList(nodes);
+        TransportAction.localOnly();
     }
 
     @Override
@@ -105,10 +100,10 @@ public class WatcherStatsResponse extends BaseNodesResponse<WatcherStatsResponse
             watcherState = WatcherState.fromId(in.readByte());
 
             if (in.readBoolean()) {
-                snapshots = in.readList(WatchExecutionSnapshot::new);
+                snapshots = in.readCollectionAsList(WatchExecutionSnapshot::new);
             }
             if (in.readBoolean()) {
-                queuedWatches = in.readList(QueuedWatch::new);
+                queuedWatches = in.readCollectionAsList(QueuedWatch::new);
             }
             if (in.readBoolean()) {
                 stats = new Counters(in);
@@ -199,11 +194,11 @@ public class WatcherStatsResponse extends BaseNodesResponse<WatcherStatsResponse
 
             out.writeBoolean(snapshots != null);
             if (snapshots != null) {
-                out.writeList(snapshots);
+                out.writeCollection(snapshots);
             }
             out.writeBoolean(queuedWatches != null);
             if (queuedWatches != null) {
-                out.writeList(queuedWatches);
+                out.writeCollection(queuedWatches);
             }
             out.writeBoolean(stats != null);
             if (stats != null) {

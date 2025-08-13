@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.support;
@@ -13,6 +14,7 @@ import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.test.ESTestCase;
 
@@ -98,7 +100,7 @@ public class RefCountingRunnableTests extends ESTestCase {
         final var completionLatch = new CountDownLatch(1);
         final var executorService = EsExecutors.newScaling(
             "test",
-            0,
+            1,
             between(1, 10),
             10,
             TimeUnit.SECONDS,
@@ -166,10 +168,10 @@ public class RefCountingRunnableTests extends ESTestCase {
             final String expectedMessage;
             if (randomBoolean()) {
                 throwingRunnable = randomBoolean() ? refs::acquire : refs::acquireListener;
-                expectedMessage = RefCountingRunnable.ALREADY_CLOSED_MESSAGE;
+                expectedMessage = AbstractRefCounted.ALREADY_CLOSED_MESSAGE;
             } else {
                 throwingRunnable = refs::close;
-                expectedMessage = "already closed";
+                expectedMessage = AbstractRefCounted.INVALID_DECREF_MESSAGE;
             }
 
             assertEquals(expectedMessage, expectThrows(AssertionError.class, throwingRunnable).getMessage());

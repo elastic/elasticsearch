@@ -1,14 +1,14 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.datastreams;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
@@ -22,10 +22,11 @@ import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.MetadataCreateDataStreamService;
 import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
 import org.elasticsearch.cluster.metadata.MetadataIndexAliasesService;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.WriteLoadForecaster;
@@ -38,6 +39,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettingProviders;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.Mapping;
@@ -49,6 +51,7 @@ import org.elasticsearch.indices.EmptySystemIndices;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.ShardLimitValidator;
 import org.elasticsearch.script.ScriptCompiler;
+import org.elasticsearch.telemetry.TestTelemetryPlugin;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -78,33 +81,35 @@ public class DataStreamGetWriteIndexTests extends ESTestCase {
     private MetadataRolloverService rolloverService;
     private MetadataCreateDataStreamService createDataStreamService;
 
+    private final ProjectId projectId = randomProjectIdOrDefault();
+
     public void testPickingBackingIndicesPredefinedDates() throws Exception {
         Instant time = DateFormatters.from(MILLIS_FORMATTER.parse("2022-03-15T08:29:36.547Z")).toInstant();
 
         var state = createInitialState();
         state = createDataStream(state, "logs-myapp", time);
-        IndexMetadata backingIndex = state.getMetadata().index(".ds-logs-myapp-2022.03.15-000001");
+        IndexMetadata backingIndex = state.metadata().getProject(projectId).index(".ds-logs-myapp-2022.03.15-000001");
         assertThat(backingIndex, notNullValue());
         // Ensure truncate to seconds:
         assertThat(backingIndex.getSettings().get("index.time_series.start_time"), equalTo("2022-03-15T06:29:36.000Z"));
-        assertThat(backingIndex.getSettings().get("index.time_series.end_time"), equalTo("2022-03-15T10:29:36.000Z"));
+        assertThat(backingIndex.getSettings().get("index.time_series.end_time"), equalTo("2022-03-15T08:59:36.000Z"));
 
         // advance time and rollover:
-        time = time.plusSeconds(80 * 60);
+        time = time.plusSeconds(20 * 60);
         var result = rolloverOver(state, "logs-myapp", time);
         state = result.clusterState();
 
-        DataStream dataStream = state.getMetadata().dataStreams().get("logs-myapp");
-        backingIndex = state.getMetadata().index(dataStream.getIndices().get(1));
+        DataStream dataStream = state.metadata().getProject(projectId).dataStreams().get("logs-myapp");
+        backingIndex = state.metadata().getProject(projectId).index(dataStream.getIndices().get(1));
         assertThat(backingIndex, notNullValue());
-        assertThat(backingIndex.getSettings().get("index.time_series.start_time"), equalTo("2022-03-15T10:29:36.000Z"));
-        assertThat(backingIndex.getSettings().get("index.time_series.end_time"), equalTo("2022-03-15T12:29:36.000Z"));
+        assertThat(backingIndex.getSettings().get("index.time_series.start_time"), equalTo("2022-03-15T08:59:36.000Z"));
+        assertThat(backingIndex.getSettings().get("index.time_series.end_time"), equalTo("2022-03-15T09:29:36.000Z"));
         String secondBackingIndex = backingIndex.getIndex().getName();
 
         // first backing index:
         {
             long start = MILLIS_FORMATTER.parseMillis("2022-03-15T06:29:36.000Z");
-            long end = MILLIS_FORMATTER.parseMillis("2022-03-15T10:29:36.000Z") - 1;
+            long end = MILLIS_FORMATTER.parseMillis("2022-03-15T08:59:36.000Z") - 1;
             for (int i = 0; i < 256; i++) {
                 String timestamp = MILLIS_FORMATTER.formatMillis(randomLongBetween(start, end));
                 var writeIndex = getWriteIndex(state, "logs-myapp", timestamp);
@@ -114,14 +119,14 @@ public class DataStreamGetWriteIndexTests extends ESTestCase {
 
         // Borderline:
         {
-            var writeIndex = getWriteIndex(state, "logs-myapp", "2022-03-15T10:29:35.999Z");
+            var writeIndex = getWriteIndex(state, "logs-myapp", "2022-03-15T08:59:35.999Z");
             assertThat(writeIndex.getName(), equalTo(".ds-logs-myapp-2022.03.15-000001"));
         }
 
         // Second backing index:
         {
-            long start = MILLIS_FORMATTER.parseMillis("2022-03-15T10:29:36.000Z");
-            long end = MILLIS_FORMATTER.parseMillis("2022-03-15T12:29:36.000Z") - 1;
+            long start = MILLIS_FORMATTER.parseMillis("2022-03-15T08:59:36.000Z");
+            long end = MILLIS_FORMATTER.parseMillis("2022-03-15T09:29:36.000Z") - 1;
             for (int i = 0; i < 256; i++) {
                 String timestamp = MILLIS_FORMATTER.formatMillis(randomLongBetween(start, end));
                 var writeIndex = getWriteIndex(state, "logs-myapp", timestamp);
@@ -131,19 +136,19 @@ public class DataStreamGetWriteIndexTests extends ESTestCase {
 
         // Borderline (again):
         {
-            var writeIndex = getWriteIndex(state, "logs-myapp", "2022-03-15T12:29:35.999Z");
+            var writeIndex = getWriteIndex(state, "logs-myapp", "2022-03-15T09:29:35.999Z");
             assertThat(writeIndex.getName(), equalTo(secondBackingIndex));
         }
 
         // Outside the valid temporal ranges:
         {
             var finalState = state;
-            var e = expectThrows(IllegalArgumentException.class, () -> getWriteIndex(finalState, "logs-myapp", "2022-03-15T12:29:36.000Z"));
+            var e = expectThrows(IllegalArgumentException.class, () -> getWriteIndex(finalState, "logs-myapp", "2022-03-15T09:29:36.000Z"));
             assertThat(
                 e.getMessage(),
                 equalTo(
-                    "the document timestamp [2022-03-15T12:29:36.000Z] is outside of ranges of currently writable indices ["
-                        + "[2022-03-15T06:29:36.000Z,2022-03-15T10:29:36.000Z][2022-03-15T10:29:36.000Z,2022-03-15T12:29:36.000Z]]"
+                    "the document timestamp [2022-03-15T09:29:36.000Z] is outside of ranges of currently writable indices ["
+                        + "[2022-03-15T06:29:36.000Z,2022-03-15T08:59:36.000Z][2022-03-15T08:59:36.000Z,2022-03-15T09:29:36.000Z]]"
                 )
             );
         }
@@ -154,28 +159,28 @@ public class DataStreamGetWriteIndexTests extends ESTestCase {
 
         var state = createInitialState();
         state = createDataStream(state, "logs-myapp", time);
-        IndexMetadata backingIndex = state.getMetadata().index(".ds-logs-myapp-2022.03.15-000001");
+        IndexMetadata backingIndex = state.metadata().getProject(projectId).index(".ds-logs-myapp-2022.03.15-000001");
         assertThat(backingIndex, notNullValue());
         // Ensure truncate to seconds and millis format:
         assertThat(backingIndex.getSettings().get("index.time_series.start_time"), equalTo("2022-03-15T06:29:36.000Z"));
-        assertThat(backingIndex.getSettings().get("index.time_series.end_time"), equalTo("2022-03-15T10:29:36.000Z"));
+        assertThat(backingIndex.getSettings().get("index.time_series.end_time"), equalTo("2022-03-15T08:59:36.000Z"));
 
         // advance time and rollover:
-        time = time.plusSeconds(80 * 60);
+        time = time.plusSeconds(20 * 60);
         var result = rolloverOver(state, "logs-myapp", time);
         state = result.clusterState();
 
-        DataStream dataStream = state.getMetadata().dataStreams().get("logs-myapp");
-        backingIndex = state.getMetadata().index(dataStream.getIndices().get(1));
+        DataStream dataStream = state.metadata().getProject(projectId).dataStreams().get("logs-myapp");
+        backingIndex = state.metadata().getProject(projectId).index(dataStream.getIndices().get(1));
         assertThat(backingIndex, notNullValue());
-        assertThat(backingIndex.getSettings().get("index.time_series.start_time"), equalTo("2022-03-15T10:29:36.000Z"));
-        assertThat(backingIndex.getSettings().get("index.time_series.end_time"), equalTo("2022-03-15T12:29:36.000Z"));
+        assertThat(backingIndex.getSettings().get("index.time_series.start_time"), equalTo("2022-03-15T08:59:36.000Z"));
+        assertThat(backingIndex.getSettings().get("index.time_series.end_time"), equalTo("2022-03-15T09:29:36.000Z"));
         String secondBackingIndex = backingIndex.getIndex().getName();
 
         // first backing index:
         {
             long start = NANOS_FORMATTER.parseMillis("2022-03-15T06:29:36.000000000Z");
-            long end = NANOS_FORMATTER.parseMillis("2022-03-15T10:29:36.000000000Z") - 1;
+            long end = NANOS_FORMATTER.parseMillis("2022-03-15T08:59:36.000000000Z") - 1;
             for (int i = 0; i < 256; i++) {
                 String timestamp = NANOS_FORMATTER.formatMillis(randomLongBetween(start, end));
                 var writeIndex = getWriteIndex(state, "logs-myapp", timestamp);
@@ -185,14 +190,14 @@ public class DataStreamGetWriteIndexTests extends ESTestCase {
 
         // Borderline:
         {
-            var writeIndex = getWriteIndex(state, "logs-myapp", "2022-03-15T10:29:35.999999999Z");
+            var writeIndex = getWriteIndex(state, "logs-myapp", "2022-03-15T08:59:35.999999999Z");
             assertThat(writeIndex.getName(), equalTo(".ds-logs-myapp-2022.03.15-000001"));
         }
 
         // Second backing index:
         {
-            long start = NANOS_FORMATTER.parseMillis("2022-03-15T10:29:36.000000000Z");
-            long end = NANOS_FORMATTER.parseMillis("2022-03-15T12:29:36.000000000Z") - 1;
+            long start = NANOS_FORMATTER.parseMillis("2022-03-15T08:59:36.000000000Z");
+            long end = NANOS_FORMATTER.parseMillis("2022-03-15T09:29:36.000000000Z") - 1;
             for (int i = 0; i < 256; i++) {
                 String timestamp = NANOS_FORMATTER.formatMillis(randomLongBetween(start, end));
                 var writeIndex = getWriteIndex(state, "logs-myapp", timestamp);
@@ -202,7 +207,7 @@ public class DataStreamGetWriteIndexTests extends ESTestCase {
 
         // Borderline (again):
         {
-            var writeIndex = getWriteIndex(state, "logs-myapp", "2022-03-15T12:29:35.999999999Z");
+            var writeIndex = getWriteIndex(state, "logs-myapp", "2022-03-15T09:29:35.999999999Z");
             assertThat(writeIndex.getName(), equalTo(secondBackingIndex));
         }
     }
@@ -220,8 +225,8 @@ public class DataStreamGetWriteIndexTests extends ESTestCase {
                 null,
                 ScriptCompiler.NONE,
                 false,
-                Version.CURRENT
-            ).build(MapperBuilderContext.root(false));
+                IndexVersion.current()
+            ).build(MapperBuilderContext.root(false, false));
             RootObjectMapper.Builder root = new RootObjectMapper.Builder("_doc", ObjectMapper.Defaults.SUBOBJECTS);
             root.add(
                 new DateFieldMapper.Builder(
@@ -230,23 +235,23 @@ public class DataStreamGetWriteIndexTests extends ESTestCase {
                     DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER,
                     ScriptCompiler.NONE,
                     true,
-                    Version.CURRENT
+                    IndexVersion.current()
                 )
             );
             MetadataFieldMapper dtfm = DataStreamTestHelper.getDataStreamTimestampFieldMapper();
             Mapping mapping = new Mapping(
-                root.build(MapperBuilderContext.root(false)),
+                root.build(MapperBuilderContext.root(false, false)),
                 new MetadataFieldMapper[] { dtfm },
                 Collections.emptyMap()
             );
-            MappingLookup mappingLookup = MappingLookup.fromMappers(mapping, List.of(dtfm, dateFieldMapper), List.of(), List.of());
+            MappingLookup mappingLookup = MappingLookup.fromMappers(mapping, List.of(dtfm, dateFieldMapper), List.of());
             indicesService = DataStreamTestHelper.mockIndicesServices(mappingLookup);
         }
 
         MetadataCreateIndexService createIndexService;
         {
             Environment env = mock(Environment.class);
-            when(env.sharedDataFile()).thenReturn(null);
+            when(env.sharedDataDir()).thenReturn(null);
             AllocationService allocationService = mock(AllocationService.class);
             when(allocationService.reroute(any(ClusterState.class), any(String.class), any())).then(i -> i.getArguments()[0]);
             when(allocationService.getShardRoutingRoleStrategy()).thenReturn(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY);
@@ -270,15 +275,17 @@ public class DataStreamGetWriteIndexTests extends ESTestCase {
             MetadataIndexAliasesService indexAliasesService = new MetadataIndexAliasesService(
                 clusterService,
                 indicesService,
-                null,
                 xContentRegistry()
             );
+            TestTelemetryPlugin telemetryPlugin = new TestTelemetryPlugin();
             rolloverService = new MetadataRolloverService(
                 testThreadPool,
                 createIndexService,
                 indexAliasesService,
                 EmptySystemIndices.INSTANCE,
-                WriteLoadForecaster.DEFAULT
+                WriteLoadForecaster.DEFAULT,
+                clusterService,
+                telemetryPlugin.getTelemetryProvider(Settings.EMPTY)
             );
         }
 
@@ -291,19 +298,21 @@ public class DataStreamGetWriteIndexTests extends ESTestCase {
     }
 
     private ClusterState createInitialState() {
-        ComposableIndexTemplate template = new ComposableIndexTemplate.Builder().indexPatterns(List.of("logs-*"))
+        ComposableIndexTemplate template = ComposableIndexTemplate.builder()
+            .indexPatterns(List.of("logs-*"))
             .template(
                 new Template(Settings.builder().put("index.mode", "time_series").put("index.routing_path", "uid").build(), null, null)
             )
             .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate(false, false))
             .build();
-        Metadata.Builder builder = Metadata.builder();
-        builder.put("template", template);
-        return ClusterState.builder(ClusterState.EMPTY_STATE).metadata(builder).build();
+        return ClusterState.builder(ClusterState.EMPTY_STATE)
+            .putProjectMetadata(ProjectMetadata.builder(projectId).put("template", template).build())
+            .build();
     }
 
     private ClusterState createDataStream(ClusterState state, String name, Instant time) throws Exception {
         var request = new MetadataCreateDataStreamService.CreateDataStreamClusterStateUpdateRequest(
+            projectId,
             name,
             time.toEpochMilli(),
             null,
@@ -311,18 +320,31 @@ public class DataStreamGetWriteIndexTests extends ESTestCase {
             TimeValue.ZERO,
             false
         );
-        return createDataStreamService.createDataStream(request, state, ActionListener.noop());
+        return createDataStreamService.createDataStream(request, state, ActionListener.noop(), false);
     }
 
     private MetadataRolloverService.RolloverResult rolloverOver(ClusterState state, String name, Instant time) throws Exception {
         MaxDocsCondition condition = new MaxDocsCondition(randomNonNegativeLong());
         List<Condition<?>> metConditions = Collections.singletonList(condition);
         CreateIndexRequest createIndexRequest = new CreateIndexRequest("_na_");
-        return rolloverService.rolloverClusterState(state, name, null, createIndexRequest, metConditions, time, false, false, null);
+        return rolloverService.rolloverClusterState(
+            state.projectState(projectId),
+            name,
+            null,
+            createIndexRequest,
+            metConditions,
+            time,
+            false,
+            false,
+            null,
+            null,
+            false
+        );
     }
 
     private Index getWriteIndex(ClusterState state, String name, String timestamp) {
-        var ia = state.getMetadata().getIndicesLookup().get(name);
+        var project = state.metadata().getProject(projectId);
+        var ia = project.getIndicesLookup().get(name);
         assertThat(ia, notNullValue());
         IndexRequest indexRequest = new IndexRequest(name);
         indexRequest.opType(DocWriteRequest.OpType.CREATE);
@@ -331,7 +353,7 @@ public class DataStreamGetWriteIndexTests extends ESTestCase {
         } else {
             indexRequest.setRawTimestamp(timestamp);
         }
-        return ia.getWriteIndex(indexRequest, state.getMetadata());
+        return ia.getWriteIndex(indexRequest, project);
     }
 
 }

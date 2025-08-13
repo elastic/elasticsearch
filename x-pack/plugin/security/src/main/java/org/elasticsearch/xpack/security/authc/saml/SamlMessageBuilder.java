@@ -67,7 +67,7 @@ public abstract class SamlMessageBuilder {
         return issuer;
     }
 
-    protected String buildId() {
+    protected static String buildId() {
         // 20 bytes (160 bits) of randomness as recommended by the SAML spec
         return SamlUtils.generateSecureNCName(20);
     }

@@ -13,15 +13,13 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequest;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
+import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 
 import java.util.Arrays;
-import java.util.Locale;
 import java.util.Objects;
-import java.util.stream.Collectors;
 
 /**
  * Invokes a force merge on a single index.
@@ -49,37 +47,33 @@ public class ForceMergeStep extends AsyncActionStep {
     @Override
     public void performAction(
         IndexMetadata indexMetadata,
-        ClusterState currentState,
+        ProjectState currentState,
         ClusterStateObserver observer,
         ActionListener<Void> listener
     ) {
         String indexName = indexMetadata.getIndex().getName();
         ForceMergeRequest request = new ForceMergeRequest(indexName);
         request.maxNumSegments(maxNumSegments);
-        getClient().admin().indices().forceMerge(request, ActionListener.wrap(response -> {
+        getClient(currentState.projectId()).admin().indices().forceMerge(request, listener.delegateFailureAndWrap((l, response) -> {
             if (response.getFailedShards() == 0) {
-                listener.onResponse(null);
+                l.onResponse(null);
             } else {
                 DefaultShardOperationFailedException[] failures = response.getShardFailures();
                 String policyName = indexMetadata.getLifecyclePolicyName();
-                String errorMessage = String.format(
-                    Locale.ROOT,
+                String errorMessage = Strings.format(
                     "index [%s] in policy [%s] encountered failures [%s] on step [%s]",
                     indexName,
                     policyName,
                     failures == null
                         ? "n/a"
-                        : Strings.collectionToDelimitedString(
-                            Arrays.stream(failures).map(Strings::toString).collect(Collectors.toList()),
-                            ","
-                        ),
+                        : Strings.collectionToDelimitedString(Arrays.stream(failures).map(Strings::toString).toList(), ","),
                     NAME
                 );
                 logger.warn(errorMessage);
                 // let's report it as a failure and retry
-                listener.onFailure(new ElasticsearchException(errorMessage));
+                l.onFailure(new ElasticsearchException(errorMessage));
             }
-        }, listener::onFailure));
+        }));
     }
 
     @Override

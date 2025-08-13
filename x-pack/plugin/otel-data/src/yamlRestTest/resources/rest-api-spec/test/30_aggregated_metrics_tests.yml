@@ -1,0 +1,428 @@
+---
+setup:
+  - do:
+      cluster.health:
+        wait_for_events: languid
+  - do:
+      cluster.put_component_template:
+        name: metrics-otel@custom
+        body:
+          template:
+            settings:
+              index:
+                routing_path: [unit, attributes.*, resource.attributes.*]
+                mode: time_series
+                time_series:
+                  start_time: 2024-07-01T13:03:08.138Z
+---
+"metrics-service_destination.10m must be hidden":
+  - do:
+      bulk:
+        index: metrics-service_destination.10m.otel-default
+        refresh: true
+        body:
+          - create: {}
+          - '{"@timestamp":"2024-07-18T14:48:33.467654000Z" ,"attributes":{"processor.event":"metric","transaction.root":false, "metricset.name" : "service_destination"},"resource":{"attributes":{ "metricset.interval": "10m"  } } }'
+  - is_false: errors
+  - do:
+      search:
+        index: metrics-service_destination.10m.otel-default
+        body:
+          fields: ["metricset.name", "metricset.interval"]
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0.fields.metricset\.name: ["service_destination"] }
+  - match: { hits.hits.0.fields.metricset\.interval: ["10m"] }
+  - do:
+      indices.get_data_stream:
+        name: metrics-service_destination.10m.otel-default
+  - match: { data_streams.0.hidden: true }
+---
+"metrics-service_destination.60m must be hidden":
+  - do:
+      bulk:
+        index: metrics-service_destination.60m.otel-default
+        refresh: true
+        body:
+          - create: {}
+          - '{"@timestamp":"2024-07-18T14:48:33.467654000Z" ,"attributes":{"processor.event":"metric","transaction.root":false, "metricset.name" : "service_destination" },"resource":{"attributes":{ "metricset.interval": "60m" } } }'
+  - is_false: errors
+  - do:
+      search:
+        index: metrics-service_destination.60m.otel-default
+        body:
+          fields: ["metricset.name", "metricset.interval"]
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0.fields.metricset\.name: ["service_destination"] }
+  - match: { hits.hits.0.fields.metricset\.interval: ["60m"] }
+  - do:
+      indices.get_data_stream:
+        name: metrics-service_destination.60m.otel-default
+  - match: { data_streams.0.hidden: true }
+---
+"metrics-service_summary.10m must be hidden":
+  - do:
+      bulk:
+        index: metrics-service_summary.10m.otel-default
+        refresh: true
+        body:
+          - create: {}
+          - '{"@timestamp":"2024-07-18T14:48:33.467654000Z" ,"attributes":{"processor.event":"metric","transaction.root":false, "metricset.name" : "service_summary"},"resource":{"attributes":{ "metricset.interval": "10m" } } }'
+  - is_false: errors
+  - do:
+      search:
+        index: metrics-service_summary.10m.otel-default
+        body:
+          fields: ["metricset.name", "metricset.interval"]
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0.fields.metricset\.name: ["service_summary"] }
+  - match: { hits.hits.0.fields.metricset\.interval: ["10m"] }
+  - do:
+      indices.get_data_stream:
+        name: metrics-service_summary.10m.otel-default
+  - match: { data_streams.0.hidden: true }
+---
+"metrics-service_summary.60m must be hidden":
+  - do:
+      bulk:
+        index: metrics-service_summary.60m.otel-default
+        refresh: true
+        body:
+          - create: {}
+          - '{"@timestamp":"2024-07-18T14:48:33.467654000Z" ,"attributes":{"processor.event":"metric","transaction.root":false, "metricset.name" : "service_summary" },"resource":{"attributes":{ "metricset.interval": "60m" } } }'
+  - is_false: errors
+  - do:
+      search:
+        index: metrics-service_summary.60m.otel-default
+        body:
+          fields: ["metricset.name", "metricset.interval"]
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0.fields.metricset\.name: ["service_summary"] }
+  - match: { hits.hits.0.fields.metricset\.interval: ["60m"] }
+  - do:
+      indices.get_data_stream:
+        name: metrics-service_summary.60m.otel-default
+  - match: { data_streams.0.hidden: true }
+---
+"metrics-service_transaction.10m must be hidden":
+  - do:
+      bulk:
+        index: metrics-service_transaction.10m.otel-default
+        refresh: true
+        body:
+          - create: {}
+          - '{"@timestamp":"2024-07-18T14:48:33.467654000Z" ,"attributes":{"processor.event":"metric","transaction.root":false, "metricset.name" : "service_transaction"  },"resource":{"attributes":{ "metricset.interval": "10m" } } }'
+  - is_false: errors
+  - do:
+      search:
+        index: metrics-service_transaction.10m.otel-default
+        body:
+          fields: ["metricset.name", "metricset.interval"]
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0.fields.metricset\.name: ["service_transaction"] }
+  - match: { hits.hits.0.fields.metricset\.interval: ["10m"] }
+  - do:
+      indices.get_data_stream:
+        name: metrics-service_transaction.10m.otel-default
+  - match: { data_streams.0.hidden: true }
+---
+"metrics-service_transaction.60m must be hidden":
+  - do:
+      bulk:
+        index: metrics-service_transaction.60m.otel-default
+        refresh: true
+        body:
+          - create: {}
+          - '{"@timestamp":"2024-07-18T14:48:33.467654000Z" ,"attributes":{"processor.event":"metric","transaction.root":false, "metricset.name" : "service_transaction"},"resource":{"attributes":{ "metricset.interval": "60m" } } }'
+  - is_false: errors
+  - do:
+      search:
+        index: metrics-service_transaction.60m.otel-default
+        body:
+          fields: ["metricset.name", "metricset.interval"]
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0.fields.metricset\.name: ["service_transaction"] }
+  - match: { hits.hits.0.fields.metricset\.interval: ["60m"] }
+  - do:
+      indices.get_data_stream:
+        name: metrics-service_transaction.60m.otel-default
+  - match: { data_streams.0.hidden: true }
+---
+"metrics-transaction.10m must be hidden":
+  - do:
+      bulk:
+        index: metrics-transaction.10m.otel-default
+        refresh: true
+        body:
+          - create: {}
+          - '{"@timestamp":"2024-07-18T14:48:33.467654000Z" ,"attributes":{"processor.event":"metric","transaction.root":false, "metricset.name" : "transaction"},"resource":{"attributes":{ "metricset.interval": "10m" } } }'
+  - is_false: errors
+  - do:
+      search:
+        index: metrics-transaction.10m.otel-default
+        body:
+          fields: ["metricset.name", "metricset.interval"]
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0.fields.metricset\.name: ["transaction"] }
+  - match: { hits.hits.0.fields.metricset\.interval: ["10m"] }
+  - do:
+      indices.get_data_stream:
+        name: metrics-transaction.10m.otel-default
+  - match: { data_streams.0.hidden: true }
+---
+"metrics-transaction.60m must be hidden":
+  - do:
+      bulk:
+        index: metrics-transaction.60m.otel-default
+        refresh: true
+        body:
+          - create: {}
+          - '{"@timestamp":"2024-07-18T14:48:33.467654000Z" ,"attributes":{"processor.event":"metric","transaction.root":false, "metricset.name" : "transaction"},"resource":{"attributes":{ "metricset.interval": "60m" } } }'
+  - is_false: errors
+  - do:
+      search:
+        index: metrics-transaction.60m.otel-default
+        body:
+          fields: ["metricset.name", "metricset.interval"]
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0.fields.metricset\.name: ["transaction"] }
+  - match: { hits.hits.0.fields.metricset\.interval: ["60m"] }
+  - do:
+      indices.get_data_stream:
+        name: metrics-transaction.60m.otel-default
+  - match: { data_streams.0.hidden: true }
+---
+"Terms aggregation on metricset.interval from metrics-transaction must by default only contain 1m":
+  - do:
+      bulk:
+        index: metrics-transaction.60m.otel-default
+        refresh: true
+        body:
+          - create: {}
+          - '{"@timestamp":"2024-07-18T14:48:33.467654000Z" ,"attributes":{"processor.event":"metric","transaction.root":false, "metricset.name" : "transaction"},"resource":{"attributes":{ "metricset.interval": "60m" } } }'
+  - do:
+      bulk:
+        index: metrics-transaction.10m.otel-default
+        refresh: true
+        body:
+          - create: {}
+          - '{"@timestamp":"2024-07-18T14:48:33.467654000Z" ,"attributes":{"processor.event":"metric","transaction.root":false, "metricset.name" : "transaction"},"resource":{"attributes":{ "metricset.interval": "10m" } } }'
+  - do:
+      bulk:
+        index: metrics-transaction.1m.otel-default
+        refresh: true
+        body:
+          - create: {}
+          - '{"@timestamp":"2024-07-18T14:48:33.467654000Z" ,"attributes":{"processor.event":"metric","transaction.root":false, "metricset.name" : "transaction"},"resource":{"attributes":{ "metricset.interval": "1m" } } }'
+  - is_false: errors
+  - do:
+      search:
+        index: metrics-*.otel-default
+        body: >
+          {
+
+            "size": 0,
+            "aggs": {
+              "intervals": {
+                "terms": {
+                  "field": "metricset.interval"
+                }
+              }
+            }
+          }
+  - length: { aggregations.intervals.buckets: 1 }
+  - match: { aggregations.intervals.buckets.0.key: "1m" }
+  - match: { aggregations.intervals.buckets.0.doc_count: 1 }
+  # With including hidden indices, 10m and 60m aggregation also show up
+  - do:
+      search:
+        index: metrics-*.otel-default
+        expand_wildcards: open,hidden
+        body: >
+          {
+            "size": 0,
+            "aggs": {
+              "intervals": {
+                "terms": {
+                  "field": "metricset.interval"
+                }
+              }
+            }
+          }
+  - length: { aggregations.intervals.buckets: 3 }
+---
+"Terms aggregation on metricset.interval from metrics-service_transaction must by default only contain 1m":
+  - do:
+      bulk:
+        index: metrics-service_transaction.60m.otel-default
+        refresh: true
+        body:
+          - create: {}
+          - '{"@timestamp":"2024-07-18T14:48:33.467654000Z" ,"attributes":{"processor.event":"metric","transaction.root":false, "metricset.name" : "service_transaction"},"resource":{"attributes":{ "metricset.interval": "60m" } } }'
+  - do:
+      bulk:
+        index: metrics-service_transaction.10m.otel-default
+        refresh: true
+        body:
+          - create: {}
+          - '{"@timestamp":"2024-07-18T14:48:33.467654000Z" ,"attributes":{"processor.event":"metric","transaction.root":false, "metricset.name" : "service_transaction"},"resource":{"attributes":{ "metricset.interval": "10m" } } }'
+  - do:
+      bulk:
+        index: metrics-service_transaction.1m.otel-default
+        refresh: true
+        body:
+          - create: {}
+          - '{"@timestamp":"2024-07-18T14:48:33.467654000Z" ,"attributes":{"processor.event":"metric","transaction.root":false, "metricset.name" : "service_transaction"},"resource":{"attributes":{ "metricset.interval": "1m" } } }'
+  - is_false: errors
+  - do:
+      search:
+        index: metrics-*.otel-default
+        body: >
+          {
+
+            "size": 0,
+            "aggs": {
+              "intervals": {
+                "terms": {
+                  "field": "metricset.interval"
+                }
+              }
+            }
+          }
+  - length: { aggregations.intervals.buckets: 1 }
+  - match: { aggregations.intervals.buckets.0.key: "1m" }
+  - match: { aggregations.intervals.buckets.0.doc_count: 1 }
+  # With including hidden indices, 10m and 60m aggregation also show up
+  - do:
+      search:
+        index: metrics-*.otel-default
+        expand_wildcards: open,hidden
+        body: >
+          {
+            "size": 0,
+            "aggs": {
+              "intervals": {
+                "terms": {
+                  "field": "metricset.interval"
+                }
+              }
+            }
+          }
+  - length: { aggregations.intervals.buckets: 3 }
+---
+"Terms aggregation on metricset.interval from metrics-service_summary must by default only contain 1m":
+  - do:
+      bulk:
+        index: metrics-service_summary.60m.otel-default
+        refresh: true
+        body:
+          - create: {}
+          - '{"@timestamp":"2024-07-18T14:48:33.467654000Z" ,"attributes":{"processor.event":"metric","transaction.root":false, "metricset.name" : "service_summary"},"resource":{"attributes":{ "metricset.interval": "60m" } } }'
+  - do:
+      bulk:
+        index: metrics-service_summary.10m.otel-default
+        refresh: true
+        body:
+          - create: {}
+          - '{"@timestamp":"2024-07-18T14:48:33.467654000Z" ,"attributes":{"processor.event":"metric","transaction.root":false, "metricset.name" : "service_summary"},"resource":{"attributes":{ "metricset.interval": "10m" } } }'
+  - do:
+      bulk:
+        index: metrics-service_summary.1m.otel-default
+        refresh: true
+        body:
+          - create: {}
+          - '{"@timestamp":"2024-07-18T14:48:33.467654000Z" ,"attributes":{"processor.event":"metric","transaction.root":false, "metricset.name" : "service_summary"},"resource":{"attributes":{ "metricset.interval": "1m" } } }'
+  - is_false: errors
+  - do:
+      search:
+        index: metrics-*.otel-default
+        body: >
+          {
+
+            "size": 0,
+            "aggs": {
+              "intervals": {
+                "terms": {
+                  "field": "metricset.interval"
+                }
+              }
+            }
+          }
+  - length: { aggregations.intervals.buckets: 1 }
+  - match: { aggregations.intervals.buckets.0.key: "1m" }
+  - match: { aggregations.intervals.buckets.0.doc_count: 1 }
+  # With including hidden indices, 10m and 60m aggregation also show up
+  - do:
+      search:
+        index: metrics-*.otel-default
+        expand_wildcards: open,hidden
+        body: >
+          {
+            "size": 0,
+            "aggs": {
+              "intervals": {
+                "terms": {
+                  "field": "metricset.interval"
+                }
+              }
+            }
+          }
+  - length: { aggregations.intervals.buckets: 3 }
+---
+"Terms aggregation on metricset.interval from metrics-service_destination must by default only contain 1m":
+  - do:
+      bulk:
+        index: metrics-service_destination.60m.otel-default
+        refresh: true
+        body:
+          - create: {}
+          - '{"@timestamp":"2024-07-18T14:48:33.467654000Z" ,"attributes":{"processor.event":"metric","transaction.root":false, "metricset.name" : "service_destination"},"resource":{"attributes":{ "metricset.interval": "60m" } } }'
+  - do:
+      bulk:
+        index: metrics-service_destination.10m.otel-default
+        refresh: true
+        body:
+          - create: {}
+          - '{"@timestamp":"2024-07-18T14:48:33.467654000Z" ,"attributes":{"processor.event":"metric","transaction.root":false, "metricset.name" : "service_destination"},"resource":{"attributes":{ "metricset.interval": "10m" } } }'
+  - do:
+      bulk:
+        index: metrics-service_destination.1m.otel-default
+        refresh: true
+        body:
+          - create: {}
+          - '{"@timestamp":"2024-07-18T14:48:33.467654000Z" ,"attributes":{"processor.event":"metric","transaction.root":false, "metricset.name" : "service_destination"},"resource":{"attributes":{ "metricset.interval": "1m" } } }'
+  - is_false: errors
+  - do:
+      search:
+        index: metrics-*.otel-default
+        body: >
+          {
+
+            "size": 0,
+            "aggs": {
+              "intervals": {
+                "terms": {
+                  "field": "metricset.interval"
+                }
+              }
+            }
+          }
+  - length: { aggregations.intervals.buckets: 1 }
+  - match: { aggregations.intervals.buckets.0.key: "1m" }
+  - match: { aggregations.intervals.buckets.0.doc_count: 1 }
+  # With including hidden indices, 10m and 60m aggregation also show up
+  - do:
+      search:
+        index: metrics-*.otel-default
+        expand_wildcards: open,hidden
+        body: >
+          {
+            "size": 0,
+            "aggs": {
+              "intervals": {
+                "terms": {
+                  "field": "metricset.interval"
+                }
+              }
+            }
+          }
+  - length: { aggregations.intervals.buckets: 3 }

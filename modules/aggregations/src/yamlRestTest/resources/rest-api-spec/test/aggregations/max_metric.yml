@@ -3,8 +3,6 @@ setup:
       indices.create:
           index: test_1
           body:
-            settings:
-              number_of_replicas: 0
             mappings:
               properties:
                 int_field:
@@ -17,16 +15,12 @@ setup:
   - do:
       indices.create:
         index: date_test_1
-        body:
-          settings:
-            number_of_replicas: 0
+        body: {}
 
   - do:
       indices.create:
         index: date_test_2
         body:
-          settings:
-            number_of_replicas: 0
           mappings:
             properties:
               date_field:
@@ -206,8 +200,8 @@ setup:
 
 ---
 "Merging results with unmapped fields":
-  - skip:
-      version: " - 8.4.99"
+  - requires:
+      cluster_features: ["gte_v8.5.0"]
       reason: Fixed in 8.5.0
 
   - do:
@@ -224,8 +218,8 @@ setup:
 
 ---
 "Counter field":
-  - skip:
-      version: " - 8.6.99"
+  - requires:
+      cluster_features: ["gte_v8.7.0"]
       reason: "counter field support added in 8.7"
 
   - do:
@@ -263,3 +257,38 @@ setup:
   - match: { hits.total: 2 }
   - length: { hits.hits: 2 }
   - match: { aggregations.the_counter_max.value: 4 }
+
+---
+"Partially unmapped":
+
+  - do:
+      search:
+        index: test_1,date_test_2
+        rest_total_hits_as_int: true
+        body:
+          aggs:
+            the_int_max:
+              max:
+                field: int_field
+
+  - match: { hits.total: 5 }
+  - length: { hits.hits: 5 }
+  - match: { aggregations.the_int_max.value: 151.0 }
+
+---
+"Partially unmapped with missing":
+
+  - do:
+      search:
+        index: test_1,date_test_2
+        rest_total_hits_as_int: true
+        body:
+          aggs:
+            the_int_max:
+              max:
+                field: int_field
+                missing: 100000
+
+  - match: { hits.total: 5 }
+  - length: { hits.hits: 5 }
+  - match: { aggregations.the_int_max.value: 100000 }

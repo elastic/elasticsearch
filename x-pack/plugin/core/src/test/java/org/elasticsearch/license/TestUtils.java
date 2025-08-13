@@ -15,9 +15,12 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.license.internal.MutableLicenseService;
+import org.elasticsearch.license.internal.XPackLicenseStatus;
 import org.elasticsearch.license.licensor.LicenseSigner;
 import org.elasticsearch.protocol.xpack.license.LicensesStatus;
 import org.elasticsearch.protocol.xpack.license.PutLicenseResponse;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -375,11 +378,13 @@ public class TestUtils {
     }
 
     public static void registerAndAckSignedLicenses(
-        final LicenseService licenseService,
+        final MutableLicenseService licenseService,
         License license,
         final LicensesStatus expectedStatus
     ) {
-        PutLicenseRequest putLicenseRequest = new PutLicenseRequest().license(license).acknowledge(true);
+        PutLicenseRequest putLicenseRequest = new PutLicenseRequest(ESTestCase.TEST_REQUEST_TIMEOUT, ESTestCase.TEST_REQUEST_TIMEOUT)
+            .license(license)
+            .acknowledge(true);
         final CountDownLatch latch = new CountDownLatch(1);
         final AtomicReference<LicensesStatus> status = new AtomicReference<>();
         licenseService.registerLicense(putLicenseRequest, new ActionListener<PutLicenseResponse>() {
@@ -412,15 +417,15 @@ public class TestUtils {
         }
 
         @Override
-        protected void update(License.OperationMode mode, boolean active, String expiryWarning) {
-            modeUpdates.add(mode);
-            activeUpdates.add(active);
-            expiryWarnings.add(expiryWarning);
+        protected void update(XPackLicenseStatus xPackLicenseStatus) {
+            modeUpdates.add(xPackLicenseStatus.mode());
+            activeUpdates.add(xPackLicenseStatus.active());
+            expiryWarnings.add(xPackLicenseStatus.expiryWarning());
         }
     }
 
     /**
-     * A license state that makes the {@link #update(License.OperationMode, boolean, String)}
+     * A license state that makes the {@link #update(XPackLicenseStatus)}
      * method public for use in tests.
      */
     public static class UpdatableLicenseState extends XPackLicenseState {
@@ -433,8 +438,8 @@ public class TestUtils {
         }
 
         @Override
-        public void update(License.OperationMode mode, boolean active, String expiryWarning) {
-            super.update(mode, active, expiryWarning);
+        public void update(XPackLicenseStatus xPackLicenseStatus) {
+            super.update(xPackLicenseStatus);
         }
     }
 

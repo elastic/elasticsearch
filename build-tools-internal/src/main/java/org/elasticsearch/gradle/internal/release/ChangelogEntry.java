@@ -1,15 +1,20 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.gradle.internal.release;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
+
+import org.gradle.api.logging.Logger;
+import org.gradle.api.logging.Logging;
 
 import java.io.File;
 import java.io.IOException;
@@ -28,13 +33,15 @@ import java.util.stream.Collectors;
  * </ul>
  */
 public class ChangelogEntry {
+    private static final Logger LOGGER = Logging.getLogger(GenerateReleaseNotesTask.class);
+
     private Integer pr;
-    private List<Integer> issues;
+    private String summary;
     private String area;
     private String type;
-    private String summary;
-    private Highlight highlight;
+    private List<Integer> issues;
     private Breaking breaking;
+    private Highlight highlight;
     private Deprecation deprecation;
 
     private static final ObjectMapper yamlMapper = new ObjectMapper(new YAMLFactory());
@@ -48,6 +55,7 @@ public class ChangelogEntry {
         try {
             return yamlMapper.readValue(file, ChangelogEntry.class);
         } catch (IOException e) {
+            LOGGER.error("Failed to parse changelog from " + file.getAbsolutePath(), e);
             throw new UncheckedIOException(e);
         }
     }
@@ -186,6 +194,7 @@ public class ChangelogEntry {
             this.body = body;
         }
 
+        @JsonIgnore
         public String getAnchor() {
             return generatedAnchor(this.title);
         }
@@ -271,6 +280,7 @@ public class ChangelogEntry {
             this.notable = notable;
         }
 
+        @JsonIgnore
         public String getAnchor() {
             return generatedAnchor(this.title);
         }
@@ -324,7 +334,7 @@ public class ChangelogEntry {
         final List<String> excludes = List.of("the", "is", "a", "and", "now", "that");
 
         final String[] words = input.toLowerCase(Locale.ROOT)
-            .replaceAll("'", "")
+            .replace("'", "")
             .replaceAll("[^\\w]+", "_")
             .replaceFirst("^_+", "")
             .replaceFirst("_+$", "")

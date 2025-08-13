@@ -6,8 +6,8 @@
  */
 package org.elasticsearch.xpack.core.watcher.transport.actions.execute;
 
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.LegacyActionRequest;
 import org.elasticsearch.action.ValidateActions;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -28,7 +28,7 @@ import java.util.Map;
 /**
  * A request to execute a watch by id
  */
-public class ExecuteWatchRequest extends ActionRequest {
+public class ExecuteWatchRequest extends LegacyActionRequest {
 
     public static final String INLINE_WATCH_ID = "_inlined_";
 
@@ -59,12 +59,8 @@ public class ExecuteWatchRequest extends ActionRequest {
         id = in.readOptionalString();
         ignoreCondition = in.readBoolean();
         recordExecution = in.readBoolean();
-        if (in.readBoolean()) {
-            alternativeInput = in.readMap();
-        }
-        if (in.readBoolean()) {
-            triggerData = in.readMap();
-        }
+        alternativeInput = in.readOptional(StreamInput::readGenericMap);
+        triggerData = in.readOptional(StreamInput::readGenericMap);
         long actionModesCount = in.readLong();
         actionModes = new HashMap<>();
         for (int i = 0; i < actionModesCount; i++) {
@@ -83,14 +79,8 @@ public class ExecuteWatchRequest extends ActionRequest {
         out.writeOptionalString(id);
         out.writeBoolean(ignoreCondition);
         out.writeBoolean(recordExecution);
-        out.writeBoolean(alternativeInput != null);
-        if (alternativeInput != null) {
-            out.writeGenericMap(alternativeInput);
-        }
-        out.writeBoolean(triggerData != null);
-        if (triggerData != null) {
-            out.writeGenericMap(triggerData);
-        }
+        out.writeOptional(StreamOutput::writeGenericMap, alternativeInput);
+        out.writeOptional(StreamOutput::writeGenericMap, triggerData);
         out.writeLong(actionModes.size());
         for (Map.Entry<String, ActionExecutionMode> entry : actionModes.entrySet()) {
             out.writeString(entry.getKey());
@@ -210,8 +200,8 @@ public class ExecuteWatchRequest extends ActionRequest {
     }
 
     /**
-     * @return  the execution modes for the actions. These modes determine the nature of the execution
-     *          of the watch actions while the watch is executing.
+     * @return the execution modes for the actions. These modes determine the nature of the execution
+     * of the watch actions while the watch is executing.
      */
     public Map<String, ActionExecutionMode> getActionModes() {
         return actionModes;
@@ -220,8 +210,8 @@ public class ExecuteWatchRequest extends ActionRequest {
     /**
      * Sets the action execution mode for the give action (identified by its id).
      *
-     * @param actionId      the action id.
-     * @param actionMode    the execution mode of the action.
+     * @param actionId   the action id.
+     * @param actionMode the execution mode of the action.
      */
     public void setActionMode(String actionId, ActionExecutionMode actionMode) {
         actionModes.put(actionId, actionMode);
@@ -229,7 +219,7 @@ public class ExecuteWatchRequest extends ActionRequest {
 
     /**
      * @return whether the watch should execute in debug mode. In debug mode the execution {@code vars}
-     *         will be returned as part of the watch record.
+     * will be returned as part of the watch record.
      */
     public boolean isDebug() {
         return debug;

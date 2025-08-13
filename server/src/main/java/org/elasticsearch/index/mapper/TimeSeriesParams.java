@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper;
@@ -23,18 +24,39 @@ public final class TimeSeriesParams {
 
     private TimeSeriesParams() {}
 
+    /**
+     * There are various types of metric used in time-series aggregations and downsampling.
+     * Each supports different field types and different calculations.
+     * Two of these, the COUNTER and GAUGE apply to most numerical types, mapping a single number,
+     * while the POSITION metric applies only to geo_point and therefor a pair of numbers (lat,lon).
+     * To simplify code that depends on this difference, we use the parameter `scalar==true` for
+     * single number metrics, and `false` for the POSITION metric.
+     */
     public enum MetricType {
         GAUGE(new String[] { "max", "min", "value_count", "sum" }),
-        COUNTER(new String[] { "last_value" });
+        COUNTER(new String[] { "last_value" }),
+        POSITION(new String[] {}, false);
 
         private final String[] supportedAggs;
+        private final boolean scalar;
 
         MetricType(String[] supportedAggs) {
-            this.supportedAggs = supportedAggs;
+            this(supportedAggs, true);
         }
 
+        MetricType(String[] supportedAggs, boolean scalar) {
+            this.supportedAggs = supportedAggs;
+            this.scalar = scalar;
+        }
+
+        /** list of aggregations supported for downsampling this metric */
         public String[] supportedAggs() {
             return supportedAggs;
+        }
+
+        /** an array of metrics representing simple numerical values, like GAUGE and COUNTER */
+        public static MetricType[] scalar() {
+            return Arrays.stream(MetricType.values()).filter(m -> m.scalar).toArray(MetricType[]::new);
         }
 
         @Override
@@ -60,7 +82,7 @@ public final class TimeSeriesParams {
             TIME_SERIES_METRIC_PARAM,
             false,
             initializer,
-            null,
+            (MetricType) null,
             MetricType.class,
             acceptedValues
         ).acceptsNull();

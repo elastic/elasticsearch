@@ -25,7 +25,10 @@ public class BlobCachePlugin extends Plugin implements ExtensiblePlugin {
             SharedBlobCacheService.SHARED_CACHE_RECOVERY_RANGE_SIZE_SETTING,
             SharedBlobCacheService.SHARED_CACHE_MAX_FREQ_SETTING,
             SharedBlobCacheService.SHARED_CACHE_DECAY_INTERVAL_SETTING,
-            SharedBlobCacheService.SHARED_CACHE_MIN_TIME_DELTA_SETTING
+            SharedBlobCacheService.SHARED_CACHE_MIN_TIME_DELTA_SETTING,
+            SharedBlobCacheService.SHARED_CACHE_MMAP,
+            SharedBlobCacheService.SHARED_CACHE_COUNT_READS,
+            SharedBlobCacheService.SHARED_CACHE_CONCURRENT_EVICTIONS_SETTING
         );
     }
 }

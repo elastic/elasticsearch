@@ -22,7 +22,7 @@ public class PhaseStatsTests extends AbstractWireSerializingTestCase<PhaseStats>
     }
 
     public static PhaseStats createRandomInstance() {
-        TimeValue after = TimeValue.parseTimeValue(randomTimeValue(), "phase_stats_tests");
+        TimeValue after = randomTimeValue();
         String[] actionNames = randomArray(0, 20, size -> new String[size], () -> randomAlphaOfLengthBetween(1, 20));
         return new PhaseStats(after, actionNames, ActionConfigStatsTests.createRandomInstance());
     }
@@ -32,10 +32,7 @@ public class PhaseStatsTests extends AbstractWireSerializingTestCase<PhaseStats>
         TimeValue after = instance.getAfter();
         String[] actionNames = instance.getActionNames();
         switch (between(0, 1)) {
-            case 0 -> after = randomValueOtherThan(
-                after,
-                () -> TimeValue.parseTimeValue(randomPositiveTimeValue(), "rollover_action_test")
-            );
+            case 0 -> after = randomValueOtherThan(after, () -> randomPositiveTimeValue());
             case 1 -> actionNames = randomValueOtherThanMany(
                 a -> Arrays.equals(a, instance.getActionNames()),
                 () -> randomArray(0, 20, size -> new String[size], () -> randomAlphaOfLengthBetween(1, 20))

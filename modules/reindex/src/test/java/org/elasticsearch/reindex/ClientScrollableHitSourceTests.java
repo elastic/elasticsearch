@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.reindex;
@@ -13,14 +14,15 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.action.bulk.BackoffPolicy;
-import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.action.search.SearchScrollAction;
 import org.elasticsearch.action.search.SearchScrollRequest;
+import org.elasticsearch.action.search.TransportSearchAction;
+import org.elasticsearch.action.search.TransportSearchScrollAction;
 import org.elasticsearch.client.internal.ParentTaskAssigningClient;
 import org.elasticsearch.client.internal.support.AbstractClient;
+import org.elasticsearch.cluster.project.TestProjectResolvers;
+import org.elasticsearch.common.BackoffPolicy;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
@@ -29,7 +31,7 @@ import org.elasticsearch.index.reindex.ClientScrollableHitSource;
 import org.elasticsearch.index.reindex.ScrollableHitSource;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
-import org.elasticsearch.search.internal.InternalSearchResponse;
+import org.elasticsearch.search.SearchResponseUtils;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -42,6 +44,7 @@ import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.IntStream;
@@ -74,19 +77,11 @@ public class ClientScrollableHitSourceTests extends ESTestCase {
         dotestBasicsWithRetry(retries, 0, retries, e -> fail());
     }
 
-    private static class ExpectedException extends RuntimeException {
-        ExpectedException(Throwable cause) {
-            super(cause);
-        }
-    }
-
-    public void testRetryFail() {
-        int retries = randomInt(10);
-        ExpectedException ex = expectThrows(
-            ExpectedException.class,
-            () -> { dotestBasicsWithRetry(retries, retries + 1, retries + 1, e -> { throw new ExpectedException(e); }); }
-        );
-        assertThat(ex.getCause(), instanceOf(EsRejectedExecutionException.class));
+    public void testRetryFail() throws InterruptedException {
+        final int retries = randomInt(10);
+        final var exceptionRef = new AtomicReference<Exception>();
+        dotestBasicsWithRetry(retries, retries + 1, retries + 1, exceptionRef::set);
+        assertThat(exceptionRef.get(), instanceOf(EsRejectedExecutionException.class));
     }
 
     private void dotestBasicsWithRetry(int retries, int minFailures, int maxFailures, Consumer<Exception> failureHandler)
@@ -104,37 +99,45 @@ public class ClientScrollableHitSourceTests extends ESTestCase {
             responses::add,
             failureHandler,
             new ParentTaskAssigningClient(client, parentTask),
-            new SearchRequest().scroll("1m")
+            new SearchRequest().scroll(TimeValue.timeValueMinutes(1))
         );
 
         hitSource.start();
         for (int retry = 0; retry < randomIntBetween(minFailures, maxFailures); ++retry) {
-            client.fail(SearchAction.INSTANCE, new EsRejectedExecutionException());
+            client.fail(TransportSearchAction.TYPE, new EsRejectedExecutionException());
+            if (retry >= retries) {
+                return;
+            }
             client.awaitOperation();
             ++expectedSearchRetries;
         }
-        client.validateRequest(SearchAction.INSTANCE, (SearchRequest r) -> assertTrue(r.allowPartialSearchResults() == Boolean.FALSE));
+        client.validateRequest(TransportSearchAction.TYPE, (SearchRequest r) -> assertTrue(r.allowPartialSearchResults() == Boolean.FALSE));
         SearchResponse searchResponse = createSearchResponse();
-        client.respond(SearchAction.INSTANCE, searchResponse);
+        try {
+            client.respond(TransportSearchAction.TYPE, searchResponse);
 
-        for (int i = 0; i < randomIntBetween(1, 10); ++i) {
-            ScrollableHitSource.AsyncResponse asyncResponse = responses.poll(10, TimeUnit.SECONDS);
-            assertNotNull(asyncResponse);
-            assertEquals(responses.size(), 0);
-            assertSameHits(asyncResponse.response().getHits(), searchResponse.getHits().getHits());
-            asyncResponse.done(TimeValue.ZERO);
+            for (int i = 0; i < randomIntBetween(1, 10); ++i) {
+                ScrollableHitSource.AsyncResponse asyncResponse = responses.poll(10, TimeUnit.SECONDS);
+                assertNotNull(asyncResponse);
+                assertEquals(responses.size(), 0);
+                assertSameHits(asyncResponse.response().getHits(), searchResponse.getHits().getHits());
+                asyncResponse.done(TimeValue.ZERO);
 
-            for (int retry = 0; retry < randomIntBetween(minFailures, maxFailures); ++retry) {
-                client.fail(SearchScrollAction.INSTANCE, new EsRejectedExecutionException());
-                client.awaitOperation();
-                ++expectedSearchRetries;
+                for (int retry = 0; retry < randomIntBetween(minFailures, maxFailures); ++retry) {
+                    client.fail(TransportSearchScrollAction.TYPE, new EsRejectedExecutionException());
+                    client.awaitOperation();
+                    ++expectedSearchRetries;
+                }
+
+                searchResponse.decRef();
+                searchResponse = createSearchResponse();
+                client.respond(TransportSearchScrollAction.TYPE, searchResponse);
             }
 
-            searchResponse = createSearchResponse();
-            client.respond(SearchScrollAction.INSTANCE, searchResponse);
+            assertEquals(actualSearchRetries.get(), expectedSearchRetries);
+        } finally {
+            searchResponse.decRef();
         }
-
-        assertEquals(actualSearchRetries.get(), expectedSearchRetries);
     }
 
     public void testScrollKeepAlive() {
@@ -154,28 +157,18 @@ public class ClientScrollableHitSourceTests extends ESTestCase {
         );
 
         hitSource.startNextScroll(timeValueSeconds(100));
-        client.validateRequest(SearchScrollAction.INSTANCE, (SearchScrollRequest r) -> assertEquals(r.scroll().keepAlive().seconds(), 110));
+        client.validateRequest(TransportSearchScrollAction.TYPE, (SearchScrollRequest r) -> assertEquals(r.scroll().seconds(), 110));
     }
 
     private SearchResponse createSearchResponse() {
         // create a simulated response.
-        SearchHit hit = new SearchHit(0, "id").sourceRef(new BytesArray("{}"));
-        SearchHits hits = new SearchHits(
+        SearchHit hit = SearchHit.unpooled(0, "id").sourceRef(new BytesArray("{}"));
+        SearchHits hits = SearchHits.unpooled(
             IntStream.range(0, randomIntBetween(0, 20)).mapToObj(i -> hit).toArray(SearchHit[]::new),
             new TotalHits(0, TotalHits.Relation.EQUAL_TO),
             0
         );
-        InternalSearchResponse internalResponse = new InternalSearchResponse(hits, null, null, null, false, false, 1);
-        return new SearchResponse(
-            internalResponse,
-            randomSimpleString(random(), 1, 10),
-            5,
-            4,
-            0,
-            randomLong(),
-            null,
-            SearchResponse.Clusters.EMPTY
-        );
+        return SearchResponseUtils.response(hits).scrollId(randomSimpleString(random(), 1, 10)).shards(5, 4, 0).build();
     }
 
     private void assertSameHits(List<? extends ScrollableHitSource.Hit> actual, SearchHit[] expected) {
@@ -222,7 +215,7 @@ public class ClientScrollableHitSourceTests extends ESTestCase {
         private ExecuteRequest<?, ?> executeRequest;
 
         MockClient(ThreadPool threadPool) {
-            super(Settings.EMPTY, threadPool);
+            super(Settings.EMPTY, threadPool, TestProjectResolvers.alwaysThrow());
         }
 
         @Override
@@ -270,9 +263,6 @@ public class ClientScrollableHitSourceTests extends ESTestCase {
         ) {
             ((ExecuteRequest<Request, Response>) executeRequest).validateRequest(action, validator);
         }
-
-        @Override
-        public void close() {}
 
         public synchronized void awaitOperation() throws InterruptedException {
             if (executeRequest == null) {

@@ -7,8 +7,7 @@
 
 package org.elasticsearch.xpack.ml.action;
 
-import org.elasticsearch.Version;
-import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -64,7 +63,7 @@ public class TransportGetDeploymentStatsActionTests extends ESTestCase {
         var modified = TransportGetDeploymentStatsAction.addFailedRoutes(emptyResponse, badRoutes, nodes);
         List<AssignmentStats> results = modified.getStats().results();
         assertThat(results, hasSize(2));
-        assertEquals("model1", results.get(0).getModelId());
+        assertEquals("model1", results.get(0).getDeploymentId());
         assertThat(results.get(0).getNodeStats(), hasSize(2));
         assertEquals("nodeA", results.get(0).getNodeStats().get(0).getNode().getId());
         assertEquals("nodeB", results.get(0).getNodeStats().get(1).getNode().getId());
@@ -81,8 +80,10 @@ public class TransportGetDeploymentStatsActionTests extends ESTestCase {
 
         var model1 = new AssignmentStats(
             "model1",
+            "deployment1",
             randomBoolean() ? null : randomIntBetween(1, 8),
             randomBoolean() ? null : randomIntBetween(1, 8),
+            null,
             randomBoolean() ? null : randomIntBetween(1, 10000),
             randomBoolean() ? null : ByteSizeValue.ofBytes(randomLongBetween(1, 1000000)),
             Instant.now(),
@@ -118,8 +119,10 @@ public class TransportGetDeploymentStatsActionTests extends ESTestCase {
 
         var model1 = new AssignmentStats(
             "model1",
+            "deployment1",
             randomBoolean() ? null : randomIntBetween(1, 8),
             randomBoolean() ? null : randomIntBetween(1, 8),
+            null,
             randomBoolean() ? null : randomIntBetween(1, 10000),
             randomBoolean() ? null : ByteSizeValue.ofBytes(randomLongBetween(1, 1000000)),
             Instant.now(),
@@ -145,19 +148,70 @@ public class TransportGetDeploymentStatsActionTests extends ESTestCase {
         assertEquals(RoutingState.FAILED, results.get(0).getNodeStats().get(1).getRoutingState().getState());
     }
 
+    public void testAddFailedRoutes_MissingNode() throws UnknownHostException {
+        DiscoveryNodes nodes = buildNodes("node1", "node2");
+        var missingNode = DiscoveryNodeUtils.create(
+            "node3",
+            new TransportAddress(InetAddress.getByAddress(new byte[] { (byte) 192, (byte) 168, (byte) 0, (byte) 1 }), 9203)
+        );
+
+        List<AssignmentStats.NodeStats> nodeStatsList = new ArrayList<>();
+        nodeStatsList.add(AssignmentStatsTests.randomNodeStats(nodes.get("node1")));
+        nodeStatsList.add(AssignmentStatsTests.randomNodeStats(nodes.get("node2")));
+
+        var model1 = new AssignmentStats(
+            "model1",
+            "deployment1",
+            randomBoolean() ? null : randomIntBetween(1, 8),
+            randomBoolean() ? null : randomIntBetween(1, 8),
+            null,
+            randomBoolean() ? null : randomIntBetween(1, 10000),
+            randomBoolean() ? null : ByteSizeValue.ofBytes(randomLongBetween(1, 1000000)),
+            Instant.now(),
+            nodeStatsList,
+            randomFrom(Priority.values())
+        );
+        var response = new GetDeploymentStatsAction.Response(Collections.emptyList(), Collections.emptyList(), List.of(model1), 1);
+
+        // failed state for node 3 conflicts
+        Map<TrainedModelAssignment, Map<String, RoutingInfo>> badRoutes = new HashMap<>();
+        Map<String, RoutingInfo> nodeRoutes = new HashMap<>();
+        nodeRoutes.put("node3", new RoutingInfo(1, 1, RoutingState.FAILED, "failed on node3"));
+        badRoutes.put(createAssignment("model1"), nodeRoutes);
+
+        var modified = TransportGetDeploymentStatsAction.addFailedRoutes(response, badRoutes, nodes);
+        List<AssignmentStats> results = modified.getStats().results();
+        assertThat(results, hasSize(1));
+        assertThat(results.get(0).getNodeStats(), hasSize(2)); // 3
+        assertEquals("node1", results.get(0).getNodeStats().get(0).getNode().getId());
+        assertEquals("node2", results.get(0).getNodeStats().get(1).getNode().getId());
+    }
+
     private DiscoveryNodes buildNodes(String... nodeIds) throws UnknownHostException {
         InetAddress inetAddress = InetAddress.getByAddress(new byte[] { (byte) 192, (byte) 168, (byte) 0, (byte) 1 });
         DiscoveryNodes.Builder builder = DiscoveryNodes.builder();
         int port = 9200;
         for (String nodeId : nodeIds) {
-            builder.add(new DiscoveryNode(nodeId, new TransportAddress(inetAddress, port++), Version.CURRENT));
+            builder.add(DiscoveryNodeUtils.create(nodeId, new TransportAddress(inetAddress, port++)));
         }
         return builder.build();
     }
 
     private static TrainedModelAssignment createAssignment(String modelId) {
         return TrainedModelAssignment.Builder.empty(
-            new StartTrainedModelDeploymentAction.TaskParams(modelId, 1024, 1, 1, 1, ByteSizeValue.ofBytes(1024), Priority.NORMAL)
+            new StartTrainedModelDeploymentAction.TaskParams(
+                modelId,
+                modelId,
+                1024,
+                1,
+                1,
+                1,
+                ByteSizeValue.ofBytes(1024),
+                Priority.NORMAL,
+                0L,
+                0L
+            ),
+            null
         ).build();
     }
 }

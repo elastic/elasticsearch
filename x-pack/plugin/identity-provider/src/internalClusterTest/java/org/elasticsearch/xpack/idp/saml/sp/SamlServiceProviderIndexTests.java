@@ -12,12 +12,10 @@ import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
-import org.elasticsearch.action.admin.indices.template.delete.DeleteIndexTemplateRequest;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
@@ -31,7 +29,6 @@ import org.junit.Before;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
-import java.util.Locale;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
@@ -54,7 +51,7 @@ public class SamlServiceProviderIndexTests extends ESSingleNodeTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
-        return List.of(LocalStateCompositeXPackPlugin.class, IdentityProviderPlugin.class);
+        return List.of(LocalStateCompositeXPackPlugin.class, IdentityProviderPlugin.class, IndexTemplateRegistryPlugin.class);
     }
 
     @Override
@@ -74,8 +71,8 @@ public class SamlServiceProviderIndexTests extends ESSingleNodeTestCase {
 
     @After
     public void deleteTemplateAndIndex() {
-        client().admin().indices().delete(new DeleteIndexRequest(SamlServiceProviderIndex.INDEX_NAME + "*")).actionGet();
-        client().admin().indices().deleteTemplate(new DeleteIndexTemplateRequest(SamlServiceProviderIndex.TEMPLATE_NAME)).actionGet();
+        indicesAdmin().delete(new DeleteIndexRequest(SamlServiceProviderIndex.INDEX_NAME + "*")).actionGet();
+        indicesAdmin().prepareDeleteTemplate(SamlServiceProviderIndex.TEMPLATE_NAME).get();
         serviceProviderIndex.close();
     }
 
@@ -83,13 +80,8 @@ public class SamlServiceProviderIndexTests extends ESSingleNodeTestCase {
         final int count = randomIntBetween(3, 5);
         List<SamlServiceProviderDocument> documents = new ArrayList<>(count);
 
-        // Install the template
-        assertTrue("Template should have been installed", installTemplate());
-        // No need to install it again
-        assertFalse("Template should not have been installed a second time", installTemplate());
-
         // Index should not exist yet
-        assertThat(clusterService.state().metadata().index(SamlServiceProviderIndex.INDEX_NAME), nullValue());
+        assertThat(clusterService.state().metadata().getProject().index(SamlServiceProviderIndex.INDEX_NAME), nullValue());
 
         for (int i = 0; i < count; i++) {
             final SamlServiceProviderDocument doc = randomDocument(i);
@@ -97,7 +89,7 @@ public class SamlServiceProviderIndexTests extends ESSingleNodeTestCase {
             documents.add(doc);
         }
 
-        final IndexMetadata indexMetadata = clusterService.state().metadata().index(SamlServiceProviderIndex.INDEX_NAME);
+        final IndexMetadata indexMetadata = clusterService.state().metadata().getProject().index(SamlServiceProviderIndex.INDEX_NAME);
         assertThat(indexMetadata, notNullValue());
         assertThat(indexMetadata.getSettings().get("index.format"), equalTo("1"));
         assertThat(indexMetadata.getAliases().size(), equalTo(1));
@@ -129,13 +121,12 @@ public class SamlServiceProviderIndexTests extends ESSingleNodeTestCase {
     }
 
     public void testWritesViaAliasIfItExists() {
-        assertTrue(installTemplate());
 
         // Create an index that will trigger the template, but isn't the standard index name
         final String customIndexName = SamlServiceProviderIndex.INDEX_NAME + "-test";
-        client().admin().indices().create(new CreateIndexRequest(customIndexName)).actionGet();
+        indicesAdmin().create(new CreateIndexRequest(customIndexName)).actionGet();
 
-        final IndexMetadata indexMetadata = clusterService.state().metadata().index(customIndexName);
+        final IndexMetadata indexMetadata = clusterService.state().metadata().getProject().index(customIndexName);
         assertThat(indexMetadata, notNullValue());
         assertThat(indexMetadata.getSettings().get("index.format"), equalTo("1"));
         assertThat(indexMetadata.getAliases().size(), equalTo(1));
@@ -145,7 +136,7 @@ public class SamlServiceProviderIndexTests extends ESSingleNodeTestCase {
         writeDocument(document);
 
         // Index should not exist because we created an alternate index, and the alias points to that.
-        assertThat(clusterService.state().metadata().index(SamlServiceProviderIndex.INDEX_NAME), nullValue());
+        assertThat(clusterService.state().metadata().getProject().index(SamlServiceProviderIndex.INDEX_NAME), nullValue());
 
         refresh();
 
@@ -156,45 +147,12 @@ public class SamlServiceProviderIndexTests extends ESSingleNodeTestCase {
         assertThat(readDocument(document.docId), equalTo(document));
     }
 
-    public void testInstallTemplateAutomaticallyOnClusterChange() throws Exception {
-        // Create an index that will trigger a cluster state change
-        final String indexName = randomAlphaOfLength(7).toLowerCase(Locale.ROOT);
-        client().admin().indices().create(new CreateIndexRequest(indexName)).actionGet();
-
-        ensureGreen(indexName);
-
-        IndexTemplateMetadata templateMeta = clusterService.state().metadata().templates().get(SamlServiceProviderIndex.TEMPLATE_NAME);
-
-        assertBusy(() -> assertThat("template should have been installed", templateMeta, notNullValue()));
-
-        assertFalse("Template is already installed, should not install again", installTemplate());
-    }
-
-    public void testInstallTemplateAutomaticallyOnDocumentWrite() {
-        final SamlServiceProviderDocument doc = randomDocument(1);
-        writeDocument(doc);
-
-        assertThat(readDocument(doc.docId), equalTo(doc));
-
-        IndexTemplateMetadata templateMeta = clusterService.state().metadata().templates().get(SamlServiceProviderIndex.TEMPLATE_NAME);
-        assertThat("template should have been installed", templateMeta, notNullValue());
-
-        assertFalse("Template is already installed, should not install again", installTemplate());
-    }
-
-    private boolean installTemplate() {
-        final PlainActionFuture<Boolean> installTemplate = new PlainActionFuture<>();
-        serviceProviderIndex.installIndexTemplate(assertListenerIsOnlyCalledOnce(installTemplate));
-        return installTemplate.actionGet();
-    }
-
     private Set<SamlServiceProviderDocument> getAllDocs() {
         final PlainActionFuture<Set<SamlServiceProviderDocument>> future = new PlainActionFuture<>();
         serviceProviderIndex.findAll(
             assertListenerIsOnlyCalledOnce(
-                ActionListener.wrap(
-                    set -> future.onResponse(set.stream().map(doc -> doc.document.get()).collect(Collectors.toUnmodifiableSet())),
-                    future::onFailure
+                future.delegateFailureAndWrap(
+                    (f, set) -> f.onResponse(set.stream().map(doc -> doc.document.get()).collect(Collectors.toUnmodifiableSet()))
                 )
             )
         );
@@ -224,9 +182,8 @@ public class SamlServiceProviderIndexTests extends ESSingleNodeTestCase {
         serviceProviderIndex.readDocument(
             doc.docId,
             assertListenerIsOnlyCalledOnce(
-                ActionListener.wrap(
-                    info -> serviceProviderIndex.deleteDocument(info.version, WriteRequest.RefreshPolicy.IMMEDIATE, future),
-                    future::onFailure
+                future.delegateFailureAndWrap(
+                    (f, info) -> serviceProviderIndex.deleteDocument(info.version, WriteRequest.RefreshPolicy.IMMEDIATE, f)
                 )
             )
         );
@@ -244,9 +201,8 @@ public class SamlServiceProviderIndexTests extends ESSingleNodeTestCase {
         serviceProviderIndex.findByEntityId(
             entityId,
             assertListenerIsOnlyCalledOnce(
-                ActionListener.wrap(
-                    set -> future.onResponse(set.stream().map(doc -> doc.document.get()).collect(Collectors.toUnmodifiableSet())),
-                    future::onFailure
+                future.delegateFailureAndWrap(
+                    (f, set) -> f.onResponse(set.stream().map(doc -> doc.document.get()).collect(Collectors.toUnmodifiableSet()))
                 )
             )
         );
@@ -268,4 +224,21 @@ public class SamlServiceProviderIndexTests extends ESSingleNodeTestCase {
         });
     }
 
+    // Since we just want to test the template handling in this test suite, we don't need to go through
+    // all the hassle of the setup required to *actually* enable the plugin (we do that elsewhere), we
+    // just need to make sure the template registry is here.
+    public static class IndexTemplateRegistryPlugin extends Plugin {
+        @Override
+        public Collection<?> createComponents(PluginServices services) {
+            var indexTemplateRegistry = new SamlServiceProviderIndexTemplateRegistry(
+                services.environment().settings(),
+                services.clusterService(),
+                services.threadPool(),
+                services.client(),
+                services.xContentRegistry()
+            );
+            indexTemplateRegistry.initialize();
+            return List.of(indexTemplateRegistry);
+        }
+    }
 }

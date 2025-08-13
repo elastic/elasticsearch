@@ -236,7 +236,7 @@ public class FeatureFactory {
             return geomFactory.createLineString(buildMercatorCoordinates(line));
         }
 
-        private Coordinate[] buildMercatorCoordinates(Line line) {
+        private static Coordinate[] buildMercatorCoordinates(Line line) {
             final Coordinate[] coordinates = new Coordinate[line.length()];
             for (int i = 0; i < line.length(); i++) {
                 final double x = SphericalMercatorUtils.lonToSphericalMercator(line.getX(i));
@@ -282,7 +282,7 @@ public class FeatureFactory {
             return geomFactory.createMultiPoint(points);
         }
 
-        private org.locationtech.jts.geom.Geometry clipGeometry(
+        private static org.locationtech.jts.geom.Geometry clipGeometry(
             org.locationtech.jts.geom.Geometry tile,
             org.locationtech.jts.geom.Geometry geometry
         ) {
@@ -307,8 +307,11 @@ public class FeatureFactory {
                         return null;
                     }
                 } catch (TopologyException ex) {
-                    // we should never get here but just to be super safe because a TopologyException will kill the node
-                    throw new IllegalArgumentException(ex);
+                    // Note we should never throw a TopologyException as it kill the node
+                    // unfortunately the intersection method is not perfect and it will throw this error for complex
+                    // geometries even when valid. We can still simplify such geometry so we just return the original and
+                    // let the simplification process handle it.
+                    return geometry;
                 }
             }
         }

@@ -6,14 +6,14 @@
  */
 package org.elasticsearch.xpack.core.ilm;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRoutingRoleStrategy;
@@ -21,6 +21,7 @@ import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
@@ -66,16 +67,14 @@ public class WaitForActiveShardsTests extends AbstractStepTestCase<WaitForActive
         String alias = randomAlphaOfLength(5);
         IndexMetadata indexMetadata = IndexMetadata.builder(randomAlphaOfLength(10))
             .putAlias(AliasMetadata.builder(alias))
-            .settings(settings(Version.CURRENT))
+            .settings(settings(IndexVersion.current()))
             .numberOfShards(randomIntBetween(1, 5))
             .numberOfReplicas(randomIntBetween(0, 5))
             .build();
-        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
-            .metadata(Metadata.builder().put(indexMetadata, true).build())
-            .build();
+        ProjectState state = projectStateFromProject(ProjectMetadata.builder(randomUniqueProjectId()).put(indexMetadata, false));
 
         try {
-            createRandomInstance().isConditionMet(indexMetadata.getIndex(), clusterState);
+            createRandomInstance().isConditionMet(indexMetadata.getIndex(), state);
             fail("expected the invocation to fail");
         } catch (IllegalStateException e) {
             assertThat(
@@ -95,14 +94,14 @@ public class WaitForActiveShardsTests extends AbstractStepTestCase<WaitForActive
         String alias = randomAlphaOfLength(5);
         IndexMetadata originalIndex = IndexMetadata.builder("index-000000")
             .putAlias(AliasMetadata.builder(alias).writeIndex(false))
-            .settings(settings(Version.CURRENT).put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, alias))
+            .settings(settings(IndexVersion.current()).put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, alias))
             .numberOfShards(1)
             .numberOfReplicas(randomIntBetween(0, 5))
             .build();
         IndexMetadata rolledIndex = IndexMetadata.builder("index-000001")
             .putAlias(AliasMetadata.builder(alias).writeIndex(true))
             .settings(
-                settings(Version.CURRENT).put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, alias)
+                settings(IndexVersion.current()).put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, alias)
                     .put("index.write.wait_for_active_shards", "all")
             )
             .numberOfShards(1)
@@ -118,14 +117,16 @@ public class WaitForActiveShardsTests extends AbstractStepTestCase<WaitForActive
         routingTable.addShard(
             TestShardRouting.newShardRouting(rolledIndex.getIndex().getName(), 0, "node2", null, false, ShardRoutingState.STARTED)
         );
-        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
-            .metadata(Metadata.builder().put(originalIndex, true).put(rolledIndex, true).build())
-            .routingTable(RoutingTable.builder().add(routingTable.build()).build())
-            .build();
+        var project = ProjectMetadata.builder(randomProjectIdOrDefault()).put(originalIndex, false).put(rolledIndex, false).build();
+        ProjectState state = ClusterState.builder(ClusterName.DEFAULT)
+            .putProjectMetadata(project)
+            .putRoutingTable(project.id(), RoutingTable.builder().add(routingTable.build()).build())
+            .build()
+            .projectState(project.id());
 
         assertThat(
             "the rolled index has both the primary and the replica shards started so the condition should be met",
-            createRandomInstance().isConditionMet(originalIndex.getIndex(), clusterState).isComplete(),
+            createRandomInstance().isConditionMet(originalIndex.getIndex(), state).complete(),
             is(true)
         );
     }
@@ -133,14 +134,14 @@ public class WaitForActiveShardsTests extends AbstractStepTestCase<WaitForActive
     public void testResultEvaluatedOnOnlyIndexTheAliasPointsToIfWriteIndexIsNull() {
         String alias = randomAlphaOfLength(5);
         IndexMetadata originalIndex = IndexMetadata.builder("index-000000")
-            .settings(settings(Version.CURRENT).put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, alias))
+            .settings(settings(IndexVersion.current()).put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, alias))
             .numberOfShards(1)
             .numberOfReplicas(randomIntBetween(0, 5))
             .build();
         IndexMetadata rolledIndex = IndexMetadata.builder("index-000001")
             .putAlias(AliasMetadata.builder(alias).writeIndex(false))
             .settings(
-                settings(Version.CURRENT).put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, alias)
+                settings(IndexVersion.current()).put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, alias)
                     .put("index.write.wait_for_active_shards", "all")
             )
             .numberOfShards(1)
@@ -156,28 +157,41 @@ public class WaitForActiveShardsTests extends AbstractStepTestCase<WaitForActive
         routingTable.addShard(
             TestShardRouting.newShardRouting(rolledIndex.getIndex().getName(), 0, "node2", null, false, ShardRoutingState.STARTED)
         );
-        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
-            .metadata(Metadata.builder().put(originalIndex, true).put(rolledIndex, true).build())
-            .routingTable(RoutingTable.builder().add(routingTable.build()).build())
-            .build();
+        var project = ProjectMetadata.builder(randomProjectIdOrDefault()).put(originalIndex, false).put(rolledIndex, false).build();
+        ProjectState state = ClusterState.builder(ClusterName.DEFAULT)
+            .putProjectMetadata(project)
+            .putRoutingTable(project.id(), RoutingTable.builder().add(routingTable.build()).build())
+            .build()
+            .projectState(project.id());
 
         assertThat(
             "the index the alias is pointing to has both the primary and the replica shards started so the condition should be" + " met",
-            createRandomInstance().isConditionMet(originalIndex.getIndex(), clusterState).isComplete(),
+            createRandomInstance().isConditionMet(originalIndex.getIndex(), state).complete(),
             is(true)
         );
     }
 
     public void testResultEvaluatedOnDataStream() throws IOException {
         String dataStreamName = "test-datastream";
-        IndexMetadata originalIndexMeta = IndexMetadata.builder(DataStream.getDefaultBackingIndexName(dataStreamName, 1))
-            .settings(settings(Version.CURRENT))
+        long ts = System.currentTimeMillis();
+        IndexMetadata originalIndexMeta = IndexMetadata.builder(DataStream.getDefaultBackingIndexName(dataStreamName, 1, ts))
+            .settings(settings(IndexVersion.current()))
+            .numberOfShards(randomIntBetween(1, 5))
+            .numberOfReplicas(randomIntBetween(0, 5))
+            .build();
+        IndexMetadata failureOriginalIndexMeta = IndexMetadata.builder(DataStream.getDefaultFailureStoreName(dataStreamName, 1, ts))
+            .settings(settings(IndexVersion.current()))
             .numberOfShards(randomIntBetween(1, 5))
             .numberOfReplicas(randomIntBetween(0, 5))
             .build();
 
-        IndexMetadata rolledIndexMeta = IndexMetadata.builder(DataStream.getDefaultBackingIndexName(dataStreamName, 2))
-            .settings(settings(Version.CURRENT).put("index.write.wait_for_active_shards", "3"))
+        IndexMetadata rolledIndexMeta = IndexMetadata.builder(DataStream.getDefaultBackingIndexName(dataStreamName, 2, ts))
+            .settings(settings(IndexVersion.current()).put("index.write.wait_for_active_shards", "3"))
+            .numberOfShards(1)
+            .numberOfReplicas(3)
+            .build();
+        IndexMetadata failureRolledIndexMeta = IndexMetadata.builder(DataStream.getDefaultFailureStoreName(dataStreamName, 2, ts))
+            .settings(settings(IndexVersion.current()).put("index.write.wait_for_active_shards", "3"))
             .numberOfShards(1)
             .numberOfReplicas(3)
             .build();
@@ -186,35 +200,61 @@ public class WaitForActiveShardsTests extends AbstractStepTestCase<WaitForActive
             ShardRoutingRoleStrategy.NO_SHARD_CREATION,
             rolledIndexMeta.getIndex()
         );
+        IndexRoutingTable.Builder failureRoutingTable = new IndexRoutingTable.Builder(
+            ShardRoutingRoleStrategy.NO_SHARD_CREATION,
+            failureRolledIndexMeta.getIndex()
+        );
         routingTable.addShard(
             TestShardRouting.newShardRouting(rolledIndexMeta.getIndex().getName(), 0, "node", null, true, ShardRoutingState.STARTED)
         );
         routingTable.addShard(
             TestShardRouting.newShardRouting(rolledIndexMeta.getIndex().getName(), 0, "node2", null, false, ShardRoutingState.STARTED)
         );
-
-        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
-            .metadata(
-                Metadata.builder()
-                    .put(
-                        DataStreamTestHelper.newInstance(dataStreamName, List.of(originalIndexMeta.getIndex(), rolledIndexMeta.getIndex()))
-                    )
-                    .put(originalIndexMeta, true)
-                    .put(rolledIndexMeta, true)
+        failureRoutingTable.addShard(
+            TestShardRouting.newShardRouting(failureRolledIndexMeta.getIndex().getName(), 0, "node", null, true, ShardRoutingState.STARTED)
+        );
+        failureRoutingTable.addShard(
+            TestShardRouting.newShardRouting(
+                failureRolledIndexMeta.getIndex().getName(),
+                0,
+                "node2",
+                null,
+                false,
+                ShardRoutingState.STARTED
             )
-            .routingTable(RoutingTable.builder().add(routingTable.build()).build())
+        );
+
+        final var project = ProjectMetadata.builder(randomProjectIdOrDefault())
+            .put(
+                DataStreamTestHelper.newInstance(
+                    dataStreamName,
+                    List.of(originalIndexMeta.getIndex(), rolledIndexMeta.getIndex()),
+                    List.of(failureOriginalIndexMeta.getIndex(), failureRolledIndexMeta.getIndex())
+                )
+            )
+            .put(originalIndexMeta, true)
+            .put(rolledIndexMeta, true)
+            .put(failureOriginalIndexMeta, true)
+            .put(failureRolledIndexMeta, true)
             .build();
+        ProjectState state = ClusterState.builder(ClusterName.DEFAULT)
+            .putProjectMetadata(project)
+            .putRoutingTable(project.id(), RoutingTable.builder().add(routingTable.build()).add(failureRoutingTable.build()).build())
+            .build()
+            .projectState(project.id());
 
         WaitForActiveShardsStep waitForActiveShardsStep = createRandomInstance();
 
-        ClusterStateWaitStep.Result result = waitForActiveShardsStep.isConditionMet(originalIndexMeta.getIndex(), clusterState);
-        assertThat(result.isComplete(), is(false));
+        boolean useFailureStore = randomBoolean();
+        IndexMetadata indexToOperateOn = useFailureStore ? failureOriginalIndexMeta : originalIndexMeta;
+        ClusterStateWaitStep.Result result = waitForActiveShardsStep.isConditionMet(indexToOperateOn.getIndex(), state);
+        assertThat(result.complete(), is(false));
 
         XContentBuilder expected = new WaitForActiveShardsStep.ActiveShardsInfo(2, "3", false).toXContent(
             JsonXContent.contentBuilder(),
             ToXContent.EMPTY_PARAMS
         );
-        String actualResultAsString = Strings.toString(result.getInfomationContext());
+        String actualResultAsString = Strings.toString(result.informationContext());
         assertThat(actualResultAsString, is(Strings.toString(expected)));
         assertThat(actualResultAsString, containsString("waiting for [3] shards to become active, but only [2] are active"));
     }
@@ -223,14 +263,15 @@ public class WaitForActiveShardsTests extends AbstractStepTestCase<WaitForActive
         String alias = randomAlphaOfLength(5);
         IndexMetadata originalIndex = IndexMetadata.builder("index-000000")
             .putAlias(AliasMetadata.builder(alias).writeIndex(false))
-            .settings(settings(Version.CURRENT).put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, alias))
+            .settings(settings(IndexVersion.current()).put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, alias))
             .numberOfShards(1)
             .numberOfReplicas(randomIntBetween(0, 5))
             .build();
         IndexMetadata rolledIndex = IndexMetadata.builder("index-000001")
             .putAlias(AliasMetadata.builder(alias).writeIndex(true))
             .settings(
-                settings(Version.CURRENT).put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, alias).put("index.write.wait_for_active_shards", "3")
+                settings(IndexVersion.current()).put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, alias)
+                    .put("index.write.wait_for_active_shards", "3")
             )
             .numberOfShards(1)
             .numberOfReplicas(2)
@@ -245,19 +286,21 @@ public class WaitForActiveShardsTests extends AbstractStepTestCase<WaitForActive
         routingTable.addShard(
             TestShardRouting.newShardRouting(rolledIndex.getIndex().getName(), 0, "node2", null, false, ShardRoutingState.STARTED)
         );
-        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
-            .metadata(Metadata.builder().put(originalIndex, true).put(rolledIndex, true).build())
-            .routingTable(RoutingTable.builder().add(routingTable.build()).build())
-            .build();
+        var project = ProjectMetadata.builder(randomProjectIdOrDefault()).put(originalIndex, false).put(rolledIndex, false).build();
+        ProjectState state = ClusterState.builder(ClusterName.DEFAULT)
+            .putProjectMetadata(project)
+            .putRoutingTable(project.id(), RoutingTable.builder().add(routingTable.build()).build())
+            .build()
+            .projectState(project.id());
 
-        ClusterStateWaitStep.Result result = createRandomInstance().isConditionMet(originalIndex.getIndex(), clusterState);
-        assertThat(result.isComplete(), is(false));
+        ClusterStateWaitStep.Result result = createRandomInstance().isConditionMet(originalIndex.getIndex(), state);
+        assertThat(result.complete(), is(false));
 
         XContentBuilder expected = new WaitForActiveShardsStep.ActiveShardsInfo(2, "3", false).toXContent(
             JsonXContent.contentBuilder(),
             ToXContent.EMPTY_PARAMS
         );
-        String actualResultAsString = Strings.toString(result.getInfomationContext());
+        String actualResultAsString = Strings.toString(result.informationContext());
         assertThat(actualResultAsString, is(Strings.toString(expected)));
         assertThat(actualResultAsString, containsString("waiting for [3] shards to become active, but only [2] are active"));
     }
@@ -267,20 +310,19 @@ public class WaitForActiveShardsTests extends AbstractStepTestCase<WaitForActive
         IndexMetadata rolledIndex = IndexMetadata.builder("index-000001")
             .putAlias(AliasMetadata.builder(alias).writeIndex(true))
             .settings(
-                settings(Version.CURRENT).put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, alias).put("index.write.wait_for_active_shards", "3")
+                settings(IndexVersion.current()).put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, alias)
+                    .put("index.write.wait_for_active_shards", "3")
             )
             .numberOfShards(1)
             .numberOfReplicas(2)
             .build();
-        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
-            .metadata(Metadata.builder().put(rolledIndex, true).build())
-            .build();
+        ProjectState state = projectStateFromProject(ProjectMetadata.builder(randomProjectIdOrDefault()).put(rolledIndex, false));
 
         WaitForActiveShardsStep step = createRandomInstance();
-        ClusterStateWaitStep.Result result = step.isConditionMet(new Index("index-000000", UUID.randomUUID().toString()), clusterState);
-        assertThat(result.isComplete(), is(false));
+        ClusterStateWaitStep.Result result = step.isConditionMet(new Index("index-000000", UUID.randomUUID().toString()), state);
+        assertThat(result.complete(), is(false));
 
-        String actualResultAsString = Strings.toString(result.getInfomationContext());
+        String actualResultAsString = Strings.toString(result.informationContext());
         assertThat(
             actualResultAsString,
             containsString(

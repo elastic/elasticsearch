@@ -18,6 +18,6 @@ public final class InvalidateApiKeyAction extends ActionType<InvalidateApiKeyRes
     public static final InvalidateApiKeyAction INSTANCE = new InvalidateApiKeyAction();
 
     private InvalidateApiKeyAction() {
-        super(NAME, InvalidateApiKeyResponse::new);
+        super(NAME);
     }
 }

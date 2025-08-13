@@ -1,0 +1,122 @@
+---
+setup:
+
+  - do:
+      cluster.put_component_template:
+        name: captain_america
+        body:
+          template:
+            settings:
+              sort:
+               field: field
+            mappings:
+              properties:
+                field:
+                  type: keyword
+            aliases:
+              steve_rogers: {}
+
+  - do:
+      cluster.put_component_template:
+        name: ms_marvel
+        body:
+          template:
+            settings:
+              default_pipeline: pipeline_a
+              final_pipeline: pipeline_b
+          version: 2
+          _meta:
+            data: {}
+
+  - do:
+      cluster.put_component_template:
+        name: captain_marvel
+        body:
+          version: 3
+          template:
+            mappings:
+              properties:
+                field1:
+                  type: keyword
+                field2:
+                  type: long
+            aliases:
+              carol_danvers: {}
+              monica_rambeau: {}
+
+
+---
+"Retrieve all":
+
+  - do:
+      cat.component_templates: {}
+
+  - match:
+      $body: >
+             /
+               (^|\n)captain_america \s*
+               1 \s*
+               1 \s*
+               1 \s*
+               0 \s*
+               \[\]\s*
+               (\n|$)
+             /
+
+  - match:
+      $body: >
+             /
+               (^|\n)captain_marvel  \s+
+               3   \s+
+               2   \s+
+               2   \s+
+               0   \s+
+               0   \s+
+               \[\]\s*
+               (\n|$)
+             /
+
+  - match:
+      $body: >
+             /
+               (^|\n)ms_marvel  \s+
+               2   \s+
+               0   \s+
+               0   \s+
+               2   \s+
+               1   \s+
+               \[\]\s*
+               (\n|$)
+             /
+
+---
+"Retrieve by name (verbose/headers)":
+
+  - do:
+      cat.component_templates:
+         name: ms_marvel
+         v: true
+
+  - match:
+      $body: >
+             /
+               ^name \s+version \s*alias_count \s*mapping_count \s*settings_count \s*metadata_count \s*included_in\n
+                ms_marvel \s* 2 \s*          0 \s*            0 \s*             2 \s*             1 \s*\[\]\s*$
+             /
+
+
+---
+"Retrieve by wildcard (sorted)":
+
+  - do:
+      cat.component_templates:
+         name: captain_*
+         s: name
+
+  - match:
+      $body: >
+             /
+               ^captain_america \s*  \s*1 \s*1 \s*1 \s*0 \s*\[\]\s*\n
+                captain_marvel  \s*3 \s*2 \s*2 \s*0 \s*0 \s*\[\]\s*$
+             /
+

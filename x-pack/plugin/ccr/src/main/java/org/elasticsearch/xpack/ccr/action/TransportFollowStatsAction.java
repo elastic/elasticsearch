@@ -17,10 +17,11 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
+import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.ccr.Ccr;
@@ -28,13 +29,13 @@ import org.elasticsearch.xpack.ccr.CcrLicenseChecker;
 import org.elasticsearch.xpack.core.ccr.action.FollowStatsAction;
 import org.elasticsearch.xpack.core.ccr.action.ShardFollowTask;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
-import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 public class TransportFollowStatsAction extends TransportTasksAction<
@@ -58,9 +59,8 @@ public class TransportFollowStatsAction extends TransportTasksAction<
             transportService,
             actionFilters,
             FollowStatsAction.StatsRequest::new,
-            FollowStatsAction.StatsResponses::new,
             FollowStatsAction.StatsResponse::new,
-            Ccr.CCR_THREAD_POOL_NAME
+            transportService.getThreadPool().executor(Ccr.CCR_THREAD_POOL_NAME)
         );
         this.ccrLicenseChecker = Objects.requireNonNull(ccrLicenseChecker);
     }
@@ -98,22 +98,24 @@ public class TransportFollowStatsAction extends TransportTasksAction<
     }
 
     @Override
-    protected void processTasks(final FollowStatsAction.StatsRequest request, final Consumer<ShardFollowNodeTask> operation) {
+    protected List<ShardFollowNodeTask> processTasks(final FollowStatsAction.StatsRequest request) {
         final ClusterState state = clusterService.state();
         final Set<String> followerIndices = findFollowerIndicesFromShardFollowTasks(state, request.indices());
 
+        final var tasks = new ArrayList<ShardFollowNodeTask>();
         for (final Task task : taskManager.getTasks().values()) {
             if (task instanceof final ShardFollowNodeTask shardFollowNodeTask) {
                 if (followerIndices.contains(shardFollowNodeTask.getFollowShardId().getIndexName())) {
-                    operation.accept(shardFollowNodeTask);
+                    tasks.add(shardFollowNodeTask);
                 }
             }
         }
+        return tasks;
     }
 
     @Override
     protected void taskOperation(
-        final Task actionTask,
+        final CancellableTask actionTask,
         final FollowStatsAction.StatsRequest request,
         final ShardFollowNodeTask task,
         final ActionListener<FollowStatsAction.StatsResponse> listener
@@ -122,7 +124,9 @@ public class TransportFollowStatsAction extends TransportTasksAction<
     }
 
     static Set<String> findFollowerIndicesFromShardFollowTasks(ClusterState state, String[] indices) {
-        final PersistentTasksCustomMetadata persistentTasksMetadata = state.metadata().custom(PersistentTasksCustomMetadata.TYPE);
+        final PersistentTasksCustomMetadata persistentTasksMetadata = state.metadata()
+            .getProject()
+            .custom(PersistentTasksCustomMetadata.TYPE);
         if (persistentTasksMetadata == null) {
             return Collections.emptySet();
         }
@@ -135,7 +139,8 @@ public class TransportFollowStatsAction extends TransportTasksAction<
                 ShardFollowTask shardFollowTask = (ShardFollowTask) persistentTask.getParams();
                 return shardFollowTask.getFollowShardId().getIndex();
             })
-            .filter(followerIndex -> metadata.index(followerIndex) != null) // hide tasks that are orphaned (see ShardFollowTaskCleaner)
+            .filter(followerIndex -> metadata.getProject().index(followerIndex) != null) // hide tasks that are orphaned (see
+                                                                                         // ShardFollowTaskCleaner)
             .map(Index::getName)
             .filter(followerIndex -> Strings.isAllOrWildcard(indices) || requestedFollowerIndices.contains(followerIndex))
             .collect(Collectors.toSet());

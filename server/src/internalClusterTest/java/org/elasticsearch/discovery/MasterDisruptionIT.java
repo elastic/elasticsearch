@@ -1,40 +1,35 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.discovery;
 
+import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteUtils;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.coordination.NoMasterBlockService;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.disruption.BlockMasterServiceOnMaster;
-import org.elasticsearch.test.disruption.IntermittentLongGCDisruption;
 import org.elasticsearch.test.disruption.NetworkDisruption;
 import org.elasticsearch.test.disruption.NetworkDisruption.TwoPartitions;
 import org.elasticsearch.test.disruption.ServiceDisruptionScheme;
-import org.elasticsearch.test.disruption.SingleNodeDisruption;
 import org.elasticsearch.xcontent.XContentType;
 
-import java.util.ArrayList;
-import java.util.HashSet;
 import java.util.List;
-import java.util.Set;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.not;
 
 /**
  * Tests relating to the loss of the master.
@@ -43,55 +38,13 @@ import static org.hamcrest.Matchers.not;
 public class MasterDisruptionIT extends AbstractDisruptionTestCase {
 
     /**
-     * Test that cluster recovers from a long GC on master that causes other nodes to elect a new one
-     */
-    public void testMasterNodeGCs() throws Exception {
-        List<String> nodes = startCluster(3);
-
-        String oldMasterNode = internalCluster().getMasterName();
-        // a very long GC, but it's OK as we remove the disruption when it has had an effect
-        SingleNodeDisruption masterNodeDisruption = new IntermittentLongGCDisruption(random(), oldMasterNode, 100, 200, 30000, 60000);
-        internalCluster().setDisruptionScheme(masterNodeDisruption);
-        masterNodeDisruption.startDisrupting();
-
-        Set<String> oldNonMasterNodesSet = new HashSet<>(nodes);
-        oldNonMasterNodesSet.remove(oldMasterNode);
-
-        List<String> oldNonMasterNodes = new ArrayList<>(oldNonMasterNodesSet);
-
-        logger.info("waiting for nodes to de-elect master [{}]", oldMasterNode);
-        for (String node : oldNonMasterNodesSet) {
-            assertDifferentMaster(node, oldMasterNode);
-        }
-
-        logger.info("waiting for nodes to elect a new master");
-        ensureStableCluster(2, oldNonMasterNodes.get(0));
-
-        // restore GC
-        masterNodeDisruption.stopDisrupting();
-        final TimeValue waitTime = new TimeValue(DISRUPTION_HEALING_OVERHEAD.millis() + masterNodeDisruption.expectedTimeToHeal().millis());
-        ensureStableCluster(3, waitTime, false, oldNonMasterNodes.get(0));
-
-        // make sure all nodes agree on master
-        String newMaster = internalCluster().getMasterName();
-        assertThat(newMaster, not(equalTo(oldMasterNode)));
-        assertMaster(newMaster, nodes);
-    }
-
-    /**
      * This test isolates the master from rest of the cluster, waits for a new master to be elected, restores the partition
      * and verifies that all node agree on the new cluster state
      */
     public void testIsolateMasterAndVerifyClusterStateConsensus() throws Exception {
         final List<String> nodes = startCluster(3);
 
-        assertAcked(
-            prepareCreate("test").setSettings(
-                Settings.builder()
-                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1 + randomInt(2))
-                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, randomInt(2))
-            )
-        );
+        assertAcked(prepareCreate("test").setSettings(indexSettings(1 + randomInt(2), randomInt(2))));
 
         ensureGreen();
         String isolatedNode = internalCluster().getMasterName();
@@ -121,7 +74,7 @@ public class MasterDisruptionIT extends AbstractDisruptionTestCase {
 
         logger.info("issue a reroute");
         // trigger a reroute now, instead of waiting for the background reroute of RerouteService
-        assertAcked(client().admin().cluster().prepareReroute());
+        ClusterRerouteUtils.reroute(client());
         // and wait for it to finish and for the cluster to stabilize
         ensureGreen("test");
 
@@ -162,11 +115,7 @@ public class MasterDisruptionIT extends AbstractDisruptionTestCase {
         internalCluster().startNodes(3, Settings.builder().putNull(NoMasterBlockService.NO_MASTER_BLOCK_SETTING.getKey()).build());
 
         // Makes sure that the get request can be executed on each node locally:
-        assertAcked(
-            prepareCreate("test").setSettings(
-                Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 2)
-            )
-        );
+        assertAcked(prepareCreate("test").setSettings(indexSettings(1, 2)));
 
         // Everything is stable now, it is now time to simulate evil...
         // but first make sure we have no initializing shards and all is green
@@ -215,11 +164,7 @@ public class MasterDisruptionIT extends AbstractDisruptionTestCase {
         ensureStableCluster(3, new TimeValue(DISRUPTION_HEALING_OVERHEAD.millis() + networkDisruption.expectedTimeToHeal().millis()));
 
         logger.info("Verify no master block with {} set to {}", NoMasterBlockService.NO_MASTER_BLOCK_SETTING.getKey(), "all");
-        client().admin()
-            .cluster()
-            .prepareUpdateSettings()
-            .setPersistentSettings(Settings.builder().put(NoMasterBlockService.NO_MASTER_BLOCK_SETTING.getKey(), "all"))
-            .get();
+        updateClusterSettings(Settings.builder().put(NoMasterBlockService.NO_MASTER_BLOCK_SETTING.getKey(), "all"));
 
         networkDisruption.startDisrupting();
 
@@ -238,26 +183,14 @@ public class MasterDisruptionIT extends AbstractDisruptionTestCase {
 
     public void testMappingTimeout() throws Exception {
         startCluster(3);
-        createIndex(
-            "test",
-            Settings.builder()
-                .put("index.number_of_shards", 1)
-                .put("index.number_of_replicas", 1)
-                .put("index.routing.allocation.exclude._name", internalCluster().getMasterName())
-                .build()
-        );
+        createIndex("test", indexSettings(1, 1).put("index.routing.allocation.exclude._name", internalCluster().getMasterName()).build());
 
         // create one field
         index("test", "1", "{ \"f\": 1 }");
 
         ensureGreen();
 
-        assertAcked(
-            client().admin()
-                .cluster()
-                .prepareUpdateSettings()
-                .setPersistentSettings(Settings.builder().put("indices.mapping.dynamic_timeout", "1ms"))
-        );
+        updateClusterSettings(Settings.builder().put("indices.mapping.dynamic_timeout", "1ms"));
 
         ServiceDisruptionScheme disruption = new BlockMasterServiceOnMaster(random());
         setDisruptionScheme(disruption);
@@ -265,16 +198,16 @@ public class MasterDisruptionIT extends AbstractDisruptionTestCase {
         disruption.startDisrupting();
 
         BulkRequestBuilder bulk = client().prepareBulk();
-        bulk.add(client().prepareIndex("test").setId("2").setSource("{ \"f\": 1 }", XContentType.JSON));
-        bulk.add(client().prepareIndex("test").setId("3").setSource("{ \"g\": 1 }", XContentType.JSON));
-        bulk.add(client().prepareIndex("test").setId("4").setSource("{ \"f\": 1 }", XContentType.JSON));
+        bulk.add(prepareIndex("test").setId("2").setSource("{ \"f\": 1 }", XContentType.JSON));
+        bulk.add(prepareIndex("test").setId("3").setSource("{ \"g\": 1 }", XContentType.JSON));
+        bulk.add(prepareIndex("test").setId("4").setSource("{ \"f\": 1 }", XContentType.JSON));
         BulkResponse bulkResponse = bulk.get();
         assertTrue(bulkResponse.hasFailures());
 
         disruption.stopDisrupting();
 
         assertBusy(() -> {
-            IndicesStatsResponse stats = client().admin().indices().prepareStats("test").clear().get();
+            IndicesStatsResponse stats = indicesAdmin().prepareStats("test").clear().get();
             for (ShardStats shardStats : stats.getShards()) {
                 assertThat(
                     shardStats.getShardRouting().toString(),

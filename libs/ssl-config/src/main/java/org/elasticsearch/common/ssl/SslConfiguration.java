@@ -1,16 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.ssl;
 
 import java.nio.file.Path;
 import java.security.GeneralSecurityException;
-import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -40,7 +40,8 @@ public record SslConfiguration(
     SslVerificationMode verificationMode,
     SslClientAuthenticationMode clientAuth,
     List<String> ciphers,
-    List<String> supportedProtocols
+    List<String> supportedProtocols,
+    long handshakeTimeoutMillis
 ) {
 
     /**
@@ -53,12 +54,7 @@ public record SslConfiguration(
 
     static {
         LinkedHashMap<String, String> protocolAlgorithmMap = new LinkedHashMap<>();
-        try {
-            SSLContext.getInstance("TLSv1.3");
-            protocolAlgorithmMap.put("TLSv1.3", "TLSv1.3");
-        } catch (NoSuchAlgorithmException e) {
-            // ignore since we support JVMs using BCJSSE in FIPS mode which doesn't support TLSv1.3
-        }
+        protocolAlgorithmMap.put("TLSv1.3", "TLSv1.3");
         protocolAlgorithmMap.put("TLSv1.2", "TLSv1.2");
         protocolAlgorithmMap.put("TLSv1.1", "TLSv1.1");
         protocolAlgorithmMap.put("TLSv1", "TLSv1");
@@ -76,7 +72,8 @@ public record SslConfiguration(
         SslVerificationMode verificationMode,
         SslClientAuthenticationMode clientAuth,
         List<String> ciphers,
-        List<String> supportedProtocols
+        List<String> supportedProtocols,
+        long handshakeTimeoutMillis
     ) {
         this.settingPrefix = settingPrefix;
         this.explicitlyConfigured = explicitlyConfigured;
@@ -90,6 +87,10 @@ public record SslConfiguration(
         this.keyConfig = Objects.requireNonNull(keyConfig, "key config cannot be null");
         this.verificationMode = Objects.requireNonNull(verificationMode, "verification mode cannot be null");
         this.clientAuth = Objects.requireNonNull(clientAuth, "client authentication cannot be null");
+        if (handshakeTimeoutMillis < 1L) {
+            throw new SslConfigException("handshake timeout must be at least 1ms");
+        }
+        this.handshakeTimeoutMillis = handshakeTimeoutMillis;
         this.ciphers = Collections.unmodifiableList(ciphers);
         this.supportedProtocols = Collections.unmodifiableList(supportedProtocols);
     }
@@ -169,11 +170,21 @@ public record SslConfiguration(
             && this.verificationMode == that.verificationMode
             && this.clientAuth == that.clientAuth
             && Objects.equals(this.ciphers, that.ciphers)
-            && Objects.equals(this.supportedProtocols, that.supportedProtocols);
+            && Objects.equals(this.supportedProtocols, that.supportedProtocols)
+            && this.handshakeTimeoutMillis == that.handshakeTimeoutMillis;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(settingPrefix, trustConfig, keyConfig, verificationMode, clientAuth, ciphers, supportedProtocols);
+        return Objects.hash(
+            settingPrefix,
+            trustConfig,
+            keyConfig,
+            verificationMode,
+            clientAuth,
+            ciphers,
+            supportedProtocols,
+            handshakeTimeoutMillis
+        );
     }
 }

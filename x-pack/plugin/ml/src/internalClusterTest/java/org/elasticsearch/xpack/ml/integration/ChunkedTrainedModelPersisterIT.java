@@ -7,18 +7,22 @@
 package org.elasticsearch.xpack.ml.integration;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.license.License;
 import org.elasticsearch.xpack.core.action.util.PageParams;
+import org.elasticsearch.xpack.core.ml.MlConfigVersion;
 import org.elasticsearch.xpack.core.ml.action.GetTrainedModelsAction;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsDest;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsSource;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.Regression;
+import org.elasticsearch.xpack.core.ml.inference.ModelAliasMetadata;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelDefinition;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelDefinitionTests;
@@ -36,9 +40,9 @@ import org.elasticsearch.xpack.ml.dataframe.process.results.TrainedModelDefiniti
 import org.elasticsearch.xpack.ml.extractor.DocValueField;
 import org.elasticsearch.xpack.ml.extractor.ExtractedField;
 import org.elasticsearch.xpack.ml.extractor.ExtractedFields;
-import org.elasticsearch.xpack.ml.inference.ModelAliasMetadata;
 import org.elasticsearch.xpack.ml.inference.modelsize.ModelSizeInfo;
 import org.elasticsearch.xpack.ml.inference.modelsize.ModelSizeInfoTests;
+import org.elasticsearch.xpack.ml.inference.persistence.TrainedModelCacheMetadataService;
 import org.elasticsearch.xpack.ml.inference.persistence.TrainedModelProvider;
 import org.elasticsearch.xpack.ml.notifications.DataFrameAnalyticsAuditor;
 import org.junit.Before;
@@ -57,18 +61,27 @@ import java.util.stream.Stream;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.startsWith;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.mock;
 
 public class ChunkedTrainedModelPersisterIT extends MlSingleNodeTestCase {
 
     private TrainedModelProvider trainedModelProvider;
 
     @Before
+    @SuppressWarnings("unchecked")
     public void createComponents() throws Exception {
-        trainedModelProvider = new TrainedModelProvider(client(), xContentRegistry());
+        TrainedModelCacheMetadataService modelCacheMetadataService = mock(TrainedModelCacheMetadataService.class);
+        doAnswer(invocationOnMock -> {
+            invocationOnMock.getArgument(0, ActionListener.class).onResponse(AcknowledgedResponse.TRUE);
+            return Void.TYPE;
+        }).when(modelCacheMetadataService).updateCacheVersion(any(ActionListener.class));
+        trainedModelProvider = new TrainedModelProvider(client(), modelCacheMetadataService, xContentRegistry());
         waitForMlTemplates();
     }
 
-    public void testStoreModelViaChunkedPersister() throws IOException {
+    public void testStoreModelViaChunkedPersisterWithNodeInfo() throws IOException {
         String modelId = "stored-chunked-model";
         DataFrameAnalyticsConfig analyticsConfig = new DataFrameAnalyticsConfig.Builder().setId(modelId)
             .setSource(new DataFrameAnalyticsSource(new String[] { "my_source" }, null, null, null))
@@ -83,8 +96,15 @@ public class ChunkedTrainedModelPersisterIT extends MlSingleNodeTestCase {
         ChunkedTrainedModelPersister persister = new ChunkedTrainedModelPersister(
             trainedModelProvider,
             analyticsConfig,
-            new DataFrameAnalyticsAuditor(client(), getInstanceFromNode(ClusterService.class)),
-            (ex) -> { throw new ElasticsearchException(ex); },
+            new DataFrameAnalyticsAuditor(
+                client(),
+                getInstanceFromNode(ClusterService.class),
+                TestIndexNameExpressionResolver.newInstance(),
+                true
+            ),
+            (ex) -> {
+                throw new ElasticsearchException(ex);
+            },
             new ExtractedFields(extractedFieldList, Collections.emptyList(), Collections.emptyMap())
         );
 
@@ -111,6 +131,84 @@ public class ChunkedTrainedModelPersisterIT extends MlSingleNodeTestCase {
             Collections.emptySet(),
             ModelAliasMetadata.EMPTY,
             null,
+            Collections.emptySet(),
+            getIdsFuture
+        );
+        Tuple<Long, Map<String, Set<String>>> ids = getIdsFuture.actionGet();
+        assertThat(ids.v1(), equalTo(1L));
+        String inferenceModelId = ids.v2().keySet().iterator().next();
+
+        PlainActionFuture<TrainedModelConfig> getTrainedModelFuture = new PlainActionFuture<>();
+        trainedModelProvider.getTrainedModel(inferenceModelId, GetTrainedModelsAction.Includes.all(), null, getTrainedModelFuture);
+
+        TrainedModelConfig storedConfig = getTrainedModelFuture.actionGet();
+
+        assertThat(storedConfig.getCompressedDefinition(), equalTo(compressedDefinition));
+        assertThat(storedConfig.getEstimatedOperations(), equalTo((long) modelSizeInfo.numOperations()));
+        assertThat(storedConfig.getModelSize(), equalTo(modelSizeInfo.ramBytesUsed()));
+        assertThat(storedConfig.getMetadata(), hasKey("total_feature_importance"));
+        assertThat(storedConfig.getMetadata(), hasKey("feature_importance_baseline"));
+        assertThat(storedConfig.getMetadata(), hasKey("hyperparameters"));
+
+        PlainActionFuture<Map<String, TrainedModelMetadata>> getTrainedMetadataFuture = new PlainActionFuture<>();
+        trainedModelProvider.getTrainedModelMetadata(Collections.singletonList(inferenceModelId), null, getTrainedMetadataFuture);
+
+        TrainedModelMetadata storedMetadata = getTrainedMetadataFuture.actionGet().get(inferenceModelId);
+        assertThat(storedMetadata.getModelId(), startsWith(modelId));
+        assertThat(storedMetadata.getTotalFeatureImportances(), equalTo(modelMetadata.getFeatureImportances()));
+    }
+
+    public void testStoreModelViaChunkedPersisterWithoutNodeInfo() throws IOException {
+        String modelId = "stored-chunked-model";
+        DataFrameAnalyticsConfig analyticsConfig = new DataFrameAnalyticsConfig.Builder().setId(modelId)
+            .setSource(new DataFrameAnalyticsSource(new String[] { "my_source" }, null, null, null))
+            .setDest(new DataFrameAnalyticsDest("my_dest", null))
+            .setAnalysis(new Regression("foo"))
+            .build();
+        List<ExtractedField> extractedFieldList = Collections.singletonList(new DocValueField("foo", Collections.emptySet()));
+        TrainedModelConfig.Builder configBuilder = buildTrainedModelConfigBuilder(modelId);
+        BytesReference compressedDefinition = configBuilder.build().getCompressedDefinition();
+        List<String> base64Chunks = chunkBinaryDefinition(compressedDefinition, compressedDefinition.length() / 3);
+
+        ChunkedTrainedModelPersister persister = new ChunkedTrainedModelPersister(
+            trainedModelProvider,
+            analyticsConfig,
+            new DataFrameAnalyticsAuditor(
+                client(),
+                getInstanceFromNode(ClusterService.class),
+                TestIndexNameExpressionResolver.newInstance(),
+                false
+            ),
+            (ex) -> {
+                throw new ElasticsearchException(ex);
+            },
+            new ExtractedFields(extractedFieldList, Collections.emptyList(), Collections.emptyMap())
+        );
+
+        // Accuracy for size is not tested here
+        ModelSizeInfo modelSizeInfo = ModelSizeInfoTests.createRandom();
+        persister.createAndIndexInferenceModelConfig(modelSizeInfo, configBuilder.getModelType());
+        for (int i = 0; i < base64Chunks.size(); i++) {
+            persister.createAndIndexInferenceModelDoc(
+                new TrainedModelDefinitionChunk(base64Chunks.get(i), i, i == (base64Chunks.size() - 1))
+            );
+        }
+        ModelMetadata modelMetadata = new ModelMetadata(
+            Stream.generate(TotalFeatureImportanceTests::randomInstance).limit(randomIntBetween(1, 10)).collect(Collectors.toList()),
+            FeatureImportanceBaselineTests.randomInstance(),
+            Stream.generate(HyperparametersTests::randomInstance).limit(randomIntBetween(1, 10)).collect(Collectors.toList())
+        );
+        persister.createAndIndexInferenceModelMetadata(modelMetadata);
+
+        PlainActionFuture<Tuple<Long, Map<String, Set<String>>>> getIdsFuture = new PlainActionFuture<>();
+        trainedModelProvider.expandIds(
+            modelId + "*",
+            false,
+            PageParams.defaultParams(),
+            Collections.emptySet(),
+            ModelAliasMetadata.EMPTY,
+            null,
+            Collections.emptySet(),
             getIdsFuture
         );
         Tuple<Long, Map<String, Set<String>>> ids = getIdsFuture.actionGet();
@@ -146,7 +244,7 @@ public class ChunkedTrainedModelPersisterIT extends MlSingleNodeTestCase {
             .setDescription("trained model config for test")
             .setModelId(modelId)
             .setModelType(TrainedModelType.TREE_ENSEMBLE)
-            .setVersion(Version.CURRENT)
+            .setVersion(MlConfigVersion.CURRENT)
             .setLicenseLevel(License.OperationMode.PLATINUM.description())
             .setModelSize(bytesUsed)
             .setEstimatedOperations(operations)

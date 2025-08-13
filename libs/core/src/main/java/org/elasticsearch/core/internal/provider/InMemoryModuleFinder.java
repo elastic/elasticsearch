@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.core.internal.provider;
@@ -72,8 +73,8 @@ class InMemoryModuleFinder implements ModuleFinder {
         md.requires().stream().filter(req -> missingModules.contains(req.name()) == false).forEach(builder::requires);
         md.exports().forEach(builder::exports);
         md.opens().forEach(builder::opens);
-        md.provides().stream().forEach(builder::provides);
-        md.uses().stream().forEach(builder::uses);
+        md.provides().forEach(builder::provides);
+        md.uses().forEach(builder::uses);
         builder.packages(md.packages());
         return builder.build();
     }

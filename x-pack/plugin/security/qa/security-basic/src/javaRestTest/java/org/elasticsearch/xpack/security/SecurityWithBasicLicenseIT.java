@@ -48,6 +48,8 @@ public class SecurityWithBasicLicenseIT extends SecurityInBasicRestTestCase {
         assertAddRoleWithFLS(false);
 
         assertUserProfileFeatures(false);
+        checkRemoteIndicesXPackUsage();
+        assertFailToCreateAndUpdateCrossClusterApiKeys();
     }
 
     public void testWithTrialLicense() throws Exception {
@@ -77,6 +79,8 @@ public class SecurityWithBasicLicenseIT extends SecurityInBasicRestTestCase {
             keyRoleHasDlsFls = tuple.v2();
             assertReadWithApiKey(apiKeyCredentials2, "/index*/_search", true);
             assertUserProfileFeatures(true);
+            checkRemoteIndicesXPackUsage();
+            assertSuccessToCreateAndUpdateCrossClusterApiKeys();
         } finally {
             revertTrial();
             assertAuthenticateWithToken(accessToken, false);
@@ -91,6 +95,8 @@ public class SecurityWithBasicLicenseIT extends SecurityInBasicRestTestCase {
             assertReadWithApiKey(apiKeyCredentials2, "/index42/_search", true);
             assertReadWithApiKey(apiKeyCredentials2, "/index1/_doc/1", false);
             assertUserProfileFeatures(false);
+            checkRemoteIndicesXPackUsage();
+            assertFailToCreateAndUpdateCrossClusterApiKeys();
         }
     }
 
@@ -130,6 +136,26 @@ public class SecurityWithBasicLicenseIT extends SecurityInBasicRestTestCase {
                 assertThat(ObjectPath.evaluate(usage, "security.realms." + realm + ".enabled"), equalTo(false));
             }
         }
+    }
+
+    private void checkRemoteIndicesXPackUsage() throws IOException {
+        final var putRoleRequest = new Request("PUT", "/_security/role/role1");
+        putRoleRequest.setJsonEntity("""
+            {
+              "remote_indices": [
+                {
+                  "names": ["index-*"],
+                  "privileges": ["read", "read_cross_cluster"],
+                  "clusters": ["my_remote"]
+                }
+              ]
+            }""");
+        assertOK(adminClient().performRequest(putRoleRequest));
+
+        final var xpackRequest = new Request("GET", "/_xpack/usage");
+        final Map<String, Object> xPackUsageMap = entityAsMap(client().performRequest(xpackRequest));
+        assertThat(org.elasticsearch.xcontent.ObjectPath.eval("security.roles.file.remote_indices", xPackUsageMap), equalTo(1));
+        assertThat(org.elasticsearch.xcontent.ObjectPath.eval("security.roles.native.remote_indices", xPackUsageMap), equalTo(1));
     }
 
     private void checkAuthentication() throws IOException {
@@ -539,5 +565,47 @@ public class SecurityWithBasicLicenseIT extends SecurityInBasicRestTestCase {
             assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(403));
             assertThat(e.getMessage(), containsString("current license is non-compliant for [user-profile-collaboration]"));
         }
+    }
+
+    private void assertFailToCreateAndUpdateCrossClusterApiKeys() {
+        final Request createRequest = new Request("POST", "/_security/cross_cluster/api_key");
+        createRequest.setJsonEntity("""
+            {
+              "name": "cc-key",
+              "access": {
+                "search": [ { "names": ["*"] } ]
+              }
+            }""");
+        final ResponseException e1 = expectThrows(ResponseException.class, () -> adminClient().performRequest(createRequest));
+        assertThat(e1.getResponse().getStatusLine().getStatusCode(), equalTo(403));
+        assertThat(e1.getMessage(), containsString("current license is non-compliant for [advanced-remote-cluster-security]"));
+
+        final Request updateRequest = new Request("PUT", "/_security/cross_cluster/api_key/" + randomAlphaOfLength(20));
+        updateRequest.setJsonEntity("""
+            {
+              "metadata": { }
+            }""");
+        final ResponseException e2 = expectThrows(ResponseException.class, () -> adminClient().performRequest(updateRequest));
+        assertThat(e2.getResponse().getStatusLine().getStatusCode(), equalTo(403));
+        assertThat(e2.getMessage(), containsString("current license is non-compliant for [advanced-remote-cluster-security]"));
+    }
+
+    private void assertSuccessToCreateAndUpdateCrossClusterApiKeys() throws IOException {
+        final Request createRequest = new Request("POST", "/_security/cross_cluster/api_key");
+        createRequest.setJsonEntity("""
+            {
+              "name": "cc-key",
+              "access": {
+                "search": [ { "names": ["*"] } ]
+              }
+            }""");
+        final ObjectPath createResponse = assertOKAndCreateObjectPath(adminClient().performRequest(createRequest));
+
+        final Request updateRequest = new Request("PUT", "/_security/cross_cluster/api_key/" + createResponse.evaluate("id"));
+        updateRequest.setJsonEntity("""
+            {
+              "metadata": { }
+            }""");
+        assertOK(adminClient().performRequest(updateRequest));
     }
 }

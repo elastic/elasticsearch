@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.aggregations.bucket.terms;
@@ -12,6 +13,7 @@ import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.PriorityQueue;
+import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.search.DocValueFormat;
@@ -62,22 +64,13 @@ public class StringTermsAggregatorFromFilters extends AdaptingAggregator {
         BucketOrder order,
         BucketCountThresholds bucketCountThresholds,
         LongPredicate acceptedOrds,
-        SortedSetDocValues values
+        CheckedSupplier<SortedSetDocValues, IOException> valuesSupplier
     ) throws IOException {
         if (false == valuesSourceConfig.alignesWithSearchIndex()) {
             return null;
         }
-        TermsEnum terms = values.termsEnum();
         FilterByFilterAggregator.AdapterBuilder<StringTermsAggregatorFromFilters> filterByFilterBuilder =
-            new FilterByFilterAggregator.AdapterBuilder<StringTermsAggregatorFromFilters>(
-                name,
-                false,
-                null,
-                context,
-                parent,
-                cardinality,
-                metadata
-            ) {
+            new FilterByFilterAggregator.AdapterBuilder<>(name, false, false, null, context, parent, cardinality, metadata) {
                 @Override
                 protected StringTermsAggregatorFromFilters adapt(
                     CheckedFunction<AggregatorFactories, FilterByFilterAggregator, IOException> delegate
@@ -90,10 +83,12 @@ public class StringTermsAggregatorFromFilters extends AdaptingAggregator {
                         valuesSourceConfig.format(),
                         order,
                         bucketCountThresholds,
-                        terms
+                        valuesSupplier
                     );
                 }
             };
+        SortedSetDocValues values = valuesSupplier.get();
+        TermsEnum terms = values.termsEnum();
         String field = valuesSourceConfig.fieldContext().field();
         for (long ord = 0; ord < values.getValueCount(); ord++) {
             if (acceptedOrds.test(ord) == false) {
@@ -118,7 +113,7 @@ public class StringTermsAggregatorFromFilters extends AdaptingAggregator {
     private final DocValueFormat format;
     private final BucketOrder order;
     private final BucketCountThresholds bucketCountThresholds;
-    private final TermsEnum terms;
+    private final CheckedSupplier<SortedSetDocValues, IOException> valuesSupplier;
 
     public StringTermsAggregatorFromFilters(
         Aggregator parent,
@@ -128,14 +123,14 @@ public class StringTermsAggregatorFromFilters extends AdaptingAggregator {
         DocValueFormat format,
         BucketOrder order,
         BucketCountThresholds bucketCountThresholds,
-        TermsEnum terms
+        CheckedSupplier<SortedSetDocValues, IOException> valuesSupplier
     ) throws IOException {
         super(parent, subAggregators, delegate);
         this.showTermDocCountError = showTermDocCountError;
         this.format = format;
         this.order = order;
         this.bucketCountThresholds = bucketCountThresholds;
-        this.terms = terms;
+        this.valuesSupplier = valuesSupplier;
     }
 
     @Override
@@ -159,8 +154,9 @@ public class StringTermsAggregatorFromFilters extends AdaptingAggregator {
         if (minDocCount == 0 && bucketCountThresholds.getMinDocCount() > 0) {
             minDocCount = 1;
         }
+        TermsEnum terms = valuesSupplier.get().termsEnum();
         if (filters.getBuckets().size() > bucketCountThresholds.getShardSize()) {
-            PriorityQueue<OrdBucket> queue = new PriorityQueue<OrdBucket>(bucketCountThresholds.getShardSize()) {
+            PriorityQueue<OrdBucket> queue = new PriorityQueue<>(bucketCountThresholds.getShardSize()) {
                 private final Comparator<Bucket> comparator = order.comparator();
 
                 @Override
@@ -189,9 +185,9 @@ public class StringTermsAggregatorFromFilters extends AdaptingAggregator {
             buckets = new ArrayList<>(queue.size());
             if (isKeyOrder(order) == false) {
                 for (OrdBucket b : queue) {
-                    buckets.add(buildBucket(b));
+                    buckets.add(buildBucket(b, terms));
                 }
-                Collections.sort(buckets, reduceOrder.comparator());
+                buckets.sort(reduceOrder.comparator());
             } else {
                 /*
                  * Note for the curious: you can just use a for loop to iterate
@@ -200,7 +196,7 @@ public class StringTermsAggregatorFromFilters extends AdaptingAggregator {
                  * instead of O(n), but such is life. And n shouldn't be too big.
                  */
                 while (queue.size() > 0) {
-                    buckets.add(buildBucket(queue.pop()));
+                    buckets.add(buildBucket(queue.pop(), terms));
                 }
                 // The buckets come off last to first so we need to flip them.
                 Collections.reverse(buckets);
@@ -211,9 +207,9 @@ public class StringTermsAggregatorFromFilters extends AdaptingAggregator {
                 if (b.getDocCount() < minDocCount) {
                     continue;
                 }
-                buckets.add(buildBucket(b));
+                buckets.add(buildBucket(b, terms));
             }
-            Collections.sort(buckets, reduceOrder.comparator());
+            buckets.sort(reduceOrder.comparator());
         }
         return new StringTerms(
             filters.getName(),
@@ -231,12 +227,12 @@ public class StringTermsAggregatorFromFilters extends AdaptingAggregator {
         );
     }
 
-    private StringTerms.Bucket buildBucket(OrdBucket b) throws IOException {
+    private StringTerms.Bucket buildBucket(OrdBucket b, TermsEnum terms) throws IOException {
         terms.seekExact(b.globalOrd);
         return new StringTerms.Bucket(BytesRef.deepCopyOf(terms.term()), b.getDocCount(), b.aggregations, showTermDocCountError, 0, format);
     }
 
-    private StringTerms.Bucket buildBucket(InternalFilters.InternalBucket b) throws IOException {
+    private StringTerms.Bucket buildBucket(InternalFilters.InternalBucket b, TermsEnum terms) throws IOException {
         terms.seekExact(Long.parseLong(b.getKey()));
         return new StringTerms.Bucket(
             BytesRef.deepCopyOf(terms.term()),

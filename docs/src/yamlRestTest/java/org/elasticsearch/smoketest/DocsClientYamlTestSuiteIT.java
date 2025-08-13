@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.smoketest;
@@ -16,11 +17,13 @@ import org.apache.http.HttpHost;
 import org.apache.http.util.EntityUtils;
 import org.apache.lucene.tests.util.TimeUnits;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RestClient;
+import org.elasticsearch.common.settings.SecureString;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.yaml.ClientYamlDocsTestClient;
@@ -46,10 +49,12 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
+import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonList;
 import static java.util.Collections.singletonMap;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
+import static org.hamcrest.Matchers.is;
 
 //The default 20 minutes timeout isn't always enough, but Darwin CI hosts are incredibly slow...
 @TimeoutSuite(millis = 40 * TimeUnits.MINUTE)
@@ -92,20 +97,9 @@ public class DocsClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
     protected ClientYamlTestClient initClientYamlTestClient(
         final ClientYamlSuiteRestSpec restSpec,
         final RestClient restClient,
-        final List<HttpHost> hosts,
-        final Version esVersion,
-        final Version masterVersion,
-        final String os
+        final List<HttpHost> hosts
     ) {
-        return new ClientYamlDocsTestClient(
-            restSpec,
-            restClient,
-            hosts,
-            esVersion,
-            masterVersion,
-            os,
-            this::getClientBuilderWithSniffedHosts
-        );
+        return new ClientYamlDocsTestClient(restSpec, restClient, hosts, this::getClientBuilderWithSniffedHosts);
     }
 
     @Before
@@ -222,9 +216,77 @@ public class DocsClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
         return testName != null && (testName.contains("/info/") || testName.contains("\\info\\"));
     }
 
+    private static final String USER_TOKEN = basicAuthHeaderValue("test_admin", new SecureString("x-pack-test-password".toCharArray()));
+
+    /**
+     * All tests run as a an administrative user but use <code>es-shield-runas-user</code> to become a less privileged user.
+     */
+    @Override
+    protected Settings restClientSettings() {
+        return Settings.builder().put(ThreadContext.PREFIX + ".Authorization", USER_TOKEN).build();
+    }
+
+    /**
+     * Deletes users after every test just in case any test adds any.
+     */
+    @After
+    public void deleteUsers() throws Exception {
+        ClientYamlTestResponse response = getAdminExecutionContext().callApi("security.get_user", emptyMap(), emptyList(), emptyMap());
+        @SuppressWarnings("unchecked")
+        Map<String, Object> users = (Map<String, Object>) response.getBody();
+        for (String user : users.keySet()) {
+            Map<?, ?> metadataMap = (Map<?, ?>) ((Map<?, ?>) users.get(user)).get("metadata");
+            Boolean reserved = metadataMap == null ? null : (Boolean) metadataMap.get("_reserved");
+            if (reserved == null || reserved == false) {
+                logger.warn("Deleting leftover user {}", user);
+                getAdminExecutionContext().callApi("security.delete_user", singletonMap("username", user), emptyList(), emptyMap());
+            }
+        }
+    }
+
+    /**
+     * Re-enables watcher after every test just in case any test disables it.
+     */
+    @After
+    public void reenableWatcher() throws Exception {
+        if (isWatcherTest()) {
+            assertBusy(() -> {
+                ClientYamlTestResponse response = getAdminExecutionContext().callApi("watcher.stats", emptyMap(), emptyList(), emptyMap());
+                String state = response.evaluate("stats.0.watcher_state");
+
+                switch (state) {
+                    case "stopped":
+                        ClientYamlTestResponse startResponse = getAdminExecutionContext().callApi(
+                            "watcher.start",
+                            emptyMap(),
+                            emptyList(),
+                            emptyMap()
+                        );
+                        boolean isAcknowledged = startResponse.evaluate("acknowledged");
+                        assertThat(isAcknowledged, is(true));
+                        throw new AssertionError("waiting until stopped state reached started state");
+                    case "stopping":
+                        throw new AssertionError("waiting until stopping state reached stopped state to start again");
+                    case "starting":
+                        throw new AssertionError("waiting until starting state reached started state");
+                    case "started":
+                        // all good here, we are done
+                        break;
+                    default:
+                        throw new AssertionError("unknown state[" + state + "]");
+                }
+            });
+        }
+    }
+
+    protected boolean isWatcherTest() {
+        String testName = getTestName();
+        return testName != null && (testName.contains("watcher/") || testName.contains("watcher\\"));
+    }
+
     /**
      * Compares the results of running two analyzers against many random
-     * strings. The goal is to figure out if two anlayzers are "the same" by
+     * strings. The goal is to figure out if two analyzers are "the same" by
      * comparing their results. This is far from perfect but should be fairly
      * accurate, especially for gross things like missing {@code decimal_digit}
      * token filters, and should be fairly fast because it compares a fairly

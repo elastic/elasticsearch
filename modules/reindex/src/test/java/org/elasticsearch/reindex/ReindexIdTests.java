@@ -1,24 +1,27 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.reindex;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.metadata.ComponentTemplate;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.reindex.AbstractAsyncBulkByScrollActionTestCase;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.ReindexRequest;
@@ -35,7 +38,8 @@ import static org.hamcrest.Matchers.nullValue;
  */
 public class ReindexIdTests extends AbstractAsyncBulkByScrollActionTestCase<ReindexRequest, BulkByScrollResponse> {
     public void testEmptyStateCopiesId() throws Exception {
-        assertThat(action(ClusterState.EMPTY_STATE).buildRequest(doc()).getId(), equalTo(doc().getId()));
+        final ProjectState projectState = ClusterState.EMPTY_STATE.projectState(Metadata.DEFAULT_PROJECT_ID);
+        assertThat(action(projectState).buildRequest(doc()).getId(), equalTo(doc().getId()));
     }
 
     public void testStandardIndexCopiesId() throws Exception {
@@ -54,24 +58,32 @@ public class ReindexIdTests extends AbstractAsyncBulkByScrollActionTestCase<Rein
         assertThat(action(stateWithTemplate(tsdbSettings())).buildRequest(doc()).getId(), nullValue());
     }
 
-    private ClusterState stateWithTemplate(Settings.Builder settings) {
-        Metadata.Builder metadata = Metadata.builder();
+    private ProjectState stateWithTemplate(Settings.Builder settings) {
+        final var projectId = randomProjectIdOrDefault();
+        ProjectMetadata.Builder projectBuilder = ProjectMetadata.builder(projectId);
         Template template = new Template(settings.build(), null, null);
         if (randomBoolean()) {
-            metadata.put("c", new ComponentTemplate(template, null, null));
-            metadata.put("c", new ComposableIndexTemplate(List.of("dest_index"), null, List.of("c"), null, null, null));
+            projectBuilder.put("c", new ComponentTemplate(template, null, null));
+            projectBuilder.put(
+                "c",
+                ComposableIndexTemplate.builder().indexPatterns(List.of("dest_index")).componentTemplates(List.of("c")).build()
+            );
         } else {
-            metadata.put("c", new ComposableIndexTemplate(List.of("dest_index"), template, null, null, null, null));
+            projectBuilder.put("c", ComposableIndexTemplate.builder().indexPatterns(List.of("dest_index")).template(template).build());
         }
-        return ClusterState.builder(ClusterState.EMPTY_STATE).metadata(metadata).build();
+        return ClusterState.builder(ClusterState.EMPTY_STATE).putProjectMetadata(projectBuilder).build().projectState(projectId);
     }
 
-    private ClusterState stateWithIndex(Settings.Builder settings) {
+    private ProjectState stateWithIndex(Settings.Builder settings) {
+        final var projectId = randomProjectIdOrDefault();
         IndexMetadata.Builder meta = IndexMetadata.builder(request().getDestination().index())
-            .settings(settings.put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT))
+            .settings(settings.put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()))
             .numberOfReplicas(0)
             .numberOfShards(1);
-        return ClusterState.builder(ClusterState.EMPTY_STATE).metadata(Metadata.builder(Metadata.EMPTY_METADATA).put(meta)).build();
+        return ClusterState.builder(ClusterState.EMPTY_STATE)
+            .putProjectMetadata(ProjectMetadata.builder(projectId).put(meta))
+            .build()
+            .projectState(projectId);
     }
 
     private Settings.Builder standardSettings() {
@@ -96,7 +108,7 @@ public class ReindexIdTests extends AbstractAsyncBulkByScrollActionTestCase<Rein
         return new ReindexRequest().setDestIndex("dest_index");
     }
 
-    private Reindexer.AsyncIndexBySearchAction action(ClusterState state) {
+    private Reindexer.AsyncIndexBySearchAction action(ProjectState state) {
         return new Reindexer.AsyncIndexBySearchAction(task, logger, null, null, threadPool, null, state, null, request(), listener());
     }
 }

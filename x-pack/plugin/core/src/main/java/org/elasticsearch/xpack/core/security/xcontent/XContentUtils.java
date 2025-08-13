@@ -11,6 +11,7 @@ import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
 import org.elasticsearch.xpack.core.security.authc.Subject;
 import org.elasticsearch.xpack.core.security.authc.support.AuthenticationContextSerializer;
@@ -20,6 +21,8 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+
+import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.CROSS_CLUSTER_ACCESS_AUTHENTICATION_KEY;
 
 public class XContentUtils {
 
@@ -71,7 +74,7 @@ public class XContentUtils {
                 );
             }
         }
-        return list.toArray(new String[list.size()]);
+        return list.toArray(String[]::new);
     }
 
     /**
@@ -102,25 +105,49 @@ public class XContentUtils {
             return;
         }
         builder.startObject("authorization");
-        switch (authenticationSubject.getType()) {
-            case USER -> builder.array(User.Fields.ROLES.getPreferredName(), authenticationSubject.getUser().roles());
-            case API_KEY -> {
-                builder.startObject("api_key");
-                Map<String, Object> metadata = authenticationSubject.getMetadata();
-                builder.field("id", metadata.get(AuthenticationField.API_KEY_ID_KEY));
+        addSubjectInfo(builder, authenticationSubject);
+        builder.endObject();
+    }
+
+    private static void addSubjectInfo(XContentBuilder builder, Subject subject) throws IOException {
+        switch (subject.getType()) {
+            case USER -> builder.array(User.Fields.ROLES.getPreferredName(), subject.getUser().roles());
+            case API_KEY -> addApiKeyInfo(builder, subject);
+            case SERVICE_ACCOUNT -> builder.field("service_account", subject.getUser().principal());
+            case CROSS_CLUSTER_ACCESS -> {
+                builder.startObject("cross_cluster_access");
+                {
+                    addApiKeyInfo(builder, subject);
+                    builder.startObject("remote_authorization");
+                    final var innerAuthentication = (Authentication) subject.getMetadata().get(CROSS_CLUSTER_ACCESS_AUTHENTICATION_KEY);
+                    assert innerAuthentication != null && false == innerAuthentication.isCrossClusterAccess();
+                    addSubjectInfo(builder, innerAuthentication.getEffectiveSubject());
+                    builder.endObject();
+                }
+                builder.endObject();
+            }
+            case CLOUD_API_KEY -> {
+                builder.startObject("cloud_api_key");
+                Map<String, Object> metadata = subject.getUser().metadata();
+                builder.field("id", subject.getUser().principal());
                 Object name = metadata.get(AuthenticationField.API_KEY_NAME_KEY);
                 if (name instanceof String) {
                     builder.field("name", name);
                 }
+                builder.field("internal", metadata.get(AuthenticationField.API_KEY_INTERNAL_KEY));
+                builder.array(User.Fields.ROLES.getPreferredName(), subject.getUser().roles());
                 builder.endObject();
             }
-            case SERVICE_ACCOUNT -> builder.field("service_account", authenticationSubject.getUser().principal());
-            case REMOTE_ACCESS -> {
-                // TODO handle remote access authentication
-                final String message = "remote access authentication is not yet supported";
-                assert false : message;
-                throw new UnsupportedOperationException(message);
-            }
+        }
+    }
+
+    private static void addApiKeyInfo(XContentBuilder builder, Subject authenticationSubject) throws IOException {
+        builder.startObject("api_key");
+        Map<String, Object> metadata = authenticationSubject.getMetadata();
+        builder.field("id", metadata.get(AuthenticationField.API_KEY_ID_KEY));
+        Object name = metadata.get(AuthenticationField.API_KEY_NAME_KEY);
+        if (name instanceof String) {
+            builder.field("name", name);
         }
         builder.endObject();
     }

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper.extras;
@@ -31,7 +32,7 @@ import java.util.Collections;
 import java.util.List;
 
 import static java.util.Arrays.asList;
-import static org.apache.lucene.search.MultiTermQuery.CONSTANT_SCORE_REWRITE;
+import static org.apache.lucene.search.MultiTermQuery.CONSTANT_SCORE_BLENDED_REWRITE;
 import static org.hamcrest.Matchers.equalTo;
 
 public class SearchAsYouTypeFieldTypeTests extends FieldTypeTestCase {
@@ -109,7 +110,7 @@ public class SearchAsYouTypeFieldTypeTests extends FieldTypeTestCase {
         // this term should be a length that can be rewriteable to a term query on the prefix field
         final String withinBoundsTerm = "foo";
         assertThat(
-            fieldType.prefixQuery(withinBoundsTerm, CONSTANT_SCORE_REWRITE, randomMockContext()),
+            fieldType.prefixQuery(withinBoundsTerm, randomBoolean() ? CONSTANT_SCORE_BLENDED_REWRITE : null, randomMockContext()),
             equalTo(new ConstantScoreQuery(new TermQuery(new Term(NAME + "._index_prefix", withinBoundsTerm))))
         );
 
@@ -118,13 +119,13 @@ public class SearchAsYouTypeFieldTypeTests extends FieldTypeTestCase {
         // this term should be too long to be rewriteable to a term query on the prefix field
         final String longTerm = "toolongforourprefixfieldthistermis";
         assertThat(
-            fieldType.prefixQuery(longTerm, CONSTANT_SCORE_REWRITE, MOCK_CONTEXT),
+            fieldType.prefixQuery(longTerm, randomBoolean() ? null : CONSTANT_SCORE_BLENDED_REWRITE, MOCK_CONTEXT),
             equalTo(new PrefixQuery(new Term(NAME, longTerm)))
         );
 
         ElasticsearchException ee = expectThrows(
             ElasticsearchException.class,
-            () -> fieldType.prefixQuery(longTerm, CONSTANT_SCORE_REWRITE, MOCK_CONTEXT_DISALLOW_EXPENSIVE)
+            () -> fieldType.prefixQuery(longTerm, randomBoolean() ? null : CONSTANT_SCORE_BLENDED_REWRITE, MOCK_CONTEXT_DISALLOW_EXPENSIVE)
         );
         assertEquals(
             "[prefix] queries cannot be executed when 'search.allow_expensive_queries' is set to false. "

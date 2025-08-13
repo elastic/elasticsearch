@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.repositories.blobstore;
 
@@ -18,20 +19,24 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.CheckedBiFunction;
 import org.elasticsearch.common.Numbers;
 import org.elasticsearch.common.blobstore.BlobContainer;
+import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.lucene.store.IndexOutputOutputStream;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.gateway.CorruptStateException;
+import org.elasticsearch.repositories.ProjectRepo;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.FilterInputStream;
@@ -65,9 +70,9 @@ public final class ChecksumBlobStoreFormat<T> {
 
     private final String blobNameFormat;
 
-    private final CheckedBiFunction<String, XContentParser, T, IOException> reader;
+    private final CheckedBiFunction<ProjectRepo, XContentParser, T, IOException> reader;
 
-    private final CheckedBiFunction<String, XContentParser, T, IOException> fallbackReader;
+    private final CheckedBiFunction<ProjectRepo, XContentParser, T, IOException> fallbackReader;
 
     private final Function<T, ? extends ToXContent> writer;
 
@@ -81,8 +86,8 @@ public final class ChecksumBlobStoreFormat<T> {
     public ChecksumBlobStoreFormat(
         String codec,
         String blobNameFormat,
-        CheckedBiFunction<String, XContentParser, T, IOException> reader,
-        @Nullable CheckedBiFunction<String, XContentParser, T, IOException> fallbackReader,
+        CheckedBiFunction<ProjectRepo, XContentParser, T, IOException> reader,
+        @Nullable CheckedBiFunction<ProjectRepo, XContentParser, T, IOException> fallbackReader,
         Function<T, ? extends ToXContent> writer
     ) {
         this.reader = reader;
@@ -101,7 +106,7 @@ public final class ChecksumBlobStoreFormat<T> {
     public ChecksumBlobStoreFormat(
         String codec,
         String blobNameFormat,
-        CheckedBiFunction<String, XContentParser, T, IOException> reader,
+        CheckedBiFunction<ProjectRepo, XContentParser, T, IOException> reader,
         Function<T, ? extends ToXContent> writer
     ) {
         this(codec, blobNameFormat, reader, null, writer);
@@ -114,11 +119,11 @@ public final class ChecksumBlobStoreFormat<T> {
      * @param name          name to be translated into
      * @return parsed blob object
      */
-    public T read(String repoName, BlobContainer blobContainer, String name, NamedXContentRegistry namedXContentRegistry)
+    public T read(ProjectRepo projectRepo, BlobContainer blobContainer, String name, NamedXContentRegistry namedXContentRegistry)
         throws IOException {
         String blobName = blobName(name);
-        try (InputStream in = blobContainer.readBlob(blobName)) {
-            return deserialize(repoName, namedXContentRegistry, in);
+        try (InputStream in = blobContainer.readBlob(OperationPurpose.SNAPSHOT_METADATA, blobName)) {
+            return deserialize(projectRepo, namedXContentRegistry, in);
         }
     }
 
@@ -126,7 +131,7 @@ public final class ChecksumBlobStoreFormat<T> {
         return String.format(Locale.ROOT, blobNameFormat, name);
     }
 
-    public T deserialize(String repoName, NamedXContentRegistry namedXContentRegistry, InputStream input) throws IOException {
+    public T deserialize(ProjectRepo projectRepo, NamedXContentRegistry namedXContentRegistry, InputStream input) throws IOException {
         final DeserializeMetaBlobInputStream deserializeMetaBlobInputStream = new DeserializeMetaBlobInputStream(input);
         try {
             CodecUtil.checkHeader(new InputStreamDataInput(deserializeMetaBlobInputStream), codec, VERSION, VERSION);
@@ -143,17 +148,25 @@ public final class ChecksumBlobStoreFormat<T> {
                 BytesReference bytesReference = Streams.readFully(wrappedStream);
                 deserializeMetaBlobInputStream.verifyFooter();
                 try (
-                    XContentParser parser = XContentType.SMILE.xContent()
-                        .createParser(namedXContentRegistry, LoggingDeprecationHandler.INSTANCE, bytesReference.streamInput())
+                    XContentParser parser = XContentHelper.createParserNotCompressed(
+                        XContentParserConfiguration.EMPTY.withRegistry(namedXContentRegistry)
+                            .withDeprecationHandler(LoggingDeprecationHandler.INSTANCE),
+                        bytesReference,
+                        XContentType.SMILE
+                    )
                 ) {
-                    result = reader.apply(repoName, parser);
+                    result = reader.apply(projectRepo, parser);
                     XContentParserUtils.ensureExpectedToken(null, parser.nextToken(), parser);
                 } catch (Exception e) {
                     try (
-                        XContentParser parser = XContentType.SMILE.xContent()
-                            .createParser(namedXContentRegistry, LoggingDeprecationHandler.INSTANCE, bytesReference.streamInput())
+                        XContentParser parser = XContentHelper.createParserNotCompressed(
+                            XContentParserConfiguration.EMPTY.withRegistry(namedXContentRegistry)
+                                .withDeprecationHandler(LoggingDeprecationHandler.INSTANCE),
+                            bytesReference,
+                            XContentType.SMILE
+                        )
                     ) {
-                        result = fallbackReader.apply(repoName, parser);
+                        result = fallbackReader.apply(projectRepo, parser);
                         XContentParserUtils.ensureExpectedToken(null, parser.nextToken(), parser);
                     }
                 }
@@ -162,7 +175,7 @@ public final class ChecksumBlobStoreFormat<T> {
                     XContentParser parser = XContentType.SMILE.xContent()
                         .createParser(namedXContentRegistry, LoggingDeprecationHandler.INSTANCE, wrappedStream)
                 ) {
-                    result = reader.apply(repoName, parser);
+                    result = reader.apply(projectRepo, parser);
                     XContentParserUtils.ensureExpectedToken(null, parser.nextToken(), parser);
                 }
                 deserializeMetaBlobInputStream.verifyFooter();
@@ -343,7 +356,13 @@ public final class ChecksumBlobStoreFormat<T> {
     public void write(T obj, BlobContainer blobContainer, String name, boolean compress, Map<String, String> serializationParams)
         throws IOException {
         final String blobName = blobName(name);
-        blobContainer.writeMetadataBlob(blobName, false, false, out -> serialize(obj, blobName, compress, serializationParams, out));
+        blobContainer.writeMetadataBlob(
+            OperationPurpose.SNAPSHOT_METADATA,
+            blobName,
+            false,
+            false,
+            out -> serialize(obj, blobName, compress, serializationParams, out)
+        );
     }
 
     public void serialize(final T obj, final String blobName, final boolean compress, final OutputStream outputStream) throws IOException {

@@ -47,7 +47,7 @@ public class NodeStatsCollectorTests extends BaseCollectorTestCase {
     }
 
     public void testDoCollectWithFailures() throws Exception {
-        final TimeValue timeout = TimeValue.parseTimeValue(randomPositiveTimeValue(), NodeStatsCollectorTests.class.getName());
+        final TimeValue timeout = randomPositiveTimeValue();
         withCollectionTimeout(NodeStatsCollector.NODE_STATS_TIMEOUT, timeout);
 
         final NodesStatsResponse nodesStatsResponse = mock(NodesStatsResponse.class);
@@ -70,7 +70,7 @@ public class NodeStatsCollectorTests extends BaseCollectorTestCase {
 
         assertWarnings(
             "[xpack.monitoring.collection.node.stats.timeout] setting was deprecated in Elasticsearch and will be removed "
-                + "in a future release."
+                + "in a future release. See the deprecation documentation for the next major version."
         );
     }
 
@@ -128,7 +128,7 @@ public class NodeStatsCollectorTests extends BaseCollectorTestCase {
 
         assertWarnings(
             "[xpack.monitoring.collection.node.stats.timeout] setting was deprecated in Elasticsearch and will be removed "
-                + "in a future release."
+                + "in a future release. See the deprecation documentation for the next major version."
         );
     }
 
@@ -162,7 +162,7 @@ public class NodeStatsCollectorTests extends BaseCollectorTestCase {
 
         assertWarnings(
             "[xpack.monitoring.collection.node.stats.timeout] setting was deprecated in Elasticsearch and will be removed "
-                + "in a future release."
+                + "in a future release. See the deprecation documentation for the next major version."
         );
     }
 

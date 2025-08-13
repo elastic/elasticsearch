@@ -10,7 +10,7 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.xpack.rollup.job.RollupJobTask;
 
-import java.util.function.Consumer;
+import java.util.List;
 
 public class TransportTaskHelper {
     /**
@@ -18,7 +18,7 @@ public class TransportTaskHelper {
      * or none at all.  Should not end up in a situation where there are multiple tasks with the same
      * ID... but if we do, this will help prevent the situation from getting worse.
      */
-    static void doProcessTasks(String id, Consumer<RollupJobTask> operation, TaskManager taskManager) {
+    static List<RollupJobTask> doProcessTasks(String id, TaskManager taskManager) {
         RollupJobTask matchingTask = null;
         for (Task task : taskManager.getTasks().values()) {
             if (task instanceof RollupJobTask rollupJobTask && rollupJobTask.getConfig().getId().equals(id)) {
@@ -32,7 +32,9 @@ public class TransportTaskHelper {
         }
 
         if (matchingTask != null) {
-            operation.accept(matchingTask);
+            return List.of(matchingTask);
+        } else {
+            return List.of();
         }
     }
 }

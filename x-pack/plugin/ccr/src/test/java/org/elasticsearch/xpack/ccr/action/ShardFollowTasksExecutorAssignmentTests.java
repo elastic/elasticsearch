@@ -7,12 +7,13 @@
 
 package org.elasticsearch.xpack.ccr.action;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
@@ -92,20 +93,15 @@ public class ShardFollowTasksExecutorAssignmentTests extends ESTestCase {
         clusterStateBuilder.nodes(nodesBuilder);
         final Assignment assignment = executor.getAssignment(
             mock(ShardFollowTask.class),
-            clusterStateBuilder.nodes(),
-            clusterStateBuilder.build()
+            clusterStateBuilder.nodes().getAllNodes(),
+            clusterStateBuilder.build(),
+            ProjectId.DEFAULT
         );
         consumer.accept(theSpecial, assignment);
     }
 
     private static DiscoveryNode newNode(final Set<DiscoveryNodeRole> roles) {
-        return new DiscoveryNode(
-            "node_" + UUIDs.randomBase64UUID(random()),
-            buildNewFakeTransportAddress(),
-            Map.of(),
-            roles,
-            Version.CURRENT
-        );
+        return DiscoveryNodeUtils.create("node_" + UUIDs.randomBase64UUID(random()), buildNewFakeTransportAddress(), Map.of(), roles);
     }
 
 }

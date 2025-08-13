@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.percolator;
@@ -20,7 +21,6 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.lucene.uid.Versions;
-import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -31,9 +31,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.AbstractQueryTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
-import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xcontent.json.JsonXContent;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
@@ -228,10 +226,9 @@ public class PercolateQueryBuilderTests extends AbstractQueryTestCase<PercolateQ
     }
 
     public void testRequiredParameters() {
-        IllegalArgumentException e = expectThrows(
-            IllegalArgumentException.class,
-            () -> { new PercolateQueryBuilder(null, new BytesArray("{}"), XContentType.JSON); }
-        );
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> {
+            new PercolateQueryBuilder(null, new BytesArray("{}"), XContentType.JSON);
+        });
         assertThat(e.getMessage(), equalTo("[field] is a required argument"));
 
         e = expectThrows(
@@ -378,32 +375,5 @@ public class PercolateQueryBuilderTests extends AbstractQueryTestCase<PercolateQ
         PercolateQueryBuilder queryBuilder = doCreateTestQueryBuilder(true);
         ElasticsearchException e = expectThrows(ElasticsearchException.class, () -> queryBuilder.toQuery(searchExecutionContext));
         assertEquals("[percolate] queries cannot be executed when 'search.allow_expensive_queries' is set to false.", e.getMessage());
-    }
-
-    public void testFromJsonWithDocumentType() throws IOException {
-        SearchExecutionContext searchExecutionContext = createSearchExecutionContext();
-        String queryAsString = Strings.format("""
-            {"percolate" : { "document": {}, "document_type":"%s", "field":"%s"}}
-            """, docType, queryField);
-        XContentParser parser = createParserWithCompatibilityFor(JsonXContent.jsonXContent, queryAsString, RestApiVersion.V_7);
-        QueryBuilder queryBuilder = parseQuery(parser);
-        queryBuilder.toQuery(searchExecutionContext);
-        assertCriticalWarnings(PercolateQueryBuilder.DOCUMENT_TYPE_DEPRECATION_MESSAGE);
-    }
-
-    public void testFromJsonWithType() throws IOException {
-        indexedDocumentIndex = randomAlphaOfLength(4);
-        indexedDocumentId = randomAlphaOfLength(4);
-        indexedDocumentVersion = Versions.MATCH_ANY;
-        documentSource = Collections.singletonList(randomSource(new HashSet<>()));
-        SearchExecutionContext searchExecutionContext = createSearchExecutionContext();
-
-        String queryAsString = Strings.format("""
-            {"percolate" : { "index": "%s", "type": "_doc", "id": "%s", "field":"%s"}}
-            """, indexedDocumentIndex, indexedDocumentId, queryField);
-        XContentParser parser = createParserWithCompatibilityFor(JsonXContent.jsonXContent, queryAsString, RestApiVersion.V_7);
-        QueryBuilder queryBuilder = parseQuery(parser);
-        rewriteAndFetch(queryBuilder, searchExecutionContext).toQuery(searchExecutionContext);
-        assertCriticalWarnings(PercolateQueryBuilder.TYPE_DEPRECATION_MESSAGE);
     }
 }

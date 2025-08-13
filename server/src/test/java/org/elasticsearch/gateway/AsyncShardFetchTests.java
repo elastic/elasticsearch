@@ -1,20 +1,21 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.gateway;
 
 import org.apache.logging.log4j.LogManager;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.support.nodes.BaseNodeResponse;
 import org.elasticsearch.action.support.nodes.BaseNodesResponse;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
@@ -35,23 +36,15 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.sameInstance;
 
 public class AsyncShardFetchTests extends ESTestCase {
-    private final DiscoveryNode node1 = new DiscoveryNode(
-        "node1",
-        buildNewFakeTransportAddress(),
-        Collections.emptyMap(),
-        Collections.singleton(DiscoveryNodeRole.DATA_ROLE),
-        Version.CURRENT
-    );
+    private final DiscoveryNode node1 = DiscoveryNodeUtils.builder("node1")
+        .roles(Collections.singleton(DiscoveryNodeRole.DATA_ROLE))
+        .build();
     private final Response response1 = new Response(node1);
     private final Response response1_2 = new Response(node1);
     private final Throwable failure1 = new Throwable("simulated failure 1");
-    private final DiscoveryNode node2 = new DiscoveryNode(
-        "node2",
-        buildNewFakeTransportAddress(),
-        Collections.emptyMap(),
-        Collections.singleton(DiscoveryNodeRole.DATA_ROLE),
-        Version.CURRENT
-    );
+    private final DiscoveryNode node2 = DiscoveryNodeUtils.builder("node2")
+        .roles(Collections.singleton(DiscoveryNodeRole.DATA_ROLE))
+        .build();
     private final Response response2 = new Response(node2);
     private final Throwable failure2 = new Throwable("simulate failure 2");
 
@@ -427,7 +420,7 @@ public class AsyncShardFetchTests extends ESTestCase {
         private final AtomicInteger reroute = new AtomicInteger();
 
         TestFetch(ThreadPool threadPool) {
-            super(LogManager.getLogger(TestFetch.class), "test", new ShardId("test", "_na_", 1), "");
+            super(LogManager.getLogger(TestFetch.class), "test", new ShardId("test", "_na_", 1), "", 2);
             this.threadPool = threadPool;
         }
 

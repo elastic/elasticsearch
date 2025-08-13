@@ -10,8 +10,10 @@ package org.elasticsearch.xpack.security.action.apikey;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.rest.RestStatus;
@@ -19,6 +21,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.core.security.action.Grant;
 import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyResponse;
 import org.elasticsearch.xpack.core.security.action.apikey.GrantApiKeyAction;
@@ -61,6 +64,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
+import static org.mockito.Mockito.when;
 
 public class TransportGrantApiKeyActionTests extends ESTestCase {
 
@@ -80,10 +84,12 @@ public class TransportGrantApiKeyActionTests extends ESTestCase {
 
         threadPool = new TestThreadPool("TP-" + getTestName());
         final ThreadContext threadContext = threadPool.getThreadContext();
+        TransportService transportService = mock(TransportService.class);
+        when(transportService.getThreadPool()).thenReturn(threadPool);
 
         action = new TransportGrantApiKeyAction(
-            mock(TransportService.class),
-            mock(ActionFilters.class),
+            transportService,
+            new ActionFilters(Set.of()),
             threadContext,
             authenticationService,
             authorizationService,
@@ -132,10 +138,68 @@ public class TransportGrantApiKeyActionTests extends ESTestCase {
         setupApiKeyServiceWithRoleResolution(authentication, request, response);
 
         final PlainActionFuture<CreateApiKeyResponse> future = new PlainActionFuture<>();
-        action.doExecute(null, request, future);
+        action.execute(null, request, future);
 
         assertThat(future.actionGet(), sameInstance(response));
         verify(authorizationService, never()).authorize(any(), any(), any(), anyActionListener());
+    }
+
+    public void testClientAuthenticationForNonJWTFails() {
+        final GrantApiKeyRequest request = mockRequest();
+        request.getGrant().setType("access_token");
+        request.getGrant().setAccessToken(new SecureString("obviously a non JWT token".toCharArray()));
+        // only JWT tokens support client authentication
+        request.getGrant().setClientAuthentication(new Grant.ClientAuthentication(new SecureString("whatever".toCharArray())));
+
+        final PlainActionFuture<CreateApiKeyResponse> future = new PlainActionFuture<>();
+        action.execute(null, request, future);
+
+        final ElasticsearchStatusException exception = expectThrows(ElasticsearchStatusException.class, future::actionGet);
+        assertThat(exception, throwableWithMessage("[client_authentication] not supported with the supplied access_token type"));
+
+        verifyNoMoreInteractions(authenticationService);
+        verifyNoMoreInteractions(authorizationService);
+        verifyNoMoreInteractions(apiKeyService);
+        verifyNoMoreInteractions(resolver);
+    }
+
+    public void testClientAuthenticationWithUsernamePasswordFails() {
+        final GrantApiKeyRequest request = mockRequest();
+        request.getGrant().setType("password");
+        request.getGrant().setUsername(randomAlphaOfLengthBetween(4, 12));
+        request.getGrant().setPassword(new SecureString(randomAlphaOfLengthBetween(8, 24).toCharArray()));
+        // username & password does not support client authentication
+        request.getGrant().setClientAuthentication(new Grant.ClientAuthentication(new SecureString("whatever".toCharArray())));
+
+        final PlainActionFuture<CreateApiKeyResponse> future = new PlainActionFuture<>();
+        action.execute(null, request, future);
+
+        final ActionRequestValidationException exception = expectThrows(ActionRequestValidationException.class, future::actionGet);
+        assertThat(exception.getMessage(), containsString("[client_authentication] is not supported for grant_type [password]"));
+
+        verifyNoMoreInteractions(authenticationService);
+        verifyNoMoreInteractions(authorizationService);
+        verifyNoMoreInteractions(apiKeyService);
+        verifyNoMoreInteractions(resolver);
+    }
+
+    public void testUnsupportedClientAuthenticationScheme() {
+        final GrantApiKeyRequest request = mockRequest();
+        request.getGrant().setType("access_token");
+        request.getGrant().setAccessToken(new SecureString("some token".toCharArray()));
+        request.getGrant()
+            .setClientAuthentication(new Grant.ClientAuthentication("wrong scheme", new SecureString("whatever".toCharArray())));
+
+        final PlainActionFuture<CreateApiKeyResponse> future = new PlainActionFuture<>();
+        action.execute(null, request, future);
+
+        final ActionRequestValidationException exception = expectThrows(ActionRequestValidationException.class, future::actionGet);
+        assertThat(exception.getMessage(), containsString("[client_authentication.scheme] must be set to [SharedSecret]"));
+
+        verifyNoMoreInteractions(authenticationService);
+        verifyNoMoreInteractions(authorizationService);
+        verifyNoMoreInteractions(apiKeyService);
+        verifyNoMoreInteractions(resolver);
     }
 
     public void testGrantApiKeyWithAccessToken() {
@@ -169,7 +233,7 @@ public class TransportGrantApiKeyActionTests extends ESTestCase {
         setupApiKeyServiceWithRoleResolution(authentication, request, response);
 
         final PlainActionFuture<CreateApiKeyResponse> future = new PlainActionFuture<>();
-        action.doExecute(null, request, future);
+        action.execute(null, request, future);
 
         assertThat(future.actionGet(), sameInstance(response));
         verify(authorizationService, never()).authorize(any(), any(), any(), anyActionListener());
@@ -223,7 +287,7 @@ public class TransportGrantApiKeyActionTests extends ESTestCase {
         setupApiKeyServiceWithRoleResolution(authentication, request, response);
 
         final PlainActionFuture<CreateApiKeyResponse> future = new PlainActionFuture<>();
-        action.doExecute(null, request, future);
+        action.execute(null, request, future);
 
         final ElasticsearchStatusException exception = expectThrows(ElasticsearchStatusException.class, future::actionGet);
         assertThat(exception, throwableWithMessage("authentication failed for testing"));
@@ -281,7 +345,7 @@ public class TransportGrantApiKeyActionTests extends ESTestCase {
             .authorize(eq(authentication), eq(AuthenticateAction.NAME), any(AuthenticateRequest.class), anyActionListener());
 
         final PlainActionFuture<CreateApiKeyResponse> future = new PlainActionFuture<>();
-        action.doExecute(null, request, future);
+        action.execute(null, request, future);
 
         assertThat(future.actionGet(), sameInstance(response));
         verify(authorizationService).authorize(
@@ -339,7 +403,7 @@ public class TransportGrantApiKeyActionTests extends ESTestCase {
             .authorize(eq(authentication), eq(AuthenticateAction.NAME), any(AuthenticateRequest.class), anyActionListener());
 
         final PlainActionFuture<CreateApiKeyResponse> future = new PlainActionFuture<>();
-        action.doExecute(null, request, future);
+        action.execute(null, request, future);
 
         assertThat(expectThrows(ElasticsearchSecurityException.class, future::actionGet), sameInstance(e));
         verify(authorizationService).authorize(
@@ -372,7 +436,7 @@ public class TransportGrantApiKeyActionTests extends ESTestCase {
             .authenticate(eq(GrantApiKeyAction.NAME), same(request), any(AuthenticationToken.class), anyActionListener());
 
         final PlainActionFuture<CreateApiKeyResponse> future = new PlainActionFuture<>();
-        action.doExecute(null, request, future);
+        action.execute(null, request, future);
 
         final ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, future::actionGet);
         assertThat(e.getMessage(), containsString("the provided grant credentials do not support run-as"));
@@ -398,7 +462,9 @@ public class TransportGrantApiKeyActionTests extends ESTestCase {
     private GrantApiKeyRequest mockRequest() {
         final String keyName = randomAlphaOfLengthBetween(6, 32);
         final GrantApiKeyRequest request = new GrantApiKeyRequest();
-        request.setApiKeyRequest(new CreateApiKeyRequest(keyName, List.of(), null));
+        CreateApiKeyRequest createApiKeyRequest = new CreateApiKeyRequest(keyName, List.of(), null);
+        createApiKeyRequest.setRefreshPolicy(randomFrom(WriteRequest.RefreshPolicy.values()));
+        request.setApiKeyRequest(createApiKeyRequest);
         return request;
     }
 

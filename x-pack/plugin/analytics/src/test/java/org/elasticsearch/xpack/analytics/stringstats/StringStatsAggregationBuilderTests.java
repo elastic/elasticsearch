@@ -8,22 +8,16 @@
 package org.elasticsearch.xpack.analytics.stringstats;
 
 import org.elasticsearch.common.io.stream.Writeable.Reader;
-import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.BaseAggregationBuilder;
 import org.elasticsearch.test.AbstractXContentSerializingTestCase;
-import org.elasticsearch.test.AbstractXContentTestCase;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ParseField;
-import org.elasticsearch.xcontent.ToXContent;
-import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Arrays;
 
-import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.hasSize;
 
 public class StringStatsAggregationBuilderTests extends AbstractXContentSerializingTestCase<StringStatsAggregationBuilder> {
     @Override
@@ -76,29 +70,5 @@ public class StringStatsAggregationBuilderTests extends AbstractXContentSerializ
         StringStatsAggregationBuilder mutant = new StringStatsAggregationBuilder(randomAlphaOfLength(4));
         mutant.showDistribution(instance.showDistribution());
         return mutant;
-    }
-
-    public void testClientBuilder() throws IOException {
-        AbstractXContentTestCase.xContentTester(this::createParser, this::createTestInstance, this::toXContentThroughClientBuilder, p -> {
-            p.nextToken();
-            AggregatorFactories.Builder b = AggregatorFactories.parseAggregators(p);
-            assertThat(b.getAggregatorFactories(), hasSize(1));
-            assertThat(b.getPipelineAggregatorFactories(), empty());
-            return (StringStatsAggregationBuilder) b.getAggregatorFactories().iterator().next();
-        }).test();
-    }
-
-    private void toXContentThroughClientBuilder(StringStatsAggregationBuilder serverBuilder, XContentBuilder builder) throws IOException {
-        builder.startObject();
-        createClientBuilder(serverBuilder).toXContent(builder, ToXContent.EMPTY_PARAMS);
-        builder.endObject();
-    }
-
-    private org.elasticsearch.client.analytics.StringStatsAggregationBuilder createClientBuilder(
-        StringStatsAggregationBuilder serverBuilder
-    ) {
-        org.elasticsearch.client.analytics.StringStatsAggregationBuilder builder =
-            new org.elasticsearch.client.analytics.StringStatsAggregationBuilder(serverBuilder.getName());
-        return builder.showDistribution(serverBuilder.showDistribution()).field(serverBuilder.field());
     }
 }

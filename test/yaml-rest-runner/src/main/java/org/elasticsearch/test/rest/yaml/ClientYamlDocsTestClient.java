@@ -1,16 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.test.rest.yaml;
 
 import org.apache.http.HttpEntity;
 import org.apache.http.HttpHost;
-import org.elasticsearch.Version;
 import org.elasticsearch.client.NodeSelector;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
@@ -18,6 +18,7 @@ import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.RestClientBuilder;
 import org.elasticsearch.common.CheckedSupplier;
+import org.elasticsearch.test.rest.yaml.restspec.ClientYamlSuiteRestApi;
 import org.elasticsearch.test.rest.yaml.restspec.ClientYamlSuiteRestSpec;
 
 import java.io.IOException;
@@ -25,6 +26,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.BiPredicate;
 
 /**
  * Used to execute REST requests according to the docs snippets that need to be tests. Wraps a
@@ -37,12 +39,9 @@ public final class ClientYamlDocsTestClient extends ClientYamlTestClient {
         final ClientYamlSuiteRestSpec restSpec,
         final RestClient restClient,
         final List<HttpHost> hosts,
-        final Version esVersion,
-        final Version masterVersion,
-        final String os,
         final CheckedSupplier<RestClientBuilder, IOException> clientBuilderWithSniffedNodes
     ) {
-        super(restSpec, restClient, hosts, esVersion, masterVersion, os, clientBuilderWithSniffedNodes);
+        super(restSpec, restClient, hosts, clientBuilderWithSniffedNodes);
     }
 
     @Override
@@ -51,7 +50,8 @@ public final class ClientYamlDocsTestClient extends ClientYamlTestClient {
         Map<String, String> params,
         HttpEntity entity,
         Map<String, String> headers,
-        NodeSelector nodeSelector
+        NodeSelector nodeSelector,
+        BiPredicate<ClientYamlSuiteRestApi, ClientYamlSuiteRestApi.Path> pathPredicate
     ) throws IOException {
 
         if ("raw".equals(apiName)) {
@@ -73,6 +73,6 @@ public final class ClientYamlDocsTestClient extends ClientYamlTestClient {
                 throw new ClientYamlTestResponseException(e);
             }
         }
-        return super.callApi(apiName, params, entity, headers, nodeSelector);
+        return super.callApi(apiName, params, entity, headers, nodeSelector, pathPredicate);
     }
 }

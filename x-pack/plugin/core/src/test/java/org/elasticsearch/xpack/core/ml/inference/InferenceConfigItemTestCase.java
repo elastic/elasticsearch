@@ -12,9 +12,9 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.VersionedNamedWriteable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.search.SearchModule;
+import org.elasticsearch.test.AbstractBWCSerializationTestCase;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ToXContent;
-import org.elasticsearch.xpack.core.ml.AbstractBWCSerializationTestCase;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.FillMaskConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.FillMaskConfigTests;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig;
@@ -29,17 +29,20 @@ import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextClassification
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextClassificationConfigTests;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextEmbeddingConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextEmbeddingConfigTests;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextExpansionConfig;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextExpansionConfigTests;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextSimilarityConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextSimilarityConfigTests;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ZeroShotClassificationConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ZeroShotClassificationConfigTests;
+import org.elasticsearch.xpack.core.ml.ltr.MlLTRNamedXContentProvider;
 
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase.getAllBWCVersions;
+import static org.elasticsearch.test.BWCVersions.getAllBWCVersions;
 
 public abstract class InferenceConfigItemTestCase<T extends VersionedNamedWriteable & ToXContent> extends AbstractBWCSerializationTestCase<
     T> {
@@ -61,6 +64,8 @@ public abstract class InferenceConfigItemTestCase<T extends VersionedNamedWritea
             return TextSimilarityConfigTests.mutateForVersion(textSimilarityConfig, version);
         } else if (inferenceConfig instanceof ZeroShotClassificationConfig zeroShotClassificationConfig) {
             return ZeroShotClassificationConfigTests.mutateForVersion(zeroShotClassificationConfig, version);
+        } else if (inferenceConfig instanceof TextExpansionConfig textExpansionConfig) {
+            return TextExpansionConfigTests.mutateForVersion(textExpansionConfig, version);
         } else {
             throw new IllegalArgumentException("unknown inference config [" + inferenceConfig.getName() + "]");
         }
@@ -70,21 +75,21 @@ public abstract class InferenceConfigItemTestCase<T extends VersionedNamedWritea
     protected NamedXContentRegistry xContentRegistry() {
         List<NamedXContentRegistry.Entry> namedXContent = new ArrayList<>();
         namedXContent.addAll(new MlInferenceNamedXContentProvider().getNamedXContentParsers());
+        namedXContent.addAll(new MlLTRNamedXContentProvider().getNamedXContentParsers());
         namedXContent.addAll(new SearchModule(Settings.EMPTY, Collections.emptyList()).getNamedXContents());
         return new NamedXContentRegistry(namedXContent);
     }
 
     @Override
     protected NamedWriteableRegistry getNamedWriteableRegistry() {
-        List<NamedWriteableRegistry.Entry> entries = new ArrayList<>(new MlInferenceNamedXContentProvider().getNamedWriteables());
-        return new NamedWriteableRegistry(entries);
+        List<NamedWriteableRegistry.Entry> namedWriteables = new ArrayList<>(new MlInferenceNamedXContentProvider().getNamedWriteables());
+        namedWriteables.addAll(new MlLTRNamedXContentProvider().getNamedWriteables());
+        return new NamedWriteableRegistry(namedWriteables);
     }
 
     @Override
     protected List<TransportVersion> bwcVersions() {
         T obj = createTestInstance();
-        return getAllBWCVersions(TransportVersion.CURRENT).stream()
-            .filter(v -> v.onOrAfter(obj.getMinimalSupportedVersion()))
-            .collect(Collectors.toList());
+        return getAllBWCVersions().stream().filter(v -> v.onOrAfter(obj.getMinimalSupportedVersion())).collect(Collectors.toList());
     }
 }

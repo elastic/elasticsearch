@@ -10,7 +10,9 @@ import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
+import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.xpack.sql.qa.rest.RestSqlTestCase;
+import org.junit.ClassRule;
 
 import java.io.IOException;
 
@@ -21,6 +23,13 @@ import static org.hamcrest.Matchers.containsString;
  * user rather than to the JDBC driver or CLI.
  */
 public class RestSqlIT extends RestSqlTestCase {
+    @ClassRule
+    public static final ElasticsearchCluster cluster = SqlTestCluster.getCluster();
+
+    @Override
+    protected String getTestRestCluster() {
+        return cluster.getHttpAddresses();
+    }
 
     public void testErrorMessageForTranslatingQueryWithWhereEvaluatingToFalse() throws IOException {
         index("{\"foo\":1}");

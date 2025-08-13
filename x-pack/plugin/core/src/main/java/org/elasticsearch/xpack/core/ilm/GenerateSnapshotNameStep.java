@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.core.ilm;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
@@ -46,12 +46,12 @@ public class GenerateSnapshotNameStep extends ClusterStateActionStep {
     }
 
     @Override
-    public ClusterState performAction(Index index, ClusterState clusterState) {
-        IndexMetadata indexMetadata = clusterState.metadata().index(index);
+    public ProjectState performAction(Index index, ProjectState projectState) {
+        IndexMetadata indexMetadata = projectState.metadata().index(index);
         if (indexMetadata == null) {
             // Index must have been since deleted, ignore it
             logger.debug("[{}] lifecycle action for index [{}] executed but index no longer exists", getKey().action(), index.getName());
-            return clusterState;
+            return projectState;
         }
 
         String policyName = indexMetadata.getLifecyclePolicyName();
@@ -60,7 +60,7 @@ public class GenerateSnapshotNameStep extends ClusterStateActionStep {
         // validate that the snapshot repository exists -- because policies are refreshed on later retries, and because
         // this fails prior to the snapshot repository being recorded in the ilm metadata, the policy can just be corrected
         // and everything will pass on the subsequent retry
-        if (clusterState.metadata().custom(RepositoriesMetadata.TYPE, RepositoriesMetadata.EMPTY).repository(snapshotRepository) == null) {
+        if (RepositoriesMetadata.get(projectState.metadata()).repository(snapshotRepository) == null) {
             throw new IllegalStateException(
                 "repository ["
                     + snapshotRepository
@@ -78,7 +78,8 @@ public class GenerateSnapshotNameStep extends ClusterStateActionStep {
         newLifecycleState.setSnapshotRepository(snapshotRepository);
         if (lifecycleState.snapshotName() == null) {
             // generate and validate the snapshotName
-            String snapshotNamePrefix = ("<{now/d}-" + index.getName() + "-" + policyName + ">").toLowerCase(Locale.ROOT);
+            String snapshotNamePrefix = ("<{now/d}-" + index.getName() + "-" + Strings.stripDisallowedChars(policyName) + ">") //
+                .toLowerCase(Locale.ROOT);
             String snapshotName = generateSnapshotName(snapshotNamePrefix);
             ActionRequestValidationException validationException = validateGeneratedSnapshotName(snapshotNamePrefix, snapshotName);
             if (validationException != null) {
@@ -94,11 +95,7 @@ public class GenerateSnapshotNameStep extends ClusterStateActionStep {
             newLifecycleState.setSnapshotName(snapshotName);
         }
 
-        return LifecycleExecutionStateUtils.newClusterStateWithLifecycleState(
-            clusterState,
-            indexMetadata.getIndex(),
-            newLifecycleState.build()
-        );
+        return projectState.updateProject(projectState.metadata().withLifecycleState(indexMetadata.getIndex(), newLifecycleState.build()));
     }
 
     @Override
@@ -129,11 +126,11 @@ public class GenerateSnapshotNameStep extends ClusterStateActionStep {
      * still result in unique snapshot names.
      */
     public static String generateSnapshotName(String name) {
-        return generateSnapshotName(name, new IndexNameExpressionResolver.ResolverContext());
+        return generateSnapshotName(name, System.currentTimeMillis());
     }
 
-    public static String generateSnapshotName(String name, IndexNameExpressionResolver.Context context) {
-        String candidate = IndexNameExpressionResolver.resolveDateMathExpression(name, context.getStartTime());
+    public static String generateSnapshotName(String name, long now) {
+        String candidate = IndexNameExpressionResolver.resolveDateMathExpression(name, now);
         // TODO: we are breaking the rules of UUIDs by lowercasing this here, find an alternative (snapshot names must be lowercase)
         return candidate + "-" + UUIDs.randomBase64UUID().toLowerCase(Locale.ROOT);
     }

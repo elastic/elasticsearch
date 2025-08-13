@@ -1,0 +1,26 @@
+{
+  "properties": {
+    "id": {
+      "type": "integer"
+    },
+    "title": {
+      "type": "text"
+    },
+    "body": {
+      "type": "text"
+    },
+    "tags": {
+      "type": "keyword"
+    },
+    "category": {
+      "type": "integer"
+    },
+    "published_date": {
+      "type": "date"
+    },
+    "vector": {
+      "type": "dense_vector",
+      "similarity": "l2_norm"
+    }
+  }
+}

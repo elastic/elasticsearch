@@ -428,7 +428,7 @@ public class JwtRealmGenerateTests extends JwtRealmTestCase {
                 + (Strings.hasText(clientSecret)
                     ? JwtRealm.HEADER_CLIENT_AUTHENTICATION
                         + ": "
-                        + JwtRealm.HEADER_SHARED_SECRET_AUTHENTICATION_SCHEME
+                        + JwtRealmSettings.HEADER_SHARED_SECRET_AUTHENTICATION_SCHEME
                         + " "
                         + clientSecret
                         + "\n"

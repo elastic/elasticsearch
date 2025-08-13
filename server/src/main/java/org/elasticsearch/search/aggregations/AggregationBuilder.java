@@ -1,14 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.search.aggregations;
 
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.VersionedNamedWriteable;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
@@ -25,6 +27,8 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.Consumer;
+import java.util.function.Function;
+import java.util.function.ToLongFunction;
 
 /**
  * A factory that knows how to create an {@link Aggregator} of a specific type.
@@ -95,6 +99,11 @@ public abstract class AggregationBuilder
         return factoriesBuilder.getAggregatorFactories();
     }
 
+    /** Return the aggregation's query if it's different from the search query, or null otherwise. */
+    public QueryBuilder getQuery() {
+        return null;
+    }
+
     /** Return the configured set of pipeline aggregations **/
     public Collection<PipelineAggregationBuilder> getPipelineAggregations() {
         return factoriesBuilder.getPipelineAggregatorFactories();
@@ -115,9 +124,25 @@ public abstract class AggregationBuilder
 
     /**
      * Create a shallow copy of this builder and replacing {@link #factoriesBuilder} and <code>metadata</code>.
-     * Used by {@link #rewrite(QueryRewriteContext)}.
      */
     protected abstract AggregationBuilder shallowCopy(AggregatorFactories.Builder factoriesBuilder, Map<String, Object> metadata);
+
+    /**
+     * Creates a deep copy of {@param original} by recursively invoking {@code #shallowCopy} on the sub aggregations.
+     * Each copied agg is passed through the {@param visitor} function that returns a possibly modified "copy".
+     */
+    public static AggregationBuilder deepCopy(AggregationBuilder original, Function<AggregationBuilder, AggregationBuilder> visitor) {
+        AggregatorFactories.Builder subAggregations = new AggregatorFactories.Builder();
+        // recursively copy sub aggs first
+        for (AggregationBuilder subAggregation : original.getSubAggregations()) {
+            subAggregations.addAggregator(deepCopy(subAggregation, visitor));
+        }
+        // pipeline aggs do not themselves contain sub aggs, and don't have a copy method, hence are simply copied by reference
+        for (PipelineAggregationBuilder subPipelineAggregation : original.getPipelineAggregations()) {
+            subAggregations.addPipelineAggregator(subPipelineAggregation);
+        }
+        return visitor.apply(original.shallowCopy(subAggregations, original.getMetadata()));
+    }
 
     @Override
     public final AggregationBuilder rewrite(QueryRewriteContext context) throws IOException {
@@ -217,6 +242,22 @@ public abstract class AggregationBuilder
             }
         }
         return false;
+    }
+
+    /**
+     * Return false if this aggregation or any of the child aggregations does not support parallel collection.
+     * As a result, a request including such aggregation is always executed sequentially despite concurrency is enabled for the query phase.
+     */
+    public boolean supportsParallelCollection(ToLongFunction<String> fieldCardinalityResolver) {
+        if (isInSortOrderExecutionRequired()) {
+            return false;
+        }
+        for (AggregationBuilder builder : factoriesBuilder.getAggregatorFactories()) {
+            if (builder.supportsParallelCollection(fieldCardinalityResolver) == false) {
+                return false;
+            }
+        }
+        return true;
     }
 
     /**

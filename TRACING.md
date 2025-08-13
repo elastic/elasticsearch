@@ -1,16 +1,15 @@
 # Tracing in Elasticsearch
 
 Elasticsearch is instrumented using the [OpenTelemetry][otel] API, which allows
-us to gather traces and analyze what Elasticsearch is doing.
-
+ES developers to gather traces and analyze what Elasticsearch is doing.
 
 ## How is tracing implemented?
 
-The Elasticsearch server code contains a [`tracing`][tracing] package, which is
+The Elasticsearch server code contains a [tracing][tracing] package, which is
 an abstraction over the OpenTelemetry API. All locations in the code that
 perform instrumentation and tracing must use these abstractions.
 
-Separately, there is the [`apm`](./modules/apm/) module, which works with the
+Separately, there is the [apm](./modules/apm) module, which works with the
 OpenTelemetry API directly to record trace data.  Underneath the OTel API, we
 use Elastic's [APM agent for Java][agent], which attaches at runtime to the
 Elasticsearch JVM and removes the need for Elasticsearch to hard-code the use of
@@ -18,15 +17,24 @@ an OTel implementation. Note that while it is possible to programmatically start
 the APM agent, the Security Manager permissions required make this essentially
 impossible.
 
-
 ## How is tracing configured?
 
 You must supply configuration and credentials for the APM server (see below).
-You must also set `tracing.apm.enabled` to `true`, but this can be toggled at
-runtime.
+In your `elasticsearch.yml` add the following configuration:
 
-All APM settings live under `tracing.apm`. All settings related to the Java agent
-go under `tracing.apm.agent`. Anything you set under there will be propagated to
+```
+telemetry.tracing.enabled: true
+telemetry.agent.server_url: https://<your-apm-server>:443
+```
+
+When using a secret token to authenticate with the APM server, you must add it to the Elasticsearch keystore under `telemetry.secret_token`. For example, execute:
+
+    bin/elasticsearch-keystore add telemetry.secret_token
+
+then enter the token when prompted. If you are using API keys, change the keystore key name to `telemetry.api_key`.
+
+All APM settings live under `telemetry`. Tracing related settings go under `telemetry.tracing` and settings
+related to the Java agent go under `telemetry.agent`. Anything you set under there will be propagated to
 the agent.
 
 For agent settings that can be changed dynamically, you can use the cluster
@@ -35,7 +43,7 @@ settings REST API. For example, to change the sampling rate:
     curl -XPUT \
       -H "Content-type: application/json" \
       -u "$USERNAME:$PASSWORD" \
-      -d '{ "persistent": { "tracing.apm.agent.transaction_sample_rate": "0.75" } }' \
+      -d '{ "persistent": { "telemetry.agent.transaction_sample_rate": "0.75" } }' \
       https://localhost:9200/_cluster/settings
 
 
@@ -91,7 +99,7 @@ tasks are long-lived and are not suitable candidates for APM tracing.
 
 When a span is started, Elasticsearch tracks information about that span in the
 current [thread context][thread-context].  If a new thread context is created,
-then the current span information must not propagated but instead renamed, so
+then the current span information must not be propagated but instead renamed, so
 that (1) it doesn't interfere when new trace information is set in the context,
 and (2) the previous trace information is available to establish a parent /
 child span relationship.  This is done with `ThreadContext#newTraceContext()`.
@@ -117,7 +125,7 @@ of new trace contexts when child spans need to be created.
 That's up to you. Be careful not to capture anything that could leak sensitive
 or personal information.
 
-## What is "scope" and when should I used it?
+## What is "scope" and when should I use it?
 
 Usually you won't need to.
 
@@ -148,9 +156,8 @@ explicitly opening a scope via the `Tracer`.
 
 
 [otel]: https://opentelemetry.io/
-[thread-context]: ./server/src/main/java/org/elasticsearch/common/util/concurrent/ThreadContext.java).
+[thread-context]: ./server/src/main/java/org/elasticsearch/common/util/concurrent/ThreadContext.java
 [w3c]: https://www.w3.org/TR/trace-context/
-[tracing]: ./server/src/main/java/org/elasticsearch/tracing/
-[config]: ./modules/apm/src/main/config/elasticapm.properties
+[tracing]: ./server/src/main/java/org/elasticsearch/telemetry
 [agent-config]: https://www.elastic.co/guide/en/apm/agent/java/master/configuration.html
 [agent]: https://www.elastic.co/guide/en/apm/agent/java/current/index.html

@@ -88,10 +88,10 @@ teardown:
   - gte: {nodes.$master.ingest.total.failed: 0}
   - gte: {nodes.$master.ingest.total.time_in_millis: 0}
   - match: {nodes.$master.ingest.total.current: 0}
-  - gte: {nodes.$master.ingest.pipelines.pipeline1.count: 0}
-  - match: {nodes.$master.ingest.pipelines.pipeline1.failed: 0}
-  - gte: {nodes.$master.ingest.pipelines.pipeline1.time_in_millis: 0}
-  - match: {nodes.$master.ingest.pipelines.pipeline1.current: 0}
+  - gte: { "nodes.$master.ingest.pipelines.${_project_id_prefix_}pipeline1.count": 0}
+  - match: { "nodes.$master.ingest.pipelines.${_project_id_prefix_}pipeline1.failed": 0}
+  - gte: { "nodes.$master.ingest.pipelines.${_project_id_prefix_}pipeline1.time_in_millis": 0}
+  - match: { "nodes.$master.ingest.pipelines.${_project_id_prefix_}pipeline1.current": 0}
 
 ---
 "Test bulk request with default pipeline":
@@ -124,10 +124,10 @@ teardown:
   - gte: {nodes.$master.ingest.total.failed: 0}
   - gte: {nodes.$master.ingest.total.time_in_millis: 0}
   - match: {nodes.$master.ingest.total.current: 0}
-  - gte: {nodes.$master.ingest.pipelines.pipeline2.count: 0}
-  - match: {nodes.$master.ingest.pipelines.pipeline2.failed: 0}
-  - gte: {nodes.$master.ingest.pipelines.pipeline2.time_in_millis: 0}
-  - match: {nodes.$master.ingest.pipelines.pipeline2.current: 0}
+  - gte: { "nodes.$master.ingest.pipelines.${_project_id_prefix_}pipeline2.count": 0}
+  - match: { "nodes.$master.ingest.pipelines.${_project_id_prefix_}pipeline2.failed": 0}
+  - gte: { "nodes.$master.ingest.pipelines.${_project_id_prefix_}pipeline2.time_in_millis": 0}
+  - match: { "nodes.$master.ingest.pipelines.${_project_id_prefix_}pipeline2.current": 0}
 
   - do:
       get:
@@ -186,8 +186,8 @@ teardown:
 
 ---
 "Update with pipeline":
-  - skip:
-      version: " - 7.17.4"
+  - requires:
+      cluster_features: ["gte_v7.17.5"]
       reason: "fixed in 7.17.5"
 
   - do:
@@ -220,3 +220,29 @@ teardown:
         index: test_index
         id: 1
   - match: { _source:  { my_field: "upper" } }
+
+---
+"Test bulk request with list_executed_pipelines":
+
+  - do:
+      bulk:
+        list_executed_pipelines: true
+        body:
+          - index:
+              _index: test_index
+              _id:    test_id1
+              pipeline: pipeline1
+          - f1: v1
+          - index:
+              _index: test_index
+              _id:    test_id2
+          - f1: v2
+          - index:
+              _index: test_index
+              _id:    test_id2
+              pipeline: fake_pipeline
+          - f1: v2
+
+  - match: { items.0.index.executed_pipelines: ["pipeline1"] }
+  - match: { items.1.index.executed_pipelines: [] }
+  - match: { items.2.index.executed_pipelines: null }

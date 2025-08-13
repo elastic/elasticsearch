@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.watcher;
 
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.protocol.xpack.watcher.PutWatchResponse;
 import org.elasticsearch.xpack.core.watcher.transport.actions.put.PutWatchRequestBuilder;
 import org.elasticsearch.xpack.core.watcher.watch.Watch;
@@ -16,6 +15,7 @@ import org.elasticsearch.xpack.watcher.test.AbstractWatcherIntegrationTestCase;
 
 import java.util.Locale;
 
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.elasticsearch.xpack.watcher.actions.ActionBuilders.indexAction;
 import static org.elasticsearch.xpack.watcher.client.WatchSourceBuilders.watchBuilder;
 import static org.elasticsearch.xpack.watcher.input.InputBuilders.noneInput;
@@ -48,8 +48,10 @@ public class WatcherConcreteIndexTests extends AbstractWatcherIntegrationTestCas
         assertBusy(() -> timeWarp().trigger("mywatch"));
 
         assertBusy(() -> {
-            SearchResponse searchResult = client().prepareSearch(watchResultsIndex).setTrackTotalHits(true).get();
-            assertThat((int) searchResult.getHits().getTotalHits().value, greaterThan(0));
+            assertResponse(
+                prepareSearch(watchResultsIndex).setTrackTotalHits(true),
+                searchResponse -> assertThat((int) searchResponse.getHits().getTotalHits().value(), greaterThan(0))
+            );
         });
     }
 }

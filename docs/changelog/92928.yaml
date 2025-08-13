@@ -1,5 +1,0 @@
-pr: 92928
-summary: Ensure one-shot wrappers release their delegates
-area: Infra/Core
-type: bug
-issues: []

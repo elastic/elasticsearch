@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.core.security.authc.support;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.core.CharArrays;
@@ -453,14 +454,14 @@ public enum Hasher {
         public char[] hash(SecureString text) {
             MessageDigest md = MessageDigests.sha256();
             md.update(CharArrays.toUtf8Bytes(text.getChars()));
-            return Base64.getUrlEncoder().withoutPadding().encodeToString(md.digest()).toCharArray();
+            return Strings.BASE_64_NO_PADDING_URL_ENCODER.encodeToString(md.digest()).toCharArray();
         }
 
         @Override
         public boolean verify(SecureString text, char[] hash) {
             MessageDigest md = MessageDigests.sha256();
             md.update(CharArrays.toUtf8Bytes(text.getChars()));
-            return CharArrays.constantTimeEquals(Base64.getUrlEncoder().withoutPadding().encodeToString(md.digest()).toCharArray(), hash);
+            return CharArrays.constantTimeEquals(Strings.BASE_64_NO_PADDING_URL_ENCODER.encodeToString(md.digest()).toCharArray(), hash);
         }
     },
 
@@ -734,11 +735,25 @@ public enum Hasher {
      * an instance of the appropriate {@link Hasher} by using {@link #resolve(String) resolve()}
      */
     @SuppressForbidden(reason = "This is the only allowed way to get available values")
-    public static List<String> getAvailableAlgoStoredHash() {
+    public static List<String> getAvailableAlgoStoredPasswordHash() {
         return Arrays.stream(Hasher.values())
             .map(Hasher::name)
             .map(name -> name.toLowerCase(Locale.ROOT))
             .filter(name -> (name.startsWith("pbkdf2") || name.startsWith("bcrypt")))
+            .collect(Collectors.toList());
+    }
+
+    /**
+     * Returns a list of lower case String identifiers for the Hashing algorithm and parameter
+     * combinations that can be used for secure token hashing. The identifiers can be used to get
+     * an instance of the appropriate {@link Hasher} by using {@link #resolve(String) resolve()}
+     */
+    @SuppressForbidden(reason = "This is the only allowed way to get available values")
+    public static List<String> getAvailableAlgoStoredSecureTokenHash() {
+        return Arrays.stream(Hasher.values())
+            .map(Hasher::name)
+            .map(name -> name.toLowerCase(Locale.ROOT))
+            .filter(name -> (name.startsWith("pbkdf2") || name.startsWith("bcrypt") || name.equals("ssha256")))
             .collect(Collectors.toList());
     }
 

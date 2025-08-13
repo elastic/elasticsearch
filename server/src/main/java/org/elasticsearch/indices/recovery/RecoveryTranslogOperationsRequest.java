@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.indices.recovery;
@@ -20,8 +21,6 @@ import java.util.List;
 
 public class RecoveryTranslogOperationsRequest extends RecoveryTransportRequest implements RawIndexingDataTransportRequest {
 
-    private final long recoveryId;
-    private final ShardId shardId;
     private final List<Translog.Operation> operations;
     private final int totalTranslogOps;
     private final long maxSeenAutoIdTimestampOnPrimary;
@@ -40,23 +39,13 @@ public class RecoveryTranslogOperationsRequest extends RecoveryTransportRequest 
         final RetentionLeases retentionLeases,
         final long mappingVersionOnPrimary
     ) {
-        super(requestSeqNo);
-        this.recoveryId = recoveryId;
-        this.shardId = shardId;
+        super(requestSeqNo, recoveryId, shardId);
         this.operations = operations;
         this.totalTranslogOps = totalTranslogOps;
         this.maxSeenAutoIdTimestampOnPrimary = maxSeenAutoIdTimestampOnPrimary;
         this.maxSeqNoOfUpdatesOrDeletesOnPrimary = maxSeqNoOfUpdatesOrDeletesOnPrimary;
         this.retentionLeases = retentionLeases;
         this.mappingVersionOnPrimary = mappingVersionOnPrimary;
-    }
-
-    public long recoveryId() {
-        return this.recoveryId;
-    }
-
-    public ShardId shardId() {
-        return shardId;
     }
 
     public List<Translog.Operation> operations() {
@@ -90,8 +79,6 @@ public class RecoveryTranslogOperationsRequest extends RecoveryTransportRequest 
 
     RecoveryTranslogOperationsRequest(StreamInput in) throws IOException {
         super(in);
-        recoveryId = in.readLong();
-        shardId = new ShardId(in);
         operations = Translog.readOperations(in, "recovery");
         totalTranslogOps = in.readVInt();
         maxSeenAutoIdTimestampOnPrimary = in.readZLong();
@@ -103,8 +90,6 @@ public class RecoveryTranslogOperationsRequest extends RecoveryTransportRequest 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeLong(recoveryId);
-        shardId.writeTo(out);
         Translog.writeOperations(out, operations);
         out.writeVInt(totalTranslogOps);
         out.writeZLong(maxSeenAutoIdTimestampOnPrimary);

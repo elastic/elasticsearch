@@ -7,9 +7,10 @@
 
 package org.elasticsearch.xpack.watcher.actions.webhook;
 
-import org.elasticsearch.action.admin.cluster.node.reload.NodesReloadSecureSettingsAction;
 import org.elasticsearch.action.admin.cluster.node.reload.NodesReloadSecureSettingsRequest;
+import org.elasticsearch.action.admin.cluster.node.reload.TransportNodesReloadSecureSettingsAction;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.KeyStoreWrapper;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.SecureString;
@@ -85,19 +86,27 @@ public class WebhookTokenIntegrationTests extends AbstractWatcherIntegrationTest
         webServer.close();
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/93536")
     public void testWebhook() throws Exception {
+        assumeFalse(
+            "Cannot run in FIPS mode since the keystore will be password protected and sending a password in the reload"
+                + "settings api call, require TLS to be configured for the transport layer",
+            inFipsJvm()
+        );
         String localServer = "localhost:" + webServer.getPort();
         logger.info("--> updating keystore token hosts to: {}", localServer);
         Path configPath = internalCluster().configPaths().stream().findFirst().orElseThrow();
-        try (KeyStoreWrapper ksw = KeyStoreWrapper.bootstrap(configPath, () -> new SecureString("".toCharArray()))) {
+        try (KeyStoreWrapper ksw = KeyStoreWrapper.create()) {
             ksw.setString(WebhookService.SETTING_WEBHOOK_HOST_TOKEN_PAIRS.getKey(), (localServer + "=token1234").toCharArray());
-            ksw.save(configPath, "".toCharArray());
+            ksw.save(configPath, "".toCharArray(), false);
         }
         // Reload the keystore to load the new settings
-        NodesReloadSecureSettingsRequest reloadReq = new NodesReloadSecureSettingsRequest();
-        reloadReq.setSecureStorePassword(new SecureString("".toCharArray()));
-        client().execute(NodesReloadSecureSettingsAction.INSTANCE, reloadReq).get();
+        NodesReloadSecureSettingsRequest reloadReq = new NodesReloadSecureSettingsRequest(Strings.EMPTY_ARRAY);
+        try {
+            reloadReq.setSecureStorePassword(new SecureString("".toCharArray()));
+            client().execute(TransportNodesReloadSecureSettingsAction.TYPE, reloadReq).get();
+        } finally {
+            reloadReq.decRef();
+        }
 
         webServer.enqueue(new MockResponse().setResponseCode(200).setBody("body"));
         HttpRequestTemplate.Builder builder = HttpRequestTemplate.builder("localhost", webServer.getPort())
@@ -130,14 +139,17 @@ public class WebhookTokenIntegrationTests extends AbstractWatcherIntegrationTest
         assertThat(webServer.requests().get(0).getBody(), is("_body"));
 
         SearchResponse response = searchWatchRecords(b -> QueryBuilders.termQuery(WatchRecord.STATE.getPreferredName(), "executed"));
-
-        assertNoFailures(response);
-        XContentSource source = xContentSource(response.getHits().getAt(0).getSourceRef());
-        String body = source.getValue("result.actions.0.webhook.response.body");
-        assertThat(body, notNullValue());
-        assertThat(body, is("body"));
-        Number status = source.getValue("result.actions.0.webhook.response.status");
-        assertThat(status, notNullValue());
-        assertThat(status.intValue(), is(200));
+        try {
+            assertNoFailures(response);
+            XContentSource source = xContentSource(response.getHits().getAt(0).getSourceRef());
+            String body = source.getValue("result.actions.0.webhook.response.body");
+            assertThat(body, notNullValue());
+            assertThat(body, is("body"));
+            Number status = source.getValue("result.actions.0.webhook.response.status");
+            assertThat(status, notNullValue());
+            assertThat(status.intValue(), is(200));
+        } finally {
+            response.decRef();
+        }
     }
 }

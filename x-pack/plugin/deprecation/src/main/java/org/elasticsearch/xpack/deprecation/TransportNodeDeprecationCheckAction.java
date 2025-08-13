@@ -19,12 +19,12 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.tasks.Task;
@@ -36,6 +36,7 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
+import java.util.Objects;
 
 import static org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING;
 
@@ -43,7 +44,8 @@ public class TransportNodeDeprecationCheckAction extends TransportNodesAction<
     NodesDeprecationCheckRequest,
     NodesDeprecationCheckResponse,
     NodesDeprecationCheckAction.NodeRequest,
-    NodesDeprecationCheckAction.NodeResponse> {
+    NodesDeprecationCheckAction.NodeResponse,
+    Void> {
 
     private final Settings settings;
     private final XPackLicenseState licenseState;
@@ -64,23 +66,20 @@ public class TransportNodeDeprecationCheckAction extends TransportNodesAction<
     ) {
         super(
             NodesDeprecationCheckAction.NAME,
-            threadPool,
             clusterService,
             transportService,
             actionFilters,
-            NodesDeprecationCheckRequest::new,
             NodesDeprecationCheckAction.NodeRequest::new,
-            ThreadPool.Names.GENERIC,
-            NodesDeprecationCheckAction.NodeResponse.class
+            threadPool.executor(ThreadPool.Names.GENERIC)
         );
         this.settings = settings;
         this.pluginsService = pluginsService;
         this.licenseState = licenseState;
         this.clusterInfoService = clusterInfoService;
-        skipTheseDeprecations = DeprecationChecks.SKIP_DEPRECATIONS_SETTING.get(settings);
+        skipTheseDeprecations = TransportDeprecationInfoAction.SKIP_DEPRECATIONS_SETTING.get(settings);
         // Safe to register this here because it happens synchronously before the cluster service is started:
         clusterService.getClusterSettings()
-            .addSettingsUpdateConsumer(DeprecationChecks.SKIP_DEPRECATIONS_SETTING, this::setSkipDeprecations);
+            .addSettingsUpdateConsumer(TransportDeprecationInfoAction.SKIP_DEPRECATIONS_SETTING, this::setSkipDeprecations);
     }
 
     private <T> void setSkipDeprecations(List<String> skipDeprecations) {
@@ -98,7 +97,7 @@ public class TransportNodeDeprecationCheckAction extends TransportNodesAction<
 
     @Override
     protected NodesDeprecationCheckAction.NodeRequest newNodeRequest(NodesDeprecationCheckRequest request) {
-        return new NodesDeprecationCheckAction.NodeRequest(request);
+        return new NodesDeprecationCheckAction.NodeRequest();
     }
 
     @Override
@@ -108,13 +107,13 @@ public class TransportNodeDeprecationCheckAction extends TransportNodesAction<
 
     @Override
     protected NodesDeprecationCheckAction.NodeResponse nodeOperation(NodesDeprecationCheckAction.NodeRequest request, Task task) {
-        return nodeOperation(request, DeprecationChecks.NODE_SETTINGS_CHECKS);
+        return nodeOperation(request, NodeDeprecationChecks.SINGLE_NODE_CHECKS);
     }
 
     NodesDeprecationCheckAction.NodeResponse nodeOperation(
         NodesDeprecationCheckAction.NodeRequest request,
         List<
-            DeprecationChecks.NodeDeprecationCheck<
+            NodeDeprecationChecks.NodeDeprecationCheck<
                 Settings,
                 PluginsAndModules,
                 ClusterState,
@@ -132,10 +131,10 @@ public class TransportNodeDeprecationCheckAction extends TransportNodesAction<
             .metadata(Metadata.builder(metadata).transientSettings(transientSettings).persistentSettings(persistentSettings).build())
             .build();
 
-        List<DeprecationIssue> issues = DeprecationInfoAction.filterChecks(
-            nodeSettingsChecks,
-            (c) -> c.apply(filteredNodeSettings, pluginsService.info(), filteredClusterState, licenseState)
-        );
+        List<DeprecationIssue> issues = nodeSettingsChecks.stream()
+            .map(c -> c.apply(filteredNodeSettings, pluginsService.info(), filteredClusterState, licenseState))
+            .filter(Objects::nonNull)
+            .toList();
         DeprecationIssue watermarkIssue = checkDiskLowWatermark(
             filteredNodeSettings,
             filteredClusterState.metadata().settings(),
@@ -158,8 +157,8 @@ public class TransportNodeDeprecationCheckAction extends TransportNodesAction<
     ) {
         DiskUsage usage = clusterInfo.getNodeMostAvailableDiskUsages().get(nodeId);
         if (usage != null) {
-            long freeBytes = usage.getFreeBytes();
-            long totalBytes = usage.getTotalBytes();
+            long freeBytes = usage.freeBytes();
+            long totalBytes = usage.totalBytes();
             if (exceedsLowWatermark(nodeSettings, clusterSettings, freeBytes, totalBytes)
                 || exceedsLowWatermark(dynamicSettings, clusterSettings, freeBytes, totalBytes)) {
                 return new DeprecationIssue(

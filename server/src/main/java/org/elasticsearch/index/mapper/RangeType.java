@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper;
@@ -107,9 +108,8 @@ public enum RangeType {
         }
 
         @Override
-        public List<RangeFieldMapper.Range> decodeRanges(BytesRef bytes) {
-            // TODO: Implement this.
-            throw new UnsupportedOperationException();
+        public List<RangeFieldMapper.Range> decodeRanges(BytesRef bytes) throws IOException {
+            return BinaryRangeUtil.decodeIPRanges(bytes);
         }
 
         @Override
@@ -196,14 +196,20 @@ public enum RangeType {
         @Override
         public Number parseFrom(RangeFieldMapper.RangeFieldType fieldType, XContentParser parser, boolean coerce, boolean included)
             throws IOException {
-            Number value = parseValue(parser.text(), coerce, fieldType.dateMathParser);
+            assert fieldType.dateMathParser != null;
+            Number value = fieldType.dateMathParser.parse(parser.text(), () -> {
+                throw new IllegalArgumentException("now is not used at indexing time");
+            }, included == false, null).toEpochMilli();
             return included ? value : nextUp(value);
         }
 
         @Override
         public Number parseTo(RangeFieldMapper.RangeFieldType fieldType, XContentParser parser, boolean coerce, boolean included)
             throws IOException {
-            Number value = parseValue(parser.text(), coerce, fieldType.dateMathParser);
+            assert fieldType.dateMathParser != null;
+            Number value = fieldType.dateMathParser.parse(parser.text(), () -> {
+                throw new IllegalArgumentException("now is not used at indexing time");
+            }, included, null).toEpochMilli();
             return included ? value : nextDown(value);
         }
 
@@ -250,7 +256,7 @@ public enum RangeType {
 
         @Override
         public List<RangeFieldMapper.Range> decodeRanges(BytesRef bytes) throws IOException {
-            return LONG.decodeRanges(bytes);
+            return BinaryRangeUtil.decodeDateRanges(bytes);
         }
 
         @Override
@@ -295,6 +301,7 @@ public enum RangeType {
                     roundUp,
                     zone
                 ).toEpochMilli();
+
             roundUp = includeUpper; // using "lte" should round upper bound up
             Long high = upperTerm == null
                 ? maxValue()
@@ -571,12 +578,13 @@ public enum RangeType {
 
         @Override
         public List<RangeFieldMapper.Range> decodeRanges(BytesRef bytes) throws IOException {
-            return LONG.decodeRanges(bytes);
+            return BinaryRangeUtil.decodeIntegerRanges(bytes);
         }
 
         @Override
         public Double doubleValue(Object endpointValue) {
-            return LONG.doubleValue(endpointValue);
+            assert endpointValue instanceof Integer;
+            return ((Integer) endpointValue).doubleValue();
         }
 
         @Override
@@ -843,6 +851,15 @@ public enum RangeType {
         throws IOException {
         Number value = numberType.parse(parser, coerce);
         return included ? value : (Number) nextDown(value);
+    }
+
+    public Object defaultFrom(boolean included) {
+        return included ? minValue() : nextUp(minValue());
+
+    }
+
+    public Object defaultTo(boolean included) {
+        return included ? maxValue() : nextDown(maxValue());
     }
 
     public abstract Object minValue();

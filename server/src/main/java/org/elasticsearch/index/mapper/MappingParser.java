@@ -1,16 +1,20 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.common.compress.CompressedXContent;
+import org.elasticsearch.common.logging.DeprecationCategory;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.mapper.MapperService.MergeReason;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.util.Collections;
@@ -25,18 +29,19 @@ import java.util.function.Supplier;
  * Parser for {@link Mapping} provided in {@link CompressedXContent} format
  */
 public final class MappingParser {
-    private final MappingParserContext mappingParserContext;
+    private final Supplier<MappingParserContext> mappingParserContextSupplier;
     private final Supplier<Map<Class<? extends MetadataFieldMapper>, MetadataFieldMapper>> metadataMappersSupplier;
     private final Map<String, MetadataFieldMapper.TypeParser> metadataMapperParsers;
     private final Function<String, String> documentTypeResolver;
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(MappingParser.class);
 
     MappingParser(
-        MappingParserContext mappingParserContext,
+        Supplier<MappingParserContext> mappingParserContextSupplier,
         Map<String, MetadataFieldMapper.TypeParser> metadataMapperParsers,
         Supplier<Map<Class<? extends MetadataFieldMapper>, MetadataFieldMapper>> metadataMappersSupplier,
         Function<String, String> documentTypeResolver
     ) {
-        this.mappingParserContext = mappingParserContext;
+        this.mappingParserContextSupplier = mappingParserContextSupplier;
         this.metadataMapperParsers = metadataMapperParsers;
         this.metadataMappersSupplier = metadataMappersSupplier;
         this.documentTypeResolver = documentTypeResolver;
@@ -72,19 +77,40 @@ public final class MappingParser {
         return remainingFields.toString();
     }
 
-    @SuppressWarnings("unchecked")
-    Mapping parse(@Nullable String type, CompressedXContent source) throws MapperParsingException {
+    static Map<String, Object> convertToMap(CompressedXContent source) {
         Objects.requireNonNull(source, "source cannot be null");
-        Map<String, Object> mapping = XContentHelper.convertToMap(source.compressedReference(), true, XContentType.JSON).v2();
-        if (mapping.isEmpty()) {
+        return XContentHelper.convertToMap(source.compressedReference(), true, XContentType.JSON).v2();
+    }
+
+    Mapping parse(@Nullable String type, CompressedXContent source) throws MapperParsingException {
+        return parse(type, MergeReason.MAPPING_UPDATE, source);
+    }
+
+    Mapping parse(@Nullable String type, MergeReason reason, CompressedXContent source) throws MapperParsingException {
+        Map<String, Object> mapping = convertToMap(source);
+        return parse(type, reason, mapping);
+    }
+
+    /**
+     * A method to parse mapping from a source in a map form.
+     *
+     * @param type          the mapping type
+     * @param reason        the merge reason to use when merging mappers while building the mapper
+     * @param mappingSource mapping source already converted to a map form, but not yet processed otherwise
+     * @return a parsed mapping
+     * @throws MapperParsingException in case of parsing error
+     */
+    @SuppressWarnings("unchecked")
+    Mapping parse(@Nullable String type, MergeReason reason, Map<String, Object> mappingSource) throws MapperParsingException {
+        if (mappingSource.isEmpty()) {
             if (type == null) {
                 throw new MapperParsingException("malformed mapping, no type name found");
             }
         } else {
-            String rootName = mapping.keySet().iterator().next();
+            String rootName = mappingSource.keySet().iterator().next();
             if (type == null || type.equals(rootName) || documentTypeResolver.apply(type).equals(rootName)) {
                 type = rootName;
-                mapping = (Map<String, Object>) mapping.get(rootName);
+                mappingSource = (Map<String, Object>) mappingSource.get(rootName);
             }
         }
         if (type == null) {
@@ -93,18 +119,21 @@ public final class MappingParser {
         if (type.isEmpty()) {
             throw new MapperParsingException("type cannot be an empty string");
         }
-        return parse(type, mapping);
-    }
 
-    private Mapping parse(String type, Map<String, Object> mapping) throws MapperParsingException {
+        final MappingParserContext mappingParserContext = mappingParserContextSupplier.get();
 
-        RootObjectMapper.Builder rootObjectMapper = RootObjectMapper.parse(type, mapping, this.mappingParserContext);
+        RootObjectMapper.Builder rootObjectMapper = RootObjectMapper.parse(type, mappingSource, mappingParserContext);
 
         Map<Class<? extends MetadataFieldMapper>, MetadataFieldMapper> metadataMappers = metadataMappersSupplier.get();
         Map<String, Object> meta = null;
-        boolean isSourceSynthetic = false;
 
-        Iterator<Map.Entry<String, Object>> iterator = mapping.entrySet().iterator();
+        // TODO this should be the final value once `_source.mode` mapping parameter is not used anymore
+        // and it should not be reassigned below.
+        // For now it is still possible to set `_source.mode` so this is correct.
+        boolean isSourceSynthetic = SourceFieldMapper.isSynthetic(mappingParserContext.getIndexSettings());
+        boolean isDataStream = false;
+
+        Iterator<Map.Entry<String, Object>> iterator = mappingSource.entrySet().iterator();
         while (iterator.hasNext()) {
             Map.Entry<String, Object> entry = iterator.next();
             String fieldName = entry.getKey();
@@ -118,18 +147,28 @@ public final class MappingParser {
                 }
                 @SuppressWarnings("unchecked")
                 Map<String, Object> fieldNodeMap = (Map<String, Object>) fieldNode;
-                MetadataFieldMapper metadataFieldMapper = typeParser.parse(fieldName, fieldNodeMap, this.mappingParserContext)
-                    .build(MapperBuilderContext.forMetadata());
+                if (reason == MergeReason.INDEX_TEMPLATE
+                    && SourceFieldMapper.NAME.equals(fieldName)
+                    && fieldNodeMap.containsKey("mode")
+                    && SourceFieldMapper.onOrAfterDeprecateModeVersion(mappingParserContext.indexVersionCreated())) {
+                    deprecationLogger.critical(DeprecationCategory.MAPPINGS, "mapping_source_mode", SourceFieldMapper.DEPRECATION_WARNING);
+                }
+                MetadataFieldMapper metadataFieldMapper = typeParser.parse(fieldName, fieldNodeMap, mappingParserContext).build();
                 metadataMappers.put(metadataFieldMapper.getClass(), metadataFieldMapper);
                 assert fieldNodeMap.isEmpty();
+
                 if (metadataFieldMapper instanceof SourceFieldMapper sfm) {
                     isSourceSynthetic = sfm.isSynthetic();
+                }
+
+                if (metadataFieldMapper instanceof DataStreamTimestampFieldMapper dsfm) {
+                    isDataStream = dsfm.isEnabled();
                 }
             }
         }
 
         @SuppressWarnings("unchecked")
-        Map<String, Object> removed = (Map<String, Object>) mapping.remove("_meta");
+        Map<String, Object> removed = (Map<String, Object>) mappingSource.remove("_meta");
         if (removed != null) {
             /*
              * It may not be required to copy meta here to maintain immutability but the cost is pretty low here.
@@ -147,13 +186,13 @@ public final class MappingParser {
              */
             meta = Collections.unmodifiableMap(new HashMap<>(removed));
         }
-        if (this.mappingParserContext.indexVersionCreated().isLegacyIndexVersion() == false) {
+        if (mappingParserContext.indexVersionCreated().isLegacyIndexVersion() == false) {
             // legacy indices are allowed to have extra definitions that we ignore (we will drop them on import)
-            checkNoRemainingFields(mapping, "Root mapping definition has unsupported parameters: ");
+            checkNoRemainingFields(mappingSource, "Root mapping definition has unsupported parameters: ");
         }
 
         return new Mapping(
-            rootObjectMapper.build(MapperBuilderContext.root(isSourceSynthetic)),
+            rootObjectMapper.build(MapperBuilderContext.root(isSourceSynthetic, isDataStream, reason)),
             metadataMappers.values().toArray(new MetadataFieldMapper[0]),
             meta
         );

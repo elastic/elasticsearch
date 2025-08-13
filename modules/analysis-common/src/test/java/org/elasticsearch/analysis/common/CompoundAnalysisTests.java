@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.analysis.common;
@@ -11,12 +12,13 @@ package org.elasticsearch.analysis.common;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
+import org.elasticsearch.index.IndexService.IndexCreationContext;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.MyFilterTokenFilterFactory;
 import org.elasticsearch.index.analysis.TokenFilterFactory;
@@ -29,6 +31,9 @@ import org.elasticsearch.test.IndexSettingsModule;
 import org.hamcrest.MatcherAssert;
 
 import java.io.IOException;
+import java.io.InputStream;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -40,6 +45,7 @@ import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.instanceOf;
 
 public class CompoundAnalysisTests extends ESTestCase {
+
     public void testDefaultsCompoundAnalysis() throws Exception {
         Settings settings = getJsonSettings();
         IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("test", settings);
@@ -58,13 +64,47 @@ public class CompoundAnalysisTests extends ESTestCase {
                 hasItems("donau", "dampf", "schiff", "donaudampfschiff", "spargel", "creme", "suppe", "spargelcremesuppe")
             );
         }
-        assertWarnings("Setting [version] on analysis component [custom7] has no effect and is deprecated");
+    }
+
+    public void testHyphenationDecompoundingAnalyzerOnlyLongestMatch() throws Exception {
+        Settings[] settingsArr = new Settings[] { getJsonSettings(), getYamlSettings() };
+        for (Settings settings : settingsArr) {
+            List<String> terms = analyze(settings, "hyphenationDecompoundingAnalyzerOnlyLongestMatch", "kaffeemaschine fussballpumpe");
+            MatcherAssert.assertThat(
+                terms,
+                hasItems("kaffeemaschine", "kaffee", "fee", "maschine", "fussballpumpe", "fussball", "ballpumpe", "pumpe")
+            );
+        }
+    }
+
+    /**
+     * For example given a word list of: ["kaffee", "fee", "maschine"]
+     * no_sub_matches should prevent the token "fee" as a token in "kaffeemaschine".
+     */
+    public void testHyphenationDecompoundingAnalyzerNoSubMatches() throws Exception {
+        Settings[] settingsArr = new Settings[] { getJsonSettings(), getYamlSettings() };
+        for (Settings settings : settingsArr) {
+            List<String> terms = analyze(settings, "hyphenationDecompoundingAnalyzerNoSubMatches", "kaffeemaschine fussballpumpe");
+            MatcherAssert.assertThat(terms, hasItems("kaffeemaschine", "kaffee", "maschine", "fussballpumpe", "fussball", "ballpumpe"));
+        }
+    }
+
+    /**
+     * For example given a word list of: ["fuss", "fussball", "ballpumpe", "ball", "pumpe"]
+     * no_overlapping_matches should prevent the token "ballpumpe" as a token in "fussballpumpe.
+     */
+    public void testHyphenationDecompoundingAnalyzerNoOverlappingMatches() throws Exception {
+        Settings[] settingsArr = new Settings[] { getJsonSettings(), getYamlSettings() };
+        for (Settings settings : settingsArr) {
+            List<String> terms = analyze(settings, "hyphenationDecompoundingAnalyzerNoOverlappingMatches", "kaffeemaschine fussballpumpe");
+            MatcherAssert.assertThat(terms, hasItems("kaffeemaschine", "kaffee", "maschine", "fussballpumpe", "fussball", "pumpe"));
+        }
     }
 
     private List<String> analyze(Settings settings, String analyzerName, String text) throws IOException {
         IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("test", settings);
         AnalysisModule analysisModule = createAnalysisModule(settings);
-        IndexAnalyzers indexAnalyzers = analysisModule.getAnalysisRegistry().build(idxSettings);
+        IndexAnalyzers indexAnalyzers = analysisModule.getAnalysisRegistry().build(IndexCreationContext.CREATE_INDEX, idxSettings);
         Analyzer analyzer = indexAnalyzers.get(analyzerName).analyzer();
 
         TokenStream stream = analyzer.tokenStream("", text);
@@ -90,20 +130,25 @@ public class CompoundAnalysisTests extends ESTestCase {
     }
 
     private Settings getJsonSettings() throws IOException {
-        String json = "/org/elasticsearch/analysis/common/test1.json";
-        return Settings.builder()
-            .loadFromStream(json, getClass().getResourceAsStream(json), false)
-            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-            .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
-            .build();
+        return getSettings("/org/elasticsearch/analysis/common/test1.json");
     }
 
     private Settings getYamlSettings() throws IOException {
-        String yaml = "/org/elasticsearch/analysis/common/test1.yml";
+        return getSettings("/org/elasticsearch/analysis/common/test1.yml");
+    }
+
+    private Settings getSettings(String filePath) throws IOException {
+        String hypenationRulesFileName = "de_DR.xml";
+        InputStream hypenationRules = getClass().getResourceAsStream(hypenationRulesFileName);
+        Path home = createTempDir();
+        Path config = home.resolve("config");
+        Files.createDirectory(config);
+        Files.copy(hypenationRules, config.resolve(hypenationRulesFileName));
+
         return Settings.builder()
-            .loadFromStream(yaml, getClass().getResourceAsStream(yaml), false)
-            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-            .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
+            .loadFromStream(filePath, getClass().getResourceAsStream(filePath), false)
+            .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
+            .put(Environment.PATH_HOME_SETTING.getKey(), home.toString())
             .build();
     }
 }

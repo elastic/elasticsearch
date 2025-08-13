@@ -1,23 +1,25 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.monitor.jvm;
 
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.Scheduler.Cancellable;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 
-import java.util.AbstractMap;
 import java.util.HashSet;
 import java.util.Set;
+import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
@@ -30,7 +32,7 @@ public class JvmGcMonitorServiceSettingsTests extends ESTestCase {
 
     public void testEmptySettingsAreOkay() throws InterruptedException {
         AtomicBoolean scheduled = new AtomicBoolean();
-        execute(Settings.EMPTY, (command, interval, name) -> {
+        execute(Settings.EMPTY, (command, interval, executor) -> {
             scheduled.set(true);
             return new MockCancellable();
         }, () -> assertTrue(scheduled.get()));
@@ -39,7 +41,7 @@ public class JvmGcMonitorServiceSettingsTests extends ESTestCase {
     public void testDisabledSetting() throws InterruptedException {
         Settings settings = Settings.builder().put("monitor.jvm.gc.enabled", "false").build();
         AtomicBoolean scheduled = new AtomicBoolean();
-        execute(settings, (command, interval, name) -> {
+        execute(settings, (command, interval, executor) -> {
             scheduled.set(true);
             return new MockCancellable();
         }, () -> assertFalse(scheduled.get()));
@@ -47,7 +49,7 @@ public class JvmGcMonitorServiceSettingsTests extends ESTestCase {
 
     public void testNegativeSetting() throws InterruptedException {
         String collector = randomAlphaOfLength(5);
-        final String timeValue = "-" + randomTimeValue(2, 1000); // -1 is handled separately
+        final String timeValue = "-" + randomTimeValue(2, 1000).getStringRep(); // -1 is handled separately
         Settings settings = Settings.builder().put("monitor.jvm.gc.collector." + collector + ".warn", timeValue).build();
         execute(settings, (command, interval, name) -> null, e -> {
             assertThat(e, instanceOf(IllegalArgumentException.class));
@@ -87,15 +89,15 @@ public class JvmGcMonitorServiceSettingsTests extends ESTestCase {
 
     public void testMissingSetting() throws InterruptedException {
         String collector = randomAlphaOfLength(5);
-        Set<AbstractMap.SimpleEntry<String, String>> entries = new HashSet<>();
-        entries.add(new AbstractMap.SimpleEntry<>("monitor.jvm.gc.collector." + collector + ".warn", randomPositiveTimeValue()));
-        entries.add(new AbstractMap.SimpleEntry<>("monitor.jvm.gc.collector." + collector + ".info", randomPositiveTimeValue()));
-        entries.add(new AbstractMap.SimpleEntry<>("monitor.jvm.gc.collector." + collector + ".debug", randomPositiveTimeValue()));
+        Set<Tuple<String, String>> entries = new HashSet<>();
+        entries.add(Tuple.tuple("monitor.jvm.gc.collector." + collector + ".warn", randomPositiveTimeValue().getStringRep()));
+        entries.add(Tuple.tuple("monitor.jvm.gc.collector." + collector + ".info", randomPositiveTimeValue().getStringRep()));
+        entries.add(Tuple.tuple("monitor.jvm.gc.collector." + collector + ".debug", randomPositiveTimeValue().getStringRep()));
         Settings.Builder builder = Settings.builder();
 
         // drop a random setting or two
-        for (AbstractMap.SimpleEntry<String, String> entry : randomSubsetOf(randomIntBetween(1, 2), entries)) {
-            builder.put(entry.getKey(), entry.getValue());
+        for (final var entry : randomSubsetOf(randomIntBetween(1, 2), entries)) {
+            builder.put(entry.v1(), entry.v2());
         }
 
         // we should get an exception that a setting is missing
@@ -166,14 +168,14 @@ public class JvmGcMonitorServiceSettingsTests extends ESTestCase {
         }, true, null);
     }
 
-    private static void execute(Settings settings, TriFunction<Runnable, TimeValue, String, Cancellable> scheduler, Runnable asserts)
+    private static void execute(Settings settings, TriFunction<Runnable, TimeValue, Executor, Cancellable> scheduler, Runnable asserts)
         throws InterruptedException {
         execute(settings, scheduler, null, false, asserts);
     }
 
     private static void execute(
         Settings settings,
-        TriFunction<Runnable, TimeValue, String, Cancellable> scheduler,
+        TriFunction<Runnable, TimeValue, Executor, Cancellable> scheduler,
         Consumer<Throwable> consumer,
         boolean constructionShouldFail,
         Runnable asserts
@@ -184,8 +186,8 @@ public class JvmGcMonitorServiceSettingsTests extends ESTestCase {
         try {
             threadPool = new TestThreadPool(JvmGcMonitorServiceSettingsTests.class.getCanonicalName()) {
                 @Override
-                public Cancellable scheduleWithFixedDelay(Runnable command, TimeValue interval, String name) {
-                    return scheduler.apply(command, interval, name);
+                public Cancellable scheduleWithFixedDelay(Runnable command, TimeValue interval, Executor executor) {
+                    return scheduler.apply(command, interval, executor);
                 }
             };
             try {

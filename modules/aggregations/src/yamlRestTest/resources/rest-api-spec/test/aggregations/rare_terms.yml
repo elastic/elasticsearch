@@ -1,13 +1,11 @@
 setup:
-  - skip:
-      version: " - 7.2.99"
+  - requires:
+      cluster_features: ["gte_v7.3.0"]
       reason: RareTerms added in 7.3.0
   - do:
       indices.create:
           index: test_1
           body:
-            settings:
-              number_of_replicas: 0
             mappings:
               properties:
                 str:
@@ -22,11 +20,6 @@ setup:
                   type: long
                 date:
                   type: date
-
-
-  - do:
-      cluster.health:
-        wait_for_status: green
 
 ---
 "Basic test":
@@ -315,8 +308,8 @@ setup:
 
 ---
 "sub aggs":
-  - skip:
-      version: " - 7.6.1"
+  - requires:
+      cluster_features: ["gte_v7.6.2"]
       reason: Sub aggs fixed in 7.6.1
 
   - do:
@@ -363,15 +356,13 @@ setup:
 
 ---
 "avg_bucket":
-  - skip:
-      version: " - 7.7.99"
+  - requires:
+      cluster_features: ["gte_v7.8.0"]
       reason: Fixed in 7.8.0
   - do:
       indices.create:
           index: test
           body:
-            settings:
-              number_of_replicas: 0
             mappings:
               properties:
                 str:

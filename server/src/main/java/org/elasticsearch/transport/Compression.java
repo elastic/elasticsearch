@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.transport;
@@ -12,7 +13,6 @@ import net.jpountz.lz4.LZ4Compressor;
 import net.jpountz.lz4.LZ4Factory;
 import net.jpountz.lz4.LZ4FastDecompressor;
 
-import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.lz4.ESLZ4Compressor;
@@ -27,7 +27,6 @@ public class Compression {
         LZ4,
         DEFLATE;
 
-        static final TransportVersion LZ4_VERSION = TransportVersion.V_7_14_0;
         static final int HEADER_LENGTH = 4;
         private static final byte[] DEFLATE_HEADER = new byte[] { 'D', 'F', 'L', '\0' };
         private static final byte[] LZ4_HEADER = new byte[] { 'L', 'Z', '4', '\0' };

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.transport;
@@ -25,6 +26,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.function.Predicate;
 
+import static org.elasticsearch.common.bytes.ReleasableBytesReferenceStreamInputTests.wrapAsReleasable;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.CoreMatchers.notNullValue;
@@ -54,7 +56,7 @@ public class InboundAggregatorTests extends ESTestCase {
 
     public void testInboundAggregation() throws IOException {
         long requestId = randomNonNegativeLong();
-        Header header = new Header(randomInt(), requestId, TransportStatus.setRequest((byte) 0), TransportVersion.CURRENT);
+        Header header = new Header(randomInt(), requestId, TransportStatus.setRequest((byte) 0), TransportVersion.current());
         header.headers = new Tuple<>(Collections.emptyMap(), Collections.emptyMap());
         header.actionName = "action_name";
         // Initiate Message
@@ -63,20 +65,20 @@ public class InboundAggregatorTests extends ESTestCase {
         BytesArray bytes = new BytesArray(randomByteArrayOfLength(10));
         ArrayList<ReleasableBytesReference> references = new ArrayList<>();
         if (randomBoolean()) {
-            final ReleasableBytesReference content = ReleasableBytesReference.wrap(bytes);
+            final ReleasableBytesReference content = wrapAsReleasable(bytes);
             references.add(content);
             aggregator.aggregate(content);
             content.close();
         } else {
-            final ReleasableBytesReference content1 = ReleasableBytesReference.wrap(bytes.slice(0, 3));
+            final ReleasableBytesReference content1 = wrapAsReleasable(bytes.slice(0, 3));
             references.add(content1);
             aggregator.aggregate(content1);
             content1.close();
-            final ReleasableBytesReference content2 = ReleasableBytesReference.wrap(bytes.slice(3, 3));
+            final ReleasableBytesReference content2 = wrapAsReleasable(bytes.slice(3, 3));
             references.add(content2);
             aggregator.aggregate(content2);
             content2.close();
-            final ReleasableBytesReference content3 = ReleasableBytesReference.wrap(bytes.slice(6, 4));
+            final ReleasableBytesReference content3 = wrapAsReleasable(bytes.slice(6, 4));
             references.add(content3);
             aggregator.aggregate(content3);
             content3.close();
@@ -89,11 +91,11 @@ public class InboundAggregatorTests extends ESTestCase {
         assertFalse(aggregated.isPing());
         assertTrue(aggregated.getHeader().isRequest());
         assertThat(aggregated.getHeader().getRequestId(), equalTo(requestId));
-        assertThat(aggregated.getHeader().getVersion(), equalTo(TransportVersion.CURRENT));
+        assertThat(aggregated.getHeader().getVersion(), equalTo(TransportVersion.current()));
         for (ReleasableBytesReference reference : references) {
             assertTrue(reference.hasReferences());
         }
-        aggregated.decRef();
+        aggregated.close();
         for (ReleasableBytesReference reference : references) {
             assertFalse(reference.hasReferences());
         }
@@ -101,14 +103,14 @@ public class InboundAggregatorTests extends ESTestCase {
 
     public void testInboundUnknownAction() throws IOException {
         long requestId = randomNonNegativeLong();
-        Header header = new Header(randomInt(), requestId, TransportStatus.setRequest((byte) 0), TransportVersion.CURRENT);
+        Header header = new Header(randomInt(), requestId, TransportStatus.setRequest((byte) 0), TransportVersion.current());
         header.headers = new Tuple<>(Collections.emptyMap(), Collections.emptyMap());
         header.actionName = unknownAction;
         // Initiate Message
         aggregator.headerReceived(header);
 
         BytesArray bytes = new BytesArray(randomByteArrayOfLength(10));
-        final ReleasableBytesReference content = ReleasableBytesReference.wrap(bytes);
+        final ReleasableBytesReference content = wrapAsReleasable(bytes);
         aggregator.aggregate(content);
         content.close();
         assertFalse(content.hasReferences());
@@ -129,7 +131,7 @@ public class InboundAggregatorTests extends ESTestCase {
             randomInt(),
             randomNonNegativeLong(),
             TransportStatus.setRequest((byte) 0),
-            TransportVersion.CURRENT
+            TransportVersion.current()
         );
         breakableHeader.headers = new Tuple<>(Collections.emptyMap(), Collections.emptyMap());
         breakableHeader.actionName = "action_name";
@@ -137,7 +139,7 @@ public class InboundAggregatorTests extends ESTestCase {
         aggregator.headerReceived(breakableHeader);
 
         BytesArray bytes = new BytesArray(randomByteArrayOfLength(10));
-        final ReleasableBytesReference content1 = ReleasableBytesReference.wrap(bytes);
+        final ReleasableBytesReference content1 = wrapAsReleasable(bytes);
         aggregator.aggregate(content1);
         content1.close();
 
@@ -154,14 +156,14 @@ public class InboundAggregatorTests extends ESTestCase {
             randomInt(),
             randomNonNegativeLong(),
             TransportStatus.setRequest((byte) 0),
-            TransportVersion.CURRENT
+            TransportVersion.current()
         );
         unbreakableHeader.headers = new Tuple<>(Collections.emptyMap(), Collections.emptyMap());
         unbreakableHeader.actionName = unBreakableAction;
         // Initiate Message
         aggregator.headerReceived(unbreakableHeader);
 
-        final ReleasableBytesReference content2 = ReleasableBytesReference.wrap(bytes);
+        final ReleasableBytesReference content2 = wrapAsReleasable(bytes);
         aggregator.aggregate(content2);
         content2.close();
 
@@ -174,13 +176,13 @@ public class InboundAggregatorTests extends ESTestCase {
 
         // Handshakes are not broken
         final byte handshakeStatus = TransportStatus.setHandshake(TransportStatus.setRequest((byte) 0));
-        Header handshakeHeader = new Header(randomInt(), randomNonNegativeLong(), handshakeStatus, TransportVersion.CURRENT);
+        Header handshakeHeader = new Header(randomInt(), randomNonNegativeLong(), handshakeStatus, TransportVersion.current());
         handshakeHeader.headers = new Tuple<>(Collections.emptyMap(), Collections.emptyMap());
         handshakeHeader.actionName = "handshake";
         // Initiate Message
         aggregator.headerReceived(handshakeHeader);
 
-        final ReleasableBytesReference content3 = ReleasableBytesReference.wrap(bytes);
+        final ReleasableBytesReference content3 = wrapAsReleasable(bytes);
         aggregator.aggregate(content3);
         content3.close();
 
@@ -194,7 +196,7 @@ public class InboundAggregatorTests extends ESTestCase {
 
     public void testCloseWillCloseContent() {
         long requestId = randomNonNegativeLong();
-        Header header = new Header(randomInt(), requestId, TransportStatus.setRequest((byte) 0), TransportVersion.CURRENT);
+        Header header = new Header(randomInt(), requestId, TransportStatus.setRequest((byte) 0), TransportVersion.current());
         header.headers = new Tuple<>(Collections.emptyMap(), Collections.emptyMap());
         header.actionName = "action_name";
         // Initiate Message
@@ -203,16 +205,16 @@ public class InboundAggregatorTests extends ESTestCase {
         BytesArray bytes = new BytesArray(randomByteArrayOfLength(10));
         ArrayList<ReleasableBytesReference> references = new ArrayList<>();
         if (randomBoolean()) {
-            final ReleasableBytesReference content = ReleasableBytesReference.wrap(bytes);
+            final ReleasableBytesReference content = wrapAsReleasable(bytes);
             references.add(content);
             aggregator.aggregate(content);
             content.close();
         } else {
-            final ReleasableBytesReference content1 = ReleasableBytesReference.wrap(bytes.slice(0, 5));
+            final ReleasableBytesReference content1 = wrapAsReleasable(bytes.slice(0, 5));
             references.add(content1);
             aggregator.aggregate(content1);
             content1.close();
-            final ReleasableBytesReference content2 = ReleasableBytesReference.wrap(bytes.slice(5, 5));
+            final ReleasableBytesReference content2 = wrapAsReleasable(bytes.slice(5, 5));
             references.add(content2);
             aggregator.aggregate(content2);
             content2.close();
@@ -234,7 +236,7 @@ public class InboundAggregatorTests extends ESTestCase {
         } else {
             actionName = "action_name";
         }
-        Header header = new Header(randomInt(), requestId, TransportStatus.setRequest((byte) 0), TransportVersion.CURRENT);
+        Header header = new Header(randomInt(), requestId, TransportStatus.setRequest((byte) 0), TransportVersion.current());
         // Initiate Message
         aggregator.headerReceived(header);
 
@@ -243,7 +245,7 @@ public class InboundAggregatorTests extends ESTestCase {
             streamOutput.writeString(actionName);
             streamOutput.write(randomByteArrayOfLength(10));
 
-            final ReleasableBytesReference content = ReleasableBytesReference.wrap(streamOutput.bytes());
+            final ReleasableBytesReference content = wrapAsReleasable(streamOutput.bytes());
             aggregator.aggregate(content);
             content.close();
 

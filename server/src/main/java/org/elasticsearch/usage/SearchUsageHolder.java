@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.usage;
@@ -24,7 +25,9 @@ import java.util.concurrent.atomic.LongAdder;
 public final class SearchUsageHolder {
     private final LongAdder totalSearchCount = new LongAdder();
     private final Map<String, LongAdder> queriesUsage = new ConcurrentHashMap<>();
+    private final Map<String, LongAdder> rescorersUsage = new ConcurrentHashMap<>();
     private final Map<String, LongAdder> sectionsUsage = new ConcurrentHashMap<>();
+    private final Map<String, LongAdder> retrieversUsage = new ConcurrentHashMap<>();
 
     SearchUsageHolder() {}
 
@@ -39,6 +42,12 @@ public final class SearchUsageHolder {
         for (String query : searchUsage.getQueryUsage()) {
             queriesUsage.computeIfAbsent(query, q -> new LongAdder()).increment();
         }
+        for (String rescorer : searchUsage.getRescorerUsage()) {
+            rescorersUsage.computeIfAbsent(rescorer, q -> new LongAdder()).increment();
+        }
+        for (String retriever : searchUsage.getRetrieverUsage()) {
+            retrieversUsage.computeIfAbsent(retriever, q -> new LongAdder()).increment();
+        }
     }
 
     /**
@@ -49,9 +58,15 @@ public final class SearchUsageHolder {
         queriesUsage.forEach((query, adder) -> queriesUsageMap.put(query, adder.longValue()));
         Map<String, Long> sectionsUsageMap = Maps.newMapWithExpectedSize(sectionsUsage.size());
         sectionsUsage.forEach((query, adder) -> sectionsUsageMap.put(query, adder.longValue()));
+        Map<String, Long> rescorersUsageMap = Maps.newMapWithExpectedSize(rescorersUsage.size());
+        rescorersUsage.forEach((query, adder) -> rescorersUsageMap.put(query, adder.longValue()));
+        Map<String, Long> retrieversUsageMap = Maps.newMapWithExpectedSize(retrieversUsage.size());
+        retrieversUsage.forEach((retriever, adder) -> retrieversUsageMap.put(retriever, adder.longValue()));
         return new SearchUsageStats(
             Collections.unmodifiableMap(queriesUsageMap),
+            Collections.unmodifiableMap(rescorersUsageMap),
             Collections.unmodifiableMap(sectionsUsageMap),
+            Collections.unmodifiableMap(retrieversUsageMap),
             totalSearchCount.longValue()
         );
     }

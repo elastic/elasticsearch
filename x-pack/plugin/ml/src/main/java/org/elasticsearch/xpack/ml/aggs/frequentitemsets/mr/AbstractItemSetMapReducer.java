@@ -14,7 +14,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.search.aggregations.AggregationReduceContext;
+import org.elasticsearch.search.aggregations.AggregatorReducer;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.support.SamplingContext;
 import org.elasticsearch.xcontent.ToXContent;
@@ -215,7 +215,7 @@ public abstract class AbstractItemSetMapReducer<
     /**
      * Forwarded from {@link InternalAggregation}:
      *
-     * Signal the framework if the {@linkplain InternalAggregation#reduce(List, AggregationReduceContext)} phase needs to be called
+     * Signal the framework if the {@linkplain AggregatorReducer} phase needs to be called
      * when there is only one {@linkplain InternalAggregation}.
      */
     final boolean mustReduceOnSingleInternalAgg() {

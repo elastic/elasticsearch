@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.get;
@@ -16,6 +17,7 @@ import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.get.GetResult;
+import org.elasticsearch.index.get.GetResultTests;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentParser;
@@ -23,6 +25,7 @@ import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.Collections;
+import java.util.Locale;
 import java.util.function.Predicate;
 
 import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
@@ -69,7 +72,7 @@ public class GetResponseTests extends ESTestCase {
         }
         GetResponse parsedGetResponse;
         try (XContentParser parser = createParser(xContentType.xContent(), mutated)) {
-            parsedGetResponse = GetResponse.fromXContent(parser);
+            parsedGetResponse = parseInstance(parser);
             assertNull(parser.nextToken());
         }
         assertEquals(expectedGetResponse.getSourceAsMap(), parsedGetResponse.getSourceAsMap());
@@ -172,7 +175,7 @@ public class GetResponseTests extends ESTestCase {
         BytesReference originalBytes = toShuffledXContent(getResponse, xContentType, ToXContent.EMPTY_PARAMS, randomBoolean());
 
         try (XContentParser parser = createParser(xContentType.xContent(), originalBytes)) {
-            ParsingException exception = expectThrows(ParsingException.class, () -> GetResponse.fromXContent(parser));
+            ParsingException exception = expectThrows(ParsingException.class, () -> parseInstance(parser));
             assertEquals("Missing required fields [_index,_id]", exception.getMessage());
         }
     }
@@ -183,5 +186,20 @@ public class GetResponseTests extends ESTestCase {
 
     private static GetResponse mutateGetResponse(GetResponse getResponse) {
         return new GetResponse(mutateGetResult(getResponse.getResult));
+    }
+
+    private static GetResponse parseInstance(XContentParser parser) throws IOException {
+        GetResult getResult = GetResultTests.parseInstance(parser);
+
+        // At this stage we ensure that we parsed enough information to return
+        // a valid GetResponse instance. If it's not the case, we throw an
+        // exception so that callers know it and can handle it correctly.
+        if (getResult.getIndex() == null && getResult.getId() == null) {
+            throw new ParsingException(
+                parser.getTokenLocation(),
+                String.format(Locale.ROOT, "Missing required fields [%s,%s]", GetResult._INDEX, GetResult._ID)
+            );
+        }
+        return new GetResponse(getResult);
     }
 }

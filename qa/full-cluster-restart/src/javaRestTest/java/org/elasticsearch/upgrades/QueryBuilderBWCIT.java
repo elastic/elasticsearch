@@ -1,15 +1,19 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.upgrades;
 
 import com.carrotsearch.randomizedtesting.annotations.Name;
 
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
+import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.common.Strings;
@@ -19,6 +23,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.Fuzziness;
+import org.elasticsearch.core.UpdateForV10;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.ConstantScoreQueryBuilder;
 import org.elasticsearch.index.query.DisMaxQueryBuilder;
@@ -48,6 +53,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.cluster.ClusterState.VERSION_INTRODUCING_TRANSPORT_VERSIONS;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 
 /**
@@ -68,7 +74,7 @@ public class QueryBuilderBWCIT extends ParameterizedFullClusterRestartTestCase {
     @ClassRule
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .distribution(DistributionType.DEFAULT)
-        .version(getOldClusterTestVersion())
+        .version(org.elasticsearch.test.cluster.util.Version.fromString(OLD_CLUSTER_VERSION))
         .nodes(2)
         .setting("xpack.security.enabled", "false")
         .apply(() -> clusterConfig)
@@ -146,29 +152,29 @@ public class QueryBuilderBWCIT extends ParameterizedFullClusterRestartTestCase {
         );
         addCandidate(
             """
-                "span_near": {"clauses": [{ "span_term": { "keyword_field": "value1" }}, \
-                { "span_term": { "keyword_field": "value2" }}]}
+                "span_near": {"clauses": [{ "span_term": { "text_field": "value1" }}, \
+                { "span_term": { "text_field": "value2" }}]}
                 """,
-            new SpanNearQueryBuilder(new SpanTermQueryBuilder("keyword_field", "value1"), 0).addClause(
-                new SpanTermQueryBuilder("keyword_field", "value2")
+            new SpanNearQueryBuilder(new SpanTermQueryBuilder("text_field", "value1"), 0).addClause(
+                new SpanTermQueryBuilder("text_field", "value2")
             )
         );
         addCandidate(
             """
-                "span_near": {"clauses": [{ "span_term": { "keyword_field": "value1" }}, \
-                { "span_term": { "keyword_field": "value2" }}], "slop": 2}
+                "span_near": {"clauses": [{ "span_term": { "text_field": "value1" }}, \
+                { "span_term": { "text_field": "value2" }}], "slop": 2}
                 """,
-            new SpanNearQueryBuilder(new SpanTermQueryBuilder("keyword_field", "value1"), 2).addClause(
-                new SpanTermQueryBuilder("keyword_field", "value2")
+            new SpanNearQueryBuilder(new SpanTermQueryBuilder("text_field", "value1"), 2).addClause(
+                new SpanTermQueryBuilder("text_field", "value2")
             )
         );
         addCandidate(
             """
-                "span_near": {"clauses": [{ "span_term": { "keyword_field": "value1" }}, \
-                { "span_term": { "keyword_field": "value2" }}], "slop": 2, "in_order": false}
+                "span_near": {"clauses": [{ "span_term": { "text_field": "value1" }}, \
+                { "span_term": { "text_field": "value2" }}], "slop": 2, "in_order": false}
                 """,
-            new SpanNearQueryBuilder(new SpanTermQueryBuilder("keyword_field", "value1"), 2).addClause(
-                new SpanTermQueryBuilder("keyword_field", "value2")
+            new SpanNearQueryBuilder(new SpanTermQueryBuilder("text_field", "value1"), 2).addClause(
+                new SpanTermQueryBuilder("text_field", "value2")
             ).inOrder(false)
         );
     }
@@ -194,11 +200,6 @@ public class QueryBuilderBWCIT extends ParameterizedFullClusterRestartTestCase {
                 {
                     mappingsAndSettings.startObject("query");
                     mappingsAndSettings.field("type", "percolator");
-                    mappingsAndSettings.endObject();
-                }
-                {
-                    mappingsAndSettings.startObject("keyword_field");
-                    mappingsAndSettings.field("type", "keyword");
                     mappingsAndSettings.endObject();
                 }
                 {
@@ -242,13 +243,26 @@ public class QueryBuilderBWCIT extends ParameterizedFullClusterRestartTestCase {
                 var hitRsp = (Map<?, ?>) ((List<?>) ((Map<?, ?>) responseAsMap(rsp).get("hits")).get("hits")).get(0);
                 String queryBuilderStr = (String) ((List<?>) ((Map<?, ?>) hitRsp.get("fields")).get("query.query_builder_field")).get(0);
                 byte[] qbSource = Base64.getDecoder().decode(queryBuilderStr);
-                try (InputStream in = new ByteArrayInputStream(qbSource, 0, qbSource.length)) {
-                    try (StreamInput input = new NamedWriteableAwareStreamInput(new InputStreamStreamInput(in), registry)) {
-                        input.setTransportVersion(getOldClusterVersion().transportVersion);
-                        QueryBuilder queryBuilder = input.readNamedWriteable(QueryBuilder.class);
-                        assert in.read() == -1;
-                        assertEquals(expectedQueryBuilder, queryBuilder);
+                try (
+                    InputStream in = new ByteArrayInputStream(qbSource, 0, qbSource.length);
+                    StreamInput input = new NamedWriteableAwareStreamInput(new InputStreamStreamInput(in), registry)
+                ) {
+                    @UpdateForV10(owner = UpdateForV10.Owner.SEARCH_FOUNDATIONS)    // won't need to read <8.8 data anymore
+                    boolean originalClusterHasTransportVersion = parseLegacyVersion(getOldClusterVersion()).map(
+                        v -> v.onOrAfter(VERSION_INTRODUCING_TRANSPORT_VERSIONS)
+                    ).orElse(true);
+                    TransportVersion transportVersion;
+                    if (originalClusterHasTransportVersion == false) {
+                        transportVersion = TransportVersion.fromId(
+                            parseLegacyVersion(getOldClusterVersion()).map(Version::id).orElse(TransportVersions.MINIMUM_COMPATIBLE.id())
+                        );
+                    } else {
+                        transportVersion = TransportVersion.readVersion(input);
                     }
+                    input.setTransportVersion(transportVersion);
+                    QueryBuilder queryBuilder = input.readNamedWriteable(QueryBuilder.class);
+                    assert in.read() == -1;
+                    assertEquals(expectedQueryBuilder, queryBuilder);
                 }
             }
         }

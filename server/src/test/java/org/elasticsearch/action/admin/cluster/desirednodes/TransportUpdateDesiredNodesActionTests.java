@@ -1,32 +1,31 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.cluster.desirednodes;
 
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.coordination.NoMasterBlockService;
-import org.elasticsearch.cluster.desirednodes.DesiredNodesSettingsValidator;
 import org.elasticsearch.cluster.desirednodes.VersionConflictException;
 import org.elasticsearch.cluster.metadata.DesiredNode;
 import org.elasticsearch.cluster.metadata.DesiredNodeWithStatus;
 import org.elasticsearch.cluster.metadata.DesiredNodes;
 import org.elasticsearch.cluster.metadata.DesiredNodesMetadata;
 import org.elasticsearch.cluster.metadata.DesiredNodesTestCase;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.routing.RerouteService;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.tasks.Task;
+import org.elasticsearch.test.MockUtils;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -41,26 +40,19 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
-import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.verify;
 
 public class TransportUpdateDesiredNodesActionTests extends DesiredNodesTestCase {
 
-    public static final DesiredNodesSettingsValidator NO_OP_SETTINGS_VALIDATOR = new DesiredNodesSettingsValidator(null) {
-        @Override
-        public void validate(List<DesiredNode> desiredNodes) {}
-    };
-
     public void testWriteBlocks() {
+        ThreadPool threadPool = mock(ThreadPool.class);
+        TransportService transportService = MockUtils.setupTransportServiceWithThreadpoolExecutor(threadPool);
         final TransportUpdateDesiredNodesAction action = new TransportUpdateDesiredNodesAction(
-            mock(TransportService.class),
+            transportService,
             mock(ClusterService.class),
-            mock(ThreadPool.class),
+            mock(RerouteService.class),
+            threadPool,
             mock(ActionFilters.class),
-            mock(IndexNameExpressionResolver.class),
-            NO_OP_SETTINGS_VALIDATOR,
             mock(AllocationService.class)
         );
 
@@ -79,13 +71,14 @@ public class TransportUpdateDesiredNodesActionTests extends DesiredNodesTestCase
     }
 
     public void testNoBlocks() {
+        ThreadPool threadPool = mock(ThreadPool.class);
+        TransportService transportService = MockUtils.setupTransportServiceWithThreadpoolExecutor(threadPool);
         final TransportUpdateDesiredNodesAction action = new TransportUpdateDesiredNodesAction(
-            mock(TransportService.class),
+            transportService,
             mock(ClusterService.class),
-            mock(ThreadPool.class),
+            mock(RerouteService.class),
+            threadPool,
             mock(ActionFilters.class),
-            mock(IndexNameExpressionResolver.class),
-            NO_OP_SETTINGS_VALIDATOR,
             mock(AllocationService.class)
         );
 
@@ -93,34 +86,6 @@ public class TransportUpdateDesiredNodesActionTests extends DesiredNodesTestCase
         final ClusterState state = ClusterState.builder(new ClusterName(randomAlphaOfLength(10))).blocks(blocks).build();
         final ClusterBlockException e = action.checkBlock(randomUpdateDesiredNodesRequest(), state);
         assertThat(e, is(nullValue()));
-    }
-
-    public void testSettingsGetValidated() throws Exception {
-        DesiredNodesSettingsValidator validator = new DesiredNodesSettingsValidator(null) {
-            @Override
-            public void validate(List<DesiredNode> desiredNodes) {
-                throw new IllegalArgumentException("Invalid settings");
-            }
-        };
-        ClusterService clusterService = mock(ClusterService.class);
-        final TransportUpdateDesiredNodesAction action = new TransportUpdateDesiredNodesAction(
-            mock(TransportService.class),
-            clusterService,
-            mock(ThreadPool.class),
-            mock(ActionFilters.class),
-            mock(IndexNameExpressionResolver.class),
-            validator,
-            mock(AllocationService.class)
-        );
-
-        final ClusterState state = ClusterState.builder(new ClusterName(randomAlphaOfLength(10))).build();
-
-        final PlainActionFuture<UpdateDesiredNodesResponse> future = PlainActionFuture.newFuture();
-        action.masterOperation(mock(Task.class), randomUpdateDesiredNodesRequest(), state, future);
-        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, future::actionGet);
-        assertThat(exception.getMessage(), containsString("Invalid settings"));
-
-        verify(clusterService, never()).submitUnbatchedStateUpdateTask(any(), any());
     }
 
     public void testUpdateDesiredNodes() {
@@ -147,7 +112,14 @@ public class TransportUpdateDesiredNodesActionTests extends DesiredNodesTestCase
                 .stream()
                 .map(DesiredNodeWithStatus::desiredNode)
                 .toList();
-            request = new UpdateDesiredNodesRequest(desiredNodes.historyID(), desiredNodes.version() + 1, updatedNodes, false);
+            request = new UpdateDesiredNodesRequest(
+                TEST_REQUEST_TIMEOUT,
+                TEST_REQUEST_TIMEOUT,
+                desiredNodes.historyID(),
+                desiredNodes.version() + 1,
+                updatedNodes,
+                false
+            );
         } else {
             request = randomUpdateDesiredNodesRequest();
         }
@@ -178,6 +150,8 @@ public class TransportUpdateDesiredNodesActionTests extends DesiredNodesTestCase
             Collections.shuffle(equivalentDesiredNodesList, random());
         }
         final UpdateDesiredNodesRequest equivalentDesiredNodesRequest = new UpdateDesiredNodesRequest(
+            TEST_REQUEST_TIMEOUT,
+            TEST_REQUEST_TIMEOUT,
             updateDesiredNodesRequest.getHistoryID(),
             updateDesiredNodesRequest.getVersion(),
             equivalentDesiredNodesList,
@@ -195,6 +169,8 @@ public class TransportUpdateDesiredNodesActionTests extends DesiredNodesTestCase
         final var latestDesiredNodes = TransportUpdateDesiredNodesAction.updateDesiredNodes(null, updateDesiredNodesRequest);
 
         final UpdateDesiredNodesRequest request = new UpdateDesiredNodesRequest(
+            TEST_REQUEST_TIMEOUT,
+            TEST_REQUEST_TIMEOUT,
             latestDesiredNodes.historyID(),
             latestDesiredNodes.version(),
             randomList(1, 10, DesiredNodesTestCase::randomDesiredNode),
@@ -212,6 +188,8 @@ public class TransportUpdateDesiredNodesActionTests extends DesiredNodesTestCase
         final var updateDesiredNodesRequest = randomUpdateDesiredNodesRequest();
         final var latestDesiredNodes = TransportUpdateDesiredNodesAction.updateDesiredNodes(null, updateDesiredNodesRequest);
         final UpdateDesiredNodesRequest request = new UpdateDesiredNodesRequest(
+            TEST_REQUEST_TIMEOUT,
+            TEST_REQUEST_TIMEOUT,
             latestDesiredNodes.historyID(),
             latestDesiredNodes.version() - 1,
             List.copyOf(latestDesiredNodes.nodes().stream().map(DesiredNodeWithStatus::desiredNode).toList()),

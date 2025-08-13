@@ -11,6 +11,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.MockUtils;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.security.action.service.DeleteServiceAccountTokenRequest;
 import org.elasticsearch.xpack.core.security.action.service.DeleteServiceAccountTokenResponse;
@@ -32,8 +33,9 @@ public class TransportDeleteServiceAccountTokenActionTests extends ESTestCase {
     @Before
     public void init() {
         serviceAccountService = mock(ServiceAccountService.class);
+        TransportService transportService = MockUtils.setupTransportServiceWithThreadpoolExecutor();
         transportDeleteServiceAccountTokenAction = new TransportDeleteServiceAccountTokenAction(
-            mock(TransportService.class),
+            transportService,
             new ActionFilters(Collections.emptySet()),
             serviceAccountService
         );

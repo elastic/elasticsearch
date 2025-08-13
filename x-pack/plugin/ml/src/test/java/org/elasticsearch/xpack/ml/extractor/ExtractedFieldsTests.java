@@ -127,8 +127,8 @@ public class ExtractedFieldsTests extends ESTestCase {
         SearchHit hitTrue = new SearchHitBuilder(42).addField("a_bool", true).build();
         SearchHit hitFalse = new SearchHitBuilder(42).addField("a_bool", false).build();
 
-        assertThat(mapped.value(hitTrue), equalTo(new Integer[] { 1 }));
-        assertThat(mapped.value(hitFalse), equalTo(new Integer[] { 0 }));
+        assertThat(mapped.value(hitTrue, new SourceSupplier(hitTrue)), equalTo(new Integer[] { 1 }));
+        assertThat(mapped.value(hitFalse, new SourceSupplier(hitFalse)), equalTo(new Integer[] { 0 }));
 
         assertThat(mapped.getName(), equalTo(aBool.getName()));
         assertThat(mapped.getMethod(), equalTo(aBool.getMethod()));
@@ -145,10 +145,10 @@ public class ExtractedFieldsTests extends ESTestCase {
         SearchHit hitTrueArray = new SearchHitBuilder(42).setSource("{\"a_bool\": [\"true\", true]}").build();
         SearchHit hitFalseArray = new SearchHitBuilder(42).setSource("{\"a_bool\": [\"false\", false]}").build();
 
-        assertThat(mapped.value(hitTrue), equalTo(new Integer[] { 1 }));
-        assertThat(mapped.value(hitFalse), equalTo(new Integer[] { 0 }));
-        assertThat(mapped.value(hitTrueArray), equalTo(new Integer[] { 1, 1 }));
-        assertThat(mapped.value(hitFalseArray), equalTo(new Integer[] { 0, 0 }));
+        assertThat(mapped.value(hitTrue, new SourceSupplier(hitTrue)), equalTo(new Integer[] { 1 }));
+        assertThat(mapped.value(hitFalse, new SourceSupplier(hitFalse)), equalTo(new Integer[] { 0 }));
+        assertThat(mapped.value(hitTrueArray, new SourceSupplier(hitTrueArray)), equalTo(new Integer[] { 1, 1 }));
+        assertThat(mapped.value(hitFalseArray, new SourceSupplier(hitFalseArray)), equalTo(new Integer[] { 0, 0 }));
 
         assertThat(mapped.getName(), equalTo(aBool.getName()));
         assertThat(mapped.getMethod(), equalTo(aBool.getMethod()));

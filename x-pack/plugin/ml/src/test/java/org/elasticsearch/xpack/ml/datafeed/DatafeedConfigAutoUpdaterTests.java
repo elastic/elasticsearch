@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.ml.datafeed;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -23,6 +22,7 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.test.ESTestCase;
@@ -79,7 +79,7 @@ public class DatafeedConfigAutoUpdaterTests extends ESTestCase {
         withDatafeed(datafeedWithRewrite2, true);
 
         DatafeedConfigAutoUpdater updater = new DatafeedConfigAutoUpdater(provider, indexNameExpressionResolver);
-        updater.runUpdate();
+        updater.runUpdate(mock(ClusterState.class));
 
         verify(provider, times(1)).updateDatefeedConfig(
             eq(datafeedWithRewrite1),
@@ -120,7 +120,7 @@ public class DatafeedConfigAutoUpdaterTests extends ESTestCase {
         }).when(provider).updateDatefeedConfig(eq(datafeedWithRewriteFailure), any(), any(), any(), any());
 
         DatafeedConfigAutoUpdater updater = new DatafeedConfigAutoUpdater(provider, indexNameExpressionResolver);
-        ElasticsearchException ex = expectThrows(ElasticsearchException.class, updater::runUpdate);
+        ElasticsearchException ex = expectThrows(ElasticsearchException.class, () -> updater.runUpdate(mock(ClusterState.class)));
         assertThat(ex.getMessage(), equalTo("some datafeeds failed being upgraded."));
         assertThat(ex.getSuppressed().length, equalTo(1));
         assertThat(ex.getSuppressed()[0].getMessage(), equalTo("Failed to update datafeed " + datafeedWithRewriteFailure));
@@ -155,7 +155,7 @@ public class DatafeedConfigAutoUpdaterTests extends ESTestCase {
         withDatafeed(datafeedWithoutRewrite2, false);
 
         DatafeedConfigAutoUpdater updater = new DatafeedConfigAutoUpdater(provider, indexNameExpressionResolver);
-        updater.runUpdate();
+        updater.runUpdate(mock(ClusterState.class));
 
         verify(provider, times(0)).updateDatefeedConfig(any(), any(DatafeedUpdate.class), eq(Collections.emptyMap()), any(), any());
     }
@@ -166,9 +166,10 @@ public class DatafeedConfigAutoUpdaterTests extends ESTestCase {
         IndexMetadata.Builder indexMetadata = IndexMetadata.builder(MlConfigIndex.indexName());
         indexMetadata.settings(
             Settings.builder()
-                .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
                 .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
                 .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                .put(IndexMetadata.SETTING_INDEX_UUID, "_uuid")
         );
         metadata.put(indexMetadata);
         Index index = new Index(MlConfigIndex.indexName(), "_uuid");

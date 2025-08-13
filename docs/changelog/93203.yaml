@@ -1,5 +1,0 @@
-pr: 93203
-summary: Support "offset" parameter in `DateHistogramGroupSource`
-area: Transform
-type: enhancement
-issues: []

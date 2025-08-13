@@ -8,38 +8,37 @@ package org.elasticsearch.xpack.ml.dataframe;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.indices.create.CreateIndexAction;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
+import org.elasticsearch.action.admin.indices.create.TransportCreateIndexAction;
 import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
-import org.elasticsearch.action.admin.indices.mapping.put.PutMappingAction;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
+import org.elasticsearch.action.admin.indices.mapping.put.TransportPutMappingAction;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsAction;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsRequest;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
-import org.elasticsearch.action.fieldcaps.FieldCapabilitiesAction;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
+import org.elasticsearch.action.fieldcaps.TransportFieldCapabilitiesAction;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
-import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.xpack.core.ClientHelper;
+import org.elasticsearch.xpack.core.ml.MlConfigVersion;
 import org.elasticsearch.xpack.core.ml.action.StartDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsDest;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.RequiredField;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
+import org.elasticsearch.xpack.ml.MachineLearning;
 
 import java.time.Clock;
 import java.util.Arrays;
@@ -48,7 +47,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
@@ -97,7 +95,7 @@ public final class DestinationIndex {
      * If the results mappings change in a way existing destination indices will fail to index
      * the results, this should be bumped accordingly.
      */
-    public static final Version MIN_COMPATIBLE_VERSION =
+    public static final MlConfigVersion MIN_COMPATIBLE_VERSION =
         StartDataFrameAnalyticsAction.TaskParams.VERSION_DESTINATION_INDEX_MAPPINGS_CHANGED;
 
     private DestinationIndex() {}
@@ -109,57 +107,36 @@ public final class DestinationIndex {
         Client client,
         Clock clock,
         DataFrameAnalyticsConfig analyticsConfig,
+        String[] destIndexAllowedSettings,
         ActionListener<CreateIndexResponse> listener
     ) {
-        ActionListener<CreateIndexRequest> createIndexRequestListener = ActionListener.wrap(
-            createIndexRequest -> ClientHelper.executeWithHeadersAsync(
-                analyticsConfig.getHeaders(),
-                ClientHelper.ML_ORIGIN,
-                client,
-                CreateIndexAction.INSTANCE,
-                createIndexRequest,
-                listener
-            ),
-            listener::onFailure
+        prepareCreateIndexRequest(
+            client,
+            clock,
+            analyticsConfig,
+            destIndexAllowedSettings,
+            listener.delegateFailureAndWrap(
+                (l, createIndexRequest) -> ClientHelper.executeWithHeadersAsync(
+                    analyticsConfig.getHeaders(),
+                    ClientHelper.ML_ORIGIN,
+                    client,
+                    TransportCreateIndexAction.TYPE,
+                    createIndexRequest,
+                    l
+                )
+            )
         );
-
-        prepareCreateIndexRequest(client, clock, analyticsConfig, createIndexRequestListener);
     }
 
     private static void prepareCreateIndexRequest(
         Client client,
         Clock clock,
         DataFrameAnalyticsConfig config,
+        String[] destIndexAllowedSettings,
         ActionListener<CreateIndexRequest> listener
     ) {
-        AtomicReference<Settings> settingsHolder = new AtomicReference<>();
-        AtomicReference<MappingMetadata> mappingsHolder = new AtomicReference<>();
-
-        ActionListener<FieldCapabilitiesResponse> fieldCapabilitiesListener = ActionListener.wrap(
-            fieldCapabilitiesResponse -> {
-                listener.onResponse(
-                    createIndexRequest(clock, config, settingsHolder.get(), mappingsHolder.get(), fieldCapabilitiesResponse)
-                );
-            },
-            listener::onFailure
-        );
-
-        ActionListener<MappingMetadata> mappingsListener = ActionListener.wrap(mappings -> {
-            mappingsHolder.set(mappings);
-            getFieldCapsForRequiredFields(client, config, fieldCapabilitiesListener);
-        }, listener::onFailure);
-
-        ActionListener<Settings> settingsListener = ActionListener.wrap(settings -> {
-            settingsHolder.set(settings);
-            MappingsMerger.mergeMappings(client, config.getHeaders(), config.getSource(), mappingsListener);
-        }, listener::onFailure);
-
-        ActionListener<GetSettingsResponse> getSettingsResponseListener = ActionListener.wrap(
-            settingsResponse -> settingsListener.onResponse(settings(settingsResponse)),
-            listener::onFailure
-        );
-
-        GetSettingsRequest getSettingsRequest = new GetSettingsRequest().indices(config.getSource().getIndex())
+        GetSettingsRequest getSettingsRequest = new GetSettingsRequest(MachineLearning.HARD_CODED_MACHINE_LEARNING_MASTER_NODE_TIMEOUT)
+            .indices(config.getSource().getIndex())
             .indicesOptions(IndicesOptions.lenientExpandOpen())
             .names(PRESERVED_SETTINGS);
         ClientHelper.executeWithHeadersAsync(
@@ -168,7 +145,26 @@ public final class DestinationIndex {
             client,
             GetSettingsAction.INSTANCE,
             getSettingsRequest,
-            getSettingsResponseListener
+            listener.delegateFailureAndWrap((delegate, settingsResponse) -> {
+                final Settings settings = settings(settingsResponse, destIndexAllowedSettings);
+                MappingsMerger.mergeMappings(
+                    client,
+                    MachineLearning.HARD_CODED_MACHINE_LEARNING_MASTER_NODE_TIMEOUT,
+                    config.getHeaders(),
+                    config.getSource(),
+                    delegate.delegateFailureAndWrap(
+                        (l, mappings) -> getFieldCapsForRequiredFields(
+                            client,
+                            config,
+                            l.delegateFailureAndWrap(
+                                (ll, fieldCapabilitiesResponse) -> ll.onResponse(
+                                    createIndexRequest(clock, config, settings, mappings, fieldCapabilitiesResponse)
+                                )
+                            )
+                        )
+                    )
+                );
+            })
         );
     }
 
@@ -189,7 +185,7 @@ public final class DestinationIndex {
             config.getHeaders(),
             ML_ORIGIN,
             client,
-            FieldCapabilitiesAction.INSTANCE,
+            TransportFieldCapabilitiesAction.TYPE,
             fieldCapabilitiesRequest,
             listener
         );
@@ -208,7 +204,7 @@ public final class DestinationIndex {
         checkResultsFieldIsNotPresentInProperties(config, properties);
         properties.putAll(createAdditionalMappings(config, fieldCapabilitiesResponse));
         Map<String, Object> metadata = getOrPutDefault(mappingsAsMap, META, HashMap::new);
-        metadata.putAll(createMetadata(config.getId(), clock, Version.CURRENT));
+        metadata.putAll(createMetadata(config.getId(), clock, MlConfigVersion.CURRENT));
         if (config.getSource().getRuntimeMappings().isEmpty() == false) {
             Map<String, Object> runtimeMappings = getOrPutDefault(mappingsAsMap, RUNTIME, HashMap::new);
             runtimeMappings.putAll(config.getSource().getRuntimeMappings());
@@ -216,20 +212,10 @@ public final class DestinationIndex {
         return new CreateIndexRequest(destinationIndex, settings).mapping(mappingsAsMap);
     }
 
-    private static Settings settings(GetSettingsResponse settingsResponse) {
-        String[] settingsIndexKeys = {
-            IndexMetadata.SETTING_NUMBER_OF_SHARDS,
-            IndexMetadata.SETTING_NUMBER_OF_REPLICAS,
-            MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING.getKey(),
-            MapperService.INDEX_MAPPING_DEPTH_LIMIT_SETTING.getKey(),
-            MapperService.INDEX_MAPPING_NESTED_FIELDS_LIMIT_SETTING.getKey(),
-            MapperService.INDEX_MAPPING_NESTED_DOCS_LIMIT_SETTING.getKey(),
-            MapperService.INDEX_MAPPING_FIELD_NAME_LENGTH_LIMIT_SETTING.getKey(),
-            MapperService.INDEX_MAPPING_DIMENSION_FIELDS_LIMIT_SETTING.getKey() };
-
+    private static Settings settings(GetSettingsResponse settingsResponse, String[] destIndexAllowedSettings) {
         Settings.Builder settingsBuilder = Settings.builder();
 
-        for (String key : settingsIndexKeys) {
+        for (String key : destIndexAllowedSettings) {
             Long value = findMaxSettingValue(settingsResponse, key);
             if (value != null) {
                 settingsBuilder.put(key, value);
@@ -333,7 +319,7 @@ public final class DestinationIndex {
     }
 
     // Visible for testing
-    static Map<String, Object> createMetadata(String analyticsId, Clock clock, Version version) {
+    static Map<String, Object> createMetadata(String analyticsId, Clock clock, MlConfigVersion version) {
         Map<String, Object> metadata = new HashMap<>();
         metadata.put(CREATION_DATE_MILLIS, clock.millis());
         metadata.put(CREATED_BY, DFA_CREATOR);
@@ -369,7 +355,7 @@ public final class DestinationIndex {
         // Verify that the results field does not exist in the dest index
         checkResultsFieldIsNotPresentInProperties(config, destPropertiesAsMap);
 
-        ActionListener<FieldCapabilitiesResponse> fieldCapabilitiesListener = ActionListener.wrap(fieldCapabilitiesResponse -> {
+        getFieldCapsForRequiredFields(client, config, listener.delegateFailureAndWrap((delegate, fieldCapabilitiesResponse) -> {
             Map<String, Object> addedMappings = new HashMap<>();
 
             // Determine mappings to be added to the destination index
@@ -386,13 +372,11 @@ public final class DestinationIndex {
                 config.getHeaders(),
                 ML_ORIGIN,
                 client,
-                PutMappingAction.INSTANCE,
+                TransportPutMappingAction.TYPE,
                 putMappingRequest,
-                listener
+                delegate
             );
-        }, listener::onFailure);
-
-        getFieldCapsForRequiredFields(client, config, fieldCapabilitiesListener);
+        }));
     }
 
     private static void checkResultsFieldIsNotPresentInProperties(DataFrameAnalyticsConfig config, Map<String, Object> properties) {
@@ -419,11 +403,11 @@ public final class DestinationIndex {
     }
 
     @SuppressWarnings("unchecked")
-    private static Version getVersion(String jobId, Map<String, Object> meta) {
+    private static MlConfigVersion getVersion(String jobId, Map<String, Object> meta) {
         try {
             Map<String, Object> version = (Map<String, Object>) meta.get(VERSION);
             String createdVersionString = (String) version.get(CREATED);
-            return Version.fromString(createdVersionString);
+            return MlConfigVersion.fromString(createdVersionString);
         } catch (Exception e) {
             logger.error(() -> "[" + jobId + "] Could not retrieve destination index version", e);
             return null;
@@ -459,9 +443,9 @@ public final class DestinationIndex {
 
     private static class DestMetadata implements Metadata {
 
-        private final Version version;
+        private final MlConfigVersion version;
 
-        private DestMetadata(Version version) {
+        private DestMetadata(MlConfigVersion version) {
             this.version = version;
         }
 

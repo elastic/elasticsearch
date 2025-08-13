@@ -1,23 +1,26 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.validate;
 
 import org.elasticsearch.action.admin.indices.alias.Alias;
+import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
 import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryResponse;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.Fuzziness;
-import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.query.MoreLikeThisQueryBuilder.Item;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.TermsQueryBuilder;
+import org.elasticsearch.indices.IndexClosedException;
 import org.elasticsearch.indices.TermsLookup;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
@@ -49,9 +52,7 @@ public class SimpleValidateQueryIT extends ESIntegTestCase {
     public void testSimpleValidateQuery() throws Exception {
         createIndex("test");
         ensureGreen();
-        client().admin()
-            .indices()
-            .preparePutMapping("test")
+        indicesAdmin().preparePutMapping("test")
             .setSource(
                 XContentFactory.jsonBuilder()
                     .startObject()
@@ -67,82 +68,42 @@ public class SimpleValidateQueryIT extends ESIntegTestCase {
                     .endObject()
                     .endObject()
             )
-            .execute()
-            .actionGet();
+            .get();
 
         refresh();
 
         assertThat(
-            client().admin()
-                .indices()
-                .prepareValidateQuery("test")
+            indicesAdmin().prepareValidateQuery("test")
                 .setQuery(QueryBuilders.wrapperQuery("foo".getBytes(StandardCharsets.UTF_8)))
-                .execute()
-                .actionGet()
+                .get()
                 .isValid(),
             equalTo(false)
         );
         assertThat(
-            client().admin()
-                .indices()
-                .prepareValidateQuery("test")
-                .setQuery(QueryBuilders.queryStringQuery("_id:1"))
-                .execute()
-                .actionGet()
-                .isValid(),
+            indicesAdmin().prepareValidateQuery("test").setQuery(QueryBuilders.queryStringQuery("_id:1")).get().isValid(),
             equalTo(true)
         );
         assertThat(
-            client().admin()
-                .indices()
-                .prepareValidateQuery("test")
-                .setQuery(QueryBuilders.queryStringQuery("_i:d:1"))
-                .execute()
-                .actionGet()
-                .isValid(),
+            indicesAdmin().prepareValidateQuery("test").setQuery(QueryBuilders.queryStringQuery("_i:d:1")).get().isValid(),
             equalTo(false)
         );
 
         assertThat(
-            client().admin()
-                .indices()
-                .prepareValidateQuery("test")
-                .setQuery(QueryBuilders.queryStringQuery("foo:1"))
-                .execute()
-                .actionGet()
-                .isValid(),
+            indicesAdmin().prepareValidateQuery("test").setQuery(QueryBuilders.queryStringQuery("foo:1")).get().isValid(),
             equalTo(true)
         );
         assertThat(
-            client().admin()
-                .indices()
-                .prepareValidateQuery("test")
-                .setQuery(QueryBuilders.queryStringQuery("bar:hey").lenient(false))
-                .execute()
-                .actionGet()
-                .isValid(),
+            indicesAdmin().prepareValidateQuery("test").setQuery(QueryBuilders.queryStringQuery("bar:hey").lenient(false)).get().isValid(),
             equalTo(false)
         );
 
         assertThat(
-            client().admin()
-                .indices()
-                .prepareValidateQuery("test")
-                .setQuery(QueryBuilders.queryStringQuery("nonexistent:hello"))
-                .execute()
-                .actionGet()
-                .isValid(),
+            indicesAdmin().prepareValidateQuery("test").setQuery(QueryBuilders.queryStringQuery("nonexistent:hello")).get().isValid(),
             equalTo(true)
         );
 
         assertThat(
-            client().admin()
-                .indices()
-                .prepareValidateQuery("test")
-                .setQuery(QueryBuilders.queryStringQuery("foo:1 AND"))
-                .execute()
-                .actionGet()
-                .isValid(),
+            indicesAdmin().prepareValidateQuery("test").setQuery(QueryBuilders.queryStringQuery("foo:1 AND")).get().isValid(),
             equalTo(false)
         );
     }
@@ -150,9 +111,7 @@ public class SimpleValidateQueryIT extends ESIntegTestCase {
     public void testExplainValidateQueryTwoNodes() throws IOException {
         createIndex("test", Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 2).build());
         ensureGreen();
-        client().admin()
-            .indices()
-            .preparePutMapping("test")
+        indicesAdmin().preparePutMapping("test")
             .setSource(
                 XContentFactory.jsonBuilder()
                     .startObject()
@@ -179,15 +138,10 @@ public class SimpleValidateQueryIT extends ESIntegTestCase {
                     .endObject()
                     .endObject()
             )
-            .execute()
-            .actionGet();
+            .get();
 
         for (int i = 0; i < 10; i++) {
-            client().prepareIndex("test")
-                .setSource("foo", "text", "bar", i, "baz", "blort")
-                .setId(Integer.toString(i))
-                .execute()
-                .actionGet();
+            prepareIndex("test").setSource("foo", "text", "bar", i, "baz", "blort").setId(Integer.toString(i)).get();
         }
         refresh();
 
@@ -197,8 +151,7 @@ public class SimpleValidateQueryIT extends ESIntegTestCase {
                 .prepareValidateQuery("test")
                 .setQuery(QueryBuilders.wrapperQuery("foo".getBytes(StandardCharsets.UTF_8)))
                 .setExplain(true)
-                .execute()
-                .actionGet();
+                .get();
             assertThat(response.isValid(), equalTo(false));
             assertThat(response.getQueryExplanation().size(), equalTo(1));
             assertThat(response.getQueryExplanation().get(0).getError(), containsString("Failed to derive xcontent"));
@@ -212,8 +165,7 @@ public class SimpleValidateQueryIT extends ESIntegTestCase {
                 .prepareValidateQuery("test")
                 .setQuery(QueryBuilders.queryStringQuery("foo"))
                 .setExplain(true)
-                .execute()
-                .actionGet();
+                .get();
             assertThat(response.isValid(), equalTo(true));
             assertThat(response.getQueryExplanation().size(), equalTo(1));
             assertThat(
@@ -234,13 +186,11 @@ public class SimpleValidateQueryIT extends ESIntegTestCase {
         String aMonthAgo = DateTimeFormatter.ISO_LOCAL_DATE.format(now.plus(1, ChronoUnit.MONTHS));
         String aMonthFromNow = DateTimeFormatter.ISO_LOCAL_DATE.format(now.minus(1, ChronoUnit.MONTHS));
 
-        client().prepareIndex("test").setId("1").setSource("past", aMonthAgo, "future", aMonthFromNow).get();
+        prepareIndex("test").setId("1").setSource("past", aMonthAgo, "future", aMonthFromNow).get();
 
         refresh();
 
-        ValidateQueryResponse response = client().admin()
-            .indices()
-            .prepareValidateQuery()
+        ValidateQueryResponse response = indicesAdmin().prepareValidateQuery()
             .setQuery(queryStringQuery("past:[now-2M/d TO now/d]"))
             .setRewrite(true)
             .get();
@@ -251,24 +201,23 @@ public class SimpleValidateQueryIT extends ESIntegTestCase {
 
         long twoMonthsAgo = now.minus(2, ChronoUnit.MONTHS).truncatedTo(ChronoUnit.DAYS).toEpochSecond() * 1000;
         long rangeEnd = (now.plus(1, ChronoUnit.DAYS).truncatedTo(ChronoUnit.DAYS).toEpochSecond() * 1000) - 1;
-        assertThat(response.getQueryExplanation().get(0).getExplanation(), equalTo("past:[" + twoMonthsAgo + " TO " + rangeEnd + "]"));
+        assertThat(
+            response.getQueryExplanation().get(0).getExplanation(),
+            containsString("past:[" + twoMonthsAgo + " TO " + rangeEnd + "]")
+        );
         assertThat(response.isValid(), equalTo(true));
     }
 
     public void testValidateEmptyCluster() {
-        try {
-            client().admin().indices().prepareValidateQuery().get();
-            fail("Expected IndexNotFoundException");
-        } catch (IndexNotFoundException e) {
-            assertThat(e.getMessage(), is("no such index [_all] and no indices exist"));
-        }
+        ValidateQueryResponse response = indicesAdmin().prepareValidateQuery().get();
+        assertThat(response.getTotalShards(), is(0));
     }
 
     public void testExplainNoQuery() {
         createIndex("test");
         ensureGreen();
 
-        ValidateQueryResponse validateQueryResponse = client().admin().indices().prepareValidateQuery().setExplain(true).get();
+        ValidateQueryResponse validateQueryResponse = indicesAdmin().prepareValidateQuery().setExplain(true).get();
         assertThat(validateQueryResponse.isValid(), equalTo(true));
         assertThat(validateQueryResponse.getQueryExplanation().size(), equalTo(1));
         assertThat(validateQueryResponse.getQueryExplanation().get(0).getIndex(), equalTo("test"));
@@ -282,9 +231,7 @@ public class SimpleValidateQueryIT extends ESIntegTestCase {
         );
         ensureGreen();
 
-        ValidateQueryResponse validateQueryResponse = client().admin()
-            .indices()
-            .prepareValidateQuery("alias")
+        ValidateQueryResponse validateQueryResponse = indicesAdmin().prepareValidateQuery("alias")
             .setQuery(QueryBuilders.matchAllQuery())
             .setExplain(true)
             .get();
@@ -295,16 +242,14 @@ public class SimpleValidateQueryIT extends ESIntegTestCase {
     }
 
     public void testExplainWithRewriteValidateQuery() {
-        client().admin()
-            .indices()
-            .prepareCreate("test")
+        indicesAdmin().prepareCreate("test")
             .setMapping("field", "type=text,analyzer=whitespace")
             .setSettings(Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 1))
             .get();
-        client().prepareIndex("test").setId("1").setSource("field", "quick lazy huge brown pidgin").get();
-        client().prepareIndex("test").setId("2").setSource("field", "the quick brown fox").get();
-        client().prepareIndex("test").setId("3").setSource("field", "the quick lazy huge brown fox jumps over the tree").get();
-        client().prepareIndex("test").setId("4").setSource("field", "the lazy dog quacks like a duck").get();
+        prepareIndex("test").setId("1").setSource("field", "quick lazy huge brown pidgin").get();
+        prepareIndex("test").setId("2").setSource("field", "the quick brown fox").get();
+        prepareIndex("test").setId("3").setSource("field", "the quick lazy huge brown fox jumps over the tree").get();
+        prepareIndex("test").setId("4").setSource("field", "the lazy dog quacks like a duck").get();
         refresh();
 
         // prefix queries
@@ -341,18 +286,16 @@ public class SimpleValidateQueryIT extends ESIntegTestCase {
     }
 
     public void testExplainWithRewriteValidateQueryAllShards() {
-        client().admin()
-            .indices()
-            .prepareCreate("test")
+        indicesAdmin().prepareCreate("test")
             .setMapping("field", "type=text,analyzer=whitespace")
             .setSettings(Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 2).put("index.number_of_routing_shards", 2))
             .get();
         // We are relying on specific routing behaviors for the result to be right, so
         // we cannot randomize the number of shards or change ids here.
-        client().prepareIndex("test").setId("1").setSource("field", "quick lazy huge brown pidgin").get();
-        client().prepareIndex("test").setId("2").setSource("field", "the quick brown fox").get();
-        client().prepareIndex("test").setId("3").setSource("field", "the quick lazy huge brown fox jumps over the tree").get();
-        client().prepareIndex("test").setId("4").setSource("field", "the lazy dog quacks like a duck").get();
+        prepareIndex("test").setId("1").setSource("field", "quick lazy huge brown pidgin").get();
+        prepareIndex("test").setId("2").setSource("field", "the quick brown fox").get();
+        prepareIndex("test").setId("3").setSource("field", "the quick lazy huge brown fox jumps over the tree").get();
+        prepareIndex("test").setId("4").setSource("field", "the lazy dog quacks like a duck").get();
         refresh();
 
         // prefix queries
@@ -375,7 +318,7 @@ public class SimpleValidateQueryIT extends ESIntegTestCase {
         ensureGreen();
         refresh();
 
-        assertThat(client().admin().indices().prepareValidateQuery("test").setQuery(QueryBuilders.wrapperQuery(new BytesArray("""
+        assertThat(indicesAdmin().prepareValidateQuery("test").setQuery(QueryBuilders.wrapperQuery(new BytesArray("""
             {"foo": "bar", "query": {"term" : { "user" : "kimchy" }}}
             """))).get().isValid(), equalTo(false));
     }
@@ -385,20 +328,17 @@ public class SimpleValidateQueryIT extends ESIntegTestCase {
         ensureGreen();
         refresh();
 
-        assertThat(client().admin().indices().prepareValidateQuery("test").setQuery(QueryBuilders.wrapperQuery(new BytesArray("""
+        assertThat(indicesAdmin().prepareValidateQuery("test").setQuery(QueryBuilders.wrapperQuery(new BytesArray("""
             {"query": {"term" : { "user" : "kimchy" }}, "foo": "bar"}
             """))).get().isValid(), equalTo(false));
     }
 
     private static void assertExplanation(QueryBuilder queryBuilder, Matcher<String> matcher, boolean withRewrite) {
-        ValidateQueryResponse response = client().admin()
-            .indices()
-            .prepareValidateQuery("test")
+        ValidateQueryResponse response = indicesAdmin().prepareValidateQuery("test")
             .setQuery(queryBuilder)
             .setExplain(true)
             .setRewrite(withRewrite)
-            .execute()
-            .actionGet();
+            .get();
         assertThat(response.getQueryExplanation().size(), equalTo(1));
         assertThat(response.getQueryExplanation().get(0).getError(), nullValue());
         assertThat(response.getQueryExplanation().get(0).getExplanation(), matcher);
@@ -411,15 +351,12 @@ public class SimpleValidateQueryIT extends ESIntegTestCase {
         boolean withRewrite,
         boolean allShards
     ) {
-        ValidateQueryResponse response = client().admin()
-            .indices()
-            .prepareValidateQuery("test")
+        ValidateQueryResponse response = indicesAdmin().prepareValidateQuery("test")
             .setQuery(queryBuilder)
             .setExplain(true)
             .setRewrite(withRewrite)
             .setAllShards(allShards)
-            .execute()
-            .actionGet();
+            .get();
         assertThat(response.getQueryExplanation().size(), equalTo(matchers.size()));
         for (int i = 0; i < matchers.size(); i++) {
             assertThat(response.getQueryExplanation().get(i).getError(), nullValue());
@@ -429,23 +366,63 @@ public class SimpleValidateQueryIT extends ESIntegTestCase {
     }
 
     public void testExplainTermsQueryWithLookup() {
-        client().admin()
-            .indices()
-            .prepareCreate("twitter")
+        indicesAdmin().prepareCreate("twitter")
             .setMapping("user", "type=integer", "followers", "type=integer")
             .setSettings(Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 2).put("index.number_of_routing_shards", 2))
             .get();
-        client().prepareIndex("twitter").setId("1").setSource("followers", new int[] { 1, 2, 3 }).get();
+        prepareIndex("twitter").setId("1").setSource("followers", new int[] { 1, 2, 3 }).get();
         refresh();
 
         TermsQueryBuilder termsLookupQuery = QueryBuilders.termsLookupQuery("user", new TermsLookup("twitter", "1", "followers"));
-        ValidateQueryResponse response = client().admin()
-            .indices()
-            .prepareValidateQuery("twitter")
-            .setQuery(termsLookupQuery)
-            .setExplain(true)
-            .execute()
-            .actionGet();
+        ValidateQueryResponse response = indicesAdmin().prepareValidateQuery("twitter").setQuery(termsLookupQuery).setExplain(true).get();
         assertThat(response.isValid(), is(true));
+    }
+
+    public void testOneClosedIndex() {
+        createIndex("test");
+
+        boolean ignoreUnavailable = false;
+        IndicesOptions options = IndicesOptions.fromOptions(ignoreUnavailable, true, true, false, true, true, false, false);
+        client().admin().indices().close(new CloseIndexRequest("test")).actionGet();
+        IndexClosedException ex = expectThrows(
+            IndexClosedException.class,
+            indicesAdmin().prepareValidateQuery("test").setIndicesOptions(options)
+        );
+        assertEquals("closed", ex.getMessage());
+    }
+
+    public void testOneClosedIndexIgnoreUnavailable() {
+        createIndex("test");
+
+        boolean ignoreUnavailable = true;
+        IndicesOptions options = IndicesOptions.fromOptions(ignoreUnavailable, true, true, false, true, true, false, false);
+        client().admin().indices().close(new CloseIndexRequest("test")).actionGet();
+        ValidateQueryResponse response = indicesAdmin().prepareValidateQuery("test").setIndicesOptions(options).get();
+        assertThat(response.getTotalShards(), is(0));
+    }
+
+    public void testTwoIndicesOneClosed() {
+        createIndex("test1");
+        createIndex("test2");
+
+        boolean ignoreUnavailable = false;
+        IndicesOptions options = IndicesOptions.fromOptions(ignoreUnavailable, true, true, false, true, true, false, false);
+        client().admin().indices().close(new CloseIndexRequest("test1")).actionGet();
+        IndexClosedException ex = expectThrows(
+            IndexClosedException.class,
+            indicesAdmin().prepareValidateQuery("test1", "test2").setIndicesOptions(options)
+        );
+        assertEquals("closed", ex.getMessage());
+    }
+
+    public void testTwoIndicesOneClosedIgnoreUnavailable() {
+        createIndex("test1");
+        createIndex("test2");
+
+        boolean ignoreUnavailable = true;
+        IndicesOptions options = IndicesOptions.fromOptions(ignoreUnavailable, true, true, false, true, true, false, false);
+        client().admin().indices().close(new CloseIndexRequest("test1")).actionGet();
+        ValidateQueryResponse response = indicesAdmin().prepareValidateQuery("test1", "test2").setIndicesOptions(options).get();
+        assertThat(response.getTotalShards(), is(1));
     }
 }

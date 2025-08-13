@@ -1,16 +1,19 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.action.search;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.LatchedActionListener;
+import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
@@ -35,29 +38,24 @@ import java.util.concurrent.atomic.AtomicInteger;
 public class ClearScrollControllerTests extends ESTestCase {
 
     public void testClearAll() throws InterruptedException {
-        DiscoveryNode node1 = new DiscoveryNode("node_1", buildNewFakeTransportAddress(), Version.CURRENT);
-        DiscoveryNode node2 = new DiscoveryNode("node_2", buildNewFakeTransportAddress(), Version.CURRENT);
-        DiscoveryNode node3 = new DiscoveryNode("node_3", buildNewFakeTransportAddress(), Version.CURRENT);
+        DiscoveryNode node1 = DiscoveryNodeUtils.create("node_1");
+        DiscoveryNode node2 = DiscoveryNodeUtils.create("node_2");
+        DiscoveryNode node3 = DiscoveryNodeUtils.create("node_3");
         DiscoveryNodes nodes = DiscoveryNodes.builder().add(node1).add(node2).add(node3).build();
         CountDownLatch latch = new CountDownLatch(1);
-        ActionListener<ClearScrollResponse> listener = new LatchedActionListener<>(new ActionListener<ClearScrollResponse>() {
-            @Override
-            public void onResponse(ClearScrollResponse clearScrollResponse) {
+        ActionListener<ClearScrollResponse> listener = new LatchedActionListener<>(
+            ActionTestUtils.assertNoFailureListener(clearScrollResponse -> {
                 assertEquals(3, clearScrollResponse.getNumFreed());
                 assertTrue(clearScrollResponse.isSucceeded());
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                throw new AssertionError(e);
-            }
-        }, latch);
+            }),
+            latch
+        );
         List<DiscoveryNode> nodesInvoked = new CopyOnWriteArrayList<>();
         SearchTransportService searchTransportService = new SearchTransportService(null, null, null) {
             @Override
             public void sendClearAllScrollContexts(Transport.Connection connection, ActionListener<TransportResponse> listener) {
                 nodesInvoked.add(connection.getNode());
-                Thread t = new Thread(() -> listener.onResponse(TransportResponse.Empty.INSTANCE)); // response is unused
+                Thread t = new Thread(() -> listener.onResponse(ActionResponse.Empty.INSTANCE)); // response is unused
                 t.start();
             }
 
@@ -77,9 +75,9 @@ public class ClearScrollControllerTests extends ESTestCase {
     }
 
     public void testClearScrollIds() throws IOException, InterruptedException {
-        DiscoveryNode node1 = new DiscoveryNode("node_1", buildNewFakeTransportAddress(), Version.CURRENT);
-        DiscoveryNode node2 = new DiscoveryNode("node_2", buildNewFakeTransportAddress(), Version.CURRENT);
-        DiscoveryNode node3 = new DiscoveryNode("node_3", buildNewFakeTransportAddress(), Version.CURRENT);
+        DiscoveryNode node1 = DiscoveryNodeUtils.create("node_1");
+        DiscoveryNode node2 = DiscoveryNodeUtils.create("node_2");
+        DiscoveryNode node3 = DiscoveryNodeUtils.create("node_3");
         AtomicArray<SearchPhaseResult> array = new AtomicArray<>(3);
         SearchAsyncActionTests.TestSearchPhaseResult testSearchPhaseResult1 = new SearchAsyncActionTests.TestSearchPhaseResult(
             new ShardSearchContextId(UUIDs.randomBase64UUID(), 1),
@@ -103,18 +101,13 @@ public class ClearScrollControllerTests extends ESTestCase {
         String scrollId = TransportSearchHelper.buildScrollId(array);
         DiscoveryNodes nodes = DiscoveryNodes.builder().add(node1).add(node2).add(node3).build();
         CountDownLatch latch = new CountDownLatch(1);
-        ActionListener<ClearScrollResponse> listener = new LatchedActionListener<>(new ActionListener<ClearScrollResponse>() {
-            @Override
-            public void onResponse(ClearScrollResponse clearScrollResponse) {
+        ActionListener<ClearScrollResponse> listener = new LatchedActionListener<>(
+            ActionTestUtils.assertNoFailureListener(clearScrollResponse -> {
                 assertEquals(numFreed.get(), clearScrollResponse.getNumFreed());
                 assertTrue(clearScrollResponse.isSucceeded());
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                throw new AssertionError(e);
-            }
-        }, latch);
+            }),
+            latch
+        );
         List<DiscoveryNode> nodesInvoked = new CopyOnWriteArrayList<>();
         SearchTransportService searchTransportService = new SearchTransportService(null, null, null) {
 
@@ -129,7 +122,7 @@ public class ClearScrollControllerTests extends ESTestCase {
                 if (freed) {
                     numFreed.incrementAndGet();
                 }
-                Thread t = new Thread(() -> listener.onResponse(new SearchFreeContextResponse(freed)));
+                Thread t = new Thread(() -> listener.onResponse(SearchFreeContextResponse.of(freed)));
                 t.start();
             }
 
@@ -149,9 +142,9 @@ public class ClearScrollControllerTests extends ESTestCase {
     }
 
     public void testClearScrollIdsWithFailure() throws IOException, InterruptedException {
-        DiscoveryNode node1 = new DiscoveryNode("node_1", buildNewFakeTransportAddress(), Version.CURRENT);
-        DiscoveryNode node2 = new DiscoveryNode("node_2", buildNewFakeTransportAddress(), Version.CURRENT);
-        DiscoveryNode node3 = new DiscoveryNode("node_3", buildNewFakeTransportAddress(), Version.CURRENT);
+        DiscoveryNode node1 = DiscoveryNodeUtils.create("node_1");
+        DiscoveryNode node2 = DiscoveryNodeUtils.create("node_2");
+        DiscoveryNode node3 = DiscoveryNodeUtils.create("node_3");
         AtomicArray<SearchPhaseResult> array = new AtomicArray<>(3);
         SearchAsyncActionTests.TestSearchPhaseResult testSearchPhaseResult1 = new SearchAsyncActionTests.TestSearchPhaseResult(
             new ShardSearchContextId(UUIDs.randomBase64UUID(), 1),
@@ -178,22 +171,17 @@ public class ClearScrollControllerTests extends ESTestCase {
         DiscoveryNodes nodes = DiscoveryNodes.builder().add(node1).add(node2).add(node3).build();
         CountDownLatch latch = new CountDownLatch(1);
 
-        ActionListener<ClearScrollResponse> listener = new LatchedActionListener<>(new ActionListener<ClearScrollResponse>() {
-            @Override
-            public void onResponse(ClearScrollResponse clearScrollResponse) {
+        ActionListener<ClearScrollResponse> listener = new LatchedActionListener<>(
+            ActionTestUtils.assertNoFailureListener(clearScrollResponse -> {
                 assertEquals(numFreed.get(), clearScrollResponse.getNumFreed());
                 if (numFailures.get() > 0) {
                     assertFalse(clearScrollResponse.isSucceeded());
                 } else {
                     assertTrue(clearScrollResponse.isSucceeded());
                 }
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                throw new AssertionError(e);
-            }
-        }, latch);
+            }),
+            latch
+        );
         List<DiscoveryNode> nodesInvoked = new CopyOnWriteArrayList<>();
         SearchTransportService searchTransportService = new SearchTransportService(null, null, null) {
 
@@ -214,7 +202,7 @@ public class ClearScrollControllerTests extends ESTestCase {
                         if (freed) {
                             numFreed.incrementAndGet();
                         }
-                        listener.onResponse(new SearchFreeContextResponse(freed));
+                        listener.onResponse(SearchFreeContextResponse.of(freed));
                     }
                 });
                 t.start();

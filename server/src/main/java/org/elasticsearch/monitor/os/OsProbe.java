@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.monitor.os;
@@ -21,6 +22,7 @@ import java.lang.management.ManagementFactory;
 import java.lang.management.OperatingSystemMXBean;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
+import java.math.BigInteger;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Collections;
@@ -340,8 +342,8 @@ public class OsProbe {
      * @return the total CPU time in nanoseconds
      * @throws IOException if an I/O exception occurs reading {@code cpuacct.usage} for the control group
      */
-    private long getCgroupCpuAcctUsageNanos(final String controlGroup) throws IOException {
-        return Long.parseLong(readSysFsCgroupCpuAcctCpuAcctUsage(controlGroup));
+    private BigInteger getCgroupCpuAcctUsageNanos(final String controlGroup) throws IOException {
+        return new BigInteger(readSysFsCgroupCpuAcctCpuAcctUsage(controlGroup));
     }
 
     /**
@@ -434,21 +436,22 @@ public class OsProbe {
      * @throws IOException if an I/O exception occurs reading {@code cpu.stat} for the control group
      */
     private OsStats.Cgroup.CpuStat getCgroupCpuAcctCpuStat(final String controlGroup) throws IOException {
+        final var SENTINEL_VALUE = BigInteger.valueOf(-1);
         final List<String> lines = readSysFsCgroupCpuAcctCpuStat(controlGroup);
-        long numberOfPeriods = -1;
-        long numberOfTimesThrottled = -1;
-        long timeThrottledNanos = -1;
+        var numberOfPeriods = SENTINEL_VALUE;
+        var numberOfTimesThrottled = SENTINEL_VALUE;
+        var timeThrottledNanos = SENTINEL_VALUE;
         for (final String line : lines) {
             final String[] fields = line.split("\\s+");
             switch (fields[0]) {
-                case "nr_periods" -> numberOfPeriods = Long.parseLong(fields[1]);
-                case "nr_throttled" -> numberOfTimesThrottled = Long.parseLong(fields[1]);
-                case "throttled_time" -> timeThrottledNanos = Long.parseLong(fields[1]);
+                case "nr_periods" -> numberOfPeriods = new BigInteger(fields[1]);
+                case "nr_throttled" -> numberOfTimesThrottled = new BigInteger(fields[1]);
+                case "throttled_time" -> timeThrottledNanos = new BigInteger(fields[1]);
             }
         }
-        assert numberOfPeriods != -1;
-        assert numberOfTimesThrottled != -1;
-        assert timeThrottledNanos != -1;
+        assert numberOfPeriods.equals(SENTINEL_VALUE) == false;
+        assert numberOfTimesThrottled.equals(SENTINEL_VALUE) == false;
+        assert timeThrottledNanos.equals(SENTINEL_VALUE) == false;
         return new OsStats.Cgroup.CpuStat(numberOfPeriods, numberOfTimesThrottled, timeThrottledNanos);
     }
 
@@ -469,8 +472,13 @@ public class OsProbe {
      * nr_bursts \d+
      * burst_time
      * </pre></blockquote>
-     * These additional fields are currently ignored.
      *
+     * When schedstat_enabled is enabled, an additional statistics information {@code wait_sum} will also be available
+     * <blockquote><pre>
+     * wait_sum \d+
+     * </pre></blockquote>
+     * {@code wait_sum} represent the conflict between task groups, which is simply sum the wait time of group's cfs_rq
+     *  These three additional fields are currently ignored.
      * @param controlGroup the control group to which the Elasticsearch process belongs for the {@code cpu} subsystem
      * @return the lines from {@code cpu.stat}
      * @throws IOException if an I/O exception occurs reading {@code cpu.stat} for the control group
@@ -478,7 +486,7 @@ public class OsProbe {
     @SuppressForbidden(reason = "access /sys/fs/cgroup/cpu")
     List<String> readSysFsCgroupCpuAcctCpuStat(final String controlGroup) throws IOException {
         final List<String> lines = Files.readAllLines(PathUtils.get("/sys/fs/cgroup/cpu", controlGroup, "cpu.stat"));
-        assert lines != null && (lines.size() == 3 || lines.size() == 5);
+        assert lines != null && (lines.size() >= 3);
         return lines;
     }
 
@@ -629,28 +637,30 @@ public class OsProbe {
      * @throws IOException if an I/O exception occurs reading {@code cpu.stat} for the control group
      */
     @SuppressForbidden(reason = "Uses PathUtils.get to generate meaningful assertion messages")
-    private Map<String, Long> getCgroupV2CpuStats(String controlGroup) throws IOException {
+    private Map<String, BigInteger> getCgroupV2CpuStats(String controlGroup) throws IOException {
         final List<String> lines = readCgroupV2CpuStats(controlGroup);
-        final Map<String, Long> stats = new HashMap<>();
+        final Map<String, BigInteger> stats = new HashMap<>();
+        final BigInteger SENTINEL_VALUE = BigInteger.valueOf(-1);
 
         for (String line : lines) {
             String[] parts = line.split("\\s+");
             assert parts.length == 2 : "Corrupt cpu.stat line: [" + line + "]";
-            stats.put(parts[0], Long.parseLong(parts[1]));
+            stats.put(parts[0], new BigInteger(parts[1]));
         }
 
         final List<String> expectedKeys = List.of("system_usec", "usage_usec", "user_usec");
         expectedKeys.forEach(key -> {
             assert stats.containsKey(key) : "[" + key + "] missing from " + PathUtils.get("/sys/fs/cgroup", controlGroup, "cpu.stat");
-            assert stats.get(key) != -1 : stats.get(key);
+            assert stats.get(key).compareTo(SENTINEL_VALUE) != 0 : stats.get(key).toString();
         });
 
         final List<String> optionalKeys = List.of("nr_periods", "nr_throttled", "throttled_usec");
         optionalKeys.forEach(key -> {
             if (stats.containsKey(key) == false) {
-                stats.put(key, 0L);
+                stats.put(key, BigInteger.ZERO);
             }
-            assert stats.get(key) != -1L : "[" + key + "] in " + PathUtils.get("/sys/fs/cgroup", controlGroup, "cpu.stat") + " is -1";
+            assert stats.get(key).compareTo(SENTINEL_VALUE) != 0
+                : "[" + key + "] in " + PathUtils.get("/sys/fs/cgroup", controlGroup, "cpu.stat") + " is -1";
         });
 
         return stats;
@@ -676,7 +686,7 @@ public class OsProbe {
             assert controllerMap.isEmpty() == false;
 
             final String cpuAcctControlGroup;
-            final long cgroupCpuAcctUsageNanos;
+            final BigInteger cgroupCpuAcctUsageNanos;
             final long cgroupCpuAcctCpuCfsPeriodMicros;
             final long cgroupCpuAcctCpuCfsQuotaMicros;
             final String cpuControlGroup;
@@ -690,9 +700,11 @@ public class OsProbe {
                 cpuControlGroup = cpuAcctControlGroup = memoryControlGroup = controllerMap.get("");
 
                 // `cpuacct` was merged with `cpu` in v2
-                final Map<String, Long> cpuStatsMap = getCgroupV2CpuStats(cpuControlGroup);
+                final Map<String, BigInteger> cpuStatsMap = getCgroupV2CpuStats(cpuControlGroup);
 
-                cgroupCpuAcctUsageNanos = cpuStatsMap.get("usage_usec");
+                final BigInteger THOUSAND = BigInteger.valueOf(1000);
+
+                cgroupCpuAcctUsageNanos = cpuStatsMap.get("usage_usec").multiply(THOUSAND); // convert from micros to nanos
 
                 long[] cpuLimits = getCgroupV2CpuLimit(cpuControlGroup);
                 cgroupCpuAcctCpuCfsQuotaMicros = cpuLimits[0];
@@ -701,7 +713,7 @@ public class OsProbe {
                 cpuStat = new OsStats.Cgroup.CpuStat(
                     cpuStatsMap.get("nr_periods"),
                     cpuStatsMap.get("nr_throttled"),
-                    cpuStatsMap.get("throttled_usec")
+                    cpuStatsMap.get("throttled_usec").multiply(THOUSAND)
                 );
 
                 cgroupMemoryLimitInBytes = getCgroupV2MemoryLimitInBytes(memoryControlGroup);

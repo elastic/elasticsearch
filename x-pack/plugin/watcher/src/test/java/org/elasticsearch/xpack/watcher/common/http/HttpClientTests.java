@@ -500,6 +500,7 @@ public class HttpClientTests extends ESTestCase {
             .setBody("foo")
             .addHeader("foo", "bar")
             .addHeader("foo", "baz")
+            .addHeader("Foo", "bam")
             .addHeader("Content-Length", "3");
         webServer.enqueue(mockResponse);
 
@@ -509,7 +510,7 @@ public class HttpClientTests extends ESTestCase {
         assertThat(webServer.requests(), hasSize(1));
 
         assertThat(httpResponse.headers(), hasKey("foo"));
-        assertThat(httpResponse.headers().get("foo"), containsInAnyOrder("bar", "baz"));
+        assertThat(httpResponse.headers().get("foo"), containsInAnyOrder("bar", "baz", "bam"));
     }
 
     // finally fixing https://github.com/elastic/x-plugins/issues/1141 - yay! Fixed due to switching to apache http client internally!
@@ -565,7 +566,7 @@ public class HttpClientTests extends ESTestCase {
         webServer.enqueue(new MockResponse().setResponseCode(200).setBody(data));
 
         Settings settings = Settings.builder()
-            .put(HttpSettings.MAX_HTTP_RESPONSE_SIZE.getKey(), new ByteSizeValue(randomBytesLength - 1, ByteSizeUnit.BYTES))
+            .put(HttpSettings.MAX_HTTP_RESPONSE_SIZE.getKey(), ByteSizeValue.of(randomBytesLength - 1, ByteSizeUnit.BYTES))
             .build();
 
         HttpRequest.Builder requestBuilder = HttpRequest.builder("localhost", webServer.getPort()).method(HttpMethod.GET).path("/");
@@ -806,6 +807,29 @@ public class HttpClientTests extends ESTestCase {
             // the connection expired before re-use so we made a new one
             assertThat(webServer.requests().get(0).getRemoteAddress(), not(equalTo(webServer.requests().get(1).getRemoteAddress())));
         }
+    }
+
+    public void testNoCookies() throws IOException {
+        /*
+         * In this test we make the same request twice, and assert that the second request is not sent with the cookie that the first
+         * response tells us to set.
+         */
+        int responseCode = randomIntBetween(200, 203);
+        String body = randomAlphaOfLengthBetween(2, 8096);
+        webServer.enqueue(
+            new MockResponse().setResponseCode(responseCode).setBody(body).addHeader("Set-Cookie", "test-cookie=" + randomAlphaOfLength(10))
+        );
+        webServer.enqueue(new MockResponse().setResponseCode(responseCode).setBody(body));
+
+        HttpRequest.Builder requestBuilder = HttpRequest.builder("localhost", webServer.getPort())
+            .method(HttpMethod.POST)
+            .path("/" + randomAlphaOfLength(5));
+        requestBuilder.body(randomAlphaOfLength(5));
+        HttpRequest request = requestBuilder.build();
+
+        httpClient.execute(request);
+        httpClient.execute(request);
+        assertNull(webServer.requests().get(1).getHeader("Cookie"));
     }
 
     private void assertCreateUri(String uri, String expectedPath) {

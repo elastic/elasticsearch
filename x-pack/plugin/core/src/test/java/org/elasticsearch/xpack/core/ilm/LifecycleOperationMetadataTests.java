@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.core.ilm;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractChunkedSerializingTestCase;
@@ -18,7 +19,7 @@ import java.io.IOException;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
 
-public class LifecycleOperationMetadataTests extends AbstractChunkedSerializingTestCase<Metadata.Custom> {
+public class LifecycleOperationMetadataTests extends AbstractChunkedSerializingTestCase<Metadata.ProjectCustom> {
 
     @Override
     protected LifecycleOperationMetadata createTestInstance() {
@@ -31,12 +32,12 @@ public class LifecycleOperationMetadataTests extends AbstractChunkedSerializingT
     }
 
     @Override
-    protected Writeable.Reader<Metadata.Custom> instanceReader() {
+    protected Writeable.Reader<Metadata.ProjectCustom> instanceReader() {
         return LifecycleOperationMetadata::new;
     }
 
     @Override
-    protected Metadata.Custom mutateInstance(Metadata.Custom instance) {
+    protected Metadata.ProjectCustom mutateInstance(Metadata.ProjectCustom instance) {
         LifecycleOperationMetadata metadata = (LifecycleOperationMetadata) instance;
         if (randomBoolean()) {
             return new LifecycleOperationMetadata(
@@ -54,7 +55,7 @@ public class LifecycleOperationMetadataTests extends AbstractChunkedSerializingT
     public void testMinimumSupportedVersion() {
         TransportVersion min = createTestInstance().getMinimalSupportedVersion();
         assertTrue(
-            min.onOrBefore(TransportVersionUtils.randomVersionBetween(random(), TransportVersion.V_8_7_0, TransportVersion.CURRENT))
+            min.onOrBefore(TransportVersionUtils.randomVersionBetween(random(), TransportVersions.V_8_7_0, TransportVersion.current()))
         );
     }
 

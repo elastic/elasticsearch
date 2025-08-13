@@ -1,13 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.transport;
 
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Setting;
@@ -203,4 +205,11 @@ public class RemoteClusterPortSettingsTests extends ESTestCase {
         assertThat(profileSettings.isDefaultProfile, equalTo(false));
     }
 
+    public void testRemoteClusterPortDefaultValue() {
+        assertThat(RemoteClusterPortSettings.PORT.getDefault(Settings.EMPTY), equalTo(9443));
+        assertThat(
+            RemoteClusterPortSettings.PORT.getDefault(Settings.builder().put(DiscoveryNode.STATELESS_ENABLED_SETTING_NAME, true).build()),
+            equalTo(9400)
+        );
+    }
 }

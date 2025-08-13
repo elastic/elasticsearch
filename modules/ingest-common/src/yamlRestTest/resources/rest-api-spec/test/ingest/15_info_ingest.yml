@@ -1,0 +1,367 @@
+---
+setup:
+  - requires:
+      cluster_features: ["gte_v8.9.0"]
+      reason: "/_info/ingest only available from v8.9"
+
+---
+teardown:
+  - do:
+      ingest.delete_pipeline:
+        id: "ingest_info_pipeline"
+        ignore: 404
+
+  - do:
+      indices.delete:
+        index: "ingest_info_index"
+        ignore_unavailable: true
+
+  - do:
+      indices.delete:
+        index: "index-1"
+        ignore_unavailable: true
+
+  - do:
+      indices.delete:
+        index: "index-2"
+        ignore_unavailable: true
+
+  - do:
+      indices.delete:
+        index: "an-index"
+        ignore_unavailable: true
+
+  - do:
+      ingest.delete_pipeline:
+        id: "pipeline-1"
+        ignore: 404
+
+  - do:
+      ingest.delete_pipeline:
+        id: "pipeline-2"
+        ignore: 404
+
+---
+"Cluster ingest information":
+  - do:
+      ingest.put_pipeline:
+        id: "ingest_info_pipeline"
+        body:  >
+          {
+            "description": "_description",
+            "processors": [
+              {
+                "set" : {
+                  "field": "pipeline",
+                  "value": "pipeline"
+                }
+              }
+            ]
+          }
+
+  - do:
+      bulk:
+        refresh: true
+        index: ingest_info_index
+        body:
+          - '{"create": {"pipeline" : "ingest_info_pipeline"}}'
+          - '{"some-field": "some-value"}'
+          - '{"create": {"pipeline" : "ingest_info_pipeline"}}'
+          - '{"some-field": "another-value"}'
+
+  - do:
+      cluster.info:
+        target: [ ingest ]
+
+  - is_true: cluster_name
+
+  # Summary ingest section
+  - is_true: ingest.total
+  - gte: { ingest.total.count: 2 }
+  - gte: { ingest.total.time_in_millis: 0 }
+  # next 2 conditions _should_ be 0, but because these yaml tests are sharing the same test cluster, other tests could
+  # pollute the information.
+  - gte: { ingest.total.current: 0 }
+  - gte: { ingest.total.failed: 0 }
+
+  # Pipelines section
+  - is_true: "ingest.pipelines.${_project_id_prefix_}ingest_info_pipeline"
+  - gte: { "ingest.pipelines.${_project_id_prefix_}ingest_info_pipeline.count": 2 }
+  - gte: { "ingest.pipelines.${_project_id_prefix_}ingest_info_pipeline.time_in_millis": 0 }
+  - match: { "ingest.pipelines.${_project_id_prefix_}ingest_info_pipeline.current": 0 }
+  - match: { "ingest.pipelines.${_project_id_prefix_}ingest_info_pipeline.failed": 0 }
+  - gt: { "ingest.pipelines.${_project_id_prefix_}ingest_info_pipeline.ingested_as_first_pipeline_in_bytes": 0 }
+  - gt: { "ingest.pipelines.${_project_id_prefix_}ingest_info_pipeline.produced_as_first_pipeline_in_bytes": 0 }
+
+  # Processors section
+  - is_true: "ingest.pipelines.${_project_id_prefix_}ingest_info_pipeline.processors.0.set"
+  - match: { "ingest.pipelines.${_project_id_prefix_}ingest_info_pipeline.processors.0.set.type": "set" }
+  - is_true: "ingest.pipelines.${_project_id_prefix_}ingest_info_pipeline.processors.0.set.stats"
+  - gte: { "ingest.pipelines.${_project_id_prefix_}ingest_info_pipeline.processors.0.set.stats.count": 2 }
+  - gte: { "ingest.pipelines.${_project_id_prefix_}ingest_info_pipeline.processors.0.set.stats.time_in_millis": 0 }
+  - match: { "ingest.pipelines.${_project_id_prefix_}ingest_info_pipeline.processors.0.set.stats.current": 0 }
+  - match: { "ingest.pipelines.${_project_id_prefix_}ingest_info_pipeline.processors.0.set.stats.failed": 0 }
+
+---
+"Test bytes_produced not increased when pipeline fails":
+  - do:
+      ingest.put_pipeline:
+        id: "pipeline-1"
+        body:  >
+          {
+            "processors": [
+              {
+                "pipeline": {
+                  "name": "fake-pipeline"
+                }
+              }
+            ]
+          }
+  - do:
+      bulk:
+        refresh: true
+        index: an-index
+        body:
+          - '{"create": {"pipeline" : "pipeline-1"}}'
+          - '{"some-field": "some-value"}'
+
+  - do:
+      cluster.info:
+        target: [ ingest ]
+  - match: { "ingest.pipelines.${_project_id_prefix_}pipeline-1.failed": 1 }
+  - gt: { "ingest.pipelines.${_project_id_prefix_}pipeline-1.ingested_as_first_pipeline_in_bytes": 0 }
+  - match: { "ingest.pipelines.${_project_id_prefix_}pipeline-1.produced_as_first_pipeline_in_bytes": 0 }
+
+---
+"Test drop processor":
+  - do:
+      ingest.put_pipeline:
+        id: "pipeline-1"
+        body:  >
+          {
+            "processors": [
+              {
+                "drop" : {}
+              }
+            ]
+          }
+  - do:
+      bulk:
+        refresh: true
+        index: an-index
+        body:
+          - '{"create": {"pipeline" : "pipeline-1"}}'
+          - '{"some-field": "some-value"}'
+
+  - do:
+      cluster.info:
+        target: [ ingest ]
+  - gt: { "ingest.pipelines.${_project_id_prefix_}pipeline-1.ingested_as_first_pipeline_in_bytes": 0 }
+  - match: { "ingest.pipelines.${_project_id_prefix_}pipeline-1.produced_as_first_pipeline_in_bytes": 0 }
+
+---
+"Test that pipeline processor has byte stats recorded in first pipeline":
+  - do:
+      ingest.put_pipeline:
+        id: "pipeline-1"
+        body:  >
+          {
+            "processors": [
+              {
+                "pipeline": {
+                  "name": "pipeline-2"
+                }
+              }
+            ]
+          }
+  - do:
+      ingest.put_pipeline:
+        id: "pipeline-2"
+        body:  >
+          {
+            "processors": [
+              {
+                "set" : {
+                  "field": "added-in-second-pipeline",
+                  "value": "foo bar baz"
+                }
+              }
+            ]
+          }
+  - do:
+      indices.create:
+        index: an-index
+        body:
+          settings:
+            index:
+              default_pipeline: "pipeline-1"
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - '{"index": { "_index": "an-index", "_id": 1 }}'
+          - '{"some-field": 1 }'
+  - do:
+      get:
+        id: 1
+        index: an-index
+  - match: { _source.added-in-second-pipeline: "foo bar baz" }
+
+  - do:
+      cluster.info:
+        target: [ ingest ]
+  - gt: { "ingest.pipelines.${_project_id_prefix_}pipeline-1.ingested_as_first_pipeline_in_bytes": 0 }
+  - set: { "ingest.pipelines.${_project_id_prefix_}pipeline-1.ingested_as_first_pipeline_in_bytes": ingest_bytes }
+  - gt: { "ingest.pipelines.${_project_id_prefix_}pipeline-1.produced_as_first_pipeline_in_bytes": $ingest_bytes }
+  - match: { "ingest.pipelines.${_project_id_prefix_}pipeline-2.ingested_as_first_pipeline_in_bytes": 0 }
+  - match: { "ingest.pipelines.${_project_id_prefix_}pipeline-2.produced_as_first_pipeline_in_bytes": 0 }
+
+---
+"Test that final pipeline has byte stats recorded in first pipeline":
+  - do:
+      ingest.put_pipeline:
+        id: "pipeline-1"
+        body:  >
+          {
+            "processors": []
+          }
+  - do:
+      ingest.put_pipeline:
+        id: "pipeline-2"
+        body:  >
+          {
+            "processors": [
+              {
+                "set" : {
+                  "field": "added-in-second-pipeline",
+                  "value": "foo bar baz"
+                }
+              }
+            ]
+          }
+  - do:
+      indices.create:
+        index: an-index
+        body:
+          settings:
+            index:
+              default_pipeline: "pipeline-1"
+              final_pipeline: "pipeline-2"
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - '{"index": { "_index": "an-index", "_id": 1 }}'
+          - '{"some-field": 1 }'
+  - do:
+      get:
+        id: 1
+        index: an-index
+  - match: { _source.added-in-second-pipeline: "foo bar baz" }
+
+  - do:
+      cluster.info:
+        target: [ ingest ]
+  - gt: { "ingest.pipelines.${_project_id_prefix_}pipeline-1.ingested_as_first_pipeline_in_bytes": 0 }
+  - set: { "ingest.pipelines.${_project_id_prefix_}pipeline-1.ingested_as_first_pipeline_in_bytes": ingest_bytes }
+  - gt: { "ingest.pipelines.${_project_id_prefix_}pipeline-1.produced_as_first_pipeline_in_bytes": $ingest_bytes }
+  - match: { "ingest.pipelines.${_project_id_prefix_}pipeline-2.ingested_as_first_pipeline_in_bytes": 0 }
+  - match: { "ingest.pipelines.${_project_id_prefix_}pipeline-2.produced_as_first_pipeline_in_bytes": 0 }
+
+---
+"Test that reroute processor has byte stats recorded in first pipeline":
+  - do:
+      ingest.put_pipeline:
+        id: "pipeline-1"
+        body:  >
+          {
+            "processors": [
+              {
+                "reroute": {
+                  "destination": "index-2"
+                }
+              }
+            ]
+          }
+  - do:
+      ingest.put_pipeline:
+        id: "pipeline-2"
+        body:  >
+          {
+            "processors": [
+              {
+                "set" : {
+                  "field": "added-in-second-pipeline",
+                  "value": "foo bar baz"
+                }
+              }
+            ]
+          }
+  - do:
+      indices.create:
+        index: index-1
+        body:
+          settings:
+            index:
+              default_pipeline: "pipeline-1"
+  - do:
+      indices.create:
+        index: index-2
+        body:
+          settings:
+            index:
+              default_pipeline: "pipeline-2"
+  - do:
+      bulk:
+        refresh: true
+        index: index-1
+        body:
+          - '{"index": { "_index": "index-1", "_id": 1 }}'
+          - '{"some-field": 1 }'
+  - do:
+      get:
+        id: 1
+        index: index-2
+  - match: { _source.added-in-second-pipeline: "foo bar baz" }
+
+  - do:
+      cluster.info:
+        target: [ ingest ]
+  - gt: { "ingest.pipelines.${_project_id_prefix_}pipeline-1.ingested_as_first_pipeline_in_bytes": 0 }
+  - set: { "ingest.pipelines.${_project_id_prefix_}pipeline-1.ingested_as_first_pipeline_in_bytes": ingest_bytes }
+  - gt: { "ingest.pipelines.${_project_id_prefix_}pipeline-1.produced_as_first_pipeline_in_bytes": $ingest_bytes }
+  - match: { "ingest.pipelines.${_project_id_prefix_}pipeline-2.ingested_as_first_pipeline_in_bytes": 0 }
+  - match: { "ingest.pipelines.${_project_id_prefix_}pipeline-2.produced_as_first_pipeline_in_bytes": 0 }
+
+---
+"Test human readable byte stat fields":
+  - do:
+      ingest.put_pipeline:
+        id: "pipeline-1"
+        body:  >
+          {
+            "processors": [
+              {
+                "set": {
+                  "field": "added-field",
+                  "value": true
+                }
+              }
+            ]
+          }
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - '{"index": { "_index": "an-index", "_id": 1, "pipeline": "pipeline-1"}}'
+          - '{"some-field": 1 }'
+  - do:
+      cluster.info:
+        target: [ ingest ]
+        human: true
+
+  - match: { "ingest.pipelines.${_project_id_prefix_}pipeline-1.count": 1 }
+  - gt: { "ingest.pipelines.${_project_id_prefix_}pipeline-1.ingested_as_first_pipeline_in_bytes": 0 }
+  - gt: { "ingest.pipelines.${_project_id_prefix_}pipeline-1.produced_as_first_pipeline_in_bytes": 0 }
+  - is_true: "ingest.pipelines.${_project_id_prefix_}pipeline-1.ingested_as_first_pipeline"
+  - is_true: "ingest.pipelines.${_project_id_prefix_}pipeline-1.produced_as_first_pipeline"

@@ -1,16 +1,17 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.lookup;
 
 import org.apache.lucene.index.LeafReaderContext;
-import org.elasticsearch.index.fieldvisitor.LeafStoredFieldLoader;
-import org.elasticsearch.index.fieldvisitor.StoredFieldLoader;
+import org.elasticsearch.index.mapper.MappingLookup;
+import org.elasticsearch.index.mapper.SourceFieldMetrics;
 
 import java.io.IOException;
 
@@ -25,34 +26,14 @@ public interface SourceProvider {
     Source getSource(LeafReaderContext ctx, int doc) throws IOException;
 
     /**
-     * A SourceProvider that loads source from stored fields
+     * A SourceProvider that delegate loading source to the provided {@link MappingLookup}.
+     *
+     * The returned SourceProvider is thread-safe across segments, in that it may be
+     * safely used by a searcher that searches different segments on different threads,
+     * but it is not safe to use this to access documents from the same segment across
+     * multiple threads.
      */
-    static SourceProvider fromStoredFields() {
-        StoredFieldLoader storedFieldLoader = StoredFieldLoader.sequentialSource();
-        return new SourceProvider() {
-
-            // TODO we can make this segment thread safe by keeping an array of LeafStoredFieldLoader/doc/Source
-            // records, indexed by the ordinal of the LeafReaderContext
-
-            LeafReaderContext ctx;
-            int doc;
-            LeafStoredFieldLoader leafStoredFieldLoader;
-            Source source;
-
-            @Override
-            public Source getSource(LeafReaderContext ctx, int doc) throws IOException {
-                if (this.ctx == ctx) {
-                    if (this.doc == doc) {
-                        return source;
-                    }
-                } else {
-                    leafStoredFieldLoader = storedFieldLoader.getLoader(ctx, null);
-                }
-                this.ctx = ctx;
-                this.doc = doc;
-                leafStoredFieldLoader.advanceTo(doc);
-                return source = Source.fromBytes(leafStoredFieldLoader.source());
-            }
-        };
+    static SourceProvider fromLookup(MappingLookup lookup, SourceFilter filter, SourceFieldMetrics metrics) {
+        return new ConcurrentSegmentSourceProvider(lookup.newSourceLoader(filter, metrics), lookup.isSourceSynthetic() == false);
     }
 }

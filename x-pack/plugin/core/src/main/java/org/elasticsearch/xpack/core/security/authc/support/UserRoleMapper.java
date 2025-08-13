@@ -15,6 +15,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Predicates;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.support.mapper.expressiondsl.ExpressionModel;
 import org.elasticsearch.xpack.core.security.authc.support.mapper.expressiondsl.FieldExpression;
@@ -45,7 +46,7 @@ public interface UserRoleMapper {
      * the whole cluster depending on whether this role-mapper has node-local data or cluster-wide
      * data.
      */
-    void refreshRealmOnChange(CachingRealm realm);
+    void clearRealmCacheOnChange(CachingRealm realm);
 
     /**
      * A representation of a user for whom roles should be mapped.
@@ -87,7 +88,7 @@ public interface UserRoleMapper {
                 groups,
                 groups.stream().<Predicate<FieldExpression.FieldValue>>map(g -> new DistinguishedNamePredicate(g, dnNormalizer))
                     .reduce(Predicate::or)
-                    .orElse(fieldValue -> false)
+                    .orElse(Predicates.never())
             );
             metadata.keySet().forEach(k -> model.defineField("metadata." + k, metadata.get(k)));
             model.defineField("realm.name", realm.name());
@@ -281,7 +282,7 @@ public interface UserRoleMapper {
 
                 return false;
             }
-            if (fieldValue.getValue()instanceof final String testString) {
+            if (fieldValue.getValue() instanceof final String testString) {
                 if (testString.equalsIgnoreCase(string)) {
                     return true;
                 }

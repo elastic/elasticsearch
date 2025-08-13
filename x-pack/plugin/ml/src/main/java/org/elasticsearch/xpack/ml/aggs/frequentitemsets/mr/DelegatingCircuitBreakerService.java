@@ -40,10 +40,12 @@ import java.util.function.Consumer;
  * At the time of writing circuit breakers are a global gauge.)
  *
  * After the map phase and before reduce, the {@link ItemSetMapReduceAggregator} creates instances of
- * {@link InternalItemSetMapReduceAggregation}, see {@link ItemSetMapReduceAggregator#buildAggregations(long[])}.
+ * {@link InternalItemSetMapReduceAggregation}, see
+ * {@link ItemSetMapReduceAggregator#buildAggregations(org.elasticsearch.common.util.LongArray)}.
  *
  * (Note 1: Instead of keeping the existing instance, it would have been possible to deep-copy the object like
- * {@link CardinalityAggregator#buildAggregations(long[])}. I decided against this approach mainly because the deep-copy isn't
+ * {@link CardinalityAggregator#buildAggregations(org.elasticsearch.common.util.LongArray)}.
+ * I decided against this approach mainly because the deep-copy isn't
  * secured by circuit breakers, meaning the node could run out of memory during the deep-copy.)
  * (Note 2: Between {@link ItemSetMapReduceAggregator#doClose()} and serializing {@link InternalItemSetMapReduceAggregation}
  * memory accounting is broken, meaning the agg context gets closed and bytes get returned to the circuit breaker before memory is
@@ -68,59 +70,66 @@ final class DelegatingCircuitBreakerService extends CircuitBreakerService {
             this.name = wrappedBreaker.getName();
         }
 
-        void disconnect() {
+        synchronized void disconnect() {
             wrappedBreaker = null;
         }
 
         @Override
         public void circuitBreak(String fieldName, long bytesNeeded) {
-            if (wrappedBreaker != null) {
-                wrappedBreaker.circuitBreak(fieldName, bytesNeeded);
+            CircuitBreaker theBreaker = wrappedBreaker;
+
+            if (theBreaker != null) {
+                theBreaker.circuitBreak(fieldName, bytesNeeded);
             }
         }
 
         @Override
         public void addEstimateBytesAndMaybeBreak(long bytes, String label) throws CircuitBreakingException {
             if (wrappedBreaker != null) {
-                addToBreakerOverwrite.accept(bytes);
+                doAddToBreakerOverwrite(bytes);
             }
         }
 
         @Override
         public void addWithoutBreaking(long bytes) {
             if (wrappedBreaker != null) {
-                addToBreakerOverwrite.accept(bytes);
+                doAddToBreakerOverwrite(bytes);
             }
         }
 
         @Override
         public long getUsed() {
-            if (wrappedBreaker != null) {
-                return wrappedBreaker.getUsed();
+            CircuitBreaker theBreaker = wrappedBreaker;
+
+            if (theBreaker != null) {
+                return theBreaker.getUsed();
             }
             return 0;
         }
 
         @Override
         public long getLimit() {
-            if (wrappedBreaker != null) {
-                return wrappedBreaker.getLimit();
+            CircuitBreaker theBreaker = wrappedBreaker;
+            if (theBreaker != null) {
+                return theBreaker.getLimit();
             }
             return 0;
         }
 
         @Override
         public double getOverhead() {
-            if (wrappedBreaker != null) {
-                return wrappedBreaker.getOverhead();
+            CircuitBreaker theBreaker = wrappedBreaker;
+            if (theBreaker != null) {
+                return theBreaker.getOverhead();
             }
             return 0.0;
         }
 
         @Override
         public long getTrippedCount() {
-            if (wrappedBreaker != null) {
-                return wrappedBreaker.getTrippedCount();
+            CircuitBreaker theBreaker = wrappedBreaker;
+            if (theBreaker != null) {
+                return theBreaker.getTrippedCount();
             }
             return 0;
         }
@@ -132,16 +141,24 @@ final class DelegatingCircuitBreakerService extends CircuitBreakerService {
 
         @Override
         public Durability getDurability() {
-            if (wrappedBreaker != null) {
-                return wrappedBreaker.getDurability();
+            CircuitBreaker theBreaker = wrappedBreaker;
+            if (theBreaker != null) {
+                return theBreaker.getDurability();
             }
             return Durability.TRANSIENT;
         }
 
         @Override
         public void setLimitAndOverhead(long limit, double overhead) {
+            CircuitBreaker theBreaker = wrappedBreaker;
+            if (theBreaker != null) {
+                theBreaker.setLimitAndOverhead(limit, overhead);
+            }
+        }
+
+        private synchronized void doAddToBreakerOverwrite(long bytes) {
             if (wrappedBreaker != null) {
-                wrappedBreaker.setLimitAndOverhead(limit, overhead);
+                addToBreakerOverwrite.accept(bytes);
             }
         }
     }

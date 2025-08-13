@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.test.rest;
@@ -14,6 +15,8 @@ import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.test.cluster.ElasticsearchCluster;
+import org.junit.ClassRule;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -26,6 +29,14 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.notNullValue;
 
 public class NodeRestUsageIT extends ESRestTestCase {
+
+    @ClassRule
+    public static ElasticsearchCluster cluster = ElasticsearchCluster.local().build();
+
+    @Override
+    protected String getTestRestCluster() {
+        return cluster.getHttpAddresses();
+    }
 
     @SuppressWarnings("unchecked")
     public void testWithRestUsage() throws IOException {
@@ -143,24 +154,24 @@ public class NodeRestUsageIT extends ESRestTestCase {
         // Do some requests to get some rest usage stats
         Request create = new Request("PUT", "/test");
         create.setJsonEntity("""
-                {
-                  "mappings": {
-                    "properties": {
-                      "str": {
-                        "type": "keyword"
-                      },
-                      "foo": {
-                        "type": "keyword"
-                      },
-                      "num": {
-                        "type": "long"
-                      },
-                      "start": {
-                        "type": "date"
-                      }
-                    }
+            {
+              "mappings": {
+                "properties": {
+                  "str": {
+                    "type": "keyword"
+                  },
+                  "foo": {
+                    "type": "keyword"
+                  },
+                  "num": {
+                    "type": "long"
+                  },
+                  "start": {
+                    "type": "date"
                   }
-                }""");
+                }
+              }
+            }""");
         client().performRequest(create);
 
         Request searchRequest = new Request("GET", "/test/_search");

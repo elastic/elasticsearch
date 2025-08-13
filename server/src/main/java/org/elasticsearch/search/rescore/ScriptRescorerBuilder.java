@@ -13,17 +13,19 @@ import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.Scorable;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.Weight;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
-import org.elasticsearch.common.xcontent.ParseField;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.script.ScoreScript;
@@ -87,6 +89,11 @@ public class ScriptRescorerBuilder extends RescorerBuilder<ScriptRescorerBuilder
     }
 
     @Override
+    public TransportVersion getMinimalSupportedVersion() {
+        return null;
+    }
+
+    @Override
     public RescorerBuilder<ScriptRescorerBuilder> rewrite(QueryRewriteContext queryRewriteContext) throws IOException {
         return this;
     }
@@ -145,6 +152,11 @@ public class ScriptRescorerBuilder extends RescorerBuilder<ScriptRescorerBuilder
             boolean needsScore = scriptBuilder.needs_score();
             ScoreMode queryScoreMode = needsScore ? ScoreMode.COMPLETE : ScoreMode.COMPLETE_NO_SCORES;
             return new ScriptWeight(this, needsScore, queryScoreMode);
+        }
+
+        @Override
+        public void visit(QueryVisitor queryVisitor) {
+
         }
 
         // script weight

@@ -9,9 +9,9 @@ package org.elasticsearch.xpack.core.security.authc;
 import org.elasticsearch.ElasticsearchAuthenticationProcessingError;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.http.HttpPreRequest;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.transport.TransportMessage;
+import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.XPackField;
 
 import java.util.ArrayList;
@@ -43,7 +43,7 @@ public class DefaultAuthenticationFailureHandler implements AuthenticationFailur
         if (failureResponseHeaders == null || failureResponseHeaders.isEmpty()) {
             this.defaultFailureResponseHeaders = Collections.singletonMap(
                 "WWW-Authenticate",
-                Collections.singletonList("Basic realm=\"" + XPackField.SECURITY + "\" charset=\"UTF-8\"")
+                Collections.singletonList("Basic realm=\"" + XPackField.SECURITY + "\", charset=\"UTF-8\"")
             );
         } else {
             this.defaultFailureResponseHeaders = Collections.unmodifiableMap(
@@ -92,13 +92,13 @@ public class DefaultAuthenticationFailureHandler implements AuthenticationFailur
     }
 
     @Override
-    public ElasticsearchSecurityException failedAuthentication(RestRequest request, AuthenticationToken token, ThreadContext context) {
+    public ElasticsearchSecurityException failedAuthentication(HttpPreRequest request, AuthenticationToken token, ThreadContext context) {
         return createAuthenticationError("unable to authenticate user [{}] for REST request [{}]", null, token.principal(), request.uri());
     }
 
     @Override
     public ElasticsearchSecurityException failedAuthentication(
-        TransportMessage message,
+        TransportRequest message,
         AuthenticationToken token,
         String action,
         ThreadContext context
@@ -107,7 +107,7 @@ public class DefaultAuthenticationFailureHandler implements AuthenticationFailur
     }
 
     @Override
-    public ElasticsearchSecurityException exceptionProcessingRequest(RestRequest request, Exception e, ThreadContext context) {
+    public ElasticsearchSecurityException exceptionProcessingRequest(HttpPreRequest request, Exception e, ThreadContext context) {
         // a couple of authn processing errors can also return {@link RestStatus#INTERNAL_SERVER_ERROR} or
         // {@link RestStatus#SERVICE_UNAVAILABLE}, besides the obvious {@link RestStatus#UNAUTHORIZED}
         if (e instanceof ElasticsearchAuthenticationProcessingError) {
@@ -118,7 +118,7 @@ public class DefaultAuthenticationFailureHandler implements AuthenticationFailur
 
     @Override
     public ElasticsearchSecurityException exceptionProcessingRequest(
-        TransportMessage message,
+        TransportRequest message,
         String action,
         Exception e,
         ThreadContext context
@@ -132,12 +132,12 @@ public class DefaultAuthenticationFailureHandler implements AuthenticationFailur
     }
 
     @Override
-    public ElasticsearchSecurityException missingToken(RestRequest request, ThreadContext context) {
+    public ElasticsearchSecurityException missingToken(HttpPreRequest request, ThreadContext context) {
         return createAuthenticationError("missing authentication credentials for REST request [{}]", null, request.uri());
     }
 
     @Override
-    public ElasticsearchSecurityException missingToken(TransportMessage message, String action, ThreadContext context) {
+    public ElasticsearchSecurityException missingToken(TransportRequest message, String action, ThreadContext context) {
         return createAuthenticationError("missing authentication credentials for action [{}]", null, action);
     }
 
@@ -170,13 +170,13 @@ public class DefaultAuthenticationFailureHandler implements AuthenticationFailur
         if (t instanceof ElasticsearchSecurityException) {
             assert ((ElasticsearchSecurityException) t).status() == RestStatus.UNAUTHORIZED;
             ese = (ElasticsearchSecurityException) t;
-            if (ese.getHeader("WWW-Authenticate") != null && ese.getHeader("WWW-Authenticate").isEmpty() == false) {
+            if (ese.getBodyHeader("WWW-Authenticate") != null && ese.getBodyHeader("WWW-Authenticate").isEmpty() == false) {
                 /**
                  * If 'WWW-Authenticate' header is present with 'Negotiate ' then do not
                  * replace. In case of kerberos spnego mechanism, we use
                  * 'WWW-Authenticate' header value to communicate outToken to peer.
                  */
-                containsNegotiateWithToken = ese.getHeader("WWW-Authenticate")
+                containsNegotiateWithToken = ese.getBodyHeader("WWW-Authenticate")
                     .stream()
                     .anyMatch(s -> s != null && s.regionMatches(true, 0, "Negotiate ", 0, "Negotiate ".length()));
             } else {
@@ -186,12 +186,12 @@ public class DefaultAuthenticationFailureHandler implements AuthenticationFailur
             ese = authenticationError(message, t, args);
             containsNegotiateWithToken = false;
         }
-        defaultFailureResponseHeaders.entrySet().stream().forEach((e) -> {
-            if (containsNegotiateWithToken && e.getKey().equalsIgnoreCase("WWW-Authenticate")) {
+        defaultFailureResponseHeaders.forEach((key, value) -> {
+            if (containsNegotiateWithToken && key.equalsIgnoreCase("WWW-Authenticate")) {
                 return;
             }
             // If it is already present then it will replace the existing header.
-            ese.addHeader(e.getKey(), e.getValue());
+            ese.addBodyHeader(key, value);
         });
         return ese;
     }

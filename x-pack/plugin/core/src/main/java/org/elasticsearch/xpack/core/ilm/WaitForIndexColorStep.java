@@ -9,26 +9,26 @@ package org.elasticsearch.xpack.core.ilm;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.xpack.core.ilm.step.info.SingleMessageFieldInfo;
 
-import java.util.Locale;
 import java.util.Objects;
 import java.util.function.BiFunction;
 
 /**
  * Wait Step for index based on color. Optionally derives the index name using the provided prefix (if any).
  */
-class WaitForIndexColorStep extends ClusterStateWaitStep {
+public class WaitForIndexColorStep extends ClusterStateWaitStep {
 
-    static final String NAME = "wait-for-index-color";
+    public static final String NAME = "wait-for-index-color";
 
     private static final Logger logger = LogManager.getLogger(WaitForIndexColorStep.class);
 
@@ -65,7 +65,7 @@ class WaitForIndexColorStep extends ClusterStateWaitStep {
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), this.color, this.indexNameSupplier);
+        return Objects.hash(super.hashCode(), this.color);
     }
 
     @Override
@@ -77,21 +77,18 @@ class WaitForIndexColorStep extends ClusterStateWaitStep {
             return false;
         }
         WaitForIndexColorStep other = (WaitForIndexColorStep) obj;
-        return super.equals(obj)
-            && Objects.equals(this.color, other.color)
-            && Objects.equals(this.indexNameSupplier, other.indexNameSupplier);
+        return super.equals(obj) && Objects.equals(this.color, other.color);
     }
 
     @Override
-    public Result isConditionMet(Index index, ClusterState clusterState) {
-        LifecycleExecutionState lifecycleExecutionState = clusterState.metadata().index(index.getName()).getLifecycleExecutionState();
+    public Result isConditionMet(Index index, ProjectState currentState) {
+        LifecycleExecutionState lifecycleExecutionState = currentState.metadata().index(index.getName()).getLifecycleExecutionState();
         String indexName = indexNameSupplier.apply(index.getName(), lifecycleExecutionState);
-        IndexMetadata indexMetadata = clusterState.metadata().index(indexName);
+        IndexMetadata indexMetadata = currentState.metadata().index(indexName);
         // check if the (potentially) derived index exists
         if (indexMetadata == null) {
-            String errorMessage = String.format(
-                Locale.ROOT,
-                "[%s] lifecycle action for index [%s] executed but the target index [%s] " + "does not exist",
+            String errorMessage = Strings.format(
+                "[%s] lifecycle action for index [%s] executed but the target index [%s] does not exist",
                 getKey().action(),
                 index.getName(),
                 indexName
@@ -100,7 +97,7 @@ class WaitForIndexColorStep extends ClusterStateWaitStep {
             return new Result(false, new SingleMessageFieldInfo(errorMessage));
         }
 
-        IndexRoutingTable indexRoutingTable = clusterState.routingTable().index(indexMetadata.getIndex());
+        IndexRoutingTable indexRoutingTable = currentState.routingTable().index(indexMetadata.getIndex());
         Result result = switch (this.color) {
             case GREEN -> waitForGreen(indexRoutingTable);
             case YELLOW -> waitForYellow(indexRoutingTable);

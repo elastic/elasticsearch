@@ -1,20 +1,22 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.transport.netty4;
 
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
+import org.elasticsearch.cluster.node.VersionInformation;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
@@ -23,7 +25,6 @@ import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.mocksocket.MockServerSocket;
-import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.test.transport.StubbableTransport;
 import org.elasticsearch.transport.AbstractSimpleTransportTestCase;
@@ -62,13 +63,12 @@ public class SimpleNetty4TransportTests extends AbstractSimpleTransportTestCase 
             settings,
             version,
             threadPool,
-            new NetworkService(Collections.emptyList()),
+            networkService,
             PageCacheRecycler.NON_RECYCLING_INSTANCE,
             namedWriteableRegistry,
             new NoneCircuitBreakerService(),
             new SharedGroupFactory(settings)
         ) {
-
             @Override
             public void executeHandshake(
                 DiscoveryNode node,
@@ -79,39 +79,31 @@ public class SimpleNetty4TransportTests extends AbstractSimpleTransportTestCase 
                 if (doHandshake) {
                     super.executeHandshake(node, channel, profile, listener);
                 } else {
-                    listener.onResponse(TransportVersionUtils.minimumCompatibilityVersion(version));
+                    assert version.equals(TransportVersion.current());
+                    listener.onResponse(TransportVersions.MINIMUM_COMPATIBLE);
                 }
             }
         };
     }
 
     public void testConnectException() throws UnknownHostException {
-        try {
-            connectToNode(
-                serviceA,
-                new DiscoveryNode(
-                    "C",
-                    new TransportAddress(InetAddress.getByName("localhost"), 9876),
-                    emptyMap(),
-                    emptySet(),
-                    Version.CURRENT
-                )
-            );
-            fail("Expected ConnectTransportException");
-        } catch (ConnectTransportException e) {
-            assertThat(e.getMessage(), containsString("connect_exception"));
-            assertThat(e.getMessage(), containsString("[127.0.0.1:9876]"));
-        }
+        final var e = connectToNodeExpectFailure(
+            serviceA,
+            DiscoveryNodeUtils.create("C", new TransportAddress(InetAddress.getByName("localhost"), 9876), emptyMap(), emptySet()),
+            null
+        );
+        assertThat(e.getMessage(), containsString("connect_exception"));
+        assertThat(e.getMessage(), containsString("[127.0.0.1:9876]"));
     }
 
     public void testDefaultKeepAliveSettings() throws IOException {
         assumeTrue("setting default keepalive options not supported on this platform", (IOUtils.LINUX || IOUtils.MAC_OS_X));
         try (
-            MockTransportService serviceC = buildService("TS_C", Version.CURRENT, TransportVersion.CURRENT, Settings.EMPTY);
-            MockTransportService serviceD = buildService("TS_D", Version.CURRENT, TransportVersion.CURRENT, Settings.EMPTY)
+            MockTransportService serviceC = buildService("TS_C", VersionInformation.CURRENT, TransportVersion.current(), Settings.EMPTY);
+            MockTransportService serviceD = buildService("TS_D", VersionInformation.CURRENT, TransportVersion.current(), Settings.EMPTY)
         ) {
 
-            try (Transport.Connection connection = openConnection(serviceC, serviceD.getLocalDiscoNode(), TestProfiles.LIGHT_PROFILE)) {
+            try (Transport.Connection connection = openConnection(serviceC, serviceD.getLocalNode(), TestProfiles.LIGHT_PROFILE)) {
                 assertThat(connection, instanceOf(StubbableTransport.WrappedConnection.class));
                 Transport.Connection conn = ((StubbableTransport.WrappedConnection) connection).getConnection();
                 assertThat(conn, instanceOf(TcpTransport.NodeChannels.class));
@@ -151,11 +143,11 @@ public class SimpleNetty4TransportTests extends AbstractSimpleTransportTestCase 
         );
 
         try (
-            MockTransportService serviceC = buildService("TS_C", Version.CURRENT, TransportVersion.CURRENT, Settings.EMPTY);
-            MockTransportService serviceD = buildService("TS_D", Version.CURRENT, TransportVersion.CURRENT, Settings.EMPTY)
+            MockTransportService serviceC = buildService("TS_C", VersionInformation.CURRENT, TransportVersion.current(), Settings.EMPTY);
+            MockTransportService serviceD = buildService("TS_D", VersionInformation.CURRENT, TransportVersion.current(), Settings.EMPTY)
         ) {
 
-            try (Transport.Connection connection = openConnection(serviceC, serviceD.getLocalDiscoNode(), connectionProfile)) {
+            try (Transport.Connection connection = openConnection(serviceC, serviceD.getLocalNode(), connectionProfile)) {
                 assertThat(connection, instanceOf(StubbableTransport.WrappedConnection.class));
                 Transport.Connection conn = ((StubbableTransport.WrappedConnection) connection).getConnection();
                 assertThat(conn, instanceOf(TcpTransport.NodeChannels.class));
@@ -206,20 +198,16 @@ public class SimpleNetty4TransportTests extends AbstractSimpleTransportTestCase 
             socket.bind(getLocalEphemeral(), 1);
             socket.setReuseAddress(true);
 
-            DiscoveryNode first = new DiscoveryNode(
-                "TEST",
-                new TransportAddress(socket.getInetAddress(), socket.getLocalPort()),
-                emptyMap(),
-                emptySet(),
-                version0
-            );
-            DiscoveryNode second = new DiscoveryNode(
-                "TEST",
-                new TransportAddress(socket.getInetAddress(), socket.getLocalPort()),
-                emptyMap(),
-                emptySet(),
-                version0
-            );
+            DiscoveryNode first = DiscoveryNodeUtils.builder("TEST")
+                .address(new TransportAddress(socket.getInetAddress(), socket.getLocalPort()))
+                .roles(emptySet())
+                .version(version0)
+                .build();
+            DiscoveryNode second = DiscoveryNodeUtils.builder("TEST")
+                .address(new TransportAddress(socket.getInetAddress(), socket.getLocalPort()))
+                .roles(emptySet())
+                .version(version0)
+                .build();
             ConnectionProfile.Builder builder = new ConnectionProfile.Builder();
             builder.addConnections(
                 1,
@@ -233,8 +221,8 @@ public class SimpleNetty4TransportTests extends AbstractSimpleTransportTestCase 
             try (
                 TransportService service = buildService(
                     "TS_TPC",
-                    Version.CURRENT,
-                    TransportVersion.CURRENT,
+                    VersionInformation.CURRENT,
+                    TransportVersion.current(),
                     null,
                     Settings.EMPTY,
                     true,
@@ -246,10 +234,7 @@ public class SimpleNetty4TransportTests extends AbstractSimpleTransportTestCase 
                 final ConnectionProfile profile = builder.build();
                 // now with the 1ms timeout we got and test that is it's applied
                 long startTime = System.nanoTime();
-                ConnectTransportException ex = expectThrows(
-                    ConnectTransportException.class,
-                    () -> openConnection(service, second, profile)
-                );
+                ConnectTransportException ex = openConnectionExpectFailure(service, second, profile);
                 final long now = System.nanoTime();
                 final long timeTaken = TimeValue.nsecToMSec(now - startTime);
                 assertTrue(

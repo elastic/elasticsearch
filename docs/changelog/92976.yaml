@@ -1,6 +1,0 @@
-pr: 92976
-summary: Report recovered files as recovered from snapshot for fully mounted searchable
-  snapshots
-area: Recovery
-type: bug
-issues: []

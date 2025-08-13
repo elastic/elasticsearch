@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.indices.analyze;
@@ -40,7 +41,7 @@ public class AnalyzeAction extends ActionType<AnalyzeAction.Response> {
     public static final String NAME = "indices:admin/analyze";
 
     private AnalyzeAction() {
-        super(NAME, AnalyzeAction.Response::new);
+        super(NAME);
     }
 
     public static class Fields {
@@ -59,7 +60,7 @@ public class AnalyzeAction extends ActionType<AnalyzeAction.Response> {
      * A request to analyze a text associated with a specific index. Allow to provide
      * the actual analyzer name to perform the analysis with.
      */
-    public static class Request extends SingleShardRequest<Request> {
+    public static final class Request extends SingleShardRequest<Request> {
 
         private String[] text;
         private String analyzer;
@@ -78,8 +79,8 @@ public class AnalyzeAction extends ActionType<AnalyzeAction.Response> {
             text = in.readStringArray();
             analyzer = in.readOptionalString();
             tokenizer = in.readOptionalWriteable(NameOrDefinition::new);
-            tokenFilters.addAll(in.readList(NameOrDefinition::new));
-            charFilters.addAll(in.readList(NameOrDefinition::new));
+            tokenFilters.addAll(in.readCollectionAsList(NameOrDefinition::new));
+            charFilters.addAll(in.readCollectionAsList(NameOrDefinition::new));
             field = in.readOptionalString();
             explain = in.readBoolean();
             attributes = in.readStringArray();
@@ -251,8 +252,8 @@ public class AnalyzeAction extends ActionType<AnalyzeAction.Response> {
             out.writeStringArray(text);
             out.writeOptionalString(analyzer);
             out.writeOptionalWriteable(tokenizer);
-            out.writeList(tokenFilters);
-            out.writeList(charFilters);
+            out.writeCollection(tokenFilters);
+            out.writeCollection(charFilters);
             out.writeOptionalString(field);
             out.writeBoolean(explain);
             out.writeStringArray(attributes);
@@ -441,7 +442,7 @@ public class AnalyzeAction extends ActionType<AnalyzeAction.Response> {
                 positionLength = 1;
             }
             type = in.readOptionalString();
-            attributes = in.readMap();
+            attributes = in.readGenericMap();
         }
 
         public String getTerm() {

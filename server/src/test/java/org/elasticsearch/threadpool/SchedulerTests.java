@@ -1,14 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.threadpool;
 
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matchers;
@@ -39,7 +41,11 @@ public class SchedulerTests extends ESTestCase {
     }
 
     private void scheduleAndCancel(ThreadPool threadPool, AtomicLong executed, String type) {
-        Scheduler.ScheduledCancellable scheduled = threadPool.schedule(executed::incrementAndGet, TimeValue.timeValueSeconds(20), type);
+        Scheduler.ScheduledCancellable scheduled = threadPool.schedule(
+            executed::incrementAndGet,
+            TimeValue.timeValueSeconds(20),
+            threadPool.executor(type)
+        );
         assertEquals(1, schedulerQueueSize(threadPool));
         assertFalse(scheduled.isCancelled());
         assertTrue(scheduled.cancel());
@@ -53,16 +59,13 @@ public class SchedulerTests extends ESTestCase {
 
     public void testCancelOnScheduler() {
         ScheduledThreadPoolExecutor executor = Scheduler.initScheduler(Settings.EMPTY, "test-scheduler");
-        Scheduler scheduler = (command, delay, name) -> Scheduler.wrapAsScheduledCancellable(
-            executor.schedule(command, delay.millis(), TimeUnit.MILLISECONDS)
-        );
-
+        Scheduler scheduler = new ScheduledExecutorServiceScheduler(executor);
         AtomicLong executed = new AtomicLong();
         try {
             Scheduler.ScheduledCancellable scheduled = scheduler.schedule(
                 executed::incrementAndGet,
                 TimeValue.timeValueSeconds(20),
-                ThreadPool.Names.SAME
+                EsExecutors.DIRECT_EXECUTOR_SERVICE
             );
             assertEquals(1, executor.getQueue().size());
             assertFalse(scheduled.isCancelled());
@@ -79,7 +82,7 @@ public class SchedulerTests extends ESTestCase {
         ThreadPool threadPool = new TestThreadPool("test");
         try {
             List<Scheduler.ScheduledCancellable> jobs = LongStream.range(20, 30)
-                .mapToObj(delay -> threadPool.schedule(() -> {}, TimeValue.timeValueSeconds(delay), ThreadPool.Names.SAME))
+                .mapToObj(delay -> threadPool.schedule(() -> {}, TimeValue.timeValueSeconds(delay), EsExecutors.DIRECT_EXECUTOR_SERVICE))
                 .collect(Collectors.toCollection(ArrayList::new));
 
             Collections.reverse(jobs);
@@ -120,7 +123,13 @@ public class SchedulerTests extends ESTestCase {
         CountDownLatch missingExecutions = new CountDownLatch(ThreadPool.THREAD_POOL_TYPES.keySet().size());
         try {
             ThreadPool.THREAD_POOL_TYPES.keySet()
-                .forEach(type -> threadPool.schedule(missingExecutions::countDown, TimeValue.timeValueMillis(randomInt(5)), type));
+                .forEach(
+                    type -> threadPool.schedule(
+                        missingExecutions::countDown,
+                        TimeValue.timeValueMillis(randomInt(5)),
+                        threadPool.executor(type)
+                    )
+                );
 
             assertTrue(missingExecutions.await(30, TimeUnit.SECONDS));
         } finally {
@@ -132,16 +141,14 @@ public class SchedulerTests extends ESTestCase {
     public void testScheduledOnScheduler() throws InterruptedException {
         final String schedulerName = "test-scheduler";
         ScheduledThreadPoolExecutor executor = Scheduler.initScheduler(Settings.EMPTY, schedulerName);
-        Scheduler scheduler = (command, delay, name) -> Scheduler.wrapAsScheduledCancellable(
-            executor.schedule(command, delay.millis(), TimeUnit.MILLISECONDS)
-        );
+        Scheduler scheduler = new ScheduledExecutorServiceScheduler(executor);
 
         CountDownLatch missingExecutions = new CountDownLatch(1);
         try {
             scheduler.schedule(() -> {
                 assertThat(Thread.currentThread().getName(), containsString("[" + schedulerName + "]"));
                 missingExecutions.countDown();
-            }, TimeValue.timeValueMillis(randomInt(5)), ThreadPool.Names.SAME);
+            }, TimeValue.timeValueMillis(randomInt(5)), EsExecutors.DIRECT_EXECUTOR_SERVICE);
             assertTrue(missingExecutions.await(30, TimeUnit.SECONDS));
         } finally {
             Scheduler.terminate(executor, 10, TimeUnit.SECONDS);

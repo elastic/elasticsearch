@@ -1,31 +1,37 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 
 import org.elasticsearch.gradle.internal.ExportElasticsearchBuildResourcesTask
-import org.elasticsearch.gradle.internal.info.BuildParams
 import org.elasticsearch.gradle.internal.test.rest.RestTestBasePlugin
 import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask
 import org.elasticsearch.gradle.testclusters.TestClustersAware
-import org.elasticsearch.gradle.testclusters.TestDistribution
+
+//apply plugin: org.elasticsearch.gradle.internal.info.GlobalBuildInfoPlugin
 
 // Common config when running with a FIPS-140 runtime JVM
-if (BuildParams.inFipsJvm) {
-
+if (buildParams.inFipsJvm) {
   allprojects {
-    String javaSecurityFilename = BuildParams.runtimeJavaDetails.toLowerCase().contains('oracle') ? 'fips_java_oracle.security' : 'fips_java.security'
+    String javaSecurityFilename = buildParams.runtimeJavaDetails.get().toLowerCase().contains('oracle') ? 'fips_java_oracle.security' : 'fips_java.security'
     File fipsResourcesDir = new File(project.buildDir, 'fips-resources')
     File fipsSecurity = new File(fipsResourcesDir, javaSecurityFilename)
     File fipsPolicy = new File(fipsResourcesDir, 'fips_java.policy')
     File fipsTrustStore = new File(fipsResourcesDir, 'cacerts.bcfks')
-    def bcFips = dependencies.create('org.bouncycastle:bc-fips:1.0.2')
-    def bcTlsFips = dependencies.create('org.bouncycastle:bctls-fips:1.0.9')
-
+    def bcFips = dependencies.create('org.bouncycastle:bc-fips:1.0.2.5')
+    def bcTlsFips = dependencies.create('org.bouncycastle:bctls-fips:1.0.19')
+    def manualDebug = false; //change this to manually debug bouncy castle in an IDE
+    if(manualDebug) {
+      bcFips = dependencies.create('org.bouncycastle:bc-fips-debug:1.0.2.5')
+      bcTlsFips = dependencies.create('org.bouncycastle:bctls-fips:1.0.19'){
+        exclude group: 'org.bouncycastle', module: 'bc-fips'  // to avoid jar hell
+      }
+    }
     pluginManager.withPlugin('java-base') {
       TaskProvider<ExportElasticsearchBuildResourcesTask> fipsResourcesTask = project.tasks.register('fipsResources', ExportElasticsearchBuildResourcesTask)
       fipsResourcesTask.configure {

@@ -1,15 +1,17 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.ingest.common;
 
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateUtils;
+import org.elasticsearch.common.time.FormatNames;
 import org.elasticsearch.test.ESTestCase;
 
 import java.time.ZoneId;
@@ -73,17 +75,17 @@ public class DateFormatTests extends ESTestCase {
     public void testParseWeekBasedYearAndWeek() {
         String format = "YYYY-ww";
         ZoneId timezone = DateUtils.of("Europe/Amsterdam");
-        Function<String, ZonedDateTime> javaFunction = DateFormat.Java.getFunction(format, timezone, Locale.ROOT);
+        Function<String, ZonedDateTime> javaFunction = DateFormat.Java.getFunction(format, timezone, Locale.ENGLISH);
         ZonedDateTime dateTime = javaFunction.apply("2020-33");
-        assertThat(dateTime, equalTo(ZonedDateTime.of(2020, 8, 10, 0, 0, 0, 0, timezone)));
+        assertThat(dateTime, equalTo(ZonedDateTime.of(2020, 8, 9, 0, 0, 0, 0, timezone)));
     }
 
     public void testParseWeekBasedYear() {
         String format = "YYYY";
         ZoneId timezone = DateUtils.of("Europe/Amsterdam");
-        Function<String, ZonedDateTime> javaFunction = DateFormat.Java.getFunction(format, timezone, Locale.ROOT);
+        Function<String, ZonedDateTime> javaFunction = DateFormat.Java.getFunction(format, timezone, Locale.ENGLISH);
         ZonedDateTime dateTime = javaFunction.apply("2019");
-        assertThat(dateTime, equalTo(ZonedDateTime.of(2018, 12, 31, 0, 0, 0, 0, timezone)));
+        assertThat(dateTime, equalTo(ZonedDateTime.of(2018, 12, 30, 0, 0, 0, 0, timezone)));
     }
 
     public void testParseWeekBasedWithLocale() {
@@ -131,6 +133,19 @@ public class DateFormatTests extends ESTestCase {
         // this means that hour will be 00:00 (default) at -01:00 as timezone was not on a pattern, but -01:00 was an ingest param
         ZonedDateTime dateTime = javaFunction.apply("2020-01-01");
         assertThat(dateTime, equalTo(ZonedDateTime.of(2020, 01, 01, 0, 0, 0, 0, timezone)));
+    }
+
+    public void testParseAllFormatNames() {
+        ZonedDateTime now = ZonedDateTime.now(ZoneOffset.UTC);
+        for (FormatNames formatName : FormatNames.values()) {
+            String name = formatName.getName();
+            DateFormatter formatter = DateFormatter.forPattern(name);
+            String formattedInput = formatter.format(now);
+            DateFormat dateFormat = DateFormat.fromString(name);
+            ZonedDateTime parsed = dateFormat.getFunction(name, ZoneOffset.UTC, Locale.ROOT).apply(formattedInput);
+            String formattedOutput = formatter.format(parsed);
+            assertThat(name, formattedOutput, equalTo(formattedInput));
+        }
     }
 
     public void testParseUnixMs() {

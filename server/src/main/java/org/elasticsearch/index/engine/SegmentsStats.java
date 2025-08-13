@@ -1,14 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.engine;
 
-import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -39,7 +40,7 @@ public class SegmentsStats implements Writeable, ToXContentFragment {
 
     public SegmentsStats(StreamInput in) throws IOException {
         count = in.readVLong();
-        if (in.getTransportVersion().before(TransportVersion.V_8_0_0)) {
+        if (in.getTransportVersion().before(TransportVersions.V_8_0_0)) {
             in.readLong(); // memoryInBytes
             in.readLong(); // termsMemoryInBytes
             in.readLong(); // storedFieldsMemoryInBytes
@@ -220,7 +221,7 @@ public class SegmentsStats implements Writeable, ToXContentFragment {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeVLong(count);
-        if (out.getTransportVersion().before(TransportVersion.V_8_0_0)) {
+        if (out.getTransportVersion().before(TransportVersions.V_8_0_0)) {
             out.writeLong(0L); // memoryInBytes
             out.writeLong(0L); // termsMemoryInBytes
             out.writeLong(0L); // storedFieldsMemoryInBytes
@@ -250,19 +251,11 @@ public class SegmentsStats implements Writeable, ToXContentFragment {
         private final long max;
 
         FileStats(StreamInput in) throws IOException {
-            if (in.getTransportVersion().onOrAfter(TransportVersion.V_7_13_0)) {
-                this.ext = in.readString();
-                this.total = in.readVLong();
-                this.count = in.readVLong();
-                this.min = in.readVLong();
-                this.max = in.readVLong();
-            } else {
-                this.ext = in.readString();
-                this.total = in.readLong();
-                this.count = 0L;
-                this.min = 0L;
-                this.max = 0L;
-            }
+            this.ext = in.readString();
+            this.total = in.readVLong();
+            this.count = in.readVLong();
+            this.min = in.readVLong();
+            this.max = in.readVLong();
         }
 
         public FileStats(String ext, long total, long count, long min, long max) {
@@ -295,16 +288,11 @@ public class SegmentsStats implements Writeable, ToXContentFragment {
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            if (out.getTransportVersion().onOrAfter(TransportVersion.V_7_13_0)) {
-                out.writeString(ext);
-                out.writeVLong(total);
-                out.writeVLong(count);
-                out.writeVLong(min);
-                out.writeVLong(max);
-            } else {
-                out.writeString(ext);
-                out.writeLong(total);
-            }
+            out.writeString(ext);
+            out.writeVLong(total);
+            out.writeVLong(count);
+            out.writeVLong(min);
+            out.writeVLong(max);
         }
 
         @Override

@@ -225,12 +225,17 @@ setup:
         zoom: 0
         body:
           runtime_mappings:
-            label_position:
+            label_position_lat:
               script:
                 GeoPoint point = doc['location'].getLabelPosition();
-                emit(point.getLat(), point.getLon());
-              type: geo_point
-          fields: [label_position]
+                emit(point.getLat());
+              type: double
+            label_position_lon:
+              script:
+                GeoPoint point = doc['location'].getLabelPosition();
+                emit(point.getLon());
+              type: double
+          fields: [label_position_lat, label_position_lon]
 
 ---
 "query field":

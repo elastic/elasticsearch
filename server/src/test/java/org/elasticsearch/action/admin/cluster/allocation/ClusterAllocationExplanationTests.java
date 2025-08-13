@@ -1,15 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.cluster.allocation;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
@@ -23,15 +24,16 @@ import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.test.AbstractChunkedSerializingTestCase;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 
-import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
@@ -82,8 +84,10 @@ public final class ClusterAllocationExplanationTests extends ESTestCase {
 
     public void testExplanationToXContent() throws Exception {
         ClusterAllocationExplanation cae = randomClusterAllocationExplanation(true, true);
+        AbstractChunkedSerializingTestCase.assertChunkCount(cae, ignored -> 3);
+
         XContentBuilder builder = XContentFactory.jsonBuilder();
-        cae.toXContent(builder, ToXContent.EMPTY_PARAMS);
+        ChunkedToXContent.wrapAsToXContent(cae).toXContent(builder, ToXContent.EMPTY_PARAMS);
         assertEquals(XContentHelper.stripWhitespace(Strings.format("""
             {
               "index": "idx",
@@ -94,6 +98,7 @@ public final class ClusterAllocationExplanationTests extends ESTestCase {
                 "id": "node-0",
                 "name": "",
                 "transport_address": "%s",
+                "roles": [],
                 "weight_ranking": 3
               },
               "can_remain_on_current_node": "yes",
@@ -105,8 +110,9 @@ public final class ClusterAllocationExplanationTests extends ESTestCase {
 
     public void testRandomShardExplanationToXContent() throws Exception {
         ClusterAllocationExplanation cae = randomClusterAllocationExplanation(true, false);
+        AbstractChunkedSerializingTestCase.assertChunkCount(cae, ignored -> 3);
         XContentBuilder builder = XContentFactory.jsonBuilder();
-        cae.toXContent(builder, ToXContent.EMPTY_PARAMS);
+        ChunkedToXContent.wrapAsToXContent(cae).toXContent(builder, ToXContent.EMPTY_PARAMS);
         final String actual = Strings.toString(builder);
         assertThat(
             actual,
@@ -124,6 +130,7 @@ public final class ClusterAllocationExplanationTests extends ESTestCase {
                                 "id": "node-0",
                                 "name": "",
                                 "transport_address": "%s",
+                                "roles": [],
                                 "weight_ranking": 3
                               },
                               "can_remain_on_current_node": "yes",
@@ -143,7 +150,8 @@ public final class ClusterAllocationExplanationTests extends ESTestCase {
             allOf(
                 // no point in asserting the precise wording of the message into this test, but we care that the note contains these bits:
                 containsString("No shard was specified in the explain API request"),
-                containsString("specify the target shard in the request")
+                containsString("specify the target shard in the request"),
+                containsString("https://www.elastic.co/docs/api/doc/elasticsearch/v9/operation/operation-cluster-allocation-explain?")
             )
         );
 
@@ -156,13 +164,10 @@ public final class ClusterAllocationExplanationTests extends ESTestCase {
             true,
             assignedShard ? ShardRoutingState.STARTED : ShardRoutingState.UNASSIGNED
         );
-        DiscoveryNode node = assignedShard
-            ? new DiscoveryNode("node-0", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT)
-            : null;
+        DiscoveryNode node = assignedShard ? DiscoveryNodeUtils.builder("node-0").roles(emptySet()).build() : null;
         ShardAllocationDecision shardAllocationDecision;
         if (assignedShard) {
-            MoveDecision moveDecision = MoveDecision.cannotRebalance(Decision.YES, AllocationDecision.NO, 3, null)
-                .withRemainDecision(Decision.YES);
+            MoveDecision moveDecision = MoveDecision.rebalance(Decision.YES, Decision.YES, AllocationDecision.NO, null, 3, null);
             shardAllocationDecision = new ShardAllocationDecision(AllocateUnassignedDecision.NOT_TAKEN, moveDecision);
         } else {
             AllocateUnassignedDecision allocateDecision = AllocateUnassignedDecision.no(UnassignedInfo.AllocationStatus.DECIDERS_NO, null);

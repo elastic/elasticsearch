@@ -13,8 +13,8 @@
 
 ---
 "invalid max_docs in URL fails":
-  - skip:
-      version: " - 7.2.99"
+  - requires:
+      cluster_features: ["gte_v7.3.0"]
       reason: "max_docs introduced in 7.3.0"
 
   - do:
@@ -30,8 +30,8 @@
 
 ---
 "invalid max_docs in body fails":
-  - skip:
-      version: " - 7.2.99"
+  - requires:
+      cluster_features: ["gte_v7.3.0"]
       reason: "max_docs introduced in 7.3.0"
 
   - do:
@@ -48,8 +48,8 @@
 
 ---
 "inconsistent max_docs in body and max_docs in URL fails":
-  - skip:
-      version: " - 7.2.99"
+  - requires:
+      cluster_features: ["gte_v7.3.0"]
       reason: "max_docs introduced in 7.3.0"
 
   - do:
@@ -69,8 +69,8 @@
 
 ---
 "max_docs shoule be greater than slices":
-  - skip:
-      version: " - 7.2.99"
+  - requires:
+      cluster_features: ["gte_v7.3.0"]
       reason: "max_docs introduced in 7.3.0"
 
   - do:

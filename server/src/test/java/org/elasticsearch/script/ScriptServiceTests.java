@@ -1,18 +1,22 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.script;
 
 import org.apache.logging.log4j.Level;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.admin.cluster.storedscripts.GetStoredScriptRequest;
+import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -33,6 +37,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -59,6 +64,7 @@ public class ScriptServiceTests extends ESTestCase {
     private Settings baseSettings;
     private ClusterSettings clusterSettings;
     private Map<String, ScriptContext<?>> rateLimitedContexts;
+    private ProjectId projectId;
 
     @Before
     public void setup() throws IOException {
@@ -76,21 +82,14 @@ public class ScriptServiceTests extends ESTestCase {
         engines.put("test", new MockScriptEngine("test", scripts, Collections.emptyMap()));
         logger.info("--> setup script service");
         rateLimitedContexts = compilationRateLimitedContexts();
+        projectId = randomProjectIdOrDefault();
     }
 
     private void buildScriptService(Settings additionalSettings) throws IOException {
         Settings finalSettings = Settings.builder().put(baseSettings).put(additionalSettings).build();
-        scriptService = new ScriptService(finalSettings, engines, contexts, () -> 1L) {
+        scriptService = new ScriptService(finalSettings, engines, contexts, () -> 1L, TestProjectResolvers.singleProject(projectId)) {
             @Override
-            Map<String, StoredScriptSource> getScriptsFromClusterState() {
-                Map<String, StoredScriptSource> scripts = new HashMap<>();
-                scripts.put("test1", new StoredScriptSource("test", "1+1", Collections.emptyMap()));
-                scripts.put("test2", new StoredScriptSource("test", "1", Collections.emptyMap()));
-                return scripts;
-            }
-
-            @Override
-            protected StoredScriptSource getScriptFromClusterState(String id) {
+            protected StoredScriptSource getScriptFromClusterState(ProjectId projectId, String id) {
                 // mock the script that gets retrieved from an index
                 return new StoredScriptSource("test", "1+1", Collections.emptyMap());
             }
@@ -436,53 +435,46 @@ public class ScriptServiceTests extends ESTestCase {
         assertNull(scriptMetadata.getStoredScript("_id"));
 
         ScriptMetadata errorMetadata = scriptMetadata;
-        ResourceNotFoundException e = expectThrows(
-            ResourceNotFoundException.class,
-            () -> { ScriptMetadata.deleteStoredScript(errorMetadata, "_id"); }
-        );
+        ResourceNotFoundException e = expectThrows(ResourceNotFoundException.class, () -> {
+            ScriptMetadata.deleteStoredScript(errorMetadata, "_id");
+        });
         assertEquals("stored script [_id] does not exist and cannot be deleted", e.getMessage());
     }
 
     public void testGetStoredScript() throws Exception {
         buildScriptService(Settings.EMPTY);
-        ClusterState cs = ClusterState.builder(new ClusterName("_name"))
-            .metadata(
-                Metadata.builder()
-                    .putCustom(
-                        ScriptMetadata.TYPE,
-                        new ScriptMetadata.Builder(null).storeScript("_id", StoredScriptSource.parse(new BytesArray("""
-                            {"script": {"lang": "_lang", "source": "abc"} }"""), XContentType.JSON)).build()
-                    )
-            )
+        ProjectMetadata project = ProjectMetadata.builder(projectId)
+            .putCustom(ScriptMetadata.TYPE, new ScriptMetadata.Builder(null).storeScript("_id", StoredScriptSource.parse(new BytesArray("""
+                {"script": {"lang": "_lang", "source": "abc"} }"""), XContentType.JSON)).build())
             .build();
 
-        assertEquals("abc", ScriptService.getStoredScript(cs, new GetStoredScriptRequest("_id")).getSource());
+        assertEquals("abc", ScriptService.getStoredScript(project, new GetStoredScriptRequest(TEST_REQUEST_TIMEOUT, "_id")).getSource());
 
-        cs = ClusterState.builder(new ClusterName("_name")).build();
-        assertNull(ScriptService.getStoredScript(cs, new GetStoredScriptRequest("_id")));
+        project = ProjectMetadata.builder(randomProjectIdOrDefault()).build();
+        assertNull(ScriptService.getStoredScript(project, new GetStoredScriptRequest(TEST_REQUEST_TIMEOUT, "_id")));
     }
 
     public void testMaxSizeLimit() throws Exception {
         buildScriptService(Settings.builder().put(ScriptService.SCRIPT_MAX_SIZE_IN_BYTES.getKey(), 4).build());
+        ScriptMetadata.Builder scripts = new ScriptMetadata.Builder(null);
+        scripts.storeScript("test1", new StoredScriptSource("test", "1+1", Collections.emptyMap()));
+        scripts.storeScript("test2", new StoredScriptSource("test", "1", Collections.emptyMap()));
+        final var project = ProjectMetadata.builder(projectId).putCustom(ScriptMetadata.TYPE, scripts.build()).build();
+        final var state = ClusterState.builder(ClusterName.DEFAULT).putProjectMetadata(project).build();
+        scriptService.applyClusterState(new ClusterChangedEvent("", state, ClusterState.EMPTY_STATE));
+
         scriptService.compile(new Script(ScriptType.INLINE, "test", "1+1", Collections.emptyMap()), randomFrom(contexts.values()));
-        IllegalArgumentException iae = expectThrows(
-            IllegalArgumentException.class,
-            () -> {
-                scriptService.compile(
-                    new Script(ScriptType.INLINE, "test", "10+10", Collections.emptyMap()),
-                    randomFrom(contexts.values())
-                );
-            }
-        );
+        IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, () -> {
+            scriptService.compile(new Script(ScriptType.INLINE, "test", "10+10", Collections.emptyMap()), randomFrom(contexts.values()));
+        });
         assertEquals("exceeded max allowed inline script size in bytes [4] with size [5] for script [10+10]", iae.getMessage());
         clusterSettings.applySettings(Settings.builder().put(ScriptService.SCRIPT_MAX_SIZE_IN_BYTES.getKey(), 6).build());
         scriptService.compile(new Script(ScriptType.INLINE, "test", "10+10", Collections.emptyMap()), randomFrom(contexts.values()));
         clusterSettings.applySettings(Settings.builder().put(ScriptService.SCRIPT_MAX_SIZE_IN_BYTES.getKey(), 5).build());
         scriptService.compile(new Script(ScriptType.INLINE, "test", "10+10", Collections.emptyMap()), randomFrom(contexts.values()));
-        iae = expectThrows(
-            IllegalArgumentException.class,
-            () -> { clusterSettings.applySettings(Settings.builder().put(ScriptService.SCRIPT_MAX_SIZE_IN_BYTES.getKey(), 2).build()); }
-        );
+        iae = expectThrows(IllegalArgumentException.class, () -> {
+            clusterSettings.applySettings(Settings.builder().put(ScriptService.SCRIPT_MAX_SIZE_IN_BYTES.getKey(), 2).build());
+        });
         assertEquals(
             "script.max_size_in_bytes cannot be set to [2], stored script [test1] exceeds the new value with a size of [3]",
             iae.getMessage()
@@ -562,25 +554,23 @@ public class ScriptServiceTests extends ESTestCase {
         int cacheSizeBackup = randomIntBetween(0, 1024);
         int cacheSizeFoo = randomValueOtherThan(cacheSizeBackup, () -> randomIntBetween(0, 1024));
 
-        String cacheExpireBackup = randomTimeValue(1, 1000, "h");
-        TimeValue cacheExpireBackupParsed = TimeValue.parseTimeValue(cacheExpireBackup, "");
-        String cacheExpireFoo = randomValueOtherThan(cacheExpireBackup, () -> randomTimeValue(1, 1000, "h"));
-        TimeValue cacheExpireFooParsed = TimeValue.parseTimeValue(cacheExpireFoo, "");
+        var cacheExpireBackupTimeValue = randomTimeValue(1, 1000, TimeUnit.HOURS);
+        var cacheExpireFooTimeValue = randomValueOtherThan(cacheExpireBackupTimeValue, () -> randomTimeValue(1, 1000, TimeUnit.HOURS));
 
         Setting<?> cacheSizeSetting = ScriptService.SCRIPT_CACHE_SIZE_SETTING.getConcreteSettingForNamespace("foo");
         Setting<?> cacheExpireSetting = ScriptService.SCRIPT_CACHE_EXPIRE_SETTING.getConcreteSettingForNamespace("foo");
         Settings s = Settings.builder()
             .put(SCRIPT_GENERAL_CACHE_SIZE_SETTING.getKey(), cacheSizeBackup)
             .put(cacheSizeSetting.getKey(), cacheSizeFoo)
-            .put(SCRIPT_GENERAL_CACHE_EXPIRE_SETTING.getKey(), cacheExpireBackup)
-            .put(cacheExpireSetting.getKey(), cacheExpireFoo)
+            .put(SCRIPT_GENERAL_CACHE_EXPIRE_SETTING.getKey(), cacheExpireBackupTimeValue)
+            .put(cacheExpireSetting.getKey(), cacheExpireFooTimeValue)
             .build();
 
         assertEquals(cacheSizeFoo, ScriptService.SCRIPT_CACHE_SIZE_SETTING.getConcreteSettingForNamespace("foo").get(s).intValue());
         assertEquals(cacheSizeBackup, ScriptService.SCRIPT_CACHE_SIZE_SETTING.getConcreteSettingForNamespace("bar").get(s).intValue());
 
-        assertEquals(cacheExpireFooParsed, ScriptService.SCRIPT_CACHE_EXPIRE_SETTING.getConcreteSettingForNamespace("foo").get(s));
-        assertEquals(cacheExpireBackupParsed, ScriptService.SCRIPT_CACHE_EXPIRE_SETTING.getConcreteSettingForNamespace("bar").get(s));
+        assertEquals(cacheExpireFooTimeValue, ScriptService.SCRIPT_CACHE_EXPIRE_SETTING.getConcreteSettingForNamespace("foo").get(s));
+        assertEquals(cacheExpireBackupTimeValue, ScriptService.SCRIPT_CACHE_EXPIRE_SETTING.getConcreteSettingForNamespace("bar").get(s));
         assertSettingDeprecationsAndWarnings(new Setting<?>[] { cacheExpireSetting, cacheExpireSetting });
     }
 
@@ -593,10 +583,9 @@ public class ScriptServiceTests extends ESTestCase {
 
         assertEquals(ScriptService.SCRIPT_GENERAL_MAX_COMPILATIONS_RATE_SETTING.get(s), ScriptService.USE_CONTEXT_RATE_VALUE);
 
-        IllegalArgumentException illegal = expectThrows(
-            IllegalArgumentException.class,
-            () -> { ScriptService.SCRIPT_MAX_COMPILATIONS_RATE_SETTING.getAsMap(s); }
-        );
+        IllegalArgumentException illegal = expectThrows(IllegalArgumentException.class, () -> {
+            ScriptService.SCRIPT_MAX_COMPILATIONS_RATE_SETTING.getAsMap(s);
+        });
 
         assertEquals("parameter must contain a positive integer and a timevalue, i.e. 10/1m, but was [use-context]", illegal.getMessage());
         assertSettingDeprecationsAndWarnings(new Setting<?>[] { contextMaxCompilationRate });

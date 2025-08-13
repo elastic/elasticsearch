@@ -1,16 +1,17 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.gradle.internal.test;
 
 import org.elasticsearch.gradle.internal.ExportElasticsearchBuildResourcesTask;
 import org.elasticsearch.gradle.internal.conventions.util.Util;
-import org.elasticsearch.gradle.internal.info.BuildParams;
+import org.elasticsearch.gradle.internal.info.BuildParameterExtension;
 import org.elasticsearch.gradle.internal.precommit.FilePermissionsPrecommitPlugin;
 import org.elasticsearch.gradle.internal.precommit.ForbiddenPatternsPrecommitPlugin;
 import org.elasticsearch.gradle.internal.precommit.ForbiddenPatternsTask;
@@ -34,6 +35,7 @@ public class TestWithSslPlugin implements Plugin<Project> {
     @Override
     public void apply(Project project) {
         File keyStoreDir = new File(project.getBuildDir(), "keystore");
+        var buildParams = project.getRootProject().getExtensions().getByType(BuildParameterExtension.class);
         TaskProvider<ExportElasticsearchBuildResourcesTask> exportKeyStore = project.getTasks()
             .register("copyTestCertificates", ExportElasticsearchBuildResourcesTask.class, (t) -> {
                 t.copy("test/ssl/test-client.crt");
@@ -85,8 +87,8 @@ public class TestWithSslPlugin implements Plugin<Project> {
             NamedDomainObjectContainer<ElasticsearchCluster> clusters = (NamedDomainObjectContainer<ElasticsearchCluster>) project
                 .getExtensions()
                 .getByName(TestClustersPlugin.EXTENSION_NAME);
-            clusters.all(c -> {
-                if (BuildParams.isInFipsJvm()) {
+            clusters.configureEach(c -> {
+                if (buildParams.getInFipsJvm()) {
                     c.setting("xpack.security.transport.ssl.key", "test-node.key");
                     c.keystore("xpack.security.transport.ssl.secure_key_passphrase", "test-node-key-password");
                     c.setting("xpack.security.transport.ssl.certificate", "test-node.crt");

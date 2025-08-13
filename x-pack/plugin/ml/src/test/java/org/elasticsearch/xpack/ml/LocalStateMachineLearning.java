@@ -7,16 +7,15 @@
 package org.elasticsearch.xpack.ml;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.index.analysis.CharFilterFactory;
 import org.elasticsearch.index.analysis.TokenizerFactory;
 import org.elasticsearch.indices.analysis.AnalysisModule;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.license.LicenseService;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.plugins.ActionPlugin;
@@ -26,6 +25,7 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
 import org.elasticsearch.xpack.core.rollup.action.GetRollupIndexCapsAction;
 import org.elasticsearch.xpack.core.ssl.SSLService;
+import org.elasticsearch.xpack.inference.InferencePlugin;
 import org.elasticsearch.xpack.monitoring.Monitoring;
 import org.elasticsearch.xpack.security.Security;
 
@@ -42,6 +42,10 @@ public class LocalStateMachineLearning extends LocalStateCompositeXPackPlugin {
     private final MachineLearning mlPlugin;
 
     public LocalStateMachineLearning(final Settings settings, final Path configPath) {
+        this(settings, configPath, null);
+    }
+
+    protected LocalStateMachineLearning(final Settings settings, final Path configPath, final ExtensionLoader extensionLoader) {
         super(settings, configPath);
         LocalStateMachineLearning thisVar = this;
         mlPlugin = new MachineLearning(settings) {
@@ -50,6 +54,7 @@ public class LocalStateMachineLearning extends LocalStateCompositeXPackPlugin {
                 return thisVar.getLicenseState();
             }
         };
+        mlPlugin.loadExtensions(extensionLoader);
         mlPlugin.setCircuitBreaker(new NoopCircuitBreaker(TRAINED_MODEL_CIRCUIT_BREAKER_NAME));
         plugins.add(mlPlugin);
         plugins.add(new Monitoring(settings) {
@@ -80,6 +85,22 @@ public class LocalStateMachineLearning extends LocalStateCompositeXPackPlugin {
             }
         });
         plugins.add(new MockedRollupPlugin());
+        plugins.add(new InferencePlugin(settings) {
+            @Override
+            protected SSLService getSslService() {
+                return thisVar.getSslService();
+            }
+        });
+    }
+
+    @Override
+    public List<QuerySpec<?>> getQueries() {
+        return mlPlugin.getQueries();
+    }
+
+    @Override
+    public List<RescorerSpec<?>> getRescorers() {
+        return mlPlugin.getRescorers();
     }
 
     @Override
@@ -106,8 +127,8 @@ public class LocalStateMachineLearning extends LocalStateCompositeXPackPlugin {
     public static class MockedRollupPlugin extends Plugin implements ActionPlugin {
 
         @Override
-        public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
-            return Collections.singletonList(new ActionHandler<>(GetRollupIndexCapsAction.INSTANCE, MockedRollupIndexCapsTransport.class));
+        public List<ActionHandler> getActions() {
+            return Collections.singletonList(new ActionHandler(GetRollupIndexCapsAction.INSTANCE, MockedRollupIndexCapsTransport.class));
         }
 
         public static class MockedRollupIndexCapsTransport extends TransportAction<
@@ -116,7 +137,12 @@ public class LocalStateMachineLearning extends LocalStateCompositeXPackPlugin {
 
             @Inject
             public MockedRollupIndexCapsTransport(TransportService transportService) {
-                super(GetRollupIndexCapsAction.NAME, new ActionFilters(new HashSet<>()), transportService.getTaskManager());
+                super(
+                    GetRollupIndexCapsAction.NAME,
+                    new ActionFilters(new HashSet<>()),
+                    transportService.getTaskManager(),
+                    EsExecutors.DIRECT_EXECUTOR_SERVICE
+                );
             }
 
             @Override

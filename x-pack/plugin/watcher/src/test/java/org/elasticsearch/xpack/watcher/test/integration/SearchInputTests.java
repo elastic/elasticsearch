@@ -12,6 +12,7 @@ import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
@@ -22,8 +23,8 @@ import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptEngine;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.SearchModule;
+import org.elasticsearch.search.SearchResponseUtils;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
-import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -78,7 +79,13 @@ public class SearchInputTests extends ESTestCase {
         Map<String, ScriptContext<?>> contexts = new HashMap<>();
         contexts.put(Watcher.SCRIPT_TEMPLATE_CONTEXT.name, Watcher.SCRIPT_TEMPLATE_CONTEXT);
         contexts.put(WatcherTransformScript.CONTEXT.name, WatcherTransformScript.CONTEXT);
-        scriptService = new ScriptService(Settings.EMPTY, engines, contexts, () -> 1L);
+        scriptService = new ScriptService(
+            Settings.EMPTY,
+            engines,
+            contexts,
+            () -> 1L,
+            TestProjectResolvers.singleProject(randomProjectIdOrDefault())
+        );
 
         ThreadPool threadPool = mock(ThreadPool.class);
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
@@ -90,9 +97,8 @@ public class SearchInputTests extends ESTestCase {
     @SuppressWarnings("unchecked")
     public void testExecute() throws Exception {
         ArgumentCaptor<SearchRequest> requestCaptor = ArgumentCaptor.forClass(SearchRequest.class);
-        PlainActionFuture<SearchResponse> searchFuture = PlainActionFuture.newFuture();
-        SearchResponse searchResponse = new SearchResponse(
-            InternalSearchResponse.EMPTY_WITH_TOTAL_HITS,
+        PlainActionFuture<SearchResponse> searchFuture = new PlainActionFuture<>();
+        SearchResponse searchResponse = SearchResponseUtils.emptyWithTotalHits(
             "",
             1,
             1,
@@ -131,9 +137,8 @@ public class SearchInputTests extends ESTestCase {
 
     public void testDifferentSearchType() throws Exception {
         ArgumentCaptor<SearchRequest> requestCaptor = ArgumentCaptor.forClass(SearchRequest.class);
-        PlainActionFuture<SearchResponse> searchFuture = PlainActionFuture.newFuture();
-        SearchResponse searchResponse = new SearchResponse(
-            InternalSearchResponse.EMPTY_WITH_TOTAL_HITS,
+        PlainActionFuture<SearchResponse> searchFuture = new PlainActionFuture<>();
+        SearchResponse searchResponse = SearchResponseUtils.emptyWithTotalHits(
             "",
             1,
             1,
@@ -176,7 +181,7 @@ public class SearchInputTests extends ESTestCase {
         XContentParser parser = createParser(builder);
         parser.nextToken();
 
-        SearchInputFactory factory = new SearchInputFactory(Settings.EMPTY, client, xContentRegistry(), scriptService);
+        SearchInputFactory factory = new SearchInputFactory(Settings.EMPTY, client, xContentRegistry(), nf -> false, scriptService);
 
         SearchInput searchInput = factory.parseInput("_id", parser);
         assertEquals(SearchInput.TYPE, searchInput.type());
@@ -186,9 +191,8 @@ public class SearchInputTests extends ESTestCase {
     // source: https://discuss.elastic.co/t/need-help-for-energy-monitoring-system-alerts/89415/3
     public void testThatEmptyRequestBodyWorks() throws Exception {
         ArgumentCaptor<SearchRequest> requestCaptor = ArgumentCaptor.forClass(SearchRequest.class);
-        PlainActionFuture<SearchResponse> searchFuture = PlainActionFuture.newFuture();
-        SearchResponse searchResponse = new SearchResponse(
-            InternalSearchResponse.EMPTY_WITH_TOTAL_HITS,
+        PlainActionFuture<SearchResponse> searchFuture = new PlainActionFuture<>();
+        SearchResponse searchResponse = SearchResponseUtils.emptyWithTotalHits(
             "",
             1,
             1,
@@ -214,7 +218,7 @@ public class SearchInputTests extends ESTestCase {
 
             parser.nextToken(); // advance past the first starting object
 
-            SearchInputFactory factory = new SearchInputFactory(Settings.EMPTY, client, xContentRegistry(), scriptService);
+            SearchInputFactory factory = new SearchInputFactory(Settings.EMPTY, client, xContentRegistry(), nf -> false, scriptService);
             SearchInput input = factory.parseInput("my-watch", parser);
             assertThat(input.getRequest(), is(not(nullValue())));
             assertThat(input.getRequest().getSearchSource(), is(BytesArray.EMPTY));
@@ -231,6 +235,6 @@ public class SearchInputTests extends ESTestCase {
 
     private WatcherSearchTemplateService watcherSearchTemplateService() {
         SearchModule module = new SearchModule(Settings.EMPTY, Collections.emptyList());
-        return new WatcherSearchTemplateService(scriptService, new NamedXContentRegistry(module.getNamedXContents()));
+        return new WatcherSearchTemplateService(scriptService, new NamedXContentRegistry(module.getNamedXContents()), nf -> false);
     }
 }

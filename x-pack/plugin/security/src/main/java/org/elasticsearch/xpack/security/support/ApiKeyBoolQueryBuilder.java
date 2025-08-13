@@ -10,36 +10,23 @@ package org.elasticsearch.xpack.security.support;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.query.BoolQueryBuilder;
-import org.elasticsearch.index.query.ExistsQueryBuilder;
-import org.elasticsearch.index.query.IdsQueryBuilder;
-import org.elasticsearch.index.query.MatchAllQueryBuilder;
-import org.elasticsearch.index.query.PrefixQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.QueryRewriteContext;
-import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
-import org.elasticsearch.index.query.TermQueryBuilder;
-import org.elasticsearch.index.query.TermsQueryBuilder;
-import org.elasticsearch.index.query.WildcardQueryBuilder;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
 import org.elasticsearch.xpack.security.authc.ApiKeyService;
 
 import java.io.IOException;
 import java.util.Set;
+import java.util.function.Consumer;
 
-public class ApiKeyBoolQueryBuilder extends BoolQueryBuilder {
+import static org.elasticsearch.xpack.security.support.FieldNameTranslators.API_KEY_FIELD_NAME_TRANSLATORS;
 
-    // Field names allowed at the index level
-    private static final Set<String> ALLOWED_EXACT_INDEX_FIELD_NAMES = Set.of(
-        "_id",
-        "doc_type",
-        "name",
-        "api_key_invalidated",
-        "creation_time",
-        "expiration_time"
-    );
+public final class ApiKeyBoolQueryBuilder extends BoolQueryBuilder {
+
+    private static final Set<String> FIELDS_ALLOWED_TO_QUERY = Set.of("_id", "doc_type", "type");
 
     private ApiKeyBoolQueryBuilder() {}
 
@@ -55,17 +42,23 @@ public class ApiKeyBoolQueryBuilder extends BoolQueryBuilder {
      *
      * @param queryBuilder This represents the query parsed directly from the user input. It is validated
      *                     and transformed (see above).
+     * @param fieldNameVisitor This {@code Consumer} is invoked with all the (index-level) field names referred to in the passed-in query.
      * @param authentication The user's authentication object. If present, it will be used to filter the results
      *                       to only include API keys owned by the user.
      * @return A specialised query builder for API keys that is safe to run on the security index.
      */
-    public static ApiKeyBoolQueryBuilder build(QueryBuilder queryBuilder, @Nullable Authentication authentication) {
+    public static ApiKeyBoolQueryBuilder build(
+        QueryBuilder queryBuilder,
+        Consumer<String> fieldNameVisitor,
+        @Nullable Authentication authentication
+    ) {
         final ApiKeyBoolQueryBuilder finalQuery = new ApiKeyBoolQueryBuilder();
         if (queryBuilder != null) {
-            QueryBuilder processedQuery = doProcess(queryBuilder);
+            QueryBuilder processedQuery = API_KEY_FIELD_NAME_TRANSLATORS.translateQueryBuilderFields(queryBuilder, fieldNameVisitor);
             finalQuery.must(processedQuery);
         }
         finalQuery.filter(QueryBuilders.termQuery("doc_type", "api_key"));
+        fieldNameVisitor.accept("doc_type");
 
         if (authentication != null) {
             if (authentication.isApiKey()) {
@@ -76,71 +69,15 @@ public class ApiKeyBoolQueryBuilder extends BoolQueryBuilder {
                 finalQuery.filter(QueryBuilders.idsQuery().addIds(apiKeyId));
             } else {
                 finalQuery.filter(QueryBuilders.termQuery("creator.principal", authentication.getEffectiveSubject().getUser().principal()));
+                fieldNameVisitor.accept("creator.principal");
                 final String[] realms = ApiKeyService.getOwnersRealmNames(authentication);
                 final QueryBuilder realmsQuery = ApiKeyService.filterForRealmNames(realms);
+                fieldNameVisitor.accept("creator.realm");
                 assert realmsQuery != null;
                 finalQuery.filter(realmsQuery);
             }
         }
         return finalQuery;
-    }
-
-    private static QueryBuilder doProcess(QueryBuilder qb) {
-        if (qb instanceof final BoolQueryBuilder query) {
-            final BoolQueryBuilder newQuery = QueryBuilders.boolQuery()
-                .minimumShouldMatch(query.minimumShouldMatch())
-                .adjustPureNegative(query.adjustPureNegative());
-            query.must().stream().map(ApiKeyBoolQueryBuilder::doProcess).forEach(newQuery::must);
-            query.should().stream().map(ApiKeyBoolQueryBuilder::doProcess).forEach(newQuery::should);
-            query.mustNot().stream().map(ApiKeyBoolQueryBuilder::doProcess).forEach(newQuery::mustNot);
-            query.filter().stream().map(ApiKeyBoolQueryBuilder::doProcess).forEach(newQuery::filter);
-            return newQuery;
-        } else if (qb instanceof MatchAllQueryBuilder) {
-            return qb;
-        } else if (qb instanceof IdsQueryBuilder) {
-            return qb;
-        } else if (qb instanceof final TermQueryBuilder query) {
-            final String translatedFieldName = ApiKeyFieldNameTranslators.translate(query.fieldName());
-            return QueryBuilders.termQuery(translatedFieldName, query.value()).caseInsensitive(query.caseInsensitive());
-        } else if (qb instanceof final ExistsQueryBuilder query) {
-            final String translatedFieldName = ApiKeyFieldNameTranslators.translate(query.fieldName());
-            return QueryBuilders.existsQuery(translatedFieldName);
-        } else if (qb instanceof final TermsQueryBuilder query) {
-            if (query.termsLookup() != null) {
-                throw new IllegalArgumentException("terms query with terms lookup is not supported for API Key query");
-            }
-            final String translatedFieldName = ApiKeyFieldNameTranslators.translate(query.fieldName());
-            return QueryBuilders.termsQuery(translatedFieldName, query.getValues());
-        } else if (qb instanceof final PrefixQueryBuilder query) {
-            final String translatedFieldName = ApiKeyFieldNameTranslators.translate(query.fieldName());
-            return QueryBuilders.prefixQuery(translatedFieldName, query.value()).caseInsensitive(query.caseInsensitive());
-        } else if (qb instanceof final WildcardQueryBuilder query) {
-            final String translatedFieldName = ApiKeyFieldNameTranslators.translate(query.fieldName());
-            return QueryBuilders.wildcardQuery(translatedFieldName, query.value())
-                .caseInsensitive(query.caseInsensitive())
-                .rewrite(query.rewrite());
-        } else if (qb instanceof final RangeQueryBuilder query) {
-            final String translatedFieldName = ApiKeyFieldNameTranslators.translate(query.fieldName());
-            if (query.relation() != null) {
-                throw new IllegalArgumentException("range query with relation is not supported for API Key query");
-            }
-            final RangeQueryBuilder newQuery = QueryBuilders.rangeQuery(translatedFieldName);
-            if (query.format() != null) {
-                newQuery.format(query.format());
-            }
-            if (query.timeZone() != null) {
-                newQuery.timeZone(query.timeZone());
-            }
-            if (query.from() != null) {
-                newQuery.from(query.from()).includeLower(query.includeLower());
-            }
-            if (query.to() != null) {
-                newQuery.to(query.to()).includeUpper(query.includeUpper());
-            }
-            return newQuery.boost(query.boost());
-        } else {
-            throw new IllegalArgumentException("Query type [" + qb.getName() + "] is not supported for API Key query");
-        }
     }
 
     @Override
@@ -158,9 +95,6 @@ public class ApiKeyBoolQueryBuilder extends BoolQueryBuilder {
     }
 
     static boolean isIndexFieldNameAllowed(String fieldName) {
-        return ALLOWED_EXACT_INDEX_FIELD_NAMES.contains(fieldName)
-            || fieldName.startsWith("metadata_flattened.")
-            || fieldName.startsWith("creator.");
+        return FIELDS_ALLOWED_TO_QUERY.contains(fieldName) || API_KEY_FIELD_NAME_TRANSLATORS.isIndexFieldSupported(fieldName);
     }
-
 }

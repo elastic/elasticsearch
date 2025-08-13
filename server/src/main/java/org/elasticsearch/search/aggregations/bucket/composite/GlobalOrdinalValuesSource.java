@@ -1,16 +1,19 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.aggregations.bucket.composite;
 
+import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.PostingsEnum;
+import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
@@ -37,8 +40,6 @@ import java.io.UncheckedIOException;
 import java.util.ArrayDeque;
 import java.util.List;
 import java.util.function.BiConsumer;
-
-import static org.apache.lucene.index.SortedSetDocValues.NO_MORE_ORDS;
 
 /**
  * A {@link SingleDimensionValuesSource} for global ordinals.
@@ -76,7 +77,7 @@ class GlobalOrdinalValuesSource extends SingleDimensionValuesSource<BytesRef> {
         int size,
         int reverseMul
     ) {
-        super(bigArrays, format, type, missingBucket, missingOrder, size, reverseMul);
+        super(bigArrays, format, type, missingBucket, missingOrder, reverseMul);
         this.uniqueValueCount = uniqueValueCount;
         this.docValuesFunc = docValuesFunc;
         this.values = bigArrays.newLongArray(Math.min(size, 100), false);
@@ -218,27 +219,48 @@ class GlobalOrdinalValuesSource extends SingleDimensionValuesSource<BytesRef> {
         final CompetitiveIterator competitiveIterator = fieldType == null ? null : new CompetitiveIterator(context, fieldType.name());
         currentCompetitiveIterator = competitiveIterator;
 
-        return new LeafBucketCollector() {
+        final SortedDocValues singleton = DocValues.unwrapSingleton(dvs);
+        if (singleton != null) {
+            return new LeafBucketCollector() {
 
-            @Override
-            public void collect(int doc, long bucket) throws IOException {
-                if (dvs.advanceExact(doc)) {
-                    long ord;
-                    while ((ord = dvs.nextOrd()) != NO_MORE_ORDS) {
-                        currentValue = ord;
+                @Override
+                public void collect(int doc, long bucket) throws IOException {
+                    if (singleton.advanceExact(doc)) {
+                        currentValue = singleton.ordValue();
+                        next.collect(doc, bucket);
+                    } else if (missingBucket) {
+                        currentValue = MISSING_VALUE_FLAG;
                         next.collect(doc, bucket);
                     }
-                } else if (missingBucket) {
-                    currentValue = MISSING_VALUE_FLAG;
-                    next.collect(doc, bucket);
                 }
-            }
 
-            @Override
-            public DocIdSetIterator competitiveIterator() {
-                return competitiveIterator;
-            }
-        };
+                @Override
+                public DocIdSetIterator competitiveIterator() {
+                    return competitiveIterator;
+                }
+            };
+        } else {
+            return new LeafBucketCollector() {
+
+                @Override
+                public void collect(int doc, long bucket) throws IOException {
+                    if (dvs.advanceExact(doc)) {
+                        for (int i = 0; i < dvs.docValueCount(); i++) {
+                            currentValue = dvs.nextOrd();
+                            next.collect(doc, bucket);
+                        }
+                    } else if (missingBucket) {
+                        currentValue = MISSING_VALUE_FLAG;
+                        next.collect(doc, bucket);
+                    }
+                }
+
+                @Override
+                public DocIdSetIterator competitiveIterator() {
+                    return competitiveIterator;
+                }
+            };
+        }
     }
 
     @Override
@@ -253,27 +275,49 @@ class GlobalOrdinalValuesSource extends SingleDimensionValuesSource<BytesRef> {
         if (lookup == null) {
             initLookup(dvs);
         }
-        return new LeafBucketCollector() {
-            boolean currentValueIsSet = false;
+        final SortedDocValues singleton = DocValues.unwrapSingleton(dvs);
+        if (singleton != null) {
+            return new LeafBucketCollector() {
+                boolean currentValueIsSet = false;
 
-            @Override
-            public void collect(int doc, long bucket) throws IOException {
-                if (currentValueIsSet == false) {
-                    if (dvs.advanceExact(doc)) {
-                        long ord;
-                        while ((ord = dvs.nextOrd()) != NO_MORE_ORDS) {
+                @Override
+                public void collect(int doc, long bucket) throws IOException {
+                    if (currentValueIsSet == false) {
+                        if (singleton.advanceExact(doc)) {
+                            long ord = singleton.ordValue();
                             if (term.equals(lookup.lookupOrd(ord))) {
                                 currentValueIsSet = true;
                                 currentValue = ord;
-                                break;
                             }
                         }
                     }
+                    assert currentValueIsSet;
+                    next.collect(doc, bucket);
                 }
-                assert currentValueIsSet;
-                next.collect(doc, bucket);
-            }
-        };
+            };
+        } else {
+            return new LeafBucketCollector() {
+                boolean currentValueIsSet = false;
+
+                @Override
+                public void collect(int doc, long bucket) throws IOException {
+                    if (currentValueIsSet == false) {
+                        if (dvs.advanceExact(doc)) {
+                            for (int i = 0; i < dvs.docValueCount(); i++) {
+                                long ord = dvs.nextOrd();
+                                if (term.equals(lookup.lookupOrd(ord))) {
+                                    currentValueIsSet = true;
+                                    currentValue = ord;
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                    assert currentValueIsSet;
+                    next.collect(doc, bucket);
+                }
+            };
+        }
     }
 
     @Override

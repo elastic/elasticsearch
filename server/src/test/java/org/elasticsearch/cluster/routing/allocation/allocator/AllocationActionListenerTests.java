@@ -1,14 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.routing.allocation.allocator;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -26,7 +28,7 @@ public class AllocationActionListenerTests extends ESTestCase {
     public void testShouldDelegateWhenBothComplete() {
         var completed = new AtomicBoolean(false);
         var listener = new AllocationActionListener<AcknowledgedResponse>(
-            ActionListener.wrap(ignore -> completed.set(true), exception -> { throw new AssertionError("Should not fail in test"); }),
+            ActionTestUtils.assertNoFailureListener(ignore -> completed.set(true)),
             createEmptyThreadContext()
         );
 
@@ -39,7 +41,7 @@ public class AllocationActionListenerTests extends ESTestCase {
     public void testShouldNotDelegateWhenOnlyOneComplete() {
         var completed = new AtomicBoolean(false);
         var listener = new AllocationActionListener<AcknowledgedResponse>(
-            ActionListener.wrap(ignore -> completed.set(true), exception -> { throw new AssertionError("Should not fail in test"); }),
+            ActionTestUtils.assertNoFailureListener(ignore -> completed.set(true)),
             createEmptyThreadContext()
         );
 
@@ -54,10 +56,9 @@ public class AllocationActionListenerTests extends ESTestCase {
 
     public void testShouldDelegateFailureImmediately() {
         var completed = new AtomicBoolean(false);
-        var listener = new AllocationActionListener<AcknowledgedResponse>(
-            ActionListener.wrap(ignore -> { throw new AssertionError("Should not complete in test"); }, exception -> completed.set(true)),
-            createEmptyThreadContext()
-        );
+        var listener = new AllocationActionListener<AcknowledgedResponse>(ActionListener.wrap(ignore -> {
+            throw new AssertionError("Should not complete in test");
+        }, exception -> completed.set(true)), createEmptyThreadContext());
 
         if (randomBoolean()) {
             listener.clusterStateUpdate().onFailure(new RuntimeException());
@@ -78,10 +79,10 @@ public class AllocationActionListenerTests extends ESTestCase {
 
         var header = new AtomicReference<String>();
         var responseHeaders = new AtomicReference<List<String>>();
-        var listener = new AllocationActionListener<>(ActionListener.wrap(ignore -> {
+        var listener = new AllocationActionListener<>(ActionTestUtils.assertNoFailureListener(ignore -> {
             header.set(context.getHeader("header"));
             responseHeaders.set(context.getResponseHeaders().get("header"));
-        }, exception -> { throw new AssertionError("Should not fail in test"); }), context);
+        }), context);
 
         // this header should be ignored as it is added after context is captured
         context.addResponseHeader("header", "2");

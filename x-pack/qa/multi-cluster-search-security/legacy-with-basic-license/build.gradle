@@ -1,5 +1,12 @@
-import org.elasticsearch.gradle.internal.info.BuildParams
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
 import org.elasticsearch.gradle.internal.test.RestIntegTestTask
+import static org.elasticsearch.gradle.PropertyNormalization.IGNORE_VALUE
 
 apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.rest-resources'
@@ -7,12 +14,12 @@ apply plugin: 'elasticsearch.rest-resources'
 restResources {
   restApi {
     include '_common', 'bulk', 'field_caps', 'security', 'search', 'clear_scroll', 'scroll', 'async_search', 'cluster',
-      'indices', 'open_point_in_time', 'close_point_in_time', 'terms_enum'
+      'indices', 'open_point_in_time', 'close_point_in_time', 'terms_enum', 'esql', 'enrich'
   }
 }
 
 // randomise between sniff and proxy modes
-boolean proxyMode = BuildParams.random.nextBoolean()
+boolean proxyMode = buildParams.random.nextBoolean()
 
 def fulfillingCluster = testClusters.register('fulfilling-cluster') {
   setting 'xpack.security.enabled', 'true'
@@ -22,7 +29,14 @@ def fulfillingCluster = testClusters.register('fulfilling-cluster') {
   module ':modules:data-streams'
   module ':x-pack:plugin:mapper-constant-keyword'
   module ':x-pack:plugin:async-search'
+  module ':x-pack:plugin:autoscaling'
+  module ':x-pack:plugin:esql-core'
+  module ':x-pack:plugin:esql'
+  module ':x-pack:plugin:ml'
+  module ':modules:ingest-common'
+  module ':x-pack:plugin:enrich'
   user username: "test_user", password: "x-pack-test-password"
+  setting 'xpack.ml.enabled', 'false'
 }
 
 def queryingCluster = testClusters.register('querying-cluster') {
@@ -33,18 +47,25 @@ def queryingCluster = testClusters.register('querying-cluster') {
   module ':modules:data-streams'
   module ':x-pack:plugin:mapper-constant-keyword'
   module ':x-pack:plugin:async-search'
+  module ':x-pack:plugin:autoscaling'
+  module ':x-pack:plugin:esql-core'
+  module ':x-pack:plugin:esql'
+  module ':x-pack:plugin:ml'
+  module ':modules:ingest-common'
+  module ':x-pack:plugin:enrich'
   setting 'cluster.remote.connections_per_cluster', "1"
   user username: "test_user", password: "x-pack-test-password"
-
+  setting 'xpack.ml.enabled', 'false'
+  setting 'cluster.remote.my_remote_cluster.skip_unavailable', 'false'
   if (proxyMode) {
     setting 'cluster.remote.my_remote_cluster.mode', 'proxy'
     setting 'cluster.remote.my_remote_cluster.proxy_address', {
       "\"${fulfillingCluster.get().getAllTransportPortURI().get(0)}\""
-    }
+    }, IGNORE_VALUE
   } else {
     setting 'cluster.remote.my_remote_cluster.seeds', {
       fulfillingCluster.get().getAllTransportPortURI().collect { "\"$it\"" }.toString()
-    }
+    }, IGNORE_VALUE
   }
 }
 

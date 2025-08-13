@@ -117,7 +117,7 @@ public final class BasicTokenFilter extends TokenFilter {
             return true;
         }
         current = null; // not really needed, but for safety
-        if (input.incrementToken()) {
+        while (input.incrementToken()) {
             if (neverSplitSet.contains(termAtt)) {
                 return true;
             }
@@ -126,12 +126,22 @@ public final class BasicTokenFilter extends TokenFilter {
             LinkedList<DelimitedToken> delimitedTokens = mergeSplits(splits);
             if (isStripAccents) {
                 for (DelimitedToken token : delimitedTokens) {
-                    tokens.add(stripAccent(token));
+                    // stripping accents may result in an empty string
+                    var stripped = stripAccent(token);
+                    if (stripped.charSequence().isEmpty() == false) {
+                        tokens.add(stripped);
+                    }
                 }
             } else {
                 tokens.addAll(delimitedTokens);
             }
             this.current = captureState();
+
+            if (tokens.isEmpty()) {
+                // keep going until we have token(s) with non-empty strings
+                continue;
+            }
+
             DelimitedToken token = tokens.removeFirst();
             termAtt.setEmpty().append(token.charSequence());
             offsetAtt.setOffset(token.startOffset(), token.endOffset());

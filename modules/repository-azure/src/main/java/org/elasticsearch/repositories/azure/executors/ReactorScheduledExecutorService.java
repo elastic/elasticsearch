@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.repositories.azure.executors;
@@ -36,13 +37,11 @@ import static org.elasticsearch.core.Strings.format;
 @SuppressForbidden(reason = "It wraps a ThreadPool and delegates all the work")
 public class ReactorScheduledExecutorService extends AbstractExecutorService implements ScheduledExecutorService {
     private final ThreadPool threadPool;
-    private final String executorName;
     private final ExecutorService delegate;
-    private final Logger logger = LogManager.getLogger(ReactorScheduledExecutorService.class);
+    private static final Logger logger = LogManager.getLogger(ReactorScheduledExecutorService.class);
 
     public ReactorScheduledExecutorService(ThreadPool threadPool, String executorName) {
         this.threadPool = threadPool;
-        this.executorName = executorName;
         this.delegate = threadPool.executor(executorName);
     }
 
@@ -50,36 +49,30 @@ public class ReactorScheduledExecutorService extends AbstractExecutorService imp
     public <V> ScheduledFuture<V> schedule(Callable<V> callable, long delay, TimeUnit unit) {
         Scheduler.ScheduledCancellable schedule = threadPool.schedule(() -> {
             try {
-                decorateCallable(callable).call();
+                callable.call();
             } catch (Exception e) {
                 throw new RuntimeException(e);
             }
-        }, new TimeValue(delay, unit), executorName);
+        }, new TimeValue(delay, unit), delegate);
 
         return new ReactorFuture<>(schedule);
     }
 
     public ScheduledFuture<?> schedule(Runnable command, long delay, TimeUnit unit) {
-        Runnable decoratedCommand = decorateRunnable(command);
-        Scheduler.ScheduledCancellable schedule = threadPool.schedule(decoratedCommand, new TimeValue(delay, unit), executorName);
+        Scheduler.ScheduledCancellable schedule = threadPool.schedule(command, new TimeValue(delay, unit), delegate);
         return new ReactorFuture<>(schedule);
     }
 
     @Override
     public ScheduledFuture<?> scheduleAtFixedRate(Runnable command, long initialDelay, long period, TimeUnit unit) {
-        Runnable decoratedCommand = decorateRunnable(command);
 
         return threadPool.scheduler().scheduleAtFixedRate(() -> {
             try {
-                delegate.execute(decoratedCommand);
+                delegate.execute(command);
             } catch (EsRejectedExecutionException e) {
                 if (e.isExecutorShutdown()) {
                     logger.debug(
-                        () -> format(
-                            "could not schedule execution of [%s] on [%s] as executor is shut down",
-                            decoratedCommand,
-                            executorName
-                        ),
+                        () -> format("could not schedule execution of [%s] on [%s] as executor is shut down", command, delegate),
                         e
                     );
                 } else {
@@ -91,9 +84,7 @@ public class ReactorScheduledExecutorService extends AbstractExecutorService imp
 
     @Override
     public ScheduledFuture<?> scheduleWithFixedDelay(Runnable command, long initialDelay, long delay, TimeUnit unit) {
-        Runnable decorateRunnable = decorateRunnable(command);
-
-        Scheduler.Cancellable cancellable = threadPool.scheduleWithFixedDelay(decorateRunnable, new TimeValue(delay, unit), executorName);
+        Scheduler.Cancellable cancellable = threadPool.scheduleWithFixedDelay(command, new TimeValue(delay, unit), delegate);
 
         return new ReactorFuture<>(cancellable);
     }
@@ -125,15 +116,7 @@ public class ReactorScheduledExecutorService extends AbstractExecutorService imp
 
     @Override
     public void execute(Runnable command) {
-        delegate.execute(decorateRunnable(command));
-    }
-
-    protected Runnable decorateRunnable(Runnable command) {
-        return command;
-    }
-
-    protected <V> Callable<V> decorateCallable(Callable<V> callable) {
-        return callable;
+        delegate.execute(command);
     }
 
     private static final class ReactorFuture<V> implements ScheduledFuture<V> {

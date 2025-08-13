@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.termvectors;
@@ -16,6 +17,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 
@@ -34,27 +36,33 @@ public class MultiTermVectorsIT extends AbstractTermVectorsTestCase {
         // we generate as many docs as many shards we have
         TestDoc[] testDocs = generateTestDocs("test", testFieldSettings);
 
-        DirectoryReader directoryReader = indexDocsWithLucene(testDocs);
-        AbstractTermVectorsTestCase.TestConfig[] testConfigs = generateTestConfigs(20, testDocs, testFieldSettings);
+        DirectoryReader directoryReader = null;
+        try {
+            directoryReader = indexDocsWithLucene(testDocs);
 
-        MultiTermVectorsRequestBuilder requestBuilder = client().prepareMultiTermVectors();
-        for (AbstractTermVectorsTestCase.TestConfig test : testConfigs) {
-            requestBuilder.add(getRequestForConfig(test).request());
-        }
+            AbstractTermVectorsTestCase.TestConfig[] testConfigs = generateTestConfigs(20, testDocs, testFieldSettings);
 
-        MultiTermVectorsItemResponse[] responseItems = requestBuilder.get().getResponses();
-
-        for (int i = 0; i < testConfigs.length; i++) {
-            TestConfig test = testConfigs[i];
-            MultiTermVectorsItemResponse item = responseItems[i];
-            if (test.expectedException != null) {
-                assertTrue(item.isFailed());
-                continue;
-            } else if (item.isFailed()) {
-                fail(item.getFailure().getCause().getMessage());
+            MultiTermVectorsRequestBuilder requestBuilder = client().prepareMultiTermVectors();
+            for (AbstractTermVectorsTestCase.TestConfig test : testConfigs) {
+                requestBuilder.add(getRequestForConfig(test).request());
             }
-            Fields luceneTermVectors = getTermVectorsFromLucene(directoryReader, test.doc);
-            validateResponse(item.getResponse(), luceneTermVectors, test);
+
+            MultiTermVectorsItemResponse[] responseItems = requestBuilder.get().getResponses();
+
+            for (int i = 0; i < testConfigs.length; i++) {
+                TestConfig test = testConfigs[i];
+                MultiTermVectorsItemResponse item = responseItems[i];
+                if (test.expectedException != null) {
+                    assertTrue(item.isFailed());
+                    continue;
+                } else if (item.isFailed()) {
+                    fail(item.getFailure().getCause().getMessage());
+                }
+                Fields luceneTermVectors = getTermVectorsFromLucene(directoryReader, test.doc);
+                validateResponse(item.getResponse(), luceneTermVectors, test);
+            }
+        } finally {
+            IOUtils.close(directoryReader);
         }
     }
 
@@ -62,7 +70,7 @@ public class MultiTermVectorsIT extends AbstractTermVectorsTestCase {
         TermVectorsRequestBuilder requestBuilder = client().prepareTermVectors("testX", Integer.toString(1));
         MultiTermVectorsRequestBuilder mtvBuilder = client().prepareMultiTermVectors();
         mtvBuilder.add(requestBuilder.request());
-        MultiTermVectorsResponse response = mtvBuilder.execute().actionGet();
+        MultiTermVectorsResponse response = mtvBuilder.get();
         assertThat(response.getResponses().length, equalTo(1));
         assertThat(response.getResponses()[0].getFailure().getCause(), instanceOf(IndexNotFoundException.class));
         assertThat(response.getResponses()[0].getFailure().getCause().getMessage(), equalTo("no such index [testX]"));
@@ -77,7 +85,7 @@ public class MultiTermVectorsIT extends AbstractTermVectorsTestCase {
         assertThat(response.getResponses()[0].getResponse().isExists(), equalTo(false));
 
         for (int i = 0; i < 3; i++) {
-            client().prepareIndex("test").setId(Integer.toString(i)).setSource("field", "value" + i).get();
+            prepareIndex("test").setId(Integer.toString(i)).setSource("field", "value" + i).get();
         }
 
         // Version from translog
@@ -126,7 +134,7 @@ public class MultiTermVectorsIT extends AbstractTermVectorsTestCase {
         assertThat(response.getResponses()[2].getFailure().getCause().getCause(), instanceOf(VersionConflictEngineException.class));
 
         for (int i = 0; i < 3; i++) {
-            client().prepareIndex("test").setId(Integer.toString(i)).setSource("field", "value" + i).get();
+            prepareIndex("test").setId(Integer.toString(i)).setSource("field", "value" + i).get();
         }
 
         // Version from translog

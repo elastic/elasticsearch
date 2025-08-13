@@ -1,21 +1,22 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper;
 
-import org.apache.lucene.index.IndexableField;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
-import java.util.Arrays;
-import java.util.Collections;
+
+import static org.hamcrest.Matchers.empty;
 
 public class NestedPathFieldMapperTests extends MetadataMapperTestCase {
 
@@ -25,8 +26,8 @@ public class NestedPathFieldMapperTests extends MetadataMapperTestCase {
     }
 
     @Override
-    protected boolean isSupportedOn(Version version) {
-        return version.onOrAfter(Version.V_8_0_0);
+    protected boolean isSupportedOn(IndexVersion version) {
+        return version.onOrAfter(IndexVersions.V_8_0_0);
     }
 
     @Override
@@ -40,6 +41,6 @@ public class NestedPathFieldMapperTests extends MetadataMapperTestCase {
     public void testDefaults() throws IOException {
         DocumentMapper mapper = createDocumentMapper(mapping(b -> {}));
         ParsedDocument document = mapper.parse(new SourceToParse("id", new BytesArray("{}"), XContentType.JSON));
-        assertEquals(Collections.<IndexableField>emptyList(), Arrays.asList(document.rootDoc().getFields(NestedPathFieldMapper.NAME)));
+        assertThat(document.rootDoc().getFields(NestedPathFieldMapper.NAME), empty());
     }
 }

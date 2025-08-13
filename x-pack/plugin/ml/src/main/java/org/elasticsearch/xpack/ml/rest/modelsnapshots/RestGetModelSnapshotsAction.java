@@ -8,9 +8,10 @@ package org.elasticsearch.xpack.ml.rest.modelsnapshots;
 
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.Scope;
+import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestCancellableNodeClient;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xcontent.XContentParser;
@@ -24,9 +25,11 @@ import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
+import static org.elasticsearch.xpack.core.ml.action.GetModelSnapshotsAction.Request.SNAPSHOT_ID;
+import static org.elasticsearch.xpack.core.ml.job.config.Job.ID;
 import static org.elasticsearch.xpack.ml.MachineLearning.BASE_PATH;
-import static org.elasticsearch.xpack.ml.MachineLearning.PRE_V7_BASE_PATH;
 
+@ServerlessScope(Scope.INTERNAL)
 public class RestGetModelSnapshotsAction extends BaseRestHandler {
 
     private static final String ALL_SNAPSHOT_IDS = null;
@@ -41,26 +44,10 @@ public class RestGetModelSnapshotsAction extends BaseRestHandler {
     @Override
     public List<Route> routes() {
         return List.of(
-            Route.builder(GET, BASE_PATH + "anomaly_detectors/{" + Job.ID + "}/model_snapshots/{" + Request.SNAPSHOT_ID + "}")
-                .replaces(
-                    GET,
-                    PRE_V7_BASE_PATH + "anomaly_detectors/{" + Job.ID + "}/model_snapshots/{" + Request.SNAPSHOT_ID + "}",
-                    RestApiVersion.V_7
-                )
-                .build(),
-            Route.builder(POST, BASE_PATH + "anomaly_detectors/{" + Job.ID + "}/model_snapshots/{" + Request.SNAPSHOT_ID + "}")
-                .replaces(
-                    POST,
-                    PRE_V7_BASE_PATH + "anomaly_detectors/{" + Job.ID + "}/model_snapshots/{" + Request.SNAPSHOT_ID + "}",
-                    RestApiVersion.V_7
-                )
-                .build(),
-            Route.builder(GET, BASE_PATH + "anomaly_detectors/{" + Job.ID + "}/model_snapshots")
-                .replaces(GET, PRE_V7_BASE_PATH + "anomaly_detectors/{" + Job.ID + "}/model_snapshots", RestApiVersion.V_7)
-                .build(),
-            Route.builder(POST, BASE_PATH + "anomaly_detectors/{" + Job.ID + "}/model_snapshots")
-                .replaces(POST, PRE_V7_BASE_PATH + "anomaly_detectors/{" + Job.ID + "}/model_snapshots", RestApiVersion.V_7)
-                .build()
+            new Route(GET, BASE_PATH + "anomaly_detectors/{" + ID + "}/model_snapshots/{" + SNAPSHOT_ID + "}"),
+            new Route(POST, BASE_PATH + "anomaly_detectors/{" + ID + "}/model_snapshots/{" + SNAPSHOT_ID + "}"),
+            new Route(GET, BASE_PATH + "anomaly_detectors/{" + ID + "}/model_snapshots"),
+            new Route(POST, BASE_PATH + "anomaly_detectors/{" + ID + "}/model_snapshots")
         );
     }
 

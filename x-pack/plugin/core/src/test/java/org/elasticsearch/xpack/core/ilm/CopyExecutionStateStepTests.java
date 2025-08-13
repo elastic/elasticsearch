@@ -7,12 +7,11 @@
 
 package org.elasticsearch.xpack.core.ilm;
 
-import org.elasticsearch.Version;
-import org.elasticsearch.cluster.ClusterName;
-import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
-import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.xpack.core.ilm.Step.StepKey;
 
 import java.util.HashMap;
@@ -71,22 +70,26 @@ public class CopyExecutionStateStepTests extends AbstractStepTestCase<CopyExecut
         Map<String, String> customMetadata = createCustomMetadata();
 
         IndexMetadata originalIndexMetadata = IndexMetadata.builder(indexName)
-            .settings(settings(Version.CURRENT))
+            .settings(settings(IndexVersion.current()))
             .numberOfShards(randomIntBetween(1, 5))
             .numberOfReplicas(randomIntBetween(1, 5))
             .putCustom(ILM_CUSTOM_METADATA_KEY, customMetadata)
             .build();
         IndexMetadata shrunkIndexMetadata = IndexMetadata.builder(
             step.getTargetIndexNameSupplier().apply(indexName, LifecycleExecutionState.builder().build())
-        ).settings(settings(Version.CURRENT)).numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(1, 5)).build();
-        ClusterState originalClusterState = ClusterState.builder(ClusterName.DEFAULT)
-            .metadata(Metadata.builder().put(originalIndexMetadata, false).put(shrunkIndexMetadata, false))
+        )
+            .settings(settings(IndexVersion.current()))
+            .numberOfShards(randomIntBetween(1, 5))
+            .numberOfReplicas(randomIntBetween(1, 5))
             .build();
+        ProjectState originalState = projectStateFromProject(
+            ProjectMetadata.builder(randomUniqueProjectId()).put(originalIndexMetadata, false).put(shrunkIndexMetadata, false)
+        );
 
-        ClusterState newClusterState = step.performAction(originalIndexMetadata.getIndex(), originalClusterState);
+        ProjectState newState = step.performAction(originalIndexMetadata.getIndex(), originalState);
 
         LifecycleExecutionState oldIndexData = originalIndexMetadata.getLifecycleExecutionState();
-        LifecycleExecutionState newIndexData = newClusterState.metadata()
+        LifecycleExecutionState newIndexData = newState.metadata()
             .index(step.getTargetIndexNameSupplier().apply(indexName, LifecycleExecutionState.builder().build()))
             .getLifecycleExecutionState();
 
@@ -104,23 +107,27 @@ public class CopyExecutionStateStepTests extends AbstractStepTestCase<CopyExecut
         String indexName = randomAlphaOfLengthBetween(5, 20);
 
         IndexMetadata originalIndexMetadata = IndexMetadata.builder(indexName)
-            .settings(settings(Version.CURRENT))
+            .settings(settings(IndexVersion.current()))
             .numberOfShards(randomIntBetween(1, 5))
             .numberOfReplicas(randomIntBetween(1, 5))
             .putCustom(ILM_CUSTOM_METADATA_KEY, createCustomMetadata())
             .build();
         IndexMetadata shrunkIndexMetadata = IndexMetadata.builder(
             step.getTargetIndexNameSupplier().apply(indexName, LifecycleExecutionState.builder().build())
-        ).settings(settings(Version.CURRENT)).numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(1, 5)).build();
-
-        ClusterState originalClusterState = ClusterState.builder(ClusterName.DEFAULT)
-            .metadata(Metadata.builder().put(originalIndexMetadata, false).put(shrunkIndexMetadata, false))
+        )
+            .settings(settings(IndexVersion.current()))
+            .numberOfShards(randomIntBetween(1, 5))
+            .numberOfReplicas(randomIntBetween(1, 5))
             .build();
 
-        ClusterState newClusterState = step.performAction(originalIndexMetadata.getIndex(), originalClusterState);
+        ProjectState originalState = projectStateFromProject(
+            ProjectMetadata.builder(randomUniqueProjectId()).put(originalIndexMetadata, false).put(shrunkIndexMetadata, false)
+        );
+
+        ProjectState newState = step.performAction(originalIndexMetadata.getIndex(), originalState);
 
         LifecycleExecutionState oldIndexData = originalIndexMetadata.getLifecycleExecutionState();
-        LifecycleExecutionState newIndexData = newClusterState.metadata()
+        LifecycleExecutionState newIndexData = newState.metadata()
             .index(step.getTargetIndexNameSupplier().apply(indexName, LifecycleExecutionState.builder().build()))
             .getLifecycleExecutionState();
 
@@ -139,18 +146,18 @@ public class CopyExecutionStateStepTests extends AbstractStepTestCase<CopyExecut
         Map<String, String> customMetadata = createCustomMetadata();
 
         IndexMetadata originalIndexMetadata = IndexMetadata.builder(indexName)
-            .settings(settings(Version.CURRENT))
+            .settings(settings(IndexVersion.current()))
             .numberOfShards(randomIntBetween(1, 5))
             .numberOfReplicas(randomIntBetween(1, 5))
             .putCustom(ILM_CUSTOM_METADATA_KEY, customMetadata)
             .build();
-        ClusterState originalClusterState = ClusterState.builder(ClusterName.DEFAULT)
-            .metadata(Metadata.builder().put(originalIndexMetadata, false))
-            .build();
+        ProjectState originalState = projectStateFromProject(
+            ProjectMetadata.builder(randomUniqueProjectId()).put(originalIndexMetadata, false)
+        );
 
         IllegalStateException e = expectThrows(
             IllegalStateException.class,
-            () -> step.performAction(originalIndexMetadata.getIndex(), originalClusterState)
+            () -> step.performAction(originalIndexMetadata.getIndex(), originalState)
         );
 
         assertThat(

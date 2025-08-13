@@ -1,6 +1,0 @@
-pr: 93847
-summary: Fixed changing only the `forceMerge` flag in `SearchableSnapshotAction` wouldn't
-  update the policy
-area: ILM+SLM
-type: bug
-issues: []

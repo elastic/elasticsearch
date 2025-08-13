@@ -1,30 +1,36 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.repositories;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
+import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.indices.recovery.RecoveryState;
-import org.elasticsearch.snapshots.SnapshotDeleteListener;
 import org.elasticsearch.snapshots.SnapshotId;
+import org.elasticsearch.snapshots.SnapshotInfo;
+import org.elasticsearch.telemetry.metric.LongWithAttributes;
 
 import java.io.IOException;
 import java.util.Collection;
+import java.util.concurrent.Executor;
+import java.util.function.BooleanSupplier;
 
 /**
  * This class represents a repository that could not be initialized due to unknown type.
@@ -32,9 +38,11 @@ import java.util.Collection;
  */
 public class UnknownTypeRepository extends AbstractLifecycleComponent implements Repository {
 
+    private final ProjectId projectId;
     private final RepositoryMetadata repositoryMetadata;
 
-    public UnknownTypeRepository(RepositoryMetadata repositoryMetadata) {
+    public UnknownTypeRepository(ProjectId projectId, RepositoryMetadata repositoryMetadata) {
+        this.projectId = projectId;
         this.repositoryMetadata = repositoryMetadata;
     }
 
@@ -46,17 +54,28 @@ public class UnknownTypeRepository extends AbstractLifecycleComponent implements
     }
 
     @Override
+    public ProjectId getProjectId() {
+        return projectId;
+    }
+
+    @Override
     public RepositoryMetadata getMetadata() {
         return repositoryMetadata;
     }
 
     @Override
-    public void getSnapshotInfo(GetSnapshotInfoContext context) {
-        throw createUnknownTypeException();
+    public void getSnapshotInfo(
+        Collection<SnapshotId> snapshotIds,
+        boolean abortOnFailure,
+        BooleanSupplier isCancelled,
+        CheckedConsumer<SnapshotInfo, Exception> consumer,
+        ActionListener<Void> listener
+    ) {
+        listener.onFailure(createUnknownTypeException());
     }
 
     @Override
-    public Metadata getSnapshotGlobalMetadata(SnapshotId snapshotId) {
+    public Metadata getSnapshotGlobalMetadata(SnapshotId snapshotId, boolean fromProjectMetadata) {
         throw createUnknownTypeException();
     }
 
@@ -66,7 +85,7 @@ public class UnknownTypeRepository extends AbstractLifecycleComponent implements
     }
 
     @Override
-    public void getRepositoryData(ActionListener<RepositoryData> listener) {
+    public void getRepositoryData(Executor responseExecutor, ActionListener<RepositoryData> listener) {
         listener.onFailure(createUnknownTypeException());
     }
 
@@ -78,21 +97,12 @@ public class UnknownTypeRepository extends AbstractLifecycleComponent implements
     @Override
     public void deleteSnapshots(
         Collection<SnapshotId> snapshotIds,
-        long repositoryStateId,
-        Version repositoryMetaVersion,
-        SnapshotDeleteListener listener
+        long repositoryDataGeneration,
+        IndexVersion minimumNodeVersion,
+        ActionListener<RepositoryData> repositoryDataUpdateListener,
+        Runnable onCompletion
     ) {
-        listener.onFailure(createUnknownTypeException());
-    }
-
-    @Override
-    public long getSnapshotThrottleTimeInNanos() {
-        throw createUnknownTypeException();
-    }
-
-    @Override
-    public long getRestoreThrottleTimeInNanos() {
-        throw createUnknownTypeException();
+        repositoryDataUpdateListener.onFailure(createUnknownTypeException());
     }
 
     @Override
@@ -134,7 +144,7 @@ public class UnknownTypeRepository extends AbstractLifecycleComponent implements
     }
 
     @Override
-    public IndexShardSnapshotStatus getShardSnapshotStatus(SnapshotId snapshotId, IndexId indexId, ShardId shardId) {
+    public IndexShardSnapshotStatus.Copy getShardSnapshotStatus(SnapshotId snapshotId, IndexId indexId, ShardId shardId) {
         throw createUnknownTypeException();
     }
 
@@ -157,6 +167,21 @@ public class UnknownTypeRepository extends AbstractLifecycleComponent implements
     @Override
     public void awaitIdle() {
 
+    }
+
+    @Override
+    public LongWithAttributes getShardSnapshotsInProgress() {
+        /*
+         * The presence of a misconfigured repository shouldn't interfere with
+         * the collection of metrics from the other repositories. We just return
+         * null here to indicate we have nothing to contribute.
+         */
+        return null;
+    }
+
+    @Override
+    public RepositoriesStats.SnapshotStats getSnapshotStats() {
+        throw createUnknownTypeException();
     }
 
     @Override

@@ -1,0 +1,10 @@
+{
+    "properties": {
+      "height_range": {
+        "type": "double_range"
+      },
+      "description": {
+        "type": "keyword"
+      }
+    }
+  }

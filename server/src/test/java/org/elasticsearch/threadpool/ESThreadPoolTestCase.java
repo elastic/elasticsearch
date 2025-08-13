@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.threadpool;
@@ -20,20 +21,19 @@ public abstract class ESThreadPoolTestCase extends ESTestCase {
                 return info;
             }
         }
-        assert "same".equals(name);
-        return null;
+        return fail(null, "unknown threadpool name: " + name);
     }
 
     protected final ThreadPoolStats.Stats stats(final ThreadPool threadPool, final String name) {
         for (final ThreadPoolStats.Stats stats : threadPool.stats()) {
-            if (name.equals(stats.getName())) {
+            if (name.equals(stats.name())) {
                 return stats;
             }
         }
-        throw new IllegalArgumentException(name);
+        return fail(null, "unknown threadpool name: " + name);
     }
 
-    protected final void terminateThreadPoolIfNeeded(final ThreadPool threadPool) throws InterruptedException {
+    protected final void terminateThreadPoolIfNeeded(final ThreadPool threadPool) {
         if (threadPool != null) {
             terminate(threadPool);
         }

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.indices.refresh;
@@ -20,17 +21,18 @@ import org.elasticsearch.action.support.replication.TransportReplicationAction;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
+import java.util.concurrent.Executor;
 
 public class TransportShardRefreshAction extends TransportReplicationAction<
     BasicReplicationRequest,
@@ -40,8 +42,10 @@ public class TransportShardRefreshAction extends TransportReplicationAction<
     private static final Logger logger = LogManager.getLogger(TransportShardRefreshAction.class);
 
     public static final String NAME = RefreshAction.NAME + "[s]";
-    public static final ActionType<ReplicationResponse> TYPE = new ActionType<>(NAME, ReplicationResponse::new);
+    public static final ActionType<ReplicationResponse> TYPE = new ActionType<>(NAME);
     public static final String SOURCE_API = "api";
+
+    private final Executor refreshExecutor;
 
     @Inject
     public TransportShardRefreshAction(
@@ -64,10 +68,21 @@ public class TransportShardRefreshAction extends TransportReplicationAction<
             actionFilters,
             BasicReplicationRequest::new,
             ShardRefreshReplicaRequest::new,
-            ThreadPool.Names.REFRESH
+            threadPool.executor(ThreadPool.Names.REFRESH),
+            SyncGlobalCheckpointAfterOperation.DoNotSync,
+            PrimaryActionExecution.RejectOnOverload,
+            ReplicaActionExecution.SubjectToCircuitBreaker
         );
         // registers the unpromotable version of shard refresh action
-        new TransportUnpromotableShardRefreshAction(clusterService, transportService, actionFilters, indicesService);
+        new TransportUnpromotableShardRefreshAction(
+            clusterService,
+            transportService,
+            shardStateAction,
+            actionFilters,
+            indicesService,
+            threadPool
+        );
+        this.refreshExecutor = transportService.getThreadPool().executor(ThreadPool.Names.REFRESH);
     }
 
     @Override
@@ -81,21 +96,20 @@ public class TransportShardRefreshAction extends TransportReplicationAction<
         IndexShard primary,
         ActionListener<PrimaryResult<ShardRefreshReplicaRequest, ReplicationResponse>> listener
     ) {
-        ActionListener.completeWith(listener, () -> {
-            ShardRefreshReplicaRequest replicaRequest = new ShardRefreshReplicaRequest(shardRequest.shardId(), primary.refresh(SOURCE_API));
+        primary.externalRefresh(SOURCE_API, listener.safeMap(refreshResult -> {
+            ShardRefreshReplicaRequest replicaRequest = new ShardRefreshReplicaRequest(shardRequest.shardId(), refreshResult);
             replicaRequest.setParentTask(shardRequest.getParentTask());
             logger.trace("{} refresh request executed on primary", primary.shardId());
             return new PrimaryResult<>(replicaRequest, new ReplicationResponse());
-        });
+        }));
     }
 
     @Override
     protected void shardOperationOnReplica(ShardRefreshReplicaRequest request, IndexShard replica, ActionListener<ReplicaResult> listener) {
-        ActionListener.completeWith(listener, () -> {
-            replica.refresh(SOURCE_API);
+        replica.externalRefresh(SOURCE_API, listener.safeMap(refreshResult -> {
             logger.trace("{} refresh request executed on replica", replica.shardId());
             return new ReplicaResult();
-        });
+        }));
     }
 
     @Override
@@ -111,20 +125,14 @@ public class TransportShardRefreshAction extends TransportReplicationAction<
             IndexShardRoutingTable indexShardRoutingTable,
             ActionListener<Void> listener
         ) {
-            assert replicaRequest.primaryRefreshResult.refreshed() : "primary has not refreshed";
-            UnpromotableShardRefreshRequest unpromotableReplicaRequest = new UnpromotableShardRefreshRequest(
-                indexShardRoutingTable,
-                replicaRequest.primaryRefreshResult.generation()
-            );
+            var primaryTerm = replicaRequest.primaryRefreshResult.primaryTerm();
+            var generation = replicaRequest.primaryRefreshResult.generation();
+
             transportService.sendRequest(
                 transportService.getLocalNode(),
                 TransportUnpromotableShardRefreshAction.NAME,
-                unpromotableReplicaRequest,
-                new ActionListenerResponseHandler<>(
-                    listener.delegateFailure((l, r) -> l.onResponse(null)),
-                    (in) -> ActionResponse.Empty.INSTANCE,
-                    ThreadPool.Names.REFRESH
-                )
+                new UnpromotableShardRefreshRequest(indexShardRoutingTable, primaryTerm, generation, false),
+                new ActionListenerResponseHandler<>(listener.safeMap(r -> null), in -> ActionResponse.Empty.INSTANCE, refreshExecutor)
             );
         }
     }

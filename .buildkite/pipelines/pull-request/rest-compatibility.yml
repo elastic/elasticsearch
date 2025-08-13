@@ -1,0 +1,11 @@
+config:
+  skip-target-branches: "7.17"
+steps:
+  - label: rest-compatibility
+    command: .ci/scripts/run-gradle.sh -Dignore.tests.seed checkRestCompat
+    timeout_in_minutes: 300
+    agents:
+      provider: gcp
+      image: family/elasticsearch-ubuntu-2404
+      machineType: custom-32-98304
+      buildDirectory: /dev/shm/bk

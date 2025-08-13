@@ -54,19 +54,19 @@ public class MemoryEstimationTests extends AbstractXContentSerializingTestCase<M
 
     public void testConstructor_SmallValues() {
         MemoryEstimation memoryEstimation = new MemoryEstimation(
-            new ByteSizeValue(120, ByteSizeUnit.KB),
-            new ByteSizeValue(30, ByteSizeUnit.KB)
+            ByteSizeValue.of(120, ByteSizeUnit.KB),
+            ByteSizeValue.of(30, ByteSizeUnit.KB)
         );
-        assertThat(memoryEstimation.getExpectedMemoryWithoutDisk(), equalTo(new ByteSizeValue(120, ByteSizeUnit.KB)));
-        assertThat(memoryEstimation.getExpectedMemoryWithDisk(), equalTo(new ByteSizeValue(30, ByteSizeUnit.KB)));
+        assertThat(memoryEstimation.getExpectedMemoryWithoutDisk(), equalTo(ByteSizeValue.of(120, ByteSizeUnit.KB)));
+        assertThat(memoryEstimation.getExpectedMemoryWithDisk(), equalTo(ByteSizeValue.of(30, ByteSizeUnit.KB)));
     }
 
     public void testConstructor() {
         MemoryEstimation memoryEstimation = new MemoryEstimation(
-            new ByteSizeValue(20, ByteSizeUnit.MB),
-            new ByteSizeValue(10, ByteSizeUnit.MB)
+            ByteSizeValue.of(20, ByteSizeUnit.MB),
+            ByteSizeValue.of(10, ByteSizeUnit.MB)
         );
-        assertThat(memoryEstimation.getExpectedMemoryWithoutDisk(), equalTo(new ByteSizeValue(20, ByteSizeUnit.MB)));
-        assertThat(memoryEstimation.getExpectedMemoryWithDisk(), equalTo(new ByteSizeValue(10, ByteSizeUnit.MB)));
+        assertThat(memoryEstimation.getExpectedMemoryWithoutDisk(), equalTo(ByteSizeValue.of(20, ByteSizeUnit.MB)));
+        assertThat(memoryEstimation.getExpectedMemoryWithDisk(), equalTo(ByteSizeValue.of(10, ByteSizeUnit.MB)));
     }
 }

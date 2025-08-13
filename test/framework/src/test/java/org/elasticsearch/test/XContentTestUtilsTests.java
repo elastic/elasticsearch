@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.test;
@@ -19,11 +20,11 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
+import java.util.ArrayDeque;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Stack;
 import java.util.function.Predicate;
 
 import static org.elasticsearch.test.XContentTestUtils.insertRandomFields;
@@ -71,7 +72,7 @@ public class XContentTestUtilsTests extends ESTestCase {
             )
         ) {
             parser.nextToken();
-            List<String> insertPaths = XContentTestUtils.getInsertPaths(parser, new Stack<>());
+            List<String> insertPaths = XContentTestUtils.getInsertPaths(parser, new ArrayDeque<>());
             assertEquals(5, insertPaths.size());
             assertThat(insertPaths, hasItem(equalTo("")));
             assertThat(insertPaths, hasItem(equalTo("list1.2")));

@@ -28,7 +28,7 @@ public final class Expressions {
     private Expressions() {}
 
     public static NamedExpression wrapAsNamed(Expression exp) {
-        return exp instanceof NamedExpression ? (NamedExpression) exp : new Alias(exp.source(), exp.sourceText(), exp);
+        return exp instanceof NamedExpression ne ? ne : new Alias(exp.source(), exp.sourceText(), exp);
     }
 
     public static List<Attribute> asAttributes(List<? extends NamedExpression> named) {
@@ -136,7 +136,7 @@ public final class Expressions {
     }
 
     public static String name(Expression e) {
-        return e instanceof NamedExpression ? ((NamedExpression) e).name() : e.sourceText();
+        return e instanceof NamedExpression ne ? ne.name() : e.sourceText();
     }
 
     public static boolean isNull(Expression e) {
@@ -153,8 +153,8 @@ public final class Expressions {
     }
 
     public static Attribute attribute(Expression e) {
-        if (e instanceof NamedExpression) {
-            return ((NamedExpression) e).toAttribute();
+        if (e instanceof NamedExpression ne) {
+            return ne.toAttribute();
         }
         return null;
     }
@@ -175,8 +175,8 @@ public final class Expressions {
         // an alias of same name and data type can be reused (by mistake): need to use a list to collect all refs (and later report them)
         List<Tuple<Attribute, Expression>> aliases = new ArrayList<>();
         for (NamedExpression ne : named) {
-            if (ne instanceof Alias) {
-                aliases.add(new Tuple<>(ne.toAttribute(), ((Alias) ne).child()));
+            if (ne instanceof Alias as) {
+                aliases.add(new Tuple<>(ne.toAttribute(), as.child()));
             }
         }
         return aliases;
@@ -218,11 +218,11 @@ public final class Expressions {
         if (e.foldable()) {
             return new ConstantInput(e.source(), e, e.fold());
         }
-        if (e instanceof NamedExpression) {
-            return new AttributeInput(e.source(), e, ((NamedExpression) e).toAttribute());
+        if (e instanceof NamedExpression ne) {
+            return new AttributeInput(e.source(), e, ne.toAttribute());
         }
-        if (e instanceof Function) {
-            return ((Function) e).asPipe();
+        if (e instanceof Function f) {
+            return f.asPipe();
         }
         throw new QlIllegalArgumentException("Cannot create pipe for {}", e);
     }

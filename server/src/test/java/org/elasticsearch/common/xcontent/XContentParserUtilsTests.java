@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.xcontent;
@@ -21,11 +22,15 @@ import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
+import org.hamcrest.Matchers;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.List;
@@ -87,7 +92,7 @@ public class XContentParserUtilsTests extends ESTestCase {
     }
 
     public void testStoredFieldsValueBinary() throws IOException {
-        final byte[] value = randomUnicodeOfLength(scaledRandomIntBetween(10, 1000)).getBytes("UTF-8");
+        final byte[] value = randomUnicodeOfLength(scaledRandomIntBetween(10, 1000)).getBytes(StandardCharsets.UTF_8);
         assertParseFieldsSimpleValue(value, (xcontentType, result) -> {
             if (xcontentType.canonical() == XContentType.JSON) {
                 // binary values will be parsed back and returned as base64 strings when reading from json
@@ -284,5 +289,36 @@ public class XContentParserUtilsTests extends ESTestCase {
                 assertEquals("Failed to parse object: empty key", exception.getMessage());
             }
         }
+    }
+
+    public void testParseListWithIndex_IncrementsIndexBy1ForEachEntryInList() throws IOException {
+        String jsonString = """
+            ["a", "b", "c"]
+            """;
+
+        var parserConfig = XContentParserConfiguration.EMPTY.withDeprecationHandler(LoggingDeprecationHandler.INSTANCE);
+
+        List<String> results;
+        var indices = new ArrayList<Integer>();
+
+        try (
+            XContentParser jsonParser = XContentFactory.xContent(XContentType.JSON)
+                .createParser(parserConfig, jsonString.getBytes(StandardCharsets.UTF_8))
+        ) {
+            if (jsonParser.currentToken() == null) {
+                jsonParser.nextToken();
+            }
+
+            results = XContentParserUtils.parseList(jsonParser, (parser, index) -> {
+                XContentParser.Token token = parser.currentToken();
+                XContentParserUtils.ensureExpectedToken(XContentParser.Token.VALUE_STRING, token, parser);
+                indices.add(index);
+
+                return parser.text();
+            });
+        }
+
+        assertThat(results, Matchers.is(List.of("a", "b", "c")));
+        assertThat(indices, Matchers.is(List.of(0, 1, 2)));
     }
 }

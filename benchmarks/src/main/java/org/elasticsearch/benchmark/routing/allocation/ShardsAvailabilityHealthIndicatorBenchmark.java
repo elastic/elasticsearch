@@ -1,19 +1,21 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.benchmark.routing.allocation;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.project.DefaultProjectResolver;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RecoverySource;
@@ -22,15 +24,18 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.DataTier;
-import org.elasticsearch.cluster.routing.allocation.ShardsAvailabilityHealthIndicatorService;
+import org.elasticsearch.cluster.routing.allocation.shards.ShardsAvailabilityHealthIndicatorService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.health.HealthIndicatorResult;
 import org.elasticsearch.health.node.HealthInfo;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.tasks.TaskManager;
+import org.elasticsearch.telemetry.metric.MeterRegistry;
+import org.elasticsearch.threadpool.DefaultBuiltInExecutorBuilders;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
@@ -92,7 +97,7 @@ public class ShardsAvailabilityHealthIndicatorBenchmark {
 
         AllocationService allocationService = Allocators.createAllocationService(Settings.EMPTY);
 
-        Metadata.Builder mb = Metadata.builder();
+        ProjectMetadata.Builder pmb = ProjectMetadata.builder(ProjectId.DEFAULT);
         RoutingTable.Builder rb = RoutingTable.builder();
 
         DiscoveryNodes.Builder nb = DiscoveryNodes.builder();
@@ -121,7 +126,7 @@ public class ShardsAvailabilityHealthIndicatorBenchmark {
             IndexMetadata indexMetadata = IndexMetadata.builder("test_" + i)
                 .settings(
                     Settings.builder()
-                        .put("index.version.created", Version.CURRENT)
+                        .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
                         .put(DataTier.TIER_PREFERENCE_SETTING.getKey(), "data_warm")
                         .put(INDEX_ROUTING_REQUIRE_GROUP_SETTING.getKey() + "data", "warm")
                 )
@@ -156,17 +161,17 @@ public class ShardsAvailabilityHealthIndicatorBenchmark {
             }
 
             routingTable.add(indexRountingTableBuilder);
-            mb.put(indexMetadata, false);
+            pmb.put(indexMetadata, false);
         }
 
-        ClusterState initialClusterState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
-            .metadata(mb)
-            .routingTable(routingTable)
+        ClusterState initialClusterState = ClusterState.builder(ClusterName.DEFAULT)
+            .putProjectMetadata(pmb)
+            .putRoutingTable(pmb.getId(), routingTable.build())
             .nodes(nb)
             .build();
 
         Settings settings = Settings.builder().put("node.name", ShardsAvailabilityHealthIndicatorBenchmark.class.getSimpleName()).build();
-        ThreadPool threadPool = new ThreadPool(settings);
+        ThreadPool threadPool = new ThreadPool(settings, MeterRegistry.NOOP, new DefaultBuiltInExecutorBuilders());
 
         ClusterService clusterService = new ClusterService(
             Settings.EMPTY,
@@ -175,7 +180,12 @@ public class ShardsAvailabilityHealthIndicatorBenchmark {
             new TaskManager(Settings.EMPTY, threadPool, Collections.emptySet())
         );
         clusterService.getClusterApplierService().setInitialState(initialClusterState);
-        indicatorService = new ShardsAvailabilityHealthIndicatorService(clusterService, allocationService, new SystemIndices(List.of()));
+        indicatorService = new ShardsAvailabilityHealthIndicatorService(
+            clusterService,
+            allocationService,
+            new SystemIndices(List.of()),
+            DefaultProjectResolver.INSTANCE
+        );
     }
 
     private int toInt(String v) {

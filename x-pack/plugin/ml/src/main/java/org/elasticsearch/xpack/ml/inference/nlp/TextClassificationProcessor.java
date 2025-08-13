@@ -8,8 +8,8 @@
 package org.elasticsearch.xpack.ml.inference.nlp;
 
 import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.inference.InferenceResults;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.xpack.core.ml.inference.results.InferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.results.NlpClassificationInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.results.TopClassEntry;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceHelpers;
@@ -58,22 +58,24 @@ public class TextClassificationProcessor extends NlpTask.Processor {
     @Override
     public NlpTask.ResultProcessor getResultProcessor(NlpConfig config) {
         if (config instanceof TextClassificationConfig textClassificationConfig) {
-            return (tokenization, pytorchResult) -> processResult(
+            return (tokenization, pytorchResult, chunkResult) -> processResult(
                 tokenization,
                 pytorchResult,
                 textClassificationConfig.getNumTopClasses() < 0
                     ? textClassificationConfig.getClassificationLabels().size()
                     : textClassificationConfig.getNumTopClasses(),
                 textClassificationConfig.getClassificationLabels(),
-                textClassificationConfig.getResultsField()
+                textClassificationConfig.getResultsField(),
+                chunkResult
             );
         }
-        return (tokenization, pytorchResult) -> processResult(
+        return (tokenization, pytorchResult, chunkResult) -> processResult(
             tokenization,
             pytorchResult,
             numTopClasses,
             Arrays.asList(classLabels),
-            DEFAULT_RESULTS_FIELD
+            DEFAULT_RESULTS_FIELD,
+            chunkResult
         );
     }
 
@@ -82,8 +84,13 @@ public class TextClassificationProcessor extends NlpTask.Processor {
         PyTorchInferenceResult pyTorchResult,
         int numTopClasses,
         List<String> labels,
-        String resultsField
+        String resultsField,
+        boolean chunkResult
     ) {
+        if (chunkResult) {
+            throw chunkingNotSupportedException(TaskType.NER);
+        }
+
         if (pyTorchResult.getInferenceResult().length < 1) {
             throw new ElasticsearchStatusException("Text classification result has no data", RestStatus.INTERNAL_SERVER_ERROR);
         }
@@ -92,7 +99,7 @@ public class TextClassificationProcessor extends NlpTask.Processor {
             if (result.length != labels.size()) {
                 throw new ElasticsearchStatusException(
                     "Expected exactly [{}] values in text classification result; got [{}]",
-                    RestStatus.INTERNAL_SERVER_ERROR,
+                    RestStatus.CONFLICT,
                     labels.size(),
                     result.length
                 );
@@ -101,7 +108,7 @@ public class TextClassificationProcessor extends NlpTask.Processor {
         Map<Integer, List<TokenizationResult.Tokens>> windowedSeq = tokenization.getTokensBySequenceId();
         // TODO adjust logic when batch is allowed
         if (windowedSeq.size() > 1) {
-            throw new ElasticsearchStatusException("Unexpected batch input for text classification", RestStatus.INTERNAL_SERVER_ERROR);
+            throw new ElasticsearchStatusException("Unexpected batch input for text classification", RestStatus.CONFLICT);
         }
         double[] normalizedScores = new double[labels.size()];
         for (int i = 0; i < pyTorchResult.getInferenceResult()[0].length; i++) {

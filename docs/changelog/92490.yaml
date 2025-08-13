@@ -1,5 +1,0 @@
-pr: 92490
-summary: Make clean up files step configurable for peer-recovery of replicas
-area: Recovery
-type: enhancement
-issues: []

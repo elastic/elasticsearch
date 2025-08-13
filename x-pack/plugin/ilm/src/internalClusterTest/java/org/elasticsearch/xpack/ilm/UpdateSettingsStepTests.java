@@ -7,29 +7,19 @@
 package org.elasticsearch.xpack.ilm;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.routing.allocation.AllocationService;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.AbstractModule;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.env.Environment;
-import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.IndexModule;
+import org.elasticsearch.injection.guice.AbstractModule;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.repositories.RepositoriesService;
-import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.tracing.Tracer;
-import org.elasticsearch.watcher.ResourceWatcherService;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.ilm.Step.StepKey;
 import org.elasticsearch.xpack.core.ilm.UpdateSettingsStep;
 import org.junit.After;
@@ -38,7 +28,6 @@ import java.util.Collection;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
-import java.util.function.Supplier;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.ilm.UpdateSettingsStepTests.SettingsTestingService.INVALID_VALUE;
@@ -61,21 +50,7 @@ public class UpdateSettingsStepTests extends ESSingleNodeTestCase {
         }
 
         @Override
-        public Collection<Object> createComponents(
-            Client client,
-            ClusterService clusterService,
-            ThreadPool threadPool,
-            ResourceWatcherService resourceWatcherService,
-            ScriptService scriptService,
-            NamedXContentRegistry xContentRegistry,
-            Environment environment,
-            NodeEnvironment nodeEnvironment,
-            NamedWriteableRegistry namedWriteableRegistry,
-            IndexNameExpressionResolver expressionResolver,
-            Supplier<RepositoriesService> repositoriesServiceSupplier,
-            Tracer tracer,
-            AllocationService allocationService
-        ) {
+        public Collection<?> createComponents(PluginServices services) {
             return List.of(service);
         }
 
@@ -129,11 +104,12 @@ public class UpdateSettingsStepTests extends ESSingleNodeTestCase {
     }
 
     public void testUpdateSettingsStepRetriesOnError() throws InterruptedException {
-        assertAcked(client().admin().indices().prepareCreate("test").setSettings(Settings.builder().build()).get());
+        assertAcked(indicesAdmin().prepareCreate("test").setSettings(Settings.builder().build()).get());
 
         ClusterService clusterService = getInstanceFromNode(ClusterService.class);
         ClusterState state = clusterService.state();
-        IndexMetadata indexMetadata = state.metadata().index("test");
+        final var projectId = ProjectId.DEFAULT;
+        IndexMetadata indexMetadata = state.metadata().getProject(projectId).index("test");
         ThreadPool threadPool = getInstanceFromNode(ThreadPool.class);
         ClusterStateObserver observer = new ClusterStateObserver(clusterService, null, logger, threadPool.getThreadContext());
 
@@ -148,7 +124,7 @@ public class UpdateSettingsStepTests extends ESSingleNodeTestCase {
             invalidValueSetting
         );
 
-        step.performAction(indexMetadata, state, observer, new ActionListener<>() {
+        step.performAction(indexMetadata, state.projectState(projectId), observer, new ActionListener<>() {
             @Override
             public void onResponse(Void complete) {
                 latch.countDown();
@@ -168,7 +144,7 @@ public class UpdateSettingsStepTests extends ESSingleNodeTestCase {
                     validIndexSetting
                 );
 
-                step.performAction(indexMetadata, state, observer, new ActionListener<>() {
+                step.performAction(indexMetadata, state.projectState(projectId), observer, new ActionListener<>() {
                     @Override
                     public void onResponse(Void complete) {
                         latch.countDown();

@@ -1,19 +1,23 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.logging;
 
 import org.apache.logging.log4j.core.Layout;
 import org.apache.logging.log4j.core.LogEvent;
+import org.apache.logging.log4j.core.config.Configuration;
+import org.apache.logging.log4j.core.config.DefaultConfiguration;
 import org.apache.logging.log4j.core.config.Node;
 import org.apache.logging.log4j.core.config.plugins.Plugin;
 import org.apache.logging.log4j.core.config.plugins.PluginAttribute;
 import org.apache.logging.log4j.core.config.plugins.PluginBuilderFactory;
+import org.apache.logging.log4j.core.config.plugins.PluginConfiguration;
 import org.apache.logging.log4j.core.config.plugins.PluginFactory;
 import org.apache.logging.log4j.core.layout.AbstractStringLayout;
 import org.apache.logging.log4j.core.layout.ByteBufferDestination;
@@ -64,12 +68,13 @@ public class ESJsonLayout extends AbstractStringLayout {
     private final PatternLayout patternLayout;
     private String esmessagefields;
 
-    protected ESJsonLayout(String typeName, Charset charset, String[] overrideFields) {
+    protected ESJsonLayout(String typeName, Charset charset, String[] overrideFields, final Configuration config) {
         super(charset);
         this.esmessagefields = String.join(",", overrideFields);
         this.patternLayout = PatternLayout.newBuilder()
             .withPattern(pattern(typeName, overrideFields))
             .withAlwaysWriteExceptions(false)
+            .withConfiguration(config)
             .build();
     }
 
@@ -135,15 +140,15 @@ public class ESJsonLayout extends AbstractStringLayout {
     }
 
     @PluginFactory
-    public static ESJsonLayout createLayout(String type, Charset charset, String[] overrideFields) {
-        return new ESJsonLayout(type, charset, overrideFields);
+    public static ESJsonLayout createLayout(String type, Charset charset, String[] overrideFields, Configuration configuration) {
+        return new ESJsonLayout(type, charset, overrideFields, configuration);
     }
 
     PatternLayout getPatternLayout() {
         return patternLayout;
     }
 
-    public static class Builder<B extends ESJsonLayout.Builder<B>> extends AbstractStringLayout.Builder<B>
+    public static final class Builder<B extends ESJsonLayout.Builder<B>> extends AbstractStringLayout.Builder<B>
         implements
             org.apache.logging.log4j.core.util.Builder<ESJsonLayout> {
 
@@ -156,6 +161,9 @@ public class ESJsonLayout extends AbstractStringLayout {
         @PluginAttribute("esmessagefields")
         private String overrideFields;
 
+        @PluginConfiguration
+        private Configuration config;
+
         public Builder() {
             setCharset(StandardCharsets.UTF_8);
         }
@@ -163,7 +171,7 @@ public class ESJsonLayout extends AbstractStringLayout {
         @Override
         public ESJsonLayout build() {
             String[] split = Strings.isNullOrEmpty(overrideFields) ? new String[] {} : overrideFields.split(",");
-            return ESJsonLayout.createLayout(type, charset, split);
+            return ESJsonLayout.createLayout(type, charset, split, new DefaultConfiguration());
         }
 
         public Charset getCharset() {
@@ -192,6 +200,7 @@ public class ESJsonLayout extends AbstractStringLayout {
             this.overrideFields = overrideFields;
             return asBuilder();
         }
+
     }
 
     @PluginBuilderFactory

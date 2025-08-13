@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.util;
@@ -100,6 +101,13 @@ public abstract class CancellableSingleObjectCache<Input, Key, Value> {
     }
 
     /**
+     * Sets the currently cached item reference to {@code null}, which will result in a {@code refresh()} on the next {@code get()} call.
+     */
+    protected final void clearCurrentCachedItem() {
+        this.currentCachedItemRef.set(null);
+    }
+
+    /**
      * Start a retrieval for the value associated with the given {@code input}, and pass it to the given {@code listener}.
      * <p>
      * If a fresh-enough result is available when this method is called then the {@code listener} is notified immediately, on this thread.
@@ -109,7 +117,8 @@ public abstract class CancellableSingleObjectCache<Input, Key, Value> {
      *
      * @param input       The input to compute the desired value, converted to a {@link Key} to determine if the value that's currently
      *                    cached or pending is fresh enough.
-     * @param isCancelled Returns {@code true} if the listener no longer requires the value being computed.
+     * @param isCancelled Returns {@code true} if the listener no longer requires the value being computed. The listener is expected to be
+     *                    completed as soon as possible when cancellation is detected.
      * @param listener    The listener to notify when the desired value becomes available.
      */
     public final void get(Input input, BooleanSupplier isCancelled, ActionListener<Value> listener) {
@@ -136,9 +145,10 @@ public abstract class CancellableSingleObjectCache<Input, Key, Value> {
 
                 // Our item was only just released, possibly cancelled, by another get() with a fresher key. We don't simply retry
                 // since that would evict the new item. Instead let's see if it was cancelled or whether it completed properly.
-                if (currentCachedItem.getFuture().isDone()) {
+                final var future = currentCachedItem.getFuture();
+                if (future.isDone()) {
                     try {
-                        listener.onResponse(currentCachedItem.getFuture().actionGet(0L));
+                        listener.onResponse(future.actionResult());
                         return;
                     } catch (TaskCancelledException e) {
                         // previous task was cancelled before completion, therefore we must perform our own one-shot refresh
@@ -191,7 +201,7 @@ public abstract class CancellableSingleObjectCache<Input, Key, Value> {
 
         CachedItem(Key key) {
             this.key = key;
-            incRef(); // start with a refcount of 2 so we're not closed while adding the first listener
+            mustIncRef(); // start with a refcount of 2 so we're not closed while adding the first listener
             this.future.addListener(new ActionListener<>() {
                 @Override
                 public void onResponse(Value value) {
@@ -225,14 +235,18 @@ public abstract class CancellableSingleObjectCache<Input, Key, Value> {
                 if (future.isDone()) {
                     // No need to bother with ref counting & cancellation any more, just complete the listener.
                     // We know it wasn't cancelled because there are still references.
-                    ActionListener.completeWith(listener, () -> future.actionGet(0L));
+                    ActionListener.completeWith(listener, future::actionResult);
                 } else {
                     // Refresh is still pending; it's not cancelled because there are still references.
-                    future.addListener(ContextPreservingActionListener.wrapPreservingContext(listener, threadContext));
+                    final var cancellableListener = ActionListener.notifyOnce(
+                        ContextPreservingActionListener.wrapPreservingContext(listener, threadContext)
+                    );
+                    future.addListener(cancellableListener);
                     final AtomicBoolean released = new AtomicBoolean();
                     cancellationChecks.add(() -> {
                         if (released.get() == false && isCancelled.getAsBoolean() && released.compareAndSet(false, true)) {
                             decRef();
+                            cancellableListener.onFailure(new TaskCancelledException("task cancelled"));
                         }
                     });
                 }

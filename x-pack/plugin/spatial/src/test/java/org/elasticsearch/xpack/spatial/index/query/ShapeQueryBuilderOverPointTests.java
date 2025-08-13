@@ -10,10 +10,10 @@ import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.geo.ShapeRelation;
+import org.elasticsearch.geo.ShapeTestUtils;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.ShapeType;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.xpack.spatial.util.ShapeTestUtils;
 
 import java.io.IOException;
 
@@ -30,22 +30,11 @@ public class ShapeQueryBuilderOverPointTests extends ShapeQueryBuilderTests {
 
     @Override
     protected ShapeRelation getShapeRelation(ShapeType type) {
-        return ShapeRelation.INTERSECTS;
+        return randomFrom(ShapeRelation.INTERSECTS, ShapeRelation.CONTAINS, ShapeRelation.DISJOINT, ShapeRelation.WITHIN);
     }
 
     @Override
     protected Geometry getGeometry() {
-        if (randomBoolean()) {
-            if (randomBoolean()) {
-                return ShapeTestUtils.randomMultiPolygon(false);
-            } else {
-                return ShapeTestUtils.randomPolygon(false);
-            }
-        } else if (randomBoolean()) {
-            // it should be a circle
-            return ShapeTestUtils.randomPolygon(false);
-        } else {
-            return ShapeTestUtils.randomRectangle();
-        }
+        return ShapeTestUtils.randomGeometry(false);
     }
 }

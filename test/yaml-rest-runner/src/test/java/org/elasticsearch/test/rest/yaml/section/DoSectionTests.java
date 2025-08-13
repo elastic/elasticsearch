@@ -1,24 +1,23 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.test.rest.yaml.section;
 
 import org.apache.http.HttpHost;
-import org.elasticsearch.Version;
+import org.elasticsearch.Build;
 import org.elasticsearch.client.Node;
 import org.elasticsearch.client.NodeSelector;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.core.Strings;
-import org.elasticsearch.test.VersionUtils;
-import org.elasticsearch.test.rest.yaml.ClientYamlTestExecutionContext;
-import org.elasticsearch.test.rest.yaml.ClientYamlTestResponse;
 import org.elasticsearch.xcontent.XContentLocation;
+import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.yaml.YamlXContent;
 import org.hamcrest.MatcherAssert;
@@ -32,16 +31,13 @@ import java.util.Map;
 import java.util.regex.Pattern;
 
 import static java.util.Collections.emptyList;
-import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonList;
 import static java.util.Collections.singletonMap;
 import static org.hamcrest.CoreMatchers.equalTo;
+import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
 
 public class DoSectionTests extends AbstractClientYamlTestFragmentParserTestCase {
 
@@ -576,54 +572,21 @@ public class DoSectionTests extends AbstractClientYamlTestFragmentParserTestCase
         assertThat(e.getMessage(), equalTo("the warning [foo] was both allowed and expected"));
     }
 
-    public void testNodeSelectorByVersion() throws IOException {
+    public void testNodeSelectorByVersionRangeFails() throws IOException {
         parser = createParser(YamlXContent.yamlXContent, """
             node_selector:
                 version: 5.2.0-6.0.0
             indices.get_field_mapping:
                 index: test_index""");
 
-        DoSection doSection = DoSection.parse(parser);
-        assertNotSame(NodeSelector.ANY, doSection.getApiCallSection().getNodeSelector());
-        Node v170 = nodeWithVersion("1.7.0");
-        Node v521 = nodeWithVersion("5.2.1");
-        Node v550 = nodeWithVersion("5.5.0");
-        Node v612 = nodeWithVersion("6.1.2");
-        List<Node> nodes = new ArrayList<>();
-        nodes.add(v170);
-        nodes.add(v521);
-        nodes.add(v550);
-        nodes.add(v612);
-        doSection.getApiCallSection().getNodeSelector().select(nodes);
-        assertEquals(Arrays.asList(v521, v550), nodes);
-        ClientYamlTestExecutionContext context = mock(ClientYamlTestExecutionContext.class);
-        ClientYamlTestResponse mockResponse = mock(ClientYamlTestResponse.class);
-        when(
-            context.callApi(
-                "indices.get_field_mapping",
-                singletonMap("index", "test_index"),
-                emptyList(),
-                emptyMap(),
-                doSection.getApiCallSection().getNodeSelector()
-            )
-        ).thenReturn(mockResponse);
-        when(context.esVersion()).thenReturn(VersionUtils.randomVersion(random()));
-        when(mockResponse.getHeaders("X-elastic-product")).thenReturn(List.of("Elasticsearch"));
-        doSection.execute(context);
-        verify(context).callApi(
-            "indices.get_field_mapping",
-            singletonMap("index", "test_index"),
-            emptyList(),
-            emptyMap(),
-            doSection.getApiCallSection().getNodeSelector()
-        );
+        var exception = expectThrows(XContentParseException.class, () -> DoSection.parse(parser));
+        assertThat(exception.getMessage(), endsWith("unknown version selector [5.2.0-6.0.0]. Only [current] and [original] are allowed."));
 
-        {
-            List<Node> badNodes = new ArrayList<>();
-            badNodes.add(new Node(new HttpHost("dummy")));
-            Exception e = expectThrows(IllegalStateException.class, () -> doSection.getApiCallSection().getNodeSelector().select(badNodes));
-            assertEquals("expected [version] metadata to be set but got [host=http://dummy]", e.getMessage());
-        }
+        // We are throwing an early exception - this means the parser content is not fully consumed. This is OK as it would make
+        // the tests fail pointing to the correct syntax error location, preventing any further use of parser.
+        // Explicitly close the parser to avoid AbstractClientYamlTestFragmentParserTestCase checks.
+        parser.close();
+        parser = null;
     }
 
     public void testNodeSelectorCurrentVersion() throws IOException {
@@ -638,7 +601,7 @@ public class DoSectionTests extends AbstractClientYamlTestFragmentParserTestCase
         Node v170 = nodeWithVersion("1.7.0");
         Node v521 = nodeWithVersion("5.2.1");
         Node v550 = nodeWithVersion("5.5.0");
-        Node current = nodeWithVersion(Version.CURRENT.toString());
+        Node current = nodeWithVersion(Build.current().version());
         List<Node> nodes = new ArrayList<>();
         nodes.add(v170);
         nodes.add(v521);
@@ -646,6 +609,28 @@ public class DoSectionTests extends AbstractClientYamlTestFragmentParserTestCase
         nodes.add(current);
         doSection.getApiCallSection().getNodeSelector().select(nodes);
         assertEquals(List.of(current), nodes);
+    }
+
+    public void testNodeSelectorNonCurrentVersion() throws IOException {
+        parser = createParser(YamlXContent.yamlXContent, """
+            node_selector:
+                version: original
+            indices.get_field_mapping:
+                index: test_index""");
+
+        DoSection doSection = DoSection.parse(parser);
+        assertNotSame(NodeSelector.ANY, doSection.getApiCallSection().getNodeSelector());
+        Node v170 = nodeWithVersion("1.7.0");
+        Node v521 = nodeWithVersion("5.2.1");
+        Node v550 = nodeWithVersion("5.5.0");
+        Node current = nodeWithVersion(Build.current().version());
+        List<Node> nodes = new ArrayList<>();
+        nodes.add(v170);
+        nodes.add(v521);
+        nodes.add(v550);
+        nodes.add(current);
+        doSection.getApiCallSection().getNodeSelector().select(nodes);
+        assertEquals(List.of(v170, v521, v550), nodes);
     }
 
     private static Node nodeWithVersion(String version) {
@@ -714,7 +699,7 @@ public class DoSectionTests extends AbstractClientYamlTestFragmentParserTestCase
     public void testNodeSelectorByTwoThings() throws IOException {
         parser = createParser(YamlXContent.yamlXContent, """
             node_selector:
-                version: 5.2.0-6.0.0
+                version: current
                 attribute:
                     attr: val
             indices.get_field_mapping:
@@ -722,9 +707,9 @@ public class DoSectionTests extends AbstractClientYamlTestFragmentParserTestCase
 
         DoSection doSection = DoSection.parse(parser);
         assertNotSame(NodeSelector.ANY, doSection.getApiCallSection().getNodeSelector());
-        Node both = nodeWithVersionAndAttributes("5.2.1", singletonMap("attr", singletonList("val")));
+        Node both = nodeWithVersionAndAttributes(Build.current().version(), singletonMap("attr", singletonList("val")));
         Node badVersion = nodeWithVersionAndAttributes("5.1.1", singletonMap("attr", singletonList("val")));
-        Node badAttr = nodeWithVersionAndAttributes("5.2.1", singletonMap("notattr", singletonList("val")));
+        Node badAttr = nodeWithVersionAndAttributes(Build.current().version(), singletonMap("notattr", singletonList("val")));
         List<Node> nodes = new ArrayList<>();
         nodes.add(both);
         nodes.add(badVersion);

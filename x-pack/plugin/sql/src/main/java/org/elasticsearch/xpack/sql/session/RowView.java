@@ -29,7 +29,7 @@ public interface RowView extends Iterable<Object> {
 
     @Override
     default void forEach(Consumer<? super Object> action) {
-        forEachColumn(action::accept);
+        forEachColumn(action);
     }
 
     default void forEachColumn(Consumer<? super Object> action) {

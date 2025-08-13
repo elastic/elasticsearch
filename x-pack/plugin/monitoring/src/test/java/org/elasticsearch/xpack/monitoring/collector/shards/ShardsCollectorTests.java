@@ -38,6 +38,7 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.matchesPattern;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
@@ -92,7 +93,7 @@ public class ShardsCollectorTests extends BaseCollectorTestCase {
         withCollectionIndices(indices);
 
         final RoutingTable routingTable = mockRoutingTable();
-        when(clusterState.routingTable()).thenReturn(routingTable);
+        when(clusterState.routingTable(any())).thenReturn(routingTable);
 
         final DiscoveryNode localNode = localNode("_current");
         final MonitoringDoc.Node node = Collector.convertNode(randomNonNegativeLong(), localNode);
@@ -110,7 +111,7 @@ public class ShardsCollectorTests extends BaseCollectorTestCase {
         verify(metadata).clusterUUID();
 
         assertThat(results, notNullValue());
-        assertThat(results.size(), equalTo((indices != NONE) ? routingTable.allShards().size() : 0));
+        assertThat(results.size(), equalTo((indices != NONE) ? (int) routingTable.allShards().count() : 0));
 
         for (MonitoringDoc monitoringDoc : results) {
             assertNotNull(monitoringDoc);
@@ -138,7 +139,8 @@ public class ShardsCollectorTests extends BaseCollectorTestCase {
         }
 
         assertWarnings(
-            "[xpack.monitoring.collection.indices] setting was deprecated in Elasticsearch and will be removed in a future release."
+            "[xpack.monitoring.collection.indices] setting was deprecated in Elasticsearch and will be removed in a future release. "
+                + "See the deprecation documentation for the next major version."
         );
     }
 
@@ -195,7 +197,7 @@ public class ShardsCollectorTests extends BaseCollectorTestCase {
         }
 
         // This is only used by the test to decide how many shards should be covered
-        when(routingTable.allShards()).thenReturn(allShards);
+        when(routingTable.allShards()).thenReturn(allShards.stream());
 
         Collections.shuffle(allShards, new Random(numberOfPrimaryShards));
 

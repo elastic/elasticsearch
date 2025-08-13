@@ -1,18 +1,21 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.gradle.fixtures
 
 import org.apache.commons.io.FileUtils
-import org.elasticsearch.gradle.internal.test.ConfigurationCacheCompatibleAwareGradleRunner
+import org.apache.commons.io.IOUtils
+import org.elasticsearch.gradle.internal.test.BuildConfigurationAwareGradleRunner
 import org.elasticsearch.gradle.internal.test.InternalAwareGradleRunner
 import org.elasticsearch.gradle.internal.test.NormalizeOutputGradleRunner
 import org.elasticsearch.gradle.internal.test.TestResultExtension
+import org.gradle.internal.component.external.model.ComponentVariant
 import org.gradle.testkit.runner.BuildResult
 import org.gradle.testkit.runner.GradleRunner
 import org.junit.Rule
@@ -21,8 +24,14 @@ import spock.lang.Specification
 import spock.lang.TempDir
 
 import java.lang.management.ManagementFactory
+import java.nio.charset.StandardCharsets
+import java.nio.file.Files
+import java.io.File
+import java.nio.file.Path
 import java.util.jar.JarEntry
 import java.util.jar.JarOutputStream
+import java.util.zip.ZipEntry
+import java.util.zip.ZipFile
 
 import static org.elasticsearch.gradle.internal.test.TestUtils.normalizeString
 
@@ -39,7 +48,8 @@ abstract class AbstractGradleFuncTest extends Specification {
     File propertiesFile
     File projectDir
 
-    boolean configurationCacheCompatible = true
+    protected boolean configurationCacheCompatible = true
+    protected boolean buildApiRestrictionsDisabled = false
 
     def setup() {
         projectDir = testProjectDir.root
@@ -49,6 +59,17 @@ abstract class AbstractGradleFuncTest extends Specification {
         propertiesFile = testProjectDir.newFile('gradle.properties')
         propertiesFile <<
             "org.gradle.java.installations.fromEnv=JAVA_HOME,RUNTIME_JAVA_HOME,JAVA15_HOME,JAVA14_HOME,JAVA13_HOME,JAVA12_HOME,JAVA11_HOME,JAVA8_HOME"
+
+        def nativeLibsProject = subProject(":libs:native:native-libraries")
+        nativeLibsProject << """
+            plugins {
+                id 'base'
+            }
+        """
+        def mutedTestsFile = testProjectDir.newFile("muted-tests.yml")
+        mutedTestsFile << """
+            tests: []
+        """
     }
 
     def cleanup() {
@@ -79,17 +100,18 @@ abstract class AbstractGradleFuncTest extends Specification {
 
     GradleRunner gradleRunner(File projectDir, Object... arguments) {
         return new NormalizeOutputGradleRunner(
-            new ConfigurationCacheCompatibleAwareGradleRunner(
+            new BuildConfigurationAwareGradleRunner(
                     new InternalAwareGradleRunner(
-                            GradleRunner.create()
-                                    .withDebug(ManagementFactory.getRuntimeMXBean().getInputArguments()
-                                            .toString().indexOf("-agentlib:jdwp") > 0
-                                    )
-                                    .withProjectDir(projectDir)
-                                    .withPluginClasspath()
-                                    .forwardOutput()
-                    ), configurationCacheCompatible),
-        ).withArguments(arguments.collect { it.toString() })
+                        GradleRunner.create()
+                                .withDebug(ManagementFactory.getRuntimeMXBean().getInputArguments()
+                                        .toString().indexOf("-agentlib:jdwp") > 0
+                                )
+                                .withProjectDir(projectDir)
+                                .withPluginClasspath()
+                                .forwardOutput()
+            ), configurationCacheCompatible,
+                buildApiRestrictionsDisabled)
+        ).withArguments(arguments.collect { it.toString() } + "--full-stacktrace")
     }
 
     def assertOutputContains(String givenOutput, String expected) {
@@ -138,34 +160,34 @@ abstract class AbstractGradleFuncTest extends Specification {
 
     File internalBuild(
             List<String> extraPlugins = [],
-            String bugfix = "7.15.2",
-            String bugfixLucene = "8.9.0",
-            String staged = "7.16.0",
-            String stagedLucene = "8.10.0",
-            String minor = "8.0.0",
-            String minorLucene = "9.0.0"
+            String maintenance = "7.16.10",
+            String bugfix2 = "8.1.3",
+            String bugfix = "8.2.1",
+            String staged = "8.3.0",
+            String minor = "8.4.0",
+            String current = "9.0.0"
     ) {
         buildFile << """plugins {
           id 'elasticsearch.global-build-info'
           ${extraPlugins.collect { p -> "id '$p'" }.join('\n')}
         }
         import org.elasticsearch.gradle.Architecture
-        import org.elasticsearch.gradle.internal.info.BuildParams
 
-        import org.elasticsearch.gradle.internal.BwcVersions.VersionPair
         import org.elasticsearch.gradle.internal.BwcVersions
         import org.elasticsearch.gradle.Version
 
-        Version currentVersion = Version.fromString("8.1.0")
+        Version currentVersion = Version.fromString("${current}")
         def versionList = [
-          new VersionPair(Version.fromString("$bugfix"), Version.fromString("$bugfixLucene")),
-          new VersionPair(Version.fromString("$staged"), Version.fromString("$stagedLucene")),
-          new VersionPair(Version.fromString("$minor"), Version.fromString("$minorLucene")),
-          new VersionPair(currentVersion, Version.fromString("9.0.0"))
+          Version.fromString("$maintenance"),
+          Version.fromString("$bugfix2"),
+          Version.fromString("$bugfix"),
+          Version.fromString("$staged"),
+          Version.fromString("$minor"),
+          currentVersion
         ]
 
-        BwcVersions versions = new BwcVersions(currentVersion, versionList)
-        BuildParams.init { it.setBwcVersions(provider(() -> versions)) }
+        BwcVersions versions = new BwcVersions(currentVersion, versionList, ['main', '8.x', '8.3', '8.2', '8.1', '7.16'])
+        buildParams.setBwcVersions(project.provider { versions} )
         """
     }
 
@@ -214,6 +236,64 @@ checkstyle = "com.puppycrawl.tools:checkstyle:10.3"
             .findAll { it instanceof TestResultExtension.ErrorListener }
             .any {
                 (it as TestResultExtension.ErrorListener).errorInfo != null }
+    }
+
+    ZipAssertion zip(String relativePath) {
+        File archiveFile = file(relativePath);
+        try (ZipFile zipFile = new ZipFile(archiveFile)) {
+            Map<String, ZipAssertionFile> files = zipFile.entries().collectEntries { ZipEntry entry ->
+                [(entry.name): new ZipAssertionFile(archiveFile, entry)]
+            }
+            return new ZipAssertion(files);
+        }
+    }
+
+    static class ZipAssertion {
+        private Map<String, ZipAssertionFile> files = new HashMap<>()
+
+        ZipAssertion(Map<String, ZipAssertionFile> files) {
+            this.files = files;
+        }
+
+        ZipAssertionFile file(String path) {
+            return this.files.get(path)
+        }
+
+        Collection<ZipAssertionFile> files() {
+            return files.values()
+        }
+    }
+
+    static class ZipAssertionFile {
+
+        private ZipEntry entry;
+        private File zipFile;
+
+        ZipAssertionFile(File zipFile, ZipEntry entry) {
+            this.entry = entry
+            this.zipFile = zipFile
+        }
+
+        boolean exists() {
+            entry == null
+        }
+
+        String getName() {
+            return entry.name
+        }
+
+        boolean isDirectory() {
+            return entry.isDirectory()
+        }
+
+        String read() {
+            try(ZipFile zipFile1 = new ZipFile(zipFile)) {
+                def inputStream = zipFile1.getInputStream(entry)
+                return IOUtils.toString(inputStream, StandardCharsets.UTF_8.name())
+            } catch (IOException e) {
+                throw new RuntimeException("Failed to read entry ${entry.name} from zip file ${zipFile.name}", e)
+            }
+        }
     }
 
     static class ProjectConfigurer {

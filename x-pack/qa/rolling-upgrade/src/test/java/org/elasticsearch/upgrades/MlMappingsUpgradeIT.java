@@ -6,10 +6,12 @@
  */
 package org.elasticsearch.upgrades;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
+import org.elasticsearch.xpack.core.ml.MlConfigIndex;
+import org.elasticsearch.xpack.core.ml.annotations.AnnotationIndex;
+import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.test.rest.IndexMappingTemplateAsserter;
 import org.elasticsearch.xpack.test.rest.XPackRestTestConstants;
 import org.elasticsearch.xpack.test.rest.XPackRestTestHelper;
@@ -22,8 +24,12 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.extractValue;
+import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.hasEntry;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.nullValue;
 
 public class MlMappingsUpgradeIT extends AbstractUpgradeTestCase {
 
@@ -64,6 +70,7 @@ public class MlMappingsUpgradeIT extends AbstractUpgradeTestCase {
                 assertUpgradedConfigMappings();
                 assertMlLegacyTemplatesDeleted();
                 IndexMappingTemplateAsserter.assertMlMappingsMatchTemplates(client());
+                assertNotificationsIndexAliasCreated();
                 break;
             default:
                 throw new UnsupportedOperationException("Unknown cluster type [" + CLUSTER_TYPE + "]");
@@ -128,7 +135,10 @@ public class MlMappingsUpgradeIT extends AbstractUpgradeTestCase {
             }
             assertNotNull(indexLevel);
 
-            assertEquals(Version.CURRENT.toString(), extractValue("mappings._meta.version", indexLevel));
+            assertEquals(
+                AnomalyDetectorsIndex.RESULTS_INDEX_MAPPINGS_VERSION,
+                extractValue("mappings._meta.managed_index_mappings_version", indexLevel)
+            );
 
             // TODO: as the years go by, the field we assert on here should be changed
             // to the most recent field we've added that is NOT of type "keyword"
@@ -161,7 +171,10 @@ public class MlMappingsUpgradeIT extends AbstractUpgradeTestCase {
             }
             assertNotNull(indexLevel);
 
-            assertEquals(Version.CURRENT.toString(), extractValue("mappings._meta.version", indexLevel));
+            assertEquals(
+                AnnotationIndex.ANNOTATION_INDEX_MAPPINGS_VERSION,
+                extractValue("mappings._meta.managed_index_mappings_version", indexLevel)
+            );
 
             // TODO: as the years go by, the field we assert on here should be changed
             // to the most recent field we've added that would be incorrectly mapped by dynamic
@@ -215,7 +228,10 @@ public class MlMappingsUpgradeIT extends AbstractUpgradeTestCase {
             Map<String, Object> indexLevel = (Map<String, Object>) responseLevel.get(".ml-config");
             assertNotNull(indexLevel);
 
-            assertEquals(Version.CURRENT.toString(), extractValue("mappings._meta.version", indexLevel));
+            assertEquals(
+                MlConfigIndex.CONFIG_INDEX_MAPPINGS_VERSION,
+                extractValue("mappings._meta.managed_index_mappings_version", indexLevel)
+            );
 
             // TODO: as the years go by, the field we assert on here should be changed
             // to the most recent field we've added that is NOT of type "keyword"
@@ -224,6 +240,24 @@ public class MlMappingsUpgradeIT extends AbstractUpgradeTestCase {
                 "boolean",
                 extractValue("mappings.properties.model_plot_config.properties.annotations_enabled.type", indexLevel)
             );
+        });
+    }
+
+    @SuppressWarnings("unchecked")
+    private void assertNotificationsIndexAliasCreated() throws Exception {
+        assertBusy(() -> {
+            Request getMappings = new Request("GET", "_alias/.ml-notifications-write");
+            Response response = client().performRequest(getMappings);
+            Map<String, Object> responseMap = entityAsMap(response);
+            assertThat(responseMap.entrySet(), hasSize(1));
+            var aliases = (Map<String, Object>) responseMap.get(".ml-notifications-000002");
+            assertThat(aliases.entrySet(), hasSize(1));
+            var allAliases = (Map<String, Object>) aliases.get("aliases");
+            var writeAlias = (Map<String, Object>) allAliases.get(".ml-notifications-write");
+
+            assertThat(writeAlias, hasEntry("is_hidden", Boolean.TRUE));
+            var isWriteIndex = (Boolean) writeAlias.get("is_write_index");
+            assertThat(isWriteIndex, anyOf(is(Boolean.TRUE), nullValue()));
         });
     }
 }

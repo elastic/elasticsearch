@@ -8,11 +8,12 @@
 package org.elasticsearch.upgrades;
 
 import org.apache.http.util.EntityUtils;
-import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.core.Strings;
+import org.elasticsearch.xcontent.XContentType;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -26,9 +27,9 @@ import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.client.WarningsHandler.PERMISSIVE;
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.oneOf;
 
 public class MLModelDeploymentsUpgradeIT extends AbstractUpgradeTestCase {
 
@@ -73,6 +74,7 @@ public class MLModelDeploymentsUpgradeIT extends AbstractUpgradeTestCase {
             {
               "persistent": {
                 "logger.org.elasticsearch.xpack.ml.inference": "TRACE",
+                "logger.org.elasticsearch.xpack.ml.inference.assignments": "DEBUG",
                 "logger.org.elasticsearch.xpack.ml.process": "DEBUG",
                 "logger.org.elasticsearch.xpack.ml.action": "TRACE"
               }
@@ -97,8 +99,6 @@ public class MLModelDeploymentsUpgradeIT extends AbstractUpgradeTestCase {
     }
 
     public void testTrainedModelDeployment() throws Exception {
-        assumeTrue("NLP model deployments added in 8.0", UPGRADE_FROM_VERSION.onOrAfter(Version.V_8_0_0));
-
         final String modelId = "upgrade-deployment-test";
 
         switch (CLUSTER_TYPE) {
@@ -125,7 +125,6 @@ public class MLModelDeploymentsUpgradeIT extends AbstractUpgradeTestCase {
 
                 waitForDeploymentStarted(modelId);
                 assertInfer(modelId);
-                assertNewInfer(modelId);
                 stopDeployment(modelId);
             }
             default -> throw new UnsupportedOperationException("Unknown cluster type [" + CLUSTER_TYPE + "]");
@@ -133,8 +132,6 @@ public class MLModelDeploymentsUpgradeIT extends AbstractUpgradeTestCase {
     }
 
     public void testTrainedModelDeploymentStopOnMixedCluster() throws Exception {
-        assumeTrue("NLP model deployments added in 8.0", UPGRADE_FROM_VERSION.onOrAfter(Version.V_8_0_0));
-
         final String modelId = "upgrade-deployment-test-stop-mixed-cluster";
 
         switch (CLUSTER_TYPE) {
@@ -154,8 +151,7 @@ public class MLModelDeploymentsUpgradeIT extends AbstractUpgradeTestCase {
                     request.addParameter("wait_for_status", "yellow");
                     request.addParameter("timeout", "70s");
                 }));
-                assertThatTrainedModelAssignmentMetadataIsEmpty("upgrade-deployment-test-stop-mixed-cluster");
-
+                assertThatTrainedModelAssignmentMetadataIsEmpty(modelId);
             }
             default -> throw new UnsupportedOperationException("Unknown cluster type [" + CLUSTER_TYPE + "]");
         }
@@ -182,11 +178,6 @@ public class MLModelDeploymentsUpgradeIT extends AbstractUpgradeTestCase {
 
     private void assertInfer(String modelId) throws IOException {
         Response inference = infer("my words", modelId);
-        assertThat(EntityUtils.toString(inference.getEntity()), equalTo("{\"predicted_value\":[[1.0,1.0]]}"));
-    }
-
-    private void assertNewInfer(String modelId) throws IOException {
-        Response inference = newInfer("my words", modelId);
         assertThat(EntityUtils.toString(inference.getEntity()), equalTo("{\"inference_results\":[{\"predicted_value\":[[1.0,1.0]]}]}"));
     }
 
@@ -235,14 +226,30 @@ public class MLModelDeploymentsUpgradeIT extends AbstractUpgradeTestCase {
     }
 
     private Response startDeployment(String modelId, String waitForState) throws IOException {
+        String inferenceThreadParamName = "threads_per_allocation";
+        String modelThreadParamName = "number_of_allocations";
+        String compatibleHeader = null;
+        if (CLUSTER_TYPE.equals(ClusterType.OLD) || CLUSTER_TYPE.equals(ClusterType.MIXED)) {
+            compatibleHeader = compatibleMediaType(XContentType.VND_JSON, RestApiVersion.V_8);
+            inferenceThreadParamName = "inference_threads";
+            modelThreadParamName = "model_threads";
+        }
+
         Request request = new Request(
             "POST",
             "/_ml/trained_models/"
                 + modelId
                 + "/deployment/_start?timeout=40s&wait_for="
                 + waitForState
-                + "&inference_threads=1&model_threads=1"
+                + "&"
+                + inferenceThreadParamName
+                + "=1&"
+                + modelThreadParamName
+                + "=1"
         );
+        if (compatibleHeader != null) {
+            request.setOptions(request.getOptions().toBuilder().addHeader("Accept", compatibleHeader).build());
+        }
         request.setOptions(request.getOptions().toBuilder().setWarningsHandler(PERMISSIVE).build());
         var response = client().performRequest(request);
         assertOK(response);
@@ -261,11 +268,18 @@ public class MLModelDeploymentsUpgradeIT extends AbstractUpgradeTestCase {
             "_cluster/state?filter_path=metadata.trained_model_assignment." + modelId
         );
         Response getTrainedModelAssignmentMetadataResponse = client().performRequest(getTrainedModelAssignmentMetadataRequest);
-        assertThat(EntityUtils.toString(getTrainedModelAssignmentMetadataResponse.getEntity()), containsString("{}"));
+        String responseBody = EntityUtils.toString(getTrainedModelAssignmentMetadataResponse.getEntity());
+        assertThat(responseBody, oneOf("{}", "{\"metadata\":{\"trained_model_assignment\":{}}}"));
 
+        // trained_model_allocation was renamed to trained_model_assignment
+        // in v8.3. The renaming happens automatically and the old
+        // metadata should be removed once all nodes are upgraded.
+        // However, sometimes there aren't enough cluster state change
+        // events in the upgraded cluster test for this to happen
         getTrainedModelAssignmentMetadataRequest = new Request("GET", "_cluster/state?filter_path=metadata.trained_model_allocation");
         getTrainedModelAssignmentMetadataResponse = client().performRequest(getTrainedModelAssignmentMetadataRequest);
-        assertThat(EntityUtils.toString(getTrainedModelAssignmentMetadataResponse.getEntity()), equalTo("{}"));
+        responseBody = EntityUtils.toString(getTrainedModelAssignmentMetadataResponse.getEntity());
+        assertThat(responseBody, oneOf("{}", "{\"metadata\":{\"trained_model_allocation\":{}}}"));
     }
 
     private Response getTrainedModelStats(String modelId) throws IOException {
@@ -276,17 +290,6 @@ public class MLModelDeploymentsUpgradeIT extends AbstractUpgradeTestCase {
     }
 
     private Response infer(String input, String modelId) throws IOException {
-        Request request = new Request("POST", "/_ml/trained_models/" + modelId + "/deployment/_infer");
-        request.setJsonEntity(Strings.format("""
-            {  "docs": [{"input":"%s"}] }
-            """, input));
-        request.setOptions(request.getOptions().toBuilder().setWarningsHandler(PERMISSIVE).build());
-        var response = client().performRequest(request);
-        assertOK(response);
-        return response;
-    }
-
-    private Response newInfer(String input, String modelId) throws IOException {
         Request request = new Request("POST", "/_ml/trained_models/" + modelId + "/_infer");
         request.setJsonEntity(Strings.format("""
             {  "docs": [{"input":"%s"}] }

@@ -1,6 +1,6 @@
 setup:
-  - skip:
-      version: " - 8.4.99"
+  - requires:
+      cluster_features: ["gte_v8.5.0"]
       reason: metric params only on time series indices introduced in 8.5.0
 
   - do:
@@ -9,8 +9,6 @@ setup:
         body:
           settings:
             index:
-              number_of_replicas: 0
-              number_of_shards: 2
               mode: time_series
               routing_path: [ metricset, k8s.pod.uid ]
               time_series:
@@ -35,8 +33,6 @@ setup:
         body:
           settings:
             index:
-              number_of_replicas: 0
-              number_of_shards: 2
               mode: time_series
               routing_path: [ metricset, k8s.pod.uid ]
               time_series:
@@ -57,10 +53,6 @@ setup:
       indices.create:
         index: test_non_time_series
         body:
-          settings:
-            index:
-              number_of_replicas: 0
-              number_of_shards: 2
           mappings:
             properties:
               "@timestamp":
@@ -85,8 +77,8 @@ setup:
 
 ---
 aggregate_metric on standard index:
-  - skip:
-      version: " - 8.4.99"
+  - requires:
+      cluster_features: ["gte_v8.5.0"]
       reason: aggregate_metric_double field caps changed in 8.5.0
 
   - do:
@@ -100,8 +92,8 @@ aggregate_metric on standard index:
 
 ---
 aggregate_metric on standard index conflict with double:
-  - skip:
-      version: " - 8.4.99"
+  - requires:
+      cluster_features: ["gte_v8.5.0"]
       reason: aggregate_metric_double field caps changed in 8.5.0
 
   - do:
@@ -128,8 +120,8 @@ aggregate_metric on standard index conflict with double:
 ---
 # Test field_caps on a rollup index
 field caps on rollup indices:
-  - skip:
-      version: " - 8.4.99"
+  - requires:
+      cluster_features: ["gte_v8.5.0"]
       reason: metric params only on time series indices introduced in 8.5.0
 
   - do:
@@ -151,8 +143,8 @@ field caps on rollup indices:
 ---
 # Test field_caps on time-series index (mix of raw and rollup indices)
 field caps on time series indices:
-  - skip:
-      version: " - 8.4.99"
+  - requires:
+      cluster_features: ["gte_v8.5.0"]
       reason: metric params only on time series indices introduced in 8.5.0
 
   - do:
@@ -182,8 +174,8 @@ field caps on time series indices:
 ---
 # Test field_caps on mixed standard and time-series (mix of raw and rollup) indices
 field caps on all indices:
-  - skip:
-      version: " - 8.4.99"
+  - requires:
+      cluster_features: ["gte_v8.5.0"]
       reason: metric params only on time series indices introduced in 8.5.0
 
   - do:

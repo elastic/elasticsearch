@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 
@@ -13,7 +14,8 @@ import org.elasticsearch.gradle.VersionProperties
 import org.elasticsearch.gradle.internal.ConcatFilesTask
 import org.elasticsearch.gradle.internal.DependenciesInfoPlugin
 import org.elasticsearch.gradle.internal.NoticeTask
-import org.elasticsearch.gradle.internal.info.BuildParams
+import org.elasticsearch.gradle.internal.test.ClusterFeaturesMetadataPlugin
+import org.elasticsearch.gradle.transform.FilteringJarTransform
 
 import java.nio.file.Files
 import java.nio.file.Path
@@ -29,7 +31,19 @@ configurations {
     attributes {
       attribute(Category.CATEGORY_ATTRIBUTE, project.getObjects().named(Category.class, Category.DOCUMENTATION))
     }
+    attributes {
+      attribute(Usage.USAGE_ATTRIBUTE, project.getObjects().named(Usage.class, DependenciesInfoPlugin.USAGE_ATTRIBUTE))
+    }
   }
+  featuresMetadata {
+    attributes {
+      attribute(ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE, ClusterFeaturesMetadataPlugin.FEATURES_METADATA_TYPE)
+    }
+  }
+}
+
+dependencies {
+  featuresMetadata project(':server')
 }
 
 def thisProj = project
@@ -60,10 +74,10 @@ tasks.register("generateDependenciesReport", ConcatFilesTask) {
   // Explicitly add the dependency on the RHEL UBI Docker base image
   String[] rhelUbiFields = [
     'Red Hat Universal Base Image minimal',
-    '8',
-    'https://catalog.redhat.com/software/containers/ubi8/ubi-minimal/5c359a62bed8bd75a2c3fba8',
+    '9',
+    'https://catalog.redhat.com/software/containers/ubi9-minimal/61832888c0d15aff4912fe0d',
     'Custom;https://www.redhat.com/licenses/EULA_Red_Hat_Universal_Base_Image_English_20190422.pdf',
-    'https://oss-dependencies.elastic.co/red-hat-universal-base-image-minimal/8/ubi-minimal-8-source.tar.gz'
+    'https://oss-dependencies.elastic.co/red-hat-universal-base-image-minimal/9/ubi-minimal-9-source.tar.gz'
   ]
   additionalLines << rhelUbiFields.join(',')
 }
@@ -196,7 +210,8 @@ project.rootProject.subprojects.findAll { it.parent.path == ':modules' }.each { 
   }
 
   distro.copyModule(processDefaultOutputsTaskProvider, module)
-  if (module.name.startsWith('transport-') || (BuildParams.snapshotBuild == false && module.name == 'apm')) {
+  dependencies.add('featuresMetadata', module)
+  if (module.name.startsWith('transport-') || (buildParams.snapshotBuild == false && module.name == 'apm')) {
     distro.copyModule(processIntegTestOutputsTaskProvider, module)
   }
 
@@ -214,6 +229,7 @@ xpack.subprojects.findAll { it.parent == xpack }.each { Project xpackModule ->
     }
   }
   distro.copyModule(processDefaultOutputsTaskProvider, xpackModule)
+  dependencies.add('featuresMetadata', xpackModule)
   if (xpackModule.name.equals('core') || xpackModule.name.equals('security')) {
     distro.copyModule(processIntegTestOutputsTaskProvider, xpackModule)
   }
@@ -249,7 +265,7 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
    *             Properties to expand when copying packaging files             *
    *****************************************************************************/
   configurations {
-    ['libs', 'libsVersionChecker', 'libsCliLauncher', 'libsServerCli', 'libsWindowsServiceCli', 'libsPluginCli', 'libsKeystoreCli', 'libsSecurityCli', 'libsGeoIpCli', 'libsAnsiConsole'].each {
+    ['libs', 'libsVersionChecker', 'libsCliLauncher', 'libsServerCli', 'libsWindowsServiceCli', 'libsPluginCli', 'libsKeystoreCli', 'libsSecurityCli', 'libsGeoIpCli', 'libsAnsiConsole', 'libsNative', 'libsEntitlementAgent'].each {
       create(it) {
         canBeConsumed = false
         canBeResolved = true
@@ -260,10 +276,26 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
         }
       }
     }
+    libsEntitlementBridge {
+      canBeConsumed = false
+      canBeResolved = true
+      attributes {
+        attribute(Category.CATEGORY_ATTRIBUTE, objects.named(Category, Category.LIBRARY))
+        attribute(Usage.USAGE_ATTRIBUTE, objects.named(Usage, Usage.JAVA_RUNTIME))
+        attribute(Bundling.BUNDLING_ATTRIBUTE, objects.named(Bundling, Bundling.EXTERNAL))
+        attribute(ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE, FilteringJarTransform.FILTERED_JAR_TYPE)
+      }
+    }
     all {
       resolutionStrategy.dependencySubstitution {
-        substitute module("org.apache.logging.log4j:log4j-core") using project(":libs:elasticsearch-log4j") because "patched to remove JndiLookup clas"}
+        substitute module("org.apache.logging.log4j:log4j-core") using project(":libs:log4j") because "patched to remove JndiLookup class"}
     }
+  }
+
+  // Register artifact transform for filtering entitlements-bridge jar
+  FilteringJarTransform.registerTransform(dependencies) { spec ->
+    spec.exclude('module-info.class')
+    spec.exclude('META-INF/versions/**')
   }
 
   dependencies {
@@ -278,6 +310,9 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
     libsKeystoreCli project(path: ':distribution:tools:keystore-cli')
     libsSecurityCli project(':x-pack:plugin:security:cli')
     libsGeoIpCli project(':distribution:tools:geoip-cli')
+    libsNative project(':libs:native:native-libraries')
+    libsEntitlementAgent project(':libs:entitlement:agent')
+    libsEntitlementBridge project(':libs:entitlement:bridge')
   }
 
   project.ext {
@@ -285,7 +320,7 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
     /*****************************************************************************
      *                   Common files in all distributions                       *
      *****************************************************************************/
-    libFiles =
+    libFiles = { os, architecture ->
       copySpec {
         // Delay by using closures, since they have not yet been configured, so no jar task exists yet.
         from(configurations.libs)
@@ -316,21 +351,39 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
         into('tools/ansi-console') {
           from(configurations.libsAnsiConsole)
         }
+        into('platform') {
+          from(configurations.libsNative)
+          if (os != null) {
+            include (os + '-' + architecture + '/*')
+          }
+        }
+        into('entitlement-agent') {
+          from(configurations.libsEntitlementAgent)
+        }
+        into('entitlement-bridge') {
+          from(configurations.libsEntitlementBridge)
+        }
       }
+    }
 
-    modulesFiles = { platform ->
+    modulesFiles = { os, architecture ->
       copySpec {
         eachFile {
-          if (it.relativePath.segments[-2] == 'bin' || ((platform == 'darwin-x86_64' || platform == 'darwin-aarch64') && it.relativePath.segments[-2] == 'MacOS')) {
+          if (it.relativePath.segments[-2] == 'bin' || (os == 'darwin' && it.relativePath.segments[-2] == 'MacOS')) {
             // bin files, wherever they are within modules (eg platform specific) should be executable
             // and MacOS is an alternative to bin on macOS
-            it.mode = 0755
+            it.permissions.unix(0755)
           } else {
-            it.mode = 0644
+            it.permissions.unix(0644)
           }
         }
         List excludePlatforms = ['linux-x86_64', 'linux-aarch64', 'windows-x86_64', 'darwin-x86_64', 'darwin-aarch64']
-        if (platform != null) {
+        if (os != null) {
+          String platform = os + '-' + architecture
+          if (architecture == 'x64') {
+            // ML platform dir uses the x86_64 nomenclature
+            platform = os + '-x86_64'
+          }
           excludePlatforms.remove(excludePlatforms.indexOf(platform))
         } else {
           excludePlatforms = []
@@ -344,7 +397,7 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
             exclude "**/platform/${excludePlatform}/**"
           }
         }
-        if (BuildParams.isSnapshotBuild()) {
+        if (buildParams.getSnapshotBuild()) {
           from(buildExternalTestModulesTaskProvider)
         }
         if (project.path.startsWith(':distribution:packages')) {
@@ -377,7 +430,11 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
           from '../src/bin'
           exclude '*.exe'
           exclude '*.bat'
-          eachFile { it.setMode(0755) }
+          eachFile {
+            it.permissions{
+              unix(0755)
+            }
+          }
           filter("tokens" : expansionsForDistribution(distributionType, testDistro), ReplaceTokens.class)
         }
         // windows files, only for zip
@@ -395,7 +452,7 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
         }
         // module provided bin files
         with copySpec {
-          eachFile { it.setMode(0755) }
+          eachFile { it.permissions.unix(0755) }
           from(testDistro ? integTestBinFiles : defaultBinFiles)
           if (distributionType != 'zip') {
             exclude '*.bat'
@@ -409,25 +466,35 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
         if (testDistro) {
           from buildServerNoticeTaskProvider
         } else {
-          from buildDefaultNoticeTaskProvider
+          from (buildDefaultNoticeTaskProvider) {
+            filePermissions {
+              unix(0644)
+            }
+          }
         }
       }
     }
 
-    jdkFiles = { Project project, String platform, String architecture ->
+    jdkFiles = { Project project, String os, String architecture ->
       return copySpec {
-        from project.jdks."bundled_${platform}_${architecture}"
+        from project.jdks."bundled_${os}_${architecture}"
         exclude "demo/**"
         /*
          * The Contents/MacOS directory interferes with notarization, and is unused by our distribution, so we exclude
          * it from the build.
          */
-        if ("darwin".equals(platform)) {
+        if ("darwin".equals(os)) {
           exclude "Contents/MacOS"
         }
         eachFile { FileCopyDetails details ->
           if (details.relativePath.segments[-2] == 'bin' || details.relativePath.segments[-1] == 'jspawnhelper') {
-            details.mode = 0755
+            details.permissions {
+              unix(0755)
+            }
+          } else {
+            details.permissions {
+              unix(0644)
+            }
           }
           if (details.name == 'src.zip') {
             details.exclude()
@@ -467,13 +534,12 @@ subprojects {
     final String packagingPathData = "path.data: /var/lib/elasticsearch"
     final String pathLogs = "/var/log/elasticsearch"
     final String packagingPathLogs = "path.logs: ${pathLogs}"
-    final String packagingLoggc = "${pathLogs}/gc.log"
 
     String licenseText
     if (isTestDistro) {
-      licenseText = rootProject.file('licenses/SSPL-1.0+ELASTIC-LICENSE-2.0.txt').getText('UTF-8')
+      licenseText = layout.settingsDirectory.file('licenses/AGPL-3.0+SSPL-1.0+ELASTIC-LICENSE-2.0.txt').asFile.getText('UTF-8')
     } else {
-      licenseText = rootProject.file('licenses/ELASTIC-LICENSE-2.0.txt').getText('UTF-8')
+      licenseText = layout.settingsDirectory.file('licenses/ELASTIC-LICENSE-2.0.txt').asFile.getText('UTF-8')
     }
     // license text needs to be indented with a single space
     licenseText = ' ' + licenseText.replace('\n', '\n ')
@@ -511,23 +577,6 @@ subprojects {
         'deb': packagingPathLogs,
         'rpm': packagingPathLogs,
         'def': '#path.logs: /path/to/logs'
-      ],
-      'loggc': [
-        'deb': packagingLoggc,
-        'rpm': packagingLoggc,
-        'def': 'logs/gc.log'
-      ],
-
-      'heap.dump.path': [
-        'deb': "-XX:HeapDumpPath=/var/lib/elasticsearch",
-        'rpm': "-XX:HeapDumpPath=/var/lib/elasticsearch",
-        'def': "-XX:HeapDumpPath=data"
-      ],
-
-      'error.file': [
-        'deb': "-XX:ErrorFile=/var/log/elasticsearch/hs_err_pid%p.log",
-        'rpm': "-XX:ErrorFile=/var/log/elasticsearch/hs_err_pid%p.log",
-        'def': "-XX:ErrorFile=logs/hs_err_pid%p.log"
       ],
 
       'scripts.footer': [
@@ -600,7 +649,12 @@ subprojects {
 // in the final log4j2.properties configuration, as it appears in the
 // archive distribution.
 artifacts.add('log4jConfig', file("${defaultOutputs}/log4j2.properties")) {
-  type 'file'
-  name 'log4j2.properties'
+  type = 'file'
+  name = 'log4j2.properties'
   builtBy 'buildDefaultLog4jConfig'
+}
+
+tasks.named('resolveAllDependencies') {
+  // We don't want to build all our distribution artifacts when priming our dependency cache
+  configs = []
 }

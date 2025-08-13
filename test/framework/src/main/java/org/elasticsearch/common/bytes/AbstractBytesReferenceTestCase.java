@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.bytes;
@@ -540,6 +541,8 @@ public abstract class AbstractBytesReferenceTestCase extends ESTestCase {
 
     protected abstract BytesReference newBytesReferenceWithOffsetOfZero(int length) throws IOException;
 
+    protected abstract BytesReference newBytesReference(byte[] content) throws IOException;
+
     public void testCompareTo() throws IOException {
         final int iters = randomIntBetween(5, 10);
         for (int i = 0; i < iters; i++) {
@@ -659,11 +662,57 @@ public abstract class AbstractBytesReferenceTestCase extends ESTestCase {
         map.forEach((value, positions) -> {
             for (int i = 0; i < positions.size(); i++) {
                 final int pos = positions.get(i);
-                final int from = i == 0 ? randomIntBetween(0, pos) : positions.get(i - 1) + 1;
+                final int from = randomIntBetween(i == 0 ? 0 : positions.get(i - 1) + 1, pos);
                 assertEquals(bytesReference.indexOf(value, from), pos);
+            }
+            final int firstNotFoundPos = positions.get(positions.size() - 1) + 1;
+            if (firstNotFoundPos < bytesReference.length()) {
+                assertEquals(-1, bytesReference.indexOf(value, between(firstNotFoundPos, bytesReference.length() - 1)));
             }
         });
         final byte missing = randomValueOtherThanMany(map::containsKey, ESTestCase::randomByte);
         assertEquals(-1, bytesReference.indexOf(missing, randomIntBetween(0, Math.max(0, size - 1))));
+    }
+
+    public void testWriteWithIterator() throws IOException {
+        final int length = randomIntBetween(1024, 1024 * 1024);
+        final byte[] bytes = new byte[length];
+        random().nextBytes(bytes);
+        final BytesReference bytesReference = newBytesReference(length);
+        final BytesRefIterator iterator = bytesReference.iterator();
+        BytesRef bytesRef;
+        int offset = 0;
+        while ((bytesRef = iterator.next()) != null) {
+            final int len = Math.min(bytesRef.length, length - offset);
+            System.arraycopy(bytes, offset, bytesRef.bytes, bytesRef.offset, len);
+            offset += len;
+        }
+        assertArrayEquals(bytes, BytesReference.toBytes(bytesReference));
+    }
+
+    public void testReadSlices() throws IOException {
+        final int refs = randomIntBetween(1, 1024);
+        final BytesReference bytesReference;
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            for (int i = 0; i < refs; i++) {
+                out.writeBytesReference(newBytesReference(randomIntBetween(1, 1024)));
+            }
+            bytesReference = newBytesReference(out.copyBytes().array());
+        }
+        try (StreamInput input1 = bytesReference.streamInput(); StreamInput input2 = bytesReference.streamInput()) {
+            for (int i = 0; i < refs; i++) {
+                boolean sliceLeft = randomBoolean();
+                BytesReference left = sliceLeft ? input1.readSlicedBytesReference() : input1.readBytesReference();
+                if (sliceLeft && bytesReference.hasArray()) {
+                    assertSame(left.array(), bytesReference.array());
+                }
+                boolean sliceRight = randomBoolean();
+                BytesReference right = sliceRight ? input2.readSlicedBytesReference() : input2.readBytesReference();
+                assertEquals(left, right);
+                if (sliceRight && bytesReference.hasArray()) {
+                    assertSame(right.array(), right.array());
+                }
+            }
+        }
     }
 }

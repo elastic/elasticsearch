@@ -1,7 +1,0 @@
-pr: 93276
-summary: -|
-  Correctly remove domain from realm when rewriting `Authentication` for compatibility with node versions that don't
-  support domains
-area: Authentication
-type: bug
-issues: [ ]

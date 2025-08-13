@@ -44,7 +44,6 @@ import org.elasticsearch.xpack.ql.optimizer.OptimizerRules;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.BinaryComparisonSimplification;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.BooleanFunctionEqualsElimination;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.BooleanSimplification;
-import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.CombineDisjunctionsToIn;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.ConstantFolding;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.LiteralsOnTheRight;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.OptimizerRule;
@@ -222,7 +221,10 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                         mandatoryKeys.stream().map(m -> new IsNotNull(m.source(), m)).collect(toList())
                     );
                     Filter joinKeyNotNull = new Filter(join.source(), k.child(), constraint);
-                    filters.set(i, new KeyedFilter(k.source(), joinKeyNotNull, k.keys(), k.timestamp(), k.tiebreaker()));
+                    filters.set(
+                        i,
+                        new KeyedFilter(k.source(), joinKeyNotNull, k.keys(), k.timestamp(), k.tiebreaker(), k.isMissingEventFilter())
+                    );
                 }
             }
             if (changed) {
@@ -247,6 +249,14 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
             return null;
         }
 
+    }
+
+    static class CombineDisjunctionsToIn extends org.elasticsearch.xpack.ql.optimizer.OptimizerRules.CombineDisjunctionsToIn {
+
+        @Override
+        protected boolean shouldValidateIn() {
+            return true;
+        }
     }
 
     static class PruneFilters extends org.elasticsearch.xpack.ql.optimizer.OptimizerRules.PruneFilters {
@@ -400,7 +410,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
             return join;
         }
 
-        private List<Constraint> detectKeyConstraints(Expression condition, KeyedFilter filter) {
+        private static List<Constraint> detectKeyConstraints(Expression condition, KeyedFilter filter) {
             List<Constraint> constraints = new ArrayList<>();
             List<? extends NamedExpression> keys = filter.keys();
 
@@ -427,13 +437,20 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
         }
 
         // adapt constraint to the given filter by replacing the keys accordingly in the expressions
-        private KeyedFilter addConstraint(KeyedFilter k, List<Constraint> constraints) {
+        private static KeyedFilter addConstraint(KeyedFilter k, List<Constraint> constraints) {
             Expression constraint = Predicates.combineAnd(
                 constraints.stream().map(c -> c.constraintFor(k)).filter(Objects::nonNull).collect(toList())
             );
 
             return constraint != null
-                ? new KeyedFilter(k.source(), new Filter(k.source(), k.child(), constraint), k.keys(), k.timestamp(), k.tiebreaker())
+                ? new KeyedFilter(
+                    k.source(),
+                    new Filter(k.source(), k.child(), constraint),
+                    k.keys(),
+                    k.timestamp(),
+                    k.tiebreaker(),
+                    k.isMissingEventFilter()
+                )
                 : k;
         }
     }
@@ -489,10 +506,12 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                     boolean baseFilter = true;
                     for (KeyedFilter filter : queries) {
                         // preserve the order for the base query, everything else needs to be ascending
-                        List<Order> pushedOrder = baseFilter ? orderBy.order() : ascendingOrders;
+                        List<Order> pushedOrder = baseFilter && filter.isMissingEventFilter() == false ? orderBy.order() : ascendingOrders;
                         OrderBy order = new OrderBy(filter.source(), filter.child(), pushedOrder);
                         orderedQueries.add(filter.replaceChild(order));
-                        baseFilter = false;
+                        if (filter.isMissingEventFilter() == false) {
+                            baseFilter = false;
+                        }
                     }
 
                     KeyedFilter until = join.until();

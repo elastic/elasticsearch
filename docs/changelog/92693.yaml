@@ -1,6 +1,0 @@
-pr: 92693
-summary: Delay master task failure notifications until commit
-area: Cluster Coordination
-type: bug
-issues:
- - 92677

@@ -1,24 +1,38 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.collect;
 
 import org.elasticsearch.common.Randomness;
+import org.elasticsearch.core.Assertions;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Iterator;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.NoSuchElementException;
+import java.util.Objects;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.BiPredicate;
+import java.util.function.Predicate;
+import java.util.function.ToIntFunction;
 import java.util.stream.IntStream;
+
+import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
 
 public class IteratorsTests extends ESTestCase {
     public void testConcatentation() {
@@ -34,12 +48,12 @@ public class IteratorsTests extends ESTestCase {
     }
 
     public void testEmptyConcatenation() {
-        Iterator<Integer> iterator = Iterators.<Integer>concat(empty());
+        Iterator<Integer> iterator = Iterators.<Integer>concat(Collections.emptyIterator());
         assertEmptyIterator(iterator);
     }
 
     public void testMultipleEmptyConcatenation() {
-        Iterator<Integer> iterator = Iterators.concat(empty(), empty());
+        Iterator<Integer> iterator = Iterators.concat(Collections.emptyIterator(), Collections.emptyIterator());
         assertEmptyIterator(iterator);
     }
 
@@ -50,12 +64,12 @@ public class IteratorsTests extends ESTestCase {
 
     public void testEmptyBeforeSingleton() {
         int value = randomInt();
-        assertSingleton(value, empty(), singletonIterator(value));
+        assertSingleton(value, Collections.emptyIterator(), singletonIterator(value));
     }
 
     public void testEmptyAfterSingleton() {
         int value = randomInt();
-        assertSingleton(value, singletonIterator(value), empty());
+        assertSingleton(value, singletonIterator(value), Collections.emptyIterator());
     }
 
     public void testRandomSingleton() {
@@ -65,7 +79,7 @@ public class IteratorsTests extends ESTestCase {
         @SuppressWarnings({ "rawtypes", "unchecked" })
         Iterator<Integer>[] iterators = new Iterator[numberOfIterators];
         for (int i = 0; i < numberOfIterators; i++) {
-            iterators[i] = i != singletonIndex ? empty() : singletonIterator(value);
+            iterators[i] = i != singletonIndex ? Collections.emptyIterator() : singletonIterator(value);
         }
         assertSingleton(value, iterators);
     }
@@ -91,7 +105,12 @@ public class IteratorsTests extends ESTestCase {
     public void testTwoEntries() {
         int first = randomInt();
         int second = randomInt();
-        Iterator<Integer> concat = Iterators.concat(singletonIterator(first), empty(), empty(), singletonIterator(second));
+        Iterator<Integer> concat = Iterators.concat(
+            singletonIterator(first),
+            Collections.emptyIterator(),
+            Collections.emptyIterator(),
+            singletonIterator(second)
+        );
         assertContainsInOrder(concat, first, second);
     }
 
@@ -106,7 +125,7 @@ public class IteratorsTests extends ESTestCase {
 
     public void testNullIterator() {
         try {
-            Iterators.concat(singletonIterator(1), empty(), null, empty(), singletonIterator(2));
+            Iterators.concat(singletonIterator(1), Collections.emptyIterator(), null, Collections.emptyIterator(), singletonIterator(2));
             fail("expected " + NullPointerException.class.getSimpleName());
         } catch (NullPointerException e) {
 
@@ -154,6 +173,21 @@ public class IteratorsTests extends ESTestCase {
         expectThrows(NullPointerException.class, "Unable to iterate over a null array", () -> Iterators.forArray(null));
     }
 
+    public void testForRange() {
+        String[] array = generateRandomStringArray(20, 20, false, true);
+        Iterator<String> iterator = Iterators.forRange(0, array.length, i -> array[i]);
+
+        int i = 0;
+        while (iterator.hasNext()) {
+            assertEquals(array[i++], iterator.next());
+        }
+        assertEquals(array.length, i);
+    }
+
+    public void testForRangeOnNull() {
+        expectThrows(NullPointerException.class, () -> Iterators.forRange(0, 1, null));
+    }
+
     public void testFlatMap() {
         final var array = randomIntegerArray();
         assertEmptyIterator(Iterators.flatMap(Iterators.forArray(array), i -> Iterators.concat()));
@@ -183,6 +217,159 @@ public class IteratorsTests extends ESTestCase {
         assertEquals(expectedArray.length, index.get());
     }
 
+    public void testMap() {
+        assertEmptyIterator(Iterators.map(Iterators.concat(), i -> "foo"));
+
+        final var array = randomIntegerArray();
+        final var index = new AtomicInteger();
+        Iterators.map(Iterators.forArray(array), i -> i * 2)
+            .forEachRemaining(i -> assertEquals(array[index.getAndIncrement()] * 2, (long) i));
+        assertEquals(array.length, index.get());
+    }
+
+    public void testFilter() {
+        assertSame(Collections.emptyIterator(), Iterators.filter(Collections.emptyIterator(), i -> fail(null, "not called")));
+
+        final var array = randomIntegerArray();
+        assertSame(Collections.emptyIterator(), Iterators.filter(Iterators.forArray(array), i -> false));
+
+        final var threshold = array.length > 0 && randomBoolean() ? randomFrom(array) : randomIntBetween(0, 1000);
+        final Predicate<Integer> predicate = i -> i <= threshold;
+        final var expectedResults = Arrays.stream(array).filter(predicate).toList();
+        final var index = new AtomicInteger();
+        Iterators.filter(Iterators.forArray(array), predicate)
+            .forEachRemaining(i -> assertEquals(expectedResults.get(index.getAndIncrement()), i));
+
+        if (Assertions.ENABLED) {
+            final var predicateCalled = new AtomicBoolean();
+            final var inputIterator = Iterators.forArray(new Object[] { null });
+            expectThrows(AssertionError.class, () -> Iterators.filter(inputIterator, i -> predicateCalled.compareAndSet(false, true)));
+            assertFalse(predicateCalled.get());
+        }
+    }
+
+    public void testLimit() {
+        var result = Iterators.limit(Collections.emptyIterator(), 10);
+        assertThat(result.hasNext(), is(false));
+        assertThat(Iterators.toList(result), is(empty()));
+
+        var values = List.of(1, 2, 3);
+        result = Iterators.limit(values.iterator(), 10);
+        assertThat(result.hasNext(), is(true));
+        assertThat(Iterators.toList(result), contains(1, 2, 3));
+
+        result = Iterators.limit(values.iterator(), 2);
+        assertThat(result.hasNext(), is(true));
+        assertThat(Iterators.toList(result), contains(1, 2));
+
+        result = Iterators.limit(values.iterator(), 0);
+        assertThat(result.hasNext(), is(false));
+        assertThat(Iterators.toList(result), is(empty()));
+    }
+
+    public void testFailFast() {
+        final var array = randomIntegerArray();
+        assertEmptyIterator(Iterators.failFast(Iterators.forArray(array), () -> true));
+
+        final var index = new AtomicInteger();
+        Iterators.failFast(Iterators.forArray(array), () -> false).forEachRemaining(i -> assertEquals(array[index.getAndIncrement()], i));
+        assertEquals(array.length, index.get());
+
+        final var isFailing = new AtomicBoolean();
+        index.set(0);
+        Iterators.failFast(Iterators.concat(Iterators.forArray(array), new Iterator<>() {
+            @Override
+            public boolean hasNext() {
+                isFailing.set(true);
+                return true;
+            }
+
+            @Override
+            public Integer next() {
+                return 0;
+            }
+        }), isFailing::get).forEachRemaining(i -> assertEquals(array[index.getAndIncrement()], i));
+        assertEquals(array.length, index.get());
+    }
+
+    public void testEnumerate() {
+        assertEmptyIterator(Iterators.enumerate(Iterators.concat(), Tuple::new));
+
+        final var array = randomIntegerArray();
+        final var index = new AtomicInteger();
+        Iterators.enumerate(Iterators.forArray(array), Tuple::new).forEachRemaining(t -> {
+            int idx = index.getAndIncrement();
+            assertEquals(idx, t.v1().intValue());
+            assertEquals(array[idx], t.v2());
+        });
+        assertEquals(array.length, index.get());
+    }
+
+    public void testSupplier() {
+        assertEmptyIterator(Iterators.fromSupplier(() -> null));
+
+        final var array = randomIntegerArray();
+        final var index = new AtomicInteger();
+        final var queue = new LinkedList<>(Arrays.asList(array));
+        Iterators.fromSupplier(queue::pollFirst).forEachRemaining(i -> assertEquals(array[index.getAndIncrement()], i));
+        assertEquals(array.length, index.get());
+    }
+
+    public void testCycle() {
+        final List<Integer> source = List.of(1, 5, 100, 20);
+        final Iterator<Integer> iterator = Iterators.cycling(source);
+        assertThat(iterator.hasNext(), equalTo(true));
+        for (int i = 0; i < 10; i++) {
+            assertThat(iterator.hasNext(), equalTo(true));
+            assertThat(iterator.next(), equalTo(1));
+            assertThat(iterator.next(), equalTo(5));
+            assertThat(iterator.next(), equalTo(100));
+            assertThat(iterator.next(), equalTo(20));
+        }
+    }
+
+    public void testEquals() {
+        final BiPredicate<Object, Object> notCalled = (a, b) -> { throw new AssertionError("not called"); };
+
+        assertTrue(Iterators.equals(null, null, notCalled));
+        assertFalse(Iterators.equals(Collections.emptyIterator(), null, notCalled));
+        assertFalse(Iterators.equals(null, Collections.emptyIterator(), notCalled));
+        assertTrue(Iterators.equals(Collections.emptyIterator(), Collections.emptyIterator(), notCalled));
+
+        assertFalse(Iterators.equals(Collections.emptyIterator(), List.of(1).iterator(), notCalled));
+        assertFalse(Iterators.equals(List.of(1).iterator(), Collections.emptyIterator(), notCalled));
+        assertTrue(Iterators.equals(List.of(1).iterator(), List.of(1).iterator(), Objects::equals));
+        assertFalse(Iterators.equals(List.of(1).iterator(), List.of(2).iterator(), Objects::equals));
+        assertFalse(Iterators.equals(List.of(1, 2).iterator(), List.of(1).iterator(), Objects::equals));
+        assertFalse(Iterators.equals(List.of(1).iterator(), List.of(1, 2).iterator(), Objects::equals));
+
+        final var strings1 = randomList(10, () -> randomAlphaOfLength(10));
+        final var strings2 = new ArrayList<>(strings1);
+
+        assertTrue(Iterators.equals(strings1.iterator(), strings2.iterator(), Objects::equals));
+
+        if (strings2.size() == 0 || randomBoolean()) {
+            strings2.add(randomAlphaOfLength(10));
+        } else {
+            final var index = between(0, strings2.size() - 1);
+            if (randomBoolean()) {
+                strings2.remove(index);
+            } else {
+                strings2.set(index, randomValueOtherThan(strings2.get(index), () -> randomAlphaOfLength(10)));
+            }
+        }
+        assertFalse(Iterators.equals(strings1.iterator(), strings2.iterator(), Objects::equals));
+    }
+
+    public void testHashCode() {
+        final ToIntFunction<Object> notCalled = (a) -> { throw new AssertionError("not called"); };
+        assertEquals(0, Iterators.hashCode(null, notCalled));
+        assertEquals(1, Iterators.hashCode(Collections.emptyIterator(), notCalled));
+
+        final var numbers = randomIntegerArray();
+        assertEquals(Arrays.hashCode(numbers), Iterators.hashCode(Arrays.stream(numbers).iterator(), Objects::hashCode));
+    }
+
     private static Integer[] randomIntegerArray() {
         return Randomness.get().ints(randomIntBetween(0, 1000)).boxed().toArray(Integer[]::new);
     }
@@ -196,20 +383,6 @@ public class IteratorsTests extends ESTestCase {
     private <T> void assertSingleton(T value, Iterator<T>... iterators) {
         Iterator<T> concat = Iterators.concat(iterators);
         assertContainsInOrder(concat, value);
-    }
-
-    private <T> Iterator<T> empty() {
-        return new Iterator<T>() {
-            @Override
-            public boolean hasNext() {
-                return false;
-            }
-
-            @Override
-            public T next() {
-                throw new NoSuchElementException();
-            }
-        };
     }
 
     @SafeVarargs

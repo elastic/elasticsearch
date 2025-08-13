@@ -1,13 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.runtime;
 
+import org.apache.lucene.search.DocIdSetIterator;
+import org.apache.lucene.search.TwoPhaseIterator;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.util.BytesRefHash;
@@ -24,14 +27,40 @@ public class IpScriptFieldTermsQuery extends AbstractIpScriptFieldQuery {
         this.terms = terms;
     }
 
-    @Override
-    protected boolean matches(BytesRef[] values, int count) {
+    boolean matches(BytesRef[] values, int count, BytesRefHash.Finder finder) {
         for (int i = 0; i < count; i++) {
-            if (terms.find(values[i]) >= 0) {
+            if (finder.find(values[i]) >= 0) {
                 return true;
             }
         }
         return false;
+    }
+
+    @Override
+    protected final boolean matches(BytesRef[] values, int count) {
+        throw new UnsupportedOperationException("This leads to non-thread safe usage of BytesRefHash; use createTwoPhaseIterator instead");
+    }
+
+    boolean matches(IpFieldScript scriptContext, int docId, BytesRefHash.Finder finder) {
+        scriptContext.runForDoc(docId);
+        return matches(scriptContext.values(), scriptContext.count(), finder);
+    }
+
+    protected final TwoPhaseIterator createTwoPhaseIterator(IpFieldScript scriptContext, DocIdSetIterator approximation) {
+        return new TwoPhaseIterator(approximation) {
+            private final BytesRefHash.Finder finder = terms.newFinder();
+
+            @Override
+            public boolean matches() {
+                // We need to use a thread safe finder, as this can be called from multiple threads
+                return IpScriptFieldTermsQuery.this.matches(scriptContext, approximation.docID(), finder);
+            }
+
+            @Override
+            public float matchCost() {
+                return MATCH_COST;
+            }
+        };
     }
 
     @Override

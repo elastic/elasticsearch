@@ -1,12 +1,14 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.transport.netty4;
 
+import org.apache.lucene.util.Constants;
 import org.elasticsearch.ESNetty4IntegTestCase;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
@@ -31,14 +33,16 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
 @ClusterScope(scope = Scope.SUITE, supportsDedicatedMasters = false, numDataNodes = 1, numClientNodes = 0)
 public class Netty4TransportMultiPortIntegrationIT extends ESNetty4IntegTestCase {
 
+    private static final int NUMBER_OF_CLIENT_PORTS = Constants.WINDOWS ? 300 : 10;
+
     private static int randomPort = -1;
     private static String randomPortRange;
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
         if (randomPort == -1) {
-            randomPort = randomIntBetween(49152, 65525);
-            randomPortRange = Strings.format("%s-%s", randomPort, randomPort + 10);
+            randomPort = randomIntBetween(49152, 65535 - NUMBER_OF_CLIENT_PORTS);
+            randomPortRange = Strings.format("%s-%s", randomPort, randomPort + NUMBER_OF_CLIENT_PORTS);
         }
         Settings.Builder builder = Settings.builder()
             .put(super.nodeSettings(nodeOrdinal, otherSettings))
@@ -52,7 +56,7 @@ public class Netty4TransportMultiPortIntegrationIT extends ESNetty4IntegTestCase
 
     @Network
     public void testThatInfosAreExposed() throws Exception {
-        NodesInfoResponse response = client().admin().cluster().prepareNodesInfo().clear().setTransport(true).get();
+        NodesInfoResponse response = clusterAdmin().prepareNodesInfo().clear().setTransport(true).get();
         for (NodeInfo nodeInfo : response.getNodes()) {
             assertThat(nodeInfo.getInfo(TransportInfo.class).getProfileAddresses().keySet(), hasSize(1));
             assertThat(nodeInfo.getInfo(TransportInfo.class).getProfileAddresses(), hasKey("client1"));

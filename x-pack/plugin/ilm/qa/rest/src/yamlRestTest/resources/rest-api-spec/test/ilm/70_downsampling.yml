@@ -1,6 +1,6 @@
 setup:
-  - skip:
-      version: " - 8.4.99"
+  - requires:
+      cluster_features: ["gte_v8.5.0"]
       reason: "Downsample ILM validations added in 8.5.0"
 
   - do:
@@ -9,8 +9,8 @@ setup:
 
 ---
 "Test downsample in hot phase without rollover":
-  - skip:
-      version: " - 8.4.99"
+  - requires:
+      cluster_features: ["gte_v8.5.0"]
       reason: "Downsample ILM validations added in 8.5.0"
 
   - do:
@@ -62,3 +62,36 @@ setup:
               }
             }
           }
+
+---
+"Test downsample timeout parameter":
+  - requires:
+      cluster_features: ["gte_v8.10.0"]
+      reason: "Downsample timeout added in version 8.10.0"
+
+  - do:
+      ilm.put_lifecycle:
+        policy: "timeout_policy"
+        body: |
+          {
+            "policy": {
+              "phases": {
+                "warm": {
+                  "min_age": "1d",
+                  "actions": {
+                    "downsample": {
+                      "fixed_interval": "1h",
+                      "wait_timeout": "1h"
+                    }
+                  }
+                }
+              }
+            }
+          }
+  - do:
+      ilm.get_lifecycle:
+        policy: "timeout_policy"
+
+  - match: { timeout_policy.policy.phases.warm.min_age: "1d" }
+  - match: { timeout_policy.policy.phases.warm.actions.downsample.fixed_interval: "1h" }
+  - match: { timeout_policy.policy.phases.warm.actions.downsample.wait_timeout: "1h" }

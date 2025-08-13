@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.core.monitoring.exporter;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.xpack.core.monitoring.MonitoredSystem;
 
@@ -19,7 +18,7 @@ public final class MonitoringTemplateUtils {
      * <p>
      * It may be possible for this to diverge between templates and pipelines, but for now they're the same.
      */
-    public static final int LAST_UPDATED_VERSION = Version.V_8_7_0.id;
+    public static final int LAST_UPDATED_VERSION = 8_12_00_99;
 
     /**
      * Current version of templates used in their name to differentiate from breaking changes (separate from product version).

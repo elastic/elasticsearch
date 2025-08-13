@@ -12,7 +12,7 @@ import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
 import org.elasticsearch.action.admin.indices.stats.IndexShardStats;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
-import org.elasticsearch.action.admin.indices.template.put.PutComposableIndexTemplateAction;
+import org.elasticsearch.action.admin.indices.template.put.TransportPutComposableIndexTemplateAction;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.datastreams.CreateDataStreamAction;
 import org.elasticsearch.action.index.IndexRequest;
@@ -68,8 +68,8 @@ public class WriteLoadForecasterIT extends ESIntegTestCase {
 
         final ClusterState clusterState = internalCluster().getCurrentMasterNodeInstance(ClusterService.class).state();
         final Metadata metadata = clusterState.getMetadata();
-        final DataStream dataStream = metadata.dataStreams().get(dataStreamName);
-        final IndexMetadata writeIndexMetadata = metadata.getIndexSafe(dataStream.getWriteIndex());
+        final DataStream dataStream = metadata.getProject().dataStreams().get(dataStreamName);
+        final IndexMetadata writeIndexMetadata = metadata.getProject().getIndexSafe(dataStream.getWriteIndex());
 
         final OptionalDouble indexMetadataForecastedWriteLoad = writeIndexMetadata.getForecastedWriteLoad();
         assertThat(indexMetadataForecastedWriteLoad.isPresent(), is(equalTo(true)));
@@ -84,6 +84,7 @@ public class WriteLoadForecasterIT extends ESIntegTestCase {
         assertAllPreviousForecastsAreClearedAfterRollover(dataStream, metadata);
 
         setHasValidLicense(false);
+        writeLoadForecaster.refreshLicense();
 
         final OptionalDouble forecastedWriteLoadAfterLicenseChange = writeLoadForecaster.getForecastedWriteLoad(writeIndexMetadata);
         assertThat(forecastedWriteLoadAfterLicenseChange.isPresent(), is(equalTo(false)));
@@ -96,8 +97,8 @@ public class WriteLoadForecasterIT extends ESIntegTestCase {
         setUpDataStreamWriteDocsAndRollover(dataStreamName);
 
         final ClusterState clusterState = internalCluster().getCurrentMasterNodeInstance(ClusterService.class).state();
-        final DataStream dataStream = clusterState.getMetadata().dataStreams().get(dataStreamName);
-        final IndexMetadata writeIndexMetadata = clusterState.metadata().getIndexSafe(dataStream.getWriteIndex());
+        final DataStream dataStream = clusterState.getMetadata().getProject().dataStreams().get(dataStreamName);
+        final IndexMetadata writeIndexMetadata = clusterState.metadata().getProject().getIndexSafe(dataStream.getWriteIndex());
 
         assertThat(writeIndexMetadata.getForecastedWriteLoad().isPresent(), is(equalTo(false)));
     }
@@ -114,8 +115,8 @@ public class WriteLoadForecasterIT extends ESIntegTestCase {
 
         final ClusterState clusterState = internalCluster().getCurrentMasterNodeInstance(ClusterService.class).state();
         final Metadata metadata = clusterState.metadata();
-        final DataStream dataStream = metadata.dataStreams().get(dataStreamName);
-        final IndexMetadata writeIndexMetadata = metadata.getIndexSafe(dataStream.getWriteIndex());
+        final DataStream dataStream = metadata.getProject().dataStreams().get(dataStreamName);
+        final IndexMetadata writeIndexMetadata = metadata.getProject().getIndexSafe(dataStream.getWriteIndex());
 
         final OptionalDouble indexMetadataForecastedWriteLoad = writeIndexMetadata.getForecastedWriteLoad();
         assertThat(indexMetadataForecastedWriteLoad.isPresent(), is(equalTo(true)));
@@ -131,6 +132,7 @@ public class WriteLoadForecasterIT extends ESIntegTestCase {
         assertAllPreviousForecastsAreClearedAfterRollover(dataStream, metadata);
 
         setHasValidLicense(false);
+        writeLoadForecaster.refreshLicense();
 
         final OptionalDouble forecastedWriteLoadAfterLicenseChange = writeLoadForecaster.getForecastedWriteLoad(writeIndexMetadata);
         assertThat(forecastedWriteLoadAfterLicenseChange.isPresent(), is(equalTo(false)));
@@ -151,22 +153,22 @@ public class WriteLoadForecasterIT extends ESIntegTestCase {
 
         assertAcked(
             client().execute(
-                PutComposableIndexTemplateAction.INSTANCE,
-                new PutComposableIndexTemplateAction.Request("my-template").indexTemplate(
-                    new ComposableIndexTemplate(
-                        List.of("logs-*"),
-                        new Template(indexSettings, null, null),
-                        null,
-                        null,
-                        null,
-                        null,
-                        new ComposableIndexTemplate.DataStreamTemplate(),
-                        null
-                    )
+                TransportPutComposableIndexTemplateAction.TYPE,
+                new TransportPutComposableIndexTemplateAction.Request("my-template").indexTemplate(
+                    ComposableIndexTemplate.builder()
+                        .indexPatterns(List.of("logs-*"))
+                        .template(new Template(indexSettings, null, null))
+                        .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
+                        .build()
                 )
+            )
+        );
+        assertAcked(
+            client().execute(
+                CreateDataStreamAction.INSTANCE,
+                new CreateDataStreamAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, dataStreamName)
             ).actionGet()
         );
-        assertAcked(client().execute(CreateDataStreamAction.INSTANCE, new CreateDataStreamAction.Request(dataStreamName)).actionGet());
 
         final int numberOfRollovers = randomIntBetween(5, 10);
         for (int i = 0; i < numberOfRollovers; i++) {
@@ -177,9 +179,9 @@ public class WriteLoadForecasterIT extends ESIntegTestCase {
                 }
 
                 final ClusterState clusterState = internalCluster().getCurrentMasterNodeInstance(ClusterService.class).state();
-                final DataStream dataStream = clusterState.getMetadata().dataStreams().get(dataStreamName);
+                final DataStream dataStream = clusterState.getMetadata().getProject().dataStreams().get(dataStreamName);
                 final String writeIndex = dataStream.getWriteIndex().getName();
-                final IndicesStatsResponse indicesStatsResponse = client().admin().indices().prepareStats(writeIndex).get();
+                final IndicesStatsResponse indicesStatsResponse = indicesAdmin().prepareStats(writeIndex).get();
                 for (IndexShardStats indexShardStats : indicesStatsResponse.getIndex(writeIndex).getIndexShards().values()) {
                     for (ShardStats shard : indexShardStats.getShards()) {
                         final IndexingStats.Stats shardIndexingStats = shard.getStats().getIndexing().getTotal();
@@ -190,7 +192,7 @@ public class WriteLoadForecasterIT extends ESIntegTestCase {
                 }
             });
 
-            assertAcked(client().admin().indices().rolloverIndex(new RolloverRequest(dataStreamName, null)).actionGet());
+            assertAcked(indicesAdmin().rolloverIndex(new RolloverRequest(dataStreamName, null)).actionGet());
         }
     }
 
@@ -208,9 +210,7 @@ public class WriteLoadForecasterIT extends ESIntegTestCase {
 
     private void setHasValidLicense(boolean hasValidLicense) {
         for (PluginsService pluginsService : internalCluster().getInstances(PluginsService.class)) {
-            for (var writeLoadForecasterPlugin : pluginsService.filterPlugins(FakeLicenseWriteLoadForecasterPlugin.class)) {
-                writeLoadForecasterPlugin.setHasValidLicense(hasValidLicense);
-            }
+            pluginsService.filterPlugins(FakeLicenseWriteLoadForecasterPlugin.class).forEach(p -> p.setHasValidLicense(hasValidLicense));
         }
     }
 
@@ -221,7 +221,7 @@ public class WriteLoadForecasterIT extends ESIntegTestCase {
             if (index.equals(dataStream.getWriteIndex())) {
                 continue;
             }
-            final IndexMetadata backingIndexMetadata = metadata.getIndexSafe(index);
+            final IndexMetadata backingIndexMetadata = metadata.getProject().getIndexSafe(index);
             final OptionalDouble backingIndexForecastedWriteLoad = writeLoadForecaster.getForecastedWriteLoad(backingIndexMetadata);
             assertThat(backingIndexForecastedWriteLoad.isEmpty(), is(equalTo(true)));
             assertThat(backingIndexMetadata.getForecastedWriteLoad().isEmpty(), is(equalTo(true)));

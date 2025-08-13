@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.support;
@@ -15,8 +16,7 @@ import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.Releasable;
-
-import java.util.concurrent.atomic.AtomicBoolean;
+import org.elasticsearch.core.Releasables;
 
 /**
  * A mechanism to trigger an action on the completion of some (dynamic) collection of other actions. Basic usage is as follows:
@@ -64,24 +64,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
 public final class RefCountingRunnable implements Releasable {
 
     private static final Logger logger = LogManager.getLogger(RefCountingRunnable.class);
-    static final String ALREADY_CLOSED_MESSAGE = "already closed, cannot acquire or release any further refs";
 
     private final RefCounted refCounted;
-    private final AtomicBoolean originalRefReleased = new AtomicBoolean();
-
-    private class AcquiredRef implements Releasable {
-        private final AtomicBoolean released = new AtomicBoolean();
-
-        @Override
-        public void close() {
-            releaseRef(released);
-        }
-
-        @Override
-        public String toString() {
-            return RefCountingRunnable.this.toString();
-        }
-    }
 
     /**
      * Construct a {@link RefCountingRunnable} which executes {@code delegate} when all refs are released.
@@ -102,11 +86,11 @@ public final class RefCountingRunnable implements Releasable {
      * will be ignored otherwise. This deviates from the contract of {@link java.io.Closeable}.
      */
     public Releasable acquire() {
-        if (refCounted.tryIncRef()) {
-            return new AcquiredRef();
-        }
-        assert false : ALREADY_CLOSED_MESSAGE;
-        throw new IllegalStateException(ALREADY_CLOSED_MESSAGE);
+        refCounted.mustIncRef();
+        // All refs are considered equal so there's no real need to allocate a new object here, although note that this deviates (subtly)
+        // from the docs for Closeable#close() which indicate that it should be idempotent. But only if assertions are disabled, and if
+        // assertions are enabled then we are asserting that we never double-close these things anyway.
+        return Releasables.assertOnce(this);
     }
 
     /**
@@ -125,19 +109,11 @@ public final class RefCountingRunnable implements Releasable {
      */
     @Override
     public void close() {
-        releaseRef(originalRefReleased);
-    }
-
-    private void releaseRef(AtomicBoolean released) {
-        if (released.compareAndSet(false, true)) {
-            try {
-                refCounted.decRef();
-            } catch (Exception e) {
-                logger.error("exception in delegate", e);
-                assert false : e;
-            }
-        } else {
-            assert false : "already closed";
+        try {
+            refCounted.decRef();
+        } catch (Exception e) {
+            logger.error("exception in delegate", e);
+            assert false : e;
         }
     }
 

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.ccs;
@@ -31,12 +32,13 @@ import java.util.List;
 
 import static org.elasticsearch.search.aggregations.AggregationBuilders.terms;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.hamcrest.Matchers.equalTo;
 
 public class CrossClusterSearchLeakIT extends AbstractMultiClustersTestCase {
 
     @Override
-    protected Collection<String> remoteClusterAlias() {
+    protected List<String> remoteClusterAlias() {
         return List.of("cluster_a");
     }
 
@@ -109,7 +111,7 @@ public class CrossClusterSearchLeakIT extends AbstractMultiClustersTestCase {
         assertFalse(
             client("cluster_a").admin()
                 .cluster()
-                .prepareHealth("prod")
+                .prepareHealth(TEST_REQUEST_TIMEOUT, "prod")
                 .setWaitForYellowStatus()
                 .setTimeout(TimeValue.timeValueSeconds(10))
                 .get()
@@ -129,25 +131,30 @@ public class CrossClusterSearchLeakIT extends AbstractMultiClustersTestCase {
                     .size(between(scroll ? 1 : 0, 1000))
             );
             if (scroll) {
-                searchRequest.scroll("30s");
+                searchRequest.scroll(TimeValue.timeValueSeconds(30));
             }
             searchRequest.setCcsMinimizeRoundtrips(rarely());
             futures.add(client(LOCAL_CLUSTER).search(searchRequest));
         }
 
         for (ActionFuture<SearchResponse> future : futures) {
-            SearchResponse searchResponse = future.get();
-            if (searchResponse.getScrollId() != null) {
-                ClearScrollRequest clearScrollRequest = new ClearScrollRequest();
-                clearScrollRequest.scrollIds(List.of(searchResponse.getScrollId()));
-                client(LOCAL_CLUSTER).clearScroll(clearScrollRequest).get();
-            }
+            assertResponse(future, response -> {
+                if (response.getScrollId() != null) {
+                    ClearScrollRequest clearScrollRequest = new ClearScrollRequest();
+                    clearScrollRequest.scrollIds(List.of(response.getScrollId()));
+                    try {
+                        client(LOCAL_CLUSTER).clearScroll(clearScrollRequest).get();
+                    } catch (Exception e) {
+                        throw new RuntimeException(e);
+                    }
+                }
 
-            Terms terms = searchResponse.getAggregations().get("f");
-            assertThat(terms.getBuckets().size(), equalTo(docs));
-            for (Terms.Bucket bucket : terms.getBuckets()) {
-                assertThat(bucket.getDocCount(), equalTo(1L));
-            }
+                Terms terms = response.getAggregations().get("f");
+                assertThat(terms.getBuckets().size(), equalTo(docs));
+                for (Terms.Bucket bucket : terms.getBuckets()) {
+                    assertThat(bucket.getDocCount(), equalTo(1L));
+                }
+            });
         }
     }
 
@@ -163,7 +170,11 @@ public class CrossClusterSearchLeakIT extends AbstractMultiClustersTestCase {
 
             settings.put("cluster.remote." + clusterAlias + ".mode", "proxy");
             settings.put("cluster.remote." + clusterAlias + ".proxy_address", seedAddress);
-            client().admin().cluster().prepareUpdateSettings().setPersistentSettings(settings).get();
+            client().admin()
+                .cluster()
+                .prepareUpdateSettings(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
+                .setPersistentSettings(settings)
+                .get();
         }
     }
 }

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.profile;
@@ -16,45 +17,25 @@ import org.elasticsearch.search.profile.dfs.DfsProfiler;
 import org.elasticsearch.search.profile.query.QueryProfileShardResult;
 import org.elasticsearch.search.profile.query.QueryProfiler;
 
-import java.util.ArrayList;
 import java.util.Collections;
-import java.util.List;
 
 /** Wrapper around all the profilers that makes management easier. */
 public final class Profilers {
 
-    private final ContextIndexSearcher searcher;
-    private final List<QueryProfiler> queryProfilers = new ArrayList<>();
+    private final QueryProfiler queryProfiler;
     private final AggregationProfiler aggProfiler = new AggregationProfiler();
     private DfsProfiler dfsProfiler;
 
     public Profilers(ContextIndexSearcher searcher) {
-        this.searcher = searcher;
-        addQueryProfiler();
-    }
-
-    /**
-     * Begin profiling a new query.
-     */
-    public QueryProfiler addQueryProfiler() {
-        QueryProfiler profiler = new QueryProfiler();
-        searcher.setProfiler(profiler);
-        queryProfilers.add(profiler);
-        return profiler;
+        this.queryProfiler = new QueryProfiler();
+        searcher.setProfiler(this.queryProfiler);
     }
 
     /**
      * Get the profiler for the query we are currently processing.
      */
     public QueryProfiler getCurrentQueryProfiler() {
-        return queryProfilers.get(queryProfilers.size() - 1);
-    }
-
-    /**
-     * The list of all {@link QueryProfiler}s created so far.
-     */
-    public List<QueryProfiler> getQueryProfilers() {
-        return Collections.unmodifiableList(queryProfilers);
+        return queryProfiler;
     }
 
     public AggregationProfiler getAggregationProfiler() {
@@ -68,7 +49,6 @@ public final class Profilers {
         if (dfsProfiler == null) {
             dfsProfiler = new DfsProfiler();
         }
-
         return dfsProfiler;
     }
 
@@ -83,16 +63,13 @@ public final class Profilers {
      * Build the results for the query phase.
      */
     public SearchProfileQueryPhaseResult buildQueryPhaseResults() {
-        List<QueryProfileShardResult> queryResults = new ArrayList<>(queryProfilers.size());
-        for (QueryProfiler queryProfiler : queryProfilers) {
-            QueryProfileShardResult result = new QueryProfileShardResult(
-                queryProfiler.getTree(),
-                queryProfiler.getRewriteTime(),
-                queryProfiler.getCollector()
-            );
-            queryResults.add(result);
-        }
+        QueryProfileShardResult result = new QueryProfileShardResult(
+            queryProfiler.getTree(),
+            queryProfiler.getRewriteTime(),
+            queryProfiler.getCollectorResult(),
+            null
+        );
         AggregationProfileShardResult aggResults = new AggregationProfileShardResult(aggProfiler.getTree());
-        return new SearchProfileQueryPhaseResult(queryResults, aggResults);
+        return new SearchProfileQueryPhaseResult(Collections.singletonList(result), aggResults);
     }
 }

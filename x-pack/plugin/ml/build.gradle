@@ -1,13 +1,20 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
 apply plugin: 'elasticsearch.internal-es-plugin'
 apply plugin: 'elasticsearch.internal-cluster-test'
 apply plugin: 'elasticsearch.internal-test-artifact'
 apply plugin: 'elasticsearch.dra-artifacts'
 
 esplugin {
-  name 'x-pack-ml'
-  description 'Elasticsearch Expanded Pack Plugin - Machine Learning'
-  classname 'org.elasticsearch.xpack.ml.MachineLearning'
-  hasNativeController true
+  name = 'x-pack-ml'
+  description = 'Elasticsearch Expanded Pack Plugin - Machine Learning'
+  classname ='org.elasticsearch.xpack.ml.MachineLearning'
+  hasNativeController =true
   extendedPlugins = ['x-pack-autoscaling', 'lang-painless']
 }
 
@@ -16,8 +23,8 @@ if (useDra == false) {
     exclusiveContent {
       forRepository {
         ivy {
-          name "ml-cpp"
-          url providers.systemProperty('build.ml_cpp.repo').orElse('https://prelert-artifacts.s3.amazonaws.com').get()
+          name = "ml-cpp"
+          url = providers.systemProperty('build.ml_cpp.repo').orElse('https://prelert-artifacts.s3.amazonaws.com').get()
           metadataSources {
             // no repository metadata, look directly for the artifact
             artifact()
@@ -55,9 +62,11 @@ esplugin.bundleSpec.exclude 'platform/licenses/**'
 }
 
 dependencies {
+  testImplementation project(path: ':x-pack:plugin:inference')
   compileOnly project(':modules:lang-painless:spi')
   compileOnly project(path: xpackModule('core'))
   compileOnly project(path: xpackModule('autoscaling'))
+  compileOnly project(path: xpackModule('ml-package-loader'))
   testImplementation(testArtifact(project(xpackModule('core'))))
   testImplementation project(path: xpackModule('ilm'))
   testImplementation project(path: xpackModule('shutdown'))
@@ -67,21 +76,31 @@ dependencies {
   testImplementation project(':modules:reindex')
   testImplementation project(':modules:analysis-common')
   testImplementation project(':modules:mapper-extras')
+  testImplementation project(':modules:lang-mustache')
   // This should not be here
   testImplementation(testArtifact(project(xpackModule('security'))))
+  testImplementation project(path: xpackModule('wildcard'))
   // ml deps
-  api project(':libs:elasticsearch-grok')
+  api project(':libs:grok')
+  api project(':modules:lang-mustache')
   api "org.apache.commons:commons-math3:3.6.1"
   api "com.ibm.icu:icu4j:${versions.icu4j}"
   api "org.apache.lucene:lucene-analysis-icu:${versions.lucene}"
+  api "org.apache.lucene:lucene-analysis-kuromoji:${versions.lucene}"
   implementation 'org.ojalgo:ojalgo:51.2.0'
-  nativeBundle("org.elasticsearch.ml:ml-cpp:${project.version}:deps@zip") {
+  nativeBundle("org.elasticsearch.ml:ml-cpp:${mlCppVersion()}:deps@zip") {
     changing = true
   }
-  nativeBundle("org.elasticsearch.ml:ml-cpp:${project.version}:nodeps@zip") {
+  nativeBundle("org.elasticsearch.ml:ml-cpp:${mlCppVersion()}:nodeps@zip") {
     changing = true
   }
   testImplementation 'org.ini4j:ini4j:0.5.2'
+  testImplementation "com.google.jimfs:jimfs:${versions.jimfs}"
+}
+
+def mlCppVersion(){
+  return (project.gradle.parent != null && buildParams.snapshotBuild == false) ?
+      (project.version + "-SNAPSHOT") : project.version;
 }
 
 artifacts {
@@ -97,15 +116,14 @@ tasks.register("extractNativeLicenses", Copy) {
   }
   include 'platform/licenses/**'
 }
-project.afterEvaluate {
-  // Add an extra licenses directory to the combined notices
-  tasks.named('generateNotice').configure {
-    dependsOn "extractNativeLicenses"
-    licensesDir new File("${project.buildDir}/extractedNativeLicenses/platform/licenses")
-    outputs.upToDateWhen {
-      extractNativeLicenses.didWork
-    }
-  }
+
+// Add an extra licenses directory to the combined notices
+tasks.named('generateNotice').configure {
+  dependsOn "extractNativeLicenses"
+  inputs.dir("${project.buildDir}/extractedNativeLicenses/platform/licenses")
+    .withPropertyName('licensingDir')
+    .withPathSensitivity(PathSensitivity.RELATIVE)
+  licenseDirs.add(tasks.named("extractNativeLicenses").map {new File(it.destinationDir, "platform/licenses") })
 }
 
 tasks.named("dependencyLicenses").configure {

@@ -8,47 +8,32 @@
 package org.elasticsearch.xpack.security.authc.service;
 
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.xpack.core.security.authc.service.ServiceAccount;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
 import org.elasticsearch.xpack.core.security.user.User;
 
-import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 final class ElasticServiceAccounts {
 
     static final String NAMESPACE = "elastic";
 
-    private static final ServiceAccount ENTERPRISE_SEARCH_ACCOUNT = new ElasticServiceAccount(
-        "enterprise-search-server",
+    private static final ServiceAccount AUTO_OPS_ACCOUNT = new ElasticServiceAccount(
+        "auto-ops",
         new RoleDescriptor(
-            NAMESPACE + "/enterprise-search-server",
-            new String[] { "manage", "manage_security" },
+            NAMESPACE + "/auto-ops",
+            new String[] { "monitor", "read_ilm", "read_slm" },
             new RoleDescriptor.IndicesPrivileges[] {
                 RoleDescriptor.IndicesPrivileges.builder()
-                    .indices(
-                        "search-*",
-                        ".elastic-analytics-collections",
-                        ".ent-search-*",
-                        ".monitoring-ent-search-*",
-                        "metricbeat-ent-search-*",
-                        "enterprise-search-*",
-                        "logs-app_search.analytics-default",
-                        "logs-elastic_analytics.events-*",
-                        "logs-enterprise_search.api-default",
-                        "logs-enterprise_search.audit-default",
-                        "logs-app_search.search_relevance_suggestions-default",
-                        "logs-crawler-default",
-                        "logs-elastic_crawler-default",
-                        "logs-workplace_search.analytics-default",
-                        "logs-workplace_search.content_events-default",
-                        ".elastic-connectors*"
-                    )
-                    .privileges("manage", "read", "write")
-                    .build() },
+                    .allowRestrictedIndices(true)
+                    .indices("*")
+                    .privileges("monitor", "view_index_metadata")
+                    .build(), },
             null,
             null,
             null,
@@ -61,18 +46,22 @@ final class ElasticServiceAccounts {
         "fleet-server",
         new RoleDescriptor(
             NAMESPACE + "/fleet-server",
-            new String[] { "monitor", "manage_own_api_key" },
+            new String[] { "monitor", "manage_own_api_key", "read_fleet_secrets", "cluster:admin/xpack/connector/*" },
             new RoleDescriptor.IndicesPrivileges[] {
                 RoleDescriptor.IndicesPrivileges.builder()
                     .indices(
+                        "logs",
+                        "logs.*",
                         "logs-*",
                         "metrics-*",
                         "traces-*",
                         ".logs-endpoint.diagnostic.collection-*",
-                        ".logs-endpoint.action.responses-*"
+                        ".logs-endpoint.action.responses-*",
+                        ".logs-endpoint.heartbeat-*"
                     )
                     .privileges("write", "create_index", "auto_configure")
                     .build(),
+                RoleDescriptor.IndicesPrivileges.builder().indices("profiling-*").privileges("read", "write").build(),
                 RoleDescriptor.IndicesPrivileges.builder()
                     // APM Server (and hence Fleet Server, which issues its API Keys) needs additional privileges
                     // for the non-sensitive "sampled traces" data stream:
@@ -82,9 +71,50 @@ final class ElasticServiceAccounts {
                     .indices("traces-apm.sampled-*")
                     .privileges("read", "monitor", "maintenance")
                     .build(),
+                // Fleet secrets. Fleet Server can only read from this index.
                 RoleDescriptor.IndicesPrivileges.builder()
-                    .indices(".fleet-*")
-                    // Fleet Server needs "maintenance" privilege to be able to perform operations with "refresh"
+                    .indices(".fleet-secrets*")
+                    .privileges("read")
+                    .allowRestrictedIndices(true)
+                    .build(),
+                // Other Fleet indices. Fleet Server needs "maintenance" privilege to be able to perform operations with "refresh".
+                RoleDescriptor.IndicesPrivileges.builder()
+                    .indices(".fleet-actions*")
+                    .privileges("read", "write", "monitor", "create_index", "auto_configure", "maintenance")
+                    .allowRestrictedIndices(true)
+                    .build(),
+                RoleDescriptor.IndicesPrivileges.builder()
+                    .indices(".fleet-agents*")
+                    .privileges("read", "write", "monitor", "create_index", "auto_configure", "maintenance")
+                    .allowRestrictedIndices(true)
+                    .build(),
+                RoleDescriptor.IndicesPrivileges.builder()
+                    .indices(".fleet-artifacts*")
+                    .privileges("read", "write", "monitor", "create_index", "auto_configure", "maintenance")
+                    .allowRestrictedIndices(true)
+                    .build(),
+                RoleDescriptor.IndicesPrivileges.builder()
+                    .indices(".fleet-enrollment-api-keys*")
+                    .privileges("read", "write", "monitor", "create_index", "auto_configure", "maintenance")
+                    .allowRestrictedIndices(true)
+                    .build(),
+                RoleDescriptor.IndicesPrivileges.builder()
+                    .indices(".fleet-policies*")
+                    .privileges("read", "write", "monitor", "create_index", "auto_configure", "maintenance")
+                    .allowRestrictedIndices(true)
+                    .build(),
+                RoleDescriptor.IndicesPrivileges.builder()
+                    .indices(".fleet-policies-leader*")
+                    .privileges("read", "write", "monitor", "create_index", "auto_configure", "maintenance")
+                    .allowRestrictedIndices(true)
+                    .build(),
+                RoleDescriptor.IndicesPrivileges.builder()
+                    .indices(".fleet-servers*")
+                    .privileges("read", "write", "monitor", "create_index", "auto_configure", "maintenance")
+                    .allowRestrictedIndices(true)
+                    .build(),
+                RoleDescriptor.IndicesPrivileges.builder()
+                    .indices(".fleet-fileds*")
                     .privileges("read", "write", "monitor", "create_index", "auto_configure", "maintenance")
                     .allowRestrictedIndices(true)
                     .build(),
@@ -93,7 +123,23 @@ final class ElasticServiceAccounts {
                     // Fleet Server needs "read" privilege to be able to retrieve multi-agent docs
                     .privileges("read", "write", "create_index", "auto_configure")
                     .allowRestrictedIndices(false)
-                    .build() },
+                    .build(),
+                // Custom permissions required for running Elastic connectors integration
+                RoleDescriptor.IndicesPrivileges.builder()
+                    .indices(".elastic-connectors*")
+                    .privileges("read", "write", "monitor", "create_index", "auto_configure", "maintenance", "view_index_metadata")
+                    .build(),
+                // Permissions for data indices and access control filters used by Elastic connectors integration
+                RoleDescriptor.IndicesPrivileges.builder()
+                    .indices("content-*", ".search-acl-filter-*")
+                    .privileges("read", "write", "monitor", "create_index", "auto_configure", "maintenance", "view_index_metadata")
+                    .build(),
+                // Custom permissions required for stateful agentless integrations
+                RoleDescriptor.IndicesPrivileges.builder()
+                    .indices("agentless-*")
+                    .privileges("read", "write", "monitor", "create_index", "auto_configure", "maintenance", "view_index_metadata")
+                    .allowRestrictedIndices(false)
+                    .build(), },
             new RoleDescriptor.ApplicationResourcePrivileges[] {
                 RoleDescriptor.ApplicationResourcePrivileges.builder()
                     .application("kibana-*")
@@ -106,14 +152,34 @@ final class ElasticServiceAccounts {
             null
         )
     );
+    private static final ServiceAccount FLEET_REMOTE_ACCOUNT = new ElasticServiceAccount(
+        "fleet-server-remote",
+        new RoleDescriptor(
+            NAMESPACE + "/fleet-server-remote",
+            new String[] { "monitor", "manage_own_api_key" },
+            new RoleDescriptor.IndicesPrivileges[] {
+                RoleDescriptor.IndicesPrivileges.builder()
+                    .indices("logs-*", "metrics-*", "traces-*")
+                    .privileges("write", "create_index", "auto_configure")
+                    .build(), },
+            null,
+            null,
+            null,
+            null,
+            null
+        )
+    );
     private static final ServiceAccount KIBANA_SYSTEM_ACCOUNT = new ElasticServiceAccount(
         "kibana",
         ReservedRolesStore.kibanaSystemRoleDescriptor(NAMESPACE + "/kibana")
     );
 
-    static final Map<String, ServiceAccount> ACCOUNTS = List.of(ENTERPRISE_SEARCH_ACCOUNT, FLEET_ACCOUNT, KIBANA_SYSTEM_ACCOUNT)
-        .stream()
-        .collect(Collectors.toMap(a -> a.id().asPrincipal(), Function.identity()));
+    static final Map<String, ServiceAccount> ACCOUNTS = Stream.of(
+        AUTO_OPS_ACCOUNT,
+        FLEET_ACCOUNT,
+        FLEET_REMOTE_ACCOUNT,
+        KIBANA_SYSTEM_ACCOUNT
+    ).collect(Collectors.toMap(a -> a.id().asPrincipal(), Function.identity()));
 
     private ElasticServiceAccounts() {}
 

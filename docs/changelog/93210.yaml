@@ -1,5 +1,0 @@
-pr: 93210
-summary: Unpromotables skip replication and peer recovery
-area: Allocation
-type: enhancement
-issues: []

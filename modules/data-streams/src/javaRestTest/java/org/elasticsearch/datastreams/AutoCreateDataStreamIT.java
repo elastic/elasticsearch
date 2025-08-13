@@ -1,19 +1,20 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.datastreams;
 
+import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.support.AutoCreateIndex;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.Streams;
-import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
 
@@ -24,7 +25,8 @@ import java.time.Instant;
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.hamcrest.Matchers.containsString;
 
-public class AutoCreateDataStreamIT extends ESRestTestCase {
+@SuppressWarnings("resource")
+public class AutoCreateDataStreamIT extends DisabledSecurityDataStreamTestCase {
 
     /**
      * Check that setting {@link AutoCreateIndex#AUTO_CREATE_INDEX_SETTING} to <code>false</code>
@@ -32,7 +34,7 @@ public class AutoCreateDataStreamIT extends ESRestTestCase {
      */
     public void testCanAutoCreateDataStreamWhenAutoCreateIndexDisabled() throws IOException {
         configureAutoCreateIndex(false);
-        createTemplateWithAllowAutoCreate(null);
+        createTemplate(null, true);
         assertOK(this.indexDocument());
     }
 
@@ -41,7 +43,7 @@ public class AutoCreateDataStreamIT extends ESRestTestCase {
      * and that template has <code>allow_auto_create</code> set to <code>true</code>.
      */
     public void testCanAutoCreateDataStreamWhenExplicitlyAllowedByTemplate() throws IOException {
-        createTemplateWithAllowAutoCreate(true);
+        createTemplate(true, true);
 
         // Attempt to add a document to a non-existing index. Auto-creating the index should succeed because the index name
         // matches the template pattern
@@ -53,15 +55,60 @@ public class AutoCreateDataStreamIT extends ESRestTestCase {
      * <code>allow_auto_create</code> explicitly to <code>false</code>.
      */
     public void testCannotAutoCreateDataStreamWhenDisallowedByTemplate() throws IOException {
-        createTemplateWithAllowAutoCreate(false);
+        createTemplate(false, true);
 
-        // Attempt to add a document to a non-existing index. Auto-creating the index should succeed because the index name
-        // matches the template pattern
+        // Auto-creating the index should fail when the template disallows that
         final ResponseException responseException = expectThrows(ResponseException.class, this::indexDocument);
 
         assertThat(
             Streams.copyToString(new InputStreamReader(responseException.getResponse().getEntity().getContent(), UTF_8)),
-            containsString("no such index [composable template [recipe*] forbids index auto creation]")
+            containsString("no such index [recipe_kr] and composable template [recipe*] forbids index auto creation")
+        );
+    }
+
+    /**
+     * Check that if <code>require_data_stream</code> is set to <code>true</code>, automatically creating an index is allowed only
+     * if its name matches an index template AND it contains a data-stream template
+     */
+    public void testCannotAutoCreateDataStreamWhenNoDataStreamTemplateMatch() throws IOException {
+        createTemplate(true, true);
+
+        final Request request = prepareIndexRequest("ingredients_kr");
+        request.addParameter(DocWriteRequest.REQUIRE_DATA_STREAM, Boolean.TRUE.toString());
+
+        // Attempt to add a document to a non-existing index. Auto-creating the index should fail because the index name doesn't
+        // match the template pattern and the request requires a data stream template
+        final ResponseException responseException = expectThrows(ResponseException.class, () -> client().performRequest(request));
+
+        assertThat(
+            Streams.copyToString(new InputStreamReader(responseException.getResponse().getEntity().getContent(), UTF_8)),
+            containsString(
+                "no such index [ingredients_kr] and the index creation request requires a data stream, "
+                    + "but no matching index template with data stream template was found for it"
+            )
+        );
+    }
+
+    /**
+     * Check that if <code>require_data_stream</code> is set to <code>true</code>, automatically creating an index is allowed only
+     * if its name matches an index template AND it contains a data-stream template
+     */
+    public void testCannotAutoCreateDataStreamWhenMatchingTemplateIsNotDataStream() throws IOException {
+        createTemplate(true, false);
+
+        final Request request = prepareIndexRequest("recipe_kr");
+        request.addParameter(DocWriteRequest.REQUIRE_DATA_STREAM, Boolean.TRUE.toString());
+
+        // Attempt to add a document to a non-existing index. Auto-creating the index should fail because the index name doesn't
+        // match the template pattern and the request requires a data stream template
+        final ResponseException responseException = expectThrows(ResponseException.class, () -> client().performRequest(request));
+
+        assertThat(
+            Streams.copyToString(new InputStreamReader(responseException.getResponse().getEntity().getContent(), UTF_8)),
+            containsString(
+                "no such index [recipe_kr] and the index creation request requires a data stream, "
+                    + "but no matching index template with data stream template was found for it"
+            )
         );
     }
 
@@ -79,7 +126,7 @@ public class AutoCreateDataStreamIT extends ESRestTestCase {
         assertOK(settingsResponse);
     }
 
-    private void createTemplateWithAllowAutoCreate(Boolean allowAutoCreate) throws IOException {
+    private void createTemplate(Boolean allowAutoCreate, boolean addDataStreamTemplate) throws IOException {
         XContentBuilder b = JsonXContent.contentBuilder();
         b.startObject();
         {
@@ -87,8 +134,10 @@ public class AutoCreateDataStreamIT extends ESRestTestCase {
             if (allowAutoCreate != null) {
                 b.field("allow_auto_create", allowAutoCreate);
             }
-            b.startObject("data_stream");
-            b.endObject();
+            if (addDataStreamTemplate) {
+                b.startObject("data_stream");
+                b.endObject();
+            }
         }
         b.endObject();
 
@@ -99,8 +148,13 @@ public class AutoCreateDataStreamIT extends ESRestTestCase {
     }
 
     private Response indexDocument() throws IOException {
-        final Request indexDocumentRequest = new Request("POST", "recipe_kr/_doc");
-        indexDocumentRequest.setJsonEntity("{ \"@timestamp\": \"" + Instant.now() + "\", \"name\": \"Kimchi\" }");
+        final Request indexDocumentRequest = prepareIndexRequest("recipe_kr");
         return client().performRequest(indexDocumentRequest);
+    }
+
+    private Request prepareIndexRequest(String indexName) {
+        final Request indexDocumentRequest = new Request("POST", indexName + "/_doc");
+        indexDocumentRequest.setJsonEntity("{ \"@timestamp\": \"" + Instant.now() + "\", \"name\": \"Kimchi\" }");
+        return indexDocumentRequest;
     }
 }

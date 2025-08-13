@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.support.replication;
@@ -23,9 +24,13 @@ import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
+import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.tasks.Task;
@@ -36,6 +41,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.Executor;
 
 /**
  * Base class for requests that should be executed on all shards of an index or several indices.
@@ -51,7 +57,8 @@ public abstract class TransportBroadcastReplicationAction<
     private final ClusterService clusterService;
     private final IndexNameExpressionResolver indexNameExpressionResolver;
     private final NodeClient client;
-    private final String executor;
+    private final Executor executor;
+    private final ProjectResolver projectResolver;
 
     public TransportBroadcastReplicationAction(
         String name,
@@ -62,19 +69,21 @@ public abstract class TransportBroadcastReplicationAction<
         ActionFilters actionFilters,
         IndexNameExpressionResolver indexNameExpressionResolver,
         ActionType<ShardResponse> replicatedBroadcastShardAction,
-        String executor
+        Executor executor,
+        ProjectResolver projectResolver
     ) {
-        super(name, transportService, actionFilters, requestReader);
+        super(name, transportService, actionFilters, requestReader, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.client = client;
         this.replicatedBroadcastShardAction = replicatedBroadcastShardAction;
         this.clusterService = clusterService;
         this.indexNameExpressionResolver = indexNameExpressionResolver;
         this.executor = executor;
+        this.projectResolver = projectResolver;
     }
 
     @Override
     protected void doExecute(Task task, Request request, ActionListener<Response> listener) {
-        clusterService.threadPool().executor(executor).execute(ActionRunnable.wrap(listener, createAsyncAction(task, request)));
+        executor.execute(ActionRunnable.wrap(listener, createAsyncAction(task, request)));
     }
 
     private CheckedConsumer<ActionListener<Response>, Exception> createAsyncAction(Task task, Request request) {
@@ -89,8 +98,9 @@ public abstract class TransportBroadcastReplicationAction<
                 assert totalShardCopyCount == 0 && successShardCopyCount == 0 && allFailures.isEmpty() : "shouldn't call this twice";
 
                 final ClusterState clusterState = clusterService.state();
-                final List<ShardId> shards = shards(request, clusterState);
-                final Map<String, IndexMetadata> indexMetadataByName = clusterState.getMetadata().indices();
+                final ProjectMetadata project = projectResolver.getProjectMetadata(clusterState);
+                final List<ShardId> shards = shards(request, project, clusterState.routingTable(project.id()));
+                final Map<String, IndexMetadata> indexMetadataByName = project.indices();
 
                 try (var refs = new RefCountingRunnable(() -> finish(listener))) {
                     for (final ShardId shardId : shards) {
@@ -175,14 +185,14 @@ public abstract class TransportBroadcastReplicationAction<
     /**
      * @return all shard ids the request should run on
      */
-    protected List<ShardId> shards(Request request, ClusterState clusterState) {
+    protected List<ShardId> shards(Request request, ProjectMetadata project, RoutingTable indexRoutingTables) {
         assert Transports.assertNotTransportThread("may hit all the shards");
         List<ShardId> shardIds = new ArrayList<>();
-        String[] concreteIndices = indexNameExpressionResolver.concreteIndexNames(clusterState, request);
+        String[] concreteIndices = indexNameExpressionResolver.concreteIndexNames(project, request);
         for (String index : concreteIndices) {
-            IndexMetadata indexMetadata = clusterState.metadata().getIndices().get(index);
+            IndexMetadata indexMetadata = project.indices().get(index);
             if (indexMetadata != null) {
-                final IndexRoutingTable indexRoutingTable = clusterState.getRoutingTable().indicesRouting().get(index);
+                final IndexRoutingTable indexRoutingTable = indexRoutingTables.indicesRouting().get(index);
                 for (int i = 0; i < indexRoutingTable.size(); i++) {
                     shardIds.add(indexRoutingTable.shard(i).shardId());
                 }

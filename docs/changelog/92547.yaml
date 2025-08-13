@@ -1,5 +1,0 @@
-pr: 92547
-summary: Don't create a new `DoubleHistogram` instance for empty buckets
-area: Aggregations
-type: bug
-issues: []

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.reservedstate;
@@ -16,6 +17,8 @@ import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 
+import static org.hamcrest.Matchers.is;
+
 public class ReservedClusterStateHandlerTests extends ESTestCase {
     public void testValidation() {
         ReservedClusterStateHandler<ValidRequest> handler = new ReservedClusterStateHandler<>() {
@@ -25,7 +28,7 @@ public class ReservedClusterStateHandlerTests extends ESTestCase {
             }
 
             @Override
-            public TransformState transform(Object source, TransformState prevState) throws Exception {
+            public TransformState transform(ValidRequest source, TransformState prevState) throws Exception {
                 return prevState;
             }
 
@@ -36,13 +39,17 @@ public class ReservedClusterStateHandlerTests extends ESTestCase {
         };
 
         handler.validate(new ValidRequest());
-        assertEquals(
-            "Validation error",
-            expectThrows(IllegalStateException.class, () -> handler.validate(new InvalidRequest())).getMessage()
+        assertThat(
+            expectThrows(IllegalStateException.class, () -> handler.validate(new InvalidRequest())).getMessage(),
+            is("Validation error")
         );
     }
 
     static class ValidRequest extends MasterNodeRequest<InternalOrPrivateSettingsPlugin.UpdateInternalOrPrivateAction.Request> {
+        ValidRequest() {
+            super(TEST_REQUEST_TIMEOUT);
+        }
+
         @Override
         public ActionRequestValidationException validate() {
             return null;

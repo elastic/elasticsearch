@@ -1,18 +1,19 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.cluster.coordination;
 
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.common.ReferenceDocs;
-import org.elasticsearch.common.logging.ChunkedLoggingStreamTests;
+import org.elasticsearch.common.logging.ChunkedLoggingStreamTestUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.core.TimeValue;
@@ -250,20 +251,23 @@ public class LagDetectorTests extends ESTestCase {
         assertThat(failedNodes, empty()); // nodes added after a lag detector was started are also ignored
     }
 
-    @TestLogging(reason = "testing LagDetector logging", value = "org.elasticsearch.cluster.coordination.LagDetector:DEBUG")
+    // literal name because it appears in the docs so must not be changed without care
+    private static final String LOGGER_NAME = "org.elasticsearch.cluster.coordination.LagDetector";
+
+    @TestLogging(reason = "testing LagDetector logging", value = LOGGER_NAME + ":DEBUG")
     public void testHotThreadsChunkedLoggingEncoding() {
-        final var node = new DiscoveryNode("test", buildNewFakeTransportAddress(), Version.CURRENT);
+        final var node = DiscoveryNodeUtils.create("test");
         final var expectedBody = randomUnicodeOfLengthBetween(1, 20000);
         assertEquals(
             expectedBody,
-            ChunkedLoggingStreamTests.getDecodedLoggedBody(
-                LogManager.getLogger(LagDetector.class),
+            ChunkedLoggingStreamTestUtils.getDecodedLoggedBody(
+                LogManager.getLogger(LOGGER_NAME),
                 Level.DEBUG,
                 "hot threads from node ["
                     + node.descriptionWithoutAttributes()
                     + "] lagging at version [1] despite commit of cluster state version [2]",
                 ReferenceDocs.LAGGING_NODE_TROUBLESHOOTING,
-                new LagDetector.HotThreadsLoggingTask(node, 1, 2, expectedBody)::run
+                new LagDetector.HotThreadsLoggingTask(node, 1, 2, expectedBody, () -> {})::run
             ).utf8ToString()
         );
     }

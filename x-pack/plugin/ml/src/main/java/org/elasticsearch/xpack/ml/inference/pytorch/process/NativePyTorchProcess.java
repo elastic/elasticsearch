@@ -20,6 +20,7 @@ import java.io.IOException;
 import java.nio.file.Path;
 import java.util.Iterator;
 import java.util.List;
+import java.util.concurrent.TimeoutException;
 import java.util.function.Consumer;
 
 public class NativePyTorchProcess extends AbstractNativeProcess implements PyTorchProcess {
@@ -27,6 +28,7 @@ public class NativePyTorchProcess extends AbstractNativeProcess implements PyTor
     private static final String NAME = "pytorch_inference";
 
     private final ProcessResultsParser<PyTorchResult> resultsParser;
+    private final PyTorchProcessFactory.TimeoutRunnable afterInStreamClose;
 
     protected NativePyTorchProcess(
         String jobId,
@@ -34,9 +36,11 @@ public class NativePyTorchProcess extends AbstractNativeProcess implements PyTor
         ProcessPipes processPipes,
         int numberOfFields,
         List<Path> filesToDelete,
+        PyTorchProcessFactory.TimeoutRunnable afterInStreamClose,
         Consumer<String> onProcessCrash
     ) {
         super(jobId, nativeController, processPipes, numberOfFields, filesToDelete, onProcessCrash);
+        this.afterInStreamClose = afterInStreamClose;
         this.resultsParser = new ProcessResultsParser<>(PyTorchResult.PARSER, NamedXContentRegistry.EMPTY);
     }
 
@@ -70,5 +74,10 @@ public class NativePyTorchProcess extends AbstractNativeProcess implements PyTor
         processInStream().write(jsonRequest.array(), jsonRequest.arrayOffset(), jsonRequest.length());
         processInStream().write('\n');
         processInStream().flush();
+    }
+
+    @Override
+    protected void afterProcessInStreamClose() throws TimeoutException {
+        afterInStreamClose.run();
     }
 }

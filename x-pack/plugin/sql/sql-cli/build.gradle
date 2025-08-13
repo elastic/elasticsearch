@@ -1,4 +1,9 @@
-import org.elasticsearch.gradle.internal.info.BuildParams
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
 
 /*
  * This project is named sql-cli because it is in the "org.elasticsearch.plugin"
@@ -8,11 +13,13 @@ import org.elasticsearch.gradle.internal.info.BuildParams
  */
 
 apply plugin: 'elasticsearch.build'
-apply plugin: 'com.github.johnrengelman.shadow'
+apply plugin: 'com.gradleup.shadow'
 /* We don't use the 'application' plugin because it builds a zip and tgz which
  * we don't want. */
 
-archivesBaseName = 'elasticsearch-sql-cli'
+base {
+  archivesName = 'elasticsearch-sql-cli'
+}
 
 description = 'Command line interface to Elasticsearch that speaks SQL'
 
@@ -27,8 +34,8 @@ dependencies {
   api "org.jline:jline-style:${jlineVersion}"
 
   api project(':x-pack:plugin:sql:sql-client')
-  api project(":libs:elasticsearch-cli")
-  runtimeOnly "net.java.dev.jna:jna:${versions.jna}"
+  api project(":libs:cli")
+  implementation "net.java.dev.jna:jna:${versions.jna}"
   testImplementation project(":test:framework")
 }
 
@@ -53,7 +60,7 @@ tasks.register("runcli") {
   description = 'Run the CLI and connect to elasticsearch running on 9200'
   dependsOn "shadowJar"
   doLast {
-    List command = ["${BuildParams.runtimeJavaHome}/bin/java"]
+    List command = ["${buildParams.runtimeJavaHome.get()}/bin/java"]
     if ('true'.equals(providers.systemProperty('debug').orElse('false').get())) {
       command += '-agentlib:jdwp=transport=dt_socket,server=y,suspend=y,address=8000'
     }

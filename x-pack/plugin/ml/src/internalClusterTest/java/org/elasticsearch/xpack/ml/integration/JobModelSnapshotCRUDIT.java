@@ -7,7 +7,6 @@
 package org.elasticsearch.xpack.ml.integration;
 
 import org.elasticsearch.ElasticsearchStatusException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.routing.OperationRouting;
@@ -20,6 +19,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ClientHelper;
+import org.elasticsearch.xpack.core.ml.MlConfigVersion;
 import org.elasticsearch.xpack.core.ml.action.DeleteModelSnapshotAction;
 import org.elasticsearch.xpack.core.ml.action.GetModelSnapshotsAction;
 import org.elasticsearch.xpack.core.ml.action.PutJobAction;
@@ -68,7 +68,8 @@ public class JobModelSnapshotCRUDIT extends MlSingleNodeTestCase {
                     OperationRouting.USE_ADAPTIVE_REPLICA_SELECTION_SETTING,
                     ResultsPersisterService.PERSIST_RESULTS_MAX_RETRIES,
                     ClusterService.USER_DEFINED_METADATA,
-                    ClusterApplierService.CLUSTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING
+                    ClusterApplierService.CLUSTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING,
+                    ClusterApplierService.CLUSTER_SERVICE_SLOW_TASK_THREAD_DUMP_TIMEOUT_SETTING
                 )
             )
         );
@@ -89,7 +90,7 @@ public class JobModelSnapshotCRUDIT extends MlSingleNodeTestCase {
         String jobId = "job-with-current-snapshot";
 
         createJob(jobId);
-        ModelSnapshot snapshot = new ModelSnapshot.Builder(jobId).setMinVersion(Version.CURRENT).setSnapshotId("snap_1").build();
+        ModelSnapshot snapshot = new ModelSnapshot.Builder(jobId).setMinVersion(MlConfigVersion.CURRENT).setSnapshotId("snap_1").build();
         indexModelSnapshot(snapshot);
 
         ElasticsearchStatusException ex = expectThrows(
@@ -112,7 +113,7 @@ public class JobModelSnapshotCRUDIT extends MlSingleNodeTestCase {
         String jobId = "update-job-model-snapshot";
         createJob(jobId);
         Date timestamp = new Date();
-        ModelSnapshot snapshot = new ModelSnapshot.Builder(jobId).setMinVersion(Version.CURRENT)
+        ModelSnapshot snapshot = new ModelSnapshot.Builder(jobId).setMinVersion(MlConfigVersion.CURRENT)
             .setTimestamp(timestamp)
             .setSnapshotId("snap_1")
             .build();
@@ -137,7 +138,7 @@ public class JobModelSnapshotCRUDIT extends MlSingleNodeTestCase {
     public void testDeleteUnusedModelSnapshot() {
         String jobId = "delete-job-model-snapshot-unused";
         createJob(jobId);
-        ModelSnapshot snapshot = new ModelSnapshot.Builder(jobId).setMinVersion(Version.CURRENT).setSnapshotId("snap_1").build();
+        ModelSnapshot snapshot = new ModelSnapshot.Builder(jobId).setMinVersion(MlConfigVersion.CURRENT).setSnapshotId("snap_1").build();
         indexModelSnapshot(snapshot);
         GetModelSnapshotsAction.Response getResponse = client().execute(
             GetModelSnapshotsAction.INSTANCE,
@@ -155,7 +156,7 @@ public class JobModelSnapshotCRUDIT extends MlSingleNodeTestCase {
         String jobId = "delete-job-model-snapshot-used";
         Date timestamp = new Date();
         createJob(jobId);
-        ModelSnapshot snapshot = new ModelSnapshot.Builder(jobId).setMinVersion(Version.CURRENT)
+        ModelSnapshot snapshot = new ModelSnapshot.Builder(jobId).setMinVersion(MlConfigVersion.CURRENT)
             .setSnapshotId("snap_1")
             .setQuantiles(new Quantiles(jobId, timestamp, "quantiles-1"))
             .setSnapshotDocCount(1)

@@ -1,20 +1,23 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.lucene.grouping;
 
 import org.apache.lucene.search.FieldComparator;
 import org.apache.lucene.search.FieldDoc;
+import org.apache.lucene.search.Pruning;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.TopFieldDocs;
 import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.util.PriorityQueue;
+import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.util.CollectionUtils;
 
 import java.util.ArrayList;
@@ -121,7 +124,7 @@ public final class TopFieldGroups extends TopFieldDocs {
             reverseMul = new int[sortFields.length];
             for (int compIDX = 0; compIDX < sortFields.length; compIDX++) {
                 final SortField sortField = sortFields[compIDX];
-                comparators[compIDX] = sortField.getComparator(1, false);
+                comparators[compIDX] = sortField.getComparator(1, Pruning.NONE);
                 reverseMul[compIDX] = sortField.getReverse() ? -1 : 1;
             }
         }
@@ -167,10 +170,10 @@ public final class TopFieldGroups extends TopFieldDocs {
             final TopFieldGroups shard = shardHits[shardIDX];
             // totalHits can be non-zero even if no hits were
             // collected, when searchAfter was used:
-            totalHitCount += shard.totalHits.value;
+            totalHitCount += shard.totalHits.value();
             // If any hit count is a lower bound then the merged
             // total hit count is a lower bound as well
-            if (shard.totalHits.relation == TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO) {
+            if (shard.totalHits.relation() == TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO) {
                 totalHitsRelation = TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO;
             }
             if (CollectionUtils.isEmpty(shard.scoreDocs) == false) {
@@ -224,7 +227,7 @@ public final class TopFieldGroups extends TopFieldDocs {
                     queue.pop();
                 }
             }
-            hits = hitList.toArray(new ScoreDoc[0]);
+            hits = hitList.toArray(Lucene.EMPTY_SCORE_DOCS);
             values = groupList.toArray(new Object[0]);
         }
         TotalHits totalHits = new TotalHits(totalHitCount, totalHitsRelation);

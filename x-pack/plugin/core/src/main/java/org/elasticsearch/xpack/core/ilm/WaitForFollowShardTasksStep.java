@@ -8,8 +8,8 @@ package org.elasticsearch.xpack.core.ilm;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
@@ -22,8 +22,6 @@ import org.elasticsearch.xpack.core.ccr.action.FollowStatsAction;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.core.ilm.UnfollowAction.CCR_METADATA_KEY;
 
@@ -41,8 +39,8 @@ final class WaitForFollowShardTasksStep extends AsyncWaitStep {
     }
 
     @Override
-    public void evaluateCondition(Metadata metadata, Index index, Listener listener, TimeValue masterTimeout) {
-        IndexMetadata indexMetadata = metadata.index(index);
+    public void evaluateCondition(ProjectState state, Index index, Listener listener, TimeValue masterTimeout) {
+        IndexMetadata indexMetadata = state.metadata().index(index);
         Map<String, String> customIndexMetadata = indexMetadata.getCustomData(CCR_METADATA_KEY);
         if (customIndexMetadata == null) {
             listener.onResponse(true, null);
@@ -51,7 +49,7 @@ final class WaitForFollowShardTasksStep extends AsyncWaitStep {
 
         FollowStatsAction.StatsRequest request = new FollowStatsAction.StatsRequest();
         request.setIndices(new String[] { index.getName() });
-        getClient().execute(
+        getClient(state.projectId()).execute(
             FollowStatsAction.INSTANCE,
             request,
             ActionListener.wrap(r -> handleResponse(r, listener), listener::onFailure)
@@ -63,41 +61,31 @@ final class WaitForFollowShardTasksStep extends AsyncWaitStep {
             .stream()
             .map(FollowStatsAction.StatsResponse::status)
             .filter(shardFollowStatus -> shardFollowStatus.leaderGlobalCheckpoint() != shardFollowStatus.followerGlobalCheckpoint())
-            .collect(Collectors.toList());
+            .toList();
 
         // Follow stats api needs to return stats for follower index and all shard follow tasks should be synced:
         boolean conditionMet = responses.getStatsResponses().size() > 0 && unSyncedShardFollowStatuses.isEmpty();
         if (conditionMet) {
             listener.onResponse(true, null);
         } else {
-            List<Info.ShardFollowTaskInfo> shardFollowTaskInfos = unSyncedShardFollowStatuses.stream()
+            List<ShardFollowTaskInfo> shardFollowTaskInfos = unSyncedShardFollowStatuses.stream()
                 .map(
-                    status -> new Info.ShardFollowTaskInfo(
+                    status -> new ShardFollowTaskInfo(
                         status.followerIndex(),
                         status.getShardId(),
                         status.leaderGlobalCheckpoint(),
                         status.followerGlobalCheckpoint()
                     )
                 )
-                .collect(Collectors.toList());
+                .toList();
             listener.onResponse(false, new Info(shardFollowTaskInfos));
         }
     }
 
-    static final class Info implements ToXContentObject {
+    record Info(List<ShardFollowTaskInfo> shardFollowTaskInfos) implements ToXContentObject {
 
         static final ParseField SHARD_FOLLOW_TASKS = new ParseField("shard_follow_tasks");
         static final ParseField MESSAGE = new ParseField("message");
-
-        private final List<ShardFollowTaskInfo> shardFollowTaskInfos;
-
-        Info(List<ShardFollowTaskInfo> shardFollowTaskInfos) {
-            this.shardFollowTaskInfos = shardFollowTaskInfos;
-        }
-
-        List<ShardFollowTaskInfo> getShardFollowTaskInfos() {
-            return shardFollowTaskInfos;
-        }
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
@@ -115,84 +103,29 @@ final class WaitForFollowShardTasksStep extends AsyncWaitStep {
         }
 
         @Override
-        public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            Info info = (Info) o;
-            return Objects.equals(shardFollowTaskInfos, info.shardFollowTaskInfos);
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(shardFollowTaskInfos);
-        }
-
-        @Override
         public String toString() {
             return Strings.toString(this);
         }
+    }
 
-        static final class ShardFollowTaskInfo implements ToXContentObject {
+    record ShardFollowTaskInfo(String followerIndex, int shardId, long leaderGlobalCheckpoint, long followerGlobalCheckpoint)
+        implements
+            ToXContentObject {
 
-            static final ParseField FOLLOWER_INDEX_FIELD = new ParseField("follower_index");
-            static final ParseField SHARD_ID_FIELD = new ParseField("shard_id");
-            static final ParseField LEADER_GLOBAL_CHECKPOINT_FIELD = new ParseField("leader_global_checkpoint");
-            static final ParseField FOLLOWER_GLOBAL_CHECKPOINT_FIELD = new ParseField("follower_global_checkpoint");
+        static final ParseField FOLLOWER_INDEX_FIELD = new ParseField("follower_index");
+        static final ParseField SHARD_ID_FIELD = new ParseField("shard_id");
+        static final ParseField LEADER_GLOBAL_CHECKPOINT_FIELD = new ParseField("leader_global_checkpoint");
+        static final ParseField FOLLOWER_GLOBAL_CHECKPOINT_FIELD = new ParseField("follower_global_checkpoint");
 
-            private final String followerIndex;
-            private final int shardId;
-            private final long leaderGlobalCheckpoint;
-            private final long followerGlobalCheckpoint;
-
-            ShardFollowTaskInfo(String followerIndex, int shardId, long leaderGlobalCheckpoint, long followerGlobalCheckpoint) {
-                this.followerIndex = followerIndex;
-                this.shardId = shardId;
-                this.leaderGlobalCheckpoint = leaderGlobalCheckpoint;
-                this.followerGlobalCheckpoint = followerGlobalCheckpoint;
-            }
-
-            String getFollowerIndex() {
-                return followerIndex;
-            }
-
-            int getShardId() {
-                return shardId;
-            }
-
-            long getLeaderGlobalCheckpoint() {
-                return leaderGlobalCheckpoint;
-            }
-
-            long getFollowerGlobalCheckpoint() {
-                return followerGlobalCheckpoint;
-            }
-
-            @Override
-            public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-                builder.startObject();
-                builder.field(FOLLOWER_INDEX_FIELD.getPreferredName(), followerIndex);
-                builder.field(SHARD_ID_FIELD.getPreferredName(), shardId);
-                builder.field(LEADER_GLOBAL_CHECKPOINT_FIELD.getPreferredName(), leaderGlobalCheckpoint);
-                builder.field(FOLLOWER_GLOBAL_CHECKPOINT_FIELD.getPreferredName(), followerGlobalCheckpoint);
-                builder.endObject();
-                return builder;
-            }
-
-            @Override
-            public boolean equals(Object o) {
-                if (this == o) return true;
-                if (o == null || getClass() != o.getClass()) return false;
-                ShardFollowTaskInfo that = (ShardFollowTaskInfo) o;
-                return shardId == that.shardId
-                    && leaderGlobalCheckpoint == that.leaderGlobalCheckpoint
-                    && followerGlobalCheckpoint == that.followerGlobalCheckpoint
-                    && Objects.equals(followerIndex, that.followerIndex);
-            }
-
-            @Override
-            public int hashCode() {
-                return Objects.hash(followerIndex, shardId, leaderGlobalCheckpoint, followerGlobalCheckpoint);
-            }
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject();
+            builder.field(FOLLOWER_INDEX_FIELD.getPreferredName(), followerIndex);
+            builder.field(SHARD_ID_FIELD.getPreferredName(), shardId);
+            builder.field(LEADER_GLOBAL_CHECKPOINT_FIELD.getPreferredName(), leaderGlobalCheckpoint);
+            builder.field(FOLLOWER_GLOBAL_CHECKPOINT_FIELD.getPreferredName(), followerGlobalCheckpoint);
+            builder.endObject();
+            return builder;
         }
     }
 }

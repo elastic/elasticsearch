@@ -1,32 +1,32 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.ingest;
 
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.ingest.PipelineConfiguration;
-import org.elasticsearch.test.AbstractXContentSerializingTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-public class GetPipelineResponseTests extends AbstractXContentSerializingTestCase<GetPipelineResponse> {
+import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
+
+public class GetPipelineResponseTests extends ESTestCase {
 
     private XContentBuilder getRandomXContentBuilder() throws IOException {
         XContentType xContentType = randomFrom(XContentType.values());
@@ -62,48 +62,42 @@ public class GetPipelineResponseTests extends AbstractXContentSerializingTestCas
         Map<String, PipelineConfiguration> pipelinesMap = createPipelineConfigMap();
         GetPipelineResponse response = new GetPipelineResponse(new ArrayList<>(pipelinesMap.values()));
         XContentBuilder builder = response.toXContent(getRandomXContentBuilder(), ToXContent.EMPTY_PARAMS);
-        XContentParser parser = builder.generator()
-            .contentType()
-            .xContent()
-            .createParser(xContentRegistry(), LoggingDeprecationHandler.INSTANCE, BytesReference.bytes(builder).streamInput());
-        GetPipelineResponse parsedResponse = GetPipelineResponse.fromXContent(parser);
+        GetPipelineResponse parsedResponse;
+        try (
+            XContentParser parser = builder.generator()
+                .contentType()
+                .xContent()
+                .createParser(xContentRegistry(), LoggingDeprecationHandler.INSTANCE, BytesReference.bytes(builder).streamInput())
+        ) {
+            parsedResponse = doParseInstance(parser);
+        }
         List<PipelineConfiguration> actualPipelines = response.pipelines();
         List<PipelineConfiguration> parsedPipelines = parsedResponse.pipelines();
         assertEquals(actualPipelines.size(), parsedPipelines.size());
         for (PipelineConfiguration pipeline : parsedPipelines) {
             assertTrue(pipelinesMap.containsKey(pipeline.getId()));
-            assertEquals(pipelinesMap.get(pipeline.getId()).getConfigAsMap(), pipeline.getConfigAsMap());
+            assertEquals(pipelinesMap.get(pipeline.getId()).getConfig(), pipeline.getConfig());
         }
     }
 
-    @Override
     protected GetPipelineResponse doParseInstance(XContentParser parser) throws IOException {
-        return GetPipelineResponse.fromXContent(parser);
-    }
-
-    @Override
-    protected GetPipelineResponse createTestInstance() {
-        try {
-            return new GetPipelineResponse(new ArrayList<>(createPipelineConfigMap().values()));
-        } catch (IOException e) {
-            throw new UncheckedIOException(e);
+        ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser);
+        List<PipelineConfiguration> pipelines = new ArrayList<>();
+        while (parser.nextToken().equals(XContentParser.Token.FIELD_NAME)) {
+            String pipelineId = parser.currentName();
+            parser.nextToken();
+            try (XContentBuilder contentBuilder = XContentBuilder.builder(parser.contentType().xContent())) {
+                contentBuilder.generator().copyCurrentStructure(parser);
+                PipelineConfiguration pipeline = new PipelineConfiguration(
+                    pipelineId,
+                    BytesReference.bytes(contentBuilder),
+                    contentBuilder.contentType()
+                );
+                pipelines.add(pipeline);
+            }
         }
+        ensureExpectedToken(XContentParser.Token.END_OBJECT, parser.currentToken(), parser);
+        return new GetPipelineResponse(pipelines);
     }
 
-    @Override
-    protected Writeable.Reader<GetPipelineResponse> instanceReader() {
-        return GetPipelineResponse::new;
-    }
-
-    @Override
-    protected boolean supportsUnknownFields() {
-        return false;
-    }
-
-    @Override
-    protected GetPipelineResponse mutateInstance(GetPipelineResponse response) throws IOException {
-        return new GetPipelineResponse(
-            CollectionUtils.appendToCopy(response.pipelines(), createRandomPipeline("pipeline_" + response.pipelines().size() + 1))
-        );
-    }
 }

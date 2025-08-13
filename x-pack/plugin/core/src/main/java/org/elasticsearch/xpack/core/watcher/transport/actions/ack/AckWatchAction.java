@@ -17,6 +17,6 @@ public class AckWatchAction extends ActionType<AckWatchResponse> {
     public static final String NAME = "cluster:admin/xpack/watcher/watch/ack";
 
     private AckWatchAction() {
-        super(NAME, AckWatchResponse::new);
+        super(NAME);
     }
 }

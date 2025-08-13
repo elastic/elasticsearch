@@ -1,12 +1,12 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-import org.elasticsearch.gradle.internal.info.BuildParams
 import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask
 
 apply plugin: 'elasticsearch.internal-testclusters'
@@ -15,11 +15,7 @@ apply plugin: 'elasticsearch.internal-test-artifact'
 
 apply plugin: 'elasticsearch.bwc-test'
 
-dependencies {
-  testImplementation project(':client:rest-high-level')
-}
-
-BuildParams.bwcVersions.withIndexCompatible { bwcVersion, baseName ->
+buildParams.bwcVersions.withIndexCompatible { bwcVersion, baseName ->
   String oldClusterName = "${baseName}-old"
   String newClusterName = "${baseName}-new"
 
@@ -29,6 +25,11 @@ BuildParams.bwcVersions.withIndexCompatible { bwcVersion, baseName ->
       numberOfNodes = 2
       setting 'path.repo', "${buildDir}/cluster/shared/repo/${baseName}"
       setting 'xpack.security.enabled', 'false'
+      if (v.equals('8.10.0') || v.equals('8.10.1') || v.equals('8.10.2')  || v.equals('8.10.3')) {
+        // 8.10.x versions contain a bogus assertion that trips when reading repositories touched by newer versions
+        // see https://github.com/elastic/elasticsearch/issues/98454 for details
+        jvmArgs '-da'
+      }
     }
   }
 

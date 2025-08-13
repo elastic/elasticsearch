@@ -8,8 +8,8 @@
 package org.elasticsearch.xpack.security.authz.interceptor;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -82,7 +82,7 @@ public class SearchRequestCacheDisablingInterceptorTests extends ESTestCase {
         RequestInfo requestInfo = new RequestInfo(
             Authentication.newAnonymousAuthentication(new AnonymousUser(Settings.EMPTY), randomAlphaOfLengthBetween(3, 8)),
             searchRequest,
-            SearchAction.NAME,
+            TransportSearchAction.TYPE.name(),
             null
         );
 
@@ -91,7 +91,7 @@ public class SearchRequestCacheDisablingInterceptorTests extends ESTestCase {
             0,
             3,
             String[]::new,
-            () -> randomAlphaOfLengthBetween(0, 5) + ":" + randomAlphaOfLengthBetween(3, 8)
+            () -> randomAlphaOfLengthBetween(1, 5) + ":" + randomAlphaOfLengthBetween(3, 8)
         );
         final ArrayList<String> allIndices = Arrays.stream(ArrayUtils.concat(localIndices, remoteIndices))
             .collect(Collectors.toCollection(ArrayList::new));
@@ -103,7 +103,7 @@ public class SearchRequestCacheDisablingInterceptorTests extends ESTestCase {
         threadPool.getThreadContext().putTransient(AuthorizationServiceField.INDICES_PERMISSIONS_KEY, indicesAccessControl);
 
         final PlainActionFuture<Void> future = new PlainActionFuture<>();
-        interceptor.intercept(requestInfo, mock(AuthorizationEngine.class), mock(AuthorizationInfo.class), future);
+        interceptor.intercept(requestInfo, mock(AuthorizationEngine.class), mock(AuthorizationInfo.class)).addListener(future);
         future.actionGet();
 
         if (remoteIndices.length > 0) {
@@ -121,7 +121,7 @@ public class SearchRequestCacheDisablingInterceptorTests extends ESTestCase {
             0,
             3,
             String[]::new,
-            () -> randomAlphaOfLengthBetween(0, 5) + ":" + randomAlphaOfLengthBetween(3, 8)
+            () -> randomAlphaOfLengthBetween(1, 5) + ":" + randomAlphaOfLengthBetween(3, 8)
         );
         final ArrayList<String> allIndices = Arrays.stream(ArrayUtils.concat(localIndices, remoteIndices))
             .collect(Collectors.toCollection(ArrayList::new));

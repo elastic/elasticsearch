@@ -101,7 +101,7 @@ public class FieldSelection implements ToXContentObject, Writeable {
 
     public FieldSelection(StreamInput in) throws IOException {
         this.name = in.readString();
-        this.mappingTypes = Collections.unmodifiableSet(in.readSet(StreamInput::readString));
+        this.mappingTypes = in.readCollectionAsImmutableSet(StreamInput::readString);
         this.isIncluded = in.readBoolean();
         this.isRequired = in.readBoolean();
         boolean hasFeatureType = in.readBoolean();
@@ -118,7 +118,7 @@ public class FieldSelection implements ToXContentObject, Writeable {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(name);
-        out.writeCollection(mappingTypes, StreamOutput::writeString);
+        out.writeStringCollection(mappingTypes);
         out.writeBoolean(isIncluded);
         out.writeBoolean(isRequired);
 

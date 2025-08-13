@@ -1,31 +1,46 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.gradle.internal.test
 
-import org.apache.tools.ant.taskdefs.condition.Os
+import org.elasticsearch.gradle.OS
+
 import org.elasticsearch.gradle.internal.AntFixtureStop
 import org.elasticsearch.gradle.internal.AntTask
-import org.elasticsearch.gradle.internal.test.Fixture
+import org.elasticsearch.gradle.testclusters.TestClusterInfo
+import org.elasticsearch.gradle.testclusters.TestClusterValueSource
+import org.elasticsearch.gradle.testclusters.TestClustersRegistry
 import org.gradle.api.GradleException
+import org.gradle.api.file.ProjectLayout
+import org.gradle.api.provider.Property
+import org.gradle.api.provider.Provider
+import org.gradle.api.provider.ProviderFactory
+import org.gradle.api.provider.ValueSource
+import org.gradle.api.provider.ValueSourceParameters
+import org.gradle.api.tasks.Input
 import org.gradle.api.tasks.Internal
 import org.gradle.api.tasks.TaskProvider
+
+import javax.inject.Inject
 
 /**
  * A fixture for integration tests which runs in a separate process launched by Ant.
  */
-class AntFixture extends AntTask implements Fixture {
+class AntFixture extends AntTask {
 
     /** The path to the executable that starts the fixture. */
     @Internal
     String executable
 
     private final List<Object> arguments = new ArrayList<>()
+    private ProjectLayout projectLayout
+    private final ProviderFactory providerFactory
 
     void args(Object... args) {
         arguments.addAll(args)
@@ -69,17 +84,12 @@ class AntFixture extends AntTask implements Fixture {
         return tmpFile.exists()
     }
 
-    private final TaskProvider<AntFixtureStop> stopTask
-
-    AntFixture() {
-        stopTask = createStopTask()
+    @Inject
+    AntFixture(ProjectLayout projectLayout, ProviderFactory providerFactory) {
+        this.providerFactory = providerFactory
+        this.projectLayout = projectLayout;
+        TaskProvider<AntFixtureStop> stopTask = createStopTask()
         finalizedBy(stopTask)
-    }
-
-    @Override
-    @Internal
-    TaskProvider<AntFixtureStop> getStopTask() {
-        return stopTask
     }
 
     @Override
@@ -95,7 +105,7 @@ class AntFixture extends AntTask implements Fixture {
         // We need to choose which executable we are using. In shell mode, or when we
         // are spawning and thus using the wrapper script, the executable is the shell.
         if (useShell || spawn) {
-            if (Os.isFamily(Os.FAMILY_WINDOWS)) {
+            if (OS.current() == OS.WINDOWS) {
                 realExecutable = 'cmd'
                 realArgs.add('/C')
                 realArgs.add('"') // quote the entire command
@@ -111,7 +121,7 @@ class AntFixture extends AntTask implements Fixture {
             realArgs.add(wrapperScript)
             realArgs.addAll(arguments)
         }
-        if (Os.isFamily(Os.FAMILY_WINDOWS) && (useShell || spawn)) {
+        if (OS.current() == OS.WINDOWS && (useShell || spawn)) {
             realArgs.add('"')
         }
         commandString.eachLine { line -> logger.info(line) }
@@ -183,7 +193,7 @@ class AntFixture extends AntTask implements Fixture {
         wrapperScript.parentFile.mkdirs()
         String argsPasser = '"$@"'
         String exitMarker = "; if [ \$? != 0 ]; then touch run.failed; fi"
-        if (Os.isFamily(Os.FAMILY_WINDOWS)) {
+        if (OS.current() == OS.WINDOWS) {
             argsPasser = '%*'
             exitMarker = "\r\n if \"%errorlevel%\" neq \"0\" ( type nul >> run.failed )"
         }
@@ -231,7 +241,7 @@ class AntFixture extends AntTask implements Fixture {
      */
     @Internal
     protected File getBaseDir() {
-        return new File(project.buildDir, "fixtures/${name}")
+        return new File(projectLayout.getBuildDirectory().getAsFile().get(), "fixtures/${name}")
     }
 
     /** Returns the working directory for the process. Defaults to "cwd" inside baseDir. */
@@ -242,7 +252,7 @@ class AntFixture extends AntTask implements Fixture {
 
     /** Returns the file the process writes its pid to. Defaults to "pid" inside baseDir. */
     @Internal
-    protected File getPidFile() {
+    File getPidFile() {
         return new File(baseDir, 'pid')
     }
 
@@ -264,10 +274,16 @@ class AntFixture extends AntTask implements Fixture {
         return portsFile.readLines("UTF-8").get(0)
     }
 
+    @Internal
+    Provider<String> getAddressAndPortProvider() {
+        File thePortFile = portsFile
+        return providerFactory.provider(() -> thePortFile.readLines("UTF-8").get(0))
+    }
+
     /** Returns a file that wraps around the actual command when {@code spawn == true}. */
     @Internal
     protected File getWrapperScript() {
-        return new File(cwd, Os.isFamily(Os.FAMILY_WINDOWS) ? 'run.bat' : 'run')
+        return new File(cwd, (OS.current() == OS.WINDOWS) ? 'run.bat' : 'run')
     }
 
     /** Returns a file that the wrapper script writes when the command failed. */
@@ -280,5 +296,23 @@ class AntFixture extends AntTask implements Fixture {
     @Internal
     protected File getRunLog() {
         return new File(cwd, 'run.log')
+    }
+
+    @Internal
+    Provider<AntFixtureValueSource> getAddressAndPortSource() {
+        return providerFactory.of(AntFixtureValueSource.class, spec -> {
+            spec.getParameters().getPortFile().set(portsFile);
+        });
+    }
+
+    static abstract class AntFixtureValueSource implements ValueSource<String, AntFixtureValueSource.Parameters> {
+        @Override
+        String obtain() {
+            return getParameters().getPortFile().map { it.readLines("UTF-8").get(0) }.get()
+        }
+
+        interface Parameters extends ValueSourceParameters {
+            Property<File> getPortFile();
+        }
     }
 }

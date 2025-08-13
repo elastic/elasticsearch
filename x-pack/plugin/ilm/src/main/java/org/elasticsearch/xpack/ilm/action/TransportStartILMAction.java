@@ -15,19 +15,22 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ilm.OperationMode;
+import org.elasticsearch.xpack.core.ilm.OperationModeUpdateTask;
 import org.elasticsearch.xpack.core.ilm.StartILMRequest;
-import org.elasticsearch.xpack.core.ilm.action.StartILMAction;
-import org.elasticsearch.xpack.ilm.OperationModeUpdateTask;
+import org.elasticsearch.xpack.core.ilm.action.ILMActions;
 
 public class TransportStartILMAction extends AcknowledgedTransportMasterNodeAction<StartILMRequest> {
+
+    private final ProjectResolver projectResolver;
 
     @Inject
     public TransportStartILMAction(
@@ -35,25 +38,26 @@ public class TransportStartILMAction extends AcknowledgedTransportMasterNodeActi
         ClusterService clusterService,
         ThreadPool threadPool,
         ActionFilters actionFilters,
-        IndexNameExpressionResolver indexNameExpressionResolver
+        ProjectResolver projectResolver
     ) {
         super(
-            StartILMAction.NAME,
+            ILMActions.START.name(),
             transportService,
             clusterService,
             threadPool,
             actionFilters,
             StartILMRequest::new,
-            indexNameExpressionResolver,
-            ThreadPool.Names.SAME
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
+        this.projectResolver = projectResolver;
     }
 
     @Override
     protected void masterOperation(Task task, StartILMRequest request, ClusterState state, ActionListener<AcknowledgedResponse> listener) {
+        final var projectId = projectResolver.getProjectId();
         submitUnbatchedTask(
             "ilm_operation_mode_update[running]",
-            OperationModeUpdateTask.wrap(OperationModeUpdateTask.ilmMode(OperationMode.RUNNING), request, listener)
+            OperationModeUpdateTask.wrap(OperationModeUpdateTask.ilmMode(projectId, OperationMode.RUNNING), request, listener)
         );
     }
 

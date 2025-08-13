@@ -1,27 +1,31 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.analysis.TokenStream;
+import org.apache.lucene.index.FieldInfos;
 import org.apache.lucene.queries.spans.SpanMultiTermQueryWrapper;
 import org.apache.lucene.queries.spans.SpanQuery;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.common.unit.Fuzziness;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.script.CompositeFieldScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
+import org.elasticsearch.search.fetch.StoredFieldsSpec;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -39,13 +43,13 @@ import static org.elasticsearch.search.SearchService.ALLOW_EXPENSIVE_QUERIES;
 /**
  * Abstract base {@linkplain MappedFieldType} for runtime fields based on a script.
  */
-abstract class AbstractScriptFieldType<LeafFactory> extends MappedFieldType {
+public abstract class AbstractScriptFieldType<LeafFactory> extends MappedFieldType {
 
     protected final Script script;
     private final Function<SearchLookup, LeafFactory> factory;
     private final boolean isResultDeterministic;
 
-    AbstractScriptFieldType(
+    protected AbstractScriptFieldType(
         String name,
         Function<SearchLookup, LeafFactory> factory,
         Script script,
@@ -103,7 +107,8 @@ abstract class AbstractScriptFieldType<LeafFactory> extends MappedFieldType {
         int prefixLength,
         int maxExpansions,
         boolean transpositions,
-        SearchExecutionContext context
+        SearchExecutionContext context,
+        @Nullable MultiTermQuery.RewriteMethod rewriteMethod
     ) {
         throw new IllegalArgumentException(unsupported("fuzzy", "keyword and text"));
     }
@@ -174,7 +179,11 @@ abstract class AbstractScriptFieldType<LeafFactory> extends MappedFieldType {
 
     @Override
     public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
-        return new DocValueFetcher(docValueFormat(format, null), context.getForField(this, FielddataOperation.SEARCH));
+        return new DocValueFetcher(
+            docValueFormat(format, null),
+            context.getForField(this, FielddataOperation.SEARCH),
+            StoredFieldsSpec.NEEDS_SOURCE       // for now we assume runtime fields need source
+        );
     }
 
     /**
@@ -197,9 +206,11 @@ abstract class AbstractScriptFieldType<LeafFactory> extends MappedFieldType {
     }
 
     @Override
-    public void validateMatchedRoutingPath() {
+    public void validateMatchedRoutingPath(final String routingPath) {
         throw new IllegalArgumentException(
-            "All fields that match routing_path must be keywords with [time_series_dimension: true] "
+            "All fields that match routing_path "
+                + "must be configured with [time_series_dimension: true] "
+                + "or flattened fields with a list of dimensions in [time_series_dimensions] "
                 + "and without the [script] parameter. ["
                 + name()
                 + "] was a runtime ["
@@ -208,11 +219,19 @@ abstract class AbstractScriptFieldType<LeafFactory> extends MappedFieldType {
         );
     }
 
+    @Override
+    public final boolean fieldHasValue(FieldInfos fieldInfos) {
+        // To know whether script field types have value we would need to run the script,
+        // this because script fields do not have footprint in Lucene. Since running the
+        // script would be too expensive for _field_caps we consider them as always non-empty.
+        return true;
+    }
+
     // Placeholder Script for source-only fields
     // TODO rework things so that we don't need this
     protected static final Script DEFAULT_SCRIPT = new Script("");
 
-    abstract static class Builder<Factory> extends RuntimeField.Builder {
+    protected abstract static class Builder<Factory> extends RuntimeField.Builder {
         private final ScriptContext<Factory> scriptContext;
 
         private final FieldMapper.Parameter<Script> script = new FieldMapper.Parameter<>(
@@ -226,18 +245,18 @@ abstract class AbstractScriptFieldType<LeafFactory> extends MappedFieldType {
         ).setSerializerCheck((id, ic, v) -> ic);
 
         private final FieldMapper.Parameter<OnScriptError> onScriptError = FieldMapper.Parameter.onScriptErrorParam(
-            m -> m.onScriptError,
+            m -> m.builderParams.onScriptError(),
             script
         );
 
-        Builder(String name, ScriptContext<Factory> scriptContext) {
+        protected Builder(String name, ScriptContext<Factory> scriptContext) {
             super(name);
             this.scriptContext = scriptContext;
         }
 
-        abstract Factory getParseFromSourceFactory();
+        protected abstract Factory getParseFromSourceFactory();
 
-        abstract Factory getCompositeLeafFactory(Function<SearchLookup, CompositeFieldScript.LeafFactory> parentScriptFactory);
+        protected abstract Factory getCompositeLeafFactory(Function<SearchLookup, CompositeFieldScript.LeafFactory> parentScriptFactory);
 
         @Override
         protected final RuntimeField createRuntimeField(MappingParserContext parserContext) {
@@ -269,15 +288,15 @@ abstract class AbstractScriptFieldType<LeafFactory> extends MappedFieldType {
         }
 
         final RuntimeField createRuntimeField(Factory scriptFactory) {
-            return createRuntimeField(scriptFactory, Version.CURRENT);
+            return createRuntimeField(scriptFactory, IndexVersion.current());
         }
 
-        final RuntimeField createRuntimeField(Factory scriptFactory, Version indexVersion) {
+        final RuntimeField createRuntimeField(Factory scriptFactory, IndexVersion indexVersion) {
             var fieldType = createFieldType(name, scriptFactory, getScript(), meta(), indexVersion, onScriptError.get());
             return new LeafRuntimeField(name, fieldType, getParameters());
         }
 
-        abstract AbstractScriptFieldType<?> createFieldType(
+        protected abstract AbstractScriptFieldType<?> createFieldType(
             String name,
             Factory factory,
             Script script,
@@ -285,12 +304,12 @@ abstract class AbstractScriptFieldType<LeafFactory> extends MappedFieldType {
             OnScriptError onScriptError
         );
 
-        AbstractScriptFieldType<?> createFieldType(
+        protected AbstractScriptFieldType<?> createFieldType(
             String name,
             Factory factory,
             Script script,
             Map<String, String> meta,
-            Version supportedVersion,
+            IndexVersion supportedVersion,
             OnScriptError onScriptError
         ) {
             return createFieldType(name, factory, script, meta, onScriptError);

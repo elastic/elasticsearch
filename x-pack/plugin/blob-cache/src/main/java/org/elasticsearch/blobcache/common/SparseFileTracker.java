@@ -7,9 +7,9 @@
 
 package org.elasticsearch.blobcache.common;
 
-import org.elasticsearch.Assertions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.RefCountingListener;
+import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.Nullable;
 
 import java.util.ArrayList;
@@ -18,21 +18,27 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.SortedSet;
 import java.util.TreeSet;
-import java.util.stream.Collectors;
+import java.util.function.LongConsumer;
 
 /**
  * Keeps track of the contents of a file that may not be completely present.
  */
 public class SparseFileTracker {
 
+    private static final Comparator<Range> RANGE_START_COMPARATOR = Comparator.comparingLong(r -> r.start);
+
     /**
      * The byte ranges of the file which are present or pending. These ranges are nonempty, disjoint (and in order) and the non-pending
      * ranges are not contiguous (i.e. contiguous non-pending ranges are merged together). See {@link SparseFileTracker#invariant()} for
      * details.
      */
-    private final TreeSet<Range> ranges = new TreeSet<>(Comparator.comparingLong(r -> r.start));
+    private final TreeSet<Range> ranges = new TreeSet<>(RANGE_START_COMPARATOR);
 
-    private final Object mutex = new Object();
+    /**
+     * Number of bytes from the start of the file that are present as one continuous range without gaps. Used as an optimization in
+     * {@link #waitForRange(ByteRange, ByteRange, ActionListener)} to bypass expensive inspection of {@link #ranges} in some cases.
+     */
+    private volatile long complete = 0L;
 
     private final String description;
 
@@ -67,30 +73,32 @@ public class SparseFileTracker {
         if (length < 0) {
             throw new IllegalArgumentException("Length [" + length + "] must be equal to or greater than 0 for [" + description + "]");
         }
+        this.initialLength = ranges.isEmpty() ? 0 : addInitialRanges(length, ranges);
+    }
+
+    private long addInitialRanges(long length, SortedSet<ByteRange> ranges) {
         long initialLength = 0;
-        if (ranges.isEmpty() == false) {
-            synchronized (mutex) {
-                Range previous = null;
-                for (ByteRange next : ranges) {
-                    if (next.length() == 0L) {
-                        throw new IllegalArgumentException("Range " + next + " cannot be empty");
-                    }
-                    if (length < next.end()) {
-                        throw new IllegalArgumentException("Range " + next + " is exceeding maximum length [" + length + ']');
-                    }
-                    final Range range = new Range(next);
-                    if (previous != null && range.start <= previous.end) {
-                        throw new IllegalArgumentException("Range " + range + " is overlapping a previous range " + previous);
-                    }
-                    final boolean added = this.ranges.add(range);
-                    assert added : range + " already exist in " + this.ranges;
-                    previous = range;
-                    initialLength += range.end - range.start;
+        synchronized (this.ranges) {
+            Range previous = null;
+            for (ByteRange next : ranges) {
+                if (next.isEmpty()) {
+                    throw new IllegalArgumentException("Range " + next + " cannot be empty");
                 }
-                assert invariant();
+                if (length < next.end()) {
+                    throw new IllegalArgumentException("Range " + next + " is exceeding maximum length [" + length + ']');
+                }
+                final Range range = new Range(next);
+                if (previous != null && range.start <= previous.end) {
+                    throw new IllegalArgumentException("Range " + range + " is overlapping a previous range " + previous);
+                }
+                final boolean added = this.ranges.add(range);
+                assert added : range + " already exist in " + this.ranges;
+                previous = range;
+                initialLength += range.end - range.start;
             }
+            assert invariant();
         }
-        this.initialLength = initialLength;
+        return initialLength;
     }
 
     public long getLength() {
@@ -99,7 +107,7 @@ public class SparseFileTracker {
 
     public SortedSet<ByteRange> getCompletedRanges() {
         SortedSet<ByteRange> completedRanges = null;
-        synchronized (mutex) {
+        synchronized (ranges) {
             assert invariant();
             for (Range range : ranges) {
                 if (range.isPending()) {
@@ -127,14 +135,15 @@ public class SparseFileTracker {
      * @return the sum of the length of the ranges
      */
     private long computeLengthOfRanges() {
-        assert Thread.holdsLock(mutex) : "sum of length of the ranges must be computed under mutex";
+        assert Thread.holdsLock(ranges) : "sum of length of the ranges must be computed under mutex";
         return ranges.stream().mapToLong(range -> range.end - range.start).sum();
     }
 
     /**
-     * Called before reading a range from the file to ensure that this range is present. Returns a list of gaps for the caller to fill. The
-     * range from the file is defined by {@code range} but the listener is executed as soon as a (potentially smaller) sub range
-     * {@code subRange} becomes available.
+     * Called before reading a range from the file to ensure that this range is present. Returns a list of gaps for the caller to fill,
+     * unless the {@code subRange} is already present in which case the listener is executed immediately without returning gaps. The range
+     * from the file is defined by {@code range} but the listener is executed as soon as a (potentially smaller) sub range {@code subRange}
+     * becomes available.
      *
      * @param range    A ByteRange that contains the (inclusive) start and (exclusive) end of the desired range
      * @param subRange A ByteRange that contains the (inclusive) start and (exclusive) end of the listener's range
@@ -166,44 +175,38 @@ public class SparseFileTracker {
             );
         }
 
+        if (subRange.end() <= complete) {
+            listener.onResponse(null);
+            return List.of();
+        }
+        return doWaitForRange(range, subRange, listener);
+    }
+
+    private List<Gap> doWaitForRange(ByteRange range, ByteRange subRange, ActionListener<Void> listener) {
         final ActionListener<Void> wrappedListener = wrapWithAssertions(listener);
-        final List<Range> requiredRanges;
 
         final List<Gap> gaps = new ArrayList<>();
-        synchronized (mutex) {
-            assert invariant();
-
-            final List<Range> pendingRanges = new ArrayList<>();
-
-            final Range targetRange = new Range(range);
-            final SortedSet<Range> earlierRanges = ranges.headSet(targetRange, false); // ranges with strictly earlier starts
-            if (earlierRanges.isEmpty() == false) {
-                final Range lastEarlierRange = earlierRanges.last();
-                if (range.start() < lastEarlierRange.end) {
-                    if (lastEarlierRange.isPending()) {
-                        pendingRanges.add(lastEarlierRange);
-                    }
-                    targetRange.start = Math.min(range.end(), lastEarlierRange.end);
-                }
-            }
+        final List<Range> pendingRanges = new ArrayList<>();
+        final Range targetRange = new Range(range);
+        synchronized (ranges) {
+            determineStartingRange(range, pendingRanges, targetRange);
 
             while (targetRange.start < range.end()) {
                 assert 0 <= targetRange.start : targetRange;
                 assert invariant();
 
-                final SortedSet<Range> existingRanges = ranges.tailSet(targetRange);
-                if (existingRanges.isEmpty()) {
+                final Range firstExistingRange = ranges.ceiling(targetRange);
+                if (firstExistingRange == null) {
                     final Range newPendingRange = new Range(
                         targetRange.start,
                         range.end(),
-                        new ProgressListenableActionFuture(targetRange.start, range.end())
+                        new ProgressListenableActionFuture(targetRange.start, range.end(), progressConsumer(targetRange.start))
                     );
                     ranges.add(newPendingRange);
                     pendingRanges.add(newPendingRange);
                     gaps.add(new Gap(newPendingRange));
                     targetRange.start = range.end();
                 } else {
-                    final Range firstExistingRange = existingRanges.first();
                     assert targetRange.start <= firstExistingRange.start : targetRange + " vs " + firstExistingRange;
 
                     if (targetRange.start == firstExistingRange.start) {
@@ -216,7 +219,7 @@ public class SparseFileTracker {
                         final Range newPendingRange = new Range(
                             targetRange.start,
                             newPendingRangeEnd,
-                            new ProgressListenableActionFuture(targetRange.start, newPendingRangeEnd)
+                            new ProgressListenableActionFuture(targetRange.start, newPendingRangeEnd, progressConsumer(targetRange.start))
                         );
                         ranges.add(newPendingRange);
                         pendingRanges.add(newPendingRange);
@@ -232,20 +235,44 @@ public class SparseFileTracker {
             assert ranges.containsAll(pendingRanges) : ranges + " vs " + pendingRanges;
             assert pendingRanges.stream().allMatch(Range::isPending) : pendingRanges;
             assert pendingRanges.size() != 1 || gaps.size() <= 1 : gaps;
-
-            // Pending ranges that needs to be filled before executing the listener
-            requiredRanges = range.equals(subRange)
-                ? pendingRanges
-                : pendingRanges.stream()
-                    .filter(pendingRange -> pendingRange.start < subRange.end())
-                    .filter(pendingRange -> subRange.start() < pendingRange.end)
-                    .sorted(Comparator.comparingLong(r -> r.start))
-                    .collect(Collectors.toList());
         }
 
-        subscribeToCompletionListeners(requiredRanges, subRange.end(), wrappedListener);
+        // Pending ranges that needs to be filled before executing the listener
+        if (range.equals(subRange) == false) {
+            pendingRanges.removeIf(pendingRange -> (pendingRange.start < subRange.end() && subRange.start() < pendingRange.end) == false);
+            pendingRanges.sort(RANGE_START_COMPARATOR);
+        }
+
+        subscribeToCompletionListeners(pendingRanges, subRange.end(), wrappedListener);
 
         return Collections.unmodifiableList(gaps);
+    }
+
+    private void determineStartingRange(ByteRange range, List<Range> pendingRanges, Range targetRange) {
+        assert invariant();
+        final Range lastEarlierRange = ranges.lower(targetRange);
+        if (lastEarlierRange != null) {
+            if (range.start() < lastEarlierRange.end) {
+                if (lastEarlierRange.isPending()) {
+                    pendingRanges.add(lastEarlierRange);
+                }
+                targetRange.start = Math.min(range.end(), lastEarlierRange.end);
+            }
+        }
+    }
+
+    private LongConsumer progressConsumer(long rangeStart) {
+        assert Thread.holdsLock(ranges);
+        if (rangeStart == complete) {
+            return this::updateCompletePointer;
+        } else {
+            return null;
+        }
+    }
+
+    public boolean checkAvailable(long upTo) {
+        assert upTo <= length : "tried to check availability up to [" + upTo + "] but length is only [" + length + "]";
+        return complete >= upTo;
     }
 
     /**
@@ -268,30 +295,18 @@ public class SparseFileTracker {
         final ActionListener<Void> wrappedListener = wrapWithAssertions(listener);
         final List<Range> pendingRanges = new ArrayList<>();
 
-        synchronized (mutex) {
-            assert invariant();
-
-            final Range targetRange = new Range(range);
-            final SortedSet<Range> earlierRanges = ranges.headSet(targetRange, false); // ranges with strictly earlier starts
-            if (earlierRanges.isEmpty() == false) {
-                final Range lastEarlierRange = earlierRanges.last();
-                if (range.start() < lastEarlierRange.end) {
-                    if (lastEarlierRange.isPending()) {
-                        pendingRanges.add(lastEarlierRange);
-                    }
-                    targetRange.start = Math.min(range.end(), lastEarlierRange.end);
-                }
-            }
+        final Range targetRange = new Range(range);
+        synchronized (ranges) {
+            determineStartingRange(range, pendingRanges, targetRange);
 
             while (targetRange.start < range.end()) {
                 assert 0 <= targetRange.start : targetRange;
                 assert invariant();
 
-                final SortedSet<Range> existingRanges = ranges.tailSet(targetRange);
-                if (existingRanges.isEmpty()) {
+                final Range firstExistingRange = ranges.ceiling(targetRange);
+                if (firstExistingRange == null) {
                     return false;
                 } else {
-                    final Range firstExistingRange = existingRanges.first();
                     assert targetRange.start <= firstExistingRange.start : targetRange + " vs " + firstExistingRange;
 
                     if (targetRange.start == firstExistingRange.start) {
@@ -313,7 +328,7 @@ public class SparseFileTracker {
         return true;
     }
 
-    private void subscribeToCompletionListeners(List<Range> requiredRanges, long rangeEnd, ActionListener<Void> listener) {
+    private static void subscribeToCompletionListeners(List<Range> requiredRanges, long rangeEnd, ActionListener<Void> listener) {
         // NB we work with ranges outside the mutex here, but only to interact with their completion listeners which are `final` so
         // there is no risk of concurrent modification.
         switch (requiredRanges.size()) {
@@ -341,7 +356,7 @@ public class SparseFileTracker {
         if (Assertions.ENABLED) {
             return ActionListener.runAfter(
                 listener,
-                () -> { assert Thread.holdsLock(mutex) == false : "mutex unexpectedly held in listener"; }
+                () -> { assert Thread.holdsLock(ranges) == false : "mutex unexpectedly held in listener"; }
             );
         } else {
             return listener;
@@ -358,16 +373,15 @@ public class SparseFileTracker {
      */
     @Nullable
     public ByteRange getAbsentRangeWithin(ByteRange range) {
-        synchronized (mutex) {
+        synchronized (ranges) {
 
             final long start = range.start();
             // Find the first absent byte in the range
-            final SortedSet<Range> startRanges = ranges.headSet(new Range(start, start, null), true); // ranges which start <= 'start'
+            final Range lastStartRange = ranges.floor(new Range(start, start, null));
             long resultStart;
-            if (startRanges.isEmpty()) {
+            if (lastStartRange == null) {
                 resultStart = start;
             } else {
-                final Range lastStartRange = startRanges.last();
                 // last range which starts <= 'start' and which therefore may contain the first byte of the range
                 if (lastStartRange.end < start) {
                     resultStart = start;
@@ -381,12 +395,12 @@ public class SparseFileTracker {
 
             final long end = range.end();
             // Find the last absent byte in the range
-            final SortedSet<Range> endRanges = ranges.headSet(new Range(end, end, null), false); // ranges which start < 'end'
+            final Range lastEndRange = ranges.lower(new Range(end, end, null));
+
             final long resultEnd;
-            if (endRanges.isEmpty()) {
+            if (lastEndRange == null) {
                 resultEnd = end;
             } else {
-                final Range lastEndRange = endRanges.last();
                 // last range which starts < 'end' and which therefore may contain the last byte of the range
                 if (lastEndRange.end < end) {
                     resultEnd = end;
@@ -403,7 +417,7 @@ public class SparseFileTracker {
     }
 
     private boolean assertPendingRangeExists(Range range) {
-        assert Thread.holdsLock(mutex);
+        assert Thread.holdsLock(ranges);
         final SortedSet<Range> existingRanges = ranges.tailSet(range);
         assert existingRanges.isEmpty() == false;
         final Range existingRange = existingRanges.first();
@@ -413,12 +427,9 @@ public class SparseFileTracker {
     }
 
     private void onGapSuccess(final Range gapRange) {
-        final ProgressListenableActionFuture completionListener;
-
-        synchronized (mutex) {
+        synchronized (ranges) {
             assert invariant();
             assert assertPendingRangeExists(gapRange);
-            completionListener = gapRange.completionListener;
             ranges.remove(gapRange);
 
             final SortedSet<Range> prevRanges = ranges.headSet(gapRange);
@@ -438,53 +449,74 @@ public class SparseFileTracker {
                 assert gapRange.end == nextRange.start : gapRange + " vs " + nextRange;
                 prevRange.end = nextRange.end;
                 ranges.remove(nextRange);
+                maybeUpdateCompletePointer(prevRange);
             } else if (mergeWithPrev) {
                 assert prevRange.isPending() == false : prevRange;
                 assert prevRange.end == gapRange.start : prevRange + " vs " + gapRange;
                 prevRange.end = gapRange.end;
+                maybeUpdateCompletePointer(prevRange);
             } else if (mergeWithNext) {
                 assert nextRange.isPending() == false : nextRange;
                 assert gapRange.end == nextRange.start : gapRange + " vs " + nextRange;
                 nextRange.start = gapRange.start;
+                maybeUpdateCompletePointer(nextRange);
             } else {
+                maybeUpdateCompletePointer(gapRange);
                 ranges.add(new Range(gapRange.start, gapRange.end, null));
             }
 
             assert invariant();
         }
 
-        completionListener.onResponse(gapRange.end);
+        gapRange.completionListener.onResponse(gapRange.end);
     }
 
-    private void onGapProgress(final Range gapRange, long value) {
-        final ProgressListenableActionFuture completionListener;
+    private void maybeUpdateCompletePointer(Range gapRange) {
+        assert Thread.holdsLock(ranges);
+        if (gapRange.start == 0) {
+            updateCompletePointerHoldingLock(gapRange.end);
+        }
+    }
 
-        synchronized (mutex) {
+    private void updateCompletePointerHoldingLock(long value) {
+        assert Thread.holdsLock(ranges);
+        assert complete <= value : complete + ">" + value;
+        complete = value;
+    }
+
+    private void updateCompletePointer(long value) {
+        synchronized (ranges) {
+            updateCompletePointerHoldingLock(value);
+        }
+    }
+
+    // used in tests
+    long getComplete() {
+        return complete;
+    }
+
+    private boolean assertGapRangePending(Range gapRange) {
+        synchronized (ranges) {
             assert invariant();
             assert assertPendingRangeExists(gapRange);
-            completionListener = gapRange.completionListener;
-            assert invariant();
         }
-
-        completionListener.onProgress(value);
+        return true;
     }
 
     private void onGapFailure(final Range gapRange, Exception e) {
-        final ProgressListenableActionFuture completionListener;
-
-        synchronized (mutex) {
+        synchronized (ranges) {
             assert invariant();
             assert assertPendingRangeExists(gapRange);
-            completionListener = gapRange.completionListener;
             final boolean removed = ranges.remove(gapRange);
             assert removed : gapRange + " not found";
             assert invariant();
         }
 
-        completionListener.onFailure(e);
+        gapRange.completionListener.onFailure(e);
     }
 
     private boolean invariant() {
+        assert Thread.holdsLock(ranges);
         long lengthOfRanges = 0L;
         Range previousRange = null;
         for (final Range range : ranges) {
@@ -518,7 +550,7 @@ public class SparseFileTracker {
 
     @Override
     public String toString() {
-        return "SparseFileTracker[" + description + ']';
+        return "SparseFileTracker{description=" + description + ", length=" + length + ", complete=" + complete + '}';
     }
 
     /**
@@ -529,9 +561,9 @@ public class SparseFileTracker {
         /**
          * Range in the file corresponding to the current gap
          */
-        public final Range range;
+        private final Range range;
 
-        Gap(Range range) {
+        private Gap(Range range) {
             assert range.start < range.end : range.start + "-" + range.end;
             this.range = range;
         }
@@ -549,7 +581,8 @@ public class SparseFileTracker {
         }
 
         public void onProgress(long value) {
-            onGapProgress(range, value);
+            assert assertGapRangePending(range);
+            range.completionListener.onProgress(value);
         }
 
         public void onFailure(Exception e) {

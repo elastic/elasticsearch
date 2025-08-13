@@ -1,20 +1,23 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.suggest;
 
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.text.Text;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHitTests;
+import org.elasticsearch.search.SearchResponseUtils;
 import org.elasticsearch.search.suggest.completion.CompletionSuggestion;
 import org.elasticsearch.search.suggest.completion.CompletionSuggestion.Entry.Option;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.Text;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
@@ -28,10 +31,74 @@ import java.util.Set;
 import java.util.function.Predicate;
 
 import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
+import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 import static org.elasticsearch.test.XContentTestUtils.insertRandomFields;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
 
 public class CompletionSuggestionOptionTests extends ESTestCase {
+
+    private static final ObjectParser<Map<String, Object>, Void> PARSER = new ObjectParser<>(
+        "CompletionOptionParser",
+        SearchResponseUtils.unknownMetaFieldConsumer,
+        HashMap::new
+    );
+
+    static {
+        SearchResponseUtils.declareInnerHitsParseFields(PARSER);
+        PARSER.declareString(
+            (map, value) -> map.put(Suggest.Suggestion.Entry.Option.TEXT.getPreferredName(), value),
+            Suggest.Suggestion.Entry.Option.TEXT
+        );
+        PARSER.declareFloat(
+            (map, value) -> map.put(Suggest.Suggestion.Entry.Option.SCORE.getPreferredName(), value),
+            Suggest.Suggestion.Entry.Option.SCORE
+        );
+        PARSER.declareObject(
+            (map, value) -> map.put(CompletionSuggestion.Entry.Option.CONTEXTS.getPreferredName(), value),
+            (p, c) -> parseContexts(p),
+            CompletionSuggestion.Entry.Option.CONTEXTS
+        );
+    }
+
+    private static Map<String, Set<String>> parseContexts(XContentParser parser) throws IOException {
+        Map<String, Set<String>> contexts = new HashMap<>();
+        while ((parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+            ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.currentToken(), parser);
+            String key = parser.currentName();
+            ensureExpectedToken(XContentParser.Token.START_ARRAY, parser.nextToken(), parser);
+            Set<String> values = new HashSet<>();
+            while ((parser.nextToken()) != XContentParser.Token.END_ARRAY) {
+                ensureExpectedToken(XContentParser.Token.VALUE_STRING, parser.currentToken(), parser);
+                values.add(parser.text());
+            }
+            contexts.put(key, values);
+        }
+        return contexts;
+    }
+
+    public static Option parseOption(XContentParser parser) {
+        Map<String, Object> values = PARSER.apply(parser, null);
+
+        Text text = new Text((String) values.get(Suggest.Suggestion.Entry.Option.TEXT.getPreferredName()));
+        Float score = (Float) values.get(Suggest.Suggestion.Entry.Option.SCORE.getPreferredName());
+        @SuppressWarnings("unchecked")
+        Map<String, Set<String>> contexts = (Map<String, Set<String>>) values.get(
+            CompletionSuggestion.Entry.Option.CONTEXTS.getPreferredName()
+        );
+        if (contexts == null) {
+            contexts = Collections.emptyMap();
+        }
+
+        SearchHit hit = null;
+        // the option either prints SCORE or inlines the search hit
+        if (score == null) {
+            hit = SearchResponseUtils.searchHitFromMap(values);
+            score = hit.getScore();
+        }
+        CompletionSuggestion.Entry.Option option = new CompletionSuggestion.Entry.Option(-1, text, score, contexts);
+        option.setHit(hit);
+        return option;
+    }
 
     public static Option createTestItem() {
         Text text = new Text(randomAlphaOfLengthBetween(5, 15));
@@ -54,6 +121,9 @@ public class CompletionSuggestionOptionTests extends ESTestCase {
         }
         Option option = new CompletionSuggestion.Entry.Option(docId, text, score, contexts);
         option.setHit(hit);
+        if (hit != null) {
+            hit.decRef();
+        }
         return option;
     }
 
@@ -88,7 +158,7 @@ public class CompletionSuggestionOptionTests extends ESTestCase {
         }
         Option parsed;
         try (XContentParser parser = createParser(xContentType.xContent(), mutated)) {
-            parsed = Option.fromXContent(parser);
+            parsed = parseOption(parser);
             assertNull(parser.nextToken());
         }
         assertEquals(option.getText(), parsed.getText());

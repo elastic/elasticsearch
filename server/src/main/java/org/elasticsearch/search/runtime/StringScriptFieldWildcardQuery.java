@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.runtime;
@@ -12,6 +13,7 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.search.WildcardQuery;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.ByteRunAutomaton;
+import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.common.lucene.search.AutomatonQueries;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.StringFieldScript;
@@ -41,9 +43,9 @@ public class StringScriptFieldWildcardQuery extends AbstractStringScriptFieldAut
 
     private static Automaton buildAutomaton(Term term, boolean caseInsensitive) {
         if (caseInsensitive) {
-            return AutomatonQueries.toCaseInsensitiveWildcardAutomaton(term, Integer.MAX_VALUE);
+            return AutomatonQueries.toCaseInsensitiveWildcardAutomaton(term);
         }
-        return WildcardQuery.toAutomaton(term);
+        return WildcardQuery.toAutomaton(term, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT);
     }
 
     @Override

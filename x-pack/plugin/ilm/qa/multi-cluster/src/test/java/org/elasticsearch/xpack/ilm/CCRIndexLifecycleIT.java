@@ -17,6 +17,8 @@ import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.time.DateFormatter;
+import org.elasticsearch.common.time.FormatNames;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.RestStatus;
@@ -24,24 +26,26 @@ import org.elasticsearch.xcontent.ObjectPath;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
-import org.elasticsearch.xpack.ccr.ESCCRRestTestCase;
 import org.elasticsearch.xpack.core.ilm.LifecycleAction;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicy;
 import org.elasticsearch.xpack.core.ilm.Phase;
 import org.elasticsearch.xpack.core.ilm.UnfollowAction;
+import org.elasticsearch.xpack.core.ilm.WaitUntilTimeSeriesEndTimePassesStep;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.time.Instant;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 
-import static java.util.Collections.singletonMap;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.core.ilm.ShrinkIndexNameSupplier.SHRUNKEN_INDEX_PREFIX;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
@@ -49,6 +53,37 @@ import static org.hamcrest.Matchers.nullValue;
 public class CCRIndexLifecycleIT extends ESCCRRestTestCase {
 
     private static final Logger LOGGER = LogManager.getLogger(CCRIndexLifecycleIT.class);
+    private static final String TSDB_INDEX_TEMPLATE = """
+        {
+            "index_patterns": ["%s*"],
+            "data_stream": {},
+            "template": {
+                "settings":{
+                    "index": {
+                        "number_of_replicas": 0,
+                        "number_of_shards": 1,
+                        "routing_path": ["metricset"],
+                        "mode": "time_series"
+                    },
+                    "index.lifecycle.name": "%s"
+                },
+                "mappings":{
+                    "properties": {
+                        "@timestamp" : {
+                            "type": "date"
+                        },
+                        "metricset": {
+                            "type": "keyword",
+                            "time_series_dimension": true
+                        },
+                        "volume": {
+                            "type": "double",
+                            "time_series_metric": "gauge"
+                        }
+                    }
+                }
+            }
+        }""";
 
     public void testBasicCCRAndILMIntegration() throws Exception {
         String indexName = "logs-1";
@@ -56,10 +91,7 @@ public class CCRIndexLifecycleIT extends ESCCRRestTestCase {
         String policyName = "basic-test";
         if ("leader".equals(targetCluster)) {
             putILMPolicy(policyName, "50GB", null, TimeValue.timeValueHours(7 * 24));
-            Settings indexSettings = Settings.builder()
-                .put("index.number_of_shards", 1)
-                .put("index.number_of_replicas", 0)
-                .put("index.lifecycle.name", policyName)
+            Settings indexSettings = indexSettings(1, 0).put("index.lifecycle.name", policyName)
                 .put("index.lifecycle.rollover_alias", "logs")
                 .build();
             createIndex(indexName, indexSettings, "", "\"logs\": { }");
@@ -111,8 +143,7 @@ public class CCRIndexLifecycleIT extends ESCCRRestTestCase {
     public void testCCRUnfollowDuringSnapshot() throws Exception {
         String indexName = "unfollow-test-index";
         if ("leader".equals(targetCluster)) {
-            Settings indexSettings = Settings.builder().put("index.number_of_shards", 2).put("index.number_of_replicas", 0).build();
-            createIndex(adminClient(), indexName, indexSettings);
+            createIndex(adminClient(), indexName, indexSettings(2, 0).build());
             ensureGreen(indexName);
         } else if ("follow".equals(targetCluster)) {
             createNewSingletonPolicy("unfollow-only", "hot", UnfollowAction.INSTANCE, TimeValue.ZERO);
@@ -185,10 +216,7 @@ public class CCRIndexLifecycleIT extends ESCCRRestTestCase {
             // Create a policy on the leader
             putILMPolicy(policyName, null, 1, null);
             Request templateRequest = new Request("PUT", "/_index_template/my_template");
-            Settings indexSettings = Settings.builder()
-                .put("index.number_of_shards", 1)
-                .put("index.number_of_replicas", 0)
-                .put("index.lifecycle.name", policyName)
+            Settings indexSettings = indexSettings(1, 0).put("index.lifecycle.name", policyName)
                 .put("index.lifecycle.rollover_alias", alias)
                 .build();
             templateRequest.setJsonEntity(
@@ -300,11 +328,8 @@ public class CCRIndexLifecycleIT extends ESCCRRestTestCase {
         final int numberOfAliases = randomIntBetween(0, 4);
 
         if ("leader".equals(targetCluster)) {
-            Settings indexSettings = Settings.builder()
-                .put("index.number_of_shards", 3)
-                .put("index.number_of_replicas", 0)
-                .put("index.lifecycle.name", policyName) // this policy won't exist on the leader, that's fine
-                .build();
+            // this policy won't exist on the leader, that's fine
+            Settings indexSettings = indexSettings(3, 0).put("index.lifecycle.name", policyName).build();
             final StringBuilder aliases = new StringBuilder();
             boolean first = true;
             for (int i = 0; i < numberOfAliases; i++) {
@@ -364,11 +389,8 @@ public class CCRIndexLifecycleIT extends ESCCRRestTestCase {
         final String policyName = "shrink-test-policy";
 
         if ("leader".equals(targetCluster)) {
-            Settings indexSettings = Settings.builder()
-                .put("index.number_of_shards", 3)
-                .put("index.number_of_replicas", 0)
-                .put("index.lifecycle.name", policyName) // this policy won't exist on the leader, that's fine
-                .build();
+            // this policy won't exist on the leader, that's fine
+            Settings indexSettings = indexSettings(3, 0).put("index.lifecycle.name", policyName).build();
             createIndex(indexName, indexSettings, "", "");
             ensureGreen(indexName);
         } else if ("follow".equals(targetCluster)) {
@@ -413,8 +435,7 @@ public class CCRIndexLifecycleIT extends ESCCRRestTestCase {
             // otherwise it'll proceed through shrink before we can set up the
             // follower
             putShrinkOnlyPolicy(client(), policyName);
-            Settings indexSettings = Settings.builder().put("index.number_of_shards", 2).put("index.number_of_replicas", 0).build();
-            createIndex(indexName, indexSettings, "", "");
+            createIndex(indexName, indexSettings(2, 0).build(), "", "");
             ensureGreen(indexName);
         } else if ("follow".equals(targetCluster)) {
 
@@ -482,10 +503,8 @@ public class CCRIndexLifecycleIT extends ESCCRRestTestCase {
         final String policyName = "unfollow_only_policy";
 
         if ("leader".equals(targetCluster)) {
-            Settings indexSettings = Settings.builder()
-                .put("index.number_of_shards", 1)
-                .put("index.number_of_replicas", 0)
-                .put("index.lifecycle.name", policyName) // this policy won't exist on the leader, that's fine
+            Settings indexSettings = indexSettings(1, 0).put("index.lifecycle.name", policyName) // this policy won't exist on the leader,
+                                                                                                 // that's fine
                 .build();
             createIndex(leaderIndex, indexSettings, "", "");
             ensureGreen(leaderIndex);
@@ -547,6 +566,91 @@ public class CCRIndexLifecycleIT extends ESCCRRestTestCase {
 
                 // Ensure the "follower" index has successfully unfollowed
                 assertBusy(() -> { assertThat(getIndexSetting(client(), followerIndex, "index.xpack.ccr.following_index"), nullValue()); });
+            }
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testTsdbLeaderIndexRolloverAndSyncAfterWaitUntilEndTime() throws Exception {
+        String indexPattern = "tsdb-index-";
+        String dataStream = "tsdb-index-cpu";
+        String policyName = "tsdb-policy";
+
+        if ("leader".equals(targetCluster)) {
+            putILMPolicy(policyName, null, 1, null);
+            Request templateRequest = new Request("PUT", "/_index_template/tsdb_template");
+            templateRequest.setJsonEntity(Strings.format(TSDB_INDEX_TEMPLATE, indexPattern, policyName));
+            assertOK(client().performRequest(templateRequest));
+        } else if ("follow".equals(targetCluster)) {
+            // Use unfollow-only policy for follower cluster instead of regular ILM policy
+            // Follower clusters should not have their own rollover actions as they are meant
+            // to follow the rollover behavior of the leader index, not initiate their own rollovers
+            putUnfollowOnlyPolicy(client(), policyName);
+
+            Request createAutoFollowRequest = new Request("PUT", "/_ccr/auto_follow/tsdb_index_auto_follow_pattern");
+            createAutoFollowRequest.setJsonEntity("""
+                {
+                    "leader_index_patterns": [ "tsdb-index-*" ],
+                    "remote_cluster": "leader_cluster",
+                    "read_poll_timeout": "1000ms",
+                    "follow_index_pattern": "{{leader_index}}"
+                }""");
+            assertOK(client().performRequest(createAutoFollowRequest));
+
+            try (RestClient leaderClient = buildLeaderClient()) {
+                String now = DateFormatter.forPattern(FormatNames.STRICT_DATE_OPTIONAL_TIME.getName()).format(Instant.now());
+
+                // Index a document on the leader index, this should trigger an ILM rollover.
+                // This will ensure that 'index.lifecycle.indexing_complete' is set.
+                index(leaderClient, dataStream, "", "@timestamp", now, "volume", 11.0, "metricset", randomAlphaOfLength(5));
+
+                String backingIndexName = getDataStreamBackingIndexNames(leaderClient, "tsdb-index-cpu").get(0);
+                assertBusy(() -> assertOK(client().performRequest(new Request("HEAD", "/" + backingIndexName))));
+
+                assertBusy(() -> {
+                    Map<String, Object> indexExplanation = explainIndex(client(), backingIndexName);
+                    assertThat(
+                        "index must wait in the " + WaitUntilTimeSeriesEndTimePassesStep.NAME + " until its end time lapses",
+                        indexExplanation.get("step"),
+                        is(WaitUntilTimeSeriesEndTimePassesStep.NAME)
+                    );
+
+                    assertThat(indexExplanation.get("step_info"), is(notNullValue()));
+                    assertThat(
+                        (String) ((Map<String, Object>) indexExplanation.get("step_info")).get("message"),
+                        containsString("Waiting until the index's time series end time lapses")
+                    );
+                }, 30, TimeUnit.SECONDS);
+
+                int initialLeaderDocCount = getDocCount(leaderClient, backingIndexName);
+
+                // Add more documents to the leader index while it's in WaitUntilTimeSeriesEndTimePassesStep
+                String futureTimestamp = DateFormatter.forPattern(FormatNames.STRICT_DATE_OPTIONAL_TIME.getName())
+                    .format(Instant.now().plusSeconds(30));
+
+                for (int i = 0; i < 5; i++) {
+                    index(leaderClient, dataStream, "", "@timestamp", futureTimestamp, "volume", 20.0 + i, "metricset", "test-sync-" + i);
+                }
+
+                // Verify that new documents are synced to follower while in WaitUntilTimeSeriesEndTimePassesStep
+                assertBusy(() -> {
+                    int currentLeaderDocCount = getDocCount(leaderClient, backingIndexName);
+                    int currentFollowerDocCount = getDocCount(client(), backingIndexName);
+
+                    assertThat(
+                        "Leader should have more documents than initially",
+                        currentLeaderDocCount,
+                        greaterThan(initialLeaderDocCount)
+                    );
+                    assertThat("Follower should sync new documents from leader", currentFollowerDocCount, equalTo(currentLeaderDocCount));
+
+                    // Also verify the step is still WaitUntilTimeSeriesEndTimePassesStep
+                    assertThat(
+                        "Index should still be in WaitUntilTimeSeriesEndTimePassesStep",
+                        explainIndex(client(), backingIndexName).get("step"),
+                        is(WaitUntilTimeSeriesEndTimePassesStep.NAME)
+                    );
+                }, 30, TimeUnit.SECONDS);
             }
         }
     }
@@ -778,8 +882,8 @@ public class CCRIndexLifecycleIT extends ESCCRRestTestCase {
     }
 
     private void createNewSingletonPolicy(String policyName, String phaseName, LifecycleAction action, TimeValue after) throws IOException {
-        Phase phase = new Phase(phaseName, after, singletonMap(action.getWriteableName(), action));
-        LifecyclePolicy lifecyclePolicy = new LifecyclePolicy(policyName, singletonMap(phase.getName(), phase));
+        Phase phase = new Phase(phaseName, after, Map.of(action.getWriteableName(), action));
+        LifecyclePolicy lifecyclePolicy = new LifecyclePolicy(policyName, Map.of(phase.getName(), phase));
         XContentBuilder builder = jsonBuilder();
         lifecyclePolicy.toXContent(builder, null);
         final StringEntity entity = new StringEntity("{ \"policy\":" + Strings.toString(builder) + "}", ContentType.APPLICATION_JSON);
@@ -856,5 +960,25 @@ public class CCRIndexLifecycleIT extends ESCCRRestTestCase {
         assert shrunkenIndexName[0] != null
             : "lifecycle execution state must contain the target shrink index name for index [" + originalIndex + "]";
         return shrunkenIndexName[0];
+    }
+
+    private static Map<String, Object> explainIndex(RestClient client, String indexName) throws IOException {
+        Request explainRequest = new Request("GET", indexName + "/_ilm/explain");
+        Response response = client.performRequest(explainRequest);
+        Map<String, Object> responseMap;
+        try (InputStream is = response.getEntity().getContent()) {
+            responseMap = XContentHelper.convertToMap(XContentType.JSON.xContent(), is, true);
+        }
+
+        @SuppressWarnings("unchecked")
+        Map<String, Map<String, Object>> indexResponse = ((Map<String, Map<String, Object>>) responseMap.get("indices"));
+        return indexResponse.get(indexName);
+    }
+
+    private static int getDocCount(RestClient client, String indexName) throws IOException {
+        Request countRequest = new Request("GET", "/" + indexName + "/_count");
+        Response response = client.performRequest(countRequest);
+        Map<String, Object> result = entityAsMap(response);
+        return (int) result.get("count");
     }
 }

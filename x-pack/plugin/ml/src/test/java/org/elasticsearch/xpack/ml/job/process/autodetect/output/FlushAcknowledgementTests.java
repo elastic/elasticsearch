@@ -23,9 +23,17 @@ public class FlushAcknowledgementTests extends AbstractXContentSerializingTestCa
     @Override
     protected FlushAcknowledgement createTestInstance() {
         if (randomBoolean()) {
-            return new FlushAcknowledgement(randomAlphaOfLengthBetween(1, 20), randomFrom(randomNonNegativeLong(), 0L, null));
+            return new FlushAcknowledgement(
+                randomAlphaOfLengthBetween(1, 20),
+                randomFrom(randomNonNegativeLong(), 0L, null),
+                randomBoolean()
+            );
         } else {
-            return new FlushAcknowledgement(randomAlphaOfLengthBetween(1, 20), randomFrom(randomInstant(), Instant.EPOCH, null));
+            return new FlushAcknowledgement(
+                randomAlphaOfLengthBetween(1, 20),
+                randomFrom(randomInstant(), Instant.EPOCH, null),
+                randomBoolean()
+            );
         }
     }
 

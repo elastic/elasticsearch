@@ -1,13 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.metadata;
 
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -32,6 +34,7 @@ public class DataStreamAction implements Writeable, ToXContentObject {
 
     private static final ParseField DATA_STREAM = new ParseField("data_stream");
     private static final ParseField INDEX = new ParseField("index");
+    private static final ParseField FAILURE_STORE = new ParseField("failure_store");
 
     private static final ParseField ADD_BACKING_INDEX = new ParseField("add_backing_index");
     private static final ParseField REMOVE_BACKING_INDEX = new ParseField("remove_backing_index");
@@ -64,22 +67,32 @@ public class DataStreamAction implements Writeable, ToXContentObject {
     private final Type type;
     private String dataStream;
     private String index;
+    private boolean failureStore = false;
 
     public static DataStreamAction addBackingIndex(String dataStream, String index) {
-        return new DataStreamAction(Type.ADD_BACKING_INDEX, dataStream, index);
+        return new DataStreamAction(Type.ADD_BACKING_INDEX, dataStream, index, false);
+    }
+
+    public static DataStreamAction addFailureStoreIndex(String dataStream, String index) {
+        return new DataStreamAction(Type.ADD_BACKING_INDEX, dataStream, index, true);
     }
 
     public static DataStreamAction removeBackingIndex(String dataStream, String index) {
-        return new DataStreamAction(Type.REMOVE_BACKING_INDEX, dataStream, index);
+        return new DataStreamAction(Type.REMOVE_BACKING_INDEX, dataStream, index, false);
+    }
+
+    public static DataStreamAction removeFailureStoreIndex(String dataStream, String index) {
+        return new DataStreamAction(Type.REMOVE_BACKING_INDEX, dataStream, index, true);
     }
 
     public DataStreamAction(StreamInput in) throws IOException {
         this.type = Type.fromValue(in.readByte());
         this.dataStream = in.readString();
         this.index = in.readString();
+        this.failureStore = in.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0) && in.readBoolean();
     }
 
-    private DataStreamAction(Type type, String dataStream, String index) {
+    private DataStreamAction(Type type, String dataStream, String index, boolean failureStore) {
         if (false == Strings.hasText(dataStream)) {
             throw new IllegalArgumentException("[data_stream] is required");
         }
@@ -89,6 +102,7 @@ public class DataStreamAction implements Writeable, ToXContentObject {
         this.type = Objects.requireNonNull(type, "[type] must not be null");
         this.dataStream = dataStream;
         this.index = index;
+        this.failureStore = failureStore;
     }
 
     DataStreamAction(Type type) {
@@ -111,6 +125,14 @@ public class DataStreamAction implements Writeable, ToXContentObject {
         this.index = index;
     }
 
+    public boolean isFailureStore() {
+        return failureStore;
+    }
+
+    public void setFailureStore(boolean failureStore) {
+        this.failureStore = failureStore;
+    }
+
     public Type getType() {
         return type;
     }
@@ -121,6 +143,9 @@ public class DataStreamAction implements Writeable, ToXContentObject {
         builder.startObject(type.fieldName);
         builder.field(DATA_STREAM.getPreferredName(), dataStream);
         builder.field(INDEX.getPreferredName(), index);
+        if (failureStore) {
+            builder.field(FAILURE_STORE.getPreferredName(), failureStore);
+        }
         builder.endObject();
         builder.endObject();
         return builder;
@@ -131,6 +156,9 @@ public class DataStreamAction implements Writeable, ToXContentObject {
         out.writeByte(type.value());
         out.writeString(dataStream);
         out.writeString(index);
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) {
+            out.writeBoolean(failureStore);
+        }
     }
 
     public static DataStreamAction fromXContent(XContentParser parser) throws IOException {
@@ -153,6 +181,12 @@ public class DataStreamAction implements Writeable, ToXContentObject {
             ObjectParser.ValueType.STRING
         );
         ADD_BACKING_INDEX_PARSER.declareField(DataStreamAction::setIndex, XContentParser::text, INDEX, ObjectParser.ValueType.STRING);
+        ADD_BACKING_INDEX_PARSER.declareField(
+            DataStreamAction::setFailureStore,
+            XContentParser::booleanValue,
+            FAILURE_STORE,
+            ObjectParser.ValueType.BOOLEAN
+        );
         REMOVE_BACKING_INDEX_PARSER.declareField(
             DataStreamAction::setDataStream,
             XContentParser::text,
@@ -160,6 +194,12 @@ public class DataStreamAction implements Writeable, ToXContentObject {
             ObjectParser.ValueType.STRING
         );
         REMOVE_BACKING_INDEX_PARSER.declareField(DataStreamAction::setIndex, XContentParser::text, INDEX, ObjectParser.ValueType.STRING);
+        REMOVE_BACKING_INDEX_PARSER.declareField(
+            DataStreamAction::setFailureStore,
+            XContentParser::booleanValue,
+            FAILURE_STORE,
+            ObjectParser.ValueType.BOOLEAN
+        );
     }
 
     private static ObjectParser<DataStreamAction, Void> parser(String name, Supplier<DataStreamAction> supplier) {
@@ -195,12 +235,14 @@ public class DataStreamAction implements Writeable, ToXContentObject {
             return false;
         }
         DataStreamAction other = (DataStreamAction) obj;
-        return Objects.equals(type, other.type) && Objects.equals(dataStream, other.dataStream) && Objects.equals(index, other.index);
+        return Objects.equals(type, other.type)
+            && Objects.equals(dataStream, other.dataStream)
+            && Objects.equals(index, other.index)
+            && Objects.equals(failureStore, other.failureStore);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(type, dataStream, index);
+        return Objects.hash(type, dataStream, index, failureStore);
     }
-
 }

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.gateway;
 
@@ -17,6 +18,7 @@ import org.elasticsearch.action.support.nodes.BaseNodesResponse;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
@@ -53,19 +55,20 @@ public abstract class AsyncShardFetch<T extends BaseNodeResponse> implements Rel
     protected final String type;
     protected final ShardId shardId;
     protected final String customDataPath;
-    private final Map<String, NodeEntry<T>> cache = new HashMap<>();
+    private final Map<String, NodeEntry<T>> cache;
     private final Set<String> nodesToIgnore = new HashSet<>();
     private final AtomicLong round = new AtomicLong();
     private boolean closed;
     private volatile int fetchingCount;
 
     @SuppressWarnings("unchecked")
-    protected AsyncShardFetch(Logger logger, String type, ShardId shardId, String customDataPath) {
+    protected AsyncShardFetch(Logger logger, String type, ShardId shardId, String customDataPath, int expectedSize) {
         this.logger = logger;
         this.type = type;
         this.shardId = Objects.requireNonNull(shardId);
         this.customDataPath = Objects.requireNonNull(customDataPath);
         this.fetchingCount = 0;
+        this.cache = Maps.newHashMapWithExpectedSize(expectedSize);
     }
 
     @Override
@@ -108,6 +111,8 @@ public abstract class AsyncShardFetch<T extends BaseNodeResponse> implements Rel
                 .toArray(DiscoveryNode[]::new);
             asyncFetch(discoNodesToFetch, fetchingRound);
         }
+
+        assert assertFetchingCountConsistent();
 
         // if we are still fetching, return null to indicate it
         if (hasAnyNodeFetching()) {
@@ -303,7 +308,7 @@ public abstract class AsyncShardFetch<T extends BaseNodeResponse> implements Rel
     // visible for testing
     void asyncFetch(final DiscoveryNode[] nodes, long fetchingRound) {
         logger.trace("{} fetching [{}] from {}", shardId, type, nodes);
-        list(shardId, customDataPath, nodes, new ActionListener<BaseNodesResponse<T>>() {
+        list(shardId, customDataPath, nodes, new ActionListener<>() {
             @Override
             public void onResponse(BaseNodesResponse<T> response) {
                 assert assertSameNodes(response);

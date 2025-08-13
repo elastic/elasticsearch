@@ -25,7 +25,7 @@ import org.elasticsearch.xpack.analytics.aggregations.support.HistogramValuesSou
 import java.io.IOException;
 import java.util.Map;
 
-public class HistoBackedHistogramAggregator extends AbstractHistogramAggregator {
+public final class HistoBackedHistogramAggregator extends AbstractHistogramAggregator {
 
     private final HistogramValuesSource.Histogram valuesSource;
 
@@ -87,7 +87,7 @@ public class HistoBackedHistogramAggregator extends AbstractHistogramAggregator 
                     double previousKey = Double.NEGATIVE_INFINITY;
                     while (sketch.next()) {
                         final double value = sketch.value();
-                        final int count = sketch.count();
+                        final long count = sketch.count();
 
                         double key = Math.floor((value - offset) / interval);
                         assert key >= previousKey;

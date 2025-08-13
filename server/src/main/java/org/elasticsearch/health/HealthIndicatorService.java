@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.health;
@@ -54,5 +55,16 @@ public interface HealthIndicatorService {
             .limit(3)
             .collect(Collectors.toList());
         return new HealthIndicatorResult(name(), status, symptom, details, impactsList, diagnosisList);
+    }
+
+    /**
+     * A preflight indicator is an indicator that is run first and represents a serious cascading health problem. For example, the
+     * `stable_master` health indicator is a preflight indicator. When it is red it means that the node has witnessed too many master nodes
+     * which could mean there are missing nodes, or a discovery problem, or that the node itself has problems joining the elected master.
+     * For these reasons, it likely that the cluster state is not up-to-date enough for us to make health decisions off of it.
+     * @return true if this is a preflight indicator, false otherwise.
+     */
+    default boolean isPreflight() {
+        return false;
     }
 }

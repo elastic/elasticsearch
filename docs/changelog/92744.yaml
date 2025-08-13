@@ -1,5 +1,0 @@
-pr: 92744
-summary: Repeat `cluster.initial_master_nodes` log warning
-area: Cluster Coordination
-type: enhancement
-issues: []

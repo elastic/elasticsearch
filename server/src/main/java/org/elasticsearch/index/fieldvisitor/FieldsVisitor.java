@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.index.fieldvisitor;
 
@@ -28,25 +29,24 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
 
-import static java.util.Collections.emptyMap;
-
 /**
  * Base {@link StoredFieldVisitor} that retrieves all non-redundant metadata.
  */
 public class FieldsVisitor extends FieldNamesProvidingStoredFieldsVisitor {
-    private static final Set<String> BASE_REQUIRED_FIELDS = Set.of(IdFieldMapper.NAME, RoutingFieldMapper.NAME);
+    static final Set<String> BASE_REQUIRED_FIELDS = Set.of(IdFieldMapper.NAME, RoutingFieldMapper.NAME);
 
     private final boolean loadSource;
-    private final String sourceFieldName;
+    final String sourceFieldName;
     private final Set<String> requiredFields;
-    protected BytesReference source;
-    protected String id;
-    protected Map<String, List<Object>> fieldsValues;
+    private BytesReference source;
+    private String id;
+    private final Map<String, List<Object>> fieldsValues = new HashMap<>();
 
     public FieldsVisitor(boolean loadSource) {
         this(loadSource, SourceFieldMapper.NAME);
     }
 
+    @SuppressWarnings("this-escape")
     public FieldsVisitor(boolean loadSource, String sourceFieldName) {
         this.loadSource = loadSource;
         this.sourceFieldName = sourceFieldName;
@@ -56,24 +56,29 @@ public class FieldsVisitor extends FieldNamesProvidingStoredFieldsVisitor {
 
     @Override
     public Status needsField(FieldInfo fieldInfo) {
-        if (requiredFields.remove(fieldInfo.name)) {
+        final String name = fieldInfo.name;
+        var requiredFields = this.requiredFields;
+        if (requiredFields.remove(name)) {
             return Status.YES;
         }
         // Always load _ignored to be explicit about ignored fields
         // This works because _ignored is added as the first metadata mapper,
         // so its stored fields always appear first in the list.
-        if (IgnoredFieldMapper.NAME.equals(fieldInfo.name)) {
+        // Note that _ignored is also multi-valued, which is why it can't be removed from the set like other fields
+        if (IgnoredFieldMapper.NAME.equals(name)) {
             return Status.YES;
         }
+        // All these fields are single-valued so we can stop when the set is empty
+        if (requiredFields.isEmpty()) {
+            return Status.STOP;
+        }
         // support _uid for loading older indices
-        if ("_uid".equals(fieldInfo.name)) {
+        if ("_uid".equals(name)) {
             if (requiredFields.remove(IdFieldMapper.NAME) || requiredFields.remove(LegacyTypeFieldMapper.NAME)) {
                 return Status.YES;
             }
         }
-        // All these fields are single-valued so we can stop when the set is
-        // empty
-        return requiredFields.isEmpty() ? Status.STOP : Status.NO;
+        return Status.NO;
     }
 
     @Override
@@ -96,33 +101,31 @@ public class FieldsVisitor extends FieldNamesProvidingStoredFieldsVisitor {
 
     @Override
     public void binaryField(FieldInfo fieldInfo, byte[] value) {
-        binaryField(fieldInfo, new BytesRef(value));
-    }
-
-    public void binaryField(FieldInfo fieldInfo, BytesRef value) {
-        if (sourceFieldName.equals(fieldInfo.name)) {
+        final String name = fieldInfo.name;
+        if (sourceFieldName.equals(name)) {
             source = new BytesArray(value);
-        } else if (IdFieldMapper.NAME.equals(fieldInfo.name)) {
-            id = Uid.decodeId(value.bytes, value.offset, value.length);
+        } else if (IdFieldMapper.NAME.equals(name)) {
+            id = Uid.decodeId(value, 0, value.length);
         } else {
-            addValue(fieldInfo.name, value);
+            addValue(name, new BytesRef(value));
         }
     }
 
     @Override
     public void stringField(FieldInfo fieldInfo, String value) {
-        assert sourceFieldName.equals(fieldInfo.name) == false : "source field must go through binaryField";
-        if ("_uid".equals(fieldInfo.name)) {
+        final String name = fieldInfo.name;
+        assert sourceFieldName.equals(name) == false : "source field must go through binaryField";
+        if ("_uid".equals(name)) {
             // 5.x-only
             int delimiterIndex = value.indexOf('#'); // type is not allowed to have # in it..., ids can
             String type = value.substring(0, delimiterIndex);
             id = value.substring(delimiterIndex + 1);
             addValue(LegacyTypeFieldMapper.NAME, type);
-        } else if (IdFieldMapper.NAME.equals(fieldInfo.name)) {
+        } else if (IdFieldMapper.NAME.equals(name)) {
             // only applies to 5.x indices that have single_type = true
             id = value;
         } else {
-            addValue(fieldInfo.name, value);
+            addValue(name, value);
         }
     }
 
@@ -146,12 +149,6 @@ public class FieldsVisitor extends FieldNamesProvidingStoredFieldsVisitor {
         addValue(fieldInfo.name, value);
     }
 
-    public void objectField(FieldInfo fieldInfo, Object object) {
-        assert IdFieldMapper.NAME.equals(fieldInfo.name) == false : "_id field must go through binaryField";
-        assert sourceFieldName.equals(fieldInfo.name) == false : "source field must go through binaryField";
-        addValue(fieldInfo.name, object);
-    }
-
     public BytesReference source() {
         return source;
     }
@@ -161,23 +158,20 @@ public class FieldsVisitor extends FieldNamesProvidingStoredFieldsVisitor {
     }
 
     public String routing() {
-        if (fieldsValues == null) {
-            return null;
-        }
         List<Object> values = fieldsValues.get(RoutingFieldMapper.NAME);
         if (values == null || values.isEmpty()) {
             return null;
         }
         assert values.size() == 1;
-        return values.get(0).toString();
+        return values.getFirst().toString();
     }
 
     public Map<String, List<Object>> fields() {
-        return fieldsValues != null ? fieldsValues : emptyMap();
+        return fieldsValues;
     }
 
     public void reset() {
-        if (fieldsValues != null) fieldsValues.clear();
+        fieldsValues.clear();
         source = null;
         id = null;
 
@@ -188,15 +182,6 @@ public class FieldsVisitor extends FieldNamesProvidingStoredFieldsVisitor {
     }
 
     void addValue(String name, Object value) {
-        if (fieldsValues == null) {
-            fieldsValues = new HashMap<>();
-        }
-
-        List<Object> values = fieldsValues.get(name);
-        if (values == null) {
-            values = new ArrayList<>(2);
-            fieldsValues.put(name, values);
-        }
-        values.add(value);
+        fieldsValues.computeIfAbsent(name, k -> new ArrayList<>(2)).add(value);
     }
 }

@@ -1,18 +1,19 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index;
 
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Sort;
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
@@ -30,9 +31,12 @@ import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESTestCase;
 
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.index.IndexSettingsTests.newIndexMeta;
 import static org.hamcrest.Matchers.arrayWithSize;
@@ -162,7 +166,7 @@ public class IndexSortSettingsTests extends ESTestCase {
 
     public void testSortingAgainstAliasesPre713() {
         IndexSettings indexSettings = indexSettings(
-            Settings.builder().put("index.version.created", Version.V_7_12_0).put("index.sort.field", "field").build()
+            Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersions.V_7_12_0).put("index.sort.field", "field").build()
         );
         MappedFieldType aliased = new KeywordFieldMapper.KeywordFieldType("aliased");
         Sort sort = buildIndexSort(indexSettings, Map.of("field", aliased));
@@ -172,6 +176,58 @@ public class IndexSortSettingsTests extends ESTestCase {
             "Index sort for index [test] defined on field [field] which resolves to field [aliased]. "
                 + "You will not be able to define an index sort over aliased fields in new indexes"
         );
+    }
+
+    public void testSortMissingValueDateNanoFieldPre714() {
+        MappedFieldType tsField = new DateFieldMapper.DateFieldType("@timestamp", true, DateFieldMapper.Resolution.NANOSECONDS);
+        var indexSettingsBuilder = Settings.builder();
+        indexSettingsBuilder.put("index.sort.field", "@timestamp");
+        indexSettingsBuilder.put("index.sort.order", "desc");
+
+        // test with index version 7.13 and before
+        var pre714Versions = Stream.concat(Stream.of(IndexVersions.V_7_13_0), randomVersionsBefore(IndexVersions.V_7_13_0)).toList();
+        for (var version : pre714Versions) {
+            indexSettingsBuilder.put(IndexMetadata.SETTING_VERSION_CREATED, version);
+            Sort sort = buildIndexSort(indexSettings(indexSettingsBuilder.build()), Map.of("@timestamp", tsField));
+            assertThat(sort.getSort(), arrayWithSize(1));
+            assertThat(sort.getSort()[0].getField(), equalTo("@timestamp"));
+            assertThat(sort.getSort()[0].getMissingValue(), equalTo(Long.MIN_VALUE));
+        }
+
+        // now test with index version 7.14 and after
+        var post713Versions = Stream.concat(Stream.of(IndexVersions.V_7_14_0), randomVersionsAfter(IndexVersions.V_7_14_0)).toList();
+        for (var version : post713Versions) {
+            indexSettingsBuilder.put(IndexMetadata.SETTING_VERSION_CREATED, version);
+            Sort sort = buildIndexSort(indexSettings(indexSettingsBuilder.build()), Map.of("@timestamp", tsField));
+            assertThat(sort.getSort(), arrayWithSize(1));
+            assertThat(sort.getSort()[0].getField(), equalTo("@timestamp"));
+            assertThat(sort.getSort()[0].getMissingValue(), equalTo(0L));
+        }
+
+        // asc order has not changed behaviour in any version
+        indexSettingsBuilder.put("index.sort.order", "asc");
+        var allVersions = Stream.concat(post713Versions.stream(), pre714Versions.stream()).toList();
+        for (var version : allVersions) {
+            indexSettingsBuilder.put(IndexMetadata.SETTING_VERSION_CREATED, version);
+            Sort sort = buildIndexSort(indexSettings(indexSettingsBuilder.build()), Map.of("@timestamp", tsField));
+            assertThat(sort.getSort(), arrayWithSize(1));
+            assertThat(sort.getSort()[0].getField(), equalTo("@timestamp"));
+            assertThat(sort.getSort()[0].getMissingValue(), equalTo(DateUtils.MAX_NANOSECOND));
+        }
+
+        // ensure no change in behaviour when a missing value is set
+        indexSettingsBuilder.put("index.sort.missing", "_first");
+        for (var version : allVersions) {
+            indexSettingsBuilder.put(IndexMetadata.SETTING_VERSION_CREATED, version);
+            Sort sort = buildIndexSort(indexSettings(indexSettingsBuilder.build()), Map.of("@timestamp", tsField));
+            assertThat(sort.getSort()[0].getMissingValue(), equalTo(0L));
+        }
+        indexSettingsBuilder.put("index.sort.missing", "_last");
+        for (var version : allVersions) {
+            indexSettingsBuilder.put(IndexMetadata.SETTING_VERSION_CREATED, version);
+            Sort sort = buildIndexSort(indexSettings(indexSettingsBuilder.build()), Map.of("@timestamp", tsField));
+            assertThat(sort.getSort()[0].getMissingValue(), equalTo(Long.MAX_VALUE));
+        }
     }
 
     public void testTimeSeriesMode() {
@@ -220,8 +276,28 @@ public class IndexSortSettingsTests extends ESTestCase {
             lookup::get,
             (ft, s) -> indexFieldDataService.getForField(
                 ft,
-                new FieldDataContext("test", s, Set::of, MappedFieldType.FielddataOperation.SEARCH)
+                new FieldDataContext("test", indexSettings, s, Set::of, MappedFieldType.FielddataOperation.SEARCH)
             )
         );
+    }
+
+    /* Returns a stream of versions before the given version */
+    Stream<IndexVersion> randomVersionsBefore(IndexVersion indexVersion) {
+        var versions = IndexVersions.getAllVersions().stream().filter(v -> v.before(indexVersion)).toList();
+        List<IndexVersion> ret = new ArrayList<>();
+        for (int i = 0; i < 10; i++) {
+            ret.add(randomValueOtherThanMany(ret::contains, () -> randomFrom(versions)));
+        }
+        return ret.stream();
+    }
+
+    /* Returns a stream of versions after the given version */
+    Stream<IndexVersion> randomVersionsAfter(IndexVersion indexVersion) {
+        var versions = IndexVersions.getAllVersions().stream().filter(v -> v.after(indexVersion)).toList();
+        List<IndexVersion> ret = new ArrayList<>();
+        for (int i = 0; i < 10; i++) {
+            ret.add(randomValueOtherThanMany(ret::contains, () -> randomFrom(versions)));
+        }
+        return ret.stream();
     }
 }

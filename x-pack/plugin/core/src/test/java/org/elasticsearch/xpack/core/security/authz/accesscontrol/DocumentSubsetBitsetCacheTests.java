@@ -8,8 +8,6 @@
 package org.elasticsearch.xpack.core.security.authz.accesscontrol;
 
 import org.apache.logging.log4j.Level;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
@@ -22,7 +20,6 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.ConstantScoreQuery;
-import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
@@ -30,12 +27,12 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BitSet;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.CheckedBiConsumer;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
+import org.elasticsearch.index.mapper.MapperMetrics;
 import org.elasticsearch.index.mapper.Mapping;
 import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.MockFieldMapper;
@@ -45,7 +42,7 @@ import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
-import org.elasticsearch.test.MockLogAppender;
+import org.elasticsearch.test.MockLog;
 import org.hamcrest.Matchers;
 import org.junit.After;
 import org.junit.Before;
@@ -57,6 +54,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.IdentityHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
@@ -65,8 +63,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
-import static java.util.Collections.emptyList;
-import static java.util.Collections.emptyMap;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
@@ -195,13 +191,9 @@ public class DocumentSubsetBitsetCacheTests extends ESTestCase {
         assertThat(cache.entryCount(), equalTo(0));
         assertThat(cache.ramBytesUsed(), equalTo(0L));
 
-        final Logger cacheLogger = LogManager.getLogger(cache.getClass());
-        final MockLogAppender mockAppender = new MockLogAppender();
-        mockAppender.start();
-        try {
-            Loggers.addAppender(cacheLogger, mockAppender);
-            mockAppender.addExpectation(
-                new MockLogAppender.SeenEventExpectation(
+        try (var mockLog = MockLog.capture(cache.getClass())) {
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
                     "[bitset too big]",
                     cache.getClass().getName(),
                     Level.WARN,
@@ -222,10 +214,7 @@ public class DocumentSubsetBitsetCacheTests extends ESTestCase {
                 assertThat(bitSet.ramBytesUsed(), equalTo(EXPECTED_BYTES_PER_BIT_SET));
             });
 
-            mockAppender.assertAllExpectationsMatched();
-        } finally {
-            Loggers.removeAppender(cacheLogger, mockAppender);
-            mockAppender.stop();
+            mockLog.assertAllExpectationsMatched();
         }
     }
 
@@ -239,13 +228,9 @@ public class DocumentSubsetBitsetCacheTests extends ESTestCase {
         assertThat(cache.entryCount(), equalTo(0));
         assertThat(cache.ramBytesUsed(), equalTo(0L));
 
-        final Logger cacheLogger = LogManager.getLogger(cache.getClass());
-        final MockLogAppender mockAppender = new MockLogAppender();
-        mockAppender.start();
-        try {
-            Loggers.addAppender(cacheLogger, mockAppender);
-            mockAppender.addExpectation(
-                new MockLogAppender.SeenEventExpectation(
+        try (var mockLog = MockLog.capture(cache.getClass())) {
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
                     "[cache full]",
                     cache.getClass().getName(),
                     Level.INFO,
@@ -264,10 +249,7 @@ public class DocumentSubsetBitsetCacheTests extends ESTestCase {
                 }
             });
 
-            mockAppender.assertAllExpectationsMatched();
-        } finally {
-            Loggers.removeAppender(cacheLogger, mockAppender);
-            mockAppender.stop();
+            mockLog.assertAllExpectationsMatched();
         }
     }
 
@@ -542,26 +524,13 @@ public class DocumentSubsetBitsetCacheTests extends ESTestCase {
         });
     }
 
-    private static final class TestIndexContext implements Closeable {
-        private final Directory directory;
-        private final IndexWriter indexWriter;
-        private final DirectoryReader directoryReader;
-        private final SearchExecutionContext searchExecutionContext;
-        private final LeafReaderContext leafReaderContext;
-
-        private TestIndexContext(
-            Directory directory,
-            IndexWriter indexWriter,
-            DirectoryReader directoryReader,
-            SearchExecutionContext searchExecutionContext,
-            LeafReaderContext leafReaderContext
-        ) {
-            this.directory = directory;
-            this.indexWriter = indexWriter;
-            this.directoryReader = directoryReader;
-            this.searchExecutionContext = searchExecutionContext;
-            this.leafReaderContext = leafReaderContext;
-        }
+    private record TestIndexContext(
+        Directory directory,
+        IndexWriter indexWriter,
+        DirectoryReader directoryReader,
+        SearchExecutionContext searchExecutionContext,
+        LeafReaderContext leafReaderContext
+    ) implements Closeable {
 
         @Override
         public void close() throws IOException {
@@ -611,13 +580,14 @@ public class DocumentSubsetBitsetCacheTests extends ESTestCase {
                 parserConfig(),
                 writableRegistry(),
                 client,
-                new IndexSearcher(directoryReader),
+                newSearcher(directoryReader),
                 () -> nowInMillis,
                 null,
                 null,
                 () -> true,
                 null,
-                emptyMap()
+                Map.of(),
+                MapperMetrics.NOOP
             );
 
             context = new TestIndexContext(directory, iw, directoryReader, searchExecutionContext, leaf);
@@ -646,7 +616,7 @@ public class DocumentSubsetBitsetCacheTests extends ESTestCase {
             types.add(new MockFieldMapper(new KeywordFieldMapper.KeywordFieldType("dne-" + i)));
         }
 
-        MappingLookup mappingLookup = MappingLookup.fromMappers(Mapping.EMPTY, types, emptyList(), emptyList());
+        MappingLookup mappingLookup = MappingLookup.fromMappers(Mapping.EMPTY, types, List.of());
 
         final Client client = mock(Client.class);
         when(client.settings()).thenReturn(Settings.EMPTY);

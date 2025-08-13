@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.fetch.subphase.highlight;
@@ -11,8 +12,9 @@ package org.elasticsearch.search.fetch.subphase.highlight;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.text.Text;
+import org.elasticsearch.search.SearchResponseUtils;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.Text;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -55,7 +57,7 @@ public class HighlightFieldTests extends ESTestCase {
         try (XContentParser parser = createParser(builder)) {
             parser.nextToken(); // skip to the opening object token, fromXContent advances from here and starts with the field name
             parser.nextToken();
-            HighlightField parsedField = HighlightField.fromXContent(parser);
+            HighlightField parsedField = SearchResponseUtils.parseHighlightField(parser);
             assertEquals(highlightField, parsedField);
             if (highlightField.fragments() != null) {
                 assertEquals(XContentParser.Token.END_ARRAY, parser.currentToken());
@@ -113,9 +115,9 @@ public class HighlightFieldTests extends ESTestCase {
     }
 
     private static HighlightField mutate(HighlightField original) {
-        Text[] fragments = original.getFragments();
+        Text[] fragments = original.fragments();
         if (randomBoolean()) {
-            return new HighlightField(original.getName() + "_suffix", fragments);
+            return new HighlightField(original.name() + "_suffix", fragments);
         } else {
             if (fragments == null) {
                 fragments = new Text[] { new Text("field") };
@@ -123,12 +125,12 @@ public class HighlightFieldTests extends ESTestCase {
                 fragments = Arrays.copyOf(fragments, fragments.length + 1);
                 fragments[fragments.length - 1] = new Text("something new");
             }
-            return new HighlightField(original.getName(), fragments);
+            return new HighlightField(original.name(), fragments);
         }
     }
 
     private static HighlightField copy(HighlightField original) {
-        return new HighlightField(original.getName(), original.getFragments());
+        return new HighlightField(original.name(), original.fragments());
     }
 
 }

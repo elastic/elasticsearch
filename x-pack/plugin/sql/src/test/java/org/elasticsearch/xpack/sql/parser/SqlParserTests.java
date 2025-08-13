@@ -32,6 +32,7 @@ import java.util.StringJoiner;
 
 import static java.util.Collections.nCopies;
 import static java.util.stream.Collectors.toList;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
@@ -361,6 +362,112 @@ public class SqlParserTests extends ESTestCase {
         assertThat(
             e.getMessage(),
             startsWith("line -1:0: SQL statement is too large, causing stack overflow when generating the parsing tree: [")
+        );
+    }
+
+    public void testQuotedIndexName() {
+        Project plan = project(parseStatement("SELECT * FROM \"foo,bar\""));
+
+        assertThat(plan.child(), instanceOf(UnresolvedRelation.class));
+        UnresolvedRelation relation = (UnresolvedRelation) plan.child();
+        assertEquals("foo,bar", relation.table().index());
+        assertNull(relation.table().cluster());
+    }
+
+    public void testQuotedIndexNameWithCluster() {
+        Project plan = project(parseStatement("SELECT * FROM elastic:\"foo,bar\""));
+
+        assertThat(plan.child(), instanceOf(UnresolvedRelation.class));
+        UnresolvedRelation relation = (UnresolvedRelation) plan.child();
+        assertEquals("foo,bar", relation.table().index());
+        assertEquals("elastic", relation.table().cluster());
+    }
+
+    public void testQuotedIndexNameWithQuotedCluster() {
+        Project plan = project(parseStatement("SELECT * FROM \"elastic\":\"foo,bar\""));
+
+        assertThat(plan.child(), instanceOf(UnresolvedRelation.class));
+        UnresolvedRelation relation = (UnresolvedRelation) plan.child();
+        assertEquals("foo,bar", relation.table().index());
+        assertEquals("elastic", relation.table().cluster());
+    }
+
+    public void testIndexNameDataSelector() {
+        Project plan = project(parseStatement("SELECT * FROM foo::data"));
+
+        // data is effectively redundant, and so it is simplified to just the index name when executed
+        assertThat(plan.child(), instanceOf(UnresolvedRelation.class));
+        UnresolvedRelation relation = (UnresolvedRelation) plan.child();
+        assertEquals("foo", relation.table().index());
+        assertNull(relation.table().cluster());
+    }
+
+    public void testIndexNameFailuresSelector() {
+        Project plan = project(parseStatement("SELECT * FROM foo::failures"));
+
+        assertThat(plan.child(), instanceOf(UnresolvedRelation.class));
+        UnresolvedRelation relation = (UnresolvedRelation) plan.child();
+        assertEquals("foo::failures", relation.table().index());
+        assertNull(relation.table().cluster());
+    }
+
+    public void testIndexNameClusterSelectorCombined() {
+        ParsingException e = expectThrows(ParsingException.class, () -> parseStatement("SELECT * FROM cluster:foo::failures"));
+        assertThat(
+            e.getMessage(),
+            containsString("Invalid index name [cluster:foo::failures], Selectors are not yet supported on remote cluster patterns")
+        );
+    }
+
+    public void testIndexNameInvalidSelector() {
+        ParsingException e = expectThrows(ParsingException.class, () -> parseStatement("SELECT * FROM foo::bar"));
+        assertThat(
+            e.getMessage(),
+            containsString("Invalid index name [foo::bar], invalid usage of :: separator, [bar] is not a recognized selector")
+        );
+    }
+
+    public void testIndexNameInvalidQuotedSelector() {
+        ParsingException e = expectThrows(ParsingException.class, () -> parseStatement("SELECT * FROM \"foo::bar\""));
+        assertThat(
+            e.getMessage(),
+            containsString("Invalid index name [foo::bar], invalid usage of :: separator, [bar] is not a recognized selector")
+        );
+    }
+
+    public void testIndexNameInvalidSelectors() {
+        ParsingException e = expectThrows(ParsingException.class, () -> parseStatement("SELECT * FROM foo::bar::data"));
+        assertThat(e.getMessage(), containsString("mismatched input '::' expecting {"));
+    }
+
+    public void testIndexNameInvalidMixedQuotedSelectors() {
+        ParsingException e = expectThrows(ParsingException.class, () -> parseStatement("SELECT * FROM \"foo::bar\"::data"));
+        assertThat(
+            e.getMessage(),
+            containsString(
+                "Invalid index name [foo::bar::data], Invalid usage of :: separator, only one :: separator is allowed per expression"
+            )
+        );
+    }
+
+    public void testIndexNameInvalidInconsistentQuotedSelectors() {
+        // We disallow this case because splicing escape quotes leads to too many corner cases
+        ParsingException e = expectThrows(ParsingException.class, () -> parseStatement("SELECT * FROM \"foo::data,bar\"::data"));
+        assertThat(
+            e.getMessage(),
+            containsString(
+                "Invalid index name [foo::data,bar::data], Invalid usage of :: separator, only one :: separator is allowed per expression"
+            )
+        );
+    }
+
+    public void testIndexNameInvalidQuotedSelectors() {
+        ParsingException e = expectThrows(ParsingException.class, () -> parseStatement("SELECT * FROM \"foo::bar::data\""));
+        assertThat(
+            e.getMessage(),
+            containsString(
+                "Invalid index name [foo::bar::data], Invalid usage of :: separator, only one :: separator is allowed per expression"
+            )
         );
     }
 

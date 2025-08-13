@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.searchablesnapshots.action.cache;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.action.support.nodes.BaseNodeResponse;
 import org.elasticsearch.action.support.nodes.BaseNodesRequest;
 import org.elasticsearch.action.support.nodes.BaseNodesResponse;
@@ -18,14 +19,14 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.transport.AbstractTransportRequest;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.ToXContentObject;
@@ -38,7 +39,6 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
-import java.util.stream.Collectors;
 
 /**
  * Node level stats about searchable snapshots caches.
@@ -47,11 +47,12 @@ public class TransportSearchableSnapshotsNodeCachesStatsAction extends Transport
     TransportSearchableSnapshotsNodeCachesStatsAction.NodesRequest,
     TransportSearchableSnapshotsNodeCachesStatsAction.NodesCachesStatsResponse,
     TransportSearchableSnapshotsNodeCachesStatsAction.NodeRequest,
-    TransportSearchableSnapshotsNodeCachesStatsAction.NodeCachesStatsResponse> {
+    TransportSearchableSnapshotsNodeCachesStatsAction.NodeCachesStatsResponse,
+    Void> {
 
     public static final String ACTION_NAME = "cluster:admin/xpack/searchable_snapshots/cache/stats";
 
-    public static final ActionType<NodesCachesStatsResponse> TYPE = new ActionType<>(ACTION_NAME, NodesCachesStatsResponse::new);
+    public static final ActionType<NodesCachesStatsResponse> TYPE = new ActionType<>(ACTION_NAME);
 
     private final Supplier<SharedBlobCacheService<CacheKey>> frozenCacheService;
     private final XPackLicenseState licenseState;
@@ -67,15 +68,11 @@ public class TransportSearchableSnapshotsNodeCachesStatsAction extends Transport
     ) {
         super(
             ACTION_NAME,
-            threadPool,
             clusterService,
             transportService,
             actionFilters,
-            NodesRequest::new,
             NodeRequest::new,
-            ThreadPool.Names.MANAGEMENT,
-            ThreadPool.Names.SAME,
-            NodeCachesStatsResponse.class
+            threadPool.executor(ThreadPool.Names.MANAGEMENT)
         );
         this.frozenCacheService = frozenCacheService;
         this.licenseState = licenseState;
@@ -101,7 +98,7 @@ public class TransportSearchableSnapshotsNodeCachesStatsAction extends Transport
     }
 
     @Override
-    protected void resolveRequest(NodesRequest request, ClusterState clusterState) {
+    protected DiscoveryNode[] resolveRequest(NodesRequest request, ClusterState clusterState) {
         final Map<String, DiscoveryNode> dataNodes = clusterState.getNodes().getDataNodes();
 
         final DiscoveryNode[] resolvedNodes;
@@ -111,10 +108,9 @@ public class TransportSearchableSnapshotsNodeCachesStatsAction extends Transport
             resolvedNodes = Arrays.stream(request.nodesIds())
                 .filter(dataNodes::containsKey)
                 .map(dataNodes::get)
-                .collect(Collectors.toList())
                 .toArray(DiscoveryNode[]::new);
         }
-        request.setConcreteNodes(resolvedNodes);
+        return resolvedNodes;
     }
 
     @Override
@@ -139,7 +135,7 @@ public class TransportSearchableSnapshotsNodeCachesStatsAction extends Transport
         );
     }
 
-    public static final class NodeRequest extends TransportRequest {
+    public static final class NodeRequest extends AbstractTransportRequest {
 
         public NodeRequest() {}
 
@@ -153,19 +149,9 @@ public class TransportSearchableSnapshotsNodeCachesStatsAction extends Transport
         }
     }
 
-    public static final class NodesRequest extends BaseNodesRequest<NodesRequest> {
-
+    public static final class NodesRequest extends BaseNodesRequest {
         public NodesRequest(String[] nodes) {
             super(nodes);
-        }
-
-        public NodesRequest(StreamInput in) throws IOException {
-            super(in);
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
         }
     }
 
@@ -283,22 +269,18 @@ public class TransportSearchableSnapshotsNodeCachesStatsAction extends Transport
 
     public static class NodesCachesStatsResponse extends BaseNodesResponse<NodeCachesStatsResponse> implements ToXContentObject {
 
-        public NodesCachesStatsResponse(StreamInput in) throws IOException {
-            super(in);
-        }
-
         public NodesCachesStatsResponse(ClusterName clusterName, List<NodeCachesStatsResponse> nodes, List<FailedNodeException> failures) {
             super(clusterName, nodes, failures);
         }
 
         @Override
-        protected List<NodeCachesStatsResponse> readNodesFrom(StreamInput in) throws IOException {
-            return in.readList(NodeCachesStatsResponse::new);
+        protected List<NodeCachesStatsResponse> readNodesFrom(StreamInput in) {
+            return TransportAction.localOnly();
         }
 
         @Override
-        protected void writeNodesTo(StreamOutput out, List<NodeCachesStatsResponse> nodes) throws IOException {
-            out.writeList(nodes);
+        protected void writeNodesTo(StreamOutput out, List<NodeCachesStatsResponse> nodes) {
+            TransportAction.localOnly();
         }
 
         @Override

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.cluster.repositories.verify;
@@ -14,11 +15,8 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.xcontent.ObjectParser;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -34,12 +32,6 @@ public class VerifyRepositoryResponse extends ActionResponse implements ToXConte
     static final String NAME = "name";
 
     public static class NodeView implements Writeable, ToXContentObject {
-        private static final ObjectParser.NamedObjectParser<NodeView, Void> PARSER;
-        static {
-            ObjectParser<NodeView, Void> internalParser = new ObjectParser<>(NODES, true, null);
-            internalParser.declareString(NodeView::setName, new ParseField(NAME));
-            PARSER = (p, v, name) -> internalParser.parse(p, new NodeView(name), null);
-        }
 
         final String nodeId;
         String name;
@@ -104,20 +96,10 @@ public class VerifyRepositoryResponse extends ActionResponse implements ToXConte
 
     private List<NodeView> nodes;
 
-    private static final ObjectParser<VerifyRepositoryResponse, Void> PARSER = new ObjectParser<>(
-        VerifyRepositoryResponse.class.getName(),
-        true,
-        VerifyRepositoryResponse::new
-    );
-    static {
-        PARSER.declareNamedObjects(VerifyRepositoryResponse::setNodes, NodeView.PARSER, new ParseField("nodes"));
-    }
-
     public VerifyRepositoryResponse() {}
 
     public VerifyRepositoryResponse(StreamInput in) throws IOException {
-        super(in);
-        this.nodes = in.readList(NodeView::new);
+        this.nodes = in.readCollectionAsList(NodeView::new);
     }
 
     public VerifyRepositoryResponse(DiscoveryNode[] nodes) {
@@ -130,7 +112,7 @@ public class VerifyRepositoryResponse extends ActionResponse implements ToXConte
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeList(nodes);
+        out.writeCollection(nodes);
     }
 
     public List<NodeView> getNodes() {
@@ -155,10 +137,6 @@ public class VerifyRepositoryResponse extends ActionResponse implements ToXConte
         }
         builder.endObject();
         return builder;
-    }
-
-    public static VerifyRepositoryResponse fromXContent(XContentParser parser) {
-        return PARSER.apply(parser, null);
     }
 
     @Override

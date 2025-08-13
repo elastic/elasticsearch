@@ -1,15 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.routing.allocation;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.routing.allocation.NodeAllocationResult.ShardStoreInfo;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -17,7 +18,6 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 
-import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 
 /**
@@ -26,7 +26,7 @@ import static java.util.Collections.emptySet;
 public class NodeAllocationResultTests extends ESTestCase {
 
     public void testSerialization() throws IOException {
-        DiscoveryNode node = new DiscoveryNode("node1", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
+        DiscoveryNode node = DiscoveryNodeUtils.builder("node1").roles(emptySet()).build();
         Decision decision = randomFrom(Decision.YES, Decision.THROTTLE, Decision.NO);
         NodeAllocationResult explanation = new NodeAllocationResult(node, decision, 1);
         BytesStreamOutput output = new BytesStreamOutput();
@@ -36,7 +36,7 @@ public class NodeAllocationResultTests extends ESTestCase {
     }
 
     public void testShardStore() throws IOException {
-        DiscoveryNode node = new DiscoveryNode("node1", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
+        DiscoveryNode node = DiscoveryNodeUtils.builder("node1").roles(emptySet()).build();
         Decision decision = randomFrom(Decision.YES, Decision.THROTTLE, Decision.NO);
         long matchingBytes = (long) randomIntBetween(1, 1000);
         ShardStoreInfo shardStoreInfo = new ShardStoreInfo(matchingBytes);
@@ -48,7 +48,6 @@ public class NodeAllocationResultTests extends ESTestCase {
         assertEquals(matchingBytes, explanation.getShardStoreInfo().getMatchingBytes());
         assertNull(explanation.getShardStoreInfo().getAllocationId());
         assertFalse(explanation.getShardStoreInfo().isInSync());
-        assertFalse(explanation.getShardStoreInfo().hasMatchingSyncId());
 
         String allocId = randomAlphaOfLength(5);
         boolean inSync = randomBoolean();
@@ -60,7 +59,6 @@ public class NodeAllocationResultTests extends ESTestCase {
         assertNodeExplanationEquals(explanation, readExplanation);
         assertEquals(inSync, explanation.getShardStoreInfo().isInSync());
         assertEquals(-1, explanation.getShardStoreInfo().getMatchingBytes());
-        assertFalse(explanation.getShardStoreInfo().hasMatchingSyncId());
         assertEquals(allocId, explanation.getShardStoreInfo().getAllocationId());
     }
 
@@ -72,7 +70,6 @@ public class NodeAllocationResultTests extends ESTestCase {
             assertEquals(expl1.getShardStoreInfo().isInSync(), expl2.getShardStoreInfo().isInSync());
             assertEquals(expl1.getShardStoreInfo().getAllocationId(), expl2.getShardStoreInfo().getAllocationId());
             assertEquals(expl1.getShardStoreInfo().getMatchingBytes(), expl2.getShardStoreInfo().getMatchingBytes());
-            assertEquals(expl1.getShardStoreInfo().hasMatchingSyncId(), expl2.getShardStoreInfo().hasMatchingSyncId());
         } else {
             assertNull(expl2.getShardStoreInfo());
         }

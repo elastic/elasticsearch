@@ -8,16 +8,19 @@
 package org.elasticsearch.xpack.searchablesnapshots.cache.blob;
 
 import org.apache.lucene.store.AlreadyClosedException;
-import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeResponse;
-import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingNode;
+import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
@@ -37,6 +40,7 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.plugins.ClusterPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.reindex.ReindexPlugin;
+import org.elasticsearch.search.SearchResponseUtils;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -59,11 +63,12 @@ import java.util.List;
 import java.util.Locale;
 import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.blobcache.shared.SharedBytes.pageAligned;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_BLOB_CACHE_INDEX;
+import static org.elasticsearch.xpack.searchablesnapshots.cache.common.TestUtils.pageAligned;
 import static org.elasticsearch.xpack.searchablesnapshots.store.SearchableSnapshotDirectory.unwrapDirectory;
+import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 
@@ -74,7 +79,7 @@ public class SearchableSnapshotsBlobStoreCacheIntegTests extends BaseFrozenSearc
 
     @BeforeClass
     public static void setUpCacheSettings() {
-        blobCacheMaxLength = pageAligned(new ByteSizeValue(randomLongBetween(64L, 128L), ByteSizeUnit.KB));
+        blobCacheMaxLength = pageAligned(ByteSizeValue.of(randomLongBetween(64L, 128L), ByteSizeUnit.KB));
 
         final Settings.Builder builder = Settings.builder();
         // Align ranges to match the blob cache max length
@@ -132,17 +137,13 @@ public class SearchableSnapshotsBlobStoreCacheIntegTests extends BaseFrozenSearc
         for (int i = numberOfDocs; i > 0; i--) {
             XContentBuilder builder = XContentFactory.smileBuilder();
             builder.startObject().field("text", randomRealisticUnicodeOfCodepointLengthBetween(5, 50)).field("num", i).endObject();
-            indexRequestBuilders.add(client().prepareIndex(indexName).setSource(builder));
+            indexRequestBuilders.add(prepareIndex(indexName).setSource(builder));
         }
         indexRandom(true, true, true, indexRequestBuilders);
 
         if (randomBoolean()) {
             logger.info("--> force-merging index before snapshotting");
-            final ForceMergeResponse forceMergeResponse = client().admin()
-                .indices()
-                .prepareForceMerge(indexName)
-                .setMaxNumSegments(1)
-                .get();
+            final BroadcastResponse forceMergeResponse = indicesAdmin().prepareForceMerge(indexName).setMaxNumSegments(1).get();
             assertThat(forceMergeResponse.getSuccessfulShards(), equalTo(numberOfShards.totalNumShards));
             assertThat(forceMergeResponse.getFailedShards(), equalTo(0));
         }
@@ -152,12 +153,12 @@ public class SearchableSnapshotsBlobStoreCacheIntegTests extends BaseFrozenSearc
         createRepository(repositoryName, "fs", repositoryLocation);
 
         final SnapshotId snapshot = createSnapshot(repositoryName, "test-snapshot", List.of(indexName)).snapshotId();
-        assertAcked(client().admin().indices().prepareDelete(indexName));
+        assertAcked(indicesAdmin().prepareDelete(indexName));
 
         expectThrows(
             IndexNotFoundException.class,
             ".snapshot-blob-cache system index should not be created yet",
-            () -> systemClient().admin().indices().prepareGetIndex().addIndices(SNAPSHOT_BLOB_CACHE_INDEX).get()
+            () -> systemClient().admin().indices().prepareGetIndex(TEST_REQUEST_TIMEOUT).addIndices(SNAPSHOT_BLOB_CACHE_INDEX).get()
         );
 
         final Storage storage1 = randomFrom(Storage.values());
@@ -203,7 +204,7 @@ public class SearchableSnapshotsBlobStoreCacheIntegTests extends BaseFrozenSearc
         assertThat(
             systemClient().admin()
                 .indices()
-                .prepareGetSettings(SNAPSHOT_BLOB_CACHE_INDEX)
+                .prepareGetSettings(TEST_REQUEST_TIMEOUT, SNAPSHOT_BLOB_CACHE_INDEX)
                 .get()
                 .getSetting(SNAPSHOT_BLOB_CACHE_INDEX, DataTier.TIER_PREFERENCE),
             equalTo("data_content,data_hot")
@@ -211,11 +212,9 @@ public class SearchableSnapshotsBlobStoreCacheIntegTests extends BaseFrozenSearc
 
         refreshSystemIndex();
 
-        final long numberOfCachedBlobs = systemClient().prepareSearch(SNAPSHOT_BLOB_CACHE_INDEX)
-            .setIndicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN)
-            .get()
-            .getHits()
-            .getTotalHits().value;
+        final long numberOfCachedBlobs = SearchResponseUtils.getTotalHitsValue(
+            systemClient().prepareSearch(SNAPSHOT_BLOB_CACHE_INDEX).setIndicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN)
+        );
 
         IndexingStats indexingStats = systemClient().admin()
             .indices()
@@ -229,7 +228,7 @@ public class SearchableSnapshotsBlobStoreCacheIntegTests extends BaseFrozenSearc
         final long numberOfCacheWrites = indexingStats != null ? indexingStats.getTotal().getIndexCount() : 0L;
 
         logger.info("--> verifying number of documents in index [{}]", restoredIndex);
-        assertHitCount(client().prepareSearch(restoredIndex).setSize(0).setTrackTotalHits(true).get(), numberOfDocs);
+        assertHitCount(prepareSearch(restoredIndex).setSize(0).setTrackTotalHits(true), numberOfDocs);
 
         for (IndicesService indicesService : internalCluster().getDataNodeInstances(IndicesService.class)) {
             for (IndexService indexService : indicesService) {
@@ -270,12 +269,12 @@ public class SearchableSnapshotsBlobStoreCacheIntegTests extends BaseFrozenSearc
         checkNoBlobStoreAccess();
 
         logger.info("--> verifying number of documents in index [{}]", restoredAgainIndex);
-        assertHitCount(client().prepareSearch(restoredAgainIndex).setSize(0).setTrackTotalHits(true).get(), numberOfDocs);
+        assertHitCount(prepareSearch(restoredAgainIndex).setSize(0).setTrackTotalHits(true), numberOfDocs);
 
         logger.info("--> verifying that no extra cached blobs were indexed [{}]", SNAPSHOT_BLOB_CACHE_INDEX);
         refreshSystemIndex();
         assertHitCount(
-            systemClient().prepareSearch(SNAPSHOT_BLOB_CACHE_INDEX).setIndicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN).setSize(0).get(),
+            systemClient().prepareSearch(SNAPSHOT_BLOB_CACHE_INDEX).setIndicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN).setSize(0),
             numberOfCachedBlobs
         );
         indexingStats = systemClient().admin()
@@ -311,7 +310,7 @@ public class SearchableSnapshotsBlobStoreCacheIntegTests extends BaseFrozenSearc
 
         logger.info("--> verifying that no cached blobs were indexed in system index [{}] after restart", SNAPSHOT_BLOB_CACHE_INDEX);
         assertHitCount(
-            systemClient().prepareSearch(SNAPSHOT_BLOB_CACHE_INDEX).setIndicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN).setSize(0).get(),
+            systemClient().prepareSearch(SNAPSHOT_BLOB_CACHE_INDEX).setIndicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN).setSize(0),
             numberOfCachedBlobs
         );
         indexingStats = systemClient().admin()
@@ -326,18 +325,15 @@ public class SearchableSnapshotsBlobStoreCacheIntegTests extends BaseFrozenSearc
         assertThat(indexingStats != null ? indexingStats.getTotal().getIndexCount() : 0L, equalTo(0L));
 
         logger.info("--> verifying number of documents in index [{}]", restoredAgainIndex);
-        assertHitCount(client().prepareSearch(restoredAgainIndex).setSize(0).setTrackTotalHits(true).get(), numberOfDocs);
+        assertHitCount(prepareSearch(restoredAgainIndex).setSize(0).setTrackTotalHits(true), numberOfDocs);
 
         logger.info("--> deleting indices, maintenance service should clean up [{}] docs in system index", numberOfCachedBlobs);
-        assertAcked(client().admin().indices().prepareDelete("restored-*"));
+        assertAcked(indicesAdmin().prepareDelete("restored-*"));
 
         assertBusy(() -> {
             refreshSystemIndex();
             assertHitCount(
-                systemClient().prepareSearch(SNAPSHOT_BLOB_CACHE_INDEX)
-                    .setIndicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN)
-                    .setSize(0)
-                    .get(),
+                systemClient().prepareSearch(SNAPSHOT_BLOB_CACHE_INDEX).setIndicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN).setSize(0),
                 0L
             );
         }, 30L, TimeUnit.SECONDS);
@@ -363,11 +359,11 @@ public class SearchableSnapshotsBlobStoreCacheIntegTests extends BaseFrozenSearc
 
     private void refreshSystemIndex() {
         try {
-            final RefreshResponse refreshResponse = systemClient().admin().indices().prepareRefresh(SNAPSHOT_BLOB_CACHE_INDEX).get();
+            final BroadcastResponse refreshResponse = systemClient().admin().indices().prepareRefresh(SNAPSHOT_BLOB_CACHE_INDEX).get();
             assertThat(refreshResponse.getSuccessfulShards(), greaterThan(0));
             assertThat(refreshResponse.getFailedShards(), equalTo(0));
         } catch (IndexNotFoundException indexNotFoundException) {
-            throw new AssertionError("unexpected", indexNotFoundException);
+            fail(indexNotFoundException);
         }
     }
 
@@ -404,17 +400,24 @@ public class SearchableSnapshotsBlobStoreCacheIntegTests extends BaseFrozenSearc
 
                 @Override
                 public Decision canAllocate(ShardRouting shardRouting, RoutingAllocation allocation) {
-                    final IndexMetadata indexMetadata = allocation.metadata().index(shardRouting.index());
+                    final Metadata metadata = allocation.metadata();
+                    assertThat(metadata.projects(), aMapWithSize(1));
+                    var entry = metadata.projects().entrySet().iterator().next();
+                    final ProjectMetadata projectMetadata = entry.getValue();
+                    final ProjectId projectId = entry.getKey();
+
+                    final IndexMetadata indexMetadata = projectMetadata.index(shardRouting.index());
                     if (indexMetadata.isSearchableSnapshot() == false) {
                         return allocation.decision(Decision.YES, name, "index is not a searchable snapshot shard - can allocate");
                     }
-                    if (allocation.metadata().hasIndex(SNAPSHOT_BLOB_CACHE_INDEX) == false) {
+                    if (projectMetadata.hasIndex(SNAPSHOT_BLOB_CACHE_INDEX) == false) {
                         return allocation.decision(Decision.YES, name, SNAPSHOT_BLOB_CACHE_INDEX + " is not created yet");
                     }
-                    if (allocation.routingTable().hasIndex(SNAPSHOT_BLOB_CACHE_INDEX) == false) {
+                    final RoutingTable routingTable = allocation.routingTable(projectId);
+                    if (routingTable.hasIndex(SNAPSHOT_BLOB_CACHE_INDEX) == false) {
                         return allocation.decision(Decision.THROTTLE, name, SNAPSHOT_BLOB_CACHE_INDEX + " is not active yet");
                     }
-                    final IndexRoutingTable indexRoutingTable = allocation.routingTable().index(SNAPSHOT_BLOB_CACHE_INDEX);
+                    final IndexRoutingTable indexRoutingTable = routingTable.index(SNAPSHOT_BLOB_CACHE_INDEX);
                     if (indexRoutingTable.allPrimaryShardsActive() == false) {
                         return allocation.decision(Decision.THROTTLE, name, SNAPSHOT_BLOB_CACHE_INDEX + " is not active yet");
                     }

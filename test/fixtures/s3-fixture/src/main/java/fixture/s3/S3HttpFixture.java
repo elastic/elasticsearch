@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package fixture.s3;
 
@@ -11,55 +12,100 @@ import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
 import com.sun.net.httpserver.HttpServer;
 
-import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
+import org.elasticsearch.threadpool.ThreadPool;
+import org.junit.rules.ExternalResource;
 
 import java.io.IOException;
-import java.net.InetAddress;
-import java.net.InetSocketAddress;
 import java.util.Objects;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.TimeUnit;
+import java.util.function.BiPredicate;
 
-public class S3HttpFixture {
+import static fixture.aws.AwsCredentialsUtils.ANY_REGION;
+import static fixture.aws.AwsCredentialsUtils.checkAuthorization;
+import static fixture.aws.AwsCredentialsUtils.fixedAccessKey;
+import static fixture.aws.AwsFixtureUtils.getLocalFixtureAddress;
 
-    private final HttpServer server;
+public class S3HttpFixture extends ExternalResource {
 
-    S3HttpFixture(final String[] args) throws Exception {
-        this.server = HttpServer.create(new InetSocketAddress(InetAddress.getByName(args[0]), Integer.parseInt(args[1])), 0);
-        this.server.createContext("/", Objects.requireNonNull(createHandler(args)));
+    private static final Logger logger = LogManager.getLogger(S3HttpFixture.class);
+
+    private HttpServer server;
+    private ExecutorService executorService;
+
+    private final boolean enabled;
+    private final String bucket;
+    private final String basePath;
+    private final BiPredicate<String, String> authorizationPredicate;
+
+    public S3HttpFixture(boolean enabled) {
+        this(enabled, "bucket", "base_path_integration_tests", fixedAccessKey("s3_test_access_key", ANY_REGION, "s3"));
     }
 
-    final void start() throws Exception {
-        try {
-            server.start();
-            // wait to be killed
-            Thread.sleep(Long.MAX_VALUE);
-        } finally {
-            server.stop(0);
-        }
+    public S3HttpFixture(boolean enabled, String bucket, String basePath, BiPredicate<String, String> authorizationPredicate) {
+        this.enabled = enabled;
+        this.bucket = bucket;
+        this.basePath = basePath;
+        this.authorizationPredicate = authorizationPredicate;
     }
 
-    protected HttpHandler createHandler(final String[] args) {
-        final String bucket = Objects.requireNonNull(args[2]);
-        final String basePath = args[3];
-        final String accessKey = Objects.requireNonNull(args[4]);
-
+    protected HttpHandler createHandler() {
         return new S3HttpHandler(bucket, basePath) {
             @Override
             public void handle(final HttpExchange exchange) throws IOException {
-                final String authorization = exchange.getRequestHeaders().getFirst("Authorization");
-                if (authorization == null || authorization.contains(accessKey) == false) {
-                    sendError(exchange, RestStatus.FORBIDDEN, "AccessDenied", "Bad access key");
-                    return;
+                try {
+                    if (checkAuthorization(authorizationPredicate, exchange)) {
+                        super.handle(exchange);
+                    }
+                } catch (Error e) {
+                    // HttpServer catches Throwable, so we must throw errors on another thread
+                    ExceptionsHelper.maybeDieOnAnotherThread(e);
+                    throw e;
                 }
-                super.handle(exchange);
             }
         };
     }
 
-    public static void main(final String[] args) throws Exception {
-        if (args == null || args.length < 5) {
-            throw new IllegalArgumentException("S3HttpFixture expects 5 arguments [address, port, bucket, base path, access key]");
+    public String getAddress() {
+        return "http://" + server.getAddress().getHostString() + ":" + server.getAddress().getPort();
+    }
+
+    public void stop(int delay) {
+        server.stop(delay);
+    }
+
+    protected void before() throws Throwable {
+        if (enabled) {
+            this.executorService = EsExecutors.newScaling(
+                "s3-http-fixture",
+                1,
+                100,
+                30,
+                TimeUnit.SECONDS,
+                true,
+                EsExecutors.daemonThreadFactory("s3-http-fixture"),
+                new ThreadContext(Settings.EMPTY)
+            );
+
+            this.server = HttpServer.create(getLocalFixtureAddress(), 0);
+            this.server.createContext("/", Objects.requireNonNull(createHandler()));
+            this.server.setExecutor(executorService);
+            server.start();
+            logger.info("running S3HttpFixture at " + getAddress());
         }
-        final S3HttpFixture fixture = new S3HttpFixture(args);
-        fixture.start();
+    }
+
+    @Override
+    protected void after() {
+        if (enabled) {
+            stop(0);
+            ThreadPool.terminate(executorService, 10, TimeUnit.SECONDS);
+        }
     }
 }

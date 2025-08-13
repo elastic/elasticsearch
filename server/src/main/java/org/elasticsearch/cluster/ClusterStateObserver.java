@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster;
@@ -12,8 +13,10 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.service.ClusterApplierService;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Predicates;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -32,8 +35,6 @@ public class ClusterStateObserver {
 
     public static final Predicate<ClusterState> NON_NULL_MASTER_PREDICATE = state -> state.nodes().getMasterNode() != null;
 
-    private static final Predicate<ClusterState> MATCH_ALL_CHANGES_PREDICATE = state -> true;
-
     private final ClusterApplierService clusterApplierService;
     private final ThreadPool threadPool;
     private final ThreadContext contextHolder;
@@ -45,10 +46,6 @@ public class ClusterStateObserver {
     final AtomicReference<ObservingContext> observingContext = new AtomicReference<>(null);
     volatile Long startTimeMS;
     volatile boolean timedOut;
-
-    public ClusterStateObserver(ClusterService clusterService, Logger logger, ThreadContext contextHolder) {
-        this(clusterService, new TimeValue(60000), logger, contextHolder);
-    }
 
     /**
      * @param timeout        a global timeout for this observer. After it has expired the observer
@@ -108,11 +105,11 @@ public class ClusterStateObserver {
     }
 
     public void waitForNextChange(Listener listener) {
-        waitForNextChange(listener, MATCH_ALL_CHANGES_PREDICATE);
+        waitForNextChange(listener, Predicates.always());
     }
 
     public void waitForNextChange(Listener listener, @Nullable TimeValue timeOutValue) {
-        waitForNextChange(listener, MATCH_ALL_CHANGES_PREDICATE, timeOutValue);
+        waitForNextChange(listener, Predicates.always(), timeOutValue);
     }
 
     public void waitForNextChange(Listener listener, Predicate<ClusterState> statePredicate) {
@@ -182,6 +179,35 @@ public class ClusterStateObserver {
         }
     }
 
+    /**
+     * Waits for the cluster state to match a given predicate. Unlike {@link #waitForNextChange} this method checks whether the current
+     * state matches the predicate first and resolves the listener directly if it matches without waiting for another cluster state update.
+     *
+     * @param clusterService cluster service
+     * @param threadContext  thread context to resolve listener in
+     * @param listener       listener to resolve once state matches the predicate
+     * @param statePredicate predicate the cluster state has to match
+     * @param timeout        timeout for the wait or {@code null} for no timeout
+     * @param logger         logger to use for logging observer messages
+     */
+    public static void waitForState(
+        ClusterService clusterService,
+        ThreadContext threadContext,
+        Listener listener,
+        Predicate<ClusterState> statePredicate,
+        @Nullable TimeValue timeout,
+        Logger logger
+    ) {
+        final ClusterState initialState = clusterService.state();
+        if (statePredicate.test(initialState)) {
+            // short-cut in case the state matches the predicate already
+            listener.onNewClusterState(initialState);
+            return;
+        }
+        ClusterStateObserver observer = new ClusterStateObserver(initialState, clusterService, timeout, logger, threadContext);
+        observer.waitForNextChange(listener, statePredicate);
+    }
+
     class ObserverClusterStateListener implements TimeoutClusterStateListener {
 
         @Override
@@ -197,7 +223,11 @@ public class ClusterStateObserver {
                     clusterApplierService.removeTimeoutListener(this);
                     logger.trace("observer: accepting cluster state change ({})", state);
                     lastObservedVersion = state.version();
-                    context.listener.onNewClusterState(state);
+                    try {
+                        context.listener.onNewClusterState(state);
+                    } catch (Exception e) {
+                        logUnexpectedException(e, "cluster state version [%d]", state.version());
+                    }
                 } else {
                     logger.trace(
                         "observer: predicate approved change but observing context has changed "
@@ -224,7 +254,11 @@ public class ClusterStateObserver {
                     logger.trace("observer: post adding listener: accepting current cluster state ({})", newState);
                     clusterApplierService.removeTimeoutListener(this);
                     lastObservedVersion = newState.version();
-                    context.listener.onNewClusterState(newState);
+                    try {
+                        context.listener.onNewClusterState(newState);
+                    } catch (Exception e) {
+                        logUnexpectedException(e, "cluster state version [%d]", newState.version());
+                    }
                 } else {
                     logger.trace(
                         "observer: postAdded - predicate approved state but observing context has changed - ignoring ({})",
@@ -243,7 +277,11 @@ public class ClusterStateObserver {
             if (context != null) {
                 logger.trace("observer: cluster service closed. notifying listener.");
                 clusterApplierService.removeTimeoutListener(this);
-                context.listener.onClusterServiceClose();
+                try {
+                    context.listener.onClusterServiceClose();
+                } catch (Exception e) {
+                    logUnexpectedException(e, "cluster service close");
+                }
             }
         }
 
@@ -261,7 +299,11 @@ public class ClusterStateObserver {
                 // update to latest, in case people want to retry
                 lastObservedVersion = clusterApplierService.state().version();
                 timedOut = true;
-                context.listener.onTimeout(timeOutValue);
+                try {
+                    context.listener.onTimeout(timeOutValue);
+                } catch (Exception e) {
+                    logUnexpectedException(e, "timeout after [%s]", timeOutValue);
+                }
             }
         }
 
@@ -269,16 +311,38 @@ public class ClusterStateObserver {
         public String toString() {
             return "ClusterStateObserver[" + observingContext.get() + "]";
         }
+
+        private void logUnexpectedException(Exception exception, String format, Object... args) {
+            final var illegalStateException = new IllegalStateException(
+                Strings.format(
+                    "unexpected exception processing %s in context [%s]",
+                    Strings.format(format, args),
+                    ObserverClusterStateListener.this
+                ),
+                exception
+            );
+            logger.error(illegalStateException.getMessage(), illegalStateException);
+            assert false : illegalStateException;
+        }
     }
 
     public interface Listener {
 
-        /** called when a new state is observed */
+        /**
+         * Called when a new state is observed. Implementations should avoid doing heavy operations on the calling thread and fork to
+         * a threadpool if necessary to avoid blocking the {@link ClusterApplierService}. Note that operations such as sending a new
+         * request (e.g. via {@link org.elasticsearch.client.internal.Client} or {@link org.elasticsearch.transport.TransportService})
+         * is cheap enough to be performed without forking.
+         */
         void onNewClusterState(ClusterState state);
 
         /** called when the cluster service is closed */
         void onClusterServiceClose();
 
+        /**
+         * Called when the {@link ClusterStateObserver} times out while waiting for a new matching cluster state if a timeout is
+         * used when creating the observer. Upon timeout, {@code onTimeout} is called on the GENERIC threadpool.
+         */
         void onTimeout(TimeValue timeout);
     }
 

@@ -375,7 +375,7 @@ public class SSLErrorMessageFileTests extends ESTestCase {
             + " ["
             + fileName
             + "] because access to read the file is blocked; SSL resources should be placed in the ["
-            + env.configFile().toAbsolutePath().toString()
+            + env.configDir().toAbsolutePath().toString()
             + "] directory";
 
         Throwable exception = expectFailure(settings);
@@ -477,7 +477,7 @@ public class SSLErrorMessageFileTests extends ESTestCase {
     private ElasticsearchException expectFailure(Settings.Builder settings) {
         return expectThrows(
             ElasticsearchException.class,
-            () -> new SSLService(new Environment(buildEnvSettings(settings.build()), env.configFile()))
+            () -> new SSLService(new Environment(buildEnvSettings(settings.build()), env.configDir()))
         );
     }
 

@@ -1,15 +1,22 @@
-import org.elasticsearch.gradle.internal.info.BuildParams
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
 apply plugin: 'elasticsearch.internal-es-plugin'
-apply plugin: 'elasticsearch.publish'
 apply plugin: 'elasticsearch.internal-cluster-test'
 esplugin {
-  name 'x-pack-identity-provider'
-  description 'Elasticsearch Expanded Pack Plugin - Identity Provider'
-  classname 'org.elasticsearch.xpack.idp.IdentityProviderPlugin'
+  name = 'x-pack-identity-provider'
+  description = 'Elasticsearch Expanded Pack Plugin - Identity Provider'
+  classname = 'org.elasticsearch.xpack.idp.IdentityProviderPlugin'
   extendedPlugins = ['x-pack-core']
 }
 
-archivesBaseName = 'x-pack-identity-provider'
+base {
+  archivesName = 'x-pack-identity-provider'
+}
 
 dependencies {
   compileOnly project(path: xpackModule('core'))
@@ -20,7 +27,7 @@ dependencies {
   api "org.opensaml:opensaml-saml-impl:${versions.opensaml}"
   api "org.opensaml:opensaml-messaging-api:${versions.opensaml}"
   api "org.opensaml:opensaml-messaging-impl:${versions.opensaml}"
-  api "org.opensaml:opensaml-security-api:${versions.opensaml}"
+  api project(path: ':x-pack:libs:es-opensaml-security-api', configuration: 'shadow')
   api "org.opensaml:opensaml-security-impl:${versions.opensaml}"
   api "org.opensaml:opensaml-profile-api:${versions.opensaml}"
   api "org.opensaml:opensaml-profile-impl:${versions.opensaml}"
@@ -30,21 +37,23 @@ dependencies {
   api "org.opensaml:opensaml-soap-impl:${versions.opensaml}"
   api "org.opensaml:opensaml-storage-api:${versions.opensaml}"
   api "org.opensaml:opensaml-storage-impl:${versions.opensaml}"
-  api "net.shibboleth.utilities:java-support:8.0.0"
+  api "net.shibboleth.utilities:java-support:8.4.0"
   api "com.google.code.findbugs:jsr305:3.0.2"
-  api "org.apache.santuario:xmlsec:2.1.4"
+  api "org.apache.santuario:xmlsec:2.3.4"
   api "io.dropwizard.metrics:metrics-core:4.1.4"
-  api ("org.cryptacular:cryptacular:1.2.4") {
+  api ( "org.cryptacular:cryptacular:1.2.5") {
       exclude group: 'org.bouncycastle'
   }
+
   api "org.slf4j:slf4j-api:${versions.slf4j}"
-  api "org.apache.logging.log4j:log4j-slf4j-impl:${versions.log4j}"
+  runtimeOnly "org.slf4j:slf4j-nop:${versions.slf4j}"
+  //  runtimeOnly("org.apache.logging.log4j:log4j-slf4j-impl:${versions.log4j}") https://github.com/elastic/elasticsearch/issues/93714
   api "org.apache.httpcomponents:httpclient:${versions.httpclient}"
   api "org.apache.httpcomponents:httpcore:${versions.httpcore}"
   api "org.apache.httpcomponents:httpasyncclient:${versions.httpasyncclient}"
   api "org.apache.httpcomponents:httpcore-nio:${versions.httpcore}"
   api "org.apache.httpcomponents:httpclient-cache:${versions.httpclient}"
-  runtimeOnly 'com.google.guava:guava:28.2-jre'
+  runtimeOnly 'com.google.guava:guava:32.0.1-jre'
   runtimeOnly 'com.google.guava:failureaccess:1.0.1'
   runtimeOnly "commons-codec:commons-codec:${versions.commonscodec}"
 
@@ -107,17 +116,6 @@ tasks.named("thirdPartyAudit").configure {
         'org.apache.velocity.context.Context',
         'org.apache.velocity.runtime.resource.loader.StringResourceLoader',
         'org.apache.velocity.runtime.resource.util.StringResourceRepository',
-        // [missing classes] OpenSAML depends on Apache XML security which depends on Xalan, but only for functionality that OpenSAML doesn't use
-        'org.apache.xml.dtm.DTM',
-        'org.apache.xml.utils.PrefixResolver',
-        'org.apache.xpath.Expression',
-        'org.apache.xpath.NodeSetDTM',
-        'org.apache.xpath.XPath',
-        'org.apache.xpath.XPathContext',
-        'org.apache.xpath.compiler.FunctionTable',
-        'org.apache.xpath.functions.Function',
-        'org.apache.xpath.objects.XNodeSet',
-        'org.apache.xpath.objects.XObject',
         // [missing classes] OpenSAML storage has an optional LDAP storage impl
         'org.ldaptive.AttributeModification',
         'org.ldaptive.AttributeModificationType',
@@ -161,8 +159,6 @@ tasks.named("thirdPartyAudit").configure {
         // [missing classes] Http Client cache has optional ehcache support
         'net.sf.ehcache.Ehcache',
         'net.sf.ehcache.Element',
-        // [missing classes] SLF4j includes an optional class that depends on an extension class (!)
-        'org.slf4j.ext.EventData',
         // Bouncycastle is an optional dependency for apache directory, cryptacular and opensaml packages. We
         // acknowledge them here instead of adding bouncy castle as a compileOnly dependency
         'org.bouncycastle.asn1.ASN1Encodable',
@@ -173,7 +169,7 @@ tasks.named("thirdPartyAudit").configure {
         'org.bouncycastle.asn1.ASN1Primitive',
         'org.bouncycastle.asn1.ASN1Sequence',
         'org.bouncycastle.asn1.ASN1TaggedObject',
-        'org.bouncycastle.asn1.DEROctetString',
+        // 'org.bouncycastle.asn1.DEROctetString',
         'org.bouncycastle.asn1.pkcs.EncryptedPrivateKeyInfo',
         'org.bouncycastle.asn1.pkcs.EncryptionScheme',
         'org.bouncycastle.asn1.pkcs.KeyDerivationFunc',
@@ -211,7 +207,7 @@ tasks.named("thirdPartyAudit").configure {
         'org.bouncycastle.crypto.Digest',
         'org.bouncycastle.crypto.PBEParametersGenerator',
         'org.bouncycastle.crypto.StreamCipher',
-        // 'org.bouncycastle.crypto.agreement.kdf.ConcatenationKDFGenerator',
+        'org.bouncycastle.crypto.agreement.kdf.ConcatenationKDFGenerator',
         // 'org.bouncycastle.crypto.ec.CustomNamedCurves',
         'org.bouncycastle.crypto.modes.AEADBlockCipher',
         'org.bouncycastle.crypto.paddings.BlockCipherPadding',
@@ -265,7 +261,6 @@ tasks.named("thirdPartyAudit").configure {
     'com.google.common.hash.LittleEndianByteArray$UnsafeByteArray',
     'com.google.common.hash.LittleEndianByteArray$UnsafeByteArray$1',
     'com.google.common.hash.LittleEndianByteArray$UnsafeByteArray$2',
-    'com.google.common.hash.LittleEndianByteArray$UnsafeByteArray$3',
     'com.google.common.hash.Striped64',
     'com.google.common.hash.Striped64$1',
     'com.google.common.hash.Striped64$Cell',
@@ -291,7 +286,7 @@ tasks.named("thirdPartyAudit").configure {
 
 addQaCheckDependencies(project)
 
-if (BuildParams.inFipsJvm) {
+if (buildParams.inFipsJvm) {
   // We don't support the IDP in FIPS-140 mode, so no need to run tests
   tasks.named("test").configure { enabled = false }
 }

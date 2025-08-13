@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.gateway;
 
@@ -19,6 +20,7 @@ import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.StoredFields;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.IndexSearcher;
@@ -42,8 +44,13 @@ import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.routing.GlobalRoutingTableTestHelper;
+import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -51,15 +58,18 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.env.BuildVersion;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.NodeMetadata;
 import org.elasticsearch.gateway.PersistedClusterStateService.Writer;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.test.CorruptionUtils;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.MockLogAppender;
+import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 
 import java.io.IOError;
@@ -71,12 +81,14 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 import java.util.function.IntPredicate;
 import java.util.stream.Collectors;
@@ -93,10 +105,12 @@ import static org.elasticsearch.gateway.PersistedClusterStateService.MAPPING_TYP
 import static org.elasticsearch.gateway.PersistedClusterStateService.METADATA_DIRECTORY_NAME;
 import static org.elasticsearch.gateway.PersistedClusterStateService.PAGE_FIELD_NAME;
 import static org.elasticsearch.gateway.PersistedClusterStateService.TYPE_FIELD_NAME;
+import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.startsWith;
@@ -104,6 +118,13 @@ import static org.hamcrest.Matchers.startsWith;
 public class PersistedClusterStateServiceTests extends ESTestCase {
 
     private PersistedClusterStateService newPersistedClusterStateService(NodeEnvironment nodeEnvironment) {
+        return newPersistedClusterStateService(nodeEnvironment, ESTestCase::randomBoolean);
+    }
+
+    private PersistedClusterStateService newPersistedClusterStateService(
+        NodeEnvironment nodeEnvironment,
+        BooleanSupplier supportsMultipleProjects
+    ) {
 
         final Settings.Builder settings = Settings.builder();
         if (randomBoolean()) {
@@ -114,7 +135,8 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
             nodeEnvironment,
             xContentRegistry(),
             new ClusterSettings(settings.build(), ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
-            () -> 0L
+            () -> 0L,
+            supportsMultipleProjects
         );
     }
 
@@ -301,7 +323,8 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
                 nodeIds[0],
                 xContentRegistry(),
                 new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
-                () -> 0L
+                () -> 0L,
+                ESTestCase::randomBoolean
             ).loadBestOnDiskState()
         ).getMessage();
         assertThat(message, allOf(containsString("belongs to a node with ID"), containsString(nodeIds[0]), containsString(nodeIds[1])));
@@ -473,10 +496,11 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
                 nodeEnvironment,
                 xContentRegistry(),
                 new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
-                () -> 0L
+                () -> 0L,
+                ESTestCase::randomBoolean
             ) {
                 @Override
-                Directory createDirectory(Path path) throws IOException {
+                protected Directory createDirectory(Path path) throws IOException {
                     return new FilterDirectory(super.createDirectory(path)) {
                         @Override
                         public IndexOutput createOutput(String name, IOContext context) throws IOException {
@@ -519,10 +543,11 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
                 nodeEnvironment,
                 xContentRegistry(),
                 new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
-                () -> 0L
+                () -> 0L,
+                ESTestCase::randomBoolean
             ) {
                 @Override
-                Directory createDirectory(Path path) throws IOException {
+                protected Directory createDirectory(Path path) throws IOException {
                     return new FilterDirectory(super.createDirectory(path)) {
                         @Override
                         public void sync(Collection<String> names) {
@@ -549,7 +574,13 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
                     if (randomBoolean()) {
                         writeState(writer, newTerm, newState, clusterState);
                     } else {
-                        writer.commit(newTerm, newState.version(), newState.metadata().oldestIndexVersion());
+                        writer.commit(
+                            newTerm,
+                            newState.version(),
+                            newState.metadata().getProject().oldestIndexVersion(),
+                            newState.metadata().clusterUUID(),
+                            newState.metadata().clusterUUIDCommitted()
+                        );
                     }
                 }).getMessage(), containsString("simulated"));
                 assertFalse(writer.isOpen());
@@ -568,10 +599,11 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
                 nodeEnvironment,
                 xContentRegistry(),
                 new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
-                () -> 0L
+                () -> 0L,
+                ESTestCase::randomBoolean
             ) {
                 @Override
-                Directory createDirectory(Path path) throws IOException {
+                protected Directory createDirectory(Path path) throws IOException {
                     return new FilterDirectory(super.createDirectory(path)) {
                         @Override
                         public void rename(String source, String dest) throws IOException {
@@ -600,7 +632,13 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
                     if (randomBoolean()) {
                         writeState(writer, newTerm, newState, clusterState);
                     } else {
-                        writer.commit(newTerm, newState.version(), newState.metadata().oldestIndexVersion());
+                        writer.commit(
+                            newTerm,
+                            newState.version(),
+                            newState.metadata().getProject().oldestIndexVersion(),
+                            newState.metadata().clusterUUID(),
+                            newState.metadata().clusterUUIDCommitted()
+                        );
                     }
                 }).getMessage(), containsString("simulated"));
                 assertFalse(writer.isOpen());
@@ -709,10 +747,7 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
                                         .version(1L)
                                         .putMapping(randomMappingMetadataOrNull())
                                         .settings(
-                                            Settings.builder()
-                                                .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
-                                                .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0)
-                                                .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                                            indexSettings(1, 0).put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
                                                 .put(IndexMetadata.SETTING_INDEX_UUID, indexUUID)
                                         )
                                 )
@@ -755,7 +790,7 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
 
     public void testPersistsAndReloadsIndexMetadataIffVersionOrTermChanges() throws IOException {
         try (NodeEnvironment nodeEnvironment = newNodeEnvironment(createDataPaths())) {
-            final PersistedClusterStateService persistedClusterStateService = newPersistedClusterStateService(nodeEnvironment);
+            final PersistedClusterStateService persistedClusterStateService = newPersistedClusterStateService(nodeEnvironment, () -> false);
             final long globalVersion = randomLongBetween(1L, Long.MAX_VALUE);
             final String indexUUID = UUIDs.randomBase64UUID(random());
             final long indexMetadataVersion = randomLongBetween(1L, Long.MAX_VALUE);
@@ -780,10 +815,7 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
                                         .version(indexMetadataVersion - 1) // -1 because it's incremented in .put()
                                         .putMapping(randomMappingMetadataOrNull())
                                         .settings(
-                                            Settings.builder()
-                                                .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
-                                                .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0)
-                                                .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                                            indexSettings(1, 0).put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
                                                 .put(IndexMetadata.SETTING_INDEX_UUID, indexUUID)
                                         )
                                 )
@@ -794,7 +826,7 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
                 );
 
                 clusterState = loadPersistedClusterState(persistedClusterStateService);
-                IndexMetadata indexMetadata = clusterState.metadata().index("test");
+                IndexMetadata indexMetadata = clusterState.metadata().getProject().index("test");
                 assertThat(indexMetadata.getIndexUUID(), equalTo(indexUUID));
                 assertThat(indexMetadata.getVersion(), equalTo(indexMetadataVersion));
                 assertThat(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.get(indexMetadata.getSettings()), equalTo(0));
@@ -822,7 +854,7 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
                 );
 
                 clusterState = loadPersistedClusterState(persistedClusterStateService);
-                indexMetadata = clusterState.metadata().index("test");
+                indexMetadata = clusterState.metadata().getProject().index("test");
                 assertThat(indexMetadata.getIndexUUID(), equalTo(indexUUID));
                 assertThat(indexMetadata.getVersion(), equalTo(indexMetadataVersion));
                 assertThat(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.get(indexMetadata.getSettings()), equalTo(0));
@@ -851,7 +883,7 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
                 );
 
                 clusterState = loadPersistedClusterState(persistedClusterStateService);
-                indexMetadata = clusterState.metadata().index("test");
+                indexMetadata = clusterState.metadata().getProject().index("test");
                 assertThat(indexMetadata.getVersion(), equalTo(indexMetadataVersion + 1));
                 assertThat(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.get(indexMetadata.getSettings()), equalTo(2));
                 // ensure that we also persist the index metadata when the term changes
@@ -883,7 +915,7 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
             }
 
             final ClusterState clusterState = loadPersistedClusterState(persistedClusterStateService);
-            final IndexMetadata indexMetadata = clusterState.metadata().index("test");
+            final IndexMetadata indexMetadata = clusterState.metadata().getProject().index("test");
             assertThat(indexMetadata.getIndexUUID(), equalTo(indexUUID));
             assertThat(indexMetadata.getVersion(), equalTo(indexMetadataVersion + 1));
             assertThat(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.get(indexMetadata.getSettings()), equalTo(3));
@@ -914,10 +946,7 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
                                         .putMapping(randomMappingMetadataOrNull())
                                         .version(randomLongBetween(0L, Long.MAX_VALUE - 1) - 1) // -1 because it's incremented in .put()
                                         .settings(
-                                            Settings.builder()
-                                                .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 1)
-                                                .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
-                                                .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                                            indexSettings(1, 1).put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
                                                 .put(IndexMetadata.SETTING_INDEX_UUID, updatedIndexUuid)
                                         )
                                 )
@@ -926,10 +955,7 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
                                         .putMapping(randomMappingMetadataOrNull())
                                         .version(randomLongBetween(0L, Long.MAX_VALUE - 1) - 1) // -1 because it's incremented in .put()
                                         .settings(
-                                            Settings.builder()
-                                                .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 1)
-                                                .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
-                                                .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                                            indexSettings(1, 1).put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
                                                 .put(IndexMetadata.SETTING_INDEX_UUID, deletedIndexUuid)
                                         )
                                 )
@@ -943,13 +969,13 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
             try (Writer writer = persistedClusterStateService.createWriter()) {
                 final ClusterState clusterState = loadPersistedClusterState(persistedClusterStateService);
 
-                assertThat(clusterState.metadata().indices().size(), equalTo(2));
-                assertThat(clusterState.metadata().index("updated").getIndexUUID(), equalTo(updatedIndexUuid));
+                assertThat(clusterState.metadata().getProject().indices().size(), equalTo(2));
+                assertThat(clusterState.metadata().getProject().index("updated").getIndexUUID(), equalTo(updatedIndexUuid));
                 assertThat(
-                    IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.get(clusterState.metadata().index("updated").getSettings()),
+                    IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.get(clusterState.metadata().getProject().index("updated").getSettings()),
                     equalTo(1)
                 );
-                assertThat(clusterState.metadata().index("deleted").getIndexUUID(), equalTo(deletedIndexUuid));
+                assertThat(clusterState.metadata().getProject().index("deleted").getIndexUUID(), equalTo(deletedIndexUuid));
 
                 writeState(
                     writer,
@@ -964,7 +990,7 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
                                         .putMapping(randomMappingMetadataOrNull())
                                         .settings(
                                             Settings.builder()
-                                                .put(clusterState.metadata().index("updated").getSettings())
+                                                .put(clusterState.metadata().getProject().index("updated").getSettings())
                                                 .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 2)
                                         )
                                 )
@@ -973,10 +999,7 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
                                         .version(randomLongBetween(0L, Long.MAX_VALUE - 1) - 1) // -1 because it's incremented in .put()
                                         .putMapping(randomMappingMetadataOrNull())
                                         .settings(
-                                            Settings.builder()
-                                                .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 1)
-                                                .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
-                                                .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                                            indexSettings(1, 1).put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
                                                 .put(IndexMetadata.SETTING_INDEX_UUID, addedIndexUuid)
                                         )
                                 )
@@ -989,14 +1012,116 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
 
             final ClusterState clusterState = loadPersistedClusterState(persistedClusterStateService);
 
-            assertThat(clusterState.metadata().indices().size(), equalTo(2));
-            assertThat(clusterState.metadata().index("updated").getIndexUUID(), equalTo(updatedIndexUuid));
+            assertThat(clusterState.metadata().getProject().indices().size(), equalTo(2));
+            assertThat(clusterState.metadata().getProject().index("updated").getIndexUUID(), equalTo(updatedIndexUuid));
             assertThat(
-                IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.get(clusterState.metadata().index("updated").getSettings()),
+                IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.get(clusterState.metadata().getProject().index("updated").getSettings()),
                 equalTo(2)
             );
-            assertThat(clusterState.metadata().index("added").getIndexUUID(), equalTo(addedIndexUuid));
-            assertThat(clusterState.metadata().index("deleted"), nullValue());
+            assertThat(clusterState.metadata().getProject().index("added").getIndexUUID(), equalTo(addedIndexUuid));
+            assertThat(clusterState.metadata().getProject().index("deleted"), nullValue());
+        }
+    }
+
+    public void testPersistsAndReloadsIndexMetadataForMultipleIndicesInMultipleProjects() throws IOException {
+        try (NodeEnvironment nodeEnvironment = newNodeEnvironment(createDataPaths())) {
+            final PersistedClusterStateService persistedClusterStateService = newPersistedClusterStateService(nodeEnvironment);
+
+            final long term = randomLongBetween(1L, Long.MAX_VALUE);
+            final List<ProjectId> projectIds = randomList(1, 5, ESTestCase::randomUniqueProjectId);
+
+            try (Writer writer = persistedClusterStateService.createWriter()) {
+                final ClusterState clusterState = loadPersistedClusterState(persistedClusterStateService);
+                var builder = Metadata.builder(clusterState.metadata())
+                    .version(clusterState.metadata().version() + 1)
+                    .coordinationMetadata(CoordinationMetadata.builder(clusterState.coordinationMetadata()).term(term).build());
+                for (ProjectId projectId : projectIds) {
+                    builder.put(
+                        ProjectMetadata.builder(projectId)
+                            .put(
+                                IndexMetadata.builder("updated")
+                                    .putMapping(randomMappingMetadataOrNull())
+                                    .version(randomLongBetween(0L, Long.MAX_VALUE - 1) - 1) // -1 because it's incremented in .put()
+                                    .settings(
+                                        indexSettings(1, 1).put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
+                                            .put(IndexMetadata.SETTING_INDEX_UUID, projectId.id() + "-updated")
+                                    )
+                            )
+                            .put(
+                                IndexMetadata.builder("deleted")
+                                    .putMapping(randomMappingMetadataOrNull())
+                                    .version(randomLongBetween(0L, Long.MAX_VALUE - 1) - 1) // -1 because it's incremented in .put()
+                                    .settings(
+                                        indexSettings(1, 1).put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
+                                            .put(IndexMetadata.SETTING_INDEX_UUID, projectId.id() + "-deleted")
+                                    )
+                            )
+                            .build()
+                    );
+                }
+                writeState(
+                    writer,
+                    0L,
+                    ClusterState.builder(clusterState).metadata(builder.build()).incrementVersion().build(),
+                    clusterState
+                );
+            }
+
+            try (Writer writer = persistedClusterStateService.createWriter()) {
+                final ClusterState clusterState = loadPersistedClusterState(persistedClusterStateService);
+                var builder = Metadata.builder(clusterState.metadata()).version(clusterState.metadata().version() + 1);
+
+                // +1 for default project
+                assertThat(clusterState.metadata().projects().size(), equalTo(projectIds.size() + 1));
+                for (ProjectId projectId : projectIds) {
+                    ProjectMetadata project = clusterState.metadata().getProject(projectId);
+                    assertThat(project.indices().size(), equalTo(2));
+                    assertThat(project.index("updated").getIndexUUID(), equalTo(projectId.id() + "-updated"));
+                    assertThat(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.get(project.index("updated").getSettings()), equalTo(1));
+                    assertThat(project.index("deleted").getIndexUUID(), equalTo(projectId.id() + "-deleted"));
+
+                    builder.put(
+                        ProjectMetadata.builder(clusterState.metadata().getProject(projectId))
+                            .remove("deleted")
+                            .put(
+                                IndexMetadata.builder("updated")
+                                    .putMapping(randomMappingMetadataOrNull())
+                                    .settings(
+                                        Settings.builder()
+                                            .put(project.index("updated").getSettings())
+                                            .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 2)
+                                    )
+                            )
+                            .put(
+                                IndexMetadata.builder("added")
+                                    .version(randomLongBetween(0L, Long.MAX_VALUE - 1) - 1) // -1 because it's incremented in .put()
+                                    .putMapping(randomMappingMetadataOrNull())
+                                    .settings(
+                                        indexSettings(1, 1).put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
+                                            .put(IndexMetadata.SETTING_INDEX_UUID, projectId.id() + "-added")
+                                    )
+                            )
+                    );
+                }
+
+                writeState(
+                    writer,
+                    0L,
+                    ClusterState.builder(clusterState).metadata(builder.build()).incrementVersion().build(),
+                    clusterState
+                );
+            }
+
+            final ClusterState clusterState = loadPersistedClusterState(persistedClusterStateService);
+
+            for (ProjectId projectId : projectIds) {
+                var project = clusterState.metadata().getProject(projectId);
+                assertThat(project.indices().size(), equalTo(2));
+                assertThat(project.index("updated").getIndexUUID(), equalTo(projectId.id() + "-updated"));
+                assertThat(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.get(project.index("updated").getSettings()), equalTo(2));
+                assertThat(project.index("added").getIndexUUID(), equalTo(projectId.id() + "-added"));
+                assertThat(project.index("deleted"), nullValue());
+            }
         }
     }
 
@@ -1023,10 +1148,7 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
                                         IndexMetadata.builder(index.getName())
                                             .putMapping(randomMappingMetadataOrNull())
                                             .settings(
-                                                Settings.builder()
-                                                    .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
-                                                    .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0)
-                                                    .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                                                indexSettings(1, 0).put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
                                                     .put(IndexMetadata.SETTING_INDEX_UUID, index.getUUID())
                                             )
                                     )
@@ -1040,7 +1162,7 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
 
             final ClusterState clusterState = loadPersistedClusterState(persistedClusterStateService);
             for (Index index : indices) {
-                final IndexMetadata indexMetadata = clusterState.metadata().index(index.getName());
+                final IndexMetadata indexMetadata = clusterState.metadata().getProject().index(index.getName());
                 assertThat(indexMetadata.getIndexUUID(), equalTo(index.getUUID()));
             }
         }
@@ -1057,10 +1179,7 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
                     IndexMetadata.builder("test-" + i)
                         .putMapping(randomMappingMetadataOrNull())
                         .settings(
-                            Settings.builder()
-                                .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
-                                .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0)
-                                .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                            indexSettings(1, 0).put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
                                 .put(IndexMetadata.SETTING_INDEX_UUID, UUIDs.randomBase64UUID(random()))
                         )
                 );
@@ -1094,7 +1213,7 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
             writeDocumentsAndCommit(dataPath.resolve(METADATA_DIRECTORY_NAME), commitUserData, documents);
 
             final ClusterState loadedState = loadPersistedClusterState(persistedClusterStateService);
-            assertEquals(clusterState.metadata().indices(), loadedState.metadata().indices());
+            assertEquals(clusterState.metadata().getProject().indices(), loadedState.metadata().getProject().indices());
             assertEquals(clusterState.metadata().persistentSettings(), loadedState.metadata().persistentSettings());
 
             // Now corrupt one of the docs, breaking pagination invariants, and ensure it yields a CorruptStateException
@@ -1145,7 +1264,7 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
                 .build();
         }
 
-        final DiscoveryNode localNode = new DiscoveryNode("node", buildNewFakeTransportAddress(), Version.CURRENT);
+        final DiscoveryNode localNode = DiscoveryNodeUtils.create("node");
         final ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
             .nodes(DiscoveryNodes.builder().add(localNode).localNodeId(localNode.getId()))
             .build();
@@ -1160,7 +1279,8 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
                 nodeEnvironment,
                 xContentRegistry(),
                 clusterSettings,
-                () -> currentTime.getAndAdd(writeDurationMillis.get())
+                () -> currentTime.getAndAdd(writeDurationMillis.get()),
+                ESTestCase::randomBoolean
             );
 
             try (Writer writer = persistedClusterStateService.createWriter()) {
@@ -1169,7 +1289,7 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
                     null,
                     clusterState,
                     writer,
-                    new MockLogAppender.SeenEventExpectation(
+                    new MockLog.SeenEventExpectation(
                         "should see warning at threshold",
                         PersistedClusterStateService.class.getCanonicalName(),
                         Level.WARN,
@@ -1185,7 +1305,7 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
                     null,
                     clusterState,
                     writer,
-                    new MockLogAppender.SeenEventExpectation(
+                    new MockLog.SeenEventExpectation(
                         "should see warning above threshold",
                         PersistedClusterStateService.class.getCanonicalName(),
                         Level.WARN,
@@ -1201,7 +1321,7 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
                     null,
                     clusterState,
                     writer,
-                    new MockLogAppender.UnseenEventExpectation(
+                    new MockLog.UnseenEventExpectation(
                         "should not see warning below threshold",
                         PersistedClusterStateService.class.getCanonicalName(),
                         Level.WARN,
@@ -1219,7 +1339,7 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
                     null,
                     clusterState,
                     writer,
-                    new MockLogAppender.SeenEventExpectation(
+                    new MockLog.SeenEventExpectation(
                         "should see warning at reduced threshold",
                         PersistedClusterStateService.class.getCanonicalName(),
                         Level.WARN,
@@ -1237,10 +1357,7 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
                                 IndexMetadata.builder("test")
                                     .putMapping(randomMappingMetadata())
                                     .settings(
-                                        Settings.builder()
-                                            .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
-                                            .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0)
-                                            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                                        indexSettings(1, 0).put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
                                             .put(IndexMetadata.SETTING_INDEX_UUID, "test-uuid")
                                     )
                             )
@@ -1253,7 +1370,7 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
                     clusterState,
                     newClusterState,
                     writer,
-                    new MockLogAppender.SeenEventExpectation(
+                    new MockLog.SeenEventExpectation(
                         "should see warning at threshold",
                         PersistedClusterStateService.class.getCanonicalName(),
                         Level.WARN,
@@ -1272,7 +1389,7 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
                     null,
                     clusterState,
                     writer,
-                    new MockLogAppender.UnseenEventExpectation(
+                    new MockLog.UnseenEventExpectation(
                         "should not see warning below threshold",
                         PersistedClusterStateService.class.getCanonicalName(),
                         Level.WARN,
@@ -1285,7 +1402,7 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
                     clusterState,
                     newClusterState,
                     writer,
-                    new MockLogAppender.UnseenEventExpectation(
+                    new MockLog.UnseenEventExpectation(
                         "should not see warning below threshold",
                         PersistedClusterStateService.class.getCanonicalName(),
                         Level.WARN,
@@ -1352,10 +1469,7 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
                                     IndexMetadata.builder("index-" + i)
                                         .putMapping(randomMappingMetadataOrNull())
                                         .settings(
-                                            Settings.builder()
-                                                .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
-                                                .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0)
-                                                .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                                            indexSettings(1, 0).put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
                                                 .put(IndexMetadata.SETTING_INDEX_UUID, UUIDs.randomBase64UUID(random()))
                                         )
                                 )
@@ -1399,7 +1513,7 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
         }
     }
 
-    public void testOverrideLuceneVersion() throws IOException {
+    public void testOverrideNodeVersion() throws IOException {
         try (NodeEnvironment nodeEnvironment = newNodeEnvironment(createDataPaths())) {
             final PersistedClusterStateService persistedClusterStateService = newPersistedClusterStateService(nodeEnvironment);
             final String clusterUUID = UUIDs.randomBase64UUID(random());
@@ -1422,14 +1536,15 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
                 assertThat(clusterState.metadata().version(), equalTo(version));
 
             }
+            BuildVersion overrideVersion = BuildVersion.fromVersionId(Version.V_8_0_0.id);
             NodeMetadata prevMetadata = PersistedClusterStateService.nodeMetadata(persistedClusterStateService.getDataPaths());
-            assertEquals(Version.CURRENT, prevMetadata.nodeVersion());
-            PersistedClusterStateService.overrideVersion(Version.V_8_0_0, persistedClusterStateService.getDataPaths());
+            assertEquals(BuildVersion.current(), prevMetadata.nodeVersion());
+            PersistedClusterStateService.overrideVersion(overrideVersion, persistedClusterStateService.getDataPaths());
             NodeMetadata metadata = PersistedClusterStateService.nodeMetadata(persistedClusterStateService.getDataPaths());
-            assertEquals(Version.V_8_0_0, metadata.nodeVersion());
+            assertEquals(overrideVersion, metadata.nodeVersion());
             for (Path p : persistedClusterStateService.getDataPaths()) {
                 NodeMetadata individualMetadata = PersistedClusterStateService.nodeMetadata(p);
-                assertEquals(Version.V_8_0_0, individualMetadata.nodeVersion());
+                assertEquals(overrideVersion, individualMetadata.nodeVersion());
             }
         }
     }
@@ -1474,12 +1589,17 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
         final Path[] dataPaths2 = createDataPaths();
         final Path[] combinedPaths = Stream.concat(Arrays.stream(dataPaths1), Arrays.stream(dataPaths2)).toArray(Path[]::new);
 
-        Version oldVersion = Version.fromId(Version.CURRENT.minimumIndexCompatibilityVersion().id - 1);
+        IndexVersion oldVersion = IndexVersion.fromId(IndexVersions.MINIMUM_COMPATIBLE.id() - 1);
 
-        final Version[] indexVersions = new Version[] { oldVersion, Version.CURRENT, Version.fromId(Version.CURRENT.id + 1) };
+        final IndexVersion[] indexVersions = new IndexVersion[] {
+            oldVersion,
+            IndexVersion.current(),
+            IndexVersion.fromId(IndexVersion.current().id() + 1) };
         int lastIndexNum = randomIntBetween(9, 50);
         Metadata.Builder b = Metadata.builder();
-        for (Version indexVersion : indexVersions) {
+        List<ProjectMetadata.Builder> projects = randomList(1, 3, () -> ProjectMetadata.builder(randomUniqueProjectId()));
+        projects.forEach(b::put);
+        for (IndexVersion indexVersion : indexVersions) {
             String indexUUID = UUIDs.randomBase64UUID(random());
             IndexMetadata im = IndexMetadata.builder(DataStream.getDefaultBackingIndexName("index", lastIndexNum))
                 .putMapping(randomMappingMetadataOrNull())
@@ -1487,7 +1607,7 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
                 .numberOfShards(1)
                 .numberOfReplicas(1)
                 .build();
-            b.put(im, false);
+            randomFrom(projects).put(im, false);
             lastIndexNum = randomIntBetween(lastIndexNum + 1, lastIndexNum + 50);
         }
 
@@ -1499,7 +1619,11 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
                 writeState(
                     writer,
                     0L,
-                    ClusterState.builder(clusterState).metadata(metadata).version(randomLongBetween(1L, Long.MAX_VALUE)).build(),
+                    ClusterState.builder(clusterState)
+                        .metadata(metadata)
+                        .version(randomLongBetween(1L, Long.MAX_VALUE))
+                        .routingTable(GlobalRoutingTableTestHelper.buildRoutingTable(metadata, RoutingTable.Builder::addAsNew))
+                        .build(),
                     clusterState
                 );
             }
@@ -1508,7 +1632,15 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
             NodeMetadata nodeMetadata = PersistedClusterStateService.nodeMetadata(nodeEnvironment.nodeDataPaths());
 
             assertEquals(oldVersion, nodeMetadata.oldestIndexVersion());
-            assertEquals(oldVersion, fromDisk.metadata.oldestIndexVersion());
+            assertEquals(
+                oldVersion,
+                fromDisk.metadata.projects()
+                    .values()
+                    .stream()
+                    .map(ProjectMetadata::oldestIndexVersion)
+                    .min(IndexVersion::compareTo)
+                    .orElse(null)
+            );
         }
     }
 
@@ -1520,43 +1652,42 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
                 writer.writeFullStateAndCommit(randomNonNegativeLong(), ClusterState.EMPTY_STATE);
             }
 
-            MockLogAppender mockAppender = new MockLogAppender();
-            mockAppender.addExpectation(
-                new MockLogAppender.SeenEventExpectation(
-                    "should see checkindex message",
-                    PersistedClusterStateService.class.getCanonicalName(),
-                    Level.DEBUG,
-                    "checking cluster state integrity"
-                )
-            );
-            mockAppender.addExpectation(
-                new MockLogAppender.SeenEventExpectation(
-                    "should see commit message including timestamps",
-                    PersistedClusterStateService.class.getCanonicalName(),
-                    Level.DEBUG,
-                    "loading cluster state from commit [*] in [*creationTime*"
-                )
-            );
-            mockAppender.addExpectation(
-                new MockLogAppender.SeenEventExpectation(
-                    "should see user data",
-                    PersistedClusterStateService.class.getCanonicalName(),
-                    Level.DEBUG,
-                    "cluster state commit user data: *" + PersistedClusterStateService.NODE_VERSION_KEY + "*"
-                )
-            );
-            mockAppender.addExpectation(
-                new MockLogAppender.SeenEventExpectation(
-                    "should see segment message including timestamp",
-                    PersistedClusterStateService.class.getCanonicalName(),
-                    Level.DEBUG,
-                    "loading cluster state from segment: *timestamp=*"
-                )
-            );
+            try (var mockLog = MockLog.capture(PersistedClusterStateService.class)) {
+                mockLog.addExpectation(
+                    new MockLog.SeenEventExpectation(
+                        "should see checkindex message",
+                        PersistedClusterStateService.class.getCanonicalName(),
+                        Level.DEBUG,
+                        "checking cluster state integrity"
+                    )
+                );
+                mockLog.addExpectation(
+                    new MockLog.SeenEventExpectation(
+                        "should see commit message including timestamps",
+                        PersistedClusterStateService.class.getCanonicalName(),
+                        Level.DEBUG,
+                        "loading cluster state from commit [*] in [*creationTime*"
+                    )
+                );
+                mockLog.addExpectation(
+                    new MockLog.SeenEventExpectation(
+                        "should see user data",
+                        PersistedClusterStateService.class.getCanonicalName(),
+                        Level.DEBUG,
+                        "cluster state commit user data: *" + PersistedClusterStateService.NODE_VERSION_KEY + "*"
+                    )
+                );
+                mockLog.addExpectation(
+                    new MockLog.SeenEventExpectation(
+                        "should see segment message including timestamp",
+                        PersistedClusterStateService.class.getCanonicalName(),
+                        Level.DEBUG,
+                        "loading cluster state from segment: *timestamp=*"
+                    )
+                );
 
-            try (var ignored = mockAppender.capturing(PersistedClusterStateService.class)) {
                 persistedClusterStateService.loadBestOnDiskState();
-                mockAppender.assertAllExpectationsMatched();
+                mockLog.assertAllExpectationsMatched();
             }
         }
     }
@@ -1573,17 +1704,14 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
                             IndexMetadata.builder("test-1")
                                 .putMapping(randomMappingMetadata())
                                 .settings(
-                                    Settings.builder()
-                                        .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
-                                        .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0)
-                                        .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                                    indexSettings(1, 0).put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
                                         .put(IndexMetadata.SETTING_INDEX_UUID, UUIDs.randomBase64UUID(random()))
                                 )
                         )
                 )
                 .build();
 
-            String hash = clusterState.metadata().getMappingsByHash().keySet().iterator().next();
+            String hash = clusterState.metadata().getProject().getMappingsByHash().keySet().iterator().next();
 
             try (Writer writer = persistedClusterStateService.createWriter()) {
                 writer.writeFullStateAndCommit(0L, clusterState);
@@ -1612,7 +1740,7 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
 
             final String message = expectThrows(CorruptStateException.class, () -> persistedClusterStateService.loadBestOnDiskState())
                 .getMessage();
-            assertEquals("duplicate metadata found for mapping hash [" + hash + "]", message);
+            assertEquals("duplicate metadata found for mapping hash [" + hash + "] in project [default]", message);
         }
     }
 
@@ -1628,17 +1756,14 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
                             IndexMetadata.builder("test-1")
                                 .putMapping(randomMappingMetadata())
                                 .settings(
-                                    Settings.builder()
-                                        .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
-                                        .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0)
-                                        .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                                    indexSettings(1, 0).put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
                                         .put(IndexMetadata.SETTING_INDEX_UUID, UUIDs.randomBase64UUID(random()))
                                 )
                         )
                 )
                 .build();
 
-            String hash = clusterState.metadata().getMappingsByHash().keySet().iterator().next();
+            String hash = clusterState.metadata().getProject().getMappingsByHash().keySet().iterator().next();
 
             try (Writer writer = persistedClusterStateService.createWriter()) {
                 writer.writeFullStateAndCommit(0L, clusterState);
@@ -1668,18 +1793,24 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
             final String message = expectThrows(CorruptStateException.class, () -> persistedClusterStateService.loadBestOnDiskState())
                 .getCause()
                 .getMessage();
-            assertEquals("java.lang.IllegalArgumentException: mapping with hash [" + hash + "] not found", message);
+            assertEquals("java.lang.IllegalArgumentException: mapping of index [test-1] with hash [" + hash + "] not found", message);
         }
     }
 
     public void testDeduplicatedMappings() throws IOException {
+        final var supportsMultipleProjects = randomBoolean();
+        final ProjectId projectId = supportsMultipleProjects ? randomUniqueProjectId() : Metadata.DEFAULT_PROJECT_ID;
+        final ProjectId anotherProjectId = supportsMultipleProjects ? randomUniqueProjectId() : null;
         final Path dataPath = createTempDir();
         try (NodeEnvironment nodeEnvironment = newNodeEnvironment(new Path[] { dataPath })) {
-            final PersistedClusterStateService persistedClusterStateService = newPersistedClusterStateService(nodeEnvironment);
+            final PersistedClusterStateService persistedClusterStateService = newPersistedClusterStateService(
+                nodeEnvironment,
+                () -> supportsMultipleProjects
+            );
             try (Writer writer = persistedClusterStateService.createWriter()) {
 
-                Set<String> hashes;
-                Metadata.Builder metadata;
+                Map<String, Set<String>> hashes;
+                ProjectMetadata.Builder metadata;
                 ClusterState clusterState;
                 ClusterState previousState;
 
@@ -1688,31 +1819,59 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
                 MappingMetadata mapping2 = randomValueOtherThan(mapping1, () -> randomMappingMetadata());
 
                 // build and write a cluster state with metadata that has all indices using a single mapping
-                metadata = Metadata.builder();
+                metadata = ProjectMetadata.builder(projectId);
                 for (int i = between(5, 20); i >= 0; i--) {
                     metadata.put(
                         IndexMetadata.builder("test-" + i)
                             .putMapping(mapping1)
                             .settings(
-                                Settings.builder()
-                                    .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
-                                    .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0)
-                                    .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                                indexSettings(1, 0).put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
                                     .put(IndexMetadata.SETTING_INDEX_UUID, UUIDs.randomBase64UUID(random()))
                             )
                     );
                 }
-                clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).build();
-                assertThat(clusterState.metadata().getMappingsByHash().size(), equalTo(1));
+                clusterState = ClusterState.builder(ClusterName.DEFAULT).putProjectMetadata(metadata).build();
+                // If the cluster supports multi-projects, add another project with the same mappings which should not be affected at all
+                if (anotherProjectId != null) {
+                    var anotherMetadata = ProjectMetadata.builder(anotherProjectId);
+                    for (int i = between(2, 10); i >= 0; i--) {
+                        anotherMetadata.put(
+                            IndexMetadata.builder("test-" + i)
+                                .putMapping(mapping1)
+                                .settings(
+                                    indexSettings(1, 0).put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
+                                        .put(IndexMetadata.SETTING_INDEX_UUID, UUIDs.randomBase64UUID(random()))
+                                )
+                        );
+                    }
+                    for (int i = between(11, 20); i >= 10; i--) {
+                        anotherMetadata.put(
+                            IndexMetadata.builder("test-" + i)
+                                .putMapping(mapping2)
+                                .settings(
+                                    indexSettings(1, 0).put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
+                                        .put(IndexMetadata.SETTING_INDEX_UUID, UUIDs.randomBase64UUID(random()))
+                                )
+                        );
+                    }
+                    clusterState = ClusterState.builder(clusterState).putProjectMetadata(anotherMetadata).build();
+                }
+
+                assertThat(clusterState.metadata().getProject(projectId).getMappingsByHash().size(), equalTo(1));
+                if (anotherProjectId != null) {
+                    assertThat(clusterState.metadata().getProject(anotherProjectId).getMappingsByHash().size(), equalTo(2));
+                }
                 writer.writeFullStateAndCommit(0L, clusterState);
 
                 // verify that the on-disk state reflects 1 mapping
                 hashes = loadPersistedMappingHashes(dataPath.resolve(METADATA_DIRECTORY_NAME));
-                assertThat(hashes.size(), equalTo(1));
-                assertThat(clusterState.metadata().getMappingsByHash().keySet(), equalTo(hashes));
+                Set<String> projectHashes = hashes.get(projectId.id());
+                assertThat(projectHashes.size(), equalTo(1));
+                assertThat(clusterState.metadata().getProject(projectId).getMappingsByHash().keySet(), equalTo(projectHashes));
+                maybeCheckForAnotherProject(anotherProjectId, hashes, clusterState);
 
                 previousState = clusterState;
-                metadata = Metadata.builder(previousState.metadata());
+                metadata = ProjectMetadata.builder(previousState.metadata().getProject(projectId));
 
                 // add a second mapping -- either by adding a new index or changing an existing one
                 if (randomBoolean()) {
@@ -1721,43 +1880,78 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
                         IndexMetadata.builder("test-" + 99)
                             .putMapping(mapping2)
                             .settings(
-                                Settings.builder()
-                                    .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
-                                    .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0)
-                                    .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                                indexSettings(1, 0).put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
                                     .put(IndexMetadata.SETTING_INDEX_UUID, UUIDs.randomBase64UUID(random()))
                             )
                     );
                 } else {
                     // change an existing index to a different mapping
-                    String index = randomFrom(previousState.metadata().getIndices().keySet());
+                    String index = randomFrom(previousState.metadata().getProject(projectId).indices().keySet());
                     metadata.put(IndexMetadata.builder(metadata.get(index)).putMapping(mapping2));
                 }
-                clusterState = ClusterState.builder(previousState).metadata(metadata).build();
-                assertThat(clusterState.metadata().getMappingsByHash().size(), equalTo(2));
+                clusterState = ClusterState.builder(previousState).putProjectMetadata(metadata).build();
+                assertThat(clusterState.metadata().getProject(projectId).getMappingsByHash().size(), equalTo(2));
                 writer.writeIncrementalStateAndCommit(0L, previousState, clusterState);
 
                 // verify that the on-disk state reflects 2 mappings
                 hashes = loadPersistedMappingHashes(dataPath.resolve(METADATA_DIRECTORY_NAME));
-                assertThat(hashes.size(), equalTo(2));
-                assertThat(clusterState.metadata().getMappingsByHash().keySet(), equalTo(hashes));
+                projectHashes = hashes.get(projectId.id());
+                assertThat(projectHashes.size(), equalTo(2));
+                assertThat(clusterState.metadata().getProject(projectId).getMappingsByHash().keySet(), equalTo(projectHashes));
+                maybeCheckForAnotherProject(anotherProjectId, hashes, clusterState);
 
                 previousState = clusterState;
-                metadata = Metadata.builder(previousState.metadata());
+                metadata = ProjectMetadata.builder(previousState.metadata().getProject(projectId));
 
                 // update all indices to use the second mapping
-                for (String index : previousState.metadata().getIndices().keySet()) {
+                for (String index : previousState.metadata().getProject(projectId).indices().keySet()) {
                     metadata.put(IndexMetadata.builder(metadata.get(index)).putMapping(mapping2));
                 }
-                clusterState = ClusterState.builder(previousState).metadata(metadata).build();
-                assertThat(clusterState.metadata().getMappingsByHash().size(), equalTo(1));
+                clusterState = ClusterState.builder(previousState).putProjectMetadata(metadata).build();
+                assertThat(clusterState.metadata().getProject(projectId).getMappingsByHash().size(), equalTo(1));
                 writer.writeIncrementalStateAndCommit(0L, previousState, clusterState);
 
                 // verify that the on-disk reflects 1 mapping
                 hashes = loadPersistedMappingHashes(dataPath.resolve(METADATA_DIRECTORY_NAME));
-                assertThat(hashes.size(), equalTo(1));
-                assertThat(clusterState.metadata().getMappingsByHash().keySet(), equalTo(hashes));
+                projectHashes = hashes.get(projectId.id());
+                assertThat(projectHashes.size(), equalTo(1));
+                assertThat(clusterState.metadata().getProject(projectId).getMappingsByHash().keySet(), equalTo(projectHashes));
+                maybeCheckForAnotherProject(anotherProjectId, hashes, clusterState);
             }
+        }
+    }
+
+    private static void maybeCheckForAnotherProject(
+        ProjectId anotherProjectId,
+        Map<String, Set<String>> hashes,
+        ClusterState clusterState
+    ) {
+        if (anotherProjectId != null) {
+            assertThat(hashes, aMapWithSize(2));
+            final Set<String> anotherProjectHashes = hashes.get(anotherProjectId.id());
+            assertThat(anotherProjectHashes.size(), equalTo(2));
+            assertThat(clusterState.metadata().getProject(anotherProjectId).getMappingsByHash().keySet(), equalTo(anotherProjectHashes));
+        } else {
+            assertThat(hashes, aMapWithSize(1));
+        }
+    }
+
+    public void testClusterUUIDIsStoredInCommitUserData() throws Exception {
+        final Path dataPath = createTempDir();
+        try (NodeEnvironment nodeEnvironment = newNodeEnvironment(new Path[] { dataPath })) {
+            final PersistedClusterStateService persistedClusterStateService = newPersistedClusterStateService(nodeEnvironment);
+            String clusterUUID = UUIDs.randomBase64UUID();
+            boolean clusterUUIDCommitted = randomBoolean();
+            try (Writer writer = persistedClusterStateService.createWriter()) {
+                ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
+                    .metadata(Metadata.builder().clusterUUID(clusterUUID).clusterUUIDCommitted(clusterUUIDCommitted))
+                    .build();
+                writer.writeFullStateAndCommit(0, clusterState);
+            }
+
+            var onDiskState = persistedClusterStateService.loadBestOnDiskState();
+            assertThat(onDiskState.clusterUUID, is(equalTo(clusterUUID)));
+            assertThat(onDiskState.clusterUUIDCommitted, is(clusterUUIDCommitted));
         }
     }
 
@@ -1765,7 +1959,7 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
      * Utility method for applying a consumer to each document (of the given types) associated with a DirectoryReader.
      */
     private static void forEachDocument(DirectoryReader reader, Set<String> types, Consumer<Document> consumer) throws IOException {
-        final IndexSearcher indexSearcher = new IndexSearcher(reader);
+        final IndexSearcher indexSearcher = newSearcher(reader);
         indexSearcher.setQueryCache(null);
         for (String typeName : types) {
             final Query query = new TermQuery(new Term(TYPE_FIELD_NAME, typeName));
@@ -1776,9 +1970,10 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
                     final Bits liveDocs = leafReaderContext.reader().getLiveDocs();
                     final IntPredicate isLiveDoc = liveDocs == null ? i -> true : liveDocs::get;
                     final DocIdSetIterator docIdSetIterator = scorer.iterator();
+                    StoredFields storedFields = leafReaderContext.reader().storedFields();
                     while (docIdSetIterator.nextDoc() != DocIdSetIterator.NO_MORE_DOCS) {
                         if (isLiveDoc.test(docIdSetIterator.docID())) {
-                            final Document document = leafReaderContext.reader().document(docIdSetIterator.docID());
+                            final Document document = storedFields.document(docIdSetIterator.docID());
                             document.add(new StringField(TYPE_FIELD_NAME, typeName, Field.Store.NO));
                             consumer.accept(document);
                         }
@@ -1810,14 +2005,15 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
      * Search the underlying persisted state indices for non-deleted mapping_hash documents that represent the
      * first page of data, collecting and returning the distinct mapping_hashes themselves.
      */
-    private static Set<String> loadPersistedMappingHashes(Path metadataDirectory) throws IOException {
-        Set<String> hashes = new HashSet<>();
+    private static Map<String, Set<String>> loadPersistedMappingHashes(Path metadataDirectory) throws IOException {
+        Map<String, Set<String>> hashes = new HashMap<>();
         try (Directory directory = new NIOFSDirectory(metadataDirectory); DirectoryReader reader = DirectoryReader.open(directory)) {
             forEachDocument(reader, Set.of(MAPPING_TYPE_NAME), document -> {
                 int page = document.getField("page").numericValue().intValue();
                 if (page == 0) {
+                    String projectId = document.getField("project_id").stringValue();
                     String hash = document.getField("mapping_hash").stringValue();
-                    assertTrue(hashes.add(hash));
+                    assertTrue(hashes.computeIfAbsent(projectId, ignored -> new HashSet<>()).add(hash));
                 }
             });
         }
@@ -1841,17 +2037,17 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
         ClusterState previousState,
         ClusterState clusterState,
         PersistedClusterStateService.Writer writer,
-        MockLogAppender.LoggingExpectation expectation
+        MockLog.LoggingExpectation expectation
     ) throws IOException {
-        MockLogAppender mockAppender = new MockLogAppender();
-        mockAppender.addExpectation(expectation);
-        try (var ignored = mockAppender.capturing(PersistedClusterStateService.class)) {
+        try (var mockLog = MockLog.capture(PersistedClusterStateService.class)) {
+            mockLog.addExpectation(expectation);
+
             if (previousState == null) {
                 writer.writeFullStateAndCommit(currentTerm, clusterState);
             } else {
                 writer.writeIncrementalStateAndCommit(currentTerm, previousState, clusterState);
             }
-            mockAppender.assertAllExpectationsMatched();
+            mockLog.assertAllExpectationsMatched();
         }
     }
 

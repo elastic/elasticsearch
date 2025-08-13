@@ -167,7 +167,7 @@ public class IncidentEvent implements ToXContentObject {
     /**
      * Turns the V1 API contexts into 2 distinct lists, images and links. The V2 API has separated these out into 2 top level fields.
      */
-    private void toXContentV2Contexts(XContentBuilder builder, ToXContent.Params params, IncidentEventContext[] contexts)
+    private static void toXContentV2Contexts(XContentBuilder builder, ToXContent.Params params, IncidentEventContext[] contexts)
         throws IOException {
         // contexts can be either links or images, and the v2 api needs them separate
         Map<IncidentEventContext.Type, List<IncidentEventContext>> groups = Arrays.stream(contexts)

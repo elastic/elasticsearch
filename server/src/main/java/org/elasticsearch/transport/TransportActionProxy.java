@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.transport;
 
@@ -11,14 +12,14 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
-import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.util.Map;
+import java.util.concurrent.Executor;
 import java.util.function.Function;
 
 /**
@@ -53,12 +54,31 @@ public final class TransportActionProxy {
             assert assertConsistentTaskType(task, wrappedRequest);
             TaskId taskId = task.taskInfo(service.localNode.getId(), false).taskId();
             wrappedRequest.setParentTask(taskId);
-            service.sendRequest(
-                targetNode,
-                action,
-                wrappedRequest,
-                new ProxyResponseHandler<>(channel, responseFunction.apply(wrappedRequest))
-            );
+            service.sendRequest(targetNode, action, wrappedRequest, new TransportResponseHandler<>() {
+                @Override
+                public Executor executor() {
+                    return TransportResponseHandler.TRANSPORT_WORKER;
+                }
+
+                @Override
+                public void handleResponse(TransportResponse response) {
+                    channel.sendResponse(response);
+                }
+
+                @Override
+                public void handleException(TransportException exp) {
+                    channel.sendResponse(exp);
+                }
+
+                @Override
+                public TransportResponse read(StreamInput in) throws IOException {
+                    if (in.getTransportVersion().equals(channel.getVersion()) && in.supportReadAllToReleasableBytesReference()) {
+                        return new BytesTransportResponse(in.readAllToReleasableBytesReference());
+                    } else {
+                        return responseFunction.apply(wrappedRequest).read(in);
+                    }
+                }
+            });
         }
 
         private static boolean assertConsistentTaskType(Task proxyTask, TransportRequest wrapped) {
@@ -76,42 +96,7 @@ public final class TransportActionProxy {
         }
     }
 
-    private static class ProxyResponseHandler<T extends TransportResponse> implements TransportResponseHandler<T> {
-
-        private final Writeable.Reader<T> reader;
-        private final TransportChannel channel;
-
-        ProxyResponseHandler(TransportChannel channel, Writeable.Reader<T> reader) {
-            this.reader = reader;
-            this.channel = channel;
-        }
-
-        @Override
-        public T read(StreamInput in) throws IOException {
-            return reader.read(in);
-        }
-
-        @Override
-        public void handleResponse(T response) {
-            try {
-                response.incRef();
-                channel.sendResponse(response);
-            } catch (IOException e) {
-                throw new UncheckedIOException(e);
-            }
-        }
-
-        @Override
-        public void handleException(TransportException exp) {
-            try {
-                channel.sendResponse(exp);
-            } catch (IOException e) {
-                throw new UncheckedIOException(e);
-            }
-        }
-    }
-
-    static class ProxyRequest<T extends TransportRequest> extends TransportRequest {
+    static class ProxyRequest<T extends TransportRequest> extends AbstractTransportRequest {
         final T wrapped;
         final DiscoveryNode targetNode;
 
@@ -164,7 +149,7 @@ public final class TransportActionProxy {
         RequestHandlerRegistry<? extends TransportRequest> requestHandler = service.getRequestHandler(action);
         service.registerRequestHandler(
             getProxyAction(action),
-            ThreadPool.Names.SAME,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
             true,
             false,
             in -> cancellable

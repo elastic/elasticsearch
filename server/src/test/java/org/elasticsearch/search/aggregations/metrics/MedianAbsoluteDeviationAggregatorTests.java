@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.aggregations.metrics;
@@ -16,6 +17,7 @@ import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.tests.index.RandomIndexWriter;
+import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -100,7 +102,7 @@ public class MedianAbsoluteDeviationAggregatorTests extends AggregatorTestCase {
             sample.add(point);
             return singleton(new SortedNumericDocValuesField(FIELD_NAME, point));
         }), agg -> {
-            assertThat(agg.getMedianAbsoluteDeviation(), closeToRelative(calculateMAD(sample)));
+            assertThat(agg.getMedianAbsoluteDeviation(), closeToRelative(calculateMAD(sample), 0.2));
             assertTrue(AggregationInspectionHelper.hasValue(agg));
         });
     }
@@ -112,7 +114,7 @@ public class MedianAbsoluteDeviationAggregatorTests extends AggregatorTestCase {
             sample.add(point);
             return singleton(new NumericDocValuesField(FIELD_NAME, point));
         }), agg -> {
-            assertThat(agg.getMedianAbsoluteDeviation(), closeToRelative(calculateMAD(sample)));
+            assertThat(agg.getMedianAbsoluteDeviation(), closeToRelative(calculateMAD(sample), 0.2));
             assertTrue(AggregationInspectionHelper.hasValue(agg));
         });
     }
@@ -127,7 +129,7 @@ public class MedianAbsoluteDeviationAggregatorTests extends AggregatorTestCase {
                 writer.addDocument(Arrays.asList(new IntPoint(FIELD_NAME, point), new SortedNumericDocValuesField(FIELD_NAME, point)));
             }
         }, agg -> {
-            assertThat(agg.getMedianAbsoluteDeviation(), closeToRelative(calculateMAD(filteredSample)));
+            assertThat(agg.getMedianAbsoluteDeviation(), closeToRelative(calculateMAD(filteredSample), 0.2));
             assertTrue(AggregationInspectionHelper.hasValue(agg));
         });
     }
@@ -197,7 +199,6 @@ public class MedianAbsoluteDeviationAggregatorTests extends AggregatorTestCase {
         MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(FIELD_NAME, NumberFieldMapper.NumberType.LONG);
 
         final int size = randomIntBetween(100, 1000);
-        final List<Long> sample = new ArrayList<>(size);
         testAggregation(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
             for (int i = 0; i < 10; i++) {
                 iw.addDocument(singleton(new NumericDocValuesField(FIELD_NAME, i + 1)));
@@ -215,6 +216,9 @@ public class MedianAbsoluteDeviationAggregatorTests extends AggregatorTestCase {
     ) throws IOException {
         MedianAbsoluteDeviationAggregationBuilder builder = new MedianAbsoluteDeviationAggregationBuilder("mad").field(FIELD_NAME)
             .compression(randomDoubleBetween(20, 1000, true));
+        if (randomBoolean()) {
+            builder.parseExecutionHint(randomFrom(TDigestExecutionHint.values()).toString());
+        }
 
         MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(FIELD_NAME, NumberFieldMapper.NumberType.LONG);
 
@@ -282,11 +286,8 @@ public class MedianAbsoluteDeviationAggregatorTests extends AggregatorTestCase {
 
         public static double calculateMAD(double[] sample) {
             final double median = calculateMedian(sample);
-
             final double[] deviations = Arrays.stream(sample).map(point -> Math.abs(median - point)).toArray();
-
-            final double mad = calculateMedian(deviations);
-            return mad;
+            return calculateMedian(deviations);
         }
 
         private static double calculateMedian(double[] sample) {
@@ -325,6 +326,12 @@ public class MedianAbsoluteDeviationAggregatorTests extends AggregatorTestCase {
         MockScriptEngine scriptEngine = new MockScriptEngine(MockScriptEngine.NAME, scripts, Collections.emptyMap());
         Map<String, ScriptEngine> engines = Collections.singletonMap(scriptEngine.getType(), scriptEngine);
 
-        return new ScriptService(Settings.EMPTY, engines, ScriptModule.CORE_CONTEXTS, () -> 1L);
+        return new ScriptService(
+            Settings.EMPTY,
+            engines,
+            ScriptModule.CORE_CONTEXTS,
+            () -> 1L,
+            TestProjectResolvers.singleProject(randomProjectIdOrDefault())
+        );
     }
 }

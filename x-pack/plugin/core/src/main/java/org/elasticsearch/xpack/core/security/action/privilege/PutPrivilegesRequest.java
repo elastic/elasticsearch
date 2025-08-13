@@ -6,8 +6,8 @@
  */
 package org.elasticsearch.xpack.core.security.action.privilege;
 
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.LegacyActionRequest;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -27,14 +27,17 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 /**
  * Request object to put a one or more application privileges.
  */
-public final class PutPrivilegesRequest extends ActionRequest implements ApplicationPrivilegesRequest, WriteRequest<PutPrivilegesRequest> {
+public final class PutPrivilegesRequest extends LegacyActionRequest
+    implements
+        ApplicationPrivilegesRequest,
+        WriteRequest<PutPrivilegesRequest> {
 
     private List<ApplicationPrivilegeDescriptor> privileges;
     private RefreshPolicy refreshPolicy = RefreshPolicy.IMMEDIATE;
 
     public PutPrivilegesRequest(StreamInput in) throws IOException {
         super(in);
-        privileges = in.readImmutableList(ApplicationPrivilegeDescriptor::new);
+        privileges = in.readCollectionAsImmutableList(ApplicationPrivilegeDescriptor::new);
         refreshPolicy = RefreshPolicy.readFrom(in);
     }
 
@@ -111,9 +114,7 @@ public final class PutPrivilegesRequest extends ActionRequest implements Applica
 
     @Override
     public Collection<String> getApplicationNames() {
-        return Collections.unmodifiableSet(
-            privileges.stream().map(ApplicationPrivilegeDescriptor::getApplication).collect(Collectors.toSet())
-        );
+        return privileges.stream().map(ApplicationPrivilegeDescriptor::getApplication).collect(Collectors.toUnmodifiableSet());
     }
 
     @Override
@@ -129,7 +130,7 @@ public final class PutPrivilegesRequest extends ActionRequest implements Applica
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeList(privileges);
+        out.writeCollection(privileges);
         refreshPolicy.writeTo(out);
     }
 }

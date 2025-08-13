@@ -1,15 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.network;
 
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.hamcrest.OptionalMatchers;
 
 import java.net.InetAddress;
 import java.net.NetworkInterface;
@@ -17,6 +17,8 @@ import java.util.List;
 import java.util.Optional;
 
 import static org.elasticsearch.common.network.NetworkUtils.getInterfaces;
+import static org.elasticsearch.test.LambdaMatchers.transformedMatch;
+import static org.elasticsearch.test.hamcrest.OptionalMatchers.isPresentWith;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -80,8 +82,7 @@ public class NetworkUtilsTests extends ESTestCase {
                 networkInterfaces,
                 netIf.getName()
             );
-            assertThat(maybeNetworkInterface, OptionalMatchers.isPresent());
-            assertThat(maybeNetworkInterface.get().getName(), equalTo(netIf.getName()));
+            assertThat(maybeNetworkInterface, isPresentWith(transformedMatch(NetworkInterface::getName, equalTo(netIf.getName()))));
         }
     }
 

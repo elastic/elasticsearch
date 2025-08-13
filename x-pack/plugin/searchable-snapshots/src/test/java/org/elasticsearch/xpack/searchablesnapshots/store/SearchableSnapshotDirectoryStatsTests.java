@@ -9,16 +9,15 @@ package org.elasticsearch.xpack.searchablesnapshots.store;
 import org.apache.lucene.store.BufferedIndexInput;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.blobcache.BlobCacheTestUtils;
 import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
 import org.elasticsearch.blobcache.shared.SharedBytes;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
-import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.common.TriConsumer;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.blobstore.BlobContainer;
@@ -27,6 +26,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardPath;
 import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot;
@@ -51,6 +51,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.LongSupplier;
 
 import static org.elasticsearch.blobcache.BlobCacheUtils.toIntBytes;
+import static org.elasticsearch.cluster.routing.TestShardRouting.shardRoutingBuilder;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_CACHE_ENABLED_SETTING;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_CACHE_PREWARM_ENABLED_SETTING;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_UNCACHED_CHUNK_SIZE_SETTING;
@@ -115,7 +116,7 @@ public class SearchableSnapshotDirectoryStatsTests extends AbstractSearchableSna
     public void testCachedBytesReadsAndWrites() throws Exception {
         // a cache service with a low range size but enough space to not evict the cache file
         final ByteSizeValue rangeSize = ByteSizeValue.ofBytes(SharedBytes.PAGE_SIZE * randomLongBetween(3, 6));
-        final ByteSizeValue cacheSize = new ByteSizeValue(10, ByteSizeUnit.MB);
+        final ByteSizeValue cacheSize = ByteSizeValue.of(10, ByteSizeUnit.MB);
 
         executeTestCaseWithCache(cacheSize, rangeSize, (fileName, fileContent, directory) -> {
             try (IndexInput input = directory.openInput(fileName, randomIOContext())) {
@@ -253,7 +254,7 @@ public class SearchableSnapshotDirectoryStatsTests extends AbstractSearchableSna
     }
 
     public void testDirectBytesReadsWithoutCache() throws Exception {
-        final ByteSizeValue uncachedChunkSize = new ByteSizeValue(randomIntBetween(512, MAX_FILE_LENGTH), ByteSizeUnit.BYTES);
+        final ByteSizeValue uncachedChunkSize = ByteSizeValue.of(randomIntBetween(512, MAX_FILE_LENGTH), ByteSizeUnit.BYTES);
         executeTestCaseWithoutCache(uncachedChunkSize, (fileName, fileContent, directory) -> {
             assertThat(directory.getStats(fileName), nullValue());
 
@@ -290,7 +291,7 @@ public class SearchableSnapshotDirectoryStatsTests extends AbstractSearchableSna
 
     public void testOptimizedBytesReads() throws Exception {
         // use a large uncached chunk size that allows to read the file in a single operation
-        final ByteSizeValue uncachedChunkSize = new ByteSizeValue(1, ByteSizeUnit.GB);
+        final ByteSizeValue uncachedChunkSize = ByteSizeValue.of(1, ByteSizeUnit.GB);
         executeTestCaseWithoutCache(uncachedChunkSize, (fileName, fileContent, directory) -> {
             final IOContext context = randomIOContext();
             try (IndexInput input = directory.openInput(fileName, context)) {
@@ -640,10 +641,10 @@ public class SearchableSnapshotDirectoryStatsTests extends AbstractSearchableSna
             fileName,
             fileContent.length,
             fileChecksum,
-            Version.CURRENT.luceneVersion.toString()
+            IndexVersion.current().luceneVersion().toString()
         );
         final List<FileInfo> files = List.of(new FileInfo(blobName, metadata, ByteSizeValue.ofBytes(fileContent.length)));
-        final BlobStoreIndexShardSnapshot snapshot = new BlobStoreIndexShardSnapshot(snapshotId.getName(), 0L, files, 0L, 0L, 0, 0L);
+        final BlobStoreIndexShardSnapshot snapshot = new BlobStoreIndexShardSnapshot(snapshotId.getName(), files, 0L, 0L, 0, 0L);
         final Path shardDir = randomShardPath(shardId);
         final ShardPath shardPath = new ShardPath(false, shardDir, shardDir, shardId);
         final Path cacheDir = Files.createDirectories(resolveSnapshotCache(shardDir).resolve(snapshotId.getUUID()));
@@ -679,22 +680,23 @@ public class SearchableSnapshotDirectoryStatsTests extends AbstractSearchableSna
             cacheService.start();
             assertThat(directory.getStats(fileName), nullValue());
 
-            ShardRouting shardRouting = TestShardRouting.newShardRouting(
+            ShardRouting shardRouting = shardRoutingBuilder(
                 new ShardId(randomAlphaOfLength(10), randomAlphaOfLength(10), 0),
                 randomAlphaOfLength(10),
                 true,
-                ShardRoutingState.INITIALIZING,
+                ShardRoutingState.INITIALIZING
+            ).withRecoverySource(
                 new RecoverySource.SnapshotRecoverySource(
                     UUIDs.randomBase64UUID(),
                     new Snapshot("repo", new SnapshotId(randomAlphaOfLength(8), UUIDs.randomBase64UUID())),
-                    Version.CURRENT,
+                    IndexVersion.current(),
                     new IndexId("some_index", UUIDs.randomBase64UUID(random()))
                 )
-            );
-            DiscoveryNode targetNode = new DiscoveryNode("local", buildNewFakeTransportAddress(), Version.CURRENT);
+            ).build();
+            DiscoveryNode targetNode = DiscoveryNodeUtils.create("local");
             RecoveryState recoveryState = new SearchableSnapshotRecoveryState(shardRouting, targetNode, null);
-            final PlainActionFuture<Void> future = PlainActionFuture.newFuture();
-            final boolean loaded = directory.loadSnapshot(recoveryState, future);
+            final PlainActionFuture<Void> future = new PlainActionFuture<>();
+            final boolean loaded = directory.loadSnapshot(recoveryState, () -> false, future);
             future.get();
             assertThat("Failed to load snapshot", loaded, is(true));
             assertThat("Snapshot should be loaded", directory.snapshot(), notNullValue());

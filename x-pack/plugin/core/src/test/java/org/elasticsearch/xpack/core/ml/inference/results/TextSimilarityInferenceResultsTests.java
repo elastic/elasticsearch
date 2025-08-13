@@ -33,8 +33,13 @@ public class TextSimilarityInferenceResultsTests extends InferenceResultsTestCas
     }
 
     @Override
-    void assertFieldValues(TextSimilarityInferenceResults createdInstance, IngestDocument document, String resultsField) {
-        String path = resultsField + "." + createdInstance.getResultsField();
+    void assertFieldValues(
+        TextSimilarityInferenceResults createdInstance,
+        IngestDocument document,
+        String parentField,
+        String resultsField
+    ) {
+        String path = parentField + resultsField;
         assertThat(document.getFieldValue(path, Double.class), equalTo(createdInstance.predictedValue()));
     }
 }

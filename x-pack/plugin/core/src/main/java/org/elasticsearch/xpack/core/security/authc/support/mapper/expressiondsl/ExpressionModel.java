@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.core.security.authc.support.mapper.expressiondsl
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.Numbers;
+import org.elasticsearch.core.Predicates;
 
 import java.util.Collection;
 import java.util.Collections;
@@ -100,7 +101,7 @@ public class ExpressionModel {
             return ((Collection<?>) object).stream()
                 .map(element -> buildPredicate(element))
                 .reduce((a, b) -> a.or(b))
-                .orElse(fieldValue -> false);
+                .orElse(Predicates.never());
         }
         throw new IllegalArgumentException("Unsupported value type " + object.getClass());
     }

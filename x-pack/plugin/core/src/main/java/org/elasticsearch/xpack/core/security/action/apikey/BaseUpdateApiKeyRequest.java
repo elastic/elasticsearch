@@ -7,11 +7,12 @@
 
 package org.elasticsearch.xpack.core.security.action.apikey;
 
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.action.LegacyActionRequest;
+import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.core.security.action.role.RoleDescriptorRequestValidator;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.support.MetadataUtils;
@@ -22,22 +23,23 @@ import java.util.Map;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
-public abstract class BaseUpdateApiKeyRequest extends ActionRequest {
+public abstract class BaseUpdateApiKeyRequest extends LegacyActionRequest {
 
     @Nullable
     protected final List<RoleDescriptor> roleDescriptors;
     @Nullable
     protected final Map<String, Object> metadata;
+    @Nullable
+    protected final TimeValue expiration;
 
-    public BaseUpdateApiKeyRequest(@Nullable final List<RoleDescriptor> roleDescriptors, @Nullable final Map<String, Object> metadata) {
+    public BaseUpdateApiKeyRequest(
+        @Nullable final List<RoleDescriptor> roleDescriptors,
+        @Nullable final Map<String, Object> metadata,
+        @Nullable final TimeValue expiration
+    ) {
         this.roleDescriptors = roleDescriptors;
         this.metadata = metadata;
-    }
-
-    public BaseUpdateApiKeyRequest(StreamInput in) throws IOException {
-        super(in);
-        this.roleDescriptors = in.readOptionalList(RoleDescriptor::new);
-        this.metadata = in.readMap();
+        this.expiration = expiration;
     }
 
     public Map<String, Object> getMetadata() {
@@ -47,6 +49,12 @@ public abstract class BaseUpdateApiKeyRequest extends ActionRequest {
     public List<RoleDescriptor> getRoleDescriptors() {
         return roleDescriptors;
     }
+
+    public TimeValue getExpiration() {
+        return expiration;
+    }
+
+    public abstract ApiKey.Type getType();
 
     @Override
     public ActionRequestValidationException validate() {
@@ -62,13 +70,15 @@ public abstract class BaseUpdateApiKeyRequest extends ActionRequest {
                 validationException = RoleDescriptorRequestValidator.validate(roleDescriptor, validationException);
             }
         }
+        if (expiration != null && expiration.nanos() <= 0) {
+            validationException = addValidationError("API key expiration must be in the future", validationException);
+        }
+
         return validationException;
     }
 
     @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
-        out.writeOptionalCollection(roleDescriptors);
-        out.writeGenericMap(metadata);
+    public final void writeTo(StreamOutput out) throws IOException {
+        TransportAction.localOnly();
     }
 }

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.network;
@@ -57,7 +58,7 @@ public final class NetworkAddress {
      * @return formatted string
      */
     public static String format(InetAddress address) {
-        return format(address, new PortsRange(""));
+        return InetAddresses.toAddrString(address);
     }
 
     /**
@@ -96,7 +97,7 @@ public final class NetworkAddress {
      * @return formatted string
      */
     public static String format(InetAddress address, int port) {
-        return format(address, new PortsRange(String.valueOf(port)));
+        return (address instanceof Inet6Address ? InetAddresses.toUriString(address) : InetAddresses.toAddrString(address)) + ":" + port;
     }
 
     /**

@@ -1,32 +1,45 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.monitor.jvm;
 
+import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.common.ReferenceDocs;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.logging.ChunkedLoggingStream;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.transport.Transports;
 
+import java.io.IOException;
+import java.io.OutputStreamWriter;
+import java.io.StringWriter;
+import java.io.Writer;
 import java.lang.management.ManagementFactory;
 import java.lang.management.ThreadInfo;
 import java.lang.management.ThreadMXBean;
+import java.nio.charset.StandardCharsets;
 import java.time.Clock;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.function.ToLongFunction;
@@ -67,6 +80,58 @@ public class HotThreads {
         "process reaper",
         "DestroyJavaVM"
     );
+
+    /**
+     * Capture and log the hot threads on the local node. Useful for capturing stack traces for unexpectedly-slow operations in production.
+     * The resulting log message may be large, and contains significant whitespace, so it is compressed and base64-encoded using {@link
+     * ChunkedLoggingStream}.
+     *
+     * @param logger        The logger to use for the logging
+     * @param level         The log level to use for the logging.
+     * @param prefix        The prefix to emit on each chunk of the logging.
+     * @param referenceDocs A link to the docs describing how to decode the logging.
+     */
+    public static void logLocalHotThreads(Logger logger, Level level, String prefix, ReferenceDocs referenceDocs) {
+        if (logger.isEnabled(level) == false) {
+            return;
+        }
+
+        try (
+            var stream = ChunkedLoggingStream.create(logger, level, prefix, referenceDocs);
+            var writer = new OutputStreamWriter(stream, StandardCharsets.UTF_8)
+        ) {
+            new HotThreads().busiestThreads(500).ignoreIdleThreads(false).detect(writer);
+        } catch (Exception e) {
+            logger.error(() -> org.elasticsearch.common.Strings.format("failed to write local hot threads with prefix [%s]", prefix), e);
+        }
+    }
+
+    /**
+     * Capture and log the current threads on the local node. Unlike hot threads this does not sample and captures current state only.
+     * Useful for capturing stack traces for unexpectedly-slow operations in production. The resulting message might be large, so it is
+     * split per thread and logged as multiple entries.
+     *
+     * @param logger        The logger to use for the logging
+     * @param level         The log level to use for the logging.
+     * @param prefix        The prefix to emit on each chunk of the logging.
+     */
+    public static void logLocalCurrentThreads(Logger logger, Level level, String prefix) {
+        if (logger.isEnabled(level) == false) {
+            return;
+        }
+
+        try (var writer = new StringWriter()) {
+            new HotThreads().busiestThreads(500).threadElementsSnapshotCount(1).detect(writer, () -> {
+                logger.log(level, "{}: {}", prefix, writer.toString());
+                writer.getBuffer().setLength(0);
+            });
+        } catch (Exception e) {
+            logger.error(
+                () -> org.elasticsearch.common.Strings.format("failed to write local current threads with prefix [%s]", prefix),
+                e
+            );
+        }
+    }
 
     public enum ReportType {
 
@@ -154,12 +219,13 @@ public class HotThreads {
         return this;
     }
 
-    public String detect() throws Exception {
+    public void detect(Writer writer) throws Exception {
+        detect(writer, () -> {});
+    }
+
+    public void detect(Writer writer, Runnable onNextThread) throws Exception {
         synchronized (mutex) {
-            return innerDetect(ManagementFactory.getThreadMXBean(), SunThreadInfo.INSTANCE, Thread.currentThread().getId(), (interval) -> {
-                Thread.sleep(interval);
-                return null;
-            });
+            innerDetect(ManagementFactory.getThreadMXBean(), SunThreadInfo.INSTANCE, Thread.currentThread().getId(), writer, onNextThread);
         }
     }
 
@@ -208,13 +274,15 @@ public class HotThreads {
 
     ThreadInfo[][] captureThreadStacks(ThreadMXBean threadBean, long[] threadIds) throws InterruptedException {
         ThreadInfo[][] result = new ThreadInfo[threadElementsSnapshotCount][];
-        for (int j = 0; j < threadElementsSnapshotCount; j++) {
-            // NOTE, javadoc of getThreadInfo says: If a thread of the given ID is not alive or does not exist,
-            // null will be set in the corresponding element in the returned array. A thread is alive if it has
-            // been started and has not yet died.
+
+        // NOTE, javadoc of getThreadInfo says: If a thread of the given ID is not alive or does not exist,
+        // null will be set in the corresponding element in the returned array. A thread is alive if it has
+        // been started and has not yet died.
+        for (int j = 0; j < threadElementsSnapshotCount - 1; j++) {
             result[j] = threadBean.getThreadInfo(threadIds, Integer.MAX_VALUE);
             Thread.sleep(threadElementsSnapshotDelay.millis());
         }
+        result[threadElementsSnapshotCount - 1] = threadBean.getThreadInfo(threadIds, Integer.MAX_VALUE);
 
         return result;
     }
@@ -230,7 +298,7 @@ public class HotThreads {
         return (((double) time) / interval.nanos()) * 100;
     }
 
-    String innerDetect(ThreadMXBean threadBean, SunThreadInfo sunThreadInfo, long currentThreadId, SleepFunction<Long, Void> threadSleep)
+    void innerDetect(ThreadMXBean threadBean, SunThreadInfo sunThreadInfo, long currentThreadId, Writer writer, Runnable onNextThread)
         throws Exception {
         if (threadBean.isThreadCpuTimeSupported() == false) {
             throw new ElasticsearchException("thread CPU time is not supported on this JDK");
@@ -246,19 +314,20 @@ public class HotThreads {
             throw new ElasticsearchException("thread wait/blocked time accounting is not supported on this JDK");
         }
 
-        StringBuilder sb = new StringBuilder().append("Hot threads at ")
+        writer.append("Hot threads at ")
             .append(DATE_TIME_FORMATTER.format(LocalDateTime.now(Clock.systemUTC())))
             .append(", interval=")
-            .append(interval)
+            .append(interval.toString())
             .append(", busiestThreads=")
-            .append(busiestThreads)
+            .append(Integer.toString(busiestThreads))
             .append(", ignoreIdleThreads=")
-            .append(ignoreIdleThreads)
+            .append(Boolean.toString(ignoreIdleThreads))
             .append(":\n");
+        onNextThread.run();
 
         // Capture before and after thread state with timings
         Map<Long, ThreadTimeAccumulator> previousThreadInfos = getAllValidThreadInfos(threadBean, sunThreadInfo, currentThreadId);
-        threadSleep.apply(interval.millis());
+        Thread.sleep(interval.millis());
         Map<Long, ThreadTimeAccumulator> latestThreadInfos = getAllValidThreadInfos(threadBean, sunThreadInfo, currentThreadId);
 
         latestThreadInfos.forEach((threadId, accumulator) -> accumulator.subtractPrevious(previousThreadInfos.get(threadId)));
@@ -303,9 +372,8 @@ public class HotThreads {
             ThreadTimeAccumulator topThread = topThreads.get(t);
 
             switch (type) {
-                case MEM -> sb.append(
-                    String.format(
-                        Locale.ROOT,
+                case MEM -> writer.append(
+                    Strings.format(
                         "%n%s memory allocated by thread '%s'%n",
                         ByteSizeValue.ofBytes(topThread.getAllocatedBytes()),
                         threadName
@@ -313,12 +381,13 @@ public class HotThreads {
                 );
                 case CPU -> {
                     double percentCpu = getTimeSharePercentage(topThread.getCpuTime());
-                    double percentOther = getTimeSharePercentage(topThread.getOtherTime());
+                    double percentOther = Transports.isTransportThread(threadName) && topThread.getCpuTime() == 0L
+                        ? 100.0
+                        : getTimeSharePercentage(topThread.getOtherTime());
                     double percentTotal = (Transports.isTransportThread(threadName)) ? percentCpu : percentOther + percentCpu;
                     String otherLabel = (Transports.isTransportThread(threadName)) ? "idle" : "other";
-                    sb.append(
-                        String.format(
-                            Locale.ROOT,
+                    writer.append(
+                        Strings.format(
                             "%n%4.1f%% [cpu=%1.1f%%, %s=%1.1f%%] (%s out of %s) %s usage by thread '%s'%n",
                             percentTotal,
                             percentCpu,
@@ -334,9 +403,8 @@ public class HotThreads {
                 default -> {
                     long time = ThreadTimeAccumulator.valueGetterForReportType(type).applyAsLong(topThread);
                     double percent = getTimeSharePercentage(time);
-                    sb.append(
-                        String.format(
-                            Locale.ROOT,
+                    writer.append(
+                        Strings.format(
                             "%n%4.1f%% (%s out of %s) %s usage by thread '%s'%n",
                             percent,
                             TimeValue.timeValueNanos(time),
@@ -375,29 +443,22 @@ public class HotThreads {
                 if (allInfos[i][t] != null) {
                     final StackTraceElement[] show = allInfos[i][t].getStackTrace();
                     if (count == 1) {
-                        sb.append(String.format(Locale.ROOT, "  unique snapshot%n"));
+                        writer.append(Strings.format("  unique snapshot%n"));
                         for (StackTraceElement frame : show) {
-                            sb.append(String.format(Locale.ROOT, "    %s%n", frame));
+                            writer.append(Strings.format("    %s%n", frame));
                         }
                     } else {
-                        sb.append(
-                            String.format(
-                                Locale.ROOT,
-                                "  %d/%d snapshots sharing following %d elements%n",
-                                count,
-                                threadElementsSnapshotCount,
-                                maxSim
-                            )
+                        writer.append(
+                            Strings.format("  %d/%d snapshots sharing following %d elements%n", count, threadElementsSnapshotCount, maxSim)
                         );
                         for (int l = show.length - maxSim; l < show.length; l++) {
-                            sb.append(String.format(Locale.ROOT, "    %s%n", show[l]));
+                            writer.append(Strings.format("    %s%n", show[l]));
                         }
                     }
                 }
             }
+            onNextThread.run();
         }
-
-        return sb.toString();
     }
 
     static int similarity(ThreadInfo threadInfo, ThreadInfo threadInfo0) {
@@ -521,5 +582,44 @@ public class HotThreads {
                 LogManager.getLogger(HotThreads.class).warn("Thread wait/blocked time accounting cannot be enabled.");
             }
         }
+    }
+
+    public record RequestOptions(
+        int threads,
+        HotThreads.ReportType reportType,
+        HotThreads.SortOrder sortOrder,
+        TimeValue interval,
+        int snapshots,
+        boolean ignoreIdleThreads
+    ) implements Writeable {
+
+        public static RequestOptions readFrom(StreamInput in) throws IOException {
+            var threads = in.readInt();
+            var ignoreIdleThreads = in.readBoolean();
+            var reportType = HotThreads.ReportType.of(in.readString());
+            var interval = in.readTimeValue();
+            var snapshots = in.readInt();
+            var sortOrder = HotThreads.SortOrder.of(in.readString());
+            return new RequestOptions(threads, reportType, sortOrder, interval, snapshots, ignoreIdleThreads);
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeInt(threads);
+            out.writeBoolean(ignoreIdleThreads);
+            out.writeString(reportType.getTypeValue());
+            out.writeTimeValue(interval);
+            out.writeInt(snapshots);
+            out.writeString(sortOrder.getOrderValue());
+        }
+
+        public static final RequestOptions DEFAULT = new RequestOptions(
+            3,
+            ReportType.CPU,
+            SortOrder.TOTAL,
+            TimeValue.timeValueMillis(500),
+            10,
+            true
+        );
     }
 }

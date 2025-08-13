@@ -8,29 +8,29 @@ package org.elasticsearch.xpack.watcher.execution;
 
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshAction;
-import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
-import org.elasticsearch.action.bulk.BulkAction;
 import org.elasticsearch.action.bulk.BulkItemResponse;
-import org.elasticsearch.action.bulk.BulkProcessor;
+import org.elasticsearch.action.bulk.BulkProcessor2;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
+import org.elasticsearch.action.bulk.TransportBulkAction;
 import org.elasticsearch.action.index.IndexResponse;
-import org.elasticsearch.action.search.ClearScrollAction;
 import org.elasticsearch.action.search.ClearScrollResponse;
-import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.action.search.SearchScrollAction;
 import org.elasticsearch.action.search.SearchScrollRequest;
+import org.elasticsearch.action.search.TransportClearScrollAction;
+import org.elasticsearch.action.search.TransportSearchAction;
+import org.elasticsearch.action.search.TransportSearchScrollAction;
+import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingTable;
@@ -41,13 +41,15 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.NotMultiProjectCapable;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
+import org.elasticsearch.search.SearchResponseUtils;
 import org.elasticsearch.search.SearchShardTarget;
-import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.ToXContent;
@@ -94,15 +96,13 @@ import static org.mockito.Mockito.when;
 
 public class TriggeredWatchStoreTests extends ESTestCase {
 
-    private Settings indexSettings = settings(Version.CURRENT).put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-        .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
-        .build();
+    private static final Settings indexSettings = indexSettings(IndexVersion.current(), 1, 1).build();
 
     private Client client;
     private TriggeredWatch.Parser parser;
     private TriggeredWatchStore triggeredWatchStore;
     private final Map<BulkRequest, BulkResponse> bulks = new LinkedHashMap<>();
-    private BulkProcessor.Listener listener = new BulkProcessor.Listener() {
+    private BulkProcessor2.Listener listener = new BulkProcessor2.Listener() {
         @Override
         public void beforeBulk(long executionId, BulkRequest request) {}
 
@@ -112,10 +112,12 @@ public class TriggeredWatchStoreTests extends ESTestCase {
         }
 
         @Override
-        public void afterBulk(long executionId, BulkRequest request, Throwable failure) {
+        public void afterBulk(long executionId, BulkRequest request, Exception failure) {
             throw new ElasticsearchException(failure);
         }
     };
+    @NotMultiProjectCapable(description = "Watcher is not available in serverless")
+    private final ProjectId projectId = ProjectId.DEFAULT;
 
     @Before
     public void init() {
@@ -126,10 +128,7 @@ public class TriggeredWatchStoreTests extends ESTestCase {
         when(client.settings()).thenReturn(settings);
         when(threadPool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
         parser = mock(TriggeredWatch.Parser.class);
-        BulkProcessor bulkProcessor = BulkProcessor.builder(client::bulk, listener, "TriggeredWatchStoreTests")
-            .setConcurrentRequests(0)
-            .setBulkActions(1)
-            .build();
+        BulkProcessor2 bulkProcessor = BulkProcessor2.builder(client::bulk, listener, client.threadPool()).setBulkActions(1).build();
         triggeredWatchStore = new TriggeredWatchStore(settings, client, parser, bulkProcessor);
     }
 
@@ -148,13 +147,11 @@ public class TriggeredWatchStoreTests extends ESTestCase {
         ClusterState.Builder csBuilder = new ClusterState.Builder(new ClusterName("name"));
 
         RoutingTable.Builder routingTableBuilder = RoutingTable.builder();
-        Metadata.Builder metadataBuilder = Metadata.builder();
+        ProjectMetadata.Builder metadataBuilder = ProjectMetadata.builder(projectId);
 
         int numShards = 2 + randomInt(2);
         int numStartedShards = 1;
-        Settings settings = settings(Version.CURRENT).put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numShards)
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
-            .build();
+        Settings settings = indexSettings(IndexVersion.current(), numShards, 1).build();
         metadataBuilder.put(
             IndexMetadata.builder(TriggeredWatchStoreField.INDEX_NAME).settings(settings).numberOfShards(numShards).numberOfReplicas(1)
         );
@@ -180,8 +177,8 @@ public class TriggeredWatchStoreTests extends ESTestCase {
         }
         routingTableBuilder.add(indexRoutingTableBuilder.build());
 
-        csBuilder.metadata(metadataBuilder);
-        csBuilder.routingTable(routingTableBuilder.build());
+        csBuilder.putProjectMetadata(metadataBuilder);
+        csBuilder.putRoutingTable(projectId, routingTableBuilder.build());
         ClusterState cs = csBuilder.build();
 
         assertThat(TriggeredWatchStore.validate(cs), is(false));
@@ -191,7 +188,7 @@ public class TriggeredWatchStoreTests extends ESTestCase {
         ClusterState.Builder csBuilder = new ClusterState.Builder(new ClusterName("_name"));
 
         RoutingTable.Builder routingTableBuilder = RoutingTable.builder();
-        Metadata.Builder metadataBuilder = Metadata.builder();
+        ProjectMetadata.Builder metadataBuilder = ProjectMetadata.builder(projectId);
         metadataBuilder.put(IndexMetadata.builder(TriggeredWatchStoreField.INDEX_NAME).settings(indexSettings));
         final Index index = metadataBuilder.get(TriggeredWatchStoreField.INDEX_NAME).getIndex();
         IndexRoutingTable.Builder indexRoutingTableBuilder = IndexRoutingTable.builder(index);
@@ -203,13 +200,13 @@ public class TriggeredWatchStoreTests extends ESTestCase {
         );
         indexRoutingTableBuilder.addReplica(ShardRouting.Role.DEFAULT);
         routingTableBuilder.add(indexRoutingTableBuilder.build());
-        csBuilder.metadata(metadataBuilder);
-        csBuilder.routingTable(routingTableBuilder.build());
+        csBuilder.putProjectMetadata(metadataBuilder);
+        csBuilder.putRoutingTable(projectId, routingTableBuilder.build());
         ClusterState cs = csBuilder.build();
 
         doAnswer(invocation -> {
             @SuppressWarnings("unchecked")
-            ActionListener<RefreshResponse> listener = (ActionListener<RefreshResponse>) invocation.getArguments()[2];
+            ActionListener<BroadcastResponse> listener = (ActionListener<BroadcastResponse>) invocation.getArguments()[2];
             listener.onResponse(mockRefreshResponse(1, 1));
             return null;
         }).when(client).execute(eq(RefreshAction.INSTANCE), any(), any());
@@ -218,60 +215,46 @@ public class TriggeredWatchStoreTests extends ESTestCase {
         when(searchResponse1.getSuccessfulShards()).thenReturn(1);
         when(searchResponse1.getTotalShards()).thenReturn(1);
         BytesArray source = new BytesArray("{}");
-        SearchHit hit = new SearchHit(0, "first_foo");
-        hit.version(1L);
-        hit.shard(new SearchShardTarget("_node_id", new ShardId(index, 0), null));
-        hit.sourceRef(source);
-        SearchHits hits = new SearchHits(new SearchHit[] { hit }, new TotalHits(1, TotalHits.Relation.EQUAL_TO), 1.0f);
-        when(searchResponse1.getHits()).thenReturn(hits);
+        {
+            SearchHit hit = SearchHit.unpooled(0, "first_foo");
+            hit.version(1L);
+            hit.shard(new SearchShardTarget("_node_id", new ShardId(index, 0), null));
+            hit.sourceRef(source);
+            when(searchResponse1.getHits()).thenReturn(
+                SearchHits.unpooled(new SearchHit[] { hit }, new TotalHits(1, TotalHits.Relation.EQUAL_TO), 1.0f)
+            );
+        }
         when(searchResponse1.getScrollId()).thenReturn("_scrollId");
         doAnswer(invocation -> {
             @SuppressWarnings("unchecked")
             ActionListener<SearchResponse> listener = (ActionListener<SearchResponse>) invocation.getArguments()[2];
             listener.onResponse(searchResponse1);
             return null;
-        }).when(client).execute(eq(SearchAction.INSTANCE), any(), any());
-
-        // First return a scroll response with a single hit and then with no hits
-        hit = new SearchHit(0, "second_foo");
-        hit.version(1L);
-        hit.shard(new SearchShardTarget("_node_id", new ShardId(index, 0), null));
-        hit.sourceRef(source);
-        hits = new SearchHits(new SearchHit[] { hit }, new TotalHits(1, TotalHits.Relation.EQUAL_TO), 1.0f);
-        SearchResponse searchResponse2 = new SearchResponse(
-            new InternalSearchResponse(hits, null, null, null, false, null, 1),
-            "_scrollId1",
-            1,
-            1,
-            0,
-            1,
-            null,
-            null
-        );
-        SearchResponse searchResponse3 = new SearchResponse(
-            InternalSearchResponse.EMPTY_WITH_TOTAL_HITS,
-            "_scrollId2",
-            1,
-            1,
-            0,
-            1,
-            null,
-            null
-        );
+        }).when(client).execute(eq(TransportSearchAction.TYPE), any(), any());
 
         doAnswer(invocation -> {
             SearchScrollRequest request = (SearchScrollRequest) invocation.getArguments()[1];
             @SuppressWarnings("unchecked")
             ActionListener<SearchResponse> listener = (ActionListener<SearchResponse>) invocation.getArguments()[2];
             if (request.scrollId().equals("_scrollId")) {
-                listener.onResponse(searchResponse2);
+                // First return a scroll response with a single hit and then with no hits
+                var hit = SearchHit.unpooled(0, "second_foo");
+                hit.version(1L);
+                hit.shard(new SearchShardTarget("_node_id", new ShardId(index, 0), null));
+                hit.sourceRef(source);
+                ActionListener.respondAndRelease(
+                    listener,
+                    SearchResponseUtils.response(
+                        SearchHits.unpooled(new SearchHit[] { hit }, new TotalHits(1, TotalHits.Relation.EQUAL_TO), 1.0f)
+                    ).scrollId("_scrollId1").build()
+                );
             } else if (request.scrollId().equals("_scrollId1")) {
-                listener.onResponse(searchResponse3);
+                ActionListener.respondAndRelease(listener, SearchResponseUtils.emptyWithTotalHits("_scrollId2", 1, 1, 0, 1, null, null));
             } else {
                 listener.onFailure(new ElasticsearchException("test issue"));
             }
             return null;
-        }).when(client).execute(eq(SearchScrollAction.INSTANCE), any(), any());
+        }).when(client).execute(eq(TransportSearchScrollAction.TYPE), any(), any());
 
         TriggeredWatch triggeredWatch = mock(TriggeredWatch.class);
         when(parser.parse(eq("_id"), eq(1L), any(BytesReference.class))).thenReturn(triggeredWatch);
@@ -282,7 +265,7 @@ public class TriggeredWatchStoreTests extends ESTestCase {
             listener.onResponse(new ClearScrollResponse(true, 1));
             return null;
 
-        }).when(client).execute(eq(ClearScrollAction.INSTANCE), any(), any());
+        }).when(client).execute(eq(TransportClearScrollAction.TYPE), any(), any());
 
         assertThat(TriggeredWatchStore.validate(cs), is(true));
         ZonedDateTime now = ZonedDateTime.now(ZoneOffset.UTC);
@@ -308,9 +291,9 @@ public class TriggeredWatchStoreTests extends ESTestCase {
         assertThat(triggeredWatches, hasSize(watches.size()));
 
         verify(client, times(1)).execute(eq(RefreshAction.INSTANCE), any(), any());
-        verify(client, times(1)).execute(eq(SearchAction.INSTANCE), any(), any());
-        verify(client, times(2)).execute(eq(SearchScrollAction.INSTANCE), any(), any());
-        verify(client, times(1)).execute(eq(ClearScrollAction.INSTANCE), any(), any());
+        verify(client, times(1)).execute(eq(TransportSearchAction.TYPE), any(), any());
+        verify(client, times(2)).execute(eq(TransportSearchScrollAction.TYPE), any(), any());
+        verify(client, times(1)).execute(eq(TransportClearScrollAction.TYPE), any(), any());
     }
 
     // the elasticsearch migration helper is doing reindex using aliases, so we have to
@@ -319,7 +302,7 @@ public class TriggeredWatchStoreTests extends ESTestCase {
         ClusterState.Builder csBuilder = new ClusterState.Builder(new ClusterName("_name"));
 
         RoutingTable.Builder routingTableBuilder = RoutingTable.builder();
-        Metadata.Builder metadataBuilder = Metadata.builder();
+        ProjectMetadata.Builder metadataBuilder = ProjectMetadata.builder(projectId);
         metadataBuilder.put(
             IndexMetadata.builder("triggered-watches-alias")
                 .settings(indexSettings)
@@ -335,8 +318,8 @@ public class TriggeredWatchStoreTests extends ESTestCase {
         );
         indexRoutingTableBuilder.addReplica(ShardRouting.Role.DEFAULT);
         routingTableBuilder.add(indexRoutingTableBuilder.build());
-        csBuilder.metadata(metadataBuilder);
-        csBuilder.routingTable(routingTableBuilder.build());
+        csBuilder.putProjectMetadata(metadataBuilder);
+        csBuilder.putRoutingTable(projectId, routingTableBuilder.build());
         ClusterState cs = csBuilder.build();
 
         assertThat(TriggeredWatchStore.validate(cs), is(true));
@@ -347,7 +330,7 @@ public class TriggeredWatchStoreTests extends ESTestCase {
     public void testLoadingFailsWithTwoAliases() {
         ClusterState.Builder csBuilder = new ClusterState.Builder(new ClusterName("_name"));
 
-        Metadata.Builder metadataBuilder = Metadata.builder();
+        ProjectMetadata.Builder metadataBuilder = ProjectMetadata.builder(projectId);
         RoutingTable.Builder routingTableBuilder = RoutingTable.builder();
         metadataBuilder.put(
             IndexMetadata.builder("triggered-watches-alias")
@@ -376,8 +359,8 @@ public class TriggeredWatchStoreTests extends ESTestCase {
             )
         );
 
-        csBuilder.metadata(metadataBuilder);
-        csBuilder.routingTable(routingTableBuilder.build());
+        csBuilder.putProjectMetadata(metadataBuilder);
+        csBuilder.putRoutingTable(projectId, routingTableBuilder.build());
         ClusterState cs = csBuilder.build();
 
         IllegalStateException e = expectThrows(IllegalStateException.class, () -> TriggeredWatchStore.validate(cs));
@@ -388,11 +371,11 @@ public class TriggeredWatchStoreTests extends ESTestCase {
     public void testTriggeredWatchesIndexIsClosed() {
         ClusterState.Builder csBuilder = new ClusterState.Builder(new ClusterName("_name"));
 
-        Metadata.Builder metadataBuilder = Metadata.builder();
+        ProjectMetadata.Builder metadataBuilder = ProjectMetadata.builder(projectId);
         metadataBuilder.put(
             IndexMetadata.builder(TriggeredWatchStoreField.INDEX_NAME).settings(indexSettings).state(IndexMetadata.State.CLOSE)
         );
-        csBuilder.metadata(metadataBuilder);
+        csBuilder.putProjectMetadata(metadataBuilder);
 
         assertThat(TriggeredWatchStore.validate(csBuilder.build()), is(false));
     }
@@ -408,16 +391,16 @@ public class TriggeredWatchStoreTests extends ESTestCase {
 
     public void testIndexNotFoundButInMetadata() {
         ClusterState.Builder csBuilder = new ClusterState.Builder(new ClusterName("_name"));
-        Metadata.Builder metadataBuilder = Metadata.builder()
+        ProjectMetadata.Builder metadataBuilder = ProjectMetadata.builder(projectId)
             .put(IndexMetadata.builder(TriggeredWatchStoreField.INDEX_NAME).settings(indexSettings));
-        csBuilder.metadata(metadataBuilder);
+        csBuilder.putProjectMetadata(metadataBuilder);
 
         ClusterState cs = csBuilder.build();
         Watch watch = mock(Watch.class);
 
         doAnswer(invocation -> {
             @SuppressWarnings("unchecked")
-            ActionListener<RefreshResponse> listener = (ActionListener<RefreshResponse>) invocation.getArguments()[2];
+            ActionListener<BroadcastResponse> listener = (ActionListener<BroadcastResponse>) invocation.getArguments()[2];
             listener.onFailure(new IndexNotFoundException(TriggeredWatchStoreField.INDEX_NAME));
             return null;
         }).when(client).execute(eq(RefreshAction.INSTANCE), any(), any());
@@ -480,7 +463,7 @@ public class TriggeredWatchStoreTests extends ESTestCase {
 
             listener.onResponse(new BulkResponse(bulkItemResponse, 123));
             return null;
-        }).when(client).execute(eq(BulkAction.INSTANCE), any(), any());
+        }).when(client).execute(eq(TransportBulkAction.TYPE), any(), any());
 
         BulkResponse response = triggeredWatchStore.putAll(triggeredWatches);
         assertThat(response.hasFailures(), is(false));
@@ -515,8 +498,8 @@ public class TriggeredWatchStoreTests extends ESTestCase {
         assertThat(response.getItems().length, is(1));
     }
 
-    private RefreshResponse mockRefreshResponse(int total, int successful) {
-        RefreshResponse refreshResponse = mock(RefreshResponse.class);
+    private BroadcastResponse mockRefreshResponse(int total, int successful) {
+        BroadcastResponse refreshResponse = mock(BroadcastResponse.class);
         when(refreshResponse.getTotalShards()).thenReturn(total);
         when(refreshResponse.getSuccessfulShards()).thenReturn(successful);
         return refreshResponse;

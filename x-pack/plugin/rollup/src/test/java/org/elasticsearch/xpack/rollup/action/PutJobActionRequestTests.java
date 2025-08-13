@@ -40,11 +40,6 @@ public class PutJobActionRequestTests extends AbstractXContentSerializingTestCas
     }
 
     @Override
-    protected boolean supportsUnknownFields() {
-        return false;
-    }
-
-    @Override
     protected Request doParseInstance(XContentParser parser) throws IOException {
         return Request.fromXContent(parser, jobId);
     }

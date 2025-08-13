@@ -16,6 +16,7 @@ import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.MachineLearning;
+import org.elasticsearch.xpack.ml.inference.pytorch.results.ErrorResult;
 import org.elasticsearch.xpack.ml.job.process.AbstractInitializableRunnable;
 
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -24,7 +25,7 @@ import static org.elasticsearch.core.Strings.format;
 
 abstract class AbstractPyTorchAction<T> extends AbstractInitializableRunnable {
 
-    private final String modelId;
+    private final String deploymentId;
     private final long requestId;
     private final TimeValue timeout;
     private Scheduler.Cancellable timeoutHandler;
@@ -34,14 +35,14 @@ abstract class AbstractPyTorchAction<T> extends AbstractInitializableRunnable {
     private final ThreadPool threadPool;
 
     protected AbstractPyTorchAction(
-        String modelId,
+        String deploymentId,
         long requestId,
         TimeValue timeout,
         DeploymentManager.ProcessContext processContext,
         ThreadPool threadPool,
         ActionListener<T> listener
     ) {
-        this.modelId = ExceptionsHelper.requireNonNull(modelId, "modelId");
+        this.deploymentId = ExceptionsHelper.requireNonNull(deploymentId, "deploymentId");
         this.requestId = requestId;
         this.timeout = ExceptionsHelper.requireNonNull(timeout, "timeout");
         this.processContext = ExceptionsHelper.requireNonNull(processContext, "processContext");
@@ -56,20 +57,30 @@ abstract class AbstractPyTorchAction<T> extends AbstractInitializableRunnable {
     @Override
     public final void init() {
         if (this.timeoutHandler == null) {
-            this.timeoutHandler = threadPool.schedule(this::onTimeout, timeout, MachineLearning.UTILITY_THREAD_POOL_NAME);
+            this.timeoutHandler = threadPool.schedule(
+                this::onTimeout,
+                timeout,
+                threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME)
+            );
         }
     }
 
     void onTimeout() {
+        onTimeout(new ElasticsearchStatusException("timeout [{}] waiting for inference result", RestStatus.REQUEST_TIMEOUT, timeout));
+    }
+
+    void onCancel() {
+        onTimeout(new ElasticsearchStatusException("inference task cancelled", RestStatus.BAD_REQUEST));
+    }
+
+    void onTimeout(Exception e) {
         if (notified.compareAndSet(false, true)) {
             processContext.getTimeoutCount().incrementAndGet();
             processContext.getResultProcessor().ignoreResponseWithoutNotifying(String.valueOf(requestId));
-            listener.onFailure(
-                new ElasticsearchStatusException("timeout [{}] waiting for inference result", RestStatus.REQUEST_TIMEOUT, timeout)
-            );
+            listener.onFailure(e);
             return;
         }
-        getLogger().debug("[{}] request [{}] received timeout after [{}] but listener already alerted", modelId, requestId, timeout);
+        getLogger().debug("[{}] request [{}] received timeout after [{}] but listener already alerted", deploymentId, requestId, timeout);
     }
 
     void onSuccess(T result) {
@@ -82,7 +93,7 @@ abstract class AbstractPyTorchAction<T> extends AbstractInitializableRunnable {
             listener.onResponse(result);
             return;
         }
-        getLogger().debug("[{}] request [{}] received inference response but listener already notified", modelId, requestId);
+        getLogger().debug("[{}] request [{}] received inference response but listener already notified", deploymentId, requestId);
     }
 
     @Override
@@ -103,11 +114,12 @@ abstract class AbstractPyTorchAction<T> extends AbstractInitializableRunnable {
             listener.onFailure(e);
             return;
         }
-        getLogger().debug(() -> format("[%s] request [%s] received failure but listener already notified", modelId, requestId), e);
+        getLogger().debug(() -> format("[%s] request [%s] received failure but listener already notified", deploymentId, requestId), e);
     }
 
-    protected void onFailure(String errorMessage) {
-        onFailure(new ElasticsearchStatusException("Error in inference process: [" + errorMessage + "]", RestStatus.INTERNAL_SERVER_ERROR));
+    protected void onFailure(ErrorResult errorResult) {
+        var restStatus = errorResult.isStopping() ? RestStatus.CONFLICT : RestStatus.INTERNAL_SERVER_ERROR;
+        onFailure(new ElasticsearchStatusException("Error in inference process: [" + errorResult.error() + "]", restStatus));
     }
 
     boolean isNotified() {
@@ -118,8 +130,8 @@ abstract class AbstractPyTorchAction<T> extends AbstractInitializableRunnable {
         return requestId;
     }
 
-    String getModelId() {
-        return modelId;
+    String getDeploymentId() {
+        return deploymentId;
     }
 
     DeploymentManager.ProcessContext getProcessContext() {

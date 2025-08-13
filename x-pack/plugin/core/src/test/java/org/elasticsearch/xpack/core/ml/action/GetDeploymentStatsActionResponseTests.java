@@ -39,7 +39,7 @@ public class GetDeploymentStatsActionResponseTests extends AbstractWireSerializi
         for (var i = 0; i < numStats; i++) {
             stats.add(randomDeploymentStats());
         }
-        stats.sort(Comparator.comparing(AssignmentStats::getModelId));
+        stats.sort(Comparator.comparing(AssignmentStats::getDeploymentId));
         return new GetDeploymentStatsAction.Response(Collections.emptyList(), Collections.emptyList(), stats, stats.size());
     }
 

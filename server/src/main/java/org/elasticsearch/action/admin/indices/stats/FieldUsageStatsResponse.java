@@ -1,17 +1,19 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.indices.stats;
 
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.broadcast.ChunkedBroadcastResponse;
-import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
 import org.elasticsearch.xcontent.ToXContent;
 
 import java.io.IOException;
@@ -33,15 +35,10 @@ public class FieldUsageStatsResponse extends ChunkedBroadcastResponse {
         this.stats = stats;
     }
 
-    FieldUsageStatsResponse(StreamInput in) throws IOException {
-        super(in);
-        stats = in.readMap(StreamInput::readString, i -> i.readList(FieldUsageShardResponse::new));
-    }
-
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeMap(stats, StreamOutput::writeString, StreamOutput::writeList);
+        out.writeMap(stats, StreamOutput::writeCollection);
     }
 
     public Map<String, List<FieldUsageShardResponse>> getStats() {
@@ -50,14 +47,13 @@ public class FieldUsageStatsResponse extends ChunkedBroadcastResponse {
 
     @Override
     protected Iterator<ToXContent> customXContentChunks(ToXContent.Params params) {
-        return stats.entrySet().stream().sorted(Map.Entry.comparingByKey()).map(entry -> (ToXContent) (builder, p) -> {
-            builder.startObject(entry.getKey());
-            builder.startArray("shards");
-            for (FieldUsageShardResponse resp : entry.getValue()) {
-                resp.toXContent(builder, params);
-            }
-            builder.endArray();
-            return builder.endObject();
-        }).iterator();
+        return Iterators.flatMap(
+            stats.entrySet().stream().sorted(Map.Entry.comparingByKey()).iterator(),
+            entry -> Iterators.concat(
+                ChunkedToXContentHelper.chunk((builder, p) -> builder.startObject(entry.getKey()).startArray("shards")),
+                entry.getValue().iterator(),
+                ChunkedToXContentHelper.chunk((builder, p) -> builder.endArray().endObject())
+            )
+        );
     }
 }

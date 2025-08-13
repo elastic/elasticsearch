@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.action.admin.indices.rollover;
 
@@ -12,12 +13,10 @@ import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.master.MasterNodeOperationRequestBuilder;
 import org.elasticsearch.client.internal.ElasticsearchClient;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.core.TimeValue;
 
 public class RolloverRequestBuilder extends MasterNodeOperationRequestBuilder<RolloverRequest, RolloverResponse, RolloverRequestBuilder> {
-    public RolloverRequestBuilder(ElasticsearchClient client, RolloverAction action) {
-        super(client, action, new RolloverRequest());
+    public RolloverRequestBuilder(ElasticsearchClient client) {
+        super(client, RolloverAction.INSTANCE, new RolloverRequest());
     }
 
     public RolloverRequestBuilder setRolloverTarget(String rolloverTarget) {
@@ -30,58 +29,23 @@ public class RolloverRequestBuilder extends MasterNodeOperationRequestBuilder<Ro
         return this;
     }
 
-    public RolloverRequestBuilder addMaxIndexAgeCondition(TimeValue age) {
-        this.request.addMaxIndexAgeCondition(age);
+    public RolloverRequestBuilder setConditions(RolloverConditions rolloverConditions) {
+        this.request.setConditions(rolloverConditions);
         return this;
     }
 
-    public RolloverRequestBuilder addMaxIndexDocsCondition(long docs) {
-        this.request.addMaxIndexDocsCondition(docs);
-        return this;
-    }
-
-    public RolloverRequestBuilder addMaxIndexSizeCondition(ByteSizeValue size) {
-        this.request.addMaxIndexSizeCondition(size);
-        return this;
-    }
-
-    public RolloverRequestBuilder addMaxPrimaryShardSizeCondition(ByteSizeValue size) {
-        this.request.addMaxPrimaryShardSizeCondition(size);
-        return this;
-    }
-
-    public RolloverRequestBuilder addMaxPrimaryShardDocsCondition(long docs) {
-        this.request.addMaxPrimaryShardDocsCondition(docs);
-        return this;
-    }
-
-    public RolloverRequestBuilder addMinIndexAgeCondition(TimeValue age) {
-        this.request.addMinIndexAgeCondition(age);
-        return this;
-    }
-
-    public RolloverRequestBuilder addMinIndexDocsCondition(long docs) {
-        this.request.addMinIndexDocsCondition(docs);
-        return this;
-    }
-
-    public RolloverRequestBuilder addMinIndexSizeCondition(ByteSizeValue size) {
-        this.request.addMinIndexSizeCondition(size);
-        return this;
-    }
-
-    public RolloverRequestBuilder addMinPrimaryShardSizeCondition(ByteSizeValue size) {
-        this.request.addMinPrimaryShardSizeCondition(size);
-        return this;
-    }
-
-    public RolloverRequestBuilder addMinPrimaryShardDocsCondition(long docs) {
-        this.request.addMinPrimaryShardDocsCondition(docs);
+    public RolloverRequestBuilder setConditions(RolloverConditions.Builder rolloverConditions) {
+        this.request.setConditions(rolloverConditions.build());
         return this;
     }
 
     public RolloverRequestBuilder dryRun(boolean dryRun) {
         this.request.dryRun(dryRun);
+        return this;
+    }
+
+    public RolloverRequestBuilder lazy(boolean lazy) {
+        this.request.lazy(lazy);
         return this;
     }
 

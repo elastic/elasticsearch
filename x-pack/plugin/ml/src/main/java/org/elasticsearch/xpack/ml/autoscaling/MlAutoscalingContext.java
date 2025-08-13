@@ -17,11 +17,11 @@ import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsState;
 import org.elasticsearch.xpack.core.ml.inference.assignment.AllocationStatus;
 import org.elasticsearch.xpack.core.ml.inference.assignment.AssignmentState;
 import org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignment;
+import org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignmentMetadata;
 import org.elasticsearch.xpack.core.ml.job.config.JobState;
 import org.elasticsearch.xpack.core.ml.job.snapshot.upgrade.SnapshotUpgradeState;
 import org.elasticsearch.xpack.core.ml.job.snapshot.upgrade.SnapshotUpgradeTaskParams;
 import org.elasticsearch.xpack.ml.MachineLearning;
-import org.elasticsearch.xpack.ml.inference.assignment.TrainedModelAssignmentMetadata;
 
 import java.util.Collection;
 import java.util.List;
@@ -48,48 +48,78 @@ class MlAutoscalingContext {
     final PersistentTasksCustomMetadata persistentTasks;
 
     MlAutoscalingContext() {
-        anomalyDetectionTasks = List.of();
-        snapshotUpgradeTasks = List.of();
-        dataframeAnalyticsTasks = List.of();
-        modelAssignments = Map.of();
+        this(List.of(), List.of(), List.of(), Map.of(), List.of(), null);
+    }
 
-        waitingAnomalyJobs = List.of();
-        waitingSnapshotUpgrades = List.of();
-        waitingAnalyticsJobs = List.of();
-        waitingAllocatedModels = List.of();
+    MlAutoscalingContext(
+        final Collection<PersistentTasksCustomMetadata.PersistentTask<?>> anomalyDetectionTasks,
+        final Collection<PersistentTasksCustomMetadata.PersistentTask<?>> snapshotUpgradeTasks,
+        final Collection<PersistentTasksCustomMetadata.PersistentTask<?>> dataframeAnalyticsTasks,
+        final Map<String, TrainedModelAssignment> modelAssignments,
+        final List<DiscoveryNode> mlNodes,
+        final PersistentTasksCustomMetadata persistentTasks
+    ) {
+        this.anomalyDetectionTasks = anomalyDetectionTasks;
+        this.snapshotUpgradeTasks = snapshotUpgradeTasks;
+        this.dataframeAnalyticsTasks = dataframeAnalyticsTasks;
+        this.modelAssignments = modelAssignments;
+        this.mlNodes = mlNodes;
+        this.persistentTasks = persistentTasks;
 
-        mlNodes = List.of();
-        persistentTasks = null;
+        waitingAnomalyJobs = waitingAnomalyJobs(anomalyDetectionTasks);
+        waitingSnapshotUpgrades = getWaitingSnapshotUpgrades(snapshotUpgradeTasks);
+        waitingAnalyticsJobs = getWaitingAnalyticsJobs(dataframeAnalyticsTasks);
+        waitingAllocatedModels = getWaitingAllocatedModels(modelAssignments);
     }
 
     MlAutoscalingContext(ClusterState clusterState) {
-        PersistentTasksCustomMetadata tasks = clusterState.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
-        anomalyDetectionTasks = anomalyDetectionTasks(tasks);
-        snapshotUpgradeTasks = snapshotUpgradeTasks(tasks);
-        dataframeAnalyticsTasks = dataframeAnalyticsTasks(tasks);
-        modelAssignments = TrainedModelAssignmentMetadata.fromState(clusterState).modelAssignments();
+        persistentTasks = clusterState.getMetadata().getProject().custom(PersistentTasksCustomMetadata.TYPE);
 
-        waitingAnomalyJobs = anomalyDetectionTasks.stream()
-            .filter(t -> AWAITING_LAZY_ASSIGNMENT.equals(t.getAssignment()))
-            .map(t -> ((OpenJobAction.JobParams) t.getParams()).getJobId())
-            .toList();
-        waitingSnapshotUpgrades = snapshotUpgradeTasks.stream()
-            .filter(t -> AWAITING_LAZY_ASSIGNMENT.equals(t.getAssignment()))
-            .map(t -> ((SnapshotUpgradeTaskParams) t.getParams()).getJobId())
-            .toList();
-        waitingAnalyticsJobs = dataframeAnalyticsTasks.stream()
-            .filter(t -> AWAITING_LAZY_ASSIGNMENT.equals(t.getAssignment()))
-            .map(t -> ((StartDataFrameAnalyticsAction.TaskParams) t.getParams()).getId())
-            .toList();
-        waitingAllocatedModels = modelAssignments.entrySet()
+        anomalyDetectionTasks = anomalyDetectionTasks(persistentTasks);
+        snapshotUpgradeTasks = snapshotUpgradeTasks(persistentTasks);
+        dataframeAnalyticsTasks = dataframeAnalyticsTasks(persistentTasks);
+        modelAssignments = TrainedModelAssignmentMetadata.fromState(clusterState).allAssignments();
+
+        waitingAnomalyJobs = waitingAnomalyJobs(anomalyDetectionTasks);
+        waitingSnapshotUpgrades = getWaitingSnapshotUpgrades(snapshotUpgradeTasks);
+        waitingAnalyticsJobs = getWaitingAnalyticsJobs(dataframeAnalyticsTasks);
+        waitingAllocatedModels = getWaitingAllocatedModels(modelAssignments);
+
+        mlNodes = getMlNodes(clusterState);
+    }
+
+    private static List<String> getWaitingAllocatedModels(Map<String, TrainedModelAssignment> modelAssignments) {
+        return modelAssignments.entrySet()
             .stream()
             // TODO: Eventually care about those that are STARTED but not FULLY_ALLOCATED
             .filter(e -> e.getValue().getAssignmentState().equals(AssignmentState.STARTING) && e.getValue().getNodeRoutingTable().isEmpty())
             .map(Map.Entry::getKey)
             .toList();
+    }
 
-        mlNodes = getMlNodes(clusterState);
-        persistentTasks = clusterState.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
+    private static List<String> getWaitingAnalyticsJobs(
+        Collection<PersistentTasksCustomMetadata.PersistentTask<?>> dataframeAnalyticsTasks
+    ) {
+        return dataframeAnalyticsTasks.stream()
+            .filter(t -> AWAITING_LAZY_ASSIGNMENT.equals(t.getAssignment()))
+            .map(t -> ((StartDataFrameAnalyticsAction.TaskParams) t.getParams()).getId())
+            .toList();
+    }
+
+    private static List<String> getWaitingSnapshotUpgrades(
+        Collection<PersistentTasksCustomMetadata.PersistentTask<?>> snapshotUpgradeTasks
+    ) {
+        return snapshotUpgradeTasks.stream()
+            .filter(t -> AWAITING_LAZY_ASSIGNMENT.equals(t.getAssignment()))
+            .map(t -> ((SnapshotUpgradeTaskParams) t.getParams()).getJobId())
+            .toList();
+    }
+
+    private static List<String> waitingAnomalyJobs(Collection<PersistentTasksCustomMetadata.PersistentTask<?>> anomalyDetectionTasks) {
+        return anomalyDetectionTasks.stream()
+            .filter(t -> AWAITING_LAZY_ASSIGNMENT.equals(t.getAssignment()))
+            .map(t -> ((OpenJobAction.JobParams) t.getParams()).getJobId())
+            .toList();
     }
 
     private static Collection<PersistentTasksCustomMetadata.PersistentTask<?>> anomalyDetectionTasks(
@@ -147,7 +177,7 @@ class MlAutoscalingContext {
         return anomalyDetectionTasks.isEmpty()
             && snapshotUpgradeTasks.isEmpty()
             && dataframeAnalyticsTasks.isEmpty()
-            && modelAssignments.isEmpty();
+            && modelAssignments.values().stream().allMatch(assignment -> assignment.getTaskParams().getNumberOfAllocations() == 0);
     }
 
     public List<String> findPartiallyAllocatedModels() {

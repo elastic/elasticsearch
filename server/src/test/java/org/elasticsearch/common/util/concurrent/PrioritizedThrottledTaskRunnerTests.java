@@ -1,14 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.util.concurrent;
 
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsExecutors.TaskTrackingConfig;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 
@@ -67,7 +69,7 @@ public class PrioritizedThrottledTaskRunnerTests extends ESTestCase {
 
         @Override
         public void onFailure(Exception e) {
-            throw new AssertionError("unexpected", e);
+            fail(e);
         }
     }
 
@@ -78,22 +80,17 @@ public class PrioritizedThrottledTaskRunnerTests extends ESTestCase {
         final var threadBlocker = new CyclicBarrier(enqueued);
         final var executedCountDown = new CountDownLatch(enqueued);
         for (int i = 0; i < enqueued; i++) {
-            final int taskId = i;
             new Thread(() -> {
-                CyclicBarrierUtils.await(threadBlocker);
+                safeAwait(threadBlocker);
                 taskRunner.enqueueTask(new TestTask(() -> {
-                    try {
-                        Thread.sleep(randomLongBetween(0, 10));
-                    } catch (InterruptedException e) {
-                        throw new AssertionError(e);
-                    }
+                    safeSleep(randomLongBetween(0, 10));
                     executedCountDown.countDown();
                 }, getRandomPriority()));
                 assertThat(taskRunner.runningTasks(), lessThanOrEqualTo(maxTasks));
             }).start();
         }
         // Eventually all tasks are executed
-        assertTrue(executedCountDown.await(10, TimeUnit.SECONDS));
+        safeAwait(executedCountDown);
         assertThat(taskRunner.queueSize(), equalTo(0));
         assertNoRunningTasks(taskRunner);
     }
@@ -107,8 +104,10 @@ public class PrioritizedThrottledTaskRunnerTests extends ESTestCase {
 
         final var blockBarrier = new CyclicBarrier(2);
         taskRunner.enqueueTask(new TestTask(() -> {
-            CyclicBarrierUtils.await(blockBarrier); // notify main thread that the runner is blocked
-            CyclicBarrierUtils.await(blockBarrier); // wait for main thread to finish enqueuing tasks
+            // notify main thread that the runner is blocked
+            safeAwait(blockBarrier);
+            // wait for main thread to finish enqueuing tasks
+            safeAwait(blockBarrier);
         }, getRandomPriority()));
 
         blockBarrier.await(10, TimeUnit.SECONDS); // wait for blocking task to start executing
@@ -119,17 +118,17 @@ public class PrioritizedThrottledTaskRunnerTests extends ESTestCase {
         final var enqueuedBarrier = new CyclicBarrier(enqueued + 1);
         final var executedCountDown = new CountDownLatch(enqueued);
         for (int i = 0; i < enqueued; i++) {
-            final int taskId = i;
             final int priority = getRandomPriority();
             taskPriorities.add(priority);
             new Thread(() -> {
                 // wait until all threads are ready so the enqueueTask() calls are as concurrent as possible
-                CyclicBarrierUtils.await(enqueuedBarrier);
+                safeAwait(enqueuedBarrier);
                 taskRunner.enqueueTask(new TestTask(() -> {
                     executedPriorities.add(priority);
                     executedCountDown.countDown();
                 }, priority));
-                CyclicBarrierUtils.await(enqueuedBarrier); // notify main thread that the task is enqueued
+                // notify main thread that the task is enqueued
+                safeAwait(enqueuedBarrier);
             }).start();
         }
         // release all the threads at once
@@ -193,7 +192,7 @@ public class PrioritizedThrottledTaskRunnerTests extends ESTestCase {
     public void testFailsTasksOnRejectionOrShutdown() throws Exception {
         final var executor = randomBoolean()
             ? EsExecutors.newScaling("test", maxThreads, maxThreads, 0, TimeUnit.MILLISECONDS, true, threadFactory, threadContext)
-            : EsExecutors.newFixed("test", maxThreads, between(1, 5), threadFactory, threadContext, false);
+            : EsExecutors.newFixed("test", maxThreads, between(1, 5), threadFactory, threadContext, TaskTrackingConfig.DO_NOT_TRACK);
         final var taskRunner = new PrioritizedThrottledTaskRunner<TestTask>("test", between(1, maxThreads * 2), executor);
         final var totalPermits = between(1, maxThreads * 2);
         final var permits = new Semaphore(totalPermits);
@@ -239,9 +238,9 @@ public class PrioritizedThrottledTaskRunnerTests extends ESTestCase {
     private void assertNoRunningTasks(PrioritizedThrottledTaskRunner<TestTask> taskRunner) {
         final var barrier = new CyclicBarrier(maxThreads + 1);
         for (int i = 0; i < maxThreads; i++) {
-            executor.execute(() -> CyclicBarrierUtils.await(barrier));
+            executor.execute(() -> safeAwait(barrier));
         }
-        CyclicBarrierUtils.await(barrier);
+        safeAwait(barrier);
         assertThat(taskRunner.runningTasks(), equalTo(0));
     }
 

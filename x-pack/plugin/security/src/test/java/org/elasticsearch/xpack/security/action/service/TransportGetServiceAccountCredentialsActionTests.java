@@ -15,6 +15,7 @@ import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.MockUtils;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.security.action.service.GetServiceAccountCredentialsRequest;
@@ -58,8 +59,10 @@ public class TransportGetServiceAccountCredentialsActionTests extends ESTestCase
         when(transport.boundAddress()).thenReturn(new BoundTransportAddress(new TransportAddress[] { transportAddress }, transportAddress));
         final Settings settings = builder.build();
         serviceAccountService = mock(ServiceAccountService.class);
+
+        TransportService transportService = MockUtils.setupTransportServiceWithThreadpoolExecutor();
         transportGetServiceAccountCredentialsAction = new TransportGetServiceAccountCredentialsAction(
-            mock(TransportService.class),
+            transportService,
             new ActionFilters(Collections.emptySet()),
             serviceAccountService
         );

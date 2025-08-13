@@ -1,20 +1,25 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.aggregations.bucket.geogrid;
 
-import org.apache.lucene.geo.GeoEncodingUtils;
 import org.elasticsearch.common.geo.GeoBoundingBox;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.geometry.Rectangle;
+
+import static org.apache.lucene.geo.GeoEncodingUtils.decodeLatitude;
+import static org.apache.lucene.geo.GeoEncodingUtils.decodeLongitude;
+import static org.apache.lucene.geo.GeoEncodingUtils.encodeLatitude;
+import static org.apache.lucene.geo.GeoEncodingUtils.encodeLongitude;
 
 public class GeoTileGridAggregatorTests extends GeoGridAggregatorTestCase<InternalGeoTileGridBucket> {
 
@@ -37,7 +42,7 @@ public class GeoTileGridAggregatorTests extends GeoGridAggregatorTestCase<Intern
     }
 
     @Override
-    protected GeoBoundingBox randomBBox() {
+    protected GeoBoundingBox randomBBox(int precision) {
         GeoBoundingBox bbox = randomValueOtherThanMany(
             (b) -> b.top() > GeoTileUtils.LATITUDE_MASK || b.bottom() < -GeoTileUtils.LATITUDE_MASK,
             () -> {
@@ -48,11 +53,40 @@ public class GeoTileGridAggregatorTests extends GeoGridAggregatorTestCase<Intern
                 );
             }
         );
-        // Avoid numerical errors for sub-atomic values
-        double left = GeoEncodingUtils.decodeLongitude(GeoEncodingUtils.encodeLongitude(bbox.left()));
-        double right = GeoEncodingUtils.decodeLongitude(GeoEncodingUtils.encodeLongitude(bbox.right()));
-        double top = GeoEncodingUtils.decodeLatitude(GeoEncodingUtils.encodeLatitude(bbox.top()));
-        double bottom = GeoEncodingUtils.decodeLatitude(GeoEncodingUtils.encodeLatitude(bbox.bottom()));
+        final int tiles = 1 << precision;
+
+        // Due to the way GeoTileBoundedPredicate works that adjust the given bounding box when it is touching the tiles, we need to
+        // adjust here in order not to generate bounding boxes touching tiles or the test will fail
+
+        // compute tile at the top left
+        final Rectangle minTile = GeoTileUtils.toBoundingBox(
+            GeoTileUtils.getXTile(bbox.left(), tiles),
+            GeoTileUtils.getYTile(bbox.top(), tiles),
+            precision
+        );
+        // adjust if it is touching the tile
+        final int encodedLeft = encodeLongitude(bbox.left());
+        final double left = encodeLongitude(minTile.getMaxX()) == encodedLeft
+            ? decodeLongitude(encodedLeft + 1)
+            : decodeLongitude(encodedLeft);
+        final int encodedTop = encodeLatitude(bbox.top());
+        final double bottom = encodeLatitude(minTile.getMinY()) == encodedTop ? decodeLatitude(encodedTop + 1) : decodeLatitude(encodedTop);
+        // compute tile at the bottom right
+        final Rectangle maxTile = GeoTileUtils.toBoundingBox(
+            GeoTileUtils.getXTile(bbox.right(), tiles),
+            GeoTileUtils.getYTile(bbox.bottom(), tiles),
+            precision
+        );
+        // adjust if it is touching the tile
+        final int encodedRight = encodeLongitude(bbox.right());
+        final double right = encodeLongitude(maxTile.getMinX()) == encodedRight
+            ? decodeLongitude(encodedRight)
+            : decodeLongitude(encodedRight + 1);
+        final int encodedBottom = encodeLatitude(bbox.bottom());
+        final double top = encodeLatitude(maxTile.getMaxY()) == encodedBottom
+            ? decodeLatitude(encodedBottom)
+            : decodeLatitude(encodedBottom + 1);
+
         bbox.topLeft().reset(top, left);
         bbox.bottomRight().reset(bottom, right);
         return bbox;
@@ -60,14 +94,6 @@ public class GeoTileGridAggregatorTests extends GeoGridAggregatorTestCase<Intern
 
     @Override
     protected Rectangle getTile(double lng, double lat, int precision) {
-        int tiles = 1 << precision;
-        int x = GeoTileUtils.getXTile(lng, tiles);
-        int y = GeoTileUtils.getYTile(lat, tiles);
-        Rectangle r1 = GeoTileUtils.toBoundingBox(x, y, precision);
-        Rectangle r2 = GeoTileUtils.toBoundingBox(GeoTileUtils.longEncode(lng, lat, precision));
-        if (r1.equals(r2) == false) {
-            int a = 0;
-        }
         return GeoTileUtils.toBoundingBox(GeoTileUtils.longEncode(lng, lat, precision));
     }
 

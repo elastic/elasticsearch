@@ -1,27 +1,29 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.reservedstate.service;
 
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.action.admin.cluster.repositories.get.GetRepositoriesAction;
 import org.elasticsearch.action.admin.cluster.repositories.get.GetRepositoriesRequest;
-import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryAction;
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryRequest;
+import org.elasticsearch.action.admin.cluster.repositories.put.TransportPutRepositoryAction;
 import org.elasticsearch.action.admin.cluster.repositories.reservedstate.ReservedRepositoryAction;
-import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterStateListener;
+import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.metadata.ReservedStateErrorMetadata;
 import org.elasticsearch.cluster.metadata.ReservedStateHandlerMetadata;
 import org.elasticsearch.cluster.metadata.ReservedStateMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.repositories.RepositoryMissingException;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -29,11 +31,7 @@ import org.elasticsearch.xcontent.XContentParserConfiguration;
 
 import java.io.ByteArrayInputStream;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
@@ -43,11 +41,11 @@ import static org.elasticsearch.xcontent.XContentType.JSON;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.notNullValue;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, autoManageMasterNodes = false)
+@LuceneTestCase.SuppressFileSystems("*")
 public class RepositoriesFileSettingsIT extends ESIntegTestCase {
     private static AtomicLong versionCounter = new AtomicLong(1);
 
@@ -93,20 +91,8 @@ public class RepositoriesFileSettingsIT extends ESIntegTestCase {
              }
         }""";
 
-    private void assertMasterNode(Client client, String node) throws ExecutionException, InterruptedException {
-        assertThat(client.admin().cluster().prepareState().execute().get().getState().nodes().getMasterNode().getName(), equalTo(node));
-    }
-
     private void writeJSONFile(String node, String json) throws Exception {
-        long version = versionCounter.incrementAndGet();
-
-        FileSettingsService fileSettingsService = internalCluster().getInstance(FileSettingsService.class, node);
-
-        Files.createDirectories(fileSettingsService.operatorSettingsDir());
-        Path tempFilePath = createTempFile();
-
-        Files.write(tempFilePath, Strings.format(json, version).getBytes(StandardCharsets.UTF_8));
-        Files.move(tempFilePath, fileSettingsService.operatorSettingsFile(), StandardCopyOption.ATOMIC_MOVE);
+        FileSettingsServiceIT.writeJSONFile(node, json, logger, versionCounter.incrementAndGet());
     }
 
     private Tuple<CountDownLatch, AtomicLong> setupClusterStateListener(String node) {
@@ -135,13 +121,15 @@ public class RepositoriesFileSettingsIT extends ESIntegTestCase {
         boolean awaitSuccessful = savedClusterState.await(20, TimeUnit.SECONDS);
         assertTrue(awaitSuccessful);
 
+        clusterAdmin().state(new ClusterStateRequest(TEST_REQUEST_TIMEOUT).waitForMetadataVersion(metadataVersion.get())).get();
+
         final var reposResponse = client().execute(
             GetRepositoriesAction.INSTANCE,
-            new GetRepositoriesRequest(new String[] { "repo", "repo1" })
+            new GetRepositoriesRequest(TEST_REQUEST_TIMEOUT, new String[] { "repo", "repo1" })
         ).get();
 
         assertThat(
-            reposResponse.repositories().stream().map(r -> r.name()).collect(Collectors.toSet()),
+            reposResponse.repositories().stream().map(RepositoryMetadata::name).collect(Collectors.toSet()),
             containsInAnyOrder("repo", "repo1")
         );
 
@@ -149,10 +137,8 @@ public class RepositoriesFileSettingsIT extends ESIntegTestCase {
             "Failed to process request "
                 + "[org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryRequest/unset] "
                 + "with errors: [[repo] set as read-only by [file_settings]]",
-            expectThrows(
-                IllegalArgumentException.class,
-                () -> client().execute(PutRepositoryAction.INSTANCE, sampleRestRequest("repo")).actionGet()
-            ).getMessage()
+            expectThrows(IllegalArgumentException.class, client().execute(TransportPutRepositoryAction.TYPE, sampleRestRequest("repo")))
+                .getMessage()
         );
     }
 
@@ -168,7 +154,7 @@ public class RepositoriesFileSettingsIT extends ESIntegTestCase {
 
         logger.info("--> start master node");
         final String masterNode = internalCluster().startMasterOnlyNode();
-        assertMasterNode(internalCluster().nonMasterClient(), masterNode);
+        awaitMasterNode(internalCluster().getNonMasterNodeName(), masterNode);
 
         assertClusterStateSaveOK(savedClusterState.v1(), savedClusterState.v2());
     }
@@ -206,12 +192,15 @@ public class RepositoriesFileSettingsIT extends ESIntegTestCase {
             "[err-repo] missing",
             expectThrows(
                 RepositoryMissingException.class,
-                () -> client().execute(GetRepositoriesAction.INSTANCE, new GetRepositoriesRequest(new String[] { "err-repo" })).actionGet()
+                client().execute(
+                    GetRepositoriesAction.INSTANCE,
+                    new GetRepositoriesRequest(TEST_REQUEST_TIMEOUT, new String[] { "err-repo" })
+                )
             ).getMessage()
         );
 
         // This should succeed, nothing was reserved
-        client().execute(PutRepositoryAction.INSTANCE, sampleRestRequest("err-repo")).get();
+        client().execute(TransportPutRepositoryAction.TYPE, sampleRestRequest("err-repo")).get();
     }
 
     public void testErrorSaved() throws Exception {
@@ -221,7 +210,7 @@ public class RepositoriesFileSettingsIT extends ESIntegTestCase {
 
         logger.info("--> start master node");
         final String masterNode = internalCluster().startMasterOnlyNode();
-        assertMasterNode(internalCluster().nonMasterClient(), masterNode);
+        awaitMasterNode(internalCluster().getNonMasterNodeName(), masterNode);
         var savedClusterState = setupClusterStateListenerForError(masterNode);
 
         writeJSONFile(masterNode, testErrorJSON);
@@ -241,7 +230,7 @@ public class RepositoriesFileSettingsIT extends ESIntegTestCase {
             var bis = new ByteArrayInputStream(json.getBytes(StandardCharsets.UTF_8));
             var parser = JSON.xContent().createParser(XContentParserConfiguration.EMPTY, bis)
         ) {
-            return new PutRepositoryRequest(name).source(parser.map());
+            return new PutRepositoryRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, name).source(parser.map());
         }
     }
 }

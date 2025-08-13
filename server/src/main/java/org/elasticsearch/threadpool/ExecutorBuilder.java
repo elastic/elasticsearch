@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.threadpool;
@@ -23,9 +24,11 @@ import java.util.List;
 public abstract class ExecutorBuilder<U extends ExecutorBuilder.ExecutorSettings> {
 
     private final String name;
+    private final boolean isSystemThread;
 
-    public ExecutorBuilder(String name) {
+    public ExecutorBuilder(String name, boolean isSystemThread) {
         this.name = name;
+        this.isSystemThread = isSystemThread;
     }
 
     protected String name() {
@@ -38,6 +41,8 @@ public abstract class ExecutorBuilder<U extends ExecutorBuilder.ExecutorSettings
 
     protected static int applyHardSizeLimit(final Settings settings, final String name) {
         if (name.equals("bulk")
+            || name.equals(ThreadPool.Names.WRITE_COORDINATION)
+            || name.equals(ThreadPool.Names.SYSTEM_WRITE_COORDINATION)
             || name.equals(ThreadPool.Names.WRITE)
             || name.equals(ThreadPool.Names.SYSTEM_WRITE)
             || name.equals(ThreadPool.Names.SYSTEM_CRITICAL_WRITE)) {
@@ -89,4 +94,7 @@ public abstract class ExecutorBuilder<U extends ExecutorBuilder.ExecutorSettings
 
     }
 
+    public boolean isSystemThread() {
+        return isSystemThread;
+    }
 }

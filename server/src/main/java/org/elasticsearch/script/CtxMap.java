@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.script;
@@ -13,6 +14,7 @@ import org.elasticsearch.common.util.set.Sets;
 import java.util.AbstractCollection;
 import java.util.AbstractMap;
 import java.util.AbstractSet;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -149,10 +151,12 @@ public class CtxMap<T extends Metadata> extends AbstractMap<String, Object> {
     @Override
     public void clear() {
         // AbstractMap uses entrySet().clear(), it should be quicker to run through the validators, then call the wrapped maps clear
-        for (String key : metadata.keySet()) {
+        for (String key : new ArrayList<>(metadata.keySet())) { // copy the key set to get around the ConcurrentModificationException
             metadata.remove(key);
         }
-        // TODO: this is just bogus, there isn't any case where metadata won't trip a failure above?
+        // note: this is actually bogus in the general case, though! for this to work there must be some Metadata or subclass of Metadata
+        // for which all the FieldPoperty properties of the metadata are nullable and therefore could have been removed in the previous
+        // loop -- does such a class even exist? (that is, is there any *real* CtxMap for which the previous loop didn't throw?)
         source.clear();
     }
 
@@ -192,6 +196,18 @@ public class CtxMap<T extends Metadata> extends AbstractMap<String, Object> {
         return directSourceAccess() ? source.get(key) : (SOURCE.equals(key) ? source : null);
     }
 
+    @Override
+    public Object getOrDefault(Object key, Object defaultValue) {
+        // uses map directly to avoid Map's implementation that is just get and then containsKey and so could require two isAvailable calls
+        if (key instanceof String str) {
+            if (metadata.isAvailable(str)) {
+                return metadata.getOrDefault(str, defaultValue);
+            }
+            return directSourceAccess() ? source.getOrDefault(key, defaultValue) : (SOURCE.equals(key) ? source : defaultValue);
+        }
+        return defaultValue;
+    }
+
     /**
      * Set of entries of the wrapped map that calls the appropriate validator before changing an entries value or removing an entry.
      *
@@ -222,7 +238,7 @@ public class CtxMap<T extends Metadata> extends AbstractMap<String, Object> {
         @Override
         public boolean remove(Object o) {
             if (o instanceof Map.Entry<?, ?> entry) {
-                if (entry.getKey()instanceof String key) {
+                if (entry.getKey() instanceof String key) {
                     if (metadata.containsKey(key)) {
                         if (Objects.equals(entry.getValue(), metadata.get(key))) {
                             metadata.remove(key);

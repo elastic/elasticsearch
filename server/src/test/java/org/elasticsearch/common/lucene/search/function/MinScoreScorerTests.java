@@ -1,24 +1,21 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.lucene.search.function;
 
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 
-import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.ConjunctionUtils;
 import org.apache.lucene.search.DocIdSetIterator;
-import org.apache.lucene.search.Explanation;
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.TwoPhaseIterator;
-import org.apache.lucene.search.Weight;
 import org.apache.lucene.tests.search.AssertingScorer;
 import org.apache.lucene.tests.util.TestUtil;
 import org.elasticsearch.test.ESTestCase;
@@ -65,35 +62,11 @@ public class MinScoreScorerTests extends ESTestCase {
         };
     }
 
-    private static Weight fakeWeight() {
-        return new Weight(new MatchAllDocsQuery()) {
-            @Override
-            public Explanation explain(LeafReaderContext context, int doc) throws IOException {
-                return null;
-            }
-
-            @Override
-            public Scorer scorer(LeafReaderContext context) throws IOException {
-                return null;
-            }
-
-            @Override
-            public boolean isCacheable(LeafReaderContext ctx) {
-                return false;
-            }
-        };
-    }
-
     private static Scorer hideTwoPhaseIterator(Scorer in) {
-        return new Scorer(in.getWeight()) {
+        return new Scorer() {
             @Override
             public DocIdSetIterator iterator() {
                 return TwoPhaseIterator.asDocIdSetIterator(in.twoPhaseIterator());
-            }
-
-            @Override
-            public TwoPhaseIterator twoPhaseIterator() {
-                return null;
             }
 
             @Override
@@ -115,7 +88,7 @@ public class MinScoreScorerTests extends ESTestCase {
 
     private static Scorer scorer(int maxDoc, final int[] docs, final float[] scores, final boolean twoPhase) {
         final DocIdSetIterator iterator = twoPhase ? DocIdSetIterator.all(maxDoc) : iterator(docs);
-        final Scorer scorer = new Scorer(fakeWeight()) {
+        final Scorer scorer = new Scorer() {
 
             int lastScoredDoc = -1;
             final float matchCost = (random().nextBoolean() ? 1000 : 0) + random().nextInt(2000);
@@ -169,7 +142,7 @@ public class MinScoreScorerTests extends ESTestCase {
             random(),
             new ScoreMode[] { ScoreMode.COMPLETE, ScoreMode.TOP_SCORES, ScoreMode.TOP_DOCS_WITH_SCORES }
         );
-        final Scorer assertingScorer = AssertingScorer.wrap(random(), scorer, scoreMode);
+        final Scorer assertingScorer = AssertingScorer.wrap(random(), scorer, scoreMode, true);
         if (twoPhase && randomBoolean()) {
             return hideTwoPhaseIterator(assertingScorer);
         } else {
@@ -196,7 +169,7 @@ public class MinScoreScorerTests extends ESTestCase {
         }
         Scorer scorer = scorer(maxDoc, docs, scores, twoPhase);
         final float minScore = random().nextFloat();
-        Scorer minScoreScorer = new MinScoreScorer(fakeWeight(), scorer, minScore);
+        Scorer minScoreScorer = new MinScoreScorer(scorer, minScore);
         int doc = -1;
         while (doc != DocIdSetIterator.NO_MORE_DOCS) {
             final int target;
@@ -254,7 +227,7 @@ public class MinScoreScorerTests extends ESTestCase {
             final float minScore;
             if (randomBoolean()) {
                 minScore = randomFloat();
-                MinScoreScorer minScoreScorer = new MinScoreScorer(scorer.getWeight(), scorer, minScore);
+                MinScoreScorer minScoreScorer = new MinScoreScorer(scorer, minScore);
                 scorers.add(minScoreScorer);
             } else {
                 scorers.add(scorer);

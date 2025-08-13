@@ -1,21 +1,22 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.gradle;
 
 import org.elasticsearch.gradle.internal.BwcVersions;
-import org.elasticsearch.gradle.internal.BwcVersions.VersionPair;
 import org.gradle.api.NamedDomainObjectContainer;
 import org.gradle.api.Project;
 import org.gradle.testfixtures.ProjectBuilder;
 
 import java.io.File;
 import java.util.Arrays;
+import java.util.List;
 
 public class AbstractDistributionDownloadPluginTests {
     protected static Project rootProject;
@@ -23,27 +24,32 @@ public class AbstractDistributionDownloadPluginTests {
     protected static Project packagesProject;
     protected static Project bwcProject;
 
-    protected static final VersionPair BWC_MAJOR_VERSION = new VersionPair(Version.fromString("2.0.0"), Version.fromString("3.0.0"));
-    protected static final VersionPair BWC_MINOR_VERSION = new VersionPair(Version.fromString("1.1.0"), Version.fromString("2.1.0"));
-    protected static final VersionPair BWC_STAGED_VERSION = new VersionPair(Version.fromString("1.0.0"), Version.fromString("2.0.0"));
-    protected static final VersionPair BWC_BUGFIX_VERSION = new VersionPair(Version.fromString("1.0.1"), Version.fromString("2.0.0"));
-    protected static final VersionPair BWC_MAINTENANCE_VERSION = new VersionPair(Version.fromString("0.90.1"), Version.fromString("1.1.3"));
+    protected static final Version BWC_MAJOR_VERSION = Version.fromString("2.0.0");
+    protected static final Version BWC_MINOR_VERSION = Version.fromString("1.1.0");
+    protected static final Version BWC_STAGED_VERSION = Version.fromString("1.0.0");
+    protected static final Version BWC_BUGFIX_VERSION = Version.fromString("1.0.1");
+    protected static final Version BWC_MAINTENANCE_VERSION = Version.fromString("0.90.1");
+    protected static final List<String> DEVELOPMENT_BRANCHES = Arrays.asList("main", "1.1", "1.0", "0.90");
 
     protected static final BwcVersions BWC_MINOR = new BwcVersions(
-        BWC_MAJOR_VERSION.elasticsearch(),
-        Arrays.asList(BWC_BUGFIX_VERSION, BWC_MINOR_VERSION, BWC_MAJOR_VERSION)
+        BWC_MAJOR_VERSION,
+        Arrays.asList(BWC_BUGFIX_VERSION, BWC_MINOR_VERSION, BWC_MAJOR_VERSION),
+        DEVELOPMENT_BRANCHES
     );
     protected static final BwcVersions BWC_STAGED = new BwcVersions(
-        BWC_MAJOR_VERSION.elasticsearch(),
-        Arrays.asList(BWC_MAINTENANCE_VERSION, BWC_STAGED_VERSION, BWC_MINOR_VERSION, BWC_MAJOR_VERSION)
+        BWC_MAJOR_VERSION,
+        Arrays.asList(BWC_MAINTENANCE_VERSION, BWC_STAGED_VERSION, BWC_MINOR_VERSION, BWC_MAJOR_VERSION),
+        DEVELOPMENT_BRANCHES
     );
     protected static final BwcVersions BWC_BUGFIX = new BwcVersions(
-        BWC_MAJOR_VERSION.elasticsearch(),
-        Arrays.asList(BWC_BUGFIX_VERSION, BWC_MINOR_VERSION, BWC_MAJOR_VERSION)
+        BWC_MAJOR_VERSION,
+        Arrays.asList(BWC_BUGFIX_VERSION, BWC_MINOR_VERSION, BWC_MAJOR_VERSION),
+        DEVELOPMENT_BRANCHES
     );
     protected static final BwcVersions BWC_MAINTENANCE = new BwcVersions(
-        BWC_MINOR_VERSION.elasticsearch(),
-        Arrays.asList(BWC_MAINTENANCE_VERSION, BWC_BUGFIX_VERSION, BWC_MINOR_VERSION)
+        BWC_MINOR_VERSION,
+        Arrays.asList(BWC_MAINTENANCE_VERSION, BWC_BUGFIX_VERSION, BWC_MINOR_VERSION),
+        DEVELOPMENT_BRANCHES
     );
 
     protected static String projectName(String base, boolean bundledJdk) {

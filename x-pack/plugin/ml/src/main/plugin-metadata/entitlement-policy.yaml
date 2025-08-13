@@ -1,0 +1,12 @@
+org.elasticsearch.ml:
+  - manage_threads
+  - files:
+      - relative_path: mlmodel.conf
+        relative_to: config
+        mode: read
+      - relative_path: "ml-local-data/"
+        relative_to: data
+        mode: read_write
+      - path: \\.\pipe\
+        mode: read_write
+        platform: windows

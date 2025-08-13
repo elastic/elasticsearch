@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.coordination;
@@ -35,9 +36,7 @@ public class ZenDiscoveryIT extends ESIntegTestCase {
         internalCluster().startNodes(2, masterNodeSettings);
         Settings dateNodeSettings = dataNode();
         internalCluster().startNodes(2, dateNodeSettings);
-        ClusterHealthResponse clusterHealthResponse = client().admin()
-            .cluster()
-            .prepareHealth()
+        ClusterHealthResponse clusterHealthResponse = clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT)
             .setWaitForEvents(Priority.LANGUID)
             .setWaitForNodes("4")
             .setWaitForNoRelocatingShards(true)
@@ -46,7 +45,7 @@ public class ZenDiscoveryIT extends ESIntegTestCase {
 
         createIndex("test");
         ensureSearchable("test");
-        RecoveryResponse r = client().admin().indices().prepareRecoveries("test").get();
+        RecoveryResponse r = indicesAdmin().prepareRecoveries("test").get();
         int numRecoveriesBeforeNewMaster = r.shardRecoveryStates().get("test").size();
 
         final String oldMaster = internalCluster().getMasterName();
@@ -58,7 +57,7 @@ public class ZenDiscoveryIT extends ESIntegTestCase {
         });
         ensureSearchable("test");
 
-        r = client().admin().indices().prepareRecoveries("test").get();
+        r = indicesAdmin().prepareRecoveries("test").get();
         int numRecoveriesAfterNewMaster = r.shardRecoveryStates().get("test").size();
         assertThat(numRecoveriesAfterNewMaster, equalTo(numRecoveriesBeforeNewMaster));
     }
@@ -74,7 +73,7 @@ public class ZenDiscoveryIT extends ESIntegTestCase {
         ); // see https://github.com/elastic/elasticsearch/issues/24388
 
         logger.info("--> request node discovery stats");
-        NodesStatsResponse statsResponse = client().admin().cluster().prepareNodesStats().clear().setDiscovery(true).get();
+        NodesStatsResponse statsResponse = clusterAdmin().prepareNodesStats().clear().setDiscovery(true).get();
         assertThat(statsResponse.getNodes().size(), equalTo(1));
 
         DiscoveryStats stats = statsResponse.getNodes().get(0).getDiscoveryStats();

@@ -1,20 +1,22 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 import org.elasticsearch.gradle.testclusters.DefaultTestClustersTask;
 
 apply plugin: 'elasticsearch.validate-rest-spec'
-apply plugin: 'elasticsearch.legacy-yaml-rest-test'
-apply plugin: 'elasticsearch.legacy-yaml-rest-compat-test'
+apply plugin: 'elasticsearch.internal-yaml-rest-test'
+apply plugin: 'elasticsearch.yaml-rest-compat-test'
+apply plugin: 'elasticsearch.internal-cluster-test'
 
 esplugin {
-    description 'An easy, safe and fast scripting language for Elasticsearch'
-    classname 'org.elasticsearch.painless.PainlessPlugin'
+    description = 'An easy, safe and fast scripting language for Elasticsearch'
+    classname ='org.elasticsearch.painless.PainlessPlugin'
 }
 
 testClusters.configureEach {
@@ -41,64 +43,27 @@ dependencies {
     api 'org.ow2.asm:asm-analysis:7.2'
     api 'org.ow2.asm:asm:7.2'
     spi project('spi')
+    clusterModules project(':modules:mapper-extras')
 }
 
 tasks.named("dependencyLicenses").configure {
     mapping from: /asm-.*/, to: 'asm'
 }
 
+tasks.named("yamlRestCompatTestTransform").configure({ task ->
+  task.skipTest("painless/146_dense_vector_bit_basic/Dot Product is not supported", "inner product is now supported")
+})
+
 restResources {
     restApi {
         include '_common', 'cluster', 'nodes', 'indices', 'index', 'search', 'get', 'bulk', 'update',
-                'scripts_painless_execute', 'put_script', 'delete_script'
+                'scripts_painless_execute', 'put_script', 'delete_script', 'capabilities'
     }
 }
 
 tasks.named("test").configure {
     // in WhenThingsGoWrongTests we intentionally generate an out of memory error, this prevents the heap from being dumped to disk
     jvmArgs '-XX:-OmitStackTraceInFastThrow', '-XX:-HeapDumpOnOutOfMemoryError'
-}
-
-tasks.named("yamlRestTestV7CompatTest").configure {
-    systemProperty 'tests.rest.blacklist', [
-            'painless/20_scriptfield/Scripted Field Doing Compare (fields api)',
-            'painless/70_execute_painless_scripts/Execute with double field context (single-value, fields api)',
-            'painless/70_execute_painless_scripts/Execute with double field context (single-value, fields api)',
-            '70_execute_painless_scripts/Execute with geo point field context (multi-value, fields api)',
-            '70_execute_painless_scripts/Execute with ip field context (single-value, fields api)',
-            '70_execute_painless_scripts/Execute with boolean field context (single-value, fields api)',
-            'painless/70_execute_painless_scripts/Execute with boolean field context (multi-value, fields api)',
-            'painless/40_fields_api/date to long',
-            'painless/130_metric_agg/Scripted Metric Agg Total (fields api)',
-            'painless/70_execute_painless_scripts/Execute with keyword field context (multi-value, fields api)',
-            'painless/100_terms_agg/Double Value Script with doc notation (fields api)',
-            'painless/100_terms_agg/Long Value Script with doc notation (fields api)',
-            'painless/20_scriptfield/Access a date (fields api)',
-            'painless/70_execute_painless_scripts/Execute with date field context (multi-value, fields api)',
-            'painless/70_execute_painless_scripts/Execute with keyword field context (single-value, fields api)',
-            'painless/70_execute_painless_scripts/Execute with long field context (multi-value, fields api)',
-            'painless/20_scriptfield/Scripted Field (fields api)',
-            'painless/70_execute_painless_scripts/Execute with long field context (single-value, fields api)',
-            'painless/70_execute_painless_scripts/Execute with geo point field context (single-value, fields api)',
-            'painless/70_execute_painless_scripts/Execute with date field context (single-value, fields api)',
-            'painless/40_fields_api/missing field',
-            'painless/40_fields_api/sort script fields api',
-            'painless/20_scriptfield/Access many dates (fields api)',
-            'painless/70_execute_painless_scripts/Execute with long field context (single-value, fields api)',
-            'painless/70_execute_painless_scripts/Execute with geo point field context (single-value, fields api)',
-            'painless/70_execute_painless_scripts/Execute with date field context (single-value, fields api)',
-            'painless/40_fields_api/missing field',
-            'painless/40_fields_api/sort script fields api',
-            'painless/20_scriptfield/Access many dates (fields api)',
-            'painless/100_terms_agg/String Value Script with doc notation (fields api)',
-            'painless/40_fields_api/string to long and bigint',
-            'painless/40_fields_api/boolean to long and bigint',
-            'painless/40_fields_api/script fields api for dates',
-            'painless/70_execute_painless_scripts/Execute with double field context (multi-value, fields api)',
-            'painless/40_fields_api/filter script fields api',
-            'painless/40_fields_api/script score fields api',
-            'painless/70_mov_fn_agg/*' // Agg moved to a module.
-    ].join(',')
 }
 
 esplugin.bundleSpec.into("spi") {

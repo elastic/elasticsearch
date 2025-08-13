@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.store;
@@ -16,13 +17,10 @@ import org.elasticsearch.common.lucene.store.FilterIndexOutput;
 import org.elasticsearch.common.util.SingleObjectCache;
 import org.elasticsearch.core.TimeValue;
 
-import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.UncheckedIOException;
-import java.nio.file.AccessDeniedException;
-import java.nio.file.NoSuchFileException;
 
-final class ByteSizeCachingDirectory extends FilterDirectory {
+public final class ByteSizeCachingDirectory extends ByteSizeDirectory {
 
     private static class SizeAndModCount {
         final long size;
@@ -36,20 +34,6 @@ final class ByteSizeCachingDirectory extends FilterDirectory {
         }
     }
 
-    private static long estimateSizeInBytes(Directory directory) throws IOException {
-        long estimatedSize = 0;
-        String[] files = directory.listAll();
-        for (String file : files) {
-            try {
-                estimatedSize += directory.fileLength(file);
-            } catch (NoSuchFileException | FileNotFoundException | AccessDeniedException e) {
-                // ignore, the file is not there no more; on Windows, if one thread concurrently deletes a file while
-                // calling Files.size, you can also sometimes hit AccessDeniedException
-            }
-        }
-        return estimatedSize;
-    }
-
     private final SingleObjectCache<SizeAndModCount> size;
     // Both these variables need to be accessed under `this` lock.
     private long modCount = 0;
@@ -57,7 +41,7 @@ final class ByteSizeCachingDirectory extends FilterDirectory {
 
     ByteSizeCachingDirectory(Directory in, TimeValue refreshInterval) {
         super(in);
-        size = new SingleObjectCache<SizeAndModCount>(refreshInterval, new SizeAndModCount(0L, -1L, true)) {
+        size = new SingleObjectCache<>(refreshInterval, new SizeAndModCount(0L, -1L, true)) {
             @Override
             protected SizeAndModCount refresh() {
                 // It is ok for the size of the directory to be more recent than
@@ -103,14 +87,19 @@ final class ByteSizeCachingDirectory extends FilterDirectory {
         };
     }
 
-    /** Return the cumulative size of all files in this directory. */
-    long estimateSizeInBytes() throws IOException {
+    @Override
+    public long estimateSizeInBytes() throws IOException {
         try {
             return size.getOrRefresh().size;
         } catch (UncheckedIOException e) {
             // we wrapped in the cache and unwrap here
             throw e.getCause();
         }
+    }
+
+    @Override
+    public long estimateDataSetSizeInBytes() throws IOException {
+        return estimateSizeInBytes(); // data set size is equal to directory size for most implementations
     }
 
     @Override
@@ -186,9 +175,29 @@ final class ByteSizeCachingDirectory extends FilterDirectory {
         try {
             super.deleteFile(name);
         } finally {
-            synchronized (this) {
-                modCount++;
+            markEstimatedSizeAsStale();
+        }
+    }
+
+    /**
+     * Mark the cached size as stale so that it is guaranteed to be refreshed the next time.
+     */
+    public void markEstimatedSizeAsStale() {
+        synchronized (this) {
+            modCount++;
+        }
+    }
+
+    public static ByteSizeCachingDirectory unwrapDirectory(Directory dir) {
+        while (dir != null) {
+            if (dir instanceof ByteSizeCachingDirectory) {
+                return (ByteSizeCachingDirectory) dir;
+            } else if (dir instanceof FilterDirectory) {
+                dir = ((FilterDirectory) dir).getDelegate();
+            } else {
+                dir = null;
             }
         }
+        return null;
     }
 }

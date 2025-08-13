@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.gradle.internal;
@@ -47,18 +48,21 @@ public class InternalDistributionModuleCheckTaskProvider {
     /** ES jars in the lib directory that are not modularized. For now, es-log4j is the only one. */
     private static final List<String> ES_JAR_EXCLUDES = List.of("elasticsearch-log4j");
 
-    /** List of the current Elasticsearch Java Modules, by name. */
+    /** List of the current Elasticsearch Java Modules, alphabetically by name. */
     private static final List<String> EXPECTED_ES_SERVER_MODULES = List.of(
         "org.elasticsearch.base",
         "org.elasticsearch.cli",
+        "org.elasticsearch.entitlement",
         "org.elasticsearch.geo",
+        "org.elasticsearch.grok",
         "org.elasticsearch.logging",
         "org.elasticsearch.lz4",
+        "org.elasticsearch.nativeaccess",
         "org.elasticsearch.plugin",
         "org.elasticsearch.plugin.analysis",
-        "org.elasticsearch.pluginclassloader",
-        "org.elasticsearch.securesm",
         "org.elasticsearch.server",
+        "org.elasticsearch.simdvec",
+        "org.elasticsearch.tdigest",
         "org.elasticsearch.xcontent"
     );
 
@@ -73,7 +77,7 @@ public class InternalDistributionModuleCheckTaskProvider {
 
     private static final Function<ModuleReference, String> toName = mref -> mref.descriptor().name();
 
-    private InternalDistributionModuleCheckTaskProvider() {};
+    private InternalDistributionModuleCheckTaskProvider() {}
 
     /** Registers the checkModules tasks, which contains all checks relevant to ES Java Modules. */
     static TaskProvider<Task> registerCheckModulesTask(Project project, TaskProvider<Copy> checkExtraction) {

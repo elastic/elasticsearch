@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.fielddata;
@@ -61,7 +62,7 @@ public class SourceValueFetcherSortedNumericIndexFieldData extends SourceValueFe
     }
 
     @Override
-    public SourceValueFetcherSortedNumericLeafFieldData loadDirect(LeafReaderContext context) throws Exception {
+    public SourceValueFetcherSortedNumericLeafFieldData loadDirect(LeafReaderContext context) {
         return new SourceValueFetcherSortedNumericLeafFieldData(toScriptFieldFactory, context, valueFetcher, sourceProvider);
     }
 
@@ -119,7 +120,7 @@ public class SourceValueFetcherSortedNumericIndexFieldData extends SourceValueFe
             values.sort(Long::compare);
             iterator = values.iterator();
 
-            return true;
+            return values.isEmpty() == false;
         }
 
         @Override
@@ -128,7 +129,7 @@ public class SourceValueFetcherSortedNumericIndexFieldData extends SourceValueFe
         }
 
         @Override
-        public long nextValue() throws IOException {
+        public long nextValue() {
             assert iterator.hasNext();
             return iterator.next();
         }
@@ -139,12 +140,12 @@ public class SourceValueFetcherSortedNumericIndexFieldData extends SourceValueFe
         }
 
         @Override
-        public int nextDoc() throws IOException {
+        public int nextDoc() {
             throw new UnsupportedOperationException("not supported for source fallback");
         }
 
         @Override
-        public int advance(int target) throws IOException {
+        public int advance(int target) {
             throw new UnsupportedOperationException("not supported for source fallback");
         }
 

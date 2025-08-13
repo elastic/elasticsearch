@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.upgrades;
@@ -12,15 +13,14 @@ import org.apache.http.HttpHost;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
-import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Request;
-import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
-import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.search.SearchResponseUtils;
 import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.ObjectPath;
@@ -44,7 +44,6 @@ import static org.hamcrest.Matchers.not;
  * This test ensure that we keep the search states of a CCS request correctly when the local and remote clusters
  * have different but compatible versions. See SearchService#createAndPutReaderContext
  */
-@SuppressWarnings("removal")
 public class SearchStatesIT extends ESRestTestCase {
 
     private static final Logger LOGGER = LogManager.getLogger(SearchStatesIT.class);
@@ -90,7 +89,7 @@ public class SearchStatesIT extends ESRestTestCase {
     public static void configureRemoteClusters(List<Node> remoteNodes) throws Exception {
         assertThat(remoteNodes, hasSize(3));
         final String remoteClusterSettingPrefix = "cluster.remote." + CLUSTER_ALIAS + ".";
-        try (RestClient localClient = newLocalClient().getLowLevelClient()) {
+        try (RestClient localClient = newLocalClient()) {
             final Settings remoteConnectionSettings;
             if (randomBoolean()) {
                 final List<String> seeds = remoteNodes.stream()
@@ -124,28 +123,32 @@ public class SearchStatesIT extends ESRestTestCase {
         }
     }
 
-    static RestHighLevelClient newLocalClient() {
+    static RestClient newLocalClient() {
         final List<HttpHost> hosts = parseHosts("tests.rest.cluster");
         final int index = random().nextInt(hosts.size());
         LOGGER.info("Using client node {}", index);
-        return new RestHighLevelClient(RestClient.builder(hosts.get(index)));
+        return RestClient.builder(hosts.get(index)).build();
     }
 
-    static RestHighLevelClient newRemoteClient() {
-        return new RestHighLevelClient(RestClient.builder(randomFrom(parseHosts("tests.rest.remote_cluster"))));
+    static RestClient newRemoteClient() {
+        return RestClient.builder(randomFrom(parseHosts("tests.rest.remote_cluster"))).build();
     }
 
-    static int indexDocs(RestHighLevelClient client, String index, int numDocs) throws IOException {
+    static int indexDocs(RestClient client, String index, int numDocs) throws IOException {
         for (int i = 0; i < numDocs; i++) {
-            client.index(new IndexRequest(index).id("id_" + i).source("f", i), RequestOptions.DEFAULT);
+            Request createDoc = new Request("POST", "/" + index + "/_doc/id_" + i);
+            createDoc.setJsonEntity(Strings.format("""
+                { "f": %s }
+                """, i));
+            assertOK(client.performRequest(createDoc));
         }
 
-        refresh(client.getLowLevelClient(), index);
+        refresh(client, index);
         return numDocs;
     }
 
     void verifySearch(String localIndex, int localNumDocs, String remoteIndex, int remoteNumDocs, Integer preFilterShardSize) {
-        try (RestClient localClient = newLocalClient().getLowLevelClient()) {
+        try (RestClient localClient = newLocalClient()) {
             Request request = new Request("POST", "/_search");
             final int expectedDocs;
             if (randomBoolean()) {
@@ -173,9 +176,13 @@ public class SearchStatesIT extends ESRestTestCase {
                     response.getEntity().getContent()
                 )
             ) {
-                SearchResponse searchResponse = SearchResponse.fromXContent(parser);
-                ElasticsearchAssertions.assertNoFailures(searchResponse);
-                ElasticsearchAssertions.assertHitCount(searchResponse, expectedDocs);
+                SearchResponse searchResponse = SearchResponseUtils.parseSearchResponse(parser);
+                try {
+                    ElasticsearchAssertions.assertNoFailures(searchResponse);
+                    ElasticsearchAssertions.assertHitCount(searchResponse, expectedDocs);
+                } finally {
+                    searchResponse.decRef();
+                }
             }
         } catch (IOException e) {
             throw new UncheckedIOException(e);
@@ -185,56 +192,40 @@ public class SearchStatesIT extends ESRestTestCase {
     public void testBWCSearchStates() throws Exception {
         String localIndex = "test_bwc_search_states_index";
         String remoteIndex = "test_bwc_search_states_remote_index";
-        try (RestHighLevelClient localClient = newLocalClient(); RestHighLevelClient remoteClient = newRemoteClient()) {
-            createIndex(
-                localClient.getLowLevelClient(),
-                localIndex,
-                Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, between(1, 5)).build()
-            );
+        try (RestClient localClient = newLocalClient(); RestClient remoteClient = newRemoteClient()) {
+            createIndex(localClient, localIndex, Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, between(1, 5)).build());
             int localNumDocs = indexDocs(localClient, localIndex, between(10, 100));
 
-            createIndex(
-                remoteClient.getLowLevelClient(),
-                remoteIndex,
-                Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, between(1, 5)).build()
-            );
+            createIndex(remoteClient, remoteIndex, Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, between(1, 5)).build());
             int remoteNumDocs = indexDocs(remoteClient, remoteIndex, between(10, 100));
 
-            configureRemoteClusters(getNodes(remoteClient.getLowLevelClient()));
+            configureRemoteClusters(getNodes(remoteClient));
             int iterations = between(1, 20);
             for (int i = 0; i < iterations; i++) {
                 verifySearch(localIndex, localNumDocs, CLUSTER_ALIAS + ":" + remoteIndex, remoteNumDocs, null);
             }
-            deleteIndex(localClient.getLowLevelClient(), localIndex);
-            deleteIndex(remoteClient.getLowLevelClient(), remoteIndex);
+            deleteIndex(localClient, localIndex);
+            deleteIndex(remoteClient, remoteIndex);
         }
     }
 
     public void testCanMatch() throws Exception {
         String localIndex = "test_can_match_local_index";
         String remoteIndex = "test_can_match_remote_index";
-        try (RestHighLevelClient localClient = newLocalClient(); RestHighLevelClient remoteClient = newRemoteClient()) {
-            createIndex(
-                localClient.getLowLevelClient(),
-                localIndex,
-                Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, between(5, 20)).build()
-            );
+        try (RestClient localClient = newLocalClient(); RestClient remoteClient = newRemoteClient()) {
+            createIndex(localClient, localIndex, Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, between(5, 20)).build());
             int localNumDocs = indexDocs(localClient, localIndex, between(10, 100));
 
-            createIndex(
-                remoteClient.getLowLevelClient(),
-                remoteIndex,
-                Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, between(5, 20)).build()
-            );
+            createIndex(remoteClient, remoteIndex, Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, between(5, 20)).build());
             int remoteNumDocs = indexDocs(remoteClient, remoteIndex, between(10, 100));
 
-            configureRemoteClusters(getNodes(remoteClient.getLowLevelClient()));
+            configureRemoteClusters(getNodes(remoteClient));
             int iterations = between(1, 10);
             for (int i = 0; i < iterations; i++) {
                 verifySearch(localIndex, localNumDocs, CLUSTER_ALIAS + ":" + remoteIndex, remoteNumDocs, between(1, 10));
             }
-            deleteIndex(localClient.getLowLevelClient(), localIndex);
-            deleteIndex(remoteClient.getLowLevelClient(), remoteIndex);
+            deleteIndex(localClient, localIndex);
+            deleteIndex(remoteClient, remoteIndex);
         }
     }
 }

@@ -1,19 +1,22 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.gradle.internal.snyk;
 
-import org.apache.http.client.methods.CloseableHttpResponse;
-import org.apache.http.client.methods.HttpPut;
-import org.apache.http.entity.FileEntity;
-import org.apache.http.impl.client.CloseableHttpClient;
-import org.apache.http.impl.client.HttpClients;
-import org.apache.http.util.EntityUtils;
+import org.apache.hc.client5.http.classic.methods.HttpPut;
+import org.apache.hc.client5.http.impl.classic.CloseableHttpClient;
+import org.apache.hc.client5.http.impl.classic.CloseableHttpResponse;
+import org.apache.hc.client5.http.impl.classic.HttpClients;
+import org.apache.hc.core5.http.ContentType;
+import org.apache.hc.core5.http.ParseException;
+import org.apache.hc.core5.http.io.entity.EntityUtils;
+import org.apache.hc.core5.http.io.entity.FileEntity;
 import org.gradle.api.DefaultTask;
 import org.gradle.api.GradleException;
 import org.gradle.api.file.RegularFileProperty;
@@ -42,12 +45,12 @@ public class UploadSnykDependenciesGraph extends DefaultTask {
     private final RegularFileProperty inputFile;
     private final Property<String> token;
     private final Property<String> url;
-    private final Property<String> projectId;
+    private final Property<String> snykOrganisation;
 
     @Inject
     public UploadSnykDependenciesGraph(ObjectFactory objectFactory) {
         url = objectFactory.property(String.class).convention(DEFAULT_SERVER + GRADLE_GRAPH_ENDPOINT);
-        projectId = objectFactory.property(String.class);
+        snykOrganisation = objectFactory.property(String.class);
         token = objectFactory.property(String.class);
         inputFile = objectFactory.fileProperty();
     }
@@ -60,23 +63,23 @@ public class UploadSnykDependenciesGraph extends DefaultTask {
             HttpPut putRequest = new HttpPut(endpoint);
             putRequest.addHeader("Authorization", "token " + token.get());
             putRequest.addHeader("Content-Type", "application/json");
-            putRequest.setEntity(new FileEntity(inputFile.getAsFile().get()));
+            putRequest.setEntity(new FileEntity(inputFile.getAsFile().get(), ContentType.APPLICATION_JSON));
             response = client.execute(putRequest);
-            int statusCode = response.getStatusLine().getStatusCode();
+            int statusCode = response.getCode();
             String responseString = EntityUtils.toString(response.getEntity());
             getLogger().info("Snyk API call response status: " + statusCode);
             if (statusCode != HttpURLConnection.HTTP_CREATED) {
                 throw new GradleException("Uploading Snyk Graph failed with http code " + statusCode + ": " + responseString);
             }
             getLogger().info(responseString);
-        } catch (IOException e) {
+        } catch (IOException | ParseException e) {
             throw new GradleException("Failed to call API endpoint to submit updated dependency graph", e);
         }
     }
 
     private String calculateEffectiveEndpoint() {
         String url = this.url.get();
-        return url.endsWith(GRADLE_GRAPH_ENDPOINT) ? url : projectId.map(id -> url + "?org=" + id).getOrElse(url);
+        return snykOrganisation.map(id -> url + "?org=" + id).getOrElse(url);
     }
 
     @Input
@@ -91,8 +94,8 @@ public class UploadSnykDependenciesGraph extends DefaultTask {
 
     @Input
     @Optional
-    public Property<String> getProjectId() {
-        return projectId;
+    public Property<String> getSnykOrganisation() {
+        return snykOrganisation;
     }
 
     @InputFile

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.aggregations.bucket;
@@ -11,8 +12,6 @@ package org.elasticsearch.search.aggregations.bucket;
 import com.carrotsearch.randomizedtesting.generators.RandomStrings;
 
 import org.elasticsearch.action.index.IndexRequestBuilder;
-import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -49,6 +48,7 @@ import static org.elasticsearch.search.aggregations.AggregationBuilders.histogra
 import static org.elasticsearch.search.aggregations.AggregationBuilders.terms;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAllSuccessful;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 
 @ESIntegTestCase.SuiteScopeTestCase
@@ -92,7 +92,7 @@ public class MinDocCountIT extends AbstractTermsTestCase {
 
     @Override
     public void setupSuiteScopeCluster() throws Exception {
-        assertAcked(client().admin().indices().prepareCreate("idx").setMapping("s", "type=keyword").get());
+        assertAcked(indicesAdmin().prepareCreate("idx").setMapping("s", "type=keyword").get());
 
         cardinality = randomIntBetween(8, 30);
         final List<IndexRequestBuilder> indexRequests = new ArrayList<>();
@@ -114,16 +114,15 @@ public class MinDocCountIT extends AbstractTermsTestCase {
             final int frequency = randomBoolean() ? 1 : randomIntBetween(2, 20);
             for (int j = 0; j < frequency; ++j) {
                 indexRequests.add(
-                    client().prepareIndex("idx")
-                        .setSource(
-                            jsonBuilder().startObject()
-                                .field("s", stringTerm)
-                                .field("l", longTerm)
-                                .field("d", doubleTerm)
-                                .field("date", dateTerm)
-                                .field("match", randomBoolean())
-                                .endObject()
-                        )
+                    prepareIndex("idx").setSource(
+                        jsonBuilder().startObject()
+                            .field("s", stringTerm)
+                            .field("l", longTerm)
+                            .field("d", doubleTerm)
+                            .field("date", dateTerm)
+                            .field("match", randomBoolean())
+                            .endObject()
+                    )
                 );
             }
         }
@@ -306,43 +305,47 @@ public class MinDocCountIT extends AbstractTermsTestCase {
 
     private void testMinDocCountOnTerms(String field, Script script, BucketOrder order, String include, boolean retry) throws Exception {
         // all terms
-        final SearchResponse allTermsResponse = client().prepareSearch("idx")
-            .setSize(0)
-            .setQuery(QUERY)
-            .addAggregation(
-                script.apply(terms("terms"), field)
-                    .collectMode(randomFrom(SubAggCollectionMode.values()))
-                    .executionHint(randomExecutionHint())
-                    .order(order)
-                    .size(cardinality + randomInt(10))
-                    .minDocCount(0)
-            )
-            .get();
-        assertAllSuccessful(allTermsResponse);
-
-        final Terms allTerms = allTermsResponse.getAggregations().get("terms");
-        assertEquals(cardinality, allTerms.getBuckets().size());
-
-        for (long minDocCount = 0; minDocCount < 20; ++minDocCount) {
-            final int size = randomIntBetween(1, cardinality + 2);
-            final SearchRequest request = client().prepareSearch("idx")
-                .setSize(0)
+        assertResponse(
+            prepareSearch("idx").setSize(0)
                 .setQuery(QUERY)
                 .addAggregation(
                     script.apply(terms("terms"), field)
                         .collectMode(randomFrom(SubAggCollectionMode.values()))
                         .executionHint(randomExecutionHint())
                         .order(order)
-                        .size(size)
-                        .includeExclude(include == null ? null : new IncludeExclude(include, null, null, null))
-                        .shardSize(cardinality + randomInt(10))
-                        .minDocCount(minDocCount)
-                )
-                .request();
-            final SearchResponse response = client().search(request).get();
-            assertAllSuccessful(response);
-            assertSubset(allTerms, (Terms) response.getAggregations().get("terms"), minDocCount, size, include);
-        }
+                        .size(cardinality + randomInt(10))
+                        .minDocCount(0)
+                ),
+            allTermsResponse -> {
+                assertAllSuccessful(allTermsResponse);
+
+                final Terms allTerms = allTermsResponse.getAggregations().get("terms");
+                assertEquals(cardinality, allTerms.getBuckets().size());
+
+                for (long minDocCount = 0; minDocCount < 20; ++minDocCount) {
+                    final int size = randomIntBetween(1, cardinality + 2);
+                    final long finalMinDocCount = minDocCount;
+                    assertResponse(
+                        prepareSearch("idx").setSize(0)
+                            .setQuery(QUERY)
+                            .addAggregation(
+                                script.apply(terms("terms"), field)
+                                    .collectMode(randomFrom(SubAggCollectionMode.values()))
+                                    .executionHint(randomExecutionHint())
+                                    .order(order)
+                                    .size(size)
+                                    .includeExclude(include == null ? null : new IncludeExclude(include, null, null, null))
+                                    .shardSize(cardinality + randomInt(10))
+                                    .minDocCount(minDocCount)
+                            ),
+                        response -> {
+                            assertAllSuccessful(response);
+                            assertSubset(allTerms, (Terms) response.getAggregations().get("terms"), finalMinDocCount, size, include);
+                        }
+                    );
+                }
+            }
+        );
     }
 
     public void testHistogramCountAsc() throws Exception {
@@ -379,42 +382,52 @@ public class MinDocCountIT extends AbstractTermsTestCase {
 
     private void testMinDocCountOnHistogram(BucketOrder order) throws Exception {
         final int interval = randomIntBetween(1, 3);
-        final SearchResponse allResponse = client().prepareSearch("idx")
-            .setSize(0)
-            .setQuery(QUERY)
-            .addAggregation(histogram("histo").field("d").interval(interval).order(order).minDocCount(0))
-            .get();
-
-        final Histogram allHisto = allResponse.getAggregations().get("histo");
-
-        for (long minDocCount = 0; minDocCount < 50; ++minDocCount) {
-            final SearchResponse response = client().prepareSearch("idx")
-                .setSize(0)
+        assertResponse(
+            prepareSearch("idx").setSize(0)
                 .setQuery(QUERY)
-                .addAggregation(histogram("histo").field("d").interval(interval).order(order).minDocCount(minDocCount))
-                .get();
-            assertSubset(allHisto, (Histogram) response.getAggregations().get("histo"), minDocCount);
-        }
+                .addAggregation(histogram("histo").field("d").interval(interval).order(order).minDocCount(0)),
+            allResponse -> {
+                final Histogram allHisto = allResponse.getAggregations().get("histo");
+                for (long minDocCount = 0; minDocCount < 50; ++minDocCount) {
+                    final long finalMinDocCount = minDocCount;
+                    assertResponse(
+                        prepareSearch("idx").setSize(0)
+                            .setQuery(QUERY)
+                            .addAggregation(histogram("histo").field("d").interval(interval).order(order).minDocCount(minDocCount)),
+                        response -> {
+                            assertSubset(allHisto, response.getAggregations().get("histo"), finalMinDocCount);
+                        }
+                    );
+                }
+            }
+        );
     }
 
     private void testMinDocCountOnDateHistogram(BucketOrder order) throws Exception {
-        final SearchResponse allResponse = client().prepareSearch("idx")
-            .setSize(0)
-            .setQuery(QUERY)
-            .addAggregation(dateHistogram("histo").field("date").fixedInterval(DateHistogramInterval.DAY).order(order).minDocCount(0))
-            .get();
-
-        final Histogram allHisto = allResponse.getAggregations().get("histo");
-
-        for (long minDocCount = 0; minDocCount < 50; ++minDocCount) {
-            final SearchResponse response = client().prepareSearch("idx")
-                .setSize(0)
+        assertResponse(
+            prepareSearch("idx").setSize(0)
                 .setQuery(QUERY)
-                .addAggregation(
-                    dateHistogram("histo").field("date").fixedInterval(DateHistogramInterval.DAY).order(order).minDocCount(minDocCount)
-                )
-                .get();
-            assertSubset(allHisto, response.getAggregations().get("histo"), minDocCount);
-        }
+                .addAggregation(dateHistogram("histo").field("date").fixedInterval(DateHistogramInterval.DAY).order(order).minDocCount(0)),
+            allResponse -> {
+                final Histogram allHisto = allResponse.getAggregations().get("histo");
+
+                for (long minDocCount = 0; minDocCount < 50; ++minDocCount) {
+                    final long finalMinDocCount = minDocCount;
+                    assertResponse(
+                        prepareSearch("idx").setSize(0)
+                            .setQuery(QUERY)
+                            .addAggregation(
+                                dateHistogram("histo").field("date")
+                                    .fixedInterval(DateHistogramInterval.DAY)
+                                    .order(order)
+                                    .minDocCount(minDocCount)
+                            ),
+                        response -> {
+                            assertSubset(allHisto, response.getAggregations().get("histo"), finalMinDocCount);
+                        }
+                    );
+                }
+            }
+        );
     }
 }

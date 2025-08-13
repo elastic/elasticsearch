@@ -67,16 +67,12 @@ public class PutLicenseResponse extends AcknowledgedResponse {
         return acknowledgeMessages;
     }
 
-    public String acknowledgeHeader() {
-        return acknowledgeHeader;
-    }
-
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeVInt(status.id());
         out.writeOptionalString(acknowledgeHeader);
-        out.writeMap(acknowledgeMessages, StreamOutput::writeString, StreamOutput::writeStringArray);
+        out.writeMap(acknowledgeMessages, StreamOutput::writeStringArray);
     }
 
     @Override
@@ -86,11 +82,7 @@ public class PutLicenseResponse extends AcknowledgedResponse {
             builder.startObject("acknowledge");
             builder.field("message", acknowledgeHeader);
             for (Map.Entry<String, String[]> entry : acknowledgeMessages.entrySet()) {
-                builder.startArray(entry.getKey());
-                for (String message : entry.getValue()) {
-                    builder.value(message);
-                }
-                builder.endArray();
+                builder.array(entry.getKey(), entry.getValue());
             }
             builder.endObject();
         }

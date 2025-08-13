@@ -40,8 +40,4 @@ public class UpdateModelSnapshotActionRequestTests extends AbstractXContentSeria
         return Request::new;
     }
 
-    @Override
-    protected boolean supportsUnknownFields() {
-        return false;
-    }
 }

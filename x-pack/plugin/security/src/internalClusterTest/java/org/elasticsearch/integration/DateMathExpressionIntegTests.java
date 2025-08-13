@@ -10,9 +10,6 @@ import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.get.MultiGetResponse;
-import org.elasticsearch.action.index.IndexResponse;
-import org.elasticsearch.action.search.MultiSearchResponse;
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.internal.Client;
@@ -27,6 +24,8 @@ import java.util.Collections;
 
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.NONE;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
@@ -67,7 +66,7 @@ public class DateMathExpressionIntegTests extends SecurityIntegTestCase {
             CreateIndexResponse response = client.admin().indices().prepareCreate(expression).get();
             assertThat(response.isAcknowledged(), is(true));
         }
-        IndexResponse response = client.prepareIndex(expression)
+        DocWriteResponse response = client.prepareIndex(expression)
             .setSource("foo", "bar")
             .setRefreshPolicy(refeshOnOperation ? IMMEDIATE : NONE)
             .get();
@@ -78,13 +77,12 @@ public class DateMathExpressionIntegTests extends SecurityIntegTestCase {
         if (refeshOnOperation == false) {
             client.admin().indices().prepareRefresh(expression).get();
         }
-        SearchResponse searchResponse = client.prepareSearch(expression).setQuery(QueryBuilders.matchAllQuery()).get();
-        assertThat(searchResponse.getHits().getTotalHits().value, is(1L));
+        assertHitCount(client.prepareSearch(expression).setQuery(QueryBuilders.matchAllQuery()), 1);
 
-        MultiSearchResponse multiSearchResponse = client.prepareMultiSearch()
-            .add(client.prepareSearch(expression).setQuery(QueryBuilders.matchAllQuery()).request())
-            .get();
-        assertThat(multiSearchResponse.getResponses()[0].getResponse().getHits().getTotalHits().value, is(1L));
+        assertResponse(
+            client.prepareMultiSearch().add(client.prepareSearch(expression).setQuery(QueryBuilders.matchAllQuery()).request()),
+            multiSearchResponse -> assertThat(multiSearchResponse.getResponses()[0].getResponse().getHits().getTotalHits().value(), is(1L))
+        );
 
         UpdateResponse updateResponse = client.prepareUpdate(expression, response.getId())
             .setDoc(Requests.INDEX_CONTENT_TYPE, "new", "field")

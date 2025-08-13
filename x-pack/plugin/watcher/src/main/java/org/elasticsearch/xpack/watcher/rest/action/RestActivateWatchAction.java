@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.watcher.rest.action;
 
 import org.elasticsearch.client.internal.node.NodeClient;
-import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
@@ -33,14 +32,7 @@ public class RestActivateWatchAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(
-            Route.builder(POST, "/_watcher/watch/{id}/_activate")
-                .replaces(POST, "/_xpack/watcher/watch/{id}/_activate", RestApiVersion.V_7)
-                .build(),
-            Route.builder(PUT, "/_watcher/watch/{id}/_activate")
-                .replaces(PUT, "/_xpack/watcher/watch/{id}/_activate", RestApiVersion.V_7)
-                .build()
-        );
+        return List.of(new Route(POST, "/_watcher/watch/{id}/_activate"), new Route(PUT, "/_watcher/watch/{id}/_activate"));
     }
 
     @Override
@@ -72,14 +64,7 @@ public class RestActivateWatchAction extends BaseRestHandler {
 
         @Override
         public List<Route> routes() {
-            return List.of(
-                Route.builder(POST, "/_watcher/watch/{id}/_deactivate")
-                    .replaces(POST, "/_xpack/watcher/watch/{id}/_deactivate", RestApiVersion.V_7)
-                    .build(),
-                Route.builder(PUT, "/_watcher/watch/{id}/_deactivate")
-                    .replaces(PUT, "/_xpack/watcher/watch/{id}/_deactivate", RestApiVersion.V_7)
-                    .build()
-            );
+            return List.of(new Route(POST, "/_watcher/watch/{id}/_deactivate"), new Route(PUT, "/_watcher/watch/{id}/_deactivate"));
         }
 
         @Override

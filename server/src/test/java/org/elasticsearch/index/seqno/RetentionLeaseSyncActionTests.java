@@ -1,30 +1,40 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.seqno;
 
-import org.elasticsearch.action.ActionListener;
+import org.apache.logging.log4j.Level;
+import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.replication.ReplicationOperation;
 import org.elasticsearch.action.support.replication.TransportReplicationAction;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
+import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.gateway.WriteStateException;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.index.shard.IndexShardClosedException;
+import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.shard.ShardNotInPrimaryModeException;
 import org.elasticsearch.indices.EmptySystemIndices;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.transport.CapturingTransport;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -32,8 +42,10 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.Collections;
+import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import static org.elasticsearch.index.seqno.RetentionLeaseSyncAction.getExceptionLogLevel;
 import static org.elasticsearch.test.ClusterServiceUtils.createClusterService;
 import static org.hamcrest.Matchers.sameInstance;
 import static org.mockito.Mockito.mock;
@@ -98,7 +110,8 @@ public class RetentionLeaseSyncActionTests extends ESTestCase {
             shardStateAction,
             new ActionFilters(Collections.emptySet()),
             new IndexingPressure(Settings.EMPTY),
-            EmptySystemIndices.INSTANCE
+            EmptySystemIndices.INSTANCE,
+            TestProjectResolvers.DEFAULT_PROJECT_ONLY
         );
         final RetentionLeases retentionLeases = mock(RetentionLeases.class);
         final RetentionLeaseSyncAction.Request request = new RetentionLeaseSyncAction.Request(indexShard.shardId(), retentionLeases);
@@ -135,12 +148,13 @@ public class RetentionLeaseSyncActionTests extends ESTestCase {
             shardStateAction,
             new ActionFilters(Collections.emptySet()),
             new IndexingPressure(Settings.EMPTY),
-            EmptySystemIndices.INSTANCE
+            EmptySystemIndices.INSTANCE,
+            TestProjectResolvers.DEFAULT_PROJECT_ONLY
         );
         final RetentionLeases retentionLeases = mock(RetentionLeases.class);
         final RetentionLeaseSyncAction.Request request = new RetentionLeaseSyncAction.Request(indexShard.shardId(), retentionLeases);
 
-        PlainActionFuture<TransportReplicationAction.ReplicaResult> listener = PlainActionFuture.newFuture();
+        PlainActionFuture<TransportReplicationAction.ReplicaResult> listener = new PlainActionFuture<>();
         action.dispatchedShardOperationOnReplica(request, indexShard, listener);
         final TransportReplicationAction.ReplicaResult result = listener.actionGet();
         // the retention leases on the shard should be updated
@@ -149,7 +163,7 @@ public class RetentionLeaseSyncActionTests extends ESTestCase {
         verify(indexShard).persistRetentionLeases();
         // the result should indicate success
         final AtomicBoolean success = new AtomicBoolean();
-        result.runPostReplicaActions(ActionListener.wrap(r -> success.set(true), e -> fail(e.toString())));
+        result.runPostReplicaActions(ActionTestUtils.assertNoFailureListener(r -> success.set(true)));
         assertTrue(success.get());
     }
 
@@ -176,10 +190,28 @@ public class RetentionLeaseSyncActionTests extends ESTestCase {
             shardStateAction,
             new ActionFilters(Collections.emptySet()),
             new IndexingPressure(Settings.EMPTY),
-            EmptySystemIndices.INSTANCE
+            EmptySystemIndices.INSTANCE,
+            TestProjectResolvers.DEFAULT_PROJECT_ONLY
         );
 
         assertNull(action.indexBlockLevel());
     }
 
+    public void testExceptionLogLevel() {
+        assertEquals(Level.WARN, getExceptionLogLevel(new RuntimeException("simulated")));
+        assertEquals(Level.WARN, getExceptionLogLevel(new RuntimeException("simulated", new RuntimeException("simulated"))));
+
+        final var shardId = new ShardId("test", "_na_", 0);
+        for (final var exception : List.of(
+            new NodeClosedException(DiscoveryNodeUtils.create("node")),
+            new IndexNotFoundException(shardId.getIndexName()),
+            new AlreadyClosedException(shardId.getIndexName()),
+            new IndexShardClosedException(shardId),
+            new ShardNotInPrimaryModeException(shardId, IndexShardState.CLOSED),
+            new ReplicationOperation.RetryOnPrimaryException(shardId, "test")
+        )) {
+            assertEquals(Level.DEBUG, getExceptionLogLevel(exception));
+            assertEquals(Level.DEBUG, getExceptionLogLevel(new RuntimeException("wrapper", exception)));
+        }
+    }
 }

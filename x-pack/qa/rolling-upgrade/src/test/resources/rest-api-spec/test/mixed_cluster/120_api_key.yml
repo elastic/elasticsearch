@@ -23,14 +23,36 @@
 
 
 ---
-"Create API key with metadata in a mixed cluster":
+"Create API key with metadata in a mixed cluster (pre 7.13.0)":
 
+  - requires:
+      test_runner_features: [headers, node_selector]
   - skip:
-      features: [headers, node_selector]
+      cluster_features: ["gte_v7.13.0"]
+      reason: "Support metadata on API keys introduced in 7.13.0"
 
   - do:
       node_selector:
-        version: " 7.13.0 - "
+        version: "current"
+      security.create_api_key:
+        body:  >
+          {
+            "name": "my-mixed-api-key-2",
+            "metadata": {"foo": "bar"}
+          }
+  - match: { name: "my-mixed-api-key-2" }
+  - is_true: id
+  - is_true: api_key
+
+---
+"Create API key with metadata in a mixed cluster":
+
+  - requires:
+      test_runner_features: [headers]
+      cluster_features: ["gte_v7.13.0"]
+      reason: "Support metadata on API keys introduced in 7.13.0"
+
+  - do:
       security.create_api_key:
         body:  >
           {

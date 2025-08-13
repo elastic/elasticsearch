@@ -10,7 +10,7 @@ package org.elasticsearch.xpack.core.security.authc;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.http.HttpPreRequest;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.XPackField;
@@ -33,7 +33,7 @@ public class DefaultAuthenticationFailureHandlerTests extends ESTestCase {
 
     public void testAuthenticationRequired() {
         final boolean testDefault = randomBoolean();
-        final String basicAuthScheme = "Basic realm=\"" + XPackField.SECURITY + "\" charset=\"UTF-8\"";
+        final String basicAuthScheme = "Basic realm=\"" + XPackField.SECURITY + "\", charset=\"UTF-8\"";
         final String bearerAuthScheme = "Bearer realm=\"" + XPackField.SECURITY + "\"";
         final DefaultAuthenticationFailureHandler failureHandler;
         if (testDefault) {
@@ -50,7 +50,7 @@ public class DefaultAuthenticationFailureHandlerTests extends ESTestCase {
         );
         assertThat(ese, is(notNullValue()));
         assertThat(ese.getMessage(), equalTo("action [someaction] requires authentication"));
-        assertThat(ese.getHeader("WWW-Authenticate"), is(notNullValue()));
+        assertThat(ese.getBodyHeader("WWW-Authenticate"), is(notNullValue()));
         if (testDefault) {
             assertWWWAuthenticateWithSchemes(ese, basicAuthScheme);
         } else {
@@ -60,7 +60,7 @@ public class DefaultAuthenticationFailureHandlerTests extends ESTestCase {
 
     public void testMissingToken() {
         final DefaultAuthenticationFailureHandler handler = new DefaultAuthenticationFailureHandler(Collections.emptyMap());
-        final RestRequest request = mock(RestRequest.class);
+        final HttpPreRequest request = mock(HttpPreRequest.class);
         when(request.uri()).thenReturn("https://secret.es.shield.gov/");
         final ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
         final ElasticsearchSecurityException ese = handler.missingToken(request, threadContext);
@@ -69,7 +69,7 @@ public class DefaultAuthenticationFailureHandlerTests extends ESTestCase {
     }
 
     public void testExceptionProcessingRequest() {
-        final String basicAuthScheme = "Basic realm=\"" + XPackField.SECURITY + "\" charset=\"UTF-8\"";
+        final String basicAuthScheme = "Basic realm=\"" + XPackField.SECURITY + "\", charset=\"UTF-8\"";
         final String bearerAuthScheme = "Bearer realm=\"" + XPackField.SECURITY + "\"";
         final String negotiateAuthScheme = randomFrom("Negotiate", "Negotiate Ijoijksdk");
         final Map<String, List<String>> failureResponseHeaders = new HashMap<>();
@@ -86,18 +86,18 @@ public class DefaultAuthenticationFailureHandlerTests extends ESTestCase {
         final boolean withAuthenticateHeader = randomBoolean();
         final String selectedScheme = randomFrom(bearerAuthScheme, basicAuthScheme, negotiateAuthScheme);
         if (withAuthenticateHeader) {
-            eseCause.addHeader("WWW-Authenticate", Collections.singletonList(selectedScheme));
+            eseCause.addBodyHeader("WWW-Authenticate", Collections.singletonList(selectedScheme));
         }
 
         if (causeIsElasticsearchSecurityException) {
             if (causeIsEseAndUnauthorized) {
                 final ElasticsearchSecurityException ese = failureHandler.exceptionProcessingRequest(
-                    mock(RestRequest.class),
+                    mock(HttpPreRequest.class),
                     cause,
                     new ThreadContext(Settings.builder().build())
                 );
                 assertThat(ese, is(notNullValue()));
-                assertThat(ese.getHeader("WWW-Authenticate"), is(notNullValue()));
+                assertThat(ese.getBodyHeader("WWW-Authenticate"), is(notNullValue()));
                 assertThat(ese, is(sameInstance(cause)));
                 if (withAuthenticateHeader == false) {
                     assertWWWAuthenticateWithSchemes(ese, negotiateAuthScheme, bearerAuthScheme, basicAuthScheme);
@@ -113,7 +113,7 @@ public class DefaultAuthenticationFailureHandlerTests extends ESTestCase {
                 expectThrows(
                     AssertionError.class,
                     () -> failureHandler.exceptionProcessingRequest(
-                        mock(RestRequest.class),
+                        mock(HttpPreRequest.class),
                         cause,
                         new ThreadContext(Settings.builder().build())
                     )
@@ -121,12 +121,12 @@ public class DefaultAuthenticationFailureHandlerTests extends ESTestCase {
             }
         } else {
             final ElasticsearchSecurityException ese = failureHandler.exceptionProcessingRequest(
-                mock(RestRequest.class),
+                mock(HttpPreRequest.class),
                 cause,
                 new ThreadContext(Settings.builder().build())
             );
             assertThat(ese, is(notNullValue()));
-            assertThat(ese.getHeader("WWW-Authenticate"), is(notNullValue()));
+            assertThat(ese.getBodyHeader("WWW-Authenticate"), is(notNullValue()));
             assertThat(ese.getMessage(), equalTo("error attempting to authenticate request"));
             assertWWWAuthenticateWithSchemes(ese, negotiateAuthScheme, bearerAuthScheme, basicAuthScheme);
         }
@@ -134,7 +134,7 @@ public class DefaultAuthenticationFailureHandlerTests extends ESTestCase {
     }
 
     public void testSortsWWWAuthenticateHeaderValues() {
-        final String basicAuthScheme = "Basic realm=\"" + XPackField.SECURITY + "\" charset=\"UTF-8\"";
+        final String basicAuthScheme = "Basic realm=\"" + XPackField.SECURITY + "\", charset=\"UTF-8\"";
         final String bearerAuthScheme = "Bearer realm=\"" + XPackField.SECURITY + "\"";
         final String negotiateAuthScheme = randomFrom("Negotiate", "Negotiate Ijoijksdk");
         final String apiKeyAuthScheme = "ApiKey";
@@ -145,19 +145,19 @@ public class DefaultAuthenticationFailureHandlerTests extends ESTestCase {
         final DefaultAuthenticationFailureHandler failuerHandler = new DefaultAuthenticationFailureHandler(failureResponeHeaders);
 
         final ElasticsearchSecurityException ese = failuerHandler.exceptionProcessingRequest(
-            mock(RestRequest.class),
+            mock(HttpPreRequest.class),
             null,
             new ThreadContext(Settings.builder().build())
         );
 
         assertThat(ese, is(notNullValue()));
-        assertThat(ese.getHeader("WWW-Authenticate"), is(notNullValue()));
+        assertThat(ese.getBodyHeader("WWW-Authenticate"), is(notNullValue()));
         assertThat(ese.getMessage(), equalTo("error attempting to authenticate request"));
         assertWWWAuthenticateWithSchemes(ese, negotiateAuthScheme, bearerAuthScheme, apiKeyAuthScheme, basicAuthScheme);
     }
 
     private void assertWWWAuthenticateWithSchemes(final ElasticsearchSecurityException ese, final String... schemes) {
-        assertThat(ese.getHeader("WWW-Authenticate").size(), is(schemes.length));
-        assertThat(ese.getHeader("WWW-Authenticate"), contains(schemes));
+        assertThat(ese.getBodyHeader("WWW-Authenticate").size(), is(schemes.length));
+        assertThat(ese.getBodyHeader("WWW-Authenticate"), contains(schemes));
     }
 }

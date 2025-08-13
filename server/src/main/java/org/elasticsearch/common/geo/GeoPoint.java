@@ -1,19 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.geo;
 
-import org.apache.lucene.document.LatLonDocValuesField;
-import org.apache.lucene.document.LatLonPoint;
 import org.apache.lucene.geo.GeoEncodingUtils;
-import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.util.BitUtil;
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.geo.GeoUtils.EffectivePoint;
 import org.elasticsearch.geometry.Geometry;
@@ -27,13 +24,12 @@ import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.Locale;
 
-public class GeoPoint implements SpatialPoint, ToXContentFragment {
+public final class GeoPoint implements SpatialPoint, ToXContentFragment {
 
-    protected double lat;
-    protected double lon;
+    private double lat;
+    private double lon;
 
     public GeoPoint() {}
 
@@ -144,20 +140,6 @@ public class GeoPoint implements SpatialPoint, ToXContentFragment {
         return this;
     }
 
-    // todo this is a crutch because LatLonPoint doesn't have a helper for returning .stringValue()
-    // todo remove with next release of lucene
-    public GeoPoint resetFromIndexableField(IndexableField field) {
-        if (field instanceof LatLonPoint) {
-            BytesRef br = field.binaryValue();
-            byte[] bytes = Arrays.copyOfRange(br.bytes, br.offset, br.length);
-            return this.reset(GeoEncodingUtils.decodeLatitude(bytes, 0), GeoEncodingUtils.decodeLongitude(bytes, Integer.BYTES));
-        } else if (field instanceof LatLonDocValuesField) {
-            long encoded = (long) (field.numericValue());
-            return this.reset(GeoEncodingUtils.decodeLatitude((int) (encoded >>> 32)), GeoEncodingUtils.decodeLongitude((int) encoded));
-        }
-        return resetFromIndexHash(Long.parseLong(field.stringValue()));
-    }
-
     public GeoPoint resetFromGeoHash(String geohash) {
         final long hash;
         try {
@@ -216,7 +198,12 @@ public class GeoPoint implements SpatialPoint, ToXContentFragment {
 
     /** reset the point using Lucene encoded format used to stored points as doc values */
     public GeoPoint resetFromEncoded(long encoded) {
-        return reset(GeoEncodingUtils.decodeLatitude((int) (encoded >>> 32)), GeoEncodingUtils.decodeLongitude((int) encoded));
+        return resetFromEncoded((int) (encoded >>> 32), (int) encoded);
+    }
+
+    /** reset the point using Lucene encoded format for lat and lon */
+    private GeoPoint resetFromEncoded(int encodedLat, int encodedLon) {
+        return reset(GeoEncodingUtils.decodeLatitude(encodedLat), GeoEncodingUtils.decodeLongitude(encodedLon));
     }
 
     @Override

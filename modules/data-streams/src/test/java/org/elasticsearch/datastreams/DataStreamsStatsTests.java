@@ -1,19 +1,23 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.datastreams;
 
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
+import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
+import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
-import org.elasticsearch.action.admin.indices.template.delete.DeleteComposableIndexTemplateAction;
-import org.elasticsearch.action.admin.indices.template.put.PutComposableIndexTemplateAction;
+import org.elasticsearch.action.admin.indices.template.delete.TransportDeleteComposableIndexTemplateAction;
+import org.elasticsearch.action.admin.indices.template.put.TransportPutComposableIndexTemplateAction;
+import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.datastreams.CreateDataStreamAction;
 import org.elasticsearch.action.datastreams.DataStreamsStatsAction;
 import org.elasticsearch.action.datastreams.DeleteDataStreamAction;
@@ -21,15 +25,17 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
+import org.elasticsearch.cluster.metadata.DataStreamFailureStore;
+import org.elasticsearch.cluster.metadata.DataStreamOptions;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.common.compress.CompressedXContent;
+import org.elasticsearch.index.mapper.extras.MapperExtrasPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.junit.After;
 
 import java.util.Collection;
-import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -39,15 +45,19 @@ import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
 import static java.lang.Math.max;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.is;
 
 public class DataStreamsStatsTests extends ESSingleNodeTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
-        return List.of(DataStreamsPlugin.class);
+        return List.of(DataStreamsPlugin.class, MapperExtrasPlugin.class);
     }
 
     private final Set<String> createdDataStreams = new HashSet<>();
+    private final Set<String> createdStandAloneIndices = new HashSet<>();
 
     @Override
     @After
@@ -57,6 +67,12 @@ public class DataStreamsStatsTests extends ESSingleNodeTestCase {
                 deleteDataStream(createdDataStream);
             }
             createdDataStreams.clear();
+        }
+        if (createdStandAloneIndices.isEmpty() == false) {
+            for (String indexName : createdStandAloneIndices) {
+                client().admin().indices().delete(new DeleteIndexRequest(indexName));
+            }
+            createdStandAloneIndices.clear();
         }
         super.tearDown();
     }
@@ -72,6 +88,7 @@ public class DataStreamsStatsTests extends ESSingleNodeTestCase {
     }
 
     public void testStatsEmptyDataStream() throws Exception {
+        maybeCreateCreatedStandAloneIndicesIndex();
         String dataStreamName = createDataStream();
 
         DataStreamsStatsAction.Response stats = getDataStreamsStats();
@@ -89,6 +106,7 @@ public class DataStreamsStatsTests extends ESSingleNodeTestCase {
     }
 
     public void testStatsExistingDataStream() throws Exception {
+        maybeCreateCreatedStandAloneIndicesIndex();
         String dataStreamName = createDataStream();
         long timestamp = createDocument(dataStreamName);
 
@@ -106,8 +124,32 @@ public class DataStreamsStatsTests extends ESSingleNodeTestCase {
         assertEquals(stats.getTotalStoreSize().getBytes(), stats.getDataStreams()[0].getStoreSize().getBytes());
     }
 
+    public void testStatsExistingDataStreamWithFailureStores() throws Exception {
+        maybeCreateCreatedStandAloneIndicesIndex();
+        String dataStreamName = createDataStream(false, true);
+        createFailedDocument(dataStreamName);
+
+        DataStreamsStatsAction.Response stats = getDataStreamsStats();
+
+        assertEquals(2, stats.getSuccessfulShards());
+        assertEquals(0, stats.getFailedShards());
+        assertEquals(1, stats.getDataStreamCount());
+        assertEquals(2, stats.getBackingIndices());
+        assertNotEquals(0L, stats.getTotalStoreSize().getBytes());
+        assertEquals(1, stats.getDataStreams().length);
+        assertEquals(dataStreamName, stats.getDataStreams()[0].getDataStream());
+        assertEquals(2, stats.getDataStreams()[0].getBackingIndices());
+        // The timestamp is going to not be something we can validate because
+        // it captures the time of failure which is uncontrolled in the test
+        // Just make sure it exists by ensuring it isn't zero
+        assertThat(stats.getDataStreams()[0].getMaximumTimestamp(), is(greaterThan(0L)));
+        assertNotEquals(0L, stats.getDataStreams()[0].getStoreSize().getBytes());
+        assertEquals(stats.getTotalStoreSize().getBytes(), stats.getDataStreams()[0].getStoreSize().getBytes());
+    }
+
     public void testStatsExistingHiddenDataStream() throws Exception {
-        String dataStreamName = createDataStream(true);
+        maybeCreateCreatedStandAloneIndicesIndex();
+        String dataStreamName = createDataStream(true, false);
         long timestamp = createDocument(dataStreamName);
 
         DataStreamsStatsAction.Response stats = getDataStreamsStats(true);
@@ -125,20 +167,17 @@ public class DataStreamsStatsTests extends ESSingleNodeTestCase {
     }
 
     public void testStatsClosedBackingIndexDataStream() throws Exception {
+        maybeCreateCreatedStandAloneIndicesIndex();
         String dataStreamName = createDataStream();
         createDocument(dataStreamName);
-        assertTrue(client().admin().indices().rolloverIndex(new RolloverRequest(dataStreamName, null)).get().isAcknowledged());
-        assertTrue(
-            client().admin().indices().close(new CloseIndexRequest(".ds-" + dataStreamName + "-*-000001")).actionGet().isAcknowledged()
-        );
+        assertTrue(indicesAdmin().rolloverIndex(new RolloverRequest(dataStreamName, null)).get().isAcknowledged());
+        assertTrue(indicesAdmin().close(new CloseIndexRequest(".ds-" + dataStreamName + "-*-000001")).actionGet().isAcknowledged());
 
         assertBusy(
-            () -> {
-                assertNotEquals(
-                    ClusterHealthStatus.RED,
-                    client().admin().cluster().health(new ClusterHealthRequest()).actionGet().getStatus()
-                );
-            }
+            () -> assertNotEquals(
+                ClusterHealthStatus.RED,
+                clusterAdmin().health(new ClusterHealthRequest(TEST_REQUEST_TIMEOUT)).actionGet().getStatus()
+            )
         );
 
         DataStreamsStatsAction.Response stats = getDataStreamsStats();
@@ -172,9 +211,10 @@ public class DataStreamsStatsTests extends ESSingleNodeTestCase {
     }
 
     public void testStatsRolledDataStream() throws Exception {
+        maybeCreateCreatedStandAloneIndicesIndex();
         String dataStreamName = createDataStream();
         long timestamp = createDocument(dataStreamName);
-        assertTrue(client().admin().indices().rolloverIndex(new RolloverRequest(dataStreamName, null)).get().isAcknowledged());
+        assertTrue(indicesAdmin().rolloverIndex(new RolloverRequest(dataStreamName, null)).get().isAcknowledged());
         timestamp = max(timestamp, createDocument(dataStreamName));
 
         DataStreamsStatsAction.Response stats = getDataStreamsStats();
@@ -192,6 +232,7 @@ public class DataStreamsStatsTests extends ESSingleNodeTestCase {
     }
 
     public void testStatsMultipleDataStreams() throws Exception {
+        maybeCreateCreatedStandAloneIndicesIndex();
         for (int dataStreamCount = 0; dataStreamCount < (2 + randomInt(3)); dataStreamCount++) {
             createDataStream();
         }
@@ -224,35 +265,44 @@ public class DataStreamsStatsTests extends ESSingleNodeTestCase {
     }
 
     private String createDataStream() throws Exception {
-        return createDataStream(false);
+        return createDataStream(false, false);
     }
 
-    private String createDataStream(boolean hidden) throws Exception {
+    private String createDataStream(boolean hidden, boolean failureStore) throws Exception {
         String dataStreamName = randomAlphaOfLength(10).toLowerCase(Locale.getDefault());
+        DataStreamOptions.Template failureStoreOptions = failureStore == false
+            ? null
+            : new DataStreamOptions.Template(DataStreamFailureStore.builder().enabled(true).buildTemplate());
         Template idxTemplate = new Template(null, new CompressedXContent("""
             {"properties":{"@timestamp":{"type":"date"},"data":{"type":"keyword"}}}
-            """), null);
-        ComposableIndexTemplate template = new ComposableIndexTemplate(
-            List.of(dataStreamName + "*"),
-            idxTemplate,
-            null,
-            null,
-            null,
-            null,
-            new ComposableIndexTemplate.DataStreamTemplate(hidden, false),
-            null
-        );
-        assertTrue(
+            """), null, null, failureStoreOptions);
+        ComposableIndexTemplate template = ComposableIndexTemplate.builder()
+            .indexPatterns(List.of(dataStreamName + "*"))
+            .template(idxTemplate)
+            .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate(hidden, false))
+            .build();
+        assertAcked(
             client().execute(
-                PutComposableIndexTemplateAction.INSTANCE,
-                new PutComposableIndexTemplateAction.Request(dataStreamName + "_template").indexTemplate(template)
-            ).actionGet().isAcknowledged()
+                TransportPutComposableIndexTemplateAction.TYPE,
+                new TransportPutComposableIndexTemplateAction.Request(dataStreamName + "_template").indexTemplate(template)
+            )
         );
-        assertTrue(
-            client().execute(CreateDataStreamAction.INSTANCE, new CreateDataStreamAction.Request(dataStreamName)).get().isAcknowledged()
+        assertAcked(
+            client().execute(
+                CreateDataStreamAction.INSTANCE,
+                new CreateDataStreamAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, dataStreamName)
+            )
         );
         createdDataStreams.add(dataStreamName);
         return dataStreamName;
+    }
+
+    private void maybeCreateCreatedStandAloneIndicesIndex() {
+        if (randomBoolean()) {
+            String indexName = randomAlphaOfLength(10).toLowerCase(Locale.getDefault());
+            assertAcked(client().admin().indices().create(new CreateIndexRequest(indexName)));
+            createdStandAloneIndices.add(indexName);
+        }
     }
 
     private long createDocument(String dataStreamName) throws Exception {
@@ -269,9 +319,28 @@ public class DataStreamsStatsTests extends ESSingleNodeTestCase {
                         .endObject()
                 )
         ).get();
-        client().admin()
-            .indices()
-            .refresh(new RefreshRequest(".ds-" + dataStreamName + "*").indicesOptions(IndicesOptions.lenientExpandOpenHidden()))
+        indicesAdmin().refresh(new RefreshRequest(".ds-" + dataStreamName + "*").indicesOptions(IndicesOptions.lenientExpandOpenHidden()))
+            .get();
+        return timestamp;
+    }
+
+    private long createFailedDocument(String dataStreamName) throws Exception {
+        // Get some randomized but reasonable timestamps on the data since not all of it is guaranteed to arrive in order.
+        long timeSeed = System.currentTimeMillis();
+        long timestamp = randomLongBetween(timeSeed - TimeUnit.HOURS.toMillis(5), timeSeed);
+        client().bulk(
+            new BulkRequest(dataStreamName).add(
+                new IndexRequest().opType(DocWriteRequest.OpType.CREATE)
+                    .source(
+                        JsonXContent.contentBuilder()
+                            .startObject()
+                            .field("@timestamp", timestamp)
+                            .object("data", b -> b.field("garbage", randomAlphaOfLength(25)))
+                            .endObject()
+                    )
+            )
+        ).get();
+        indicesAdmin().refresh(new RefreshRequest(".fs-" + dataStreamName + "*").indicesOptions(IndicesOptions.lenientExpandOpenHidden()))
             .get();
         return timestamp;
     }
@@ -284,23 +353,26 @@ public class DataStreamsStatsTests extends ESSingleNodeTestCase {
         DataStreamsStatsAction.Request request = new DataStreamsStatsAction.Request();
         if (includeHidden) {
             request.indicesOptions(
-                new IndicesOptions(EnumSet.of(IndicesOptions.Option.ALLOW_NO_INDICES), EnumSet.of(IndicesOptions.WildcardStates.HIDDEN))
+                IndicesOptions.builder(request.indicesOptions())
+                    .wildcardOptions(IndicesOptions.WildcardOptions.builder(request.indicesOptions().wildcardOptions()).includeHidden(true))
+                    .build()
             );
         }
         return client().execute(DataStreamsStatsAction.INSTANCE, request).get();
     }
 
-    private void deleteDataStream(String dataStreamName) throws InterruptedException, java.util.concurrent.ExecutionException {
-        assertTrue(
-            client().execute(DeleteDataStreamAction.INSTANCE, new DeleteDataStreamAction.Request(new String[] { dataStreamName }))
-                .get()
-                .isAcknowledged()
-        );
-        assertTrue(
+    private void deleteDataStream(String dataStreamName) {
+        assertAcked(
             client().execute(
-                DeleteComposableIndexTemplateAction.INSTANCE,
-                new DeleteComposableIndexTemplateAction.Request(dataStreamName + "_template")
-            ).actionGet().isAcknowledged()
+                DeleteDataStreamAction.INSTANCE,
+                new DeleteDataStreamAction.Request(TEST_REQUEST_TIMEOUT, new String[] { dataStreamName })
+            )
+        );
+        assertAcked(
+            client().execute(
+                TransportDeleteComposableIndexTemplateAction.TYPE,
+                new TransportDeleteComposableIndexTemplateAction.Request(dataStreamName + "_template")
+            )
         );
     }
 }

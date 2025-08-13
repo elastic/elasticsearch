@@ -1,35 +1,35 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.tasks;
 
 import org.apache.logging.log4j.Level;
-import org.apache.logging.log4j.LogManager;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.admin.cluster.node.tasks.TaskManagerTestCase;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.VersionInformation;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.test.MockLogAppender;
+import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.test.transport.StubbableTransport;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.AbstractSimpleTransportTestCase;
+import org.elasticsearch.transport.AbstractTransportRequest;
+import org.elasticsearch.transport.EmptyRequest;
 import org.elasticsearch.transport.NodeDisconnectedException;
 import org.elasticsearch.transport.TransportException;
-import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestOptions;
-import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportResponseHandler;
 
 import java.io.Closeable;
@@ -37,6 +37,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.locks.ReentrantLock;
@@ -56,13 +57,13 @@ public class BanFailureLoggingTests extends TaskManagerTestCase {
             connection.sendRequest(requestId, action, request, options);
         },
             childNode -> List.of(
-                new MockLogAppender.SeenEventExpectation(
+                new MockLog.SeenEventExpectation(
                     "cannot send ban",
                     TaskCancellationService.class.getName(),
                     Level.DEBUG,
                     "*cannot send ban for tasks*" + childNode.getId() + "*"
                 ),
-                new MockLogAppender.SeenEventExpectation(
+                new MockLog.SeenEventExpectation(
                     "cannot remove ban",
                     TaskCancellationService.class.getName(),
                     Level.DEBUG,
@@ -82,13 +83,13 @@ public class BanFailureLoggingTests extends TaskManagerTestCase {
             connection.sendRequest(requestId, action, request, options);
         },
             childNode -> List.of(
-                new MockLogAppender.UnseenEventExpectation(
+                new MockLog.UnseenEventExpectation(
                     "cannot send ban",
                     TaskCancellationService.class.getName(),
                     Level.DEBUG,
                     "*cannot send ban for tasks*" + childNode.getId() + "*"
                 ),
-                new MockLogAppender.SeenEventExpectation(
+                new MockLog.SeenEventExpectation(
                     "cannot remove ban",
                     TaskCancellationService.class.getName(),
                     Level.DEBUG,
@@ -100,7 +101,7 @@ public class BanFailureLoggingTests extends TaskManagerTestCase {
 
     private void runTest(
         StubbableTransport.SendRequestBehavior sendRequestBehavior,
-        Function<DiscoveryNode, List<MockLogAppender.LoggingExpectation>> expectations
+        Function<DiscoveryNode, List<MockLog.LoggingExpectation>> expectations
     ) throws Exception {
 
         final ArrayList<Closeable> resources = new ArrayList<>(3);
@@ -112,7 +113,8 @@ public class BanFailureLoggingTests extends TaskManagerTestCase {
 
             final MockTransportService parentTransportService = MockTransportService.createNewService(
                 Settings.EMPTY,
-                Version.CURRENT,
+                VersionInformation.CURRENT,
+                TransportVersion.current(),
                 threadPool
             );
             resources.add(parentTransportService);
@@ -122,15 +124,16 @@ public class BanFailureLoggingTests extends TaskManagerTestCase {
 
             final MockTransportService childTransportService = MockTransportService.createNewService(
                 Settings.EMPTY,
-                Version.CURRENT,
+                VersionInformation.CURRENT,
+                TransportVersion.current(),
                 threadPool
             );
             resources.add(childTransportService);
             childTransportService.getTaskManager().setTaskCancellationService(new TaskCancellationService(childTransportService));
             childTransportService.registerRequestHandler(
                 "internal:testAction[c]",
-                ThreadPool.Names.MANAGEMENT, // busy-wait for cancellation but not on a transport thread
-                (StreamInput in) -> new TransportRequest.Empty(in) {
+                threadPool.executor(ThreadPool.Names.MANAGEMENT), // busy-wait for cancellation but not on a transport thread
+                (StreamInput in) -> new AbstractTransportRequest(in) {
                     @Override
                     public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
                         return new CancellableTask(id, type, action, "", parentTaskId, headers);
@@ -154,40 +157,36 @@ public class BanFailureLoggingTests extends TaskManagerTestCase {
 
             parentTransportService.addSendBehavior(sendRequestBehavior);
 
-            AbstractSimpleTransportTestCase.connectToNode(parentTransportService, childTransportService.getLocalDiscoNode());
+            AbstractSimpleTransportTestCase.connectToNode(parentTransportService, childTransportService.getLocalNode());
 
             final CancellableTask parentTask = (CancellableTask) parentTransportService.getTaskManager()
                 .register("transport", "internal:testAction", new ParentRequest());
 
             parentTransportService.sendChildRequest(
-                childTransportService.getLocalDiscoNode(),
+                childTransportService.getLocalNode(),
                 "internal:testAction[c]",
-                TransportRequest.Empty.INSTANCE,
+                new EmptyRequest(),
                 parentTask,
                 TransportRequestOptions.EMPTY,
                 new ChildResponseHandler(() -> parentTransportService.getTaskManager().unregister(parentTask))
             );
 
-            MockLogAppender appender = new MockLogAppender();
-            appender.start();
-            resources.add(appender::stop);
-            Loggers.addAppender(LogManager.getLogger(TaskCancellationService.class), appender);
-            resources.add(() -> Loggers.removeAppender(LogManager.getLogger(TaskCancellationService.class), appender));
+            try (MockLog mockLog = MockLog.capture(TaskCancellationService.class)) {
+                for (MockLog.LoggingExpectation expectation : expectations.apply(childTransportService.getLocalNode())) {
+                    mockLog.addExpectation(expectation);
+                }
 
-            for (MockLogAppender.LoggingExpectation expectation : expectations.apply(childTransportService.getLocalDiscoNode())) {
-                appender.addExpectation(expectation);
+                final PlainActionFuture<Void> cancellationFuture = new PlainActionFuture<>();
+                parentTransportService.getTaskManager().cancelTaskAndDescendants(parentTask, "test", true, cancellationFuture);
+                try {
+                    cancellationFuture.actionGet(TimeValue.timeValueSeconds(10));
+                } catch (NodeDisconnectedException e) {
+                    // acceptable; we mostly ignore the result of cancellation anyway
+                }
+
+                // await since failure to remove a ban may be logged after cancellation completed
+                mockLog.awaitAllExpectationsMatched();
             }
-
-            final PlainActionFuture<Void> cancellationFuture = new PlainActionFuture<>();
-            parentTransportService.getTaskManager().cancelTaskAndDescendants(parentTask, "test", true, cancellationFuture);
-            try {
-                cancellationFuture.actionGet(TimeValue.timeValueSeconds(10));
-            } catch (NodeDisconnectedException e) {
-                // acceptable; we mostly ignore the result of cancellation anyway
-            }
-
-            // assert busy since failure to remove a ban may be logged after cancellation completed
-            assertBusy(appender::assertAllExpectationsMatched);
 
             assertTrue("child tasks did not finish in time", childTaskLock.tryLock(15, TimeUnit.SECONDS));
         } finally {
@@ -203,6 +202,11 @@ public class BanFailureLoggingTests extends TaskManagerTestCase {
         }
 
         @Override
+        public void setRequestId(long requestId) {
+            fail("setRequestId should not be called");
+        }
+
+        @Override
         public TaskId getParentTask() {
             return TaskId.EMPTY_TASK_ID;
         }
@@ -213,7 +217,7 @@ public class BanFailureLoggingTests extends TaskManagerTestCase {
         }
     }
 
-    private static class ChildResponseHandler implements TransportResponseHandler<TransportResponse.Empty> {
+    private static class ChildResponseHandler extends TransportResponseHandler.Empty {
         private final Runnable onException;
 
         ChildResponseHandler(Runnable onException) {
@@ -221,7 +225,12 @@ public class BanFailureLoggingTests extends TaskManagerTestCase {
         }
 
         @Override
-        public void handleResponse(TransportResponse.Empty response) {
+        public Executor executor() {
+            return TransportResponseHandler.TRANSPORT_WORKER;
+        }
+
+        @Override
+        public void handleResponse() {
             fail("should not get successful response");
         }
 
@@ -229,11 +238,6 @@ public class BanFailureLoggingTests extends TaskManagerTestCase {
         public void handleException(TransportException exp) {
             assertThat(exp.unwrapCause(), anyOf(instanceOf(TaskCancelledException.class), instanceOf(NodeDisconnectedException.class)));
             onException.run();
-        }
-
-        @Override
-        public TransportResponse.Empty read(StreamInput in) {
-            return TransportResponse.Empty.INSTANCE;
         }
     }
 

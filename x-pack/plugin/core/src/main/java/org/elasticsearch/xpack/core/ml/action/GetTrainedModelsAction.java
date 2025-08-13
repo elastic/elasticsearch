@@ -33,7 +33,7 @@ public class GetTrainedModelsAction extends ActionType<GetTrainedModelsAction.Re
     public static final String NAME = "cluster:monitor/xpack/ml/inference/get";
 
     private GetTrainedModelsAction() {
-        super(NAME, Response::new);
+        super(NAME);
     }
 
     public static class Includes implements Writeable {
@@ -41,6 +41,7 @@ public class GetTrainedModelsAction extends ActionType<GetTrainedModelsAction.Re
         static final String TOTAL_FEATURE_IMPORTANCE = "total_feature_importance";
         static final String FEATURE_IMPORTANCE_BASELINE = "feature_importance_baseline";
         static final String HYPERPARAMETERS = "hyperparameters";
+        static final String DEFINITION_STATUS = TrainedModelConfig.DEFINITION_STATUS;
 
         private static final Set<String> KNOWN_INCLUDES;
         static {
@@ -49,6 +50,7 @@ public class GetTrainedModelsAction extends ActionType<GetTrainedModelsAction.Re
             includes.add(TOTAL_FEATURE_IMPORTANCE);
             includes.add(FEATURE_IMPORTANCE_BASELINE);
             includes.add(HYPERPARAMETERS);
+            includes.add(DEFINITION_STATUS);
             KNOWN_INCLUDES = Collections.unmodifiableSet(includes);
         }
 
@@ -79,12 +81,12 @@ public class GetTrainedModelsAction extends ActionType<GetTrainedModelsAction.Re
         }
 
         public Includes(StreamInput in) throws IOException {
-            this.includes = in.readSet(StreamInput::readString);
+            this.includes = in.readCollectionAsSet(StreamInput::readString);
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeCollection(this.includes, StreamOutput::writeString);
+            out.writeStringCollection(this.includes);
         }
 
         public boolean isIncludeModelDefinition() {
@@ -103,6 +105,10 @@ public class GetTrainedModelsAction extends ActionType<GetTrainedModelsAction.Re
             return this.includes.contains(HYPERPARAMETERS);
         }
 
+        public boolean isIncludeDefinitionStatus() {
+            return this.includes.contains(DEFINITION_STATUS);
+        }
+
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
@@ -117,7 +123,7 @@ public class GetTrainedModelsAction extends ActionType<GetTrainedModelsAction.Re
         }
     }
 
-    public static class Request extends AbstractGetResourcesRequest {
+    public static final class Request extends AbstractGetResourcesRequest {
 
         public static final ParseField INCLUDE = new ParseField("include");
         public static final ParseField ALLOW_NO_MATCH = new ParseField("allow_no_match");
@@ -140,7 +146,7 @@ public class GetTrainedModelsAction extends ActionType<GetTrainedModelsAction.Re
         public Request(StreamInput in) throws IOException {
             super(in);
             this.includes = new Includes(in);
-            this.tags = in.readStringList();
+            this.tags = in.readStringCollectionAsList();
         }
 
         @Override

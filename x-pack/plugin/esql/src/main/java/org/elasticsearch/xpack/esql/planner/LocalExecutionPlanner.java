@@ -83,6 +83,7 @@ import org.elasticsearch.xpack.esql.enrich.EnrichLookupOperator;
 import org.elasticsearch.xpack.esql.enrich.EnrichLookupService;
 import org.elasticsearch.xpack.esql.enrich.LookupFromIndexOperator;
 import org.elasticsearch.xpack.esql.enrich.LookupFromIndexService;
+import org.elasticsearch.xpack.esql.enrich.MatchConfig;
 import org.elasticsearch.xpack.esql.evaluator.EvalMapper;
 import org.elasticsearch.xpack.esql.evaluator.command.GrokEvaluatorExtracter;
 import org.elasticsearch.xpack.esql.expression.Order;
@@ -779,36 +780,21 @@ public class LocalExecutionPlanner {
             }
             matchFields.add(new MatchConfig(right, input));
         }
-        if (matchFields.size() != 1) {
-            throw new IllegalArgumentException("can't plan [" + join + "]: multiple join predicates are not supported");
-        }
-        // TODO support multiple match fields, and support more than equality predicates
-        MatchConfig matchConfig = matchFields.getFirst();
 
         return source.with(
             new LookupFromIndexOperator.Factory(
+                matchFields,
                 sessionId,
                 parentTask,
                 context.queryPragmas().enrichMaxWorkers(),
-                matchConfig.channel(),
                 ctx -> lookupFromIndexService,
-                matchConfig.type(),
                 localSourceExec.indexPattern(),
                 indexName,
-                matchConfig.fieldName(),
                 join.addedFields().stream().map(f -> (NamedExpression) f).toList(),
                 join.source()
             ),
             layout
         );
-    }
-
-    private record MatchConfig(FieldAttribute.FieldName fieldName, int channel, DataType type) {
-        private MatchConfig(FieldAttribute match, Layout.ChannelAndType input) {
-            // TODO: Using exactAttribute was supposed to handle TEXT fields with KEYWORD subfields - but we don't allow these in lookup
-            // indices, so the call to exactAttribute looks redundant now.
-            this(match.exactAttribute().fieldName(), input.channel(), input.type());
-        }
     }
 
     private PhysicalOperation planLocal(LocalSourceExec localSourceExec, LocalExecutionPlannerContext context) {

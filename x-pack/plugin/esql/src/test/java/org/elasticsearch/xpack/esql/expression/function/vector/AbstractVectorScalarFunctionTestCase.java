@@ -21,7 +21,7 @@ import java.util.List;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.esql.core.type.DataType.DENSE_VECTOR;
-import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
+import static org.elasticsearch.xpack.esql.core.type.DataType.FLOAT;
 import static org.hamcrest.Matchers.equalTo;
 
 public abstract class AbstractVectorScalarFunctionTestCase extends AbstractScalarFunctionTestCase {
@@ -51,11 +51,11 @@ public abstract class AbstractVectorScalarFunctionTestCase extends AbstractScala
             int dimensions = between(64, 128);
             List<Float> input = randomDenseVector(dimensions);
             float[] array = listToFloatArray(input);
-            double expected = scalarFunction.calculateScalar(array);
+            float expected = scalarFunction.calculateScalar(array);
             return new TestCaseSupplier.TestCase(
                 List.of(new TestCaseSupplier.TypedData(array, DENSE_VECTOR, "vector")),
                 evaluatorName,
-                DOUBLE,
+                FLOAT,
                 equalTo(expected)
             );
         }));
@@ -97,11 +97,5 @@ public abstract class AbstractVectorScalarFunctionTestCase extends AbstractScala
             vector.add(randomFloat());
         }
         return vector;
-    }
-
-    @Override
-    protected Matcher<Object> allNullsMatcher() {
-        // A null value on the left or right vector. Similarity is 0
-        return equalTo(0.0);
     }
 }

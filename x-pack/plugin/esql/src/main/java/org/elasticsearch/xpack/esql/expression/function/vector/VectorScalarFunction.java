@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.esql.expression.function.vector;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.data.DoubleVector;
 import org.elasticsearch.compute.data.FloatBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
@@ -43,7 +42,7 @@ public abstract class VectorScalarFunction extends UnaryScalarFunction implement
 
     @Override
     public DataType dataType() {
-        return DataType.DOUBLE;
+        return DataType.FLOAT;
     }
 
     @Override
@@ -107,19 +106,19 @@ public abstract class VectorScalarFunction extends UnaryScalarFunction implement
                         }
 
                         float[] scratch = new float[dimensions];
-                        try (DoubleVector.Builder builder = context.blockFactory().newDoubleVectorBuilder(positionCount * dimensions)) {
+                        try (var builder = context.blockFactory().newFloatBlockBuilder(positionCount * dimensions)) {
                             for (int p = 0; p < positionCount; p++) {
                                 int dims = block.getValueCount(p);
                                 if (dims == 0) {
                                     // A null value for the vector, by default append 0 as result.
-                                    builder.appendDouble(0.0);
+                                    builder.appendNull();
                                     continue;
                                 }
                                 readFloatArray(block, block.getFirstValueIndex(p), dimensions, scratch);
                                 float result = scalarFunction.calculateScalar(scratch);
-                                builder.appendDouble(result);
+                                builder.appendFloat(result);
                             }
-                            return builder.build().asBlock();
+                            return builder.build();
                         }
                     }
                 }

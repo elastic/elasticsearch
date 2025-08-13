@@ -28,7 +28,7 @@ public class Magnitude extends VectorScalarFunction {
     static final ScalarEvaluatorFunction SCALAR_FUNCTION = Magnitude::calculateScalar;
 
     @FunctionInfo(
-        returnType = "double",
+        returnType = "float",
         preview = true,
         description = "Calculates the magnitude of a dense_vector.",
         examples = { @Example(file = "vector-magnitude", tag = "vector-magnitude") },

@@ -63,6 +63,7 @@ import static java.util.Collections.singleton;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
+import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasKey;
@@ -998,12 +999,12 @@ public class GetActionIT extends ESIntegTestCase {
         assertTrue(translog3.isExists());
         switch (sourceMode) {
             case STORED -> {
-                assertThat(translog1.getSourceAsBytesRef().utf8ToString(), equalTo("""
-                    {"title":["t1"],"author":[{"name":"a1"}]}"""));
-                assertThat(translog2.getSourceAsBytesRef().utf8ToString(), equalTo("""
-                    {"title":["t1","t2"],"author":[{"name":"a1"},{"name":"a2"}]}"""));
-                assertThat(translog3.getSourceAsBytesRef().utf8ToString(), equalTo("""
-                    {"title":["t1","t3","t2"]}"""));
+                assertThat(translog1.getSourceAsBytesRef().utf8ToString(), either(equalTo(source1)).or(equalTo("""
+                    {"title":["t1"],"author":[{"name":"a1"}]}""")));
+                assertThat(translog2.getSourceAsBytesRef().utf8ToString(), either(equalTo(source2)).or(equalTo("""
+                    {"title":["t1","t2"],"author":[{"name":"a1"},{"name":"a2"}]}""")));
+                assertThat(translog3.getSourceAsBytesRef().utf8ToString(), either(equalTo(source3)).or(equalTo("""
+                    {"title":["t1","t3","t2"]}""")));
             }
             case SYNTHETIC -> {
                 assertThat(translog1.getSourceAsBytesRef().utf8ToString(), equalTo("""

@@ -522,6 +522,9 @@ tests:
 - class: org.elasticsearch.test.rest.yaml.RcsCcsCommonYamlTestSuiteIT
   method: test {p0=search/160_exists_query/Test exists query on keyword field in empty index}
   issue: https://github.com/elastic/elasticsearch/issues/132829
+- class: org.elasticsearch.xpack.esql.CsvTests
+  method: test {csv-spec:floats.EqualToMultivalue}
+  issue: https://github.com/elastic/elasticsearch/issues/132852
 
 # Examples:
 #

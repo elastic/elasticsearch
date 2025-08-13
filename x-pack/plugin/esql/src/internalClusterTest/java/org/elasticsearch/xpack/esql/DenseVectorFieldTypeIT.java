@@ -84,7 +84,7 @@ public class DenseVectorFieldTypeIT extends AbstractEsqlIntegTestCase {
         @Name("synthetic") boolean synthetic
     ) {
         this.elementType = elementType;
-        this.similarity = similarity == null ? null : similarity;
+        this.similarity = similarity;
         this.index = index;
         this.synthetic = synthetic;
     }

@@ -11,8 +11,6 @@ package org.elasticsearch.gradle.internal.transport;
 
 import org.elasticsearch.gradle.Version;
 import org.elasticsearch.gradle.VersionProperties;
-import org.elasticsearch.gradle.internal.transport.TransportVersionUtils.TransportVersionDefinition;
-import org.elasticsearch.gradle.internal.transport.TransportVersionUtils.TransportVersionLatest;
 import org.gradle.api.DefaultTask;
 import org.gradle.api.Project;
 import org.gradle.api.file.DirectoryProperty;
@@ -43,12 +41,11 @@ import java.util.function.Function;
 
 import javax.inject.Inject;
 
-import static org.elasticsearch.gradle.internal.transport.TransportVersionUtils.IdComponents.PATCH;
-import static org.elasticsearch.gradle.internal.transport.TransportVersionUtils.IdComponents.SERVER;
-import static org.elasticsearch.gradle.internal.transport.TransportVersionUtils.IdComponents.SUBSIDIARY;
+import static org.elasticsearch.gradle.internal.transport.TransportVersionId.Component.PATCH;
+import static org.elasticsearch.gradle.internal.transport.TransportVersionId.Component.SERVER;
+import static org.elasticsearch.gradle.internal.transport.TransportVersionId.Component.SUBSIDIARY;
 import static org.elasticsearch.gradle.internal.transport.TransportVersionUtils.LATEST_DIR;
 import static org.elasticsearch.gradle.internal.transport.TransportVersionUtils.SERVERLESS_BRANCH;
-import static org.elasticsearch.gradle.internal.transport.TransportVersionUtils.TransportVersionId;
 import static org.elasticsearch.gradle.internal.transport.TransportVersionUtils.latestFilePath;
 import static org.elasticsearch.gradle.internal.transport.TransportVersionUtils.readLatestFile;
 import static org.elasticsearch.gradle.internal.transport.TransportVersionUtils.writeDefinitionFile;
@@ -94,7 +91,7 @@ public abstract class GenerateTransportVersionDefinitionTask extends DefaultTask
 
     // @Optional
     // @Input
-    // public abstract Property<Function<String, IdComponents>> getIdIncrementSupplier();
+    // public abstract Property<Function<String, Component>> getIdIncrementSupplier();
 
     private final Path rootPath;
     private final ExecOperations execOperations;

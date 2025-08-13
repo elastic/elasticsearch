@@ -522,7 +522,7 @@ public class MemoryMetricsServiceTests extends ESTestCase {
         int totalShards = 0;
         int totalSegments = 0;
         int totalFields = 0;
-        long totalPostingsInMemoryBytes = 0L;
+        long maxPostingsInMemoryBytes = 0L;
         long totalLiveDocsBytes = 0L;
         for (var index : clusterState.metadata().indicesAllProjects()) {
             for (int id = 0; id < numberOfShards; id++) {
@@ -536,7 +536,7 @@ public class MemoryMetricsServiceTests extends ESTestCase {
                 int numFields = between(1, 1000);
                 totalFields += numFields;
                 long postingsInMemoryBytes = randomLongBetween(1, 1000);
-                totalPostingsInMemoryBytes += postingsInMemoryBytes;
+                maxPostingsInMemoryBytes = Math.max(postingsInMemoryBytes, maxPostingsInMemoryBytes);
                 long liveDocsBytes = randomLongBetween(1, 1000);
                 totalLiveDocsBytes += liveDocsBytes;
                 service.updateShardsMappingSize(
@@ -566,8 +566,7 @@ public class MemoryMetricsServiceTests extends ESTestCase {
         // switch to the adaptive method
         service.fixedShardMemoryOverhead = ByteSizeValue.MINUS_ONE;
         long adaptiveEstimateBytes = totalShards * ADAPTIVE_SHARD_MEMORY_OVERHEAD.getBytes() + totalSegments
-            * ADAPTIVE_SEGMENT_MEMORY_OVERHEAD.getBytes() + totalFields * ADAPTIVE_FIELD_MEMORY_OVERHEAD.getBytes()
-            + totalPostingsInMemoryBytes + totalLiveDocsBytes;
+            * ADAPTIVE_SEGMENT_MEMORY_OVERHEAD.getBytes() + totalFields * ADAPTIVE_FIELD_MEMORY_OVERHEAD.getBytes() + totalLiveDocsBytes;
         long extraBytes = (long) (adaptiveEstimateBytes * adaptiveExtraOverheadRatio);
         assertThat(service.estimateTierMemoryUsage().totalBytes(), equalTo(totalMappingSizeInBytes + adaptiveEstimateBytes + extraBytes));
         // switch back to the fixed method
@@ -575,6 +574,8 @@ public class MemoryMetricsServiceTests extends ESTestCase {
         service.fixedShardMemoryOverhead = newOverhead;
         var newFixedEstimateBytes = totalMappingSizeInBytes + totalShards * newOverhead.getBytes();
         assertThat(service.estimateTierMemoryUsage().totalBytes(), equalTo(newFixedEstimateBytes));
+
+        assertThat(service.postingsMemoryEstimation(), equalTo(maxPostingsInMemoryBytes));
     }
 
     public void testAdaptiveEstimateValues() {
@@ -603,11 +604,11 @@ public class MemoryMetricsServiceTests extends ESTestCase {
         String format = "| %-32s| %4s | %6s | %7s | %6s | %6s | %6s | %6s |%n";
         for (var stat : stats) {
             service.fixedShardMemoryOverhead = FIXED_SHARD_MEMORY_OVERHEAD_DEFAULT;
-            var fixedEstimate = service.estimateShardMemoryUsageInBytes(stat.shards, stat.segments, stat.fields, 0, 0);
+            var fixedEstimate = service.estimateShardMemoryUsageInBytes(stat.shards, stat.segments, stat.fields, 0);
             long adaptiveEstimate = stat.shards * ADAPTIVE_SHARD_MEMORY_OVERHEAD.getBytes() + stat.segments
                 * ADAPTIVE_SEGMENT_MEMORY_OVERHEAD.getBytes() + stat.fields * ADAPTIVE_FIELD_MEMORY_OVERHEAD.getBytes();
             service.fixedShardMemoryOverhead = ByteSizeValue.MINUS_ONE;
-            var adjustedEstimate = service.estimateShardMemoryUsageInBytes(stat.shards, stat.segments, stat.fields, 0, 0);
+            var adjustedEstimate = service.estimateShardMemoryUsageInBytes(stat.shards, stat.segments, stat.fields, 0);
             sb.append(
                 String.format(
                     Locale.ROOT,

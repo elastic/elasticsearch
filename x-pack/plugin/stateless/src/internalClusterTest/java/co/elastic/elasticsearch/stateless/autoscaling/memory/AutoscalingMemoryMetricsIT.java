@@ -29,12 +29,14 @@ import co.elastic.elasticsearch.stateless.engine.IndexEngine;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
+import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.coordination.stateless.StoreHeartbeatService;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.routing.IndexRouting;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -46,7 +48,6 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexingPressure;
-import org.elasticsearch.index.codec.TrackingPostingsInMemoryBytesCodec;
 import org.elasticsearch.index.engine.ThreadPoolMergeScheduler;
 import org.elasticsearch.index.shard.ShardFieldStats;
 import org.elasticsearch.index.shard.ShardId;
@@ -84,6 +85,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.LongAdder;
+import java.util.function.IntFunction;
+import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
 import java.util.stream.Stream;
 
@@ -911,7 +914,6 @@ public class AutoscalingMemoryMetricsIT extends AbstractStatelessIntegTestCase {
         int totalShards = noOfIndices * defaultNoOfShards;
         int totalSegmentFields = 0;
         int totalMappingFields = 0;
-        long totalPostingsInMemoryBytes = 0;
         long id = 0;
         for (int i = 0; i < noOfIndices; i++) {
             int numFields = between(1, 10);
@@ -931,10 +933,6 @@ public class AutoscalingMemoryMetricsIT extends AbstractStatelessIntegTestCase {
                 }
                 assertNoFailures(bulk.get());
 
-                // 10 bytes for minTerm, maxTerm per field, field.keyword. 11 bytes for minTerm, maxTerm for _id
-                final long perShardPostingsInMemoryBytes = (10L * 2L) * (numFields * 2L) + 22L;
-                totalPostingsInMemoryBytes += perShardPostingsInMemoryBytes * defaultNoOfShards;
-
                 totalSegmentFields += defaultNoOfShards * (ACTUAL_METADATA_FIELDS + numFields * 2);
                 totalSegments += defaultNoOfShards;
             }
@@ -942,17 +940,10 @@ public class AutoscalingMemoryMetricsIT extends AbstractStatelessIntegTestCase {
         }
         var memoryMetricService = internalCluster().getCurrentMasterNodeInstance(MemoryMetricsService.class);
         final int finalNumSegments = totalSegments;
-        final long finalTotalPostingsInMemoryBytes = totalPostingsInMemoryBytes;
         assertBusy(() -> {
             var metrics = memoryMetricService.getShardMemoryMetrics();
             assertThat(metrics.size(), equalTo(totalShards));
             assertThat(metrics.values().stream().mapToInt(s -> s.getNumSegments()).sum(), equalTo(finalNumSegments));
-            if (TrackingPostingsInMemoryBytesCodec.TRACK_POSTINGS_IN_MEMORY_BYTES.isEnabled()) {
-                assertThat(
-                    metrics.values().stream().mapToLong(s -> s.getPostingsInMemoryBytes()).sum(),
-                    equalTo(finalTotalPostingsInMemoryBytes)
-                );
-            }
             if (ShardFieldStats.TRACK_LIVE_DOCS_IN_MEMORY_BYTES.isEnabled()) {
                 long actualTotalLiveDocsBytes = metrics.values().stream().mapToLong(s -> s.getLiveDocsBytes()).sum();
                 assertThat(actualTotalLiveDocsBytes, equalTo(0L));
@@ -981,9 +972,6 @@ public class AutoscalingMemoryMetricsIT extends AbstractStatelessIntegTestCase {
             assertBusy(() -> assertThat(memoryMetricService.fixedShardMemoryOverhead, equalTo(ByteSizeValue.MINUS_ONE)));
             long adaptiveEstimate = totalShards * ADAPTIVE_SHARD_MEMORY_OVERHEAD.getBytes() + totalSegments
                 * ADAPTIVE_SEGMENT_MEMORY_OVERHEAD.getBytes() + totalSegmentFields * ADAPTIVE_FIELD_MEMORY_OVERHEAD.getBytes();
-            if (TrackingPostingsInMemoryBytesCodec.TRACK_POSTINGS_IN_MEMORY_BYTES.isEnabled()) {
-                adaptiveEstimate += totalPostingsInMemoryBytes;
-            }
             long extraForAdaptive = (long) (adaptiveEstimate * adaptiveExtraOverheadRatio);
             var totalMemoryInBytes = memoryMetricService.getSearchTierMemoryMetrics().totalMemoryInBytes();
             assertThat(
@@ -1025,19 +1013,11 @@ public class AutoscalingMemoryMetricsIT extends AbstractStatelessIntegTestCase {
         // The delete-op that marks has been stored in a new segment and therefor num segments increases:
         totalSegments++;
         // The delete op in the new segment has an id, which means number of bytes for postings increases by 11:
-        totalPostingsInMemoryBytes += 11;
         final int finalNumSegments2 = totalSegments;
-        final long finalTotalPostingsInMemoryBytes2 = totalPostingsInMemoryBytes;
         assertBusy(() -> {
             var metrics = memoryMetricService.getShardMemoryMetrics();
             assertThat(metrics.size(), equalTo(totalShards));
             assertThat(metrics.values().stream().mapToInt(s -> s.getNumSegments()).sum(), equalTo(finalNumSegments2));
-            if (TrackingPostingsInMemoryBytesCodec.TRACK_POSTINGS_IN_MEMORY_BYTES.isEnabled()) {
-                assertThat(
-                    metrics.values().stream().mapToLong(s -> s.getPostingsInMemoryBytes()).sum(),
-                    equalTo(finalTotalPostingsInMemoryBytes2)
-                );
-            }
             if (ShardFieldStats.TRACK_LIVE_DOCS_IN_MEMORY_BYTES.isEnabled()) {
                 long actualTotalLiveDocsBytes = metrics.values().stream().mapToLong(s -> s.getLiveDocsBytes()).sum();
                 // Two segments have live docs. The initial segment for index-0 and
@@ -1413,22 +1393,36 @@ public class AutoscalingMemoryMetricsIT extends AbstractStatelessIntegTestCase {
 
         int numDims = randomIntBetween(MIN_DIMS_FOR_DYNAMIC_FLOAT_MAPPING, MIN_DIMS_FOR_DYNAMIC_FLOAT_MAPPING + 1024);
         int numDocs = randomIntBetween(10, 20);
+        var idSupplier = new Supplier<String>() {
+            private int id = 0;
+
+            @Override
+            public String get() {
+                return String.format(Locale.ROOT, "?id-%06d", id++);
+            }
+        };
         for (int i = 0; i < numDocs; i++) {
             indexDocs(
                 indexName,
                 randomIntBetween(10, 20),
                 UnaryOperator.identity(),
-                null,
+                idSupplier,
                 () -> Map.of("vectorField", randomVector(numDims))
             );
             refresh(indexName);
         }
         var mergeFuture = client().admin().indices().prepareForceMerge(indexName).setMaxNumSegments(1).execute();
 
+        // 1 shard, 11 bytes per _id (vectorField doesn't have postings), store min and max
+        // x2 - see HeapToSystemMemory.dataNode()
+        final long postingsInMemoryBytes = 22 * 2;
         assertBusy(() -> {
             var memoryMetricsDuring = getMemoryMetrics();
             assertThat(memoryMetricsDuring.quality(), equalTo(MetricQuality.EXACT));
-            assertThat(memoryMetricsDuring.nodeMemoryInBytes(), greaterThan(memoryMetricsBefore.nodeMemoryInBytes()));
+            assertThat(
+                memoryMetricsDuring.nodeMemoryInBytes(),
+                greaterThan(memoryMetricsBefore.nodeMemoryInBytes() + postingsInMemoryBytes)
+            );
         });
 
         latch.countDown();
@@ -1437,7 +1431,91 @@ public class AutoscalingMemoryMetricsIT extends AbstractStatelessIntegTestCase {
         assertBusy(() -> {
             var memoryMetricsAfter = getMemoryMetrics();
             assertThat(memoryMetricsAfter.quality(), equalTo(MetricQuality.EXACT));
-            assertThat(memoryMetricsAfter.nodeMemoryInBytes(), equalTo(memoryMetricsBefore.nodeMemoryInBytes()));
+            assertThat(memoryMetricsAfter.nodeMemoryInBytes(), equalTo(memoryMetricsBefore.nodeMemoryInBytes() + postingsInMemoryBytes));
+        });
+    }
+
+    public void testInMemoryPostingsEstimationIsConsideredInNodeMemory() throws Exception {
+        var nodeSettings = Settings.builder()
+            .put(PUBLISHING_FREQUENCY_SETTING.getKey(), TimeValue.timeValueSeconds(1))
+            // Avoid accounting for indexing operation memory requirements as they skew the basic memory metrics
+            .put(INDEXING_OPERATIONS_MEMORY_REQUIREMENTS_ENABLED_SETTING.getKey(), false)
+            .build();
+        String node1 = startMasterAndIndexNode(nodeSettings);
+        String node2 = startIndexNode(nodeSettings);
+
+        final String index1 = randomIdentifier();
+        final String index2 = randomIdentifier();
+        createIndex(index1, indexSettings(1, 0).put("index.routing.allocation.require._name", node1).build());
+        createIndex(index2, indexSettings(1, 0).put("index.routing.allocation.require._name", node2).build());
+
+        var clusterState = client().admin().cluster().state(new ClusterStateRequest(TEST_REQUEST_TIMEOUT)).actionGet();
+        var index1Shards = clusterState.getState().routingTable(ProjectId.DEFAULT).allShards(index1);
+        assertThat(index1Shards.size(), equalTo(1));
+        assertThat(clusterState.getState().getNodes().get(index1Shards.getFirst().currentNodeId()).getName(), equalTo(node1));
+        var index2Shards = clusterState.getState().routingTable(ProjectId.DEFAULT).allShards(index2);
+        assertThat(index2Shards.size(), equalTo(1));
+        assertThat(clusterState.getState().getNodes().get(index2Shards.getFirst().currentNodeId()).getName(), equalTo(node2));
+
+        var memoryMetricsBefore = getMemoryMetrics();
+        assertThat(memoryMetricsBefore.quality(), equalTo(MetricQuality.EXACT));
+        assertThat(memoryMetricsBefore.nodeMemoryInBytes(), greaterThan(0L));
+
+        var idSupplier = new Supplier<String>() {
+            private int id = 0;
+
+            @Override
+            public String get() {
+                return String.format(Locale.ROOT, "?id-%06d", id++);
+            }
+        };
+
+        int numFieldsIndex1 = randomIntBetween(10, 100);
+        int numFieldsIndex2 = randomIntBetween(10, 100);
+
+        int numDocs = randomIntBetween(10, 50);
+        int numSegments = randomIntBetween(1, 3);
+
+        IntFunction<Supplier<Map<String, ?>>> docSupplierSupplier = (int numFields) -> () -> {
+            Map<String, Object> doc = new HashMap<>();
+            for (int i = 0; i < numFields; i++) {
+                doc.put("field=-" + i, randomAlphanumericOfLength(10));
+            }
+            return doc;
+        };
+
+        for (int i = 0; i < numSegments; i++) {
+            indexDocs(
+                index1,
+                numDocs,
+                request -> request.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE),
+                idSupplier,
+                docSupplierSupplier.apply(numFieldsIndex1)
+            );
+
+            indexDocs(
+                index2,
+                numDocs,
+                request -> request.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE),
+                idSupplier,
+                docSupplierSupplier.apply(numFieldsIndex2)
+            );
+        }
+
+        // 10 bytes for minTerm, maxTerm per field, field.keyword. 11 bytes for minTerm, maxTerm for _id. Repeated for each segment.
+        final long totalPostingsInMemoryBytesNode1 = ((10L * 2L) * (numFieldsIndex1 * 2L) + 22L) * numSegments;
+        final long totalPostingsInMemoryBytesNode2 = ((10L * 2L) * (numFieldsIndex2 * 2L) + 22L) * numSegments;
+
+        // x2 - see HeapToSystemMemory.dataNode()
+        final long totalPostingsInMemoryBytes = Math.max(totalPostingsInMemoryBytesNode1, totalPostingsInMemoryBytesNode2) * 2;
+
+        assertBusy(() -> {
+            var memoryMetricsAfter = getMemoryMetrics();
+            assertThat(memoryMetricsAfter.quality(), equalTo(MetricQuality.EXACT));
+            assertThat(
+                memoryMetricsAfter.nodeMemoryInBytes(),
+                equalTo(memoryMetricsBefore.nodeMemoryInBytes() + totalPostingsInMemoryBytes)
+            );
         });
     }
 

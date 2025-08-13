@@ -32,7 +32,7 @@ public class GlobalTransportVersionManagementPlugin implements Plugin<Project> {
         Configuration tvReferencesConfig = project.getConfigurations().create("globalTvReferences");
         tvReferencesConfig.setCanBeConsumed(false);
         tvReferencesConfig.setCanBeResolved(true);
-        tvReferencesConfig.attributes(TransportVersionUtils::addTransportVersionReferencesAttribute);
+        tvReferencesConfig.attributes(TransportVersionReference::addArtifactAttribute);
 
         // iterate through all projects, and if the management plugin is applied, add that project back as a dep to check
         for (Project subProject : project.getRootProject().getSubprojects()) {

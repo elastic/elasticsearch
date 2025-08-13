@@ -545,22 +545,16 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/132878
 - class: org.elasticsearch.upgrades.TransformSurvivesUpgradeIT
   method: testTransformRollingUpgrade
-  issue: TBD
+  issue: https://github.com/elastic/elasticsearch/issues/132892
 - class: org.elasticsearch.index.mapper.LongFieldMapperTests
   method: testFetchCoerced
-  issue: TBD
-- class: org.elasticsearch.index.mapper.LongFieldMapperTests
-  method: testSyntheticSource
-  issue: TBD
-- class: org.elasticsearch.index.mapper.LongFieldMapperTests
-  method: testFetchMany
-  issue: TBD
+  issue: https://github.com/elastic/elasticsearch/issues/132893
 - class: org.elasticsearch.xpack.eql.planner.QueryTranslatorTests
   method: testMatchOptimization
-  issue: TBD
+  issue: https://github.com/elastic/elasticsearch/issues/132894
 - class: org.elasticsearch.xpack.deprecation.DeprecationHttpIT
   method: testUniqueDeprecationResponsesMergedTogether
-  issue: TBD
+  issue: https://github.com/elastic/elasticsearch/issues/132895
 - class: org.elasticsearch.search.CCSDuelIT
   method: testTermsAggs
   issue: https://github.com/elastic/elasticsearch/issues/132879

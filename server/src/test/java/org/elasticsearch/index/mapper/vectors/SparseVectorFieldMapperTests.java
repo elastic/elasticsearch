@@ -201,7 +201,7 @@ public class SparseVectorFieldMapperTests extends MapperTestCase {
     private void mapping(XContentBuilder b, @Nullable Boolean prune, PruningConfig pruningConfig) throws IOException {
         b.field("type", "sparse_vector");
         if (prune != null) {
-            b.field("index_options", new SparseVectorFieldMapper.SparseVectorIndexOptions(prune, pruningConfig.tokenPruningConfig));
+            b.field("index_options", new SparseVectorFieldMapper.IndexOptions(prune, pruningConfig.tokenPruningConfig));
         }
     }
 

@@ -232,13 +232,6 @@ public final class BlockUtils {
             Object colVal = collection.iterator().next();
             return constantBlock(blockFactory, fromJava(colVal.getClass()), colVal, size);
         }
-        if (val.getClass().isArray()) {
-            if (Array.getLength(val) == 0) {
-                return constantBlock(blockFactory, NULL, val, size);
-            }
-            Object colVal = Array.get(val, 0);
-            return constantBlock(blockFactory, fromJava(colVal.getClass()), colVal, size);
-        }
         return constantBlock(blockFactory, fromJava(val.getClass()), val, size);
     }
 

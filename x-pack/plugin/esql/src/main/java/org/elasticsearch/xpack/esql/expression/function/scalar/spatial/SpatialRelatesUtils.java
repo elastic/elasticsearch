@@ -38,8 +38,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Function;
 
-import static org.elasticsearch.xpack.esql.expression.function.Foldables.literalValueOf;
-import static org.elasticsearch.xpack.esql.expression.function.Foldables.valueOf;
+import static org.elasticsearch.xpack.esql.expression.Foldables.literalValueOf;
+import static org.elasticsearch.xpack.esql.expression.Foldables.valueOf;
 
 public class SpatialRelatesUtils {
 

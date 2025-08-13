@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.expression.function.scalar.multivalue;
 
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -148,7 +147,12 @@ public class MvSort extends EsqlScalarFunction implements OptionalArgument, Post
     @Override
     public EvalOperator.ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
         boolean ordering = true;
-        if (order != null && order.foldable()) {
+        if (order != null) {
+            if (order.foldable() == false) {
+                throw new IllegalStateException(
+                    LoggerMessageFormat.format(null, "Order expression must be foldable, but got [{}]", sourceText())
+                );
+            }
             String orderValue = BytesRefs.toString(order.fold(toEvaluator.foldCtx()));
             if (orderValue.equalsIgnoreCase(BytesRefs.toString(DESC.value())) == false
                 && orderValue.equalsIgnoreCase(BytesRefs.toString(ASC.value())) == false) {
@@ -258,12 +262,7 @@ public class MvSort extends EsqlScalarFunction implements OptionalArgument, Post
         if (order != null && order.foldable()) {
             if (order instanceof Literal literal) {
                 Object obj = literal.value();
-                String o = null;
-                if (obj instanceof BytesRef ob) {
-                    o = ob.utf8ToString();
-                } else if (obj instanceof String os) {
-                    o = os;
-                }
+                String o = BytesRefs.toString(obj);
                 if (o == null
                     || o.equalsIgnoreCase(BytesRefs.toString(ASC.value())) == false
                         && o.equalsIgnoreCase(BytesRefs.toString(DESC.value())) == false) {

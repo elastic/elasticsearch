@@ -24,7 +24,6 @@ import org.elasticsearch.xpack.esql.planner.Layout;
 import java.util.List;
 
 import static org.elasticsearch.xpack.esql.evaluator.EvalMapper.toEvaluator;
-import static org.elasticsearch.xpack.esql.expression.function.Foldables.literalValueOf;
 
 public class InsensitiveEqualsMapper extends ExpressionMapper<InsensitiveEquals> {
 
@@ -45,7 +44,7 @@ public class InsensitiveEqualsMapper extends ExpressionMapper<InsensitiveEquals>
         var rightEval = toEvaluator(foldCtx, bc.right(), layout, shardContexts);
         if (DataType.isString(leftType)) {
             if (bc.right().foldable() && DataType.isString(rightType)) {
-                BytesRef rightVal = BytesRefs.toBytesRef(literalValueOf(bc.right()));
+                BytesRef rightVal = BytesRefs.toBytesRef(bc.right().fold(foldCtx));
                 Automaton automaton = InsensitiveEquals.automaton(rightVal);
                 return dvrCtx -> new InsensitiveEqualsConstantEvaluator(
                     bc.source(),

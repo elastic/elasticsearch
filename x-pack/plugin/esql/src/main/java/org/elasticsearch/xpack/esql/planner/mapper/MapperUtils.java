@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.planner.mapper;
 
-import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.compute.aggregation.AggregatorMode;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
@@ -51,8 +50,6 @@ import org.elasticsearch.xpack.esql.plan.physical.inference.RerankExec;
 import org.elasticsearch.xpack.esql.planner.AbstractPhysicalOperationProviders;
 
 import java.util.List;
-
-import static org.elasticsearch.xpack.esql.expression.function.Foldables.literalValueOf;
 
 /**
  * Class for sharing code across Mappers.
@@ -116,7 +113,7 @@ public class MapperUtils {
                 enrich.mode(),
                 enrich.policy().getType(),
                 enrich.matchField(),
-                BytesRefs.toString(literalValueOf(enrich.policyName())),
+                enrich.resolvedPolicyName(),
                 enrich.policy().getMatchField(),
                 enrich.concreteIndices(),
                 enrich.enrichFields()

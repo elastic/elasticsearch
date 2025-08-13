@@ -67,7 +67,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.UNSIGNED_LONG;
 import static org.elasticsearch.xpack.esql.core.type.DataType.UNSUPPORTED;
 import static org.elasticsearch.xpack.esql.core.type.DataType.VERSION;
 import static org.elasticsearch.xpack.esql.core.util.StringUtils.ordinal;
-import static org.elasticsearch.xpack.esql.expression.function.Foldables.literalValueOf;
+import static org.elasticsearch.xpack.esql.expression.Foldables.literalValueOf;
 
 /**
  * The {@code IN} operator.

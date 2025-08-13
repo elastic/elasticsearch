@@ -57,8 +57,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.IP;
 import static org.elasticsearch.xpack.esql.core.type.DataType.UNSIGNED_LONG;
 import static org.elasticsearch.xpack.esql.core.type.DataType.VERSION;
 import static org.elasticsearch.xpack.esql.core.util.NumericUtils.unsignedLongAsNumber;
-import static org.elasticsearch.xpack.esql.expression.function.Foldables.extractLiteralOrReturnSelf;
-import static org.elasticsearch.xpack.esql.expression.function.Foldables.literalValueOf;
+import static org.elasticsearch.xpack.esql.expression.Foldables.literalValueOf;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.DEFAULT_DATE_NANOS_FORMATTER;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.DEFAULT_DATE_TIME_FORMATTER;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.HOUR_MINUTE_SECOND;
@@ -379,7 +378,7 @@ public abstract class EsqlBinaryComparison extends BinaryComparison
     private Query translate(TranslatorHandler handler) {
         TypedAttribute attribute = LucenePushdownPredicates.checkIsPushableAttribute(left());
         String name = handler.nameOf(attribute);
-        Object value = extractLiteralOrReturnSelf(right());
+        Object value = literalValueOf(right());
         String format = null;
         boolean isDateLiteralComparison = false;
 

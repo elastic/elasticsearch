@@ -628,12 +628,13 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
 
     /**
      * <pre>{@code
-     * Project[[sum(salary) + 1 where false{r}#3, sum(salary) + 3{r}#5, sum(salary) + 2 where false{r}#7]]
-     * \_Eval[[null[LONG] AS sum(salary) + 1 where false, $$SUM$sum(salary)_+_3$1{r$}#19 + 3[INTEGER] AS sum(salary) + 3, nu
-     * ll[LONG] AS sum(salary) + 2 where false]]
-     *   \_Limit[1000[INTEGER]]
-     *     \_Aggregate[STANDARD,[],[SUM(salary{f}#13,true[BOOLEAN]) AS $$SUM$sum(salary)_+_3$1]]
-     *       \_EsRelation[test][_meta_field{f}#14, emp_no{f}#8, first_name{f}#9, ge..]
+     * Project[[sum(salary) + 1 where false{r}#3, sum(salary) + 3{r}#5, sum(salary) + 2 where null{r}#7,
+     * sum(salary) + 4 where not true{r}#9]]
+     * \_Eval[[null[LONG] AS sum(salary) + 1 where false#3, $$SUM$sum(salary)_+_3$1{r$}#22 + 3[INTEGER] AS sum(salary) + 3#5
+     * , null[LONG] AS sum(salary) + 2 where null#7, null[LONG] AS sum(salary) + 4 where not true#9]]
+     *   \_Limit[1000[INTEGER],false]
+     *     \_Aggregate[[],[SUM(salary{f}#15,true[BOOLEAN],compensated[KEYWORD]) AS $$SUM$sum(salary)_+_3$1#22]]
+     *       \_EsRelation[test][_meta_field{f}#16, emp_no{f}#10, first_name{f}#11, ..]
      * }</pre>
      *
      */
@@ -659,8 +660,17 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         assertThat(alias.child().fold(FoldContext.small()), nullValue());
         assertThat(alias.child().dataType(), is(LONG));
 
+        alias = as(eval.fields().get(0), Alias.class);
+        assertThat(Expressions.name(alias.child()), containsString("sum(salary) + 1"));
+
         alias = as(eval.fields().get(1), Alias.class);
         assertThat(Expressions.name(alias.child()), containsString("sum(salary) + 3"));
+
+        alias = as(eval.fields().get(2), Alias.class);
+        assertThat(Expressions.name(alias.child()), containsString("sum(salary) + 2"));
+
+        alias = as(eval.fields().get(3), Alias.class);
+        assertThat(Expressions.name(alias.child()), containsString("sum(salary) + 4"));
 
         alias = as(eval.fields().getLast(), Alias.class);
         assertTrue(alias.child().foldable());
@@ -890,11 +900,13 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         var source = as(filter.child(), EsRelation.class);
     }
 
-    /*
-     Limit[1000[INTEGER],false]
-     \_Aggregate[[],[MIN(salary{f}#15,true[BOOLEAN]) AS m1#4, MAX(salary{f}#15,true[BOOLEAN]) AS m2#8]]
-     \_Filter[emp_no{f}#10 > 1[INTEGER]]
-     \_EsRelation[test][_meta_field{f}#16, emp_no{f}#10, first_name{f}#11, ..]
+    /**
+     * <pre>{@code
+     * Limit[1000[INTEGER],false]
+     * \_Aggregate[[],[MIN(salary{f}#15,true[BOOLEAN]) AS m1#4, MAX(salary{f}#15,true[BOOLEAN]) AS m2#8]]
+     * \_Filter[emp_no{f}#10 > 1[INTEGER]]
+     * \_EsRelation[test][_meta_field{f}#16, emp_no{f}#10, first_name{f}#11, ..]
+     * }</pre>
      */
     public void testExtractStatsCommonAlwaysTruePlusOtherFilter() {
         var plan = plan("""

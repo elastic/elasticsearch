@@ -48,8 +48,8 @@ import java.util.function.BiConsumer;
 
 import static org.elasticsearch.xpack.esql.common.Failure.fail;
 import static org.elasticsearch.xpack.esql.core.expression.Expressions.asAttributes;
+import static org.elasticsearch.xpack.esql.expression.Foldables.literalValueOf;
 import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutputAttributes;
-import static org.elasticsearch.xpack.esql.expression.function.Foldables.literalValueOf;
 
 public class Enrich extends UnaryPlan implements GeneratingPlan<Enrich>, PostAnalysisPlanVerificationAware, TelemetryAware, SortAgnostic {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
@@ -57,7 +57,7 @@ public class Enrich extends UnaryPlan implements GeneratingPlan<Enrich>, PostAna
         "Enrich",
         Enrich::readFrom
     );
-
+    // policyName can only be a string literal once it's resolved
     private final Expression policyName;
     private final NamedExpression matchField;
     private final EnrichPolicy policy;
@@ -153,6 +153,7 @@ public class Enrich extends UnaryPlan implements GeneratingPlan<Enrich>, PostAna
         out.writeNamedWriteable(policyName());
         out.writeNamedWriteable(matchField());
         if (out.getTransportVersion().before(TransportVersions.V_8_13_0)) {
+            // policyName can only be a string literal once it's resolved
             out.writeString(BytesRefs.toString(literalValueOf(policyName()))); // old policy name
         }
         policy().writeTo(out);
@@ -194,6 +195,10 @@ public class Enrich extends UnaryPlan implements GeneratingPlan<Enrich>, PostAna
 
     public Expression policyName() {
         return policyName;
+    }
+
+    public String resolvedPolicyName() {
+        return BytesRefs.toString(literalValueOf(policyName));
     }
 
     public Mode mode() {

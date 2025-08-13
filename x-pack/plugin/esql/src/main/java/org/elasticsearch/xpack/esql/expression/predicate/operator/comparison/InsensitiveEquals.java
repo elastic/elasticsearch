@@ -31,7 +31,7 @@ import org.elasticsearch.xpack.esql.planner.TranslatorHandler;
 
 import java.io.IOException;
 
-import static org.elasticsearch.xpack.esql.expression.function.Foldables.literalValueOf;
+import static org.elasticsearch.xpack.esql.expression.Foldables.literalValueOf;
 
 public class InsensitiveEquals extends InsensitiveBinaryComparison {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(

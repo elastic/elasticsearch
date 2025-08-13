@@ -4,7 +4,7 @@
  * 2.0; you may not use this file except in compliance with the Elastic License
  * 2.0.
  */
-package org.elasticsearch.xpack.esql.expression.function;
+package org.elasticsearch.xpack.esql.expression;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.lucene.BytesRefs;
@@ -22,6 +22,51 @@ import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 import static org.elasticsearch.xpack.esql.common.Failure.fail;
 
 public abstract class Foldables {
+    /**
+     * A utility class to validate the type resolution of expressions before and after logical planning.
+     * If null is passed for Failures to the constructor, it means we are only type resolution.
+     * This is usually called when doing pre-logical planning validation.
+     * If a {@link Failures} instance is passed, it means we are doing post-logical planning validation as well.
+     * This is usually called after folding is done, during
+     * {@link org.elasticsearch.xpack.esql.capabilities.PostOptimizationVerificationAware} verification
+     */
+    public static class TypeResolutionValidator {
+
+        Expression.TypeResolution typeResolution = Expression.TypeResolution.TYPE_RESOLVED;
+        @Nullable
+        private final Failures postValidationFailures; // null means we are doing pre-folding validation only
+        private final Expression field;
+
+        public static TypeResolutionValidator forPreOptimizationValidation(Expression field) {
+            return new TypeResolutionValidator(field, null);
+        }
+
+        public static TypeResolutionValidator forPostOptimizationValidation(Expression field, Failures failures) {
+            return new TypeResolutionValidator(field, failures);
+        }
+
+        private TypeResolutionValidator(Expression field, Failures failures) {
+            this.field = field;
+            this.postValidationFailures = failures;
+        }
+
+        public void invalidIfPostValidation(Failure failure) {
+            if (postValidationFailures != null) {
+                postValidationFailures.add(failure);
+            }
+        }
+
+        public void invalid(Expression.TypeResolution message) {
+            typeResolution = message;
+            if (postValidationFailures != null) {
+                postValidationFailures.add(fail(field, message.message()));
+            }
+        }
+
+        public Expression.TypeResolution getResolvedType() {
+            return typeResolution;
+        }
+    }
 
     public static Object valueOf(FoldContext ctx, Expression e) {
         if (e.foldable()) {
@@ -143,51 +188,5 @@ public abstract class Foldables {
         throw new EsqlIllegalArgumentException(
             Strings.format(null, "[{}] value must be a constant number in [{}], found [{}]", fieldName, sourceText, field)
         );
-    }
-
-    /**
-     * A utility class to validate the type resolution of expressions before and after logical planning.
-     * If null is passed for Failures to the constructor, it means we are only type resolution.
-     * This is usually called when doing pre-logical planning validation.
-     * If a {@link Failures} instance is passed, it means we are doing post-logical planning validation as well.
-     * This is usually called after folding is done, during
-     * {@link org.elasticsearch.xpack.esql.capabilities.PostOptimizationVerificationAware} verification
-     */
-    public static class TypeResolutionValidator {
-
-        Expression.TypeResolution typeResolution = Expression.TypeResolution.TYPE_RESOLVED;
-        @Nullable
-        private final Failures postValidationFailures; // null means we are doing pre-folding validation only
-        private final Expression field;
-
-        public static TypeResolutionValidator forPreOptimizationValidation(Expression field) {
-            return new TypeResolutionValidator(field, null);
-        }
-
-        public static TypeResolutionValidator forPostOptimizationValidation(Expression field, Failures failures) {
-            return new TypeResolutionValidator(field, failures);
-        }
-
-        private TypeResolutionValidator(Expression field, Failures failures) {
-            this.field = field;
-            this.postValidationFailures = failures;
-        }
-
-        public void invalidIfPostValidation(Failure failure) {
-            if (postValidationFailures != null) {
-                postValidationFailures.add(failure);
-            }
-        }
-
-        public void invalid(Expression.TypeResolution message) {
-            typeResolution = message;
-            if (postValidationFailures != null) {
-                postValidationFailures.add(fail(field, message.message()));
-            }
-        }
-
-        public Expression.TypeResolution getResolvedType() {
-            return typeResolution;
-        }
     }
 }

@@ -1,0 +1,48 @@
+[[release-notes-8.18.5]]
+== {es} version 8.18.5
+
+Also see <<breaking-changes-8.18,Breaking changes in 8.18>>.
+
+[[bug-8.18.5]]
+[float]
+=== Bug fixes
+
+Aggregations::
+* Aggs: Add validation to Bucket script pipeline agg {es-pull}132320[#132320] (issue: {es-issue}132272[#132272])
+
+CCS::
+* Do not look over `TaskCancelledException` when looking at failures while updating CCS info for clusters {es-pull}132334[#132334]
+
+Data streams::
+* Prevent auto-sharding for data streams in LOOKUP index mode {es-pull}131429[#131429]
+
+EQL::
+* Deal with internally created IN in a different way for EQL {es-pull}132167[#132167] (issue: {es-issue}118621[#118621])
+
+ES|QL::
+* Disallow remote enrich after lu join {es-pull}131426[#131426] (issue: {es-issue}129372[#129372])
+* ESQL: Fix `mv_expand` inconsistent column order {es-pull}129745[#129745] (issue: {es-issue}129000[#129000])
+* FIx Driver creating status with a live list of operators {es-pull}132260[#132260] (issue: {es-issue}131564[#131564])
+* Fix NPE on empty to_lower/to_upper call {es-pull}131917[#131917] (issue: {es-issue}131913[#131913])
+
+Infra/Core::
+* Grant server module read/write entitlements for deprecated path setting "path.shared_data" {es-pull}131680[#131680]
+
+Ingest Node::
+* Correctly handling `download_database_on_pipeline_creation` within a pipeline processor within a default or final pipeline {es-pull}131236[#131236]
+
+Machine Learning::
+* Prevent the trained model deployment memory estimation from double-counting allocations {es-pull}131990[#131990]
+
+Mapping::
+* Fix decoding of non-ascii field names in ignored source {es-pull}132018[#132018]
+
+Search::
+* Fix bug in point in time response {es-pull}131391[#131391] (issue: {es-issue}131026[#131026])
+* Fix missing removal of query cancellation callback in QueryPhase {es-pull}130279[#130279] (issue: {es-issue}130071[#130071])
+* Fix query rewrite logic to preserve `boosts` and `queryName` for `match`, `knn`, and `sparse_vector` queries on semantic_text fields {es-pull}129282[#129282]
+
+Snapshot/Restore::
+* Throw better exception if verifying empty repo {es-pull}131677[#131677]
+
+

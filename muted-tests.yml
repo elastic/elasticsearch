@@ -561,6 +561,9 @@ tests:
 - class: org.elasticsearch.test.rest.yaml.CcsCommonYamlTestSuiteIT
   method: test {p0=search/160_exists_query/Test exists query on mapped date field with no doc values}
   issue: https://github.com/elastic/elasticsearch/issues/132828
+- class: org.elasticsearch.test.rest.yaml.RcsCcsCommonYamlTestSuiteIT
+  method: test {p0=search/160_exists_query/Test exists query on keyword field in empty index}
+  issue: https://github.com/elastic/elasticsearch/issues/132829
 
 # Examples:
 #

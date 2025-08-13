@@ -24,11 +24,13 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.index.IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING;
 import static org.elasticsearch.index.mapper.SourceFieldMapper.Mode.SYNTHETIC;
@@ -36,16 +38,10 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 
 public class DenseVectorFieldTypeIT extends AbstractEsqlIntegTestCase {
 
-    public static final Set<String> ALL_DENSE_VECTOR_INDEX_TYPES = Set.of(
-        "int8_hnsw",
-        "hnsw",
-        "int4_hnsw",
-        "bbq_hnsw",
-        "int8_flat",
-        "int4_flat",
-        "bbq_flat",
-        "flat"
-    );
+    public static final Set<String> ALL_DENSE_VECTOR_INDEX_TYPES = Arrays.stream(DenseVectorFieldMapper.VectorIndexType.values())
+        .filter(DenseVectorFieldMapper.VectorIndexType::isEnabled)
+        .map(v -> v.getName().toLowerCase(Locale.ROOT))
+        .collect(Collectors.toSet());
 
     public static final float DELTA = 1e-7F;
 

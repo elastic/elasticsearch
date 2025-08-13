@@ -444,9 +444,6 @@ tests:
 - class: org.elasticsearch.test.rest.yaml.RcsCcsCommonYamlTestSuiteIT
   method: test {p0=search/600_flattened_ignore_above/flattened ignore_above multi-value field}
   issue: https://github.com/elastic/elasticsearch/issues/131967
-- class: org.elasticsearch.index.engine.MergeWithLowDiskSpaceIT
-  method: testRelocationWhileForceMerging
-  issue: https://github.com/elastic/elasticsearch/issues/131789
 - class: org.elasticsearch.test.rest.yaml.MDPYamlTestSuiteIT
   method: test {yaml=mdp/10_basic/Index using shared data path}
   issue: https://github.com/elastic/elasticsearch/issues/132223
@@ -462,9 +459,6 @@ tests:
 - class: org.elasticsearch.xpack.ml.integration.AutodetectMemoryLimitIT
   method: testTooManyByAndOverFields
   issue: https://github.com/elastic/elasticsearch/issues/132310
-- class: org.elasticsearch.xpack.esql.action.CrossClusterAsyncQueryIT
-  method: testBadAsyncId
-  issue: https://github.com/elastic/elasticsearch/issues/132353
 - class: org.elasticsearch.xpack.esql.inference.completion.CompletionOperatorTests
   method: testSimpleCircuitBreaking
   issue: https://github.com/elastic/elasticsearch/issues/132382
@@ -492,9 +486,6 @@ tests:
 - class: org.elasticsearch.xpack.ml.integration.RevertModelSnapshotIT
   method: testRevertModelSnapshot_DeleteInterveningResults
   issue: https://github.com/elastic/elasticsearch/issues/132349
-- class: org.elasticsearch.xpack.sql.action.SqlSearchPageTimeoutIT
-  method: testSearchContextIsCleanedUpAfterPageTimeoutForAggregationQueries
-  issue: https://github.com/elastic/elasticsearch/issues/132619
 - class: org.elasticsearch.xpack.ml.integration.TextEmbeddingQueryIT
   method: testHybridSearch
   issue: https://github.com/elastic/elasticsearch/issues/132703
@@ -507,6 +498,99 @@ tests:
 - class: org.elasticsearch.repositories.SnapshotMetricsIT
   method: testSnapshotAPMMetrics
   issue: https://github.com/elastic/elasticsearch/issues/132731
+- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeForkIT
+  method: test {csv-spec:lookup-join.MvJoinKeyFromRowExpanded}
+  issue: https://github.com/elastic/elasticsearch/issues/132778
+- class: org.elasticsearch.gradle.internal.transport.TransportVersionManagementPluginFuncTest
+  method: definitions have primary ids which cannot change
+  issue: https://github.com/elastic/elasticsearch/issues/132788
+- class: org.elasticsearch.gradle.internal.transport.TransportVersionManagementPluginFuncTest
+  method: latest files cannot change base id
+  issue: https://github.com/elastic/elasticsearch/issues/132789
+- class: org.elasticsearch.gradle.internal.transport.TransportVersionManagementPluginFuncTest
+  method: cannot change committed ids to a branch
+  issue: https://github.com/elastic/elasticsearch/issues/132790
+- class: org.elasticsearch.xpack.esql.CsvTests
+  method: test {csv-spec:spatial.ConvertFromStringParseError}
+  issue: https://github.com/elastic/elasticsearch/issues/132805
+- class: org.elasticsearch.xpack.esql.CsvTests
+  method: test {csv-spec:floats.ScalbWithHugeScaleFactor}
+  issue: https://github.com/elastic/elasticsearch/issues/132806
+- class: org.elasticsearch.reservedstate.service.FileSettingsServiceIT
+  method: testSettingsAppliedOnStart
+  issue: https://github.com/elastic/elasticsearch/issues/131210
+- class: org.elasticsearch.index.mapper.vectors.SparseVectorFieldMapperTests
+  method: testPruningScenarios
+  issue: https://github.com/elastic/elasticsearch/issues/132810
+- class: org.elasticsearch.xpack.esql.CsvTests
+  method: test {csv-spec:spatial_shapes.ConvertFromStringParseError}
+  issue: https://github.com/elastic/elasticsearch/issues/132812
+- class: org.elasticsearch.xpack.esql.CsvTests
+  method: test {csv-spec:string.MvStringNotEqualsLong}
+  issue: https://github.com/elastic/elasticsearch/issues/132813
+- class: org.elasticsearch.xpack.esql.CsvTests
+  method: test {csv-spec:spatial.ConvertCartesianFromStringParseError}
+  issue: https://github.com/elastic/elasticsearch/issues/132814
+- class: org.elasticsearch.xpack.esql.CsvTests
+  method: test {csv-spec:spatial_shapes.ConvertCartesianShapeFromStringParseError}
+  issue: https://github.com/elastic/elasticsearch/issues/132815
+- class: org.elasticsearch.xpack.esql.CsvTests
+  method: test {csv-spec:string.RepeatNegative}
+  issue: https://github.com/elastic/elasticsearch/issues/132818
+- class: org.elasticsearch.xpack.esql.CsvTests
+  method: test {csv-spec:stats.WeightedAvgWeightMvWarning}
+  issue: https://github.com/elastic/elasticsearch/issues/132821
+- class: org.elasticsearch.xpack.esql.CsvTests
+  method: test {csv-spec:ip.PushDownIPWithIn}
+  issue: https://github.com/elastic/elasticsearch/issues/132822
+- class: org.elasticsearch.xpack.esql.CsvTests
+  method: test {csv-spec:floats.ScalbWithHugeconstantFirstArgument}
+  issue: https://github.com/elastic/elasticsearch/issues/132823
+- class: org.elasticsearch.xpack.esql.CsvTests
+  method: test {csv-spec:boolean.MvSliceWarnings}
+  issue: https://github.com/elastic/elasticsearch/issues/132824
+- class: org.elasticsearch.xpack.esql.CsvTests
+  method: test {csv-spec:change_point.Values null column}
+  issue: https://github.com/elastic/elasticsearch/issues/132825
+- class: org.elasticsearch.xpack.esql.CsvTests
+  method: test {csv-spec:string.MvStringEqualsLongString}
+  issue: https://github.com/elastic/elasticsearch/issues/132826
+- class: org.elasticsearch.xpack.esql.CsvTests
+  method: test {csv-spec:stats.WeightedAvgFieldMvWarning}
+  issue: https://github.com/elastic/elasticsearch/issues/132827
+- class: org.elasticsearch.test.rest.yaml.CcsCommonYamlTestSuiteIT
+  method: test {p0=search/160_exists_query/Test exists query on mapped date field with no doc values}
+  issue: https://github.com/elastic/elasticsearch/issues/132828
+- class: org.elasticsearch.test.rest.yaml.RcsCcsCommonYamlTestSuiteIT
+  method: test {p0=search/160_exists_query/Test exists query on keyword field in empty index}
+  issue: https://github.com/elastic/elasticsearch/issues/132829
+- class: org.elasticsearch.xpack.esql.CsvTests
+  method: test {csv-spec:ip.CidrMatchFieldArg}
+  issue: https://github.com/elastic/elasticsearch/issues/132834
+- class: org.elasticsearch.xpack.esql.CsvTests
+  method: test {csv-spec:change_point.Null values}
+  issue: https://github.com/elastic/elasticsearch/issues/132835
+- class: org.elasticsearch.xpack.esql.CsvTests
+  method: test {csv-spec:ip.Conditional}
+  issue: https://github.com/elastic/elasticsearch/issues/132836
+- class: org.elasticsearch.xpack.esql.CsvTests
+  method: test {csv-spec:ip.CdirMatchOrsIPs}
+  issue: https://github.com/elastic/elasticsearch/issues/132837
+- class: org.elasticsearch.xpack.esql.CsvTests
+  method: test {csv-spec:string.SpaceNegative}
+  issue: https://github.com/elastic/elasticsearch/issues/132838
+- class: org.elasticsearch.xpack.esql.CsvTests
+  method: test {csv-spec:string.MvStringNotEqualsFound}
+  issue: https://github.com/elastic/elasticsearch/issues/132839
+- class: org.elasticsearch.xpack.esql.CsvTests
+  method: test {csv-spec:string.ConcatOfText}
+  issue: https://github.com/elastic/elasticsearch/issues/132840
+- class: org.elasticsearch.xpack.esql.CsvTests
+  method: test {csv-spec:floats.EqualToOrEqualToMultivalue}
+  issue: https://github.com/elastic/elasticsearch/issues/132841
+- class: org.elasticsearch.xpack.esql.CsvTests
+  method: test {csv-spec:mv_percentile.FromIndexPercentile}
+  issue: https://github.com/elastic/elasticsearch/issues/132846
 
 # Examples:
 #

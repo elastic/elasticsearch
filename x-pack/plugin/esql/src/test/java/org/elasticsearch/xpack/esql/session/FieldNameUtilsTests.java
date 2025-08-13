@@ -17,8 +17,8 @@ import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 
+import java.util.HashSet;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
@@ -1613,7 +1613,7 @@ public class FieldNameUtilsTests extends ESTestCase {
             assertThat(e.getMessage(), containsString("line 1:1: mismatched input 'TS' expecting {"));
             return;
         }
-        assertFieldNames(
+        assertTsFieldNames(
             query,
             Set.of(
                 "@timestamp",
@@ -2977,15 +2977,19 @@ public class FieldNameUtilsTests extends ESTestCase {
         assertThat("Query-wide field names", preAnalysisResult.fieldNames(), equalTo(expected));
         assertThat("Lookup Indices that expect wildcard lookups", preAnalysisResult.wildcardJoinIndices(), equalTo(wildCardIndices));
         assertThat(preAnalysisResult.collectAllDimensions(), equalTo(false));
+    }
 
-        // try again with TS command
-        String tsQuery = query.toLowerCase(Locale.ROOT).replaceFirst("^from", "ts");
-        if (tsQuery.equals(query)) {
-            return;
-        }
-        preAnalysisResult = FieldNameUtils.resolveFieldNames(parser.createStatement(tsQuery, EsqlTestUtils.TEST_CFG), enrichResolution);
-        assertThat("Query-wide field names", preAnalysisResult.fieldNames(), equalTo(expected));
-        assertThat("Lookup Indices that expect wildcard lookups", preAnalysisResult.wildcardJoinIndices(), equalTo(wildCardIndices));
+    private void assertTsFieldNames(String query, Set<String> expected) {
+        // Expected may be unmodifiable
+        Set<String> tsExpected = new HashSet<>(expected);
+        tsExpected.add("@timestamp");
+        tsExpected.add("@timestamp.*");
+
+        EsqlSession.PreAnalysisResult preAnalysisResult = FieldNameUtils.resolveFieldNames(
+            parser.createStatement(query, EsqlTestUtils.TEST_CFG),
+            new EnrichResolution()
+        );
+        assertThat("Query-wide field names", preAnalysisResult.fieldNames(), equalTo(tsExpected));
         assertThat(preAnalysisResult.collectAllDimensions(), equalTo(true));
     }
 

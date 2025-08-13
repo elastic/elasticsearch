@@ -172,6 +172,6 @@ public class UnresolvedRelation extends LeafPlan implements Unresolvable, Teleme
      *         which changes a number of behaviors in the planner.
      */
     public boolean isTimeSeriesMode() {
-        return commandName.equalsIgnoreCase("TS");
+        return indexMode == IndexMode.TIME_SERIES;
     }
 }

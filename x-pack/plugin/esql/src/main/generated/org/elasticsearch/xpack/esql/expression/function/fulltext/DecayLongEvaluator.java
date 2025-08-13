@@ -64,7 +64,7 @@ public final class DecayLongEvaluator implements EvalOperator.ExpressionEvaluato
     try (LongBlock valueBlock = (LongBlock) value.eval(page)) {
       try (LongBlock originBlock = (LongBlock) origin.eval(page)) {
         try (LongBlock scaleBlock = (LongBlock) scale.eval(page)) {
-          try (DoubleBlock offsetBlock = (DoubleBlock) offset.eval(page)) {
+          try (LongBlock offsetBlock = (LongBlock) offset.eval(page)) {
             try (DoubleBlock decayBlock = (DoubleBlock) decay.eval(page)) {
               try (BytesRefBlock functionTypeBlock = (BytesRefBlock) functionType.eval(page)) {
                 LongVector valueVector = valueBlock.asVector();
@@ -79,7 +79,7 @@ public final class DecayLongEvaluator implements EvalOperator.ExpressionEvaluato
                 if (scaleVector == null) {
                   return eval(page.getPositionCount(), valueBlock, originBlock, scaleBlock, offsetBlock, decayBlock, functionTypeBlock);
                 }
-                DoubleVector offsetVector = offsetBlock.asVector();
+                LongVector offsetVector = offsetBlock.asVector();
                 if (offsetVector == null) {
                   return eval(page.getPositionCount(), valueBlock, originBlock, scaleBlock, offsetBlock, decayBlock, functionTypeBlock);
                 }
@@ -101,7 +101,7 @@ public final class DecayLongEvaluator implements EvalOperator.ExpressionEvaluato
   }
 
   public DoubleBlock eval(int positionCount, LongBlock valueBlock, LongBlock originBlock,
-      LongBlock scaleBlock, DoubleBlock offsetBlock, DoubleBlock decayBlock,
+      LongBlock scaleBlock, LongBlock offsetBlock, DoubleBlock decayBlock,
       BytesRefBlock functionTypeBlock) {
     try(DoubleBlock.Builder result = driverContext.blockFactory().newDoubleBlockBuilder(positionCount)) {
       BytesRef functionTypeScratch = new BytesRef();
@@ -172,19 +172,19 @@ public final class DecayLongEvaluator implements EvalOperator.ExpressionEvaluato
           result.appendNull();
           continue position;
         }
-        result.appendDouble(Decay.process(valueBlock.getLong(valueBlock.getFirstValueIndex(p)), originBlock.getLong(originBlock.getFirstValueIndex(p)), scaleBlock.getLong(scaleBlock.getFirstValueIndex(p)), offsetBlock.getDouble(offsetBlock.getFirstValueIndex(p)), decayBlock.getDouble(decayBlock.getFirstValueIndex(p)), functionTypeBlock.getBytesRef(functionTypeBlock.getFirstValueIndex(p), functionTypeScratch)));
+        result.appendDouble(Decay.process(valueBlock.getLong(valueBlock.getFirstValueIndex(p)), originBlock.getLong(originBlock.getFirstValueIndex(p)), scaleBlock.getLong(scaleBlock.getFirstValueIndex(p)), offsetBlock.getLong(offsetBlock.getFirstValueIndex(p)), decayBlock.getDouble(decayBlock.getFirstValueIndex(p)), functionTypeBlock.getBytesRef(functionTypeBlock.getFirstValueIndex(p), functionTypeScratch)));
       }
       return result.build();
     }
   }
 
   public DoubleVector eval(int positionCount, LongVector valueVector, LongVector originVector,
-      LongVector scaleVector, DoubleVector offsetVector, DoubleVector decayVector,
+      LongVector scaleVector, LongVector offsetVector, DoubleVector decayVector,
       BytesRefVector functionTypeVector) {
     try(DoubleVector.FixedBuilder result = driverContext.blockFactory().newDoubleVectorFixedBuilder(positionCount)) {
       BytesRef functionTypeScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
-        result.appendDouble(p, Decay.process(valueVector.getLong(p), originVector.getLong(p), scaleVector.getLong(p), offsetVector.getDouble(p), decayVector.getDouble(p), functionTypeVector.getBytesRef(p, functionTypeScratch)));
+        result.appendDouble(p, Decay.process(valueVector.getLong(p), originVector.getLong(p), scaleVector.getLong(p), offsetVector.getLong(p), decayVector.getDouble(p), functionTypeVector.getBytesRef(p, functionTypeScratch)));
       }
       return result.build();
     }

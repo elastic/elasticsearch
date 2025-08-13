@@ -372,7 +372,7 @@ public class Decay extends EsqlScalarFunction implements OptionalArgument {
     }
 
     @Evaluator(extraName = "Int")
-    static double process(int value, int origin, int scale, double offset, double decay, BytesRef functionType) {
+    static double process(int value, int origin, int scale, int offset, double decay, BytesRef functionType) {
         return switch (functionType.utf8ToString()) {
             case "exp" -> new ScoreScriptUtils.DecayNumericExp(origin, scale, offset, decay).decayNumericExp(value);
             case "gauss" -> new ScoreScriptUtils.DecayNumericGauss(origin, scale, offset, decay).decayNumericGauss(value);
@@ -390,7 +390,7 @@ public class Decay extends EsqlScalarFunction implements OptionalArgument {
     }
 
     @Evaluator(extraName = "Long")
-    static double process(long value, long origin, long scale, double offset, double decay, BytesRef functionType) {
+    static double process(long value, long origin, long scale, long offset, double decay, BytesRef functionType) {
         return switch (functionType.utf8ToString()) {
             case "exp" -> new ScoreScriptUtils.DecayNumericExp(origin, scale, offset, decay).decayNumericExp(value);
             case "gauss" -> new ScoreScriptUtils.DecayNumericGauss(origin, scale, offset, decay).decayNumericGauss(value);

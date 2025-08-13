@@ -213,7 +213,7 @@ public class MemoryMetricsService implements ClusterStateListener {
 
     public MemoryMetrics getIndexingTierMemoryMetrics() {
         var nodeHeapEstimateInBytes = getNodeBaseHeapEstimateInBytes() + minimumRequiredHeapForAcceptingLargeIndexingOps()
-            + mergeMemoryEstimation();
+            + mergeMemoryEstimation() + postingsMemoryEstimation();
         return getMemoryMetrics(nodeHeapEstimateInBytes);
     }
 
@@ -309,6 +309,15 @@ public class MemoryMetricsService implements ClusterStateListener {
         return maxShardMergeMemoryEstimatePerNode.values().stream().mapToLong(e -> e.estimate.estimateInBytes()).max().orElse(0L);
     }
 
+    long postingsMemoryEstimation() {
+        Map<String, Long> perNodePostingsInMemoryBytes = new HashMap<>();
+        for (var entry : shardMemoryMetrics.entrySet()) {
+            String shardNodeId = entry.getValue().getMetricShardNodeId();
+            perNodePostingsInMemoryBytes.compute(shardNodeId, (k, v) -> (v == null ? 0 : v) + entry.getValue().getPostingsInMemoryBytes());
+        }
+        return perNodePostingsInMemoryBytes.values().stream().max(Long::compare).orElse(0L);
+    }
+
     // Estimate of total mapping size of all known indices and IndexShard instances
     record TierEstimateMemoryUsage(long totalBytes, MetricQuality metricQuality) {}
 
@@ -324,7 +333,6 @@ public class MemoryMetricsService implements ClusterStateListener {
         long mappingSizeInBytes = 0;
         long totalSegments = 0;
         long totalFields = 0;
-        long totalPostingsInMemoryBytes = 0;
         long totalLiveDocsBytes = 0;
         for (var entry : shardMemoryMetrics.entrySet()) {
             var metric = entry.getValue();
@@ -334,7 +342,6 @@ public class MemoryMetricsService implements ClusterStateListener {
             }
             totalSegments += metric.getNumSegments();
             totalFields += metric.getTotalFields();
-            totalPostingsInMemoryBytes += metric.getPostingsInMemoryBytes();
             totalLiveDocsBytes += metric.getLiveDocsBytes();
             metricQuality = metric.getMetricQuality() == MetricQuality.EXACT ? metricQuality : metric.getMetricQuality();
             if (checkStaleMetrics
@@ -347,25 +354,18 @@ public class MemoryMetricsService implements ClusterStateListener {
             shardMemoryMetrics.size(),
             totalSegments,
             totalFields,
-            totalPostingsInMemoryBytes,
             totalLiveDocsBytes
         );
         return new TierEstimateMemoryUsage(mappingSizeInBytes + shardMemoryInBytes, metricQuality);
     }
 
-    long estimateShardMemoryUsageInBytes(
-        int numShards,
-        long numSegments,
-        long numFields,
-        long postingsInMemoryBytes,
-        long totalLiveDocsBytes
-    ) {
+    long estimateShardMemoryUsageInBytes(int numShards, long numSegments, long numFields, long totalLiveDocsBytes) {
         final var fixedShardOverhead = this.fixedShardMemoryOverhead;
         if (fixedShardOverhead.getBytes() > 0) {
             return fixedShardOverhead.getBytes() * numShards;
         }
         long estimateBytes = numShards * ADAPTIVE_SHARD_MEMORY_OVERHEAD.getBytes() + numSegments * ADAPTIVE_SEGMENT_MEMORY_OVERHEAD
-            .getBytes() + numFields * ADAPTIVE_FIELD_MEMORY_OVERHEAD.getBytes() + postingsInMemoryBytes + totalLiveDocsBytes;
+            .getBytes() + numFields * ADAPTIVE_FIELD_MEMORY_OVERHEAD.getBytes() + totalLiveDocsBytes;
         long extraBytes = (long) (estimateBytes * adaptiveExtraOverheadRatio);
         return estimateBytes + extraBytes;
     }
@@ -809,11 +809,10 @@ public class MemoryMetricsService implements ClusterStateListener {
                 totalShards,
                 totalSegments,
                 totalFields,
-                totalPostingsInMemoryBytes,
                 totalLiveDocsBytes
             );
             return shardMemoryUsageInBytes + mappingSizeInBytes + shardMergeMemoryEstimate + nodeBaseHeapEstimateInBytes
-                + minimumRequiredHeapForAcceptingLargeIndexingOps;
+                + minimumRequiredHeapForAcceptingLargeIndexingOps + totalPostingsInMemoryBytes;
         }
     }
 }

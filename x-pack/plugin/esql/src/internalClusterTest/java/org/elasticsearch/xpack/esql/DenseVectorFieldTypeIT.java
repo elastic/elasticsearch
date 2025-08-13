@@ -222,10 +222,6 @@ public class DenseVectorFieldTypeIT extends AbstractEsqlIntegTestCase {
                     float magnitude = DenseVector.getMagnitude(vector);
                     vector.replaceAll(number -> number.floatValue() / magnitude);
                 }
-                if (vector.stream().allMatch(v -> v.floatValue() == 0.0f)) {
-                    // Avoid zero vectors
-                    vector.set(randomIntBetween(0, numDims - 1), 1.0f);
-                }
                 docs[i] = prepareIndex("test").setId("" + i).setSource("id", String.valueOf(i), "vector", vector);
                 indexedVectors.put(i, vector);
             }

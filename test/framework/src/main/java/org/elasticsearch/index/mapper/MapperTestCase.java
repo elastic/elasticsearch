@@ -43,6 +43,7 @@ import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
+import org.elasticsearch.index.codec.tsdb.es819.BulkNumericDocValues;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.LuceneSyntheticSourceChangesSnapshot;
 import org.elasticsearch.index.fielddata.FieldDataContext;
@@ -91,7 +92,9 @@ import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -1496,6 +1499,112 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         String expected = Strings.toString(builder);
         String actual = syntheticSource(mapperAll, buildInput);
         assertThat(actual, equalTo(expected));
+    }
+
+    protected boolean supportsBulkBlockReading() {
+        return false;
+    }
+
+    protected Object[] getThreeSampleValues() {
+        return new Object[] { 1L, 2L, 3L };
+    }
+
+    protected Object[] getThreeEncodedSampleValues() {
+        return getThreeSampleValues();
+    }
+
+    public void testSingletonLongBulkBlockReading() throws IOException {
+        assumeTrue("field type supports bulk singleton long reading", supportsBulkBlockReading());
+        var settings = indexSettings(IndexVersion.current(), 1, 1).put("index.mode", "logsdb").build();
+        var mapperService = createMapperService(settings, fieldMapping(this::minimalMapping));
+        var mapper = mapperService.documentMapper();
+        var mockBlockContext = mock(MappedFieldType.BlockLoaderContext.class);
+        when(mockBlockContext.fieldExtractPreference()).thenReturn(MappedFieldType.FieldExtractPreference.DOC_VALUES);
+        IndexMetadata indexMetadata = new IndexMetadata.Builder("index").settings(settings).build();
+        IndexSettings indexSettings = new IndexSettings(indexMetadata, settings);
+        when(mockBlockContext.indexSettings()).thenReturn(indexSettings);
+
+        var sampleValuesForIndexing = getThreeSampleValues();
+        var expectedSampleValues = getThreeEncodedSampleValues();
+        {
+            // Dense
+            CheckedConsumer<RandomIndexWriter, IOException> builder = iw -> {
+                for (int i = 0; i < 3; i++) {
+                    var value = sampleValuesForIndexing[i];
+                    var doc = mapper.parse(source(b -> b.field("@timestamp", 1L).field("field", "" + value))).rootDoc();
+                    iw.addDocument(doc);
+                }
+            };
+            CheckedConsumer<DirectoryReader, IOException> test = reader -> {
+                assertThat(reader.leaves(), hasSize(1));
+                assertThat(reader.numDocs(), equalTo(3));
+                LeafReaderContext context = reader.leaves().get(0);
+                var blockLoader = mapperService.fieldType("field").blockLoader(mockBlockContext);
+                var columnReader = (BlockDocValuesReader.SingletonLongs) blockLoader.columnAtATimeReader(context);
+                assertThat(columnReader.numericDocValues, instanceOf(BulkNumericDocValues.class));
+                var docBlock = TestBlock.docs(IntStream.range(0, 3).toArray());
+                var block = (TestBlock) columnReader.read(TestBlock.factory(), docBlock, 0);
+                for (int i = 0; i < block.size(); i++) {
+                    assertThat(block.get(i), equalTo(expectedSampleValues[i]));
+                }
+            };
+            withLuceneIndex(mapperService, builder, test);
+        }
+        {
+            // Sparse
+            CheckedConsumer<RandomIndexWriter, IOException> builder = iw -> {
+                var doc = mapper.parse(source(b -> b.field("@timestamp", 1L).field("field", "" + sampleValuesForIndexing[0]))).rootDoc();
+                iw.addDocument(doc);
+                doc = mapper.parse(source(b -> b.field("@timestamp", 1L))).rootDoc();
+                iw.addDocument(doc);
+                doc = mapper.parse(source(b -> b.field("@timestamp", 1L).field("field", "" + sampleValuesForIndexing[2]))).rootDoc();
+                iw.addDocument(doc);
+            };
+            CheckedConsumer<DirectoryReader, IOException> test = reader -> {
+                assertThat(reader.leaves(), hasSize(1));
+                assertThat(reader.numDocs(), equalTo(3));
+                LeafReaderContext context = reader.leaves().get(0);
+                var blockLoader = mapperService.fieldType("field").blockLoader(mockBlockContext);
+                var columnReader = (BlockDocValuesReader.SingletonLongs) blockLoader.columnAtATimeReader(context);
+                assertThat(columnReader.numericDocValues, not(instanceOf(BulkNumericDocValues.class)));
+                var docBlock = TestBlock.docs(IntStream.range(0, 3).toArray());
+                var block = (TestBlock) columnReader.read(TestBlock.factory(), docBlock, 0);
+                assertThat(block.get(0), equalTo(expectedSampleValues[0]));
+                assertThat(block.get(1), nullValue());
+                assertThat(block.get(2), equalTo(expectedSampleValues[2]));
+            };
+            withLuceneIndex(mapperService, builder, test);
+        }
+        {
+            // Multi-value
+            CheckedConsumer<RandomIndexWriter, IOException> builder = iw -> {
+                var doc = mapper.parse(source(b -> b.field("@timestamp", 1L).field("field", "" + sampleValuesForIndexing[0]))).rootDoc();
+                iw.addDocument(doc);
+                doc = mapper.parse(
+                    source(
+                        b -> b.field("@timestamp", 1L)
+                            .field("field", List.of("" + sampleValuesForIndexing[0], "" + sampleValuesForIndexing[1]))
+                    )
+                ).rootDoc();
+                iw.addDocument(doc);
+                doc = mapper.parse(source(b -> b.field("@timestamp", 1L).field("field", "" + sampleValuesForIndexing[2]))).rootDoc();
+                iw.addDocument(doc);
+            };
+            CheckedConsumer<DirectoryReader, IOException> test = reader -> {
+                assertThat(reader.leaves(), hasSize(1));
+                assertThat(reader.numDocs(), equalTo(3));
+                LeafReaderContext context = reader.leaves().get(0);
+                var blockLoader = mapperService.fieldType("field").blockLoader(mockBlockContext);
+                var columnReader = blockLoader.columnAtATimeReader(context);
+                assertThat(columnReader, instanceOf(BlockDocValuesReader.Longs.class));
+                var docBlock = TestBlock.docs(IntStream.range(0, 3).toArray());
+                var block = (TestBlock) columnReader.read(TestBlock.factory(), docBlock, 0);
+                assertThat(block.get(0), equalTo(expectedSampleValues[0]));
+                assertThat(block.get(1), equalTo(List.of(expectedSampleValues[0], expectedSampleValues[1])));
+                assertThat(block.get(2), equalTo(expectedSampleValues[2]));
+            };
+            withLuceneIndex(mapperService, builder, test);
+        }
     }
 
     protected String randomSyntheticSourceKeep() {

@@ -401,6 +401,17 @@ public interface BlockLoader {
         LongBuilder longs(int expectedCount);
 
         /**
+         * Build a specialized builder for singleton dense long based fields with the following constraints:
+         * <ul>
+         *     <li>Only one value per document can be collected</li>
+         *     <li>No more than expectedCount values can be collected</li>
+         * </ul>
+         *
+         * @param expectedCount The maximum number of values to be collected.
+         */
+        SingletonLongBuilder singletonLongs(int expectedCount);
+
+        /**
          * Build a builder to load only {@code null}s.
          */
         Builder nulls(int expectedCount);
@@ -496,6 +507,16 @@ public interface BlockLoader {
          * Appends an int to the current entry.
          */
         IntBuilder appendInt(int value);
+    }
+
+    /**
+     * Specialized builder for collecting dense arrays of long values.
+     */
+    interface SingletonLongBuilder extends Builder {
+
+        SingletonLongBuilder appendLong(long value);
+
+        SingletonLongBuilder appendLongs(long[] values, int from, int length);
     }
 
     interface LongBuilder extends Builder {

@@ -137,10 +137,10 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
         List<LeafReaderContext> leafReaderContexts = reader.leaves();
 
         int totalVectors = 0;
-        for( LeafReaderContext leafReaderContext : leafReaderContexts) {
+        for (LeafReaderContext leafReaderContext : leafReaderContexts) {
             LeafReader leafReader = leafReaderContext.reader();
             FloatVectorValues floatVectorValues = leafReader.getFloatVectorValues(field);
-            if(floatVectorValues != null) {
+            if (floatVectorValues != null) {
                 totalVectors += floatVectorValues.size();
             }
         }

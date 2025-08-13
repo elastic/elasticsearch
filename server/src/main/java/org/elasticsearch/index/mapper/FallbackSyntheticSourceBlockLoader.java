@@ -101,8 +101,8 @@ public abstract class FallbackSyntheticSourceBlockLoader implements BlockLoader 
     }
 
     private static class IgnoredSourceRowStrideReader<T> implements RowStrideReader {
-        // Contains name of the field and all its parents
         private final String fieldName;
+        // Contains name of the field and all its parents
         private final Set<String> fieldPaths;
         private final Reader<T> reader;
         private final IgnoredSourceFieldMapper.IgnoredSourceFormat ignoredSourceFormat;

@@ -178,7 +178,7 @@ public class IgnoredSourceFieldMapper extends MetadataFieldMapper {
         return NAME + "." + fieldName;
     }
 
-    static BytesRef encodeMulti(List<NameValue> values) {
+    static BytesRef encodeMultipleValuesForField(List<NameValue> values) {
         assert values.isEmpty() == false;
         try {
             BytesStreamOutput stream = new BytesStreamOutput();
@@ -196,7 +196,7 @@ public class IgnoredSourceFieldMapper extends MetadataFieldMapper {
         }
     }
 
-    static List<NameValue> decodeMulti(BytesRef value) {
+    static List<NameValue> decodeMultipleValuesForField(BytesRef value) {
         try {
             StreamInput stream = new BytesArray(value).streamInput();
             var count = stream.readVInt();
@@ -340,7 +340,9 @@ public class IgnoredSourceFieldMapper extends MetadataFieldMapper {
                         if (objectsWithIgnoredFields == null) {
                             objectsWithIgnoredFields = new HashMap<>();
                         }
-                        List<IgnoredSourceFieldMapper.NameValue> nameValues = IgnoredSourceFieldMapper.decodeMulti((BytesRef) value);
+                        List<IgnoredSourceFieldMapper.NameValue> nameValues = IgnoredSourceFieldMapper.decodeMultipleValuesForField(
+                            (BytesRef) value
+                        );
 
                         for (var nameValue : nameValues) {
                             if (filter != null
@@ -368,7 +370,7 @@ public class IgnoredSourceFieldMapper extends MetadataFieldMapper {
                     }
                     assert ignoredSource.size() == 1;
 
-                    List<IgnoredSourceFieldMapper.NameValue> nameValues = IgnoredSourceFieldMapper.decodeMulti(
+                    List<IgnoredSourceFieldMapper.NameValue> nameValues = IgnoredSourceFieldMapper.decodeMultipleValuesForField(
                         (BytesRef) ignoredSource.getFirst()
                     );
 
@@ -394,7 +396,7 @@ public class IgnoredSourceFieldMapper extends MetadataFieldMapper {
 
                 for (var docEntry : entriesMap.entrySet()) {
                     for (var fieldEntry : docEntry.getValue().entrySet()) {
-                        docEntry.getKey().add(new StoredField(fieldEntry.getKey(), encodeMulti(fieldEntry.getValue())));
+                        docEntry.getKey().add(new StoredField(fieldEntry.getKey(), encodeMultipleValuesForField(fieldEntry.getValue())));
                     }
                 }
             }
@@ -489,9 +491,9 @@ public class IgnoredSourceFieldMapper extends MetadataFieldMapper {
         return nameValueToMapped(nameValue);
     }
 
-    public static List<MappedNameValue> decodeAsMapMulti(byte[] value) throws IOException {
+    public static List<MappedNameValue> decodeAsMapMultipleFieldValues(byte[] value) throws IOException {
         BytesRef bytes = new BytesRef(value);
-        List<NameValue> nameValues = decodeMulti(bytes);
+        List<NameValue> nameValues = decodeMultipleValuesForField(bytes);
         List<MappedNameValue> mappedValues = new ArrayList<>(nameValues.size());
         for (var nameValue : nameValues) {
             mappedValues.add(nameValueToMapped(nameValue));
@@ -519,12 +521,12 @@ public class IgnoredSourceFieldMapper extends MetadataFieldMapper {
         return IgnoredSourceFieldMapper.encode(mappedToNameValue(mappedNameValue));
     }
 
-    public static byte[] encodeFromMapMulti(List<MappedNameValue> filteredValues) throws IOException {
+    public static byte[] encodeFromMapMultipleFieldValues(List<MappedNameValue> filteredValues) throws IOException {
         List<NameValue> filteredNameValues = new ArrayList<>(filteredValues.size());
         for (var filteredValue : filteredValues) {
             filteredNameValues.add(mappedToNameValue(filteredValue));
         }
-        var encoded = encodeMulti(filteredNameValues);
+        var encoded = encodeMultipleValuesForField(filteredNameValues);
         return ArrayUtil.copyOfSubArray(encoded.bytes, encoded.offset, encoded.length);
     }
 

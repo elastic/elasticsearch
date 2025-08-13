@@ -403,7 +403,9 @@ public final class FieldSubsetReader extends SequentialStoredFieldsLeafReader {
                     }
                 }
             } else if (fieldInfo.name.startsWith(IgnoredSourceFieldMapper.NAME)) {
-                List<IgnoredSourceFieldMapper.MappedNameValue> mappedNameValues = IgnoredSourceFieldMapper.decodeAsMapMulti(value);
+                List<IgnoredSourceFieldMapper.MappedNameValue> mappedNameValues = IgnoredSourceFieldMapper.decodeAsMapMultipleFieldValues(
+                    value
+                );
                 List<IgnoredSourceFieldMapper.MappedNameValue> filteredNameValues = new ArrayList<>(mappedNameValues.size());
                 boolean didFilter = false;
                 for (var mappedNameValue : mappedNameValues) {
@@ -420,7 +422,7 @@ public final class FieldSubsetReader extends SequentialStoredFieldsLeafReader {
                 }
                 if (didFilter) {
                     if (filteredNameValues.isEmpty() == false) {
-                        visitor.binaryField(fieldInfo, IgnoredSourceFieldMapper.encodeFromMapMulti(filteredNameValues));
+                        visitor.binaryField(fieldInfo, IgnoredSourceFieldMapper.encodeFromMapMultipleFieldValues(filteredNameValues));
                     }
                 } else {
                     visitor.binaryField(fieldInfo, value);

@@ -46,6 +46,10 @@ public class ModernSource {
         this.structuredSource = structuredSource;
     }
 
+    public ModernSource(BytesReference source) {
+        this(source, XContentHelper.xContentType(source));
+    }
+
     public void ensureStructured() {
         if (structuredSource == null) {
             assert originalSource != null;
@@ -84,5 +88,18 @@ public class ModernSource {
             ensureStructured();
         }
         return structuredSource;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        // TODO: Improve
+        if (o == null || getClass() != o.getClass()) return false;
+        return ((ModernSource) o).originalSourceBytes().equals(originalSourceBytes());
+    }
+
+    @Override
+    public int hashCode() {
+        // TODO: Improve
+        return originalSourceBytes().hashCode();
     }
 }

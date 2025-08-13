@@ -64,6 +64,20 @@ public class BQVectorUtilsTests extends LuceneTestCase {
         assertArrayEquals(new byte[] { (byte) 0b11001010, (byte) 0b11100110 }, packed);
     }
 
+    public void testPackAsBinaryDuel() {
+        int dims = random().nextInt(16, 2049);
+        int[] toPack = new int[dims];
+        for (int i = 0; i < dims; i++) {
+            toPack[i] = random().nextInt(2);
+        }
+        int length = BQVectorUtils.discretize(dims, 64) / 8;
+        byte[] packed = new byte[length];
+        byte[] packedLegacy = new byte[length];
+        BQVectorUtils.packAsBinaryLegacy(toPack, packedLegacy);
+        BQVectorUtils.packAsBinary(toPack, packed);
+        assertArrayEquals(packedLegacy, packed);
+    }
+
     public void testPadFloat() {
         assertArrayEquals(new float[] { 1, 2, 3, 4 }, BQVectorUtils.pad(new float[] { 1, 2, 3, 4 }, 4), DELTA);
         assertArrayEquals(new float[] { 1, 2, 3, 4 }, BQVectorUtils.pad(new float[] { 1, 2, 3, 4 }, 3), DELTA);

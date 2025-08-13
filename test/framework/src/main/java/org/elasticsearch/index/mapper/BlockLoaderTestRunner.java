@@ -67,8 +67,7 @@ public class BlockLoaderTestRunner {
                 null,
                 Map.of(),
                 true,
-                XContentMeteringParserDecorator.NOOP,
-                null
+                XContentMeteringParserDecorator.NOOP
             );
             LuceneDocument doc = mapperService.documentMapper().parse(source).rootDoc();
 

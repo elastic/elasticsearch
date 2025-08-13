@@ -345,7 +345,7 @@ public class TermVectorsService {
         }
         return generateTermVectors(
             indexShard,
-            XContentHelper.convertToMap(parsedDocument.source(), true, request.xContentType()).v2(),
+            XContentHelper.convertToMap(parsedDocument.bytesSource(), true, request.xContentType()).v2(),
             documentFields,
             request.offsets(),
             request.perFieldAnalyzer(),

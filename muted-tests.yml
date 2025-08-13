@@ -534,6 +534,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.CsvTests
   method: test {csv-spec:spatial_shapes.ConvertCartesianShapeFromStringParseError}
   issue: https://github.com/elastic/elasticsearch/issues/132815
+- class: org.elasticsearch.xpack.esql.CsvTests
+  method: test {csv-spec:string.RepeatNegative}
+  issue: https://github.com/elastic/elasticsearch/issues/132818
 
 # Examples:
 #

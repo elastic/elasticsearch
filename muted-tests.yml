@@ -579,6 +579,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.CsvTests
   method: test {csv-spec:string.SpaceNegative}
   issue: https://github.com/elastic/elasticsearch/issues/132838
+- class: org.elasticsearch.xpack.esql.CsvTests
+  method: test {csv-spec:string.MvStringNotEqualsFound}
+  issue: https://github.com/elastic/elasticsearch/issues/132839
 
 # Examples:
 #

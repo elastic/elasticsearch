@@ -299,10 +299,10 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
                             + "], with different data. "
                             + "prvOp ["
                             + prvOp
-                            + (prvOp instanceof Translog.Index index ? " source: " + Source.fromBytes(index.source()).source() : "")
+                            + (prvOp instanceof Translog.Index index ? " source: " + index.source().utf8ToString() : "")
                             + "], newOp ["
                             + newOp
-                            + (newOp instanceof Translog.Index index ? " source: " + Source.fromBytes(index.source()).source() : "")
+                            + (newOp instanceof Translog.Index index ? " source: " + index.source().utf8ToString() : "")
                             + (newOp instanceof Translog.Index index && prvOp instanceof Translog.Index index2
                                 ? index.source().equals(index2.source())
                                 : "irrelevant")

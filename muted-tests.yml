@@ -603,6 +603,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.CsvTests
   method: test {csv-spec:string.MvStringEquals}
   issue: https://github.com/elastic/elasticsearch/issues/132856
+- class: org.elasticsearch.xpack.esql.CsvTests
+  method: test {csv-spec:string.LengthOfText}
+  issue: https://github.com/elastic/elasticsearch/issues/132857
 
 # Examples:
 #

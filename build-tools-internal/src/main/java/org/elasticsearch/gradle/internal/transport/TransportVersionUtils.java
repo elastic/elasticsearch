@@ -9,8 +9,6 @@
 
 package org.elasticsearch.gradle.internal.transport;
 
-import com.google.common.collect.Comparators;
-
 import org.gradle.api.GradleException;
 import org.gradle.api.Project;
 import org.gradle.api.attributes.Attribute;
@@ -22,7 +20,6 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.List;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;

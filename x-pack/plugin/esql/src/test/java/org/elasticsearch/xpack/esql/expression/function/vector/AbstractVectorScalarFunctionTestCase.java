@@ -38,7 +38,7 @@ public abstract class AbstractVectorScalarFunctionTestCase extends AbstractVecto
      */
     protected abstract EsqlCapabilities.Cap capability();
 
-    protected static Iterable<Object[]> scalarParameters(String className, VectorScalarFunction.ScalarEvaluatorFunction scalarFunction) {
+    protected static Iterable<Object[]> scalarParameters(String className, Magnitude.ScalarEvaluatorFunction scalarFunction) {
 
         final String evaluatorName = className + "Evaluator" + "[child=Attribute[channel=0]]";
 

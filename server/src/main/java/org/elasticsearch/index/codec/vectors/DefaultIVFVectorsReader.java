@@ -325,12 +325,12 @@ public class DefaultIVFVectorsReader extends IVFVectorsReader {
         final float[] centroid;
         long slicePos;
         OptimizedScalarQuantizer.QuantizationResult queryCorrections;
-        DocIdsWriter docIdsWriter = new DocIdsWriter();
 
         final float[] scratch;
         final int[] quantizationScratch;
         final byte[] quantizedQueryScratch;
         final OptimizedScalarQuantizer quantizer;
+        final DocIdsWriter idsWriter = new DocIdsWriter();
         final float[] correctiveValues = new float[3];
         final long quantizedVectorByteSize;
 
@@ -368,7 +368,13 @@ public class DefaultIVFVectorsReader extends IVFVectorsReader {
             vectors = indexInput.readVInt();
             // read the doc ids
             assert vectors <= docIdsScratch.length;
-            docIdsWriter.readInts(indexInput, vectors, docIdsScratch);
+            idsWriter.readInts(indexInput, vectors, docIdsScratch);
+            // reconstitute from the deltas
+            int sum = 0;
+            for (int i = 0; i < vectors; i++) {
+                sum += docIdsScratch[i];
+                docIdsScratch[i] = sum;
+            }
             slicePos = indexInput.getFilePointer();
             return vectors;
         }

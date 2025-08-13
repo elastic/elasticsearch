@@ -45,6 +45,7 @@ import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.UnresolvedNamePattern;
 import org.elasticsearch.xpack.esql.expression.function.UnresolvedFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.SummationMode;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.ChangePoint;
@@ -743,7 +744,11 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             Attribute idAttr = new UnresolvedAttribute(source, IdFieldMapper.NAME);
             Attribute indexAttr = new UnresolvedAttribute(source, MetadataAttribute.INDEX);
             List<NamedExpression> aggregates = List.of(
-                new Alias(source, MetadataAttribute.SCORE, new Sum(source, scoreAttr, new Literal(source, true, DataType.BOOLEAN)))
+                new Alias(
+                    source,
+                    MetadataAttribute.SCORE,
+                    new Sum(source, scoreAttr, new Literal(source, true, DataType.BOOLEAN), SummationMode.COMPENSATED_LITERAL)
+                )
             );
             List<Attribute> groupings = List.of(idAttr, indexAttr);
 

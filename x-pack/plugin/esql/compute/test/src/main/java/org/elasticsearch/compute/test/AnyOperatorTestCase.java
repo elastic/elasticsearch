@@ -123,8 +123,11 @@ public abstract class AnyOperatorTestCase extends ComputeTestCase {
         }
     }
 
-    @SuppressWarnings("unchecked")
-    protected final void assertOperatorStatus(Operator operator, List<Page> input, List<Page> output) {
+    /**
+     * Assert the operator has a status, and its values are acceptable.
+     * Delegates specific checks to {link #checkOperatorStatusFields}, which may be overridden.
+     */
+    protected void assertOperatorStatus(Operator operator, List<Page> input, List<Page> output) {
         Operator.Status status = operator.status();
 
         // TODO: remove this check and override instead? Or flag with another method

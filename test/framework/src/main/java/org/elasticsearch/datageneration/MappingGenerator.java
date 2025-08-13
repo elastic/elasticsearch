@@ -108,8 +108,7 @@ public class MappingGenerator {
                             fieldName,
                             leaf.type(),
                             context.eligibleCopyToDestinations(),
-                            context.parentDynamicMapping(),
-                            specification.includePluginTypes()
+                            context.parentDynamicMapping()
                         )
                     )
                     .mappingGenerator();

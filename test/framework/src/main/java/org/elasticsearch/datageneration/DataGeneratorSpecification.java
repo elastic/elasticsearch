@@ -26,7 +26,6 @@ import java.util.List;
  * @param nestedFieldsLimit how many total nested fields can be present in a produced mapping
  * @param fullyDynamicMapping if the mapping is fully dynamic, meaning none of the fields are mapped (essentially mapping is empty)
  * @param predefinedFields predefined fields that must be present in mapping and documents. Only top level fields are supported.
- * @param includePluginTypes whether types defined in plugins should be added to mapping
  */
 public record DataGeneratorSpecification(
     DataSource dataSource,
@@ -34,8 +33,7 @@ public record DataGeneratorSpecification(
     int maxObjectDepth,
     int nestedFieldsLimit,
     boolean fullyDynamicMapping,
-    List<PredefinedField> predefinedFields,
-    boolean includePluginTypes
+    List<PredefinedField> predefinedFields
 ) {
 
     public static Builder builder() {
@@ -53,7 +51,6 @@ public record DataGeneratorSpecification(
         private int nestedFieldsLimit;
         private boolean fullyDynamicMapping;
         private List<PredefinedField> predefinedFields;
-        private boolean includePluginTypes;
 
         public Builder() {
             this.dataSourceHandlers = new ArrayList<>();
@@ -64,7 +61,6 @@ public record DataGeneratorSpecification(
             this.nestedFieldsLimit = 50;
             fullyDynamicMapping = false;
             this.predefinedFields = new ArrayList<>();
-            this.includePluginTypes = true;
         }
 
         public Builder withDataSourceHandlers(Collection<DataSourceHandler> handlers) {
@@ -97,11 +93,6 @@ public record DataGeneratorSpecification(
             return this;
         }
 
-        public Builder withIncludePluginTypes(boolean includePluginTypes) {
-            this.includePluginTypes = includePluginTypes;
-            return this;
-        }
-
         public DataGeneratorSpecification build() {
             return new DataGeneratorSpecification(
                 new DataSource(dataSourceHandlers),
@@ -109,8 +100,7 @@ public record DataGeneratorSpecification(
                 maxObjectDepth,
                 nestedFieldsLimit,
                 fullyDynamicMapping,
-                predefinedFields,
-                includePluginTypes
+                predefinedFields
             );
         }
     }

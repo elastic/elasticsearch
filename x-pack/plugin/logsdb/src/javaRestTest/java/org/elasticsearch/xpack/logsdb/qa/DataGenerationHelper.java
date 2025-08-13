@@ -18,6 +18,7 @@ import org.elasticsearch.datageneration.TemplateGenerator;
 import org.elasticsearch.datageneration.datasource.DataSourceHandler;
 import org.elasticsearch.datageneration.datasource.DataSourceRequest;
 import org.elasticsearch.datageneration.datasource.DataSourceResponse;
+import org.elasticsearch.datageneration.datasource.MultifieldAddonHandler;
 import org.elasticsearch.datageneration.fields.PredefinedField;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.test.ESTestCase;
@@ -105,7 +106,8 @@ public class DataGenerationHelper {
                         }
                     });
                 }
-            }));
+            }))
+            .withDataSourceHandlers(List.of(MultifieldAddonHandler.ALL_STRING_TYPES));
 
         // Customize builder if necessary
         builderConfigurator.accept(specificationBuilder);

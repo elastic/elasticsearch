@@ -18,6 +18,7 @@ import org.elasticsearch.datageneration.Template;
 import org.elasticsearch.datageneration.datasource.DataSourceHandler;
 import org.elasticsearch.datageneration.datasource.DataSourceRequest;
 import org.elasticsearch.datageneration.datasource.DataSourceResponse;
+import org.elasticsearch.datageneration.datasource.MultifieldAddonHandler;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 
@@ -176,8 +177,7 @@ public abstract class BlockLoaderTestCase extends MapperServiceTestCase {
                             "_field",
                             request.fieldType(),
                             request.eligibleCopyToFields(),
-                            request.dynamicMapping(),
-                            request.includePluginTypesInMultiFields()
+                            request.dynamicMapping()
                         )
                     ).mappingGenerator().get();
 
@@ -211,7 +211,6 @@ public abstract class BlockLoaderTestCase extends MapperServiceTestCase {
 
     public static DataGeneratorSpecification buildSpecification(Collection<DataSourceHandler> customHandlers) {
         return DataGeneratorSpecification.builder()
-            .withIncludePluginTypes(false)
             .withFullyDynamicMapping(false)
             // Disable dynamic mapping and disabled objects
             .withDataSourceHandlers(List.of(new DataSourceHandler() {

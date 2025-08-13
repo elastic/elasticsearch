@@ -22,7 +22,6 @@ import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.function.Supplier;
@@ -38,18 +37,18 @@ public class DefaultMappingParametersHandler implements DataSourceHandler {
         }
 
         return new DataSourceResponse.LeafMappingParametersGenerator(switch (fieldType) {
-            case KEYWORD -> keywordMapping(false, request);
+            case KEYWORD -> keywordMapping(request);
             case LONG, INTEGER, SHORT, BYTE, DOUBLE, FLOAT, HALF_FLOAT, UNSIGNED_LONG -> numberMapping(fieldType);
             case SCALED_FLOAT -> scaledFloatMapping();
             case COUNTED_KEYWORD -> countedKeywordMapping();
             case BOOLEAN -> booleanMapping();
             case DATE -> dateMapping();
             case GEO_POINT -> geoPointMapping();
-            case TEXT -> textMapping(false, request);
+            case TEXT -> textMapping();
             case IP -> ipMapping();
             case CONSTANT_KEYWORD -> constantKeywordMapping();
-            case WILDCARD -> wildcardMapping(false, request);
-            case MATCH_ONLY_TEXT -> matchOnlyTextMapping(false, request);
+            case WILDCARD -> wildcardMapping();
+            case MATCH_ONLY_TEXT -> matchOnlyTextMapping();
         });
     }
 
@@ -79,7 +78,7 @@ public class DefaultMappingParametersHandler implements DataSourceHandler {
         };
     }
 
-    private Supplier<Map<String, Object>> keywordMapping(boolean hasParent, DataSourceRequest.LeafMappingParametersGenerator request) {
+    private Supplier<Map<String, Object>> keywordMapping(DataSourceRequest.LeafMappingParametersGenerator request) {
         return () -> {
             var mapping = commonMappingParameters();
 
@@ -103,9 +102,6 @@ public class DefaultMappingParametersHandler implements DataSourceHandler {
             }
             if (ESTestCase.randomDouble() <= 0.2) {
                 mapping.put("null_value", ESTestCase.randomAlphaOfLengthBetween(0, 10));
-            }
-            if (hasParent == false && ESTestCase.randomBoolean()) {
-                mapping.put("fields", stringSubField(request));
             }
 
             return mapping;
@@ -201,16 +197,12 @@ public class DefaultMappingParametersHandler implements DataSourceHandler {
         };
     }
 
-    private Supplier<Map<String, Object>> textMapping(boolean hasParent, DataSourceRequest.LeafMappingParametersGenerator request) {
+    private Supplier<Map<String, Object>> textMapping() {
         return () -> {
             var mapping = new HashMap<String, Object>();
 
             mapping.put("store", ESTestCase.randomBoolean());
             mapping.put("index", ESTestCase.randomBoolean());
-
-            if (hasParent == false && ESTestCase.randomBoolean()) {
-                mapping.put("fields", stringSubField(request));
-            }
 
             return mapping;
         };
@@ -244,7 +236,7 @@ public class DefaultMappingParametersHandler implements DataSourceHandler {
         };
     }
 
-    private Supplier<Map<String, Object>> wildcardMapping(boolean hasParent, DataSourceRequest.LeafMappingParametersGenerator request) {
+    private Supplier<Map<String, Object>> wildcardMapping() {
         return () -> {
             var mapping = new HashMap<String, Object>();
 
@@ -254,47 +246,13 @@ public class DefaultMappingParametersHandler implements DataSourceHandler {
             if (ESTestCase.randomDouble() <= 0.2) {
                 mapping.put("null_value", ESTestCase.randomAlphaOfLengthBetween(0, 10));
             }
-            if (hasParent == false && ESTestCase.randomBoolean()) {
-                mapping.put("fields", stringSubField(request));
-            }
 
             return mapping;
         };
     }
 
-    private Supplier<Map<String, Object>> matchOnlyTextMapping(
-        boolean hasParent,
-        DataSourceRequest.LeafMappingParametersGenerator request
-    ) {
-        return () -> {
-            var mapping = new HashMap<String, Object>();
-            if (hasParent == false && ESTestCase.randomBoolean()) {
-                mapping.put("fields", stringSubField(request));
-            }
-            return mapping;
-        };
-    }
-
-    private Map<String, Object> stringSubField(DataSourceRequest.LeafMappingParametersGenerator request) {
-        FieldType parent = FieldType.tryParse(request.fieldType());
-        List<FieldType> childTypes = request.includePluginTypesInMultiFields()
-            ? List.of(FieldType.TEXT, FieldType.KEYWORD, FieldType.WILDCARD, FieldType.MATCH_ONLY_TEXT)
-            : List.of(FieldType.TEXT, FieldType.KEYWORD);
-        var childType = ESTestCase.randomValueOtherThan(parent, () -> ESTestCase.randomFrom(childTypes));
-        var child = switch (childType) {
-            case TEXT -> textMapping(true, request).get();
-            case KEYWORD -> {
-                var mapping = keywordMapping(true, request).get();
-                mapping.remove("copy_to");
-                yield mapping;
-            }
-            case MATCH_ONLY_TEXT -> matchOnlyTextMapping(true, request).get();
-            case WILDCARD -> wildcardMapping(true, request).get();
-            default -> throw new AssertionError("unreachable");
-        };
-
-        child.put("type", childType.toString());
-        return Map.of("subfield_" + childType, child);
+    private Supplier<Map<String, Object>> matchOnlyTextMapping() {
+        return HashMap::new;
     }
 
     public static HashMap<String, Object> commonMappingParameters() {

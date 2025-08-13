@@ -573,7 +573,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         return EvalMapper.toEvaluator(FoldContext.small(), e, builder.build());
     }
 
-    protected final Page row(List<Object> values) {
+    protected Page row(List<Object> values) {
         return maybeConvertBytesRefsToOrdinals(new Page(1, BlockUtils.fromListRow(TestBlockFactory.getNonBreakingInstance(), values)));
     }
 

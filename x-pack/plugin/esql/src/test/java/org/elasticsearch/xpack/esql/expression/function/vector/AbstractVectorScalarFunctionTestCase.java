@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.expression.function.vector;
 
 import com.carrotsearch.randomizedtesting.annotations.Name;
 
+import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
@@ -45,7 +46,7 @@ public abstract class AbstractVectorScalarFunctionTestCase extends AbstractScala
 
         List<TestCaseSupplier> suppliers = new ArrayList<>();
 
-        // Basic test with two dense vectors
+        // Basic test with a dense vector.
         suppliers.add(new TestCaseSupplier(List.of(DENSE_VECTOR), () -> {
             int dimensions = between(64, 128);
             List<Float> input = randomDenseVector(dimensions);
@@ -60,6 +61,17 @@ public abstract class AbstractVectorScalarFunctionTestCase extends AbstractScala
         }));
 
         return parameterSuppliersFromTypedData(suppliers);
+    }
+
+    @Override
+    protected Page row(List<Object> values) {
+        // Convert from List<float[]> to List<ArrayList<Float>>.
+        List<Float> boxed = new ArrayList<>();
+        var array = (float[]) values.getFirst();
+        for (float v : array) {
+            boxed.add(v);
+        }
+        return super.row(List.of(boxed));
     }
 
     private static float[] listToFloatArray(List<Float> floatList) {

@@ -501,14 +501,26 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         Source src = source(ctx);
         Attribute value = visitQualifiedName(ctx.value);
         Attribute key = ctx.key == null ? new UnresolvedAttribute(src, "@timestamp") : visitQualifiedName(ctx.key);
+
+        UnresolvedAttribute parsedTargetTypeColumn = visitQualifiedName(ctx.targetType);
+        UnresolvedAttribute parsedTargetPvalueColumn = visitQualifiedName(ctx.targetPvalue);
+
+        if (parsedTargetTypeColumn != null && parsedTargetTypeColumn.qualifier() != null) {
+            throw qualifiersUnsupportedInFields(parsedTargetTypeColumn.source(), parsedTargetTypeColumn.qualifiedName());
+        }
+
+        if (parsedTargetPvalueColumn != null && parsedTargetPvalueColumn.qualifier() != null) {
+            throw qualifiersUnsupportedInFields(parsedTargetPvalueColumn.source(), parsedTargetPvalueColumn.qualifiedName());
+        }
+
         Attribute targetType = new ReferenceAttribute(
             src,
-            ctx.targetType == null ? "type" : visitQualifiedName(ctx.targetType).name(),
+            parsedTargetTypeColumn == null ? "type" : parsedTargetTypeColumn.name(),
             DataType.KEYWORD
         );
         Attribute targetPvalue = new ReferenceAttribute(
             src,
-            ctx.targetPvalue == null ? "pvalue" : visitQualifiedName(ctx.targetPvalue).name(),
+            parsedTargetPvalueColumn == null ? "pvalue" : parsedTargetPvalueColumn.name(),
             DataType.DOUBLE
         );
         return child -> new ChangePoint(src, child, value, key, targetType, targetPvalue);
@@ -794,6 +806,10 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         Source source = source(ctx);
         Expression prompt = expression(ctx.prompt);
         Attribute targetField = visitQualifiedName(ctx.targetField, new UnresolvedAttribute(source, Completion.DEFAULT_OUTPUT_FIELD_NAME));
+
+        if (targetField.qualifier() != null) {
+            throw qualifiersUnsupportedInFields(targetField.source(), targetField.qualifiedName());
+        }
 
         return p -> {
             checkForRemoteClusters(p, source, "COMPLETION");

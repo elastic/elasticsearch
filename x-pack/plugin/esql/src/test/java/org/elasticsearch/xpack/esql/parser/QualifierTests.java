@@ -16,21 +16,22 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 public class QualifierTests extends AbstractStatementParserTests {
 
     /**
-     * Test that qualifiers are parsed correctly in expressions.
-     * Does not check the lookup join specifically; it only serves as an example source of qualifiers for the WHERE.
+     * Test that qualifiers are parsed correctly in various expressions.
      */
     public void testQualifiersReferencedInExpressions() {
         assumeTrue("Requires qualifier support", EsqlCapabilities.Cap.NAME_QUALIFIERS.isEnabled());
 
-        String sourceQuery = "ROW x = 1 | LOOKUP JOIN lu_idx lu ON x | ";
+        // We do not check the lookup join specifically; it only serves as an example source of qualifiers for the WHERE.
+        String sourceQuery = "ROW x = 1 | LOOKUP JOIN lu_idx qualified ON x | ";
 
         assertQualifiedAttributeInExpressions(sourceQuery + "WHERE qualified field", "qualified", "field", 1);
+        assertQualifiedAttributeInExpressions(sourceQuery + "WHERE qualified `field`", "qualified", "field", 1);
 
-        assertQualifiedAttributeInExpressions(sourceQuery + "WHERE qualified field > 0", "qualified", "field", 1);
-        assertQualifiedAttributeInExpressions(sourceQuery + "WHERE qualified field== qualified field", "qualified", "field", 2);
+        assertQualifiedAttributeInExpressions(sourceQuery + "WHERE qualified `field`> 0", "qualified", "field", 1);
+        assertQualifiedAttributeInExpressions(sourceQuery + "WHERE qualified field== qualified `field`", "qualified", "field", 2);
         assertQualifiedAttributeInExpressions(sourceQuery + "WHERE qualified field/qualified field == 1", "qualified", "field", 2);
         assertQualifiedAttributeInExpressions(
-            sourceQuery + "WHERE qualified field - qualified field ==qualified field",
+            sourceQuery + "WHERE qualified field - qualified `field` ==qualified field",
             "qualified",
             "field",
             3
@@ -42,40 +43,89 @@ public class QualifierTests extends AbstractStatementParserTests {
 
         assertQualifiedAttributeInExpressions(sourceQuery + "WHERE NOT qualified field", "qualified", "field", 1);
         assertQualifiedAttributeInExpressions(sourceQuery + "WHERE NOT (qualified field)", "qualified", "field", 1);
+        assertQualifiedAttributeInExpressions(sourceQuery + "WHERE NOT (qualified `field`)", "qualified", "field", 1);
 
-        assertQualifiedAttributeInExpressions(sourceQuery + "WHERE NOT qualified field AND qualified field", "qualified", "field", 2);
+        assertQualifiedAttributeInExpressions(sourceQuery + "WHERE NOT qualified field AND qualified `field`", "qualified", "field", 2);
         assertQualifiedAttributeInExpressions(
-            sourceQuery + "WHERE qualified field OR qualified field OR qualified field AND qualified field",
+            sourceQuery + "WHERE qualified field OR qualified field OR qualified `field` AND qualified field",
             "qualified",
             "field",
             4
         );
 
-        assertQualifiedAttributeInExpressions(sourceQuery + "WHERE qualified field IS NULL", "qualified", "field", 1);
+        assertQualifiedAttributeInExpressions(sourceQuery + "WHERE qualified `field` IS NULL", "qualified", "field", 1);
         assertQualifiedAttributeInExpressions(sourceQuery + "WHERE qualified field IS NOT NULL", "qualified", "field", 1);
 
         assertQualifiedAttributeInExpressions(
-            sourceQuery + "WHERE function(qualified field) <= other_function(qualified field)",
+            sourceQuery + "WHERE function(qualified `field`) <= other_function(qualified field)",
             "qualified",
             "field",
             2
         );
 
         assertQualifiedAttributeInExpressions(sourceQuery + "WHERE qualified field::boolean", "qualified", "field", 1);
+        assertQualifiedAttributeInExpressions(sourceQuery + "WHERE qualified `field`::boolean", "qualified", "field", 1);
         assertQualifiedAttributeInExpressions(sourceQuery + "WHERE qualified field :: boolean", "qualified", "field", 1);
         assertQualifiedAttributeInExpressions(sourceQuery + "WHERE (qualified field)::boolean", "qualified", "field", 1);
 
         assertQualifiedAttributeInExpressions(sourceQuery + "WHERE qualified field IN (qualified field)", "qualified", "field", 2);
         assertQualifiedAttributeInExpressions(
-            sourceQuery + "WHERE qualified field IN (qualified field, qualified field)",
+            sourceQuery + "WHERE qualified field IN (qualified `field`, qualified field, qualified `field`)",
             "qualified",
             "field",
-            3
+            4
         );
 
         assertQualifiedAttributeInExpressions(sourceQuery + "WHERE qualified field LIKE (\"foo\", \"bar?\")", "qualified", "field", 1);
-        assertQualifiedAttributeInExpressions(sourceQuery + "WHERE qualified field RLIKE \"foo\"", "qualified", "field", 1);
+        assertQualifiedAttributeInExpressions(sourceQuery + "WHERE qualified `field` RLIKE \"foo\"", "qualified", "field", 1);
+    }
 
+    /**
+     * Test that qualifiers are parsed correctly in various commands.
+     */
+    public void testQualifiersReferencedInCommands() {
+        assumeTrue("Requires qualifier support", EsqlCapabilities.Cap.NAME_QUALIFIERS.isEnabled());
+
+        // We do not check the lookup join specifically; it only serves as an example source of qualifiers for the WHERE.
+        String sourceQuery = "ROW x = 1 | LOOKUP JOIN lu_idx AS qualified ON x | ";
+
+        assertQualifiedAttributeInExpressions(sourceQuery + "WHERE qualified field", "qualified", "field", 1);
+
+        assertQualifiedAttributeInExpressions(sourceQuery + "CHANGE_POINT qualified field ON qualified field AS type_name, pvalue_name", "qualified", "field", 2);
+
+        assertQualifiedAttributeInExpressions(sourceQuery + "DISSECT qualified field \"%{foo}\"", "qualified", "field", 1);
+        assertQualifiedAttributeInExpressions(sourceQuery + "DISSECT qualified `field` \"%{foo}\"", "qualified", "field", 1);
+        assertQualifiedAttributeInExpressions(sourceQuery + "DISSECT qualified field \"\"\"%{foo}\"\"\"", "qualified", "field", 1);
+
+        assertQualifiedAttributeInExpressions(sourceQuery + "DROP qualified field", "qualified", "field", 1);
+        assertQualifiedAttributeInExpressions(sourceQuery + "DROP qualified `field`", "qualified", "field", 1);
+        assertQualifiedAttributeInExpressions(sourceQuery + "DROP qualified field, field, qualified `field`, otherfield", "qualified", "field", 2);
+    }
+
+    public void testUnsupportedQualifiers() {
+        assumeTrue("Requires qualifier support", EsqlCapabilities.Cap.NAME_QUALIFIERS.isEnabled());
+
+        String sourceQuery = "ROW x = 1 | LOOKUP JOIN lu_idx qualified ON x | ";
+
+        expectError("ROW qualified field = 1", "Qualified names are not supported in field definitions, found [qualified field]");
+
+        expectError(sourceQuery + "CHANGE_POINT value_field ON key_field AS qualified type_name, pvalue_name", "Qualified names are not supported in field definitions, found [qualified type_name]");
+        expectError(sourceQuery + "CHANGE_POINT value_field ON key_field AS type_name, qualified pvalue_name", "Qualified names are not supported in field definitions, found [qualified pvalue_name]");
+
+        expectError(sourceQuery + "COMPLETION qualified field = \"prompt\" WITH {\"inference_id\" : \"foo\"}", "Qualified names are not supported in field definitions, found [qualified field]");
+
+        expectError(sourceQuery + "EVAL qualified field = \"foo\"", "Qualified names are not supported in field definitions, found [qualified field]");
+    }
+
+    public void testIllegalQualifiers() {
+        String sourceQuery = "ROW x = 1 | LOOKUP JOIN lu_idx qualified ON x | ";
+
+        expectError(sourceQuery + "EVAL qualified function(x)", "mismatched input '('");
+
+        expectError(sourceQuery + "EVAL y = qualified \"foo\"", "extraneous input '\"foo\"'");
+        expectError(sourceQuery + "EVAL y = qualified TRUE", "extraneous input 'TRUE'");
+        expectError(sourceQuery + "EVAL y = qualified 1", "extraneous input '1'");
+        expectError(sourceQuery + "EVAL y = qualified 1.2", "extraneous input '1.2'");
     }
 
     private void assertQualifiedAttributeInExpressions(String query, String qualifier, String name, int expectedCount) {

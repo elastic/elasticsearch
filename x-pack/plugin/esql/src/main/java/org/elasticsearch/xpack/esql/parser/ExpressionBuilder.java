@@ -880,9 +880,20 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
 
     private Alias visitField(EsqlBaseParser.FieldContext ctx, Source source) {
         UnresolvedAttribute id = visitQualifiedName(ctx.qualifiedName());
+        if (id != null && id.qualifier() != null) {
+            throw qualifiersUnsupportedInFields(source, id.qualifier() + " " + id.name());
+        }
         Expression value = expression(ctx.booleanExpression());
         String name = id == null ? source.text() : id.name();
         return new Alias(source, name, value);
+    }
+
+    protected ParsingException qualifiersUnsupportedInFields(Source source, String qualifiedName) {
+        return new ParsingException(
+            source,
+            "Qualified names are not supported in field definitions, found [{}]",
+            qualifiedName
+        );
     }
 
     @Override

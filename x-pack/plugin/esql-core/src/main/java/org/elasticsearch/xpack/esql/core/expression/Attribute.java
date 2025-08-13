@@ -86,6 +86,10 @@ public abstract class Attribute extends NamedExpression {
         return qualifier;
     }
 
+    public String qualifiedName() {
+        return qualifier + " " + name();
+    }
+
     @Override
     public Nullability nullable() {
         return nullability;

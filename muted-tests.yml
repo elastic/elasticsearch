@@ -555,6 +555,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.CsvTests
   method: test {csv-spec:string.MvStringEqualsLongString}
   issue: https://github.com/elastic/elasticsearch/issues/132826
+- class: org.elasticsearch.xpack.esql.CsvTests
+  method: test {csv-spec:stats.WeightedAvgFieldMvWarning}
+  issue: https://github.com/elastic/elasticsearch/issues/132827
 
 # Examples:
 #

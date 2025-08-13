@@ -30,13 +30,30 @@ public class WriteLoadConstraintSettings {
          */
         DISABLED,
         /**
-         * Only the low-threshold is enabled (write-load will not trigger rebalance)
+         * Only the low write low threshold, to try to avoid allocating to a node exceeding
+         * {@link #WRITE_LOAD_DECIDER_HIGH_UTILIZATION_THRESHOLD_SETTING}. Write-load hot-spot will not trigger rebalancing.
          */
-        LOW_ONLY,
+        LOW_THRESHOLD_ONLY,
         /**
-         * The decider is enabled
+         * All write load decider development work is turned on.
          */
-        ENABLED
+        ENABLED;
+
+        public boolean fullyEnabled() {
+            return this == ENABLED;
+        }
+
+        public boolean notFullyEnabled() {
+            return this != ENABLED;
+        }
+
+        public boolean atLeastLowThresholdEnabled() {
+            return this != DISABLED;
+        }
+
+        public boolean disabled() {
+            return this == DISABLED;
+        }
     }
 
     public static final Setting<WriteLoadDeciderStatus> WRITE_LOAD_DECIDER_ENABLED_SETTING = Setting.enumSetting(

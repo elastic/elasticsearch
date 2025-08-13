@@ -39,7 +39,7 @@ public class WriteLoadConstraintDecider extends AllocationDecider {
 
     @Override
     public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
-        if (writeLoadConstraintSettings.getWriteLoadConstraintEnabled() == WriteLoadConstraintSettings.WriteLoadDeciderStatus.DISABLED) {
+        if (writeLoadConstraintSettings.getWriteLoadConstraintEnabled().disabled()) {
             return Decision.single(Decision.Type.YES, NAME, "Decider is disabled");
         }
 
@@ -100,9 +100,11 @@ public class WriteLoadConstraintDecider extends AllocationDecider {
 
     @Override
     public Decision canRemain(IndexMetadata indexMetadata, ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
-        if (writeLoadConstraintSettings.getWriteLoadConstraintEnabled() != WriteLoadConstraintSettings.WriteLoadDeciderStatus.ENABLED) {
+        if (writeLoadConstraintSettings.getWriteLoadConstraintEnabled().notFullyEnabled()) {
             return Decision.YES;
         }
+
+        // TODO: implement
 
         return Decision.YES;
     }

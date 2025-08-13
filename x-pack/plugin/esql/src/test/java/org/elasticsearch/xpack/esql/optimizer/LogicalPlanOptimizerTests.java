@@ -714,6 +714,10 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             """);
         var limit = as(plan, Limit.class);
         var aggregate = as(limit.child(), Aggregate.class);
+        assertEquals(1, aggregate.aggregates().size());
+        assertEquals(1, aggregate.aggregates().get(0).children().size());
+        assertTrue(aggregate.aggregates().get(0).children().get(0) instanceof Count);
+        assertEquals("true", (((Count) aggregate.aggregates().get(0).children().get(0)).filter().toString()));
         assertThat(Expressions.names(aggregate.aggregates()), contains("m1"));
         var source = as(aggregate.child(), EsRelation.class);
     }

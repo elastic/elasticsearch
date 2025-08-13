@@ -346,6 +346,36 @@ public class RRFRetrieverBuilderTests extends ESTestCase {
         assertEquals("[rrf] cannot specify [query] when querying remote indices", iae.getMessage());
     }
 
+    public void testPerFieldWeightsBasic() {
+        // Test that per-field weights are accepted and parsed correctly
+        final String indexName = "test-index";
+        final List<String> testInferenceFields = List.of("semantic_field_1");
+        final ResolvedIndices resolvedIndices = createMockResolvedIndices(indexName, testInferenceFields, null);
+        final QueryRewriteContext queryRewriteContext = new QueryRewriteContext(
+            parserConfig(),
+            null,
+            null,
+            resolvedIndices,
+            new PointInTimeBuilder(new BytesArray("pitid")),
+            null
+        );
+
+        // Test with per-field weights in the simplified format
+        RRFRetrieverBuilder rrfRetrieverBuilder = new RRFRetrieverBuilder(
+            null,
+            List.of("field_1^2.0", "field_2^0.5", "semantic_field_1"),
+            "test query",
+            DEFAULT_RANK_WINDOW_SIZE,
+            RRFRetrieverBuilder.DEFAULT_RANK_CONSTANT,
+            new float[0]
+        );
+
+        // This should not throw an exception anymore
+        RetrieverBuilder rewritten = rrfRetrieverBuilder.doRewrite(queryRewriteContext);
+        assertNotSame(rrfRetrieverBuilder, rewritten);
+        assertTrue(rewritten instanceof RRFRetrieverBuilder);
+    }
+
     @Override
     protected NamedXContentRegistry xContentRegistry() {
         List<NamedXContentRegistry.Entry> entries = new SearchModule(Settings.EMPTY, List.of()).getNamedXContents();
@@ -416,11 +446,11 @@ public class RRFRetrieverBuilderTests extends ESTestCase {
                         .fields(expectedNonInferenceFields)
                 )
             ),
-            Set.of(expectedInferenceFields.entrySet().stream().map(e -> {
-                return CompoundRetrieverBuilder.RetrieverSource.from(
+            Set.of(expectedInferenceFields.entrySet().stream().map(e -> 
+                CompoundRetrieverBuilder.RetrieverSource.from(
                     new StandardRetrieverBuilder(new MatchQueryBuilder(e.getKey(), expectedQuery))
-                );
-            }).toArray())
+                )
+            ).toArray())
         );
 
         RetrieverBuilder rewritten = retriever.doRewrite(ctx);
@@ -447,11 +477,11 @@ public class RRFRetrieverBuilderTests extends ESTestCase {
                         .fields(expectedNonInferenceFields)
                 )
             ),
-            Set.of(expectedInferenceFields.entrySet().stream().map(e -> {
-                return CompoundRetrieverBuilder.RetrieverSource.from(
+            Set.of(expectedInferenceFields.entrySet().stream().map(e -> 
+                CompoundRetrieverBuilder.RetrieverSource.from(
                     new StandardRetrieverBuilder(new MatchQueryBuilder(e.getKey(), expectedQuery))
-                );
-            }).toArray())
+                )
+            ).toArray())
         );
 
         RetrieverBuilder rewritten = retriever.doRewrite(ctx);

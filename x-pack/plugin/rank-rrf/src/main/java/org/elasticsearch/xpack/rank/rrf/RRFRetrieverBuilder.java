@@ -279,7 +279,9 @@ public final class RRFRetrieverBuilder extends CompoundRetrieverBuilder<RRFRetri
                 },
                 w -> {
                     if (w < 0) {
-                        throw new IllegalArgumentException("[" + NAME + "] per-field weights must be non-negative");
+                        throw new IllegalArgumentException(
+                            "[" + NAME + "] per-field weights must be non-negative"
+                        );
                     }
                 }
             ).stream().map(RetrieverSource::from).toList();

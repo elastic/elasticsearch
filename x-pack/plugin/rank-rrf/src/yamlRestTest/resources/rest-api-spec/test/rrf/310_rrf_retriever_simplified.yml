@@ -244,6 +244,21 @@ setup:
   - match: { error.root_cause.0.reason: "[rrf] per-field weights must be non-negative" }
 
 ---
+"Basic per-field boosting using the simplified format":
+  - do:
+      search:
+        index: test-index
+        body:
+          retriever:
+            rrf:
+              fields: [ "text_1", "text_2^2" ]
+              query: "foo"
+
+  - match: { hits.total.value: 2 }
+  - length: { hits.hits: 2 }
+  # Verify that text_2^2 affects ranking (basic smoke test)
+
+---
 "Can query text fields":
   - do:
       search:

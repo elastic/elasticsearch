@@ -36,7 +36,6 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
-import java.util.Arrays;
 import java.util.Locale;
 
 /**
@@ -109,8 +108,16 @@ public class TransportLogsStreamsToggleActivation extends AcknowledgedTransportM
     }
 
     private boolean logsIndexExists(ProjectMetadata projectMetadata) {
-        return Arrays.stream(projectMetadata.getConcreteAllIndices())
-            .anyMatch(name -> name.equals(StreamType.LOGS.getStreamName()) || name.startsWith(StreamType.LOGS.getStreamName() + "."));
+        String logsStreamName = StreamType.LOGS.getStreamName();
+        String logsStreamPrefix = logsStreamName + ".";
+
+        for (String name : projectMetadata.getConcreteAllIndices()) {
+            if (name.equals(logsStreamName) || name.startsWith(logsStreamPrefix)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     @Override

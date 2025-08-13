@@ -9,9 +9,25 @@ The `COMPLETION` command allows you to send prompts and context to a Large Langu
 
 **Syntax**
 
+::::{tab-set}
+
+:::{tab-item} 9.2.0+
+
 ```esql
-COMPLETION [column =] prompt WITH inference_id
+COMPLETION [column =] prompt WITH { "inference_id" : "my_inference_endpoint" }
 ```
+
+:::
+
+:::{tab-item} 9.1.x only
+
+```esql
+COMPLETION [column =] prompt WITH my_inference_endpoint
+```
+
+:::
+
+::::
 
 **Parameters**
 
@@ -24,7 +40,7 @@ COMPLETION [column =] prompt WITH inference_id
 :   The input text or expression used to prompt the LLM.
     This can be a string literal or a reference to a column containing text.
 
-`inference_id`
+`my_inference_endpoint`
 :   The ID of the [inference endpoint](docs-content://explore-analyze/elastic-inference/inference-api.md) to use for the task.
     The inference endpoint must be configured with the `completion` task type.
 
@@ -75,7 +91,7 @@ How you increase the timeout depends on your deployment type:
 If you don't want to increase the timeout limit, try the following:
 
 * Reduce data volume with `LIMIT` or more selective filters before the `COMPLETION` command
-* Split complex operations into multiple simpler queries 
+* Split complex operations into multiple simpler queries
 * Configure your HTTP client's response timeout (Refer to [HTTP client configuration](/reference/elasticsearch/configuration-reference/networking-settings.md#_http_client_configuration))
 
 
@@ -85,7 +101,7 @@ Use the default column name (results stored in `completion` column):
 
 ```esql
 ROW question = "What is Elasticsearch?"
-| COMPLETION question WITH test_completion_model
+| COMPLETION question WITH { "inference_id" : "my_inference_endpoint" }
 | KEEP question, completion
 ```
 
@@ -97,7 +113,7 @@ Specify the output column (results stored in `answer` column):
 
 ```esql
 ROW question = "What is Elasticsearch?"
-| COMPLETION answer = question WITH test_completion_model
+| COMPLETION answer = question WITH { "inference_id" : "my_inference_endpoint" }
 | KEEP question, answer
 ```
 
@@ -117,10 +133,9 @@ FROM movies
    "Synopsis: ", synopsis, "\n",
    "Actors: ", MV_CONCAT(actors, ", "), "\n",
   )
-| COMPLETION summary = prompt WITH test_completion_model
+| COMPLETION summary = prompt WITH { "inference_id" : "my_inference_endpoint" }
 | KEEP title, summary, rating
 ```
-
 
 | title:keyword | summary:keyword | rating:double |
 | --- | --- | --- |

@@ -23,15 +23,15 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class CompletionOperatorOutputBuilderTests extends ComputeTestCase {
 
-    public void testBuildSmallOutput() {
+    public void testBuildSmallOutput() throws Exception {
         assertBuildOutput(between(1, 100));
     }
 
-    public void testBuildLargeOutput() {
+    public void testBuildLargeOutput() throws Exception {
         assertBuildOutput(between(10_000, 100_000));
     }
 
-    private void assertBuildOutput(int size) {
+    private void assertBuildOutput(int size) throws Exception {
         final Page inputPage = randomInputPage(size, between(1, 20));
         try (
             CompletionOperatorOutputBuilder outputBuilder = new CompletionOperatorOutputBuilder(
@@ -50,11 +50,9 @@ public class CompletionOperatorOutputBuilderTests extends ComputeTestCase {
             assertOutputContent(outputPage.getBlock(outputPage.getBlockCount() - 1));
 
             outputPage.releaseBlocks();
-
-        } finally {
-            inputPage.releaseBlocks();
         }
 
+        allBreakersEmpty();
     }
 
     private void assertOutputContent(BytesRefBlock block) {

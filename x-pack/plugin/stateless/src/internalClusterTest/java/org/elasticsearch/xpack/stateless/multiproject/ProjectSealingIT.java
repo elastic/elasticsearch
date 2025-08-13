@@ -18,13 +18,19 @@
 package co.elastic.elasticsearch.stateless.multiproject;
 
 import co.elastic.elasticsearch.stateless.AbstractStatelessIntegTestCase;
+import co.elastic.elasticsearch.stateless.StatelessMockRepositoryPlugin;
+import co.elastic.elasticsearch.stateless.StatelessMockRepositoryStrategy;
+import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService;
 
 import org.apache.lucene.tests.util.LuceneTestCase;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.common.blobstore.OperationPurpose;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.CollectionUtils;
@@ -43,6 +49,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.CountDownLatch;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -55,12 +62,22 @@ public class ProjectSealingIT extends AbstractStatelessIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return CollectionUtils.concatLists(List.of(InternalSettingsPlugin.class), super.nodePlugins());
+        return CollectionUtils.concatLists(List.of(InternalSettingsPlugin.class, StatelessMockRepositoryPlugin.class), super.nodePlugins());
     }
 
     @Override
     protected boolean multiProjectIntegrationTest() {
         return true;
+    }
+
+    @Override
+    protected boolean addMockFsRepository() {
+        return false;
+    }
+
+    @Override
+    protected Settings.Builder nodeSettings() {
+        return super.nodeSettings().put(ObjectStoreService.TYPE_SETTING.getKey(), ObjectStoreService.ObjectStoreType.MOCK);
     }
 
     public void testFlushProject() throws Exception {
@@ -133,6 +150,102 @@ public class ProjectSealingIT extends AbstractStatelessIntegTestCase {
 
         for (ProjectId project : projects) {
             removeProject(project);
+        }
+    }
+
+    public void testProjectDeletionFlushes() throws Exception {
+        final var indexNode1 = startMasterAndIndexNode(disableIndexingDiskAndMemoryControllersNodeSettings());
+        startMasterAndIndexNode(disableIndexingDiskAndMemoryControllersNodeSettings());
+        startSearchNode();
+        ensureStableCluster(3);
+
+        var projects = randomSet(2, 4, ESTestCase::randomUniqueProjectId);
+        for (ProjectId project : projects) {
+            putProject(project);
+        }
+        Map<ProjectId, Collection<String>> indicesPerProject = new HashMap<>();
+        var indices = randomSet(1, 4, ESTestCase::randomIdentifier);
+        for (ProjectId project : projects) {
+            final var projectIndices = randomNonEmptySubsetOf(indices);
+            indicesPerProject.put(project, projectIndices);
+            for (String indexName : projectIndices) {
+                var indexSettings = Settings.builder()
+                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
+                    .put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), ByteSizeValue.ofGb(1L))
+                    .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), TimeValue.MINUS_ONE)
+                    .put(INDEX_MERGE_ENABLED, false)
+                    .build();
+                createIndex(project, indexName, indexSettings);
+            }
+        }
+        ensureGreen();
+
+        final Set<ShardId> allShards = internalCluster().clusterService()
+            .state()
+            .globalRoutingTable()
+            .routingTables()
+            .values()
+            .stream()
+            .flatMap(RoutingTable::allShards)
+            .filter(ShardRouting::isPromotableToPrimary)
+            .map(ShardRouting::shardId)
+            .collect(Collectors.toSet());
+        var shardSegmentGenerationsBeforeFlush = allShards.stream()
+            .collect(Collectors.toMap(Function.identity(), this::getSegmentGeneration));
+
+        for (ProjectId project : projects) {
+            for (String indexName : indicesPerProject.get(project)) {
+                indexDocs(project, indexName, randomIntBetween(10, 20));
+            }
+        }
+
+        final var deletingProject = randomFrom(projects);
+        // TODO: randomly also fail flushes
+        // Block on the project lease CAS for the project that is being deleted to assert that the flush happened
+        final var projectLeaseReleaseStarted = new CountDownLatch(1);
+        final var continueProjectLeaseRelease = new CountDownLatch(1);
+        setNodeRepositoryStrategy(indexNode1, new StatelessMockRepositoryStrategy() {
+            @Override
+            public void blobContainerCompareAndSetRegister(
+                Runnable originalRunnable,
+                OperationPurpose purpose,
+                String key,
+                BytesReference expected,
+                BytesReference updated,
+                ActionListener<Boolean> listener
+            ) {
+                if (key.equals(ProjectLease.leaseBlobName(deletingProject))) {
+                    logger.info("--> Received CAS for [{}]", key);
+                    projectLeaseReleaseStarted.countDown();
+                    safeAwait(continueProjectLeaseRelease);
+                }
+                originalRunnable.run();
+            }
+        });
+        markProjectForDeletion(deletingProject);
+        safeAwait(projectLeaseReleaseStarted);
+
+        assertBusy(() -> {
+            for (ShardId shardId : allShards) {
+                final var projectId = internalCluster().clusterService().state().metadata().projectFor(shardId.getIndex()).id();
+                final long currentGeneration = getSegmentGeneration(shardId);
+                final long previousGeneration = shardSegmentGenerationsBeforeFlush.get(shardId);
+                if (projectId.equals(deletingProject)) {
+                    assertThat(currentGeneration, equalTo(previousGeneration + 1));
+                } else {
+                    assertThat(currentGeneration, equalTo(previousGeneration));
+                }
+            }
+        });
+
+        continueProjectLeaseRelease.countDown();
+        for (ProjectId project : projects) {
+            if (project.equals(deletingProject)) {
+                ensureProjectRemovedAndCleanUp(project);
+            } else {
+                removeProject(project);
+            }
         }
     }
 

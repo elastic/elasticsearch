@@ -42,7 +42,7 @@ import static org.hamcrest.Matchers.hasItems;
 
 public class AzureObjectStoreTests extends AbstractMockObjectStoreIntegTestCase {
 
-    private static final String DEFAULT_ACCOUNT_NAME = "account";
+    static final String DEFAULT_ACCOUNT_NAME = "account";
     private static final List<String> EXPECTED_MAIN_STORE_REQUEST_NAMES;
     private static final List<String> EXPECTED_OBS_REQUEST_NAMES;
     static {
@@ -61,6 +61,10 @@ public class AzureObjectStoreTests extends AbstractMockObjectStoreIntegTestCase 
         ).distinct().sorted().toList();
     }
 
+    static String encodeKey(final String value) {
+        return Base64.getEncoder().encodeToString(value.getBytes(StandardCharsets.UTF_8));
+    }
+
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return Stream.concat(super.nodePlugins().stream(), List.of(AzureRepositoryPlugin.class).stream()).toList();
@@ -76,7 +80,7 @@ public class AzureObjectStoreTests extends AbstractMockObjectStoreIntegTestCase 
 
     @Override
     protected Settings.Builder nodeSettings() {
-        final String key = Base64.getEncoder().encodeToString(randomAlphaOfLength(14).getBytes(StandardCharsets.UTF_8));
+        final String key = encodeKey(randomAlphaOfLength(14));
         String accountName = DEFAULT_ACCOUNT_NAME;
 
         final String endpoint = "ignored;DefaultEndpointsProtocol=http;BlobEndpoint=" + httpServerUrl() + "/" + accountName;

@@ -136,7 +136,7 @@ public class AzureBlobStore implements BlobStore {
     private final AzureClientProvider.RequestMetricsHandler requestMetricsHandler;
 
     public AzureBlobStore(
-        ProjectId projectId,
+        @Nullable ProjectId projectId,
         RepositoryMetadata metadata,
         AzureStorageService service,
         BigArrays bigArrays,

@@ -130,7 +130,6 @@ public abstract class AnyOperatorTestCase extends ComputeTestCase {
     protected void assertOperatorStatus(Operator operator, List<Page> input, List<Page> output) {
         Operator.Status status = operator.status();
 
-        // TODO: remove this check and override instead? Or flag with another method
         if (status == null) {
             // Operator doesn't provide a status
             return;

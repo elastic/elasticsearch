@@ -58,8 +58,9 @@ class TransportVersionUtils {
         }
 
         public static TransportVersionDefinition fromString(String filename, String contents) {
-            assert filename.endsWith(".csv");
-            String name = filename.substring(0, filename.length() - CSV_SUFFIX.length());
+            assert filename.endsWith(CSV_SUFFIX);
+            String fileWithoutPath = Path.of(filename).getFileName().toString();
+            String name = fileWithoutPath.substring(0, fileWithoutPath.length() - CSV_SUFFIX.length());
             List<TransportVersionId> ids = new ArrayList<>();
 
             if (contents.isEmpty() == false) {
@@ -84,7 +85,8 @@ class TransportVersionUtils {
 
         public static TransportVersionLatest fromString(String filename, String contents) {
             assert filename.endsWith(".csv");
-            String branch = filename.substring(0, filename.length() - CSV_SUFFIX.length());
+            String fileWithoutPath = Path.of(filename).getFileName().toString();
+            String branch = fileWithoutPath.substring(0, fileWithoutPath.length() - CSV_SUFFIX.length());
 
             String[] parts = contents.split(",");
             if (parts.length != 2) {
@@ -203,13 +205,13 @@ class TransportVersionUtils {
     }
 
     static void validateBranchFormat(String branchName) {
-        if (Pattern.compile("^(\\d\\.\\d)|SERVERLESS$").matcher(branchName).matches() == false) {
+        if (Pattern.compile("^(\\d+\\.\\d+)|SERVERLESS$").matcher(branchName).matches() == false) {
             throw new GradleException("The branch name must be of the form \"int.int\" or \"SERVERLESS\"");
         }
     }
 
     static List<TransportVersionReference> readReferencesFile(Path file) throws IOException {
-        assert file.endsWith(".txt");
+        assert file.toString().endsWith(".txt");
         List<TransportVersionReference> results = new ArrayList<>();
         for (String line : Files.readAllLines(file, StandardCharsets.UTF_8)) {
             String[] parts = line.split(",", 2);

@@ -42,6 +42,11 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import static java.util.stream.Collectors.groupingBy;
+import static java.util.stream.Collectors.joining;
+import static java.util.stream.Collectors.mapping;
+import static java.util.stream.Collectors.toList;
+
 public class EsqlCCSUtils {
 
     private EsqlCCSUtils() {}
@@ -361,6 +366,35 @@ public class EsqlCCSUtils {
                 throw EsqlLicenseChecker.invalidLicenseForCcsException(licenseState);
             }
         }
+    }
+
+    public static void initCrossClusterState(
+        XPackLicenseState licenseState,
+        IndexResolution indexResolution,
+        EsqlExecutionInfo executionInfo
+    ) throws ElasticsearchStatusException {
+        var groupedIndices = indexResolution.resolvedIndices()
+            .stream()
+            .map(RemoteClusterAware::splitIndexName)
+            .collect(groupingBy(
+                it -> it[0] != null ? it[0] : RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY,
+                mapping(it -> it[1], joining(","))
+            ));
+
+        if (groupedIndices.size() > 1 || groupedIndices.containsKey(RemoteClusterService.LOCAL_CLUSTER_GROUP_KEY) == false) {
+            if (EsqlLicenseChecker.isCcsAllowed(licenseState) == false) {
+                throw EsqlLicenseChecker.invalidLicenseForCcsException(licenseState);
+            }
+        }
+
+        groupedIndices.forEach((clusterAlias, indexExpression) -> {
+            executionInfo.swapCluster(clusterAlias, (k, v) -> {
+                assert v == null : "No cluster for " + clusterAlias + " should have been added to ExecutionInfo yet";
+                return new EsqlExecutionInfo.Cluster(clusterAlias, indexExpression, executionInfo.isSkipUnavailable(clusterAlias));
+            });
+        });
+
+        updateExecutionInfoWithUnavailableClusters(executionInfo, indexResolution.failures());
     }
 
     /**

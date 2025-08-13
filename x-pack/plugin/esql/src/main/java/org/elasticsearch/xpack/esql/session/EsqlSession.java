@@ -398,7 +398,7 @@ public class EsqlSession {
         PreAnalyzer.PreAnalysis preAnalysis = preAnalyzer.preAnalyze(parsed);
         var unresolvedPolicies = preAnalysis.enriches.stream().map(EnrichPolicyResolver.UnresolvedPolicy::from).collect(toSet());
 
-        EsqlCCSUtils.initCrossClusterState(indicesExpressionGrouper, verifier.licenseState(), preAnalysis.indices, executionInfo);
+//        EsqlCCSUtils.initCrossClusterState(indicesExpressionGrouper, verifier.licenseState(), preAnalysis.indices, executionInfo);
 
         var listener = SubscribableListener.<EnrichResolution>newForked(
             l -> enrichPolicyResolver.resolvePolicies(unresolvedPolicies, executionInfo, l)
@@ -665,24 +665,10 @@ public class EsqlSession {
             ThreadPool.Names.SEARCH_COORDINATION,
             ThreadPool.Names.SYSTEM_READ
         );
-        // TODO we plan to support joins in the future when possible, but for now we'll just fail early if we see one
-        List<IndexPattern> indices = preAnalysis.indices;
-        if (indices.size() > 1) {
-            // Note: JOINs are not supported but we detect them when
-            listener.onFailure(new MappingException("Queries with multiple indices are not supported"));
-        } else if (indices.size() == 1) {
-            IndexPattern table = indices.getFirst();
-
-            // if the preceding call to the enrich policy API found unavailable clusters, recreate the index expression to search
-            // based only on available clusters (which could now be an empty list)
-            String indexExpressionToResolve = EsqlCCSUtils.createIndexExpressionFromAvailableClusters(executionInfo);
-            if (indexExpressionToResolve.isEmpty()) {
-                // if this was a pure remote CCS request (no local indices) and all remotes are offline, return an empty IndexResolution
-                listener.onResponse(
-                    result.withIndexResolution(IndexResolution.valid(new EsIndex(table.indexPattern(), Map.of(), Map.of())))
-                );
-            } else {
-                // call the EsqlResolveFieldsAction (field-caps) to resolve indices and get field types
+        switch (preAnalysis.indices.size()) {
+            // occurs when dealing with local relations (row a = 1)
+            case 0 -> listener.onResponse(result.withIndexResolution(IndexResolution.invalid("[none specified]")));
+            case 1-> {
                 if (preAnalysis.indexMode == IndexMode.TIME_SERIES) {
                     // TODO: Maybe if no indices are returned, retry without index mode and provide a clearer error message.
                     var indexModeFilter = new TermQueryBuilder(IndexModeFieldMapper.NAME, IndexMode.TIME_SERIES.getName());
@@ -692,22 +678,18 @@ public class EsqlSession {
                         requestFilter = indexModeFilter;
                     }
                 }
+
                 indexResolver.resolveAsMergedMapping(
-                    indexExpressionToResolve,
+                    preAnalysis.indices.getFirst().indexPattern(),
                     result.fieldNames,
                     requestFilter,
                     listener.delegateFailure((l, indexResolution) -> {
+                        EsqlCCSUtils.initCrossClusterState(verifier.licenseState(), indexResolution, executionInfo);
                         l.onResponse(result.withIndexResolution(indexResolution));
                     })
                 );
             }
-        } else {
-            try {
-                // occurs when dealing with local relations (row a = 1)
-                listener.onResponse(result.withIndexResolution(IndexResolution.invalid("[none specified]")));
-            } catch (Exception ex) {
-                listener.onFailure(ex);
-            }
+            default -> listener.onFailure(new MappingException("Queries with multiple indices are not supported"));
         }
     }
 

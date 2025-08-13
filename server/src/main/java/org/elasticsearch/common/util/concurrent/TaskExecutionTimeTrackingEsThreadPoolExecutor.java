@@ -168,10 +168,8 @@ public final class TaskExecutionTimeTrackingEsThreadPoolExecutor extends EsThrea
         if (trackMaxQueueLatency == false) {
             return 0;
         }
+
         var queue = getQueue();
-        if (queue.isEmpty()) {
-            return 0;
-        }
         assert queue instanceof LinkedTransferQueue || queue instanceof SizeBlockingQueue
             : "Not the type of queue expected: " + queue.getClass();
         var linkedTransferOrSizeBlockingQueue = queue instanceof LinkedTransferQueue
@@ -179,6 +177,11 @@ public final class TaskExecutionTimeTrackingEsThreadPoolExecutor extends EsThrea
             : (SizeBlockingQueue) queue;
 
         var task = linkedTransferOrSizeBlockingQueue.peek();
+        if (task == null) {
+            // There's nothing in the queue right now.
+            return 0;
+        }
+
         assert task instanceof WrappedRunnable : "Not the type of task expected: " + task.getClass();
         var wrappedTask = ((WrappedRunnable) task).unwrap();
         assert wrappedTask instanceof TimedRunnable : "Not the type of task expected: " + task.getClass();

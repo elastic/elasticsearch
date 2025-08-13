@@ -23,7 +23,7 @@ import java.util.Map;
 import static org.elasticsearch.gradle.internal.transport.TransportVersionUtils.getDefinitionsDirectory;
 import static org.elasticsearch.gradle.internal.transport.TransportVersionUtils.getResourcesDirectory;
 
-public class TransportVersionResourcesPlugin implements Plugin<Project> {
+public class GlobalTransportVersionManagementPlugin implements Plugin<Project> {
 
     @Override
     public void apply(Project project) {
@@ -37,7 +37,7 @@ public class TransportVersionResourcesPlugin implements Plugin<Project> {
 
         // iterate through all projects, and if the management plugin is applied, add that project back as a dep to check
         for (Project subProject : project.getRootProject().getSubprojects()) {
-            subProject.getPlugins().withType(TransportVersionReferencesPlugin.class).configureEach(plugin -> {
+            subProject.getPlugins().withType(TransportVersionManagementPlugin.class).configureEach(plugin -> {
                 tvReferencesConfig.getDependencies().add(depsHandler.project(Map.of("path", subProject.getPath())));
             });
         }

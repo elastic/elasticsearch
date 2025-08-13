@@ -116,13 +116,13 @@ class TransportVersionUtils {
 
         IdComponents(int value, int numDigits) {
             this.value = value;
-            this.max = (int) Math.pow(10, numDigits-1);
+            this.max = (int) Math.pow(10, numDigits);
         }
     }
 
     record TransportVersionId(int complete, int major, int server, int subsidiary, int patch) implements Comparable<TransportVersionId> {
         public static TransportVersionId fromInt(int complete) {
-            int patch = complete % PATCH.value;
+            int patch = complete % PATCH.max;
             int subsidiary = (complete / SUBSIDIARY.value) % SUBSIDIARY.max;
             int server = (complete / SERVER.value) % SERVER.max;
             int major = complete / MAJOR.value;

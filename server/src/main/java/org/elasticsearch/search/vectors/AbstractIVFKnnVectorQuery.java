@@ -63,11 +63,10 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
     static final TopDocs NO_RESULTS = TopDocsCollector.EMPTY_TOPDOCS;
 
     protected final String field;
-    protected final float visitRatio;
+    protected float providedVisitRatio;
     protected final int k;
     protected final int numCands;
     protected final Query filter;
-    protected final IVFKnnSearchStrategy searchStrategy;
     protected int vectorOpsCount;
 
     protected AbstractIVFKnnVectorQuery(String field, float visitRatio, int k, int numCands, Query filter) {
@@ -81,21 +80,10 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
             throw new IllegalArgumentException("numCands must be at least k, got: " + numCands);
         }
         this.field = field;
-        this.visitRatio = visitRatio;
         this.k = k;
         this.filter = filter;
         this.numCands = numCands;
-        if (visitRatio == 0.0f) {
-            // dynamically set the percentage
-            float expected = (float) Math.round(1.75f * Math.log10(numCands) * Math.log10(numCands) * (numCands));
-            // FIXME: get floatVectorValues from the reader, clean this up
-            // int totalVectors = floatVectorValues.size();
-            int totalVectors = 1000000;
-            float ratio = expected / totalVectors;
-            searchStrategy = new IVFKnnSearchStrategy(ratio);
-        } else {
-            this.searchStrategy = new IVFKnnSearchStrategy(visitRatio);
-        }
+        this.providedVisitRatio = visitRatio;
     }
 
     @Override
@@ -113,12 +101,12 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
         return k == that.k
             && Objects.equals(field, that.field)
             && Objects.equals(filter, that.filter)
-            && Objects.equals(visitRatio, that.visitRatio);
+            && Objects.equals(providedVisitRatio, that.providedVisitRatio);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(field, k, filter, visitRatio);
+        return Objects.hash(field, k, filter, providedVisitRatio);
     }
 
     @Override
@@ -147,12 +135,21 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
         TaskExecutor taskExecutor = indexSearcher.getTaskExecutor();
         List<LeafReaderContext> leafReaderContexts = reader.leaves();
 
-        // FIXME: validate this, clean it up
-        int totalBudget = 0;
+        int totalVectors = 0;
         for (LeafReaderContext leafReaderContext : leafReaderContexts) {
-            totalBudget += leafReaderContext.reader().leaves().size();
+            totalVectors += leafReaderContext.reader().leaves().size();
         }
-        totalBudget = (int) (totalBudget * visitRatio);
+
+        final float visitRatio;
+        if (providedVisitRatio == 0.0f) {
+            // dynamically set the percentage
+            float expected = (float) Math.round(1.75f * Math.log10(numCands) * Math.log10(numCands) * (numCands));
+            visitRatio = expected / totalVectors;
+        } else {
+            visitRatio = providedVisitRatio;
+        }
+
+        int totalBudget = (int) (totalVectors * visitRatio);
 
         List<Callable<TopDocs>> tasks;
         if (leafReaderContexts.isEmpty() == false) {
@@ -167,13 +164,12 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
                 .toArray();
 
             double averageAffinity = Arrays.stream(affinityScores).average().orElse(Double.NaN);
-            // max affinity for decreasing nProbe
+            // max affinity for decreasing visited ratio
             double maxAffinity = Arrays.stream(affinityScores).max().orElse(Double.NaN);
             double lowerAffinity = (maxAffinity + averageAffinity) * 0.5;
             double cutoffAffinity = lowerAffinity * 0.1; // minimum affinity score for a segment to be considered
-            double affinityThreshold = (maxAffinity + lowerAffinity) * 0.66; // min affinity for increasing nProbe
+            double affinityThreshold = (maxAffinity + lowerAffinity) * 0.66; // min affinity for increasing visited ratio
 
-            // FIXME: review this change from nProbe to ratio
             int maxAdjustments = (int) (visitRatio * 1.5);
 
             if (Double.isNaN(maxAffinity) || Double.isNaN(averageAffinity)) {
@@ -193,7 +189,7 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
                     if (score < cutoffAffinity) {
                         continue;
                     }
-                    float adjustedVisitRatio = adjustVisitRatioForSegment(score, affinityThreshold, maxAdjustments);
+                    float adjustedVisitRatio = adjustVisitRatioForSegment(score, affinityThreshold, maxAdjustments, visitRatio);
                     LeafReaderContext context = segmentAffinity.context();
 
                     // distribute the budget according to : budgetᵢ = total_budget × (affinityᵢ × |vectors|ᵢ) / ∑ (affinityⱼ × |vectors|ⱼ)
@@ -215,22 +211,19 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
         return new KnnScoreDocQuery(topK.scoreDocs, reader);
     }
 
-    private float adjustVisitRatioForSegment(double affinityScore, double affinityThreshold, int maxAdjustment) {
-        // FIXME: review this change from nProbe to ratio
-        float baseVisitRatio = this.visitRatio;
-
-        // for high affinity scores, increase nProbe
+    private float adjustVisitRatioForSegment(double affinityScore, double affinityThreshold, int maxAdjustment, float visitRatio) {
+        // for high affinity scores, increase visited ratio
         if (affinityScore > affinityThreshold) {
             int adjustment = (int) Math.ceil((affinityScore - affinityThreshold) * maxAdjustment);
-            return Math.min(baseVisitRatio * adjustment, baseVisitRatio + maxAdjustment);
+            return Math.min(visitRatio * adjustment, visitRatio + maxAdjustment);
         }
 
-        // for low affinity scores, decrease nProbe
+        // for low affinity scores, decrease visited ratio
         if (affinityScore <= affinityThreshold) {
-            return Math.max(baseVisitRatio / 3, 1);
+            return Math.max(visitRatio / 3, 1);
         }
 
-        return baseVisitRatio;
+        return visitRatio;
     }
 
     abstract float[] getQueryVector() throws IOException;
@@ -359,7 +352,15 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
         final LeafReader reader = ctx.reader();
         final Bits liveDocs = reader.getLiveDocs();
 
-        KnnSearchStrategy searchStrategy = new IVFKnnSearchStrategy(visitRatio);
+        KnnSearchStrategy searchStrategy;
+        if (visitRatio == 0.0f) {
+            // dynamically set the percentage
+            float expected = (float) Math.round(1.75f * Math.log10(numCands) * Math.log10(numCands) * (numCands));
+            float ratio = expected / reader.getFloatVectorValues(field).size();
+            searchStrategy = new IVFKnnSearchStrategy(ratio);
+        } else {
+            searchStrategy = new IVFKnnSearchStrategy(visitRatio);
+        }
 
         if (filterWeight == null) {
             return approximateSearch(ctx, liveDocs, visitingBudget, knnCollectorManager, searchStrategy);

@@ -806,13 +806,14 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
         out.writeOptionalString(id);
         out.writeOptionalString(routing);
         if (out.getTransportVersion().onOrAfter(TransportVersions.STRUCTURED_SOURCE)) {
-            out.writeBoolean(modernSource.isStructured());
-            if (modernSource.isStructured()) {
+            if (modernSource != null && modernSource.isStructured()) {
+                out.writeBoolean(true);
                 out.writeVInt(modernSource.originalSourceSize());
                 ESONFlat structuredSource = modernSource.structuredSource();
                 out.writeBytesReference(structuredSource.getSerializedKeyBytes());
                 out.writeBytesReference(structuredSource.values().data());
             } else {
+                out.writeBoolean(false);
                 out.writeBytesReference(source());
             }
         } else {

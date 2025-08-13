@@ -441,7 +441,7 @@ public class EsqlSession {
                 l.onFailure(e);
                 return;
             }
-            LOGGER.debug("Analyzed plan (second attempt, without filter):\n{}", plan);
+            LOGGER.debug("Analyzed plan (second attempt without filter):\n{}", plan);
             l.onResponse(plan);
         }).addListener(logicalPlanListener);
     }
@@ -744,9 +744,9 @@ public class EsqlSession {
         ActionListener<PreAnalysisResult> l
     ) {
         LogicalPlan plan = null;
-        var filterPresentMessage = requestFilter == null ? "without" : "with";
-        var attemptMessage = requestFilter == null ? "the only" : "first";
-        LOGGER.debug("Analyzing the plan ({} attempt, {} filter)", attemptMessage, filterPresentMessage);
+
+        var description = requestFilter == null ? "the only attempt without filter" : "first attempt with filter";
+        LOGGER.debug("Analyzing the plan ({})", description);
 
         try {
             if (result.indices.isValid() || requestFilter != null) {
@@ -756,12 +756,7 @@ public class EsqlSession {
             }
             plan = analyzeAction.apply(result);
         } catch (VerificationException ve) {
-            LOGGER.debug(
-                "Analyzing the plan ({} attempt, {} filter) failed with {}",
-                attemptMessage,
-                filterPresentMessage,
-                ve.getDetailedMessage()
-            );
+            LOGGER.debug("Analyzing the plan ({}) failed with {}", description, ve.getDetailedMessage());
             if (requestFilter == null) {
                 // if the initial request didn't have a filter, then just pass the exception back to the user
                 logicalPlanListener.onFailure(ve);
@@ -775,7 +770,7 @@ public class EsqlSession {
             logicalPlanListener.onFailure(e);
             return;
         }
-        LOGGER.debug("Analyzed plan ({} attempt, {} filter):\n{}", attemptMessage, filterPresentMessage, plan);
+        LOGGER.debug("Analyzed plan ({}):\n{}", description, plan);
         // the analysis succeeded from the first attempt, irrespective if it had a filter or not, just continue with the planning
         logicalPlanListener.onResponse(plan);
     }

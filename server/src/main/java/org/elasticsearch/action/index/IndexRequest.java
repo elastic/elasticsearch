@@ -434,6 +434,10 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
         return modernSource == null ? null : modernSource.originalSourceBytes();
     }
 
+    public ModernSource modernSource() {
+        return modernSource;
+    }
+
     public int sourceSize() {
         return modernSource == null ? 0 : modernSource.originalSourceSize();
     }

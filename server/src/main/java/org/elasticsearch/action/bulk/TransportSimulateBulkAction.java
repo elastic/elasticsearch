@@ -202,13 +202,12 @@ public class TransportSimulateBulkAction extends TransportAbstractBulkAction {
     ) {
         final SourceToParse sourceToParse = new SourceToParse(
             request.id(),
-            request.source(),
+            request.modernSource(),
             request.getContentType(),
             request.routing(),
             request.getDynamicTemplates(),
             request.getIncludeSourceOnError(),
-            XContentMeteringParserDecorator.NOOP,
-            request.isStructuredSource() ? request.structuredSource() : null
+            XContentMeteringParserDecorator.NOOP
         );
 
         ProjectMetadata project = projectResolver.getProjectMetadata(clusterService.state());

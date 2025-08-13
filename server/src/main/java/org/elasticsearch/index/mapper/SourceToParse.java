@@ -9,6 +9,7 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.elasticsearch.action.index.ModernSource;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.core.Nullable;
@@ -21,6 +22,7 @@ import java.util.Objects;
 
 public class SourceToParse {
 
+    private final ModernSource modernSource;
     private final BytesReference source;
 
     private final String id;
@@ -34,8 +36,6 @@ public class SourceToParse {
     private final boolean includeSourceOnError;
 
     private final XContentMeteringParserDecorator meteringParserDecorator;
-    @Nullable
-    private ESONFlat structuredSource;
 
     public SourceToParse(
         @Nullable String id,
@@ -44,27 +44,47 @@ public class SourceToParse {
         @Nullable String routing,
         Map<String, String> dynamicTemplates,
         boolean includeSourceOnError,
-        XContentMeteringParserDecorator meteringParserDecorator,
-        @Nullable ESONFlat structuredSource
+        XContentMeteringParserDecorator meteringParserDecorator
+    ) {
+        this(
+            id,
+            new ModernSource(source, xContentType, source.length(), null),
+            xContentType,
+            routing,
+            dynamicTemplates,
+            includeSourceOnError,
+            meteringParserDecorator
+        );
+    }
+
+    public SourceToParse(
+        @Nullable String id,
+        ModernSource source,
+        XContentType xContentType,
+        @Nullable String routing,
+        Map<String, String> dynamicTemplates,
+        boolean includeSourceOnError,
+        XContentMeteringParserDecorator meteringParserDecorator
     ) {
         this.id = id;
+        this.modernSource = source;
         // we always convert back to byte array, since we store it and Field only supports bytes..
         // so, we might as well do it here, and improve the performance of working with direct byte arrays
-        this.source = source.hasArray() ? source : new BytesArray(source.toBytesRef());
+        BytesReference sourceBytes = source.originalSourceBytes();
+        this.source = sourceBytes.hasArray() ? sourceBytes : new BytesArray(sourceBytes.toBytesRef());
         this.xContentType = Objects.requireNonNull(xContentType);
         this.routing = routing;
         this.dynamicTemplates = Objects.requireNonNull(dynamicTemplates);
         this.includeSourceOnError = includeSourceOnError;
         this.meteringParserDecorator = meteringParserDecorator;
-        this.structuredSource = structuredSource;
     }
 
     public SourceToParse(String id, BytesReference source, XContentType xContentType) {
-        this(id, source, xContentType, null, Map.of(), true, XContentMeteringParserDecorator.NOOP, null);
+        this(id, source, xContentType, null, Map.of(), true, XContentMeteringParserDecorator.NOOP);
     }
 
     public SourceToParse(String id, BytesReference source, XContentType xContentType, String routing) {
-        this(id, source, xContentType, routing, Map.of(), true, XContentMeteringParserDecorator.NOOP, null);
+        this(id, source, xContentType, routing, Map.of(), true, XContentMeteringParserDecorator.NOOP);
     }
 
     public SourceToParse(
@@ -74,16 +94,20 @@ public class SourceToParse {
         String routing,
         Map<String, String> dynamicTemplates
     ) {
-        this(id, source, xContentType, routing, dynamicTemplates, true, XContentMeteringParserDecorator.NOOP, null);
+        this(id, source, xContentType, routing, dynamicTemplates, true, XContentMeteringParserDecorator.NOOP);
     }
 
     public BytesReference source() {
         return this.source;
     }
 
+    public ModernSource modernSource() {
+        return this.modernSource;
+    }
+
     @Nullable
     public ESONFlat getStructuredSource() {
-        return structuredSource;
+        return modernSource.structuredSource();
     }
 
     /**

@@ -14,7 +14,6 @@ import com.carrotsearch.hppc.IntHashSet;
 import org.apache.lucene.codecs.KnnVectorsReader;
 import org.apache.lucene.codecs.perfield.PerFieldKnnVectorsFormat;
 import org.apache.lucene.index.FieldInfo;
-import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
@@ -37,6 +36,7 @@ import org.apache.lucene.search.TaskExecutor;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TopDocsCollector;
 import org.apache.lucene.search.TopKnnCollector;
+import org.apache.lucene.search.VectorScorer;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.search.knn.KnnCollectorManager;
 import org.apache.lucene.search.knn.KnnSearchStrategy;
@@ -64,7 +64,7 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
     static final TopDocs NO_RESULTS = TopDocsCollector.EMPTY_TOPDOCS;
 
     protected final String field;
-    protected float providedVisitRatio;
+    protected final float providedVisitRatio;
     protected final int k;
     protected final int numCands;
     protected final Query filter;
@@ -81,10 +81,10 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
             throw new IllegalArgumentException("numCands must be at least k, got: " + numCands);
         }
         this.field = field;
+        this.providedVisitRatio = visitRatio;
         this.k = k;
         this.filter = filter;
         this.numCands = numCands;
-        this.providedVisitRatio = visitRatio;
     }
 
     @Override
@@ -128,6 +128,7 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
         } else {
             filterWeight = null;
         }
+
         // we request numCands as we are using it as an approximation measure
         // we need to ensure we are getting at least 2*k results to ensure we cover overspill duplicates
         // TODO move the logic for automatically adjusting percentages to the query, so we can only pass
@@ -136,26 +137,25 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
         TaskExecutor taskExecutor = indexSearcher.getTaskExecutor();
         List<LeafReaderContext> leafReaderContexts = reader.leaves();
 
-        int totalVectors = 0;
-        for (LeafReaderContext leafReaderContext : leafReaderContexts) {
+        long totalDocsWVectors = 0;
+        for(LeafReaderContext leafReaderContext : leafReaderContexts) {
             LeafReader leafReader = leafReaderContext.reader();
-            FloatVectorValues floatVectorValues = leafReader.getFloatVectorValues(field);
-            if (floatVectorValues != null) {
-                totalVectors += floatVectorValues.size();
-            }
+            FieldInfo fieldInfo = leafReader.getFieldInfos().fieldInfo(field);
+            VectorScorer scorer = createVectorScorer(leafReaderContext, fieldInfo);
+            totalDocsWVectors += scorer.iterator().cost();
         }
 
         final float visitRatio;
         if (providedVisitRatio == 0.0f) {
             // dynamically set the percentage
             float expected = (float) Math.round(1.75f * Math.log10(numCands) * Math.log10(numCands) * (numCands));
-            visitRatio = expected / totalVectors;
+            visitRatio = expected / totalDocsWVectors;
         } else {
             visitRatio = providedVisitRatio;
         }
 
         // FIXME: pick a reasonable min budget and make sure visitRatio is used appropriately throughout and not pushing the budget to zero
-        int totalBudget = Math.max(100, (int) (totalVectors * visitRatio));
+        int totalBudget = Math.max(100, (int) (totalDocsWVectors * visitRatio));
 
         List<Callable<TopDocs>> tasks;
         if (leafReaderContexts.isEmpty() == false) {
@@ -216,6 +216,9 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
         }
         return new KnnScoreDocQuery(topK.scoreDocs, reader);
     }
+
+    abstract VectorScorer createVectorScorer(LeafReaderContext context, FieldInfo fi)
+        throws IOException;
 
     private float adjustVisitRatioForSegment(double affinityScore, double affinityThreshold, int maxAdjustment, float visitRatio) {
         // for high affinity scores, increase visited ratio

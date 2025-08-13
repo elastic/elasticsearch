@@ -8,12 +8,15 @@
  */
 package org.elasticsearch.search.vectors;
 
+import org.apache.lucene.index.ByteVectorValues;
+import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.KnnCollector;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TopDocs;
+import org.apache.lucene.search.VectorScorer;
 import org.apache.lucene.search.knn.KnnCollectorManager;
 import org.apache.lucene.search.knn.KnnSearchStrategy;
 import org.apache.lucene.util.Bits;
@@ -74,6 +77,17 @@ public class IVFKnnFloatVectorQuery extends AbstractIVFKnnVectorQuery {
     }
 
     @Override
+    VectorScorer createVectorScorer(LeafReaderContext context, FieldInfo fi) throws IOException {
+        LeafReader reader = context.reader();
+        FloatVectorValues vectorValues = reader.getFloatVectorValues(field);
+        if (vectorValues == null) {
+            FloatVectorValues.checkField(reader, field);
+            return null;
+        }
+        return vectorValues.scorer(query);
+    }
+
+    @Override
     protected TopDocs approximateSearch(
         LeafReaderContext context,
         Bits acceptDocs,
@@ -81,17 +95,17 @@ public class IVFKnnFloatVectorQuery extends AbstractIVFKnnVectorQuery {
         KnnCollectorManager knnCollectorManager,
         KnnSearchStrategy searchStrategy
     ) throws IOException {
-        KnnCollector knnCollector = knnCollectorManager.newCollector(visitedLimit, searchStrategy, context);
-        if (knnCollector == null) {
-            return NO_RESULTS;
-        }
         LeafReader reader = context.reader();
         FloatVectorValues floatVectorValues = reader.getFloatVectorValues(field);
         if (floatVectorValues == null) {
             FloatVectorValues.checkField(reader, field);
             return NO_RESULTS;
         }
-        if (Math.min(knnCollector.k(), floatVectorValues.size()) == 0) {
+        if (floatVectorValues.size() == 0) {
+            return NO_RESULTS;
+        }
+        KnnCollector knnCollector = knnCollectorManager.newCollector(visitedLimit, searchStrategy, context);
+        if (knnCollector == null) {
             return NO_RESULTS;
         }
         reader.searchNearestVectors(field, query, knnCollector, acceptDocs);

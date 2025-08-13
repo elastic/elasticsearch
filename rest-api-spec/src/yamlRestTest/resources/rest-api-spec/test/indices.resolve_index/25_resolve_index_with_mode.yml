@@ -13,9 +13,9 @@ setup:
 # If your project uses a different feature flag name, adjust it here.
 ---
 "resolve index returns mode for standard and time_series indices":
-  - skip:
-      cluster_features: ["tsdb_indexing"]
-      reason: "Requires time series indexing support"
+  - requires:
+      cluster_features: ["gte_v8.5.0"]
+      reason: "Requires time series indexing support introduced in v8.5.0"
 
   # Create a standard index
   - do:

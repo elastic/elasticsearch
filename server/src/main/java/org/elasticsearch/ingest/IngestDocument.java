@@ -1088,13 +1088,36 @@ public final class IngestDocument {
         }
     }
 
-    private record ResolveResult(boolean wasSuccessful, Object resolvedObject, String errorMessage) {
+    private record ResolveResult(boolean wasSuccessful, Object resolvedObject, String errorMessage, String missingFields) {
+        /**
+         * The resolve operation ended with a successful result, locating the resolved object at the given path location
+         * @param resolvedObject The resolved object
+         * @return Successful result
+         */
         static ResolveResult success(Object resolvedObject) {
-            return new ResolveResult(true, resolvedObject, null);
+            return new ResolveResult(true, resolvedObject, null, null);
         }
 
+        /**
+         * Due to the access pattern, the resolve operation was only partially completed. The last resolved context object is returned,
+         * along with the fields that have been tried up until running into the field limit. The result's success flag is set to false,
+         * but it contains additional information about further resolving the operation.
+         * @param lastResolvedObject The last successfully resolved context object from the document
+         * @param missingFields The fields from the given path that have not been located yet
+         * @return Incomplete result
+         */
+        static ResolveResult incomplete(Object lastResolvedObject, String missingFields) {
+            return new ResolveResult(false, lastResolvedObject, null, missingFields);
+        }
+
+        /**
+         * The resolve operation ended with an error. The object at the given path location could not be resolved, either due to it
+         * being missing, or the path being invalid.
+         * @param errorMessage The error message to be returned.
+         * @return Error result
+         */
         static ResolveResult error(String errorMessage) {
-            return new ResolveResult(false, null, errorMessage);
+            return new ResolveResult(false, null, errorMessage, null);
         }
     }
 
@@ -1226,6 +1249,10 @@ public final class IngestDocument {
 
         private static String notStringOrByteArray(String path, Object value) {
             return "Content field [" + path + "] of unknown type [" + value.getClass().getName() + "], must be string or byte array";
+        }
+
+        private static String invalidPath(String fullPath) {
+            return "path [" + fullPath + "] is not valid";
         }
     }
 }

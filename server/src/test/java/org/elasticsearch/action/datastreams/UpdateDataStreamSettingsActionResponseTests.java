@@ -39,6 +39,7 @@ public class UpdateDataStreamSettingsActionResponseTests extends AbstractWireSer
         Map<String, String> dataStream1Settings = Map.of("setting1", "value1", "setting2", "value2");
         Map<String, String> dataStream1EffectiveSettings = Map.of("setting1", "value1", "setting2", "value2", "setting3", "value3");
         List<String> dataStream1AppliedToDataStreamOnly = randomList(10, () -> randomAlphanumericOfLength(10));
+        List<String> dataStream1AppliedToWriteIndexOnly = randomList(10, () -> randomAlphanumericOfLength(10));
         List<String> dataStream1AppliedToBackingIndices = randomList(10, () -> randomAlphanumericOfLength(10));
         List<IndexSettingError> dataStream1IndexErrors = randomList(
             10,
@@ -65,6 +66,7 @@ public class UpdateDataStreamSettingsActionResponseTests extends AbstractWireSer
                 Settings.builder().loadFromMap(dataStream1EffectiveSettings).build(),
                 new UpdateDataStreamSettingsAction.DataStreamSettingsResponse.IndicesSettingsResult(
                     dataStream1AppliedToDataStreamOnly,
+                    dataStream1AppliedToWriteIndexOnly,
                     dataStream1AppliedToBackingIndices,
                     dataStream1IndexErrors
                 )
@@ -78,6 +80,7 @@ public class UpdateDataStreamSettingsActionResponseTests extends AbstractWireSer
                 Settings.builder().loadFromMap(dataStream2EffectiveSettings).build(),
                 new UpdateDataStreamSettingsAction.DataStreamSettingsResponse.IndicesSettingsResult(
                     dataStream2AppliedToDataStreamOnly,
+                    dataStream1AppliedToWriteIndexOnly,
                     dataStream2AppliedToBackingIndices,
                     dataStream2IndexErrors
                 )
@@ -110,6 +113,7 @@ public class UpdateDataStreamSettingsActionResponseTests extends AbstractWireSer
                                 dataStream1Settings,
                                 dataStream1EffectiveSettings,
                                 dataStream1AppliedToDataStreamOnly,
+                                dataStream1AppliedToWriteIndexOnly,
                                 dataStream1AppliedToBackingIndices,
                                 dataStream1IndexErrors
                             ),
@@ -120,6 +124,7 @@ public class UpdateDataStreamSettingsActionResponseTests extends AbstractWireSer
                                 dataStream2Settings,
                                 dataStream2EffectiveSettings,
                                 dataStream2AppliedToDataStreamOnly,
+                                dataStream1AppliedToWriteIndexOnly,
                                 dataStream2AppliedToBackingIndices,
                                 dataStream2IndexErrors
                             )
@@ -137,6 +142,7 @@ public class UpdateDataStreamSettingsActionResponseTests extends AbstractWireSer
         Map<String, String> settings,
         Map<String, String> effectiveSettings,
         List<String> appliedToDataStreamOnly,
+        List<String> appliedToWriteIndexOnly,
         List<String> appliedToIndices,
         List<IndexSettingError> indexErrors
     ) {
@@ -150,6 +156,7 @@ public class UpdateDataStreamSettingsActionResponseTests extends AbstractWireSer
         result.put("effective_settings", effectiveSettings);
         Map<String, Object> indexSettingsResults = new HashMap<>();
         indexSettingsResults.put("applied_to_data_stream_only", appliedToDataStreamOnly);
+        indexSettingsResults.put("applied_to_data_stream_and_write_index", appliedToWriteIndexOnly);
         indexSettingsResults.put("applied_to_data_stream_and_backing_indices", appliedToIndices);
         if (indexErrors.isEmpty() == false) {
             indexSettingsResults.put(
@@ -181,6 +188,7 @@ public class UpdateDataStreamSettingsActionResponseTests extends AbstractWireSer
 
     private UpdateDataStreamSettingsAction.DataStreamSettingsResponse.IndicesSettingsResult randomIndicesSettingsResult() {
         return new UpdateDataStreamSettingsAction.DataStreamSettingsResponse.IndicesSettingsResult(
+            randomList(10, () -> randomAlphanumericOfLength(20)),
             randomList(10, () -> randomAlphanumericOfLength(20)),
             randomList(10, () -> randomAlphanumericOfLength(20)),
             randomList(10, this::randomIndexSettingError)

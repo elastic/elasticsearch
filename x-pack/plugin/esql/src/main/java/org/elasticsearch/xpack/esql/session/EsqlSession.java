@@ -409,34 +409,9 @@ public class EsqlSession {
         for (var index : preAnalysis.lookupIndices) {
             listener = listener.andThen((l, preAnalysisResult) -> preAnalyzeLookupIndex(index, preAnalysisResult, executionInfo, l));
         }
-        listener.<PreAnalysisResult>andThen((l, result) -> {
-            // resolve the main indices
-            preAnalyzeMainIndices(preAnalysis, executionInfo, result, requestFilter, l);
-        }).<PreAnalysisResult>andThen((l, result) -> {
-            // first attempt (maybe the only one) at analyzing the plan
-            analyzeWithRetry(analyzeAction, requestFilter, result, executionInfo, logicalPlanListener, l);
-        }).<PreAnalysisResult>andThen((l, result) -> {
-            assert requestFilter != null : "The second pre-analysis shouldn't take place when there is no index filter in the request";
-
-            // here the requestFilter is set to null, performing the pre-analysis after the first step failed
-            preAnalyzeMainIndices(preAnalysis, executionInfo, result, null, l);
-        }).<LogicalPlan>andThen((l, result) -> {
-            assert requestFilter != null : "The second analysis shouldn't take place when there is no index filter in the request";
-            LOGGER.debug("Analyzing the plan (second attempt, without filter)");
-            LogicalPlan plan;
-            try {
-                // the order here is tricky - if the cluster has been filtered and later became unavailable,
-                // do we want to declare it successful or skipped? For now, unavailability takes precedence.
-                EsqlCCSUtils.updateExecutionInfoWithUnavailableClusters(executionInfo, result.indices.failures());
-                EsqlCCSUtils.updateExecutionInfoWithClustersWithNoMatchingIndices(executionInfo, result.indices, false);
-                plan = analyzeAction.apply(result);
-            } catch (Exception e) {
-                l.onFailure(e);
-                return;
-            }
-            LOGGER.debug("Analyzed plan (second attempt without filter):\n{}", plan);
-            l.onResponse(plan);
-        }).addListener(logicalPlanListener);
+        listener.<PreAnalysisResult>andThen((l, result) -> preAnalyzeMainIndices(preAnalysis, executionInfo, result, requestFilter, l))
+            .<LogicalPlan>andThen((l, result) -> analyzeWithRetry(analyzeAction, requestFilter, preAnalysis, executionInfo, result, l))
+            .addListener(logicalPlanListener);
     }
 
     private void preAnalyzeLookupIndex(
@@ -704,13 +679,13 @@ public class EsqlSession {
         }
     }
 
-    private static void analyzeWithRetry(
+    private void analyzeWithRetry(
         CheckedFunction<PreAnalysisResult, LogicalPlan, Exception> analyzeAction,
         QueryBuilder requestFilter,
-        PreAnalysisResult result,
+        PreAnalyzer.PreAnalysis preAnalysis,
         EsqlExecutionInfo executionInfo,
-        ActionListener<LogicalPlan> logicalPlanListener,
-        ActionListener<PreAnalysisResult> stepListener
+        PreAnalysisResult result,
+        ActionListener<LogicalPlan> listener
     ) {
         if (result.indices.isValid()) {
             EsqlCCSUtils.updateExecutionInfoWithUnavailableClusters(executionInfo, result.indices.failures());
@@ -719,7 +694,7 @@ public class EsqlSession {
                 // for a CCS, if all clusters have been marked as SKIPPED, nothing to search so send a sentinel Exception
                 // to let the LogicalPlanActionListener decide how to proceed
                 LOGGER.debug("No more clusters to search, ending analysis stage");
-                logicalPlanListener.onFailure(new NoClustersToSearchException());
+                listener.onFailure(new NoClustersToSearchException());
                 return;
             }
         }
@@ -736,18 +711,31 @@ public class EsqlSession {
             LogicalPlan plan = analyzeAction.apply(result);
             LOGGER.debug("Analyzed plan ({}):\n{}", description, plan);
             // the analysis succeeded from the first attempt, irrespective if it had a filter or not, just continue with the planning
-            logicalPlanListener.onResponse(plan);
+            listener.onResponse(plan);
         } catch (VerificationException ve) {
             LOGGER.debug("Analyzing the plan ({}) failed with {}", description, ve.getDetailedMessage());
             if (requestFilter == null) {
                 // if the initial request didn't have a filter, then just pass the exception back to the user
-                logicalPlanListener.onFailure(ve);
+                listener.onFailure(ve);
             } else {
                 // retrying and make the index resolution work without any index filtering.
-                stepListener.onResponse(result);
+                preAnalyzeMainIndices(preAnalysis, executionInfo, result, null, listener.delegateFailure((l, r) -> {
+                    LOGGER.debug("Analyzing the plan (second attempt, without filter)");
+                    try {
+                        // the order here is tricky - if the cluster has been filtered and later became unavailable,
+                        // do we want to declare it successful or skipped? For now, unavailability takes precedence.
+                        EsqlCCSUtils.updateExecutionInfoWithUnavailableClusters(executionInfo, r.indices.failures());
+                        EsqlCCSUtils.updateExecutionInfoWithClustersWithNoMatchingIndices(executionInfo, r.indices, false);
+                        LogicalPlan plan = analyzeAction.apply(r);
+                        LOGGER.debug("Analyzed plan (second attempt without filter):\n{}", plan);
+                        l.onResponse(plan);
+                    } catch (Exception e) {
+                        l.onFailure(e);
+                    }
+                }));
             }
         } catch (Exception e) {
-            logicalPlanListener.onFailure(e);
+            listener.onFailure(e);
         }
     }
 

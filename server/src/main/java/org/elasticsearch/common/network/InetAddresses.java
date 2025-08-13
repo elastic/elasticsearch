@@ -37,12 +37,12 @@ public class InetAddresses {
 
     public static boolean isInetAddress(String ipString) {
         XContentString.UTF8Bytes bytes = new Text(ipString).bytes();
-        return ipStringToBytes(bytes.bytes(), bytes.offset(), bytes.length()) != null;
+        return ipStringToBytes(bytes.bytes(), bytes.offset(), bytes.length(), false) != null;
     }
 
     public static String getIpOrHost(String ipString) {
         XContentString.UTF8Bytes utf8Bytes = new Text(ipString).bytes();
-        byte[] bytes = ipStringToBytes(utf8Bytes.bytes(), utf8Bytes.offset(), utf8Bytes.length());
+        byte[] bytes = ipStringToBytes(utf8Bytes.bytes(), utf8Bytes.offset(), utf8Bytes.length(), false);
         if (bytes == null) { // is not InetAddress
             return ipString;
         }
@@ -59,7 +59,7 @@ public class InetAddresses {
      */
     public static byte[] encodeAsIpv6(XContentString ipString) {
         XContentString.UTF8Bytes uft8Bytes = ipString.bytes();
-        byte[] address = ipStringToBytes(uft8Bytes.bytes(), uft8Bytes.offset(), uft8Bytes.length());
+        byte[] address = ipStringToBytes(uft8Bytes.bytes(), uft8Bytes.offset(), uft8Bytes.length(), true);
         // The argument was malformed, i.e. not an IP string literal.
         if (address == null) {
             throw new IllegalArgumentException(String.format(Locale.ROOT, "'%s' is not an IP string literal.", ipString.string()));
@@ -67,7 +67,7 @@ public class InetAddresses {
         return CIDRUtils.encode(address);
     }
 
-    private static byte[] ipStringToBytes(byte[] ipUtf8, int offset, int length) {
+    private static byte[] ipStringToBytes(byte[] ipUtf8, int offset, int length, boolean asIpv6) {
         // Make a first pass to categorize the characters in this string.
         boolean hasColon = false;
         boolean hasDot = false;
@@ -103,7 +103,7 @@ public class InetAddresses {
             }
             return textToNumericFormatV6(ipUtf8, offset, length);
         } else if (hasDot) {
-            return textToNumericFormatV4(ipUtf8, offset, length);
+            return textToNumericFormatV4(ipUtf8, offset, length, asIpv6);
         }
         return null;
     }
@@ -116,7 +116,7 @@ public class InetAddresses {
             }
         }
         assert quadOffset >= 0 : "Expected at least one colon in dotted quad IPv6 address";
-        byte[] quad = textToNumericFormatV4(ipUtf8, offset + quadOffset, length - quadOffset);
+        byte[] quad = textToNumericFormatV4(ipUtf8, offset + quadOffset, length - quadOffset, false);
         if (quad == null) {
             return null;
         }
@@ -130,15 +130,25 @@ public class InetAddresses {
         return result;
     }
 
-    private static byte[] textToNumericFormatV4(byte[] ipUtf8, int offset, int length) {
-        byte[] bytes = new byte[IPV4_PART_COUNT];
-        byte octet = 0;
+    private static byte[] textToNumericFormatV4(byte[] ipUtf8, int offset, int length, boolean asIpv6) {
+        byte[] bytes;
+        byte octet;
+        if (asIpv6) {
+            bytes = new byte[IPV6_PART_COUNT * 2];
+            System.arraycopy(CIDRUtils.IPV4_PREFIX, 0, bytes, 0, CIDRUtils.IPV4_PREFIX.length);
+            octet = (byte) CIDRUtils.IPV4_PREFIX.length;
+        } else {
+            bytes = new byte[IPV4_PART_COUNT];
+            octet = 0;
+        }
         byte digits = 0;
         int current = 0;
         for (int i = offset; i < offset + length; i++) {
             byte c = ipUtf8[i];
             if (c == '.') {
-                if (octet > 3 /* too many octets */ || digits == 0 /* empty octet */ || current > 255 /* octet is outside a byte range */) {
+                if (octet >= bytes.length /* too many octets */
+                    || digits == 0 /* empty octet */
+                    || current > 255 /* octet is outside a byte range */) {
                     return null;
                 }
                 bytes[octet++] = (byte) current;
@@ -154,7 +164,9 @@ public class InetAddresses {
                 return null;
             }
         }
-        if (octet != 3 /* too many octets */ || digits == 0 /* empty octet */ || current > 255 /* octet is outside a byte range */) {
+        if (octet != bytes.length - 1 /* too many or too few octets */
+            || digits == 0 /* empty octet */
+            || current > 255 /* octet is outside a byte range */) {
             return null;
         }
         bytes[octet] = (byte) current;
@@ -419,7 +431,7 @@ public class InetAddresses {
      * which utilizes a more efficient implementation for parsing the IP address.
      */
     public static InetAddress forString(byte[] ipUtf8, int offset, int length) {
-        byte[] addr = ipStringToBytes(ipUtf8, offset, length);
+        byte[] addr = ipStringToBytes(ipUtf8, offset, length, false);
 
         // The argument was malformed, i.e. not an IP string literal.
         if (addr == null) {

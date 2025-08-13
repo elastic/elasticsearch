@@ -229,11 +229,11 @@ public final class IndexingSlowLog implements IndexingOperationListener {
                 map.put("elasticsearch.slowlog.routing", doc.routing());
             }
 
-            if (maxSourceCharsToLog == 0 || doc.source() == null || doc.source().length() == 0) {
+            if (maxSourceCharsToLog == 0 || doc.bytesSource() == null || doc.bytesSource().length() == 0) {
                 return map;
             }
             try {
-                String source = XContentHelper.convertToJson(doc.source(), reformat, doc.getXContentType());
+                String source = XContentHelper.convertToJson(doc.bytesSource(), reformat, doc.getXContentType());
                 String trim = Strings.cleanTruncate(source, maxSourceCharsToLog).trim();
                 StringBuilder sb = new StringBuilder(trim);
                 StringBuilders.escapeJson(sb, 0);

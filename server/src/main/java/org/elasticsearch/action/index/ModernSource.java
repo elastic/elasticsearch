@@ -46,6 +46,10 @@ public class ModernSource {
         this.structuredSource = structuredSource;
     }
 
+    public ModernSource(BytesReference source) {
+        this(source, XContentHelper.xContentType(source));
+    }
+
     public void ensureStructured() {
         if (structuredSource == null) {
             assert originalSource != null;

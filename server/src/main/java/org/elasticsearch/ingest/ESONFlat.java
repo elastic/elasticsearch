@@ -16,11 +16,14 @@ import org.elasticsearch.common.io.stream.StreamInput;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
 
 public record ESONFlat(List<ESONEntry> keys, ESONSource.Values values, AtomicReference<BytesReference> serializedKeyBytes) {
+
+    private static final byte[] EMPTY_KEY = new byte[0];
 
     public ESONFlat(List<ESONEntry> keys, ESONSource.Values values) {
         this(keys, values, new AtomicReference<>());
@@ -39,7 +42,10 @@ public record ESONFlat(List<ESONEntry> keys, ESONSource.Values values, AtomicRef
             ArrayList<ESONEntry> keys = new ArrayList<>(expected);
             for (int i = 0; i < expected; ++i) {
                 // TODO: Use UTF-8 byte length eventually
-                String key = streamInput.readString();
+                int stringLength = streamInput.readVInt();
+                byte[] sringBytes = new byte[stringLength];
+                streamInput.readBytes(sringBytes, 0, stringLength);
+                String key = new String(sringBytes, StandardCharsets.UTF_8);
                 byte type = streamInput.readByte();
                 int offsetOrCount = streamInput.readInt();
                 ESONEntry entry = switch (type) {
@@ -57,20 +63,18 @@ public record ESONFlat(List<ESONEntry> keys, ESONSource.Values values, AtomicRef
     public BytesReference getSerializedKeyBytes() {
         if (serializedKeyBytes.get() == null) {
             // TODO: Better estimate
-            int estimate = 0;
-            for (ESONEntry entry : keys) {
-                String key = entry.key();
-                estimate += key == null ? 0 : key.length() + 5;
-            }
+            int estimate = (int) (values.data().length() * 0.5);
+//            for (ESONEntry entry : keys) {
+//                String key = entry.key();
+//                estimate += key == null ? 0 : key.length() + 5;
+//            }
             try (BytesStreamOutput streamOutput = new BytesStreamOutput((int) (estimate * 1.1))) {
                 streamOutput.writeVInt(keys.size());
                 for (ESONEntry entry : keys) {
                     String key = entry.key();
-                    // byte[] bytes = key == null ? EMPTY_KET : key.getBytes(StandardCharsets.UTF_8);
-                    // streamOutput.writeVInt(bytes.length);
-                    // streamOutput.writeBytes(bytes);
-                    // TODO: Use UTF-8 byte length eventually
-                    streamOutput.writeString(key == null ? "" : key);
+                    byte[] bytes = key == null ? EMPTY_KEY : key.getBytes(StandardCharsets.UTF_8);
+                    streamOutput.writeVInt(bytes.length);
+                    streamOutput.writeBytes(bytes);
                     streamOutput.writeByte(entry.type());
                     // TODO: Combine
                     if (entry instanceof ESONEntry.FieldEntry fieldEntry) {

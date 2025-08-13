@@ -24,7 +24,7 @@ public interface RewriteableAware extends TranslationAware {
      * Replaces the current query builder with a rewritten iteration. This happens multiple times through the rewrite phase until
      * the final iteration of the query builder is stored.
      * @param queryBuilder QueryBuilder
-     * @return Expression defining the active QueryBuilder 
+     * @return Expression defining the active QueryBuilder
      */
     Expression replaceQueryBuilder(QueryBuilder queryBuilder);
 

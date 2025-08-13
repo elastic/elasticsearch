@@ -14,7 +14,7 @@ If you are migrating from a version prior to version 9.0, you must first upgrade
 
 ## 9.1.2 [elasticsearch-9.1.2-breaking-changes]
 
-There are no breaking changes associated with this release.
+No breaking changes in this version.
 
 ## 9.1.1 [elasticsearch-9.1.1-breaking-changes]
 

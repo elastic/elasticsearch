@@ -11,9 +11,7 @@ package org.elasticsearch.repositories;
 
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
-import org.elasticsearch.action.admin.indices.stats.IndexStats;
-import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
-import org.elasticsearch.action.admin.indices.stats.ShardStats;
+import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
 import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
@@ -79,7 +77,7 @@ public class SnapshotMetricsIT extends AbstractSnapshotIntegTestCase {
             .build();
     }
 
-    public void testSnapshotAPMMetrics() throws Exception {
+    public void testSnapshotAPMMetrics() {
         final String indexName = randomIdentifier();
         final int numShards = randomIntBetween(1, 10);
         final int numReplicas = randomIntBetween(0, 1);
@@ -87,30 +85,8 @@ public class SnapshotMetricsIT extends AbstractSnapshotIntegTestCase {
 
         indexRandom(true, indexName, randomIntBetween(100, 300));
 
-        final IndicesStatsResponse indicesStats = indicesAdmin().prepareStats(indexName).get();
-        final IndexStats indexStats = indicesStats.getIndex(indexName);
-        long totalSizeInBytes = 0;
-        for (ShardStats shard : indexStats.getShards()) {
-            totalSizeInBytes += shard.getStats().getStore().sizeInBytes();
-        }
-        logger.info("--> total shards size: {} bytes", totalSizeInBytes);
-
         final String repositoryName = randomIdentifier();
-
-        // we want to ensure some throttling, but not so much that it makes the test excessively slow.
-        final int shardSizeMultipleToEnsureThrottling = 1;
-        createRepository(
-            repositoryName,
-            "mock",
-            randomRepositorySettings().put(
-                BlobStoreRepository.MAX_SNAPSHOT_BYTES_PER_SEC.getKey(),
-                ByteSizeValue.ofBytes(totalSizeInBytes * shardSizeMultipleToEnsureThrottling)
-            )
-                .put(
-                    BlobStoreRepository.MAX_RESTORE_BYTES_PER_SEC.getKey(),
-                    ByteSizeValue.ofBytes(totalSizeInBytes * shardSizeMultipleToEnsureThrottling)
-                )
-        );
+        createRepository(repositoryName, "mock");
 
         // Block the snapshot to test "snapshot shards in progress"
         blockAllDataNodes(repositoryName);
@@ -142,8 +118,6 @@ public class SnapshotMetricsIT extends AbstractSnapshotIntegTestCase {
         // sanity check blobs, bytes and throttling metrics
         assertThat(getTotalClusterLongCounterValue(SnapshotMetrics.SNAPSHOT_BLOBS_UPLOADED), greaterThan(0L));
         assertThat(getTotalClusterLongCounterValue(SnapshotMetrics.SNAPSHOT_BYTES_UPLOADED), greaterThan(0L));
-        assertThat(getTotalClusterLongCounterValue(SnapshotMetrics.SNAPSHOT_CREATE_THROTTLE_DURATION), greaterThan(0L));
-        assertThat(getTotalClusterLongCounterValue(SnapshotMetrics.SNAPSHOT_RESTORE_THROTTLE_DURATION), equalTo(0L));
 
         assertThat(getTotalClusterLongCounterValue(SnapshotMetrics.SNAPSHOTS_STARTED), equalTo(1L));
         assertThat(getTotalClusterLongCounterValue(SnapshotMetrics.SNAPSHOTS_COMPLETED), equalTo(1L));
@@ -168,27 +142,13 @@ public class SnapshotMetricsIT extends AbstractSnapshotIntegTestCase {
             getTotalClusterLongCounterValue(SnapshotMetrics.SNAPSHOT_UPLOAD_DURATION),
             allOf(greaterThan(0L), lessThan(upperBoundTimeSpentOnSnapshotThingsMillis))
         );
-        assertThat(
-            getTotalClusterLongCounterValue(SnapshotMetrics.SNAPSHOT_UPLOAD_READ_DURATION),
-            allOf(greaterThan(0L), lessThan(upperBoundTimeSpentOnSnapshotThingsMillis))
-        );
+        assertThat(getTotalClusterLongCounterValue(SnapshotMetrics.SNAPSHOT_CREATE_THROTTLE_DURATION), equalTo(0L));
+        assertThat(getTotalClusterLongCounterValue(SnapshotMetrics.SNAPSHOT_RESTORE_THROTTLE_DURATION), equalTo(0L));
 
         assertThat(getTotalClusterLongCounterValue(SnapshotMetrics.SNAPSHOT_SHARDS_STARTED), equalTo((long) numShards));
         assertThat(getTotalClusterLongCounterValue(SnapshotMetrics.SNAPSHOT_SHARDS_COMPLETED), equalTo((long) numShards));
 
         assertShardsInProgressMetricIs(everyItem(equalTo(0L)));
-
-        // Restore the snapshot
-        clusterAdmin().prepareRestoreSnapshot(TEST_REQUEST_TIMEOUT, repositoryName, snapshotName)
-            .setIndices(indexName)
-            .setWaitForCompletion(true)
-            .setRenamePattern("(.+)")
-            .setRenameReplacement("restored-$1")
-            .get();
-        collectMetrics();
-
-        // assert we throttled on restore
-        assertThat(getTotalClusterLongCounterValue(SnapshotMetrics.SNAPSHOT_RESTORE_THROTTLE_DURATION), greaterThan(0L));
 
         // assert appropriate attributes are present
         final Map<String, Object> expectedAttrs = Map.of(
@@ -218,12 +178,102 @@ public class SnapshotMetricsIT extends AbstractSnapshotIntegTestCase {
         assertMetricsHaveAttributes(InstrumentType.LONG_COUNTER, SnapshotMetrics.SNAPSHOT_SHARDS_COMPLETED, expectedAttrsWithShardStage);
         assertMetricsHaveAttributes(InstrumentType.DOUBLE_HISTOGRAM, SnapshotMetrics.SNAPSHOT_SHARDS_DURATION, expectedAttrsWithShardStage);
 
-        assertMetricsHaveAttributes(InstrumentType.LONG_COUNTER, SnapshotMetrics.SNAPSHOT_RESTORE_THROTTLE_DURATION, expectedAttrs);
-        assertMetricsHaveAttributes(InstrumentType.LONG_COUNTER, SnapshotMetrics.SNAPSHOT_CREATE_THROTTLE_DURATION, expectedAttrs);
-        assertMetricsHaveAttributes(InstrumentType.LONG_COUNTER, SnapshotMetrics.SNAPSHOT_UPLOAD_READ_DURATION, expectedAttrs);
         assertMetricsHaveAttributes(InstrumentType.LONG_COUNTER, SnapshotMetrics.SNAPSHOT_UPLOAD_DURATION, expectedAttrs);
         assertMetricsHaveAttributes(InstrumentType.LONG_COUNTER, SnapshotMetrics.SNAPSHOT_BYTES_UPLOADED, expectedAttrs);
         assertMetricsHaveAttributes(InstrumentType.LONG_COUNTER, SnapshotMetrics.SNAPSHOT_BLOBS_UPLOADED, expectedAttrs);
+    }
+
+    public void testThrottlingMetrics() throws Exception {
+        final String indexName = randomIdentifier();
+        final int numShards = randomIntBetween(1, 10);
+        final int numReplicas = randomIntBetween(0, 1);
+        createIndex(indexName, numShards, numReplicas);
+        indexRandom(true, indexName, randomIntBetween(100, 120));
+
+        // Create a repository with restrictive throttling settings
+        final String repositoryName = randomIdentifier();
+        final Settings.Builder repositorySettings = randomRepositorySettings().put(
+            BlobStoreRepository.MAX_SNAPSHOT_BYTES_PER_SEC.getKey(),
+            ByteSizeValue.ofBytes(1024)
+        )
+            .put(BlobStoreRepository.MAX_RESTORE_BYTES_PER_SEC.getKey(), ByteSizeValue.ofBytes(1024))
+            // Small chunk size ensures we don't get stuck throttling for too long
+            .put("chunk_size", ByteSizeValue.ofBytes(100));
+        createRepository(repositoryName, "mock", repositorySettings);
+
+        final String snapshotName = randomIdentifier();
+        final ActionFuture<CreateSnapshotResponse> snapshotFuture;
+
+        // Kick off a snapshot
+        final long snapshotStartTime = System.currentTimeMillis();
+        snapshotFuture = clusterAdmin().prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, repositoryName, snapshotName)
+            .setIndices(indexName)
+            .setWaitForCompletion(true)
+            .execute();
+
+        // Poll until we see some throttling occurring
+        assertBusy(() -> {
+            collectMetrics();
+            assertThat(getTotalClusterLongCounterValue(SnapshotMetrics.SNAPSHOT_CREATE_THROTTLE_DURATION), greaterThan(0L));
+        });
+        assertThat(getTotalClusterLongCounterValue(SnapshotMetrics.SNAPSHOT_RESTORE_THROTTLE_DURATION), equalTo(0L));
+
+        // Remove create throttling
+        createRepository(
+            repositoryName,
+            "mock",
+            repositorySettings.put(BlobStoreRepository.MAX_SNAPSHOT_BYTES_PER_SEC.getKey(), ByteSizeValue.ZERO)
+        );
+
+        // wait for the snapshot to finish
+        safeGet(snapshotFuture);
+
+        // Work out the maximum amount of concurrency per node
+        final ThreadPool tp = internalCluster().getDataNodeInstance(ThreadPool.class);
+        final int snapshotThreadPoolSize = tp.info(ThreadPool.Names.SNAPSHOT).getMax();
+        final int maximumPerNodeConcurrency = Math.max(snapshotThreadPoolSize, numShards);
+
+        // we should also have incurred some read duration due to the throttling
+        final long upperBoundTimeSpentOnSnapshotThingsMillis = internalCluster().numDataNodes() * maximumPerNodeConcurrency * (System
+            .currentTimeMillis() - snapshotStartTime);
+        assertThat(
+            getTotalClusterLongCounterValue(SnapshotMetrics.SNAPSHOT_UPLOAD_READ_DURATION),
+            allOf(greaterThan(0L), lessThan(upperBoundTimeSpentOnSnapshotThingsMillis))
+        );
+
+        // Restore the snapshot
+        ActionFuture<RestoreSnapshotResponse> restoreFuture = clusterAdmin().prepareRestoreSnapshot(
+            TEST_REQUEST_TIMEOUT,
+            repositoryName,
+            snapshotName
+        ).setIndices(indexName).setWaitForCompletion(true).setRenamePattern("(.+)").setRenameReplacement("restored-$1").execute();
+
+        // assert we throttled on restore
+        assertBusy(() -> {
+            collectMetrics();
+            assertThat(getTotalClusterLongCounterValue(SnapshotMetrics.SNAPSHOT_RESTORE_THROTTLE_DURATION), greaterThan(0L));
+        });
+
+        // Remove restore throttling
+        createRepository(
+            repositoryName,
+            "mock",
+            repositorySettings.put(BlobStoreRepository.MAX_RESTORE_BYTES_PER_SEC.getKey(), ByteSizeValue.ZERO)
+        );
+        safeGet(restoreFuture);
+
+        // assert appropriate attributes are present
+        final Map<String, Object> expectedAttrs = Map.of(
+            "project_id",
+            ProjectId.DEFAULT.id(),
+            "repo_name",
+            repositoryName,
+            "repo_type",
+            "mock"
+        );
+        assertMetricsHaveAttributes(InstrumentType.LONG_COUNTER, SnapshotMetrics.SNAPSHOT_UPLOAD_READ_DURATION, expectedAttrs);
+        assertMetricsHaveAttributes(InstrumentType.LONG_COUNTER, SnapshotMetrics.SNAPSHOT_RESTORE_THROTTLE_DURATION, expectedAttrs);
+        assertMetricsHaveAttributes(InstrumentType.LONG_COUNTER, SnapshotMetrics.SNAPSHOT_CREATE_THROTTLE_DURATION, expectedAttrs);
     }
 
     public void testByStateCounts_InitAndQueuedShards() throws Exception {

@@ -19,7 +19,6 @@ import java.nio.file.Path;
 
 class TransportVersionUtils {
 
-
     static Path definitionFilePath(Directory resourcesDirectory, String name) {
         return getDefinitionsDirectory(resourcesDirectory).getAsFile().toPath().resolve(name + ".csv");
     }

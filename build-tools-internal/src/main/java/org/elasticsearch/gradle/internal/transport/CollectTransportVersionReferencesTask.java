@@ -74,8 +74,7 @@ public abstract class CollectTransportVersionReferencesTask extends DefaultTask 
         Files.writeString(outputFile, String.join("\n", results.stream().map(Object::toString).sorted().toList()));
     }
 
-    private void addNamesFromClassesDirectory(Set<TransportVersionReference> results, Path basePath)
-        throws IOException {
+    private void addNamesFromClassesDirectory(Set<TransportVersionReference> results, Path basePath) throws IOException {
         Files.walkFileTree(basePath, new SimpleFileVisitor<>() {
             @Override
             public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
@@ -90,8 +89,7 @@ public abstract class CollectTransportVersionReferencesTask extends DefaultTask 
         });
     }
 
-    private void addNamesFromClass(Set<TransportVersionReference> results, InputStream classBytes, String classname)
-        throws IOException {
+    private void addNamesFromClass(Set<TransportVersionReference> results, InputStream classBytes, String classname) throws IOException {
         ClassVisitor classVisitor = new ClassVisitor(Opcodes.ASM9) {
             @Override
             public MethodVisitor visitMethod(int access, String name, String descriptor, String signature, String[] exceptions) {

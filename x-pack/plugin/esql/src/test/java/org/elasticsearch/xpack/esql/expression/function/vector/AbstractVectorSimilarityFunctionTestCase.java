@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.esql.expression.function.vector;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
-import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.hamcrest.Matcher;
 import org.junit.Before;
@@ -23,7 +22,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.DENSE_VECTOR;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
 import static org.hamcrest.Matchers.equalTo;
 
-public abstract class AbstractVectorSimilarityFunctionTestCase extends AbstractScalarFunctionTestCase {
+public abstract class AbstractVectorSimilarityFunctionTestCase extends AbstractVectorTestCase {
 
     protected AbstractVectorSimilarityFunctionTestCase(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();
@@ -68,26 +67,6 @@ public abstract class AbstractVectorSimilarityFunctionTestCase extends AbstractS
         }));
 
         return parameterSuppliersFromTypedData(suppliers);
-    }
-
-    private static float[] listToFloatArray(List<Float> floatList) {
-        float[] floatArray = new float[floatList.size()];
-        for (int i = 0; i < floatList.size(); i++) {
-            floatArray[i] = floatList.get(i);
-        }
-        return floatArray;
-    }
-
-    /**
-     * @return A random dense vector for testing
-     * @param dimensions
-     */
-    private static List<Float> randomDenseVector(int dimensions) {
-        List<Float> vector = new ArrayList<>();
-        for (int i = 0; i < dimensions; i++) {
-            vector.add(randomFloat());
-        }
-        return vector;
     }
 
     @Override

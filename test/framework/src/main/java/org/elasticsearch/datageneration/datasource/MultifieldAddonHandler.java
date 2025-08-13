@@ -24,8 +24,15 @@ public class MultifieldAddonHandler implements DataSourceHandler {
     private final Map<FieldType, List<FieldType>> subfieldTypes;
     private final float chanceOfChildField;
 
-    private static final Set<FieldType> STRING_TYPES = Set.of(FieldType.TEXT, FieldType.KEYWORD, FieldType.MATCH_ONLY_TEXT, FieldType.WILDCARD);
-    public static MultifieldAddonHandler ALL_STRING_TYPES  = new MultifieldAddonHandler(STRING_TYPES.stream().collect(Collectors.toMap(t -> t, t -> STRING_TYPES.stream().filter(s -> s != t).toList())));
+    private static final Set<FieldType> STRING_TYPES = Set.of(
+        FieldType.TEXT,
+        FieldType.KEYWORD,
+        FieldType.MATCH_ONLY_TEXT,
+        FieldType.WILDCARD
+    );
+    public static MultifieldAddonHandler ALL_STRING_TYPES = new MultifieldAddonHandler(
+        STRING_TYPES.stream().collect(Collectors.toMap(t -> t, t -> STRING_TYPES.stream().filter(s -> s != t).toList()))
+    );
 
     public MultifieldAddonHandler(Map<FieldType, List<FieldType>> subfieldTypes, float chanceOfChildField) {
         this.subfieldTypes = subfieldTypes;
@@ -77,14 +84,17 @@ public class MultifieldAddonHandler implements DataSourceHandler {
     }
 
     private static Map<String, Object> getMappingForType(FieldType type, DataSourceRequest.LeafMappingParametersGenerator request) {
-        return request.dataSource().get(
-            new DataSourceRequest.LeafMappingParametersGenerator(
-                request.dataSource(),
-                PLACEHOLDER_NAME,
-                type.toString(),
-                request.eligibleCopyToFields(),
-                request.dynamicMapping()
+        return request.dataSource()
+            .get(
+                new DataSourceRequest.LeafMappingParametersGenerator(
+                    request.dataSource(),
+                    PLACEHOLDER_NAME,
+                    type.toString(),
+                    request.eligibleCopyToFields(),
+                    request.dynamicMapping()
+                )
             )
-        ).mappingGenerator().get();
+            .mappingGenerator()
+            .get();
     }
 }

@@ -18,7 +18,6 @@ import org.elasticsearch.datageneration.Template;
 import org.elasticsearch.datageneration.datasource.DataSourceHandler;
 import org.elasticsearch.datageneration.datasource.DataSourceRequest;
 import org.elasticsearch.datageneration.datasource.DataSourceResponse;
-import org.elasticsearch.datageneration.datasource.MultifieldAddonHandler;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 

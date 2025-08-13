@@ -40,9 +40,9 @@ import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
-import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThan;
 
 @LuceneTestCase.SuppressFileSystems("*")
@@ -116,7 +116,7 @@ public class ProjectLifeCycleIT extends AbstractStatelessIntegTestCase {
         putProject(projectId);
 
         final var projectLifeCycleService = internalCluster().getCurrentMasterNodeInstance(ProjectLifeCycleService.class);
-        assertThat(projectLifeCycleService.getRunningReleases(), anEmptyMap());
+        assertThat(projectLifeCycleService.getRunningDeletions().isEmpty(), is(true));
 
         // Simulate failures for releasing the lease
         final var getRegisterBarrier = new CyclicBarrier(2);
@@ -178,13 +178,13 @@ public class ProjectLifeCycleIT extends AbstractStatelessIntegTestCase {
         thread.start();
 
         safeAwait(getRegisterBarrier);
-        assertThat(projectLifeCycleService.getRunningReleases().keySet(), contains(projectId));
+        assertThat(projectLifeCycleService.getRunningDeletions(), contains(projectId));
         safeAwait(getRegisterBarrier);
 
         thread.join(30_000);
         assertThat(thread.isAlive(), equalTo(false));
 
-        assertThat(projectLifeCycleService.getRunningReleases(), anEmptyMap());
+        assertThat(projectLifeCycleService.getRunningDeletions().isEmpty(), is(true));
         assertThat(getRegisterErrorCount.get(), lessThan(0));
         assertThat(compareAndSetRegisterErrorCount.get(), lessThan(0));
     }
@@ -250,7 +250,7 @@ public class ProjectLifeCycleIT extends AbstractStatelessIntegTestCase {
         thread.start();
 
         safeAwait(releaseStartedLatch);
-        assertThat(projectLifeCycleService1.getRunningReleases().keySet(), contains(projectId));
+        assertThat(projectLifeCycleService1.getRunningDeletions(), contains(projectId));
 
         final var shutdownMaster = masterNodeAbdicatesForGracefulShutdown();
         assertThat(shutdownMaster, equalTo(masterAndIndexNode1));
@@ -258,7 +258,7 @@ public class ProjectLifeCycleIT extends AbstractStatelessIntegTestCase {
         // New master should take over to release the project lease
         thread.join(30_000);
         assertThat(thread.isAlive(), equalTo(false));
-        assertBusy(() -> assertThat(projectLifeCycleService1.getRunningReleases(), anEmptyMap()));
+        assertBusy(() -> assertThat(projectLifeCycleService1.getRunningDeletions().isEmpty(), is(true)));
     }
 
     private List<BlobMetadata> getLeaseBlobs() throws IOException {

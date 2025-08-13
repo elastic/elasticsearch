@@ -120,10 +120,10 @@ public class ProjectLifeCycleServiceTests extends ESTestCase {
             closeable.add(objectStoreService);
             objectStoreService.start();
 
-            var cluster1Service = new ProjectLifeCycleService(clusterService, objectStoreService, threadPool);
+            var cluster1Service = new ProjectLifeCycleService(clusterService, objectStoreService, threadPool, client);
             var cluster1Uuid = UUIDs.randomBase64UUID();
             cluster1Service.setClusterUuid(cluster1Uuid);
-            var cluster2Service = new ProjectLifeCycleService(clusterService, objectStoreService, threadPool);
+            var cluster2Service = new ProjectLifeCycleService(clusterService, objectStoreService, threadPool, client);
             var cluster2Uuid = UUIDs.randomBase64UUID();
             cluster2Service.setClusterUuid(cluster2Uuid);
             var projectId = randomUniqueProjectId();

@@ -1209,8 +1209,13 @@ public abstract class AbstractStatelessIntegTestCase extends ESIntegTestCase {
         });
     }
 
-    @SuppressWarnings("unchecked")
     protected void removeProject(ProjectId projectId) throws Exception {
+        markProjectForDeletion(projectId);
+        ensureProjectRemovedAndCleanUp(projectId);
+    }
+
+    @SuppressWarnings("unchecked")
+    protected void markProjectForDeletion(ProjectId projectId) throws Exception {
         assert multiProjectIntegrationTest() : "multiProjectIntegrationTest() must be overridden to true for multi-project tests";
 
         logger.info("--> marking project [{}] for deletion", projectId);
@@ -1242,7 +1247,14 @@ public abstract class AbstractStatelessIntegTestCase extends ESIntegTestCase {
                 projectSettingsPath
             );
         }
+    }
 
+    protected void ensureProjectRemovedAndCleanUp(ProjectId projectId) throws Exception {
+        final var settingsJsonPath = getFileSettingsWatchedFile();
+        // Project secrets file
+        final var projectSecretsPath = settingsJsonPath.resolveSibling("project-" + projectId + ".secrets.json");
+        // Project settings file
+        final var projectSettingsPath = settingsJsonPath.resolveSibling("project-" + projectId + ".json");
         // Wait for lease to be released and project metadata to be removed
         final var blobContainer = getCurrentMasterObjectStoreService().getClusterRootContainer();
         final var projectLeaseBlobName = ProjectLease.leaseBlobName(projectId);

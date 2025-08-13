@@ -21,11 +21,14 @@ import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.support.RetryableAction;
 import org.elasticsearch.action.support.SubscribableListener;
+import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
@@ -51,7 +54,6 @@ import java.util.Arrays;
 import java.util.Base64;
 import java.util.Collections;
 import java.util.ConcurrentModificationException;
-import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.Executor;
@@ -71,20 +73,27 @@ public class ProjectLifeCycleService implements ClusterStateListener {
     private final ClusterService cluserterService;
     private final ObjectStoreService objectStoreService;
     private final ThreadPool threadPool;
+    private final Client client;
     private final MasterServiceTaskQueue<DeleteProjectTask> deleteProjectMetadataQueue;
     // The cluster's UUID used for updating a project lease
     private String clusterUuid;
     private byte[] clusterUuidBytes;
-    private final Executor executor;
+    private final Executor leaseActionExecutor;
 
-    // A map to track the projects that are currently releasing their leases and subsequently deleting their project metadata.
-    private final Map<ProjectId, ReleaseProjectLease> runningReleases = ConcurrentCollections.newConcurrentMap();
+    // A set to track the projects that are currently going through deletion steps.
+    private final Set<ProjectId> runningDeletions = ConcurrentCollections.newConcurrentSet();
 
-    public ProjectLifeCycleService(ClusterService clusterService, ObjectStoreService objectStoreService, ThreadPool threadPool) {
+    public ProjectLifeCycleService(
+        ClusterService clusterService,
+        ObjectStoreService objectStoreService,
+        ThreadPool threadPool,
+        Client client
+    ) {
         this.cluserterService = clusterService;
         this.objectStoreService = objectStoreService;
         this.threadPool = threadPool;
-        this.executor = threadPool.executor(ThreadPool.Names.SNAPSHOT_META);
+        this.client = client;
+        this.leaseActionExecutor = threadPool.executor(ThreadPool.Names.SNAPSHOT_META);
         this.deleteProjectMetadataQueue = clusterService.createTaskQueue("delete-project", Priority.NORMAL, new DeleteProjectExecutor());
     }
 
@@ -127,8 +136,8 @@ public class ProjectLifeCycleService implements ClusterStateListener {
     }
 
     // Package private for testing
-    Map<ProjectId, ReleaseProjectLease> getRunningReleases() {
-        return Collections.unmodifiableMap(runningReleases);
+    Set<ProjectId> getRunningDeletions() {
+        return Collections.unmodifiableSet(runningDeletions);
     }
 
     private void maybeDeleteProjects(ClusterChangedEvent event) {
@@ -140,50 +149,62 @@ public class ProjectLifeCycleService implements ClusterStateListener {
         // the process of releasing leases for a project if it is (1) still found in the metadata and (2) not currently
         // releasing its lease.
         for (ProjectId projectId : currentProjectsMarkedForDeletion) {
-            if (state.metadata().hasProject(projectId) == false || runningReleases.containsKey(projectId)) {
+            if (state.metadata().hasProject(projectId) == false || runningDeletions.contains(projectId)) {
                 continue;
             }
-            final var listener = new SubscribableListener<Boolean>();
-            listener.andThenAccept(success -> {
-                if (success) {
-                    LOGGER.info("released lease for project [{}]", projectId);
-                } else {
-                    // This may happen if the master fails over while the lease is being released. The old master
-                    // may release the lease while the new master sees it already released. This is safe since
-                    // a project cannot be un-deleted once marked for deletion and the old master should fail to
-                    // delete the project metadata which will be completed by the new master.
-                    LOGGER.error("could not release lease for project [{}]", projectId);
-                    // When `success` is false, the project release is released by either this node or another node.
-                    // It's safe to proceed to delete the project metadata. If this node is an old master, it will
-                    // fail at the next step.
-                }
-            })
-                .<Void>andThen((l, v) -> submitDeleteProjectTask(projectId, l))
+            runningDeletions.add(projectId);
+            SubscribableListener
+                // Flush the project
+                .<BroadcastResponse>newForked(flushListener -> {
+                    LOGGER.info("flushing project [{}] before deletion", projectId);
+                    new FlushProject(projectId, flushListener).run();
+                })
+                // Release the project lease
+                .<Boolean>andThen((releaseListener, response) -> {
+                    assert response.getFailedShards() == 0;
+                    final var releaseProjectLease = new ReleaseProjectLease(projectId, releaseListener.delegateFailure((l, success) -> {
+                        if (success) {
+                            LOGGER.info("released lease for project [{}]", projectId);
+                        } else {
+                            // This may happen if the master fails over while the lease is being released. The old master
+                            // may release the lease while the new master sees it already released. This is safe since
+                            // a project cannot be un-deleted once marked for deletion and the old master should fail to
+                            // delete the project metadata which will be completed by the new master.
+                            LOGGER.error("could not release lease for project [{}]", projectId);
+                            // When `success` is false, the project release is released by either this node or another node.
+                            // It's safe to proceed to delete the project metadata. If this node is an old master, it will
+                            // fail at the next step.
+                        }
+                        l.onResponse(success);
+                    }));
+                    releaseProjectLease.run();
+                })
+                // Remove the project metadata from the cluster state
+                .<Void>andThen((metadataDeletionListener, success) -> submitDeleteProjectTask(projectId, metadataDeletionListener))
+                // Log result and remove the project from the list of running deletions
                 .addListener(
-                    ActionListener.runAfter(ActionListener.wrap(ignore -> LOGGER.info("deleted project metadata [{}]", projectId), e -> {
-                        // Receiving exception here means either releaseProjectLease stopped retry or cluster state update failed
-                        // due to master change. This is OK because the new master will take over. If master fails over again back to
-                        // this node after the exception. It is also OK because we remove the runningLease entry and this
-                        // node will retry again after it changes back to the master.
-                        LOGGER.error(
-                            Strings.format(
-                                "error when deleting project metadata [%s], local node is master [%s]",
-                                projectId,
-                                cluserterService.state().nodes().isLocalNodeElectedMaster()
-                            ),
-                            e
-                        );
-                    }), () -> {
-                        // Remove the running release regardless. In most cases, the project metadata should be deleted.
-                        // In edge cases such as master fail-over, the new master shall take over to complete the job.
-                        runningReleases.remove(projectId);
-                    })
+                    ActionListener.runAfter(
+                        ActionListener.wrap(ignore -> LOGGER.info("removed project [{}] from the cluster", projectId), e -> {
+                            // Receiving exception here means either releaseProjectLease stopped retry or cluster state update failed
+                            // due to master change. This is OK because the new master will take over. If master fails over again back to
+                            // this node after the exception. It is also OK because we remove the runningLease entry and this
+                            // node will retry again after it changes back to the master.
+                            LOGGER.error(
+                                Strings.format(
+                                    "error when deleting project metadata [%s], local node is master: [%s]",
+                                    projectId,
+                                    cluserterService.state().nodes().isLocalNodeElectedMaster()
+                                ),
+                                e
+                            );
+                        }),
+                        () -> {
+                            // Remove the running release regardless. In most cases, the project metadata should be deleted.
+                            // In edge cases such as master fail-over, the new master shall take over to complete the job.
+                            runningDeletions.remove(projectId);
+                        }
+                    )
                 );
-
-            final var releaseProjectLease = new ReleaseProjectLease(projectId, listener);
-            final var old = runningReleases.putIfAbsent(projectId, releaseProjectLease);
-            assert old == null : "unexpected old releasing lease for project [" + projectId + "]";
-            releaseProjectLease.run();
         }
     }
 
@@ -207,7 +228,7 @@ public class ProjectLifeCycleService implements ClusterStateListener {
             // Read the current lease
             .<Optional<ProjectLease>>newForked(l -> readLease(projectId, l))
             // assign to the current cluster if unassigned
-            .<Boolean>andThen(executor, threadPool.getThreadContext(), (l, projectLease) -> {
+            .<Boolean>andThen(leaseActionExecutor, threadPool.getThreadContext(), (l, projectLease) -> {
                 var currentLease = projectLease.orElse(ProjectLease.EMPTY_LEASE);
                 if (Arrays.equals(currentLease.clusterUuid(), clusterUuidBytes)) {
                     LOGGER.debug("project [{}]'s lease is already assigned to this cluster", projectId);
@@ -253,7 +274,7 @@ public class ProjectLifeCycleService implements ClusterStateListener {
                 TimeValue.timeValueSeconds(5),
                 TimeValue.timeValueMillis(Long.MAX_VALUE),
                 listener,
-                threadPool.generic()
+                leaseActionExecutor
             );
             this.projectId = projectId;
         }
@@ -261,6 +282,44 @@ public class ProjectLifeCycleService implements ClusterStateListener {
         @Override
         public void tryAction(ActionListener<Boolean> listener) {
             releaseProjectLease(projectId, listener);
+        }
+
+        @Override
+        public boolean shouldRetry(Exception e) {
+            final ClusterState state = cluserterService.state();
+            return state.nodes().isLocalNodeElectedMaster() && state.metadata().hasProject(projectId);
+        }
+    }
+
+    private class FlushProject extends RetryableAction<BroadcastResponse> {
+        private final ProjectId projectId;
+
+        private FlushProject(ProjectId projectId, ActionListener<BroadcastResponse> listener) {
+            super(
+                LOGGER,
+                threadPool,
+                TimeValue.timeValueMillis(5),
+                TimeValue.timeValueSeconds(5),
+                TimeValue.timeValueMillis(Long.MAX_VALUE),
+                listener,
+                threadPool.executor(ThreadPool.Names.FLUSH)
+            );
+            this.projectId = projectId;
+        }
+
+        @Override
+        public void tryAction(ActionListener<BroadcastResponse> listener) {
+            client.projectClient(projectId).admin().indices().prepareFlush().execute(listener.delegateFailure((l, response) -> {
+                if (response.getFailedShards() > 0) {
+                    l.onFailure(
+                        new ElasticsearchException(
+                            "flush failed for project [" + projectId + "] with " + response.getFailedShards() + " failed shards"
+                        )
+                    );
+                } else {
+                    l.onResponse(response);
+                }
+            }));
         }
 
         @Override
@@ -285,7 +344,7 @@ public class ProjectLifeCycleService implements ClusterStateListener {
             // Read the current lease
             .<Optional<ProjectLease>>newForked(l -> readLease(projectId, l))
             // Unassign if assigned to the current cluster
-            .<Boolean>andThen(executor, threadPool.getThreadContext(), (l, projectLease) -> {
+            .<Boolean>andThen(leaseActionExecutor, threadPool.getThreadContext(), (l, projectLease) -> {
                 var currentLease = projectLease.orElse(ProjectLease.EMPTY_LEASE);
                 if (currentLease.isAssigned() == false) {
                     LOGGER.debug("skipped releasing lease for project [{}] as it is already unassigned", projectId);
@@ -329,7 +388,7 @@ public class ProjectLifeCycleService implements ClusterStateListener {
     }
 
     private void readLease(ProjectId projectId, ActionListener<Optional<ProjectLease>> listener) {
-        executor.execute(
+        leaseActionExecutor.execute(
             ActionRunnable.wrap(
                 listener,
                 l -> getProjectLeaseContainer().getRegister(

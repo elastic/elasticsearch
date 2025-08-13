@@ -827,7 +827,8 @@ public class SparseVectorFieldMapperTests extends MapperTestCase {
         var termsQuery = queryWrapper.getTermsQuery();
         assertNotNull(termsQuery);
         var booleanQuery = (BooleanQuery) termsQuery;
-        List<Query> shouldClauses = booleanQuery.clauses().stream()
+        List<Query> shouldClauses = booleanQuery.clauses()
+            .stream()
             .filter(clause -> clause.getOccur() == BooleanClause.Occur.SHOULD)
             .map(BooleanClause::getQuery)
             .collect(Collectors.toList());

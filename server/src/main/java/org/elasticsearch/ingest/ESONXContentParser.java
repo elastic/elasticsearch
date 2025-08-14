@@ -148,7 +148,7 @@ public class ESONXContentParser extends AbstractXContentParser {
 
     private Token emitValue(ESONEntry entry) {
         containerStack.decrementCurrentContainerFields();
-        currentIndex++;
+        ++currentIndex;
 
         byte type = entry.type();
         if (type == ESONEntry.TYPE_OBJECT) {
@@ -156,11 +156,15 @@ public class ESONXContentParser extends AbstractXContentParser {
         } else if (type == ESONEntry.TYPE_ARRAY) {
             containerStack.pushArray(entry.offsetOrCount());
         } else {
-            currentType = ((ESONEntry.FieldEntry) entry).value;
+            currentType = castValue(entry);
         }
 
         currentToken = TOKEN_LOOKUP[type];
         return currentToken;
+    }
+
+    private static ESONSource.Value castValue(ESONEntry entry) {
+        return ((ESONEntry.FieldEntry) entry).value;
     }
 
     // Helper method to materialize the current value on demand

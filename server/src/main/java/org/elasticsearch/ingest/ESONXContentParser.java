@@ -23,9 +23,8 @@ import java.io.OutputStream;
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.nio.CharBuffer;
-import java.util.ArrayDeque;
+import java.util.Arrays;
 import java.util.Base64;
-import java.util.Deque;
 import java.util.List;
 
 /**
@@ -53,23 +52,9 @@ public class ESONXContentParser extends AbstractXContentParser {
     private Object currentValue = null;
     private boolean valueComputed = false;
 
-    // Container tracking
-    private final Deque<ContainerContext> containerStack = new ArrayDeque<>();
+    private final IntStack containerStack = new IntStack();
 
     private boolean closed = false;
-
-    /**
-     * Tracks the state of containers (objects/arrays) as we parse
-     */
-    private static class ContainerContext {
-        final byte type;
-        int fieldsRemaining;
-
-        ContainerContext(byte type, int fieldCount) {
-            this.type = type;
-            this.fieldsRemaining = fieldCount;
-        }
-    }
 
     public ESONXContentParser(
         ESONFlat esonFlat,
@@ -110,7 +95,7 @@ public class ESONXContentParser extends AbstractXContentParser {
         if (currentToken == null) {
             assert size >= currentIndex;
             ESONEntry.ObjectEntry rootEntry = (ESONEntry.ObjectEntry) keyArray.get(currentIndex);
-            containerStack.push(new ContainerContext(ESONEntry.TYPE_OBJECT, rootEntry.offsetOrCount()));
+            containerStack.pushContainer(rootEntry.offsetOrCount(), false);
             currentIndex++;
             currentToken = Token.START_OBJECT;
             return currentToken;
@@ -121,9 +106,9 @@ public class ESONXContentParser extends AbstractXContentParser {
             return null;
         }
 
-        if (containerStack.peek().fieldsRemaining == 0) {
-            ContainerContext ctx = containerStack.pop();
-            currentToken = ctx.type == ESONEntry.TYPE_OBJECT ? Token.END_OBJECT : Token.END_ARRAY;
+        if (containerStack.currentContainerFieldsRemaining() == 0) {
+            currentToken = containerStack.isCurrentContainerArray() ? Token.END_ARRAY : Token.END_OBJECT;
+            containerStack.popContainer();
             return currentToken;
         }
 
@@ -131,11 +116,9 @@ public class ESONXContentParser extends AbstractXContentParser {
 
         // Process next entry
         ESONEntry entry = keyArray.get(currentIndex);
-        ContainerContext currentContainer = containerStack.peek();
-        assert currentContainer != null;
 
         // Handle based on container type
-        if (currentContainer.type == ESONEntry.TYPE_OBJECT && currentToken != Token.FIELD_NAME) {
+        if (containerStack.isCurrentContainerArray() == false && currentToken != Token.FIELD_NAME) {
             currentFieldName = entry.key();
             currentToken = Token.FIELD_NAME;
             return currentToken;
@@ -146,13 +129,13 @@ public class ESONXContentParser extends AbstractXContentParser {
     }
 
     private Token emitValue(ESONEntry entry) {
-        ContainerContext currentContainer = containerStack.peek();
-        assert currentContainer != null;
-        currentContainer.fieldsRemaining--;
+        containerStack.decrementCurrentContainerFields();
         currentIndex++;
 
-        if (entry.type() == ESONEntry.TYPE_OBJECT || entry.type() == ESONEntry.TYPE_ARRAY) {
-            containerStack.push(new ContainerContext(entry.type(), entry.offsetOrCount()));
+        if (entry.type() == ESONEntry.TYPE_OBJECT) {
+            containerStack.pushContainer(entry.offsetOrCount(), false);
+        } else if (entry.type() == ESONEntry.TYPE_ARRAY) {
+            containerStack.pushContainer(entry.offsetOrCount(), true);
         } else {
             currentType = ((ESONEntry.FieldEntry) entry).value;
         }
@@ -231,8 +214,7 @@ public class ESONXContentParser extends AbstractXContentParser {
             return currentFieldName;
         }
         // When on a value token, return the field name if in an object
-        ContainerContext ctx = containerStack.peek();
-        if (ctx != null && ctx.type == ESONEntry.TYPE_OBJECT && currentFieldName != null) {
+        if (containerStack.isEmpty() == false && containerStack.isCurrentContainerArray() == false && currentFieldName != null) {
             return currentFieldName;
         }
         return null;
@@ -448,5 +430,42 @@ public class ESONXContentParser extends AbstractXContentParser {
     @Override
     public void close() {
         closed = true;
+    }
+
+    private static class IntStack {
+        // Bit layout: [container_type:1][count:31]
+        private int[] containerStack = new int[16];
+        private int stackTop = -1;
+
+        private static final int CONTAINER_TYPE_MASK = 0x80000000;  // Top bit
+        private static final int COUNT_MASK = 0x7FFFFFFF;           // Bottom 31 bits
+
+        private void pushContainer(int count, boolean isArray) {
+            if (++stackTop >= containerStack.length) {
+                containerStack = Arrays.copyOf(containerStack, containerStack.length * 2);
+            }
+            containerStack[stackTop] = isArray ? count | CONTAINER_TYPE_MASK : count;
+        }
+
+        private boolean isCurrentContainerArray() {
+            return (containerStack[stackTop] & CONTAINER_TYPE_MASK) != 0;
+        }
+
+        private int currentContainerFieldsRemaining() {
+            return containerStack[stackTop] & COUNT_MASK;
+        }
+
+        private void decrementCurrentContainerFields() {
+            containerStack[stackTop]--;  // This works because we only decrement the count part
+        }
+
+        private boolean isEmpty() {
+            return stackTop == -1;
+        }
+
+        // Pop
+        private void popContainer() {
+            stackTop--;
+        }
     }
 }

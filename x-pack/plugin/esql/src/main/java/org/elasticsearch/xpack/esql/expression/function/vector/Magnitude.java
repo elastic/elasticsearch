@@ -31,7 +31,6 @@ import org.elasticsearch.xpack.esql.expression.function.Param;
 
 import java.io.IOException;
 
-import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isNotNull;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DENSE_VECTOR;
 
@@ -88,9 +87,7 @@ public class Magnitude extends UnaryScalarFunction implements EvaluatorMapper, V
             return new TypeResolution("Unresolved children");
         }
 
-        return isNotNull(field(), sourceText(), TypeResolutions.ParamOrdinal.FIRST).and(
-            isType(field(), dt -> dt == DENSE_VECTOR, sourceText(), TypeResolutions.ParamOrdinal.FIRST, "dense_vector")
-        );
+        return isType(field(), dt -> dt == DENSE_VECTOR, sourceText(), TypeResolutions.ParamOrdinal.FIRST, "dense_vector");
     }
 
     /**

@@ -2500,7 +2500,7 @@ public class VerifierTests extends ESTestCase {
             checkVectorFunctionsNullArgs("v_l2_norm(vector, null)");
         }
         if (EsqlCapabilities.Cap.MAGNITUDE_SCALAR_VECTOR_FUNCTION.isEnabled()) {
-            checkVectorFunctionsNullArgs("v_magnitude(null)", "first");
+            checkVectorFunctionsNullArgs("v_magnitude(null)");
         }
     }
 

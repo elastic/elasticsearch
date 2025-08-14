@@ -38,7 +38,7 @@ import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
-import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceStats;
+import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceMetrics;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -64,6 +64,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Function;
 import java.util.function.LongSupplier;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -172,19 +173,9 @@ public class IngestMetricsServiceTests extends ESTestCase {
         final var maxUndesiredShardsProportionForScaleDown = randomDoubleBetween(0.0, (undesiredShards - 0.5) / (double) totalShards, true);
         runIngestionLoadDuringNodeLifecycleTest(
             maxUndesiredShardsProportionForScaleDown,
-            new DesiredBalanceStats(
+            new DesiredBalanceMetrics.AllocationStats(
                 randomNonNegativeLong(),
-                randomBoolean(),
-                randomNonNegativeLong(),
-                randomNonNegativeLong(),
-                randomNonNegativeLong(),
-                randomNonNegativeLong(),
-                randomNonNegativeLong(),
-                randomNonNegativeLong(),
-                randomNonNegativeLong(),
-                randomNonNegativeLong(),
-                totalShards,
-                undesiredShards
+                Map.of(ShardRouting.Role.INDEX_ONLY, new DesiredBalanceMetrics.RoleAllocationStats(totalShards, undesiredShards))
             ),
             MetricQuality.MINIMUM
         );
@@ -192,7 +183,7 @@ public class IngestMetricsServiceTests extends ESTestCase {
 
     private void runIngestionLoadDuringNodeLifecycleTest(
         double maxUndesiredShardsProportionForScaleDown,
-        DesiredBalanceStats desiredBalanceStats,
+        DesiredBalanceMetrics.AllocationStats allocationStats,
         MetricQuality bestMetricQuality
     ) {
         final var masterNode = DiscoveryNodeUtils.builder(UUIDs.randomBase64UUID()).roles(Set.of(DiscoveryNodeRole.MASTER_ROLE)).build();
@@ -235,7 +226,7 @@ public class IngestMetricsServiceTests extends ESTestCase {
         fakeClock.addAndGet(TimeValue.timeValueSeconds(1).nanos());
         service.trackNodeIngestLoad(clusterState2, indexNode.getId(), indexNode.getName(), 2, 1.5);
 
-        var indexTierMetrics = service.getIndexTierMetrics(clusterState2, desiredBalanceStats);
+        var indexTierMetrics = service.getIndexTierMetrics(clusterState2, allocationStats);
         assertThat(indexTierMetrics.getNodesLoad(), hasSize(1));
 
         var indexNodeLoad = indexTierMetrics.getNodesLoad().get(0);
@@ -273,7 +264,7 @@ public class IngestMetricsServiceTests extends ESTestCase {
             fakeClock.addAndGet(TimeValue.timeValueSeconds(1).nanos());
             service.trackNodeIngestLoad(clusterState3, indexNode.getId(), indexNode.getName(), 3, 0.5);
 
-            var indexTierMetricsAfterNodeReJoins = service.getIndexTierMetrics(clusterState3, desiredBalanceStats);
+            var indexTierMetricsAfterNodeReJoins = service.getIndexTierMetrics(clusterState3, allocationStats);
             assertThat(indexTierMetricsAfterNodeReJoins.getNodesLoad(), hasSize(1));
 
             var indexNodeLoadAfterRejoining = indexTierMetricsAfterNodeReJoins.getNodesLoad().get(0);
@@ -1066,42 +1057,31 @@ public class IngestMetricsServiceTests extends ESTestCase {
         };
     }
 
-    private static DesiredBalanceStats randomDesiredBalanceStatsForExactMetrics(double maxUndesiredShardsProportionForScaleDown) {
+    private static DesiredBalanceMetrics.AllocationStats randomDesiredBalanceStatsForExactMetrics(
+        double maxUndesiredShardsProportionForScaleDown
+    ) {
         final var totalShards = randomLongBetween(0, 1000);
-        return randomBoolean()
-            ? null
-            : new DesiredBalanceStats(
-                randomNonNegativeLong(),
-                randomBoolean(),
-                randomNonNegativeLong(),
-                randomNonNegativeLong(),
-                randomNonNegativeLong(),
-                randomNonNegativeLong(),
-                randomNonNegativeLong(),
-                randomNonNegativeLong(),
-                randomNonNegativeLong(),
-                randomNonNegativeLong(),
-                totalShards,
-                randomLongBetween(0L, (long) (totalShards * maxUndesiredShardsProportionForScaleDown))
-            );
+        final long undesiredAllocations = randomLongBetween(0L, (long) (totalShards * maxUndesiredShardsProportionForScaleDown));
+        return new DesiredBalanceMetrics.AllocationStats(
+            randomNonNegativeLong(),
+            Map.of(ShardRouting.Role.INDEX_ONLY, new DesiredBalanceMetrics.RoleAllocationStats(totalShards, undesiredAllocations))
+        );
     }
 
-    private static DesiredBalanceStats randomDesiredBalanceStats() {
-        return randomBoolean()
-            ? null
-            : new DesiredBalanceStats(
-                randomNonNegativeLong(),
-                randomBoolean(),
-                randomNonNegativeLong(),
-                randomNonNegativeLong(),
-                randomNonNegativeLong(),
-                randomNonNegativeLong(),
-                randomNonNegativeLong(),
-                randomNonNegativeLong(),
-                randomNonNegativeLong(),
-                randomNonNegativeLong(),
-                randomNonNegativeLong(),
-                randomBoolean() ? 0L : randomNonNegativeLong()
-            );
+    private static DesiredBalanceMetrics.AllocationStats randomDesiredBalanceStats() {
+        if (randomBoolean()) {
+            return null;
+        }
+        return new DesiredBalanceMetrics.AllocationStats(
+            randomNonNegativeLong(),
+            randomSubsetOf(List.of(ShardRouting.Role.INDEX_ONLY, ShardRouting.Role.SEARCH_ONLY)).stream()
+                .collect(Collectors.toUnmodifiableMap(Function.identity(), r -> randomRoleAllocationStats()))
+        );
+    }
+
+    private static DesiredBalanceMetrics.RoleAllocationStats randomRoleAllocationStats() {
+        final long totalShards = randomBoolean() ? 0 : randomNonNegativeLong();
+        final long undesiredAllocations = randomBoolean() ? 0 : randomLongBetween(0L, totalShards);
+        return new DesiredBalanceMetrics.RoleAllocationStats(totalShards, undesiredAllocations);
     }
 }

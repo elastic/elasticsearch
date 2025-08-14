@@ -345,9 +345,9 @@ public class LinearRetrieverBuilderTests extends ESTestCase {
                 CompoundRetrieverBuilder.RetrieverSource.from(standardRetriever),
                 CompoundRetrieverBuilder.RetrieverSource.from(knnRetriever)
             ),
-            null, // fields
-            null, // query
-            MinMaxScoreNormalizer.INSTANCE, // top-level normalizer
+            null,
+            null,
+            MinMaxScoreNormalizer.INSTANCE,
             DEFAULT_RANK_WINDOW_SIZE,
             new float[] { 1.0f, 2.0f },
             new ScoreNormalizer[] { null, null }
@@ -374,9 +374,9 @@ public class LinearRetrieverBuilderTests extends ESTestCase {
                 CompoundRetrieverBuilder.RetrieverSource.from(standardRetriever),
                 CompoundRetrieverBuilder.RetrieverSource.from(knnRetriever)
             ),
-            null, // fields
-            null, // query
-            MinMaxScoreNormalizer.INSTANCE, // top-level normalizer
+            null,
+            null,
+            MinMaxScoreNormalizer.INSTANCE,
             DEFAULT_RANK_WINDOW_SIZE,
             new float[] { 1.0f, 2.0f },
             new ScoreNormalizer[] { L2ScoreNormalizer.INSTANCE, null }

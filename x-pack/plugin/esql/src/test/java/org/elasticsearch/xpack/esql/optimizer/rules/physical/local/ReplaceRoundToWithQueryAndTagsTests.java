@@ -48,6 +48,7 @@ import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
 import static org.elasticsearch.index.query.QueryBuilders.existsQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
 import static org.elasticsearch.index.query.QueryBuilders.rangeQuery;
+import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.esql.core.util.Queries.Clause.MUST;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.DEFAULT_DATE_NANOS_FORMATTER;
@@ -94,7 +95,7 @@ public class ReplaceRoundToWithQueryAndTagsTests extends LocalPhysicalPlanOptimi
 
     private static final Map<String, QueryBuilder> otherPushDownFunctions = new HashMap<>(
         Map.ofEntries(
-            // Map.entry("where keyword == \"keyword\"", termQuery("keyword", "keyword").boost(0)),
+            Map.entry("where keyword == \"keyword\"", termQuery("keyword", "keyword").boost(0)),
             Map.entry("where keyword : \"keyword\"", matchQuery("keyword", "keyword").lenient(true))
         )
     );
@@ -414,7 +415,7 @@ public class ReplaceRoundToWithQueryAndTagsTests extends LocalPhysicalPlanOptimi
     public void testMergeRangePredicatesOnRoundToFieldWithOtherPushdownFunctions() {
         for (Map.Entry<String, List<Object>> roundTo : roundToAllTypes.entrySet()) {
             for (Map.Entry<String, QueryBuilder> otherPushDownFunction : otherPushDownFunctions.entrySet()) {
-                String otherPredicate = " and " + otherPushDownFunction.getKey().substring(6);
+                String otherPredicate = otherPushDownFunction.getKey();
                 QueryBuilder otherQueryBuilder = otherPushDownFunction.getValue();
                 String fieldName = roundTo.getKey();
                 List<Object> roundingPoints = roundTo.getValue();
@@ -446,9 +447,9 @@ public class ReplaceRoundToWithQueryAndTagsTests extends LocalPhysicalPlanOptimi
 
                 String query = LoggerMessageFormat.format(null, """
                     from test
-                    | where {}{}
+                    | {} and {}
                     | stats count(*) by x = {}
-                    """, rangePredicate, otherPredicate, roundToExpression);
+                    """, otherPredicate, rangePredicate, roundToExpression);
 
                 otherQueryBuilder = otherQueryBuilder instanceof MatchQueryBuilder
                     ? otherQueryBuilder
@@ -475,7 +476,7 @@ public class ReplaceRoundToWithQueryAndTagsTests extends LocalPhysicalPlanOptimi
                     query,
                     rangeQueryBuilder,
                     fieldName,
-                    new Source(2, 8, fieldName + " > " + lowerInPredicate)
+                    new Source(2, 7 + otherPredicate.length(), fieldName + " > " + lowerInPredicate)
                 );
 
                 mainQueryBuilder = Queries.combine(MUST, List.of(otherQueryBuilder, mainQueryBuilder));
@@ -515,7 +516,7 @@ public class ReplaceRoundToWithQueryAndTagsTests extends LocalPhysicalPlanOptimi
     public void testRoundToFieldsIsNotNullWithOtherPushDownFunctions() {
         for (Map.Entry<String, List<Object>> roundTo : roundToAllTypes.entrySet()) {
             for (Map.Entry<String, QueryBuilder> otherPushDownFunction : otherPushDownFunctions.entrySet()) {
-                String otherPredicate = " and " + otherPushDownFunction.getKey().substring(6);
+                String otherPredicate = otherPushDownFunction.getKey();
                 QueryBuilder otherQueryBuilder = otherPushDownFunction.getValue();
                 String fieldName = roundTo.getKey();
                 List<Object> roundingPoints = roundTo.getValue();
@@ -527,9 +528,9 @@ public class ReplaceRoundToWithQueryAndTagsTests extends LocalPhysicalPlanOptimi
 
                 String query = LoggerMessageFormat.format(null, """
                     from test
-                    | where {} is not null{}
+                    | {} and {} is not null
                     | stats count(*) by x = {}
-                    """, fieldName, otherPredicate, roundToExpression);
+                    """, otherPredicate, fieldName, roundToExpression);
 
                 otherQueryBuilder = otherQueryBuilder instanceof MatchQueryBuilder
                     ? otherQueryBuilder
@@ -537,7 +538,7 @@ public class ReplaceRoundToWithQueryAndTagsTests extends LocalPhysicalPlanOptimi
 
                 ExistsQueryBuilder existsQueryBuilder = existsQuery(fieldName).boost(0);
 
-                QueryBuilder mainQueryBuilder = Queries.combine(MUST, List.of(existsQueryBuilder, otherQueryBuilder));
+                QueryBuilder mainQueryBuilder = Queries.combine(MUST, List.of(otherQueryBuilder, existsQueryBuilder));
 
                 PhysicalPlan plan = plannerOptimizer.plan(query, searchStats, makeAnalyzer("mapping-all-types.json"));
 

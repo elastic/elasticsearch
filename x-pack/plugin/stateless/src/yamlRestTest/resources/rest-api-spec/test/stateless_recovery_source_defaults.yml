@@ -11,18 +11,22 @@
 ---
 "Test recovery source doesn't get stored to disk":
 
+  - requires:
+      cluster_features: [ "mapper.ignored_source_fields_per_entry" ]
+      reason: "check of _ignored_source field"
+
   - do:
       indices.create:
         index: test-index
-        body: { settings: {index.mapping.source.mode: "synthetic"}, mappings: {properties: {ignore_me: {enabled: false, type: object}}}}
+        body: { settings: { index.mapping.source.mode: "synthetic" }, mappings: { properties: { ignore_me: { enabled: false, type: object } } } }
 
   - do:
       index:
         index: test-index
         id: 1
         refresh: true
-        body:   { foo: bar, ignore_me: {foo: bar} }
-  - match:   { _version: 1}
+        body: { foo: bar, ignore_me: { foo: bar } }
+  - match: { _version: 1 }
 
   - do:
       indices.disk_usage:
@@ -31,4 +35,4 @@
         flush: false
   - gt: { test-index.store_size_in_bytes: 0 }
   - is_false: test-index.fields._recovery_source
-  - is_true: test-index.fields._ignored_source # just to double check synthetic source is active.
+  - is_true: test-index.fields._ignored_source\.ignore_me # just to double check synthetic source is active.

@@ -13,7 +13,6 @@ import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesFailure;
 import org.elasticsearch.action.search.ShardSearchFailure;
-import org.elasticsearch.action.support.CountDownActionListener;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.compute.data.Block;
@@ -82,10 +81,10 @@ import org.elasticsearch.xpack.ml.MachineLearning;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Stream;
 
 import static java.util.stream.Collectors.toSet;
@@ -391,13 +390,9 @@ public class EsqlSession {
             .<PreAnalysisResult>andThenApply(enrichResolution -> FieldNameUtils.resolveFieldNames(parsed, enrichResolution))
             .<PreAnalysisResult>andThen((l, preAnalysisResult) -> resolveInferences(parsed, preAnalysisResult, l))
             .<PreAnalysisResult>andThen((l, result) -> preAnalyzeMainIndices(preAnalysis, executionInfo, result, requestFilter, l))
-            .<PreAnalysisResult>andThen((l, result) -> {
-                // TODO unify into a single field caps call
-                var group = new CountDownActionListener(preAnalysis.lookupIndices.size(), l.map(v -> result));
-                for (var lookup : preAnalysis.lookupIndices) {
-                    preAnalyzeLookupIndex(lookup, result, executionInfo, group.map(r -> null));
-                }
-            })
+            .<PreAnalysisResult>andThen(
+                (l, result) -> preAnalyzeLookupIndices(preAnalysis.lookupIndices.iterator(), result, executionInfo, l)
+            )
             .<PreAnalysisResult>andThen((l, result) -> {
                 // TODO in follow-PR (for skip_unavailable handling of missing concrete indexes) add some tests for
                 // invalid index resolution to updateExecutionInfo
@@ -434,6 +429,21 @@ public class EsqlSession {
                 l.onResponse(plan);
             })
             .addListener(logicalPlanListener);
+    }
+
+    private void preAnalyzeLookupIndices(
+        Iterator<IndexPattern> lookupIndexPatterns,
+        PreAnalysisResult result,
+        EsqlExecutionInfo executionInfo,
+        ActionListener<PreAnalysisResult> listener
+    ) {
+        if (lookupIndexPatterns.hasNext()) {
+            preAnalyzeLookupIndex(lookupIndexPatterns.next(), result, executionInfo, listener.delegateFailure((l, r) -> {
+                preAnalyzeLookupIndices(lookupIndexPatterns, r, executionInfo, listener);
+            }));
+        } else {
+            listener.onResponse(result);
+        }
     }
 
     private void preAnalyzeLookupIndex(
@@ -808,7 +818,7 @@ public class EsqlSession {
     ) {
 
         public PreAnalysisResult(EnrichResolution enrichResolution, Set<String> fieldNames, Set<String> wildcardJoinIndices) {
-            this(null, new ConcurrentHashMap<>(), enrichResolution, fieldNames, wildcardJoinIndices, InferenceResolution.EMPTY);
+            this(null, new HashMap<>(), enrichResolution, fieldNames, wildcardJoinIndices, InferenceResolution.EMPTY);
         }
 
         PreAnalysisResult withInferenceResolution(InferenceResolution newInferenceResolution) {

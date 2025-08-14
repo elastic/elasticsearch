@@ -60,6 +60,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import static java.util.Collections.emptySet;
 import static java.util.Collections.singletonList;
 import static java.util.Collections.unmodifiableSet;
+import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
+import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.common.util.set.Sets.newHashSet;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.CoreMatchers.equalTo;
@@ -404,8 +406,8 @@ public class ClusterInfoServiceIT extends ESIntegTestCase {
     /**
      * The {@link TransportNodeUsageStatsForThreadPoolsAction} returns the max value of two kinds of queue latencies:
      * {@link TaskExecutionTimeTrackingEsThreadPoolExecutor#getMaxQueueLatencyMillisSinceLastPollAndReset()} and
-     * {@link TaskExecutionTimeTrackingEsThreadPoolExecutor#peekMaxQueueLatencyInQueueMillis()}. The latter looks at currently queued tasks, and
-     * the former tracks the queue latency of tasks when they are taken off of the queue to start execution.
+     * {@link TaskExecutionTimeTrackingEsThreadPoolExecutor#peekMaxQueueLatencyInQueueMillis()}. The latter looks at currently queued tasks,
+     * and the former tracks the queue latency of tasks when they are taken off of the queue to start execution.
      */
     public void testMaxQueueLatenciesInClusterInfo() throws Exception {
         var settings = Settings.builder()
@@ -430,8 +432,14 @@ public class ClusterInfoServiceIT extends ESIntegTestCase {
             // strictly need a single task to occupy the queue.
             int numberOfTasks = randomIntBetween(1, 5);
             Thread[] threadsToJoin = new Thread[numberOfTasks];
+            String indexName = randomIdentifier();
+            createIndex(
+                indexName,
+                // NB: Set 0 replicas so that there aren't any stray GlobalCheckpointSyncAction tasks on the write thread pool.
+                Settings.builder().put(SETTING_NUMBER_OF_SHARDS, randomIntBetween(1, 5)).put(SETTING_NUMBER_OF_REPLICAS, 0).build()
+            );
             for (int i = 0; i < numberOfTasks; ++i) {
-                threadsToJoin[i] = startParallelSingleWrite();
+                threadsToJoin[i] = startParallelSingleWrite(indexName);
             }
 
             // Reach into the data node's write thread pool to check that tasks have reached the queue.
@@ -456,8 +464,8 @@ public class ClusterInfoServiceIT extends ESIntegTestCase {
             final ClusterInfo clusterInfo = ClusterInfoServiceUtils.refresh(masterClusterInfoService);
 
             // Since tasks are actively queued right now, #peekMaxQueueLatencyInQueue, which is called from the
-            // TransportNodeUsageStatsForThreadPoolsAction that a ClusterInfoService refresh initiates, should have returned a max queue
-            // latency >= queuedElapsedMillis.
+            // TransportNodeUsageStatsForThreadPoolsAction that a ClusterInfoService refresh initiates, should return a max queue
+            // latency > 0;
             {
                 final Map<String, NodeUsageStatsForThreadPools> usageStatsForThreadPools = clusterInfo.getNodeUsageStatsForThreadPools();
                 logger.info("---> Thread pool usage stats reported by data nodes to the master: " + usageStatsForThreadPools);
@@ -477,24 +485,17 @@ public class ClusterInfoServiceIT extends ESIntegTestCase {
 
             // Now release the data node's indexing, and drain the queued tasks. Max queue latency of executed (not queued) tasks is reset
             // by each TransportNodeUsageStatsForThreadPoolsAction call (#getMaxQueueLatencyMillisSinceLastPollAndReset), so the new queue
-            // latencies will be present in the next call. There should be nothing in the queue now to peek at (or if there is some ambient
-            // node activity, it will have a relatively short queue time), so the result of the max queue latency result in
-            // TransportNodeUsageStatsForThreadPoolsAction should now reflect #getMaxQueueLatencyMillisSinceLastPollAndReset and not
-            // #peekMaxQueueLatencyInQueue.
+            // latencies will be present in the next call. There will be nothing in the queue to peek at now, so the result of the max
+            // queue latency result in TransportNodeUsageStatsForThreadPoolsAction will reflect
+            // #getMaxQueueLatencyMillisSinceLastPollAndReset and not #peekMaxQueueLatencyInQueue.
             barrier.await();
             for (int i = 0; i < numberOfTasks; ++i) {
                 threadsToJoin[i].join();
             }
-            assertBusy(
-                // Wait for any other tasks that might have been queued.
-                // NB: cannot assert here that the queue is immediately empty because there could be other ambient node activity. This test
-                // could be running data nodes with a single write pool thread due to a limited number of processors available on test
-                // machines, and it's reasonable to queue a little in that situation.
-                () -> assertThat(
-                    "Write thread pool dump: " + trackingWriteExecutor,
-                    trackingWriteExecutor.peekMaxQueueLatencyInQueueMillis(),
-                    equalTo(0L)
-                )
+            assertThat(
+                "Unexpectedly found a task queued for the write thread pool. Write thread pool dump: " + trackingWriteExecutor,
+                trackingWriteExecutor.peekMaxQueueLatencyInQueueMillis(),
+                equalTo(0L)
             );
 
             final ClusterInfo nextClusterInfo = ClusterInfoServiceUtils.refresh(masterClusterInfoService);
@@ -522,8 +523,29 @@ public class ClusterInfoServiceIT extends ESIntegTestCase {
             barrier.reset();
         }
 
-        // NB: cannot check for a max queue latency of 0 with no further write tasks submitted. This is because the test machine may be
-        // running as few as a single write thread, and queuing due to ambient node activity is a possibility.
+        // Now that there's nothing in the queue, and no activity since the last ClusterInfo refresh, the max latency returned should be
+        // zero. Verify this.
+        final InternalClusterInfoService masterClusterInfoService = asInstanceOf(
+            InternalClusterInfoService.class,
+            internalCluster().getCurrentMasterNodeInstance(ClusterInfoService.class)
+        );
+        final ClusterInfo clusterInfo = ClusterInfoServiceUtils.refresh(masterClusterInfoService);
+        {
+            final Map<String, NodeUsageStatsForThreadPools> usageStatsForThreadPools = clusterInfo.getNodeUsageStatsForThreadPools();
+            logger.info("---> Thread pool usage stats reported by data nodes to the master: " + usageStatsForThreadPools);
+            assertThat(usageStatsForThreadPools.size(), equalTo(1)); // only stats from data nodes should be collected
+            var dataNodeId = getNodeId(dataNodeName);
+            var nodeUsageStatsForThreadPool = usageStatsForThreadPools.get(dataNodeId);
+            assertNotNull(nodeUsageStatsForThreadPool);
+            logger.info("---> Data node's thread pool stats: " + nodeUsageStatsForThreadPool);
+
+            assertEquals(dataNodeId, nodeUsageStatsForThreadPool.nodeId());
+            var writeThreadPoolStats = nodeUsageStatsForThreadPool.threadPoolUsageStatsMap().get(ThreadPool.Names.WRITE);
+            assertNotNull("Expected to find stats for the WRITE thread pool", writeThreadPoolStats);
+            assertThat(writeThreadPoolStats.totalThreadPoolThreads(), greaterThan(0));
+            assertThat(writeThreadPoolStats.averageThreadPoolUtilization(), equalTo(0f));
+            assertThat(writeThreadPoolStats.maxThreadPoolQueueLatencyMillis(), equalTo(0L));
+        }
     }
 
     /**
@@ -540,14 +562,13 @@ public class ClusterInfoServiceIT extends ESIntegTestCase {
     /**
      * Starts a single index request on a parallel thread and returns the reference so {@link Thread#join()} can be called eventually.
      */
-    private Thread startParallelSingleWrite() {
-        Thread running = new Thread(() -> doSingleWrite());
+    private Thread startParallelSingleWrite(String indexName) {
+        Thread running = new Thread(() -> doSingleWrite(indexName));
         running.start();
         return running;
     }
 
-    private void doSingleWrite() {
-        final String indexName = randomIdentifier();
+    private void doSingleWrite(String indexName) {
         final int randomId = randomIntBetween(500, 1000);
         index(indexName, Integer.toString(randomId), Collections.singletonMap("foo", "bar"));
     }

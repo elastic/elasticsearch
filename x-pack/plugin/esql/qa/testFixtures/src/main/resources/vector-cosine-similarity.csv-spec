@@ -79,6 +79,7 @@ avg:double | min:double | max:double
 
 similarityWithNull
 required_capability: cosine_vector_similarity_function
+required_capability: vector_similarity_functions_support_null
 
 from colors
 | eval similarity = v_cosine(rgb_vector, null) 

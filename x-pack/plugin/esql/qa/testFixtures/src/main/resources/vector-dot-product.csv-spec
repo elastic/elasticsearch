@@ -76,6 +76,7 @@ avg:double | min:double | max:double
 
 similarityWithNull
 required_capability: dot_product_vector_similarity_function
+required_capability: vector_similarity_functions_support_null
 
 from colors
 | eval similarity = v_dot_product(rgb_vector, null) 

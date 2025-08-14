@@ -1345,7 +1345,11 @@ public class EsqlCapabilities {
         /**
          * Support correct counting of skipped shards.
          */
-        CORRECT_SKIPPED_SHARDS_COUNT;
+        CORRECT_SKIPPED_SHARDS_COUNT,
+        /**
+         * Support correct counting of skipped shards.
+         */
+        VECTOR_SIMILARITY_FUNCTIONS_SUPPORT_NULL;
 
         private final boolean enabled;
 

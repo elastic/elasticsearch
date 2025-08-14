@@ -22,7 +22,6 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.StoredField;
 import org.apache.lucene.index.IndexOptions;
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.analysis.AnalyzerScope;
@@ -552,14 +551,14 @@ public class AnnotatedTextFieldMapper extends TextFamilyFieldMapper {
 
     @Override
     protected void parseCreateField(DocumentParserContext context) throws IOException {
-        final var value = context.parser().optimizedTextOrNull();
+        final String value = context.parser().textOrNull();
 
         if (value == null) {
             return;
         }
 
         if (fieldType.indexOptions() != IndexOptions.NONE || fieldType.stored()) {
-            Field field = new Field(mappedFieldType.name(), value.string(), fieldType);
+            Field field = new Field(mappedFieldType.name(), value, fieldType);
             context.doc().add(field);
             if (fieldType.omitNorms()) {
                 context.addToFieldNames(fieldType().name());
@@ -569,15 +568,13 @@ public class AnnotatedTextFieldMapper extends TextFamilyFieldMapper {
             // else to support synthetic source
 
             // if we can rely on the synthetic source delegate for synthetic source, then return
-            if (fieldType().canUseSyntheticSourceDelegateForSyntheticSource(value.string())) {
+            if (fieldType().canUseSyntheticSourceDelegateForSyntheticSource(value)) {
                 return;
             }
 
             // otherwise, we need to store a copy of this value so that synthetic source can load it
-            var utfBytes = value.bytes();
-            var bytesRef = new BytesRef(utfBytes.bytes(), utfBytes.offset(), utfBytes.length());
             final String fieldName = fieldType().syntheticSourceFallbackFieldName();
-            context.doc().add(new StoredField(fieldName, bytesRef));
+            context.doc().add(new StoredField(fieldName, value));
         }
     }
 

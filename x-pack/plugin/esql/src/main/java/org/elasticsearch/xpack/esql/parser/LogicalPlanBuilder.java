@@ -502,14 +502,26 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         Source src = source(ctx);
         Attribute value = visitQualifiedName(ctx.value);
         Attribute key = ctx.key == null ? new UnresolvedAttribute(src, "@timestamp") : visitQualifiedName(ctx.key);
+
+        UnresolvedAttribute parsedTargetTypeColumn = visitQualifiedName(ctx.targetType);
+        UnresolvedAttribute parsedTargetPvalueColumn = visitQualifiedName(ctx.targetPvalue);
+
+        if (parsedTargetTypeColumn != null && parsedTargetTypeColumn.qualifier() != null) {
+            throw qualifiersUnsupportedInFieldDefinitions(parsedTargetTypeColumn.source(), parsedTargetTypeColumn.qualifiedName());
+        }
+
+        if (parsedTargetPvalueColumn != null && parsedTargetPvalueColumn.qualifier() != null) {
+            throw qualifiersUnsupportedInFieldDefinitions(parsedTargetPvalueColumn.source(), parsedTargetPvalueColumn.qualifiedName());
+        }
+
         Attribute targetType = new ReferenceAttribute(
             src,
-            ctx.targetType == null ? "type" : visitQualifiedName(ctx.targetType).name(),
+            parsedTargetTypeColumn == null ? "type" : parsedTargetTypeColumn.name(),
             DataType.KEYWORD
         );
         Attribute targetPvalue = new ReferenceAttribute(
             src,
-            ctx.targetPvalue == null ? "pvalue" : visitQualifiedName(ctx.targetPvalue).name(),
+            parsedTargetPvalueColumn == null ? "pvalue" : parsedTargetPvalueColumn.name(),
             DataType.DOUBLE
         );
         return child -> new ChangePoint(src, child, value, key, targetType, targetPvalue);
@@ -582,6 +594,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         return p -> new Lookup(source, p, tableName, matchFields, null /* localRelation will be resolved later*/);
     }
 
+    @Override
     public PlanFactory visitJoinCommand(EsqlBaseParser.JoinCommandContext ctx) {
         var source = source(ctx);
         if (false == EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled()) {
@@ -624,12 +637,19 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
 
         var condition = ctx.joinCondition();
 
-        // ON only with qualified names
+        // ON only with un-qualified names for now
         var predicates = expressions(condition.joinPredicate());
         List<Attribute> joinFields = new ArrayList<>(predicates.size());
         for (var f : predicates) {
             // verify each field is an unresolved attribute
             if (f instanceof UnresolvedAttribute ua) {
+                if (ua.qualifier() != null) {
+                    throw new ParsingException(
+                        ua.source(),
+                        "JOIN ON clause only supports unqualified fields, found [{}]",
+                        ua.qualifiedName()
+                    );
+                }
                 joinFields.add(ua);
             } else {
                 throw new ParsingException(f.source(), "JOIN ON clause only supports fields at the moment, found [{}]", f.sourceText());
@@ -772,6 +792,9 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         List<Alias> rerankFields = visitRerankFields(ctx.rerankFields());
         Expression queryText = expression(ctx.queryText);
         Attribute scoreAttribute = visitQualifiedName(ctx.targetField, new UnresolvedAttribute(source, MetadataAttribute.SCORE));
+        if (scoreAttribute.qualifier() != null) {
+            throw qualifiersUnsupportedInFieldDefinitions(scoreAttribute.source(), scoreAttribute.qualifiedName());
+        }
 
         return p -> {
             checkForRemoteClusters(p, source, "RERANK");
@@ -809,6 +832,10 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         Source source = source(ctx);
         Expression prompt = expression(ctx.prompt);
         Attribute targetField = visitQualifiedName(ctx.targetField, new UnresolvedAttribute(source, Completion.DEFAULT_OUTPUT_FIELD_NAME));
+
+        if (targetField.qualifier() != null) {
+            throw qualifiersUnsupportedInFieldDefinitions(targetField.source(), targetField.qualifiedName());
+        }
 
         return p -> {
             checkForRemoteClusters(p, source, "COMPLETION");

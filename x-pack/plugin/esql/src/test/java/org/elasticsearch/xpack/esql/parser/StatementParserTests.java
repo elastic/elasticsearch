@@ -2330,11 +2330,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testSpaceNotAllowedInIdPattern() {
-        expectError("ROW a = 1| RENAME a AS this is `not okay`", "mismatched input 'is' expecting {<EOF>, '|', ',', '.'}");
-    }
-
-    public void testSpaceNotAllowedInIdPatternKeep() {
-        expectError("ROW a = 1, b = 1| KEEP a b", "extraneous input 'b'");
+        expectError("ROW a = 1| RENAME a AS this is `not okay`", "extraneous input '`not okay`");
     }
 
     public void testEnrichOnMatchField() {
@@ -3342,13 +3338,13 @@ public class StatementParserTests extends AbstractStatementParserTests {
 
         {
             var fromPatterns = randomIndexPattern();
-            // Generate a syntactically invalid (partial quoted) pattern.
+            // Generate a syntactically invalid (partially quoted) pattern.
             var joinPattern = randomIdentifier() + ":" + quote(randomIndexPattern(without(CROSS_CLUSTER)));
             expectError(
                 "FROM " + fromPatterns + " | LOOKUP JOIN " + joinPattern + " ON " + randomIdentifier(),
                 // Since the from pattern is partially quoted, we get an error at the beginning of the partially quoted
                 // index name that we're expecting an unquoted string.
-                "expecting UNQUOTED_SOURCE"
+                "no viable alternative at input"
             );
         }
 
@@ -3389,7 +3385,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
                 joinPattern = unquoteIndexPattern(joinPattern);
                 expectError(
                     "FROM " + randomIndexPatterns(without(CROSS_CLUSTER)) + " | LOOKUP JOIN " + joinPattern + " ON " + randomIdentifier(),
-                    "extraneous input ':' expecting UNQUOTED_SOURCE"
+                    "no viable alternative at input "
                 );
             }
             {
@@ -3429,7 +3425,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
                 // partially quoted.
                 expectError(
                     "FROM " + fromPatterns + " | LOOKUP JOIN " + joinPattern + " ON " + randomIdentifier(),
-                    " mismatched input ':' expecting UNQUOTED_SOURCE"
+                    "no viable alternative at input"
                 );
             }
         }

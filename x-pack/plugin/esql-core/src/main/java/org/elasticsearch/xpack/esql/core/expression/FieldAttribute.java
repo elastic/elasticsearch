@@ -76,7 +76,20 @@ public class FieldAttribute extends TypedAttribute {
         @Nullable NameId id,
         boolean synthetic
     ) {
-        super(source, name, field.getDataType(), nullability, id, synthetic);
+        this(source, parentName, null, name, field, nullability, id, synthetic);
+    }
+
+    public FieldAttribute(
+        Source source,
+        @Nullable String parentName,
+        @Nullable String qualifier,
+        String name,
+        EsField field,
+        Nullability nullability,
+        @Nullable NameId id,
+        boolean synthetic
+    ) {
+        super(source, qualifier, name, field.getDataType(), nullability, id, synthetic);
         this.parentName = parentName;
         this.field = field;
     }
@@ -137,7 +150,7 @@ public class FieldAttribute extends TypedAttribute {
 
     @Override
     protected NodeInfo<FieldAttribute> info() {
-        return NodeInfo.create(this, FieldAttribute::new, parentName, name(), field, nullable(), id(), synthetic());
+        return NodeInfo.create(this, FieldAttribute::new, parentName, qualifier(), name(), field, nullable(), id(), synthetic());
     }
 
     public String parentName() {
@@ -189,9 +202,17 @@ public class FieldAttribute extends TypedAttribute {
     }
 
     @Override
-    protected Attribute clone(Source source, String name, DataType type, Nullability nullability, NameId id, boolean synthetic) {
+    protected Attribute clone(
+        Source source,
+        String qualifier,
+        String name,
+        DataType type,
+        Nullability nullability,
+        NameId id,
+        boolean synthetic
+    ) {
         // Ignore `type`, this must be the same as the field's type.
-        return new FieldAttribute(source, parentName, name, field, nullability, id, synthetic);
+        return new FieldAttribute(source, parentName, qualifier, name, field, nullability, id, synthetic);
     }
 
     @Override

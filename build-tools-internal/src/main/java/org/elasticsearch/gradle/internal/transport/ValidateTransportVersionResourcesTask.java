@@ -53,7 +53,7 @@ import static org.elasticsearch.gradle.internal.transport.TransportVersionUtils.
  * Validates that each defined transport version constant is referenced by at least one project.
  */
 @CacheableTask
-public abstract class ValidateTransportVersionDefinitionsTask extends DefaultTask {
+public abstract class ValidateTransportVersionResourcesTask extends DefaultTask {
 
     @InputDirectory
     @Optional
@@ -85,7 +85,7 @@ public abstract class ValidateTransportVersionDefinitionsTask extends DefaultTas
     Map<String, TransportVersionLatest> latestByBranch = new HashMap<>();
 
     @Inject
-    public ValidateTransportVersionDefinitionsTask(ExecOperations execOperations) {
+    public ValidateTransportVersionResourcesTask(ExecOperations execOperations) {
         this.execOperations = execOperations;
         this.rootPath = getProject().getRootProject().getLayout().getProjectDirectory().getAsFile().toPath();
     }

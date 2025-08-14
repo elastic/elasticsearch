@@ -101,24 +101,49 @@ public final class FirstDoubleByTimestampAggregatorFunction implements Aggregato
   }
 
   private void addRawVector(DoubleVector valueVector, LongVector timestampVector) {
-    state.seen(true);
-    for (int valuesPosition = 0; valuesPosition < valueVector.getPositionCount(); valuesPosition++) {
+    // Find the first value up front in the Vector path which is more complex but should be faster
+    int valuesPosition = 0;
+    while (state.seen() == false && valuesPosition < valueVector.getPositionCount()) {
+      double valueValue = valueVector.getDouble(valuesPosition);
+      long timestampValue = timestampVector.getLong(valuesPosition);
+      FirstDoubleByTimestampAggregator.first(state, valueValue, timestampValue);
+      valuesPosition++;
+      state.seen(true);
+      break;
+    }
+    while (valuesPosition < valueVector.getPositionCount()) {
       double valueValue = valueVector.getDouble(valuesPosition);
       long timestampValue = timestampVector.getLong(valuesPosition);
       FirstDoubleByTimestampAggregator.combine(state, valueValue, timestampValue);
+      valuesPosition++;
     }
   }
 
   private void addRawVector(DoubleVector valueVector, LongVector timestampVector,
       BooleanVector mask) {
-    state.seen(true);
-    for (int valuesPosition = 0; valuesPosition < valueVector.getPositionCount(); valuesPosition++) {
+    // Find the first value up front in the Vector path which is more complex but should be faster
+    int valuesPosition = 0;
+    while (state.seen() == false && valuesPosition < valueVector.getPositionCount()) {
       if (mask.getBoolean(valuesPosition) == false) {
+        valuesPosition++;
+        continue;
+      }
+      double valueValue = valueVector.getDouble(valuesPosition);
+      long timestampValue = timestampVector.getLong(valuesPosition);
+      FirstDoubleByTimestampAggregator.first(state, valueValue, timestampValue);
+      valuesPosition++;
+      state.seen(true);
+      break;
+    }
+    while (valuesPosition < valueVector.getPositionCount()) {
+      if (mask.getBoolean(valuesPosition) == false) {
+        valuesPosition++;
         continue;
       }
       double valueValue = valueVector.getDouble(valuesPosition);
       long timestampValue = timestampVector.getLong(valuesPosition);
       FirstDoubleByTimestampAggregator.combine(state, valueValue, timestampValue);
+      valuesPosition++;
     }
   }
 
@@ -130,7 +155,6 @@ public final class FirstDoubleByTimestampAggregatorFunction implements Aggregato
       if (timestampBlock.isNull(p)) {
         continue;
       }
-      state.seen(true);
       int valueStart = valueBlock.getFirstValueIndex(p);
       int valueEnd = valueStart + valueBlock.getValueCount(p);
       for (int valueOffset = valueStart; valueOffset < valueEnd; valueOffset++) {
@@ -139,7 +163,13 @@ public final class FirstDoubleByTimestampAggregatorFunction implements Aggregato
         int timestampEnd = timestampStart + timestampBlock.getValueCount(p);
         for (int timestampOffset = timestampStart; timestampOffset < timestampEnd; timestampOffset++) {
           long timestampValue = timestampBlock.getLong(timestampOffset);
-          FirstDoubleByTimestampAggregator.combine(state, valueValue, timestampValue);
+          // Check seen in every iteration to save on complexity in the Block path
+          if (state.seen()) {
+            FirstDoubleByTimestampAggregator.combine(state, valueValue, timestampValue);
+          } else {
+            state.seen(true);
+            FirstDoubleByTimestampAggregator.first(state, valueValue, timestampValue);
+          }
         }
       }
     }
@@ -156,7 +186,6 @@ public final class FirstDoubleByTimestampAggregatorFunction implements Aggregato
       if (timestampBlock.isNull(p)) {
         continue;
       }
-      state.seen(true);
       int valueStart = valueBlock.getFirstValueIndex(p);
       int valueEnd = valueStart + valueBlock.getValueCount(p);
       for (int valueOffset = valueStart; valueOffset < valueEnd; valueOffset++) {
@@ -165,7 +194,13 @@ public final class FirstDoubleByTimestampAggregatorFunction implements Aggregato
         int timestampEnd = timestampStart + timestampBlock.getValueCount(p);
         for (int timestampOffset = timestampStart; timestampOffset < timestampEnd; timestampOffset++) {
           long timestampValue = timestampBlock.getLong(timestampOffset);
-          FirstDoubleByTimestampAggregator.combine(state, valueValue, timestampValue);
+          // Check seen in every iteration to save on complexity in the Block path
+          if (state.seen()) {
+            FirstDoubleByTimestampAggregator.combine(state, valueValue, timestampValue);
+          } else {
+            state.seen(true);
+            FirstDoubleByTimestampAggregator.first(state, valueValue, timestampValue);
+          }
         }
       }
     }

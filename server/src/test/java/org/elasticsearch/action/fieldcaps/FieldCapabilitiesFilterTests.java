@@ -113,7 +113,6 @@ public class FieldCapabilitiesFilterTests extends MapperServiceTestCase {
         );
         SearchExecutionContext sec = createSearchExecutionContext(mapperService);
 
-        /*
         {
             // First, test without the filter
             Map<String, IndexFieldCapabilities> response = FieldCapabilitiesFetcher.retrieveFieldCaps(
@@ -130,7 +129,6 @@ public class FieldCapabilitiesFilterTests extends MapperServiceTestCase {
             assertNull(response.get("dimension_2"));
         }
 
-         */
         {
             // then, test with the filter
             Map<String, IndexFieldCapabilities> response = FieldCapabilitiesFetcher.retrieveFieldCaps(

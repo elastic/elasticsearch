@@ -331,6 +331,7 @@ public class Join extends BinaryPlan implements PostAnalysisVerificationAware, S
             }
             if (u instanceof Limit) {
                 // Limit is ok because it can be moved in by the optimizer
+                // We check LIMITs in LookupJoin pre-optimization so they are still not allowed there
                 return;
             }
             if (u instanceof PipelineBreaker || (u instanceof ExecutesOn ex && ex.executesOn() == ExecuteLocation.COORDINATOR)) {

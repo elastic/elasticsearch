@@ -40,6 +40,7 @@ import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.inference.WeightedToken;
 import org.elasticsearch.search.lookup.Source;
 import org.elasticsearch.search.vectors.SparseVectorQueryWrapper;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -61,6 +62,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.index.IndexVersions.SPARSE_VECTOR_PRUNING_INDEX_OPTIONS_SUPPORT;
+import static org.elasticsearch.index.IndexVersions.SPARSE_VECTOR_PRUNING_INDEX_OPTIONS_SUPPORT_BACKPORT_8_X;
 import static org.elasticsearch.index.IndexVersions.UPGRADE_TO_LUCENE_10_0_0;
 import static org.elasticsearch.index.mapper.vectors.SparseVectorFieldMapper.NEW_SPARSE_VECTOR_INDEX_VERSION;
 import static org.elasticsearch.index.mapper.vectors.SparseVectorFieldMapper.PREVIOUS_SPARSE_VECTOR_INDEX_VERSION;
@@ -749,9 +751,11 @@ public class SparseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase
 
             iw.addDocument(mapper.parse(source(b -> b.field("field", RARE_TOKENS))).rootDoc());
 
-            // This will lower the averageTokenFreqRatio so that common tokens get pruned with default settings
+            // This will lower the averageTokenFreqRatio so that common tokens get pruned with default settings.
+            // Depending on how the index is created, we will have 30-37 numUniqueTokens
+            // this will result in an averageTokenFreqRatio of 0.1021 - 0.1259
             Map<String, Float> uniqueDoc = new TreeMap<>();
-            for (int i = 0; i < 20; i++) {
+            for (int i = 0; i < 30; i++) {
                 uniqueDoc.put("unique" + i, 0.5f);
             }
             iw.addDocument(mapper.parse(source(b -> b.field("field", uniqueDoc))).rootDoc());
@@ -765,10 +769,10 @@ public class SparseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase
     }
 
     public void testPruningScenarios() throws Exception {
-        for (int i = 0; i < 120; i++) {
+        for (int i = 0; i < 200; i++) {
             assertPruningScenario(
                 randomFrom(validIndexPruningScenarios),
-                new PruningOptions(randomBoolean() ? randomBoolean() : null, randomFrom(PruningConfig.values()))
+                new PruningOptions(randomFrom(true, false, null), randomFrom(PruningConfig.values()))
             );
         }
     }
@@ -798,7 +802,7 @@ public class SparseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase
         }
 
         if (shouldPrune == null) {
-            shouldPrune = indexVersion.onOrAfter(SPARSE_VECTOR_PRUNING_INDEX_OPTIONS_SUPPORT);
+            shouldPrune = indexVersion.between(SPARSE_VECTOR_PRUNING_INDEX_OPTIONS_SUPPORT_BACKPORT_8_X, IndexVersions.UPGRADE_TO_LUCENE_10_0_0) || indexVersion.onOrAfter(SPARSE_VECTOR_PRUNING_INDEX_OPTIONS_SUPPORT);
         }
 
         PruningScenario pruningScenario = PruningScenario.NO_PRUNING;
@@ -836,7 +840,10 @@ public class SparseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase
     }
 
     private void assertPruningScenario(PruningOptions indexPruningOptions, PruningOptions queryPruningOptions) throws IOException {
-        IndexVersion indexVersion = getIndexVersionForTest(randomBoolean());
+        IndexVersion indexVersion = ESTestCase.randomFrom(IndexVersionUtils.allReleasedVersions().subSet(
+            SPARSE_VECTOR_PRUNING_INDEX_OPTIONS_SUPPORT_BACKPORT_8_X,
+            IndexVersion.current()
+        ));
         MapperService mapperService = createMapperService(indexVersion, getIndexMapping(indexPruningOptions));
         PruningScenario effectivePruningScenario = getEffectivePruningScenario(indexPruningOptions, queryPruningOptions, indexVersion);
         withSearchExecutionContext(mapperService, (context) -> {

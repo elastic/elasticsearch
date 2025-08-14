@@ -84,7 +84,7 @@ public final class QueryBuilderResolver {
             Holder<Boolean> updated = new Holder<>(false);
             LogicalPlan newPlan = plan.transformExpressionsDown(Expression.class, expr -> {
                 Expression finalExpression = expr;
-                if (expr instanceof RewriteableAware rewriteableAware && expr instanceof TranslationAware translationAware) {
+                if (expr instanceof RewriteableAware rewriteableAware) {
                     QueryBuilder builder = rewriteableAware.queryBuilder(), initial = builder;
                     builder = builder == null
                         ? translationAware.asQuery(LucenePushdownPredicates.DEFAULT, TranslatorHandler.TRANSLATOR_HANDLER).toQueryBuilder()

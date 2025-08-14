@@ -19,6 +19,7 @@ import java.lang.constant.ClassDesc;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.Map;
 import java.util.Set;
@@ -147,12 +148,16 @@ public class JdkApiExtractor {
         @Override
         public void visit(int version, int access, String name, String signature, String superName, String[] interfaces) {
             if (superName != null) {
-                visitSuperClass(superName);
+                if(accessibleImplementationsByClass.containsKey(superName) == false) {
+                    visitSuperClass(superName);
+                }
                 getMethods(accessibleForOverridesByClass, name).addAll(getMethods(accessibleForOverridesByClass, superName));
             }
             if (interfaces != null && interfaces.length > 0) {
                 for (var interfaceName : interfaces) {
-                    visitInterface(interfaceName);
+                    if(accessibleImplementationsByClass.containsKey(interfaceName) == false) {
+                        visitInterface(interfaceName);
+                    }
                     getMethods(accessibleForOverridesByClass, name).addAll(getMethods(accessibleForOverridesByClass, interfaceName));
                 }
             }
@@ -171,13 +176,13 @@ public class JdkApiExtractor {
         public void visitEnd() {
             super.visitEnd();
             if (accessibleImplementations.isEmpty()) {
-                accessibleImplementationsByClass.remove(className);
+                accessibleImplementationsByClass.replace(className, Collections.emptySet());
             }
             if (accessibleForOverrides.isEmpty()) {
-                accessibleForOverridesByClass.remove(className);
+                accessibleImplementationsByClass.replace(className, Collections.emptySet());
             }
             if (deprecations.isEmpty()) {
-                deprecationsByClass.remove(className);
+                accessibleImplementationsByClass.replace(className, Collections.emptySet());
             }
         }
 

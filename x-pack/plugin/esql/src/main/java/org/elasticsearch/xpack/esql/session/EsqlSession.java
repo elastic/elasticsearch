@@ -112,9 +112,9 @@ public class EsqlSession {
     private final PreAnalyzer preAnalyzer;
     private final Verifier verifier;
     private final EsqlFunctionRegistry functionRegistry;
-    private final LogicalPlanPreOptimizer logicalPlanPreOptimizer;
+    protected final LogicalPlanPreOptimizer logicalPlanPreOptimizer;
     private final LogicalPlanOptimizer logicalPlanOptimizer;
-    private final PreMapper preMapper;
+    protected final PreMapper preMapper;
 
     private final Mapper mapper;
     private final PhysicalPlanOptimizer physicalPlanOptimizer;
@@ -204,7 +204,7 @@ public class EsqlSession {
      * Execute an analyzed plan. Most code should prefer calling {@link #execute} but
      * this is public for testing.
      */
-    private void executeOptimizedPlan(
+    protected void executeOptimizedPlan(
         EsqlQueryRequest request,
         EsqlExecutionInfo executionInfo,
         PlanRunner planRunner,
@@ -804,7 +804,7 @@ public class EsqlSession {
         return EstimatesRowSize.estimateRowSize(0, physicalPlan);
     }
 
-    private LogicalPlan optimizedPlan(LogicalPlan logicalPlan) {
+    protected LogicalPlan optimizedPlan(LogicalPlan logicalPlan) {
         if (logicalPlan.preOptimized() == false) {
             throw new IllegalStateException("Expected pre-optimized plan");
         }

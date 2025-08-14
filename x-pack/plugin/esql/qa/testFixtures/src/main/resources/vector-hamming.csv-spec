@@ -1,0 +1,103 @@
+ # Tests for hamming similarity function
+ 
+ similarityWithVectorField
+ required_capability: hamming_vector_similarity_function
+ 
+// tag::vector-hamming[]
+ from colors
+ | eval similarity = v_hamming(rgb_vector, [0, 255, 255]) 
+ | sort similarity desc, color asc 
+// end::vector-hamming[]
+ | limit 10
+ | keep color, similarity
+ ;
+ 
+// tag::vector-hamming-result[]
+color:text  | similarity:double
+cyan        | 1.0
+azure       | 0.8333333134651184
+blue        | 0.6666666865348816
+honeydew    | 0.6666666865348816
+lime        | 0.6666666865348816
+mint cream  | 0.6666666865348816
+white       | 0.6666666865348816
+thistle     | 0.625
+lavender    | 0.5833333134651184
+aqua marine | 0.5416666865348816
+// end::vector-hamming-result[] 
+;
+
+similarityAsPartOfExpression
+required_capability: hamming_vector_similarity_function
+
+from colors
+| eval score = round((1 + v_hamming(rgb_vector, [0, 255, 255]) / 2), 3) 
+| sort score desc, color asc 
+| limit 10
+| keep color, score
+;
+
+color:text  | score:double
+cyan        | 1.5
+azure       | 1.417
+blue        | 1.333
+honeydew    | 1.333
+lime        | 1.333
+mint cream  | 1.333
+white       | 1.333
+thistle     | 1.313
+lavender    | 1.292
+aqua marine | 1.271
+;
+
+similarityWithLiteralVectors
+required_capability: hamming_vector_similarity_function
+ 
+row a = 1
+| eval similarity = round(v_hamming([1, 2, 3], [0, 1, 2]), 3) 
+| keep similarity
+;
+
+similarity:double
+0.833
+;
+
+similarityWithStats
+required_capability: hamming_vector_similarity_function
+
+from colors
+| eval similarity = round(v_hamming(rgb_vector, [0, 255, 255]), 3) 
+| stats avg = round(avg(similarity), 3), min = min(similarity), max = max(similarity)
+;
+
+avg:double | min:double | max:double
+0.445      | 0.0        | 1.0
+;
+
+similarityWithNull
+required_capability: hamming_vector_similarity_function
+required_capability: vector_similarity_functions_support_null
+
+from colors
+| eval similarity = v_hamming(rgb_vector, null) 
+| stats total_null = count(*) where similarity is null
+;
+
+total_null:long
+59
+;
+
+# TODO Need to implement a conversion function to convert a non-foldable row to a dense_vector
+similarityWithRow-Ignore
+required_capability: hamming_vector_similarity_function
+ 
+row vector = [1, 2, 3] 
+| eval similarity = round(v_hamming(vector, [0, 1, 2]), 3) 
+| sort similarity desc, color asc 
+| limit 10
+| keep color, similarity
+;
+
+similarity:double
+0.978  
+;

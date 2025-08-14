@@ -2499,6 +2499,10 @@ public class VerifierTests extends ESTestCase {
             checkVectorSimilarityFunctionsNullArgs("v_l2_norm(null, vector)");
             checkVectorSimilarityFunctionsNullArgs("v_l2_norm(vector, null)");
         }
+        if (EsqlCapabilities.Cap.HAMMING_VECTOR_SIMILARITY_FUNCTION.isEnabled()) {
+            checkVectorSimilarityFunctionsNullArgs("v_hamming(null, vector)");
+            checkVectorSimilarityFunctionsNullArgs("v_hamming(vector, null)");
+        }
     }
 
     private void checkVectorSimilarityFunctionsNullArgs(String functionInvocation) throws Exception {

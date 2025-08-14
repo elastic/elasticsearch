@@ -13,7 +13,10 @@ import org.elasticsearch.xpack.esql.core.expression.AttributeMap;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
+import org.elasticsearch.xpack.esql.core.expression.FoldContext;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.CollectionUtils;
 import org.elasticsearch.xpack.esql.expression.predicate.Predicates;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
@@ -152,11 +155,15 @@ public final class PushDownAndCombineFilters extends OptimizerRules.OptimizerRul
                 optimizationApplied = true;
             }
             // push the right scoped filter down to the right child
-            if (scoped.rightFilters().isEmpty() == false) {
+            if (scoped.rightFilters().isEmpty() == false && (join.right() instanceof Filter == false)) {
                 // push the filter down to the right child
-                right = new Filter(right.source(), right, Predicates.combineAnd(scoped.rightFilters()));
-                // update the join with the new right child
-                join = (Join) join.replaceRight(right);
+                List<Expression> rightPushableFilters = buildRightPushableFilters(scoped.rightFilters());
+                if (rightPushableFilters.isEmpty() == false) {
+                    right = new Filter(right.source(), right, Predicates.combineAnd(rightPushableFilters));
+                    // update the join with the new right child
+                    join = (Join) join.replaceRight(right);
+                    optimizationApplied = true;
+                }
                 // We still want to reapply the filters that we just applied to the right child,
                 // so we do NOT update scoped, and we do NOT mark optimizationApplied as true.
                 // This is because by pushing them on the right side, we filter what rows we get from the right side
@@ -185,6 +192,32 @@ public final class PushDownAndCombineFilters extends OptimizerRules.OptimizerRul
         }
         // ignore the rest of the join
         return plan;
+    }
+
+    /**
+     * Builds the right pushable filters for the given expressions.
+     */
+    private static List<Expression> buildRightPushableFilters(List<Expression> expressions) {
+        return expressions.stream().filter(x -> isRightPushableFilter(x)).toList();
+    }
+
+    /**
+     * Determines if the given expression can be pushed down to the right side of a join.
+     * A filter is right pushable if the filter's predicate evaluates to false or null when all fields are set to null
+     */
+    private static boolean isRightPushableFilter(Expression filter) {
+        // traverse the filter tree
+        // replace any reference to an attribute with a null literal
+        Expression nullifiedFilter = filter.transformUp(Attribute.class, r -> new Literal(r.source(), null, DataType.NULL));
+        // try to fold the filter
+        // check if the folded filter evaluates to false or null, if yes return true
+        // pushable WHERE field > 1 (evaluates to null), WHERE field is NOT NULL (evaluates to false)
+        // not pushable WHERE field is NULL (evaluates to true), WHERE coalesce(field, 10) = 10 (evaluates to true)
+        if (nullifiedFilter.foldable()) {
+            Object folded = nullifiedFilter.fold(FoldContext.small());
+            return folded == null || Boolean.FALSE.equals(folded);
+        }
+        return false;
     }
 
     private static Function<Expression, Expression> NO_OP = expression -> expression;

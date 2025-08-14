@@ -253,7 +253,7 @@ public class FieldNameUtils {
             fieldNames.addAll(subfields(fieldNames));
             fieldNames.addAll(enrichPolicyMatchFields);
             fieldNames.addAll(subfields(enrichPolicyMatchFields));
-            return new PreAnalysisResult(enrichResolution, fieldNames, wildcardJoinIndices, false);
+            return new PreAnalysisResult(enrichResolution, fieldNames, wildcardJoinIndices, shouldCollectAllDimensions);
         }
     }
 

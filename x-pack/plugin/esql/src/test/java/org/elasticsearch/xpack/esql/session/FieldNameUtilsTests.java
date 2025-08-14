@@ -3016,7 +3016,7 @@ public class FieldNameUtilsTests extends ESTestCase {
             new EnrichResolution()
         );
         assertThat("Query-wide field names", preAnalysisResult.fieldNames(), equalTo(tsExpected));
-        assertThat(preAnalysisResult.collectAllDimensions(), equalTo(true));
+        assertThat("TS mode query should collect all dimensions", preAnalysisResult.collectAllDimensions(), equalTo(true));
     }
 
     private static EnrichResolution enrichResolutionWith(String enrichPolicyMatchField) {

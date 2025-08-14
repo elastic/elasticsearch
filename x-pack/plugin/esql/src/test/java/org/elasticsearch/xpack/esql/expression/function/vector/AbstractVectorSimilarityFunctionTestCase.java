@@ -11,7 +11,6 @@ import com.carrotsearch.randomizedtesting.annotations.Name;
 
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
-import org.hamcrest.Matcher;
 import org.junit.Before;
 
 import java.util.ArrayList;
@@ -67,11 +66,5 @@ public abstract class AbstractVectorSimilarityFunctionTestCase extends AbstractV
         }));
 
         return parameterSuppliersFromTypedData(suppliers);
-    }
-
-    @Override
-    protected Matcher<Object> allNullsMatcher() {
-        // A null value on the left or right vector. Similarity is 0
-        return equalTo(0.0);
     }
 }

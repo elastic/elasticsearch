@@ -29,12 +29,10 @@ import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.BitSet;
 import org.apache.lucene.util.Bits;
-import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.search.vectors.IVFKnnSearchStrategy;
 
 import java.io.IOException;
-import java.util.function.IntPredicate;
 
 import static org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsReader.SIMILARITY_FUNCTIONS;
 import static org.elasticsearch.index.codec.vectors.IVFVectorsFormat.DYNAMIC_NPROBE;
@@ -224,13 +222,6 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
             percentFiltered = Math.max(0f, Math.min(1f, (float) bitSet.approximateCardinality() / bitSet.length()));
         }
         int numVectors = rawVectorsReader.getFloatVectorValues(field).size();
-        BitSet visitedDocs = new FixedBitSet(state.segmentInfo.maxDoc() + 1);
-        IntPredicate needsScoring = docId -> {
-            if (acceptDocs != null && acceptDocs.get(docId) == false) {
-                return false;
-            }
-            return visitedDocs.getAndSet(docId) == false;
-        };
         int nProbe = DYNAMIC_NPROBE;
         // Search strategy may be null if this is being called from checkIndex (e.g. from a test)
         if (knnCollector.getSearchStrategy() instanceof IVFKnnSearchStrategy ivfSearchStrategy) {
@@ -248,7 +239,7 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
             nProbe = Math.max(Math.min(nProbe, entry.numCentroids), 1);
         }
         CentroidIterator centroidIterator = getCentroidIterator(fieldInfo, entry.numCentroids, entry.centroidSlice(ivfCentroids), target);
-        PostingVisitor scorer = getPostingVisitor(fieldInfo, entry.postingListSlice(ivfClusters), target, needsScoring);
+        PostingVisitor scorer = getPostingVisitor(fieldInfo, entry.postingListSlice(ivfClusters), target, acceptDocs);
         int centroidsVisited = 0;
         long expectedDocs = 0;
         long actualDocs = 0;
@@ -316,7 +307,7 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
         }
     }
 
-    abstract PostingVisitor getPostingVisitor(FieldInfo fieldInfo, IndexInput postingsLists, float[] target, IntPredicate needsScoring)
+    abstract PostingVisitor getPostingVisitor(FieldInfo fieldInfo, IndexInput postingsLists, float[] target, Bits needsScoring)
         throws IOException;
 
     interface CentroidIterator {

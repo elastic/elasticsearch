@@ -23,9 +23,12 @@ import java.util.stream.IntStream;
 public class LastLongByTimestampAggregatorFunctionTests extends AggregatorFunctionTestCase {
     @Override
     protected SourceOperator simpleInput(BlockFactory blockFactory, int size) {
+        FirstLongByTimestampGroupingAggregatorFunctionTests.TimestampGen tsgen = randomFrom(
+            FirstLongByTimestampGroupingAggregatorFunctionTests.TimestampGen.values()
+        );
         return new TupleLongLongBlockSourceOperator(
             blockFactory,
-            IntStream.range(0, size).mapToObj(l -> Tuple.tuple(randomLong(), randomLong()))
+            IntStream.range(0, size).mapToObj(l -> Tuple.tuple(randomLong(), tsgen.gen()))
         );
     }
 

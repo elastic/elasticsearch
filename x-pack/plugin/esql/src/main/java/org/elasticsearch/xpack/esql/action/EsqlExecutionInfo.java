@@ -124,7 +124,9 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
     public void writeTo(StreamOutput out) throws IOException {
         out.writeOptionalTimeValue(overallTook);
         if (clusterInfo != null) {
-            out.writeCollection(clusterInfo.values());
+            // .stream().toList() creates an immutable copy of the cluster info entries
+            // as today they might be still changing while serialization is happening
+            out.writeCollection(clusterInfo.values().stream().toList());
         } else {
             out.writeCollection(Collections.emptyList());
         }

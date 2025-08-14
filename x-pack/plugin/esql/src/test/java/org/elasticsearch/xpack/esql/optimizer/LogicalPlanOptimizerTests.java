@@ -54,6 +54,7 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.Min;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Percentile;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Rate;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.SummationMode;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.ToPartial;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Values;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.Match;
@@ -7608,6 +7609,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         assertThat(Expressions.attribute(finalAgg.groupings().get(0)).id(), equalTo(aggsByTsid.aggregates().get(2).id()));
 
         Sum sumTs = as(Alias.unwrap(aggsByTsid.aggregates().get(0)), Sum.class);
+        assertThat(sumTs.summationMode(), equalTo(SummationMode.LOSSY_LITERAL));
         assertThat(Expressions.attribute(sumTs.field()).name(), equalTo("network.bytes_in"));
         Count countTs = as(Alias.unwrap(aggsByTsid.aggregates().get(1)), Count.class);
         assertThat(Expressions.attribute(countTs.field()).name(), equalTo("network.bytes_in"));

@@ -397,18 +397,6 @@ public class MetadataIndexTemplateService {
                 final String composableTemplateName = entry.getKey();
                 final ComposableIndexTemplate composableTemplate = entry.getValue();
                 try {
-                    validateLifecycle(
-                        tempProjectWithComponentTemplateAdded,
-                        composableTemplateName,
-                        composableTemplate,
-                        globalRetentionSettings.get(false)
-                    );
-                    validateDataStreamOptions(
-                        tempProjectWithComponentTemplateAdded,
-                        composableTemplateName,
-                        composableTemplate,
-                        globalRetentionSettings.get(true)
-                    );
                     validateIndexTemplateV2(tempProjectWithComponentTemplateAdded, composableTemplateName, composableTemplate);
                 } catch (Exception e) {
                     if (validationFailure == null) {

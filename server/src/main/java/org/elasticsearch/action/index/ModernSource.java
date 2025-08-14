@@ -9,7 +9,11 @@
 
 package org.elasticsearch.action.index;
 
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.ingest.ESONFlat;
 import org.elasticsearch.ingest.ESONSource;
@@ -24,12 +28,36 @@ import org.elasticsearch.xcontent.XContentType;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 
-public class ModernSource {
+public class ModernSource implements Writeable {
 
     private final XContentType contentType;
     private final int originalSourceSize;
     private BytesReference originalSource;
     private ESONFlat structuredSource;
+
+    public ModernSource(StreamInput in) throws IOException {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.STRUCTURED_SOURCE)) {
+            contentType = XContentType.ofOrdinal(in.readByte());
+            if (in.readBoolean()) {
+                originalSourceSize = in.readVInt();
+                structuredSource = new ESONFlat(in);
+                originalSource = null;
+            } else {
+                originalSource = in.readBytesReference();
+                originalSourceSize = originalSource.length();
+                structuredSource = null;
+            }
+        } else {
+            originalSource = in.readBytesReference();
+            originalSourceSize = originalSource.length();
+            contentType = XContentHelper.xContentType(originalSource);
+            structuredSource = null;
+        }
+    }
+
+    public ModernSource(BytesReference source) {
+        this(source, XContentHelper.xContentType(source));
+    }
 
     public ModernSource(BytesReference originalSource, XContentType contentType) {
         this(originalSource, contentType, originalSource.length(), null);
@@ -44,10 +72,6 @@ public class ModernSource {
         this.contentType = contentType;
         this.originalSourceSize = originalSourceSize;
         this.structuredSource = structuredSource;
-    }
-
-    public ModernSource(BytesReference source) {
-        this(source, XContentHelper.xContentType(source));
     }
 
     public void ensureStructured() {
@@ -98,6 +122,24 @@ public class ModernSource {
             return originalSource == null || originalSource.length() == 0;
         }
 
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.STRUCTURED_SOURCE)) {
+            XContentHelper.writeTo(out, contentType);
+            if (isStructured()) {
+                out.writeBoolean(true);
+                out.writeVInt(originalSourceSize);
+                out.writeBytesReference(structuredSource.getSerializedKeyBytes());
+                out.writeBytesReference(structuredSource.values().data());
+            } else {
+                out.writeBoolean(false);
+                out.writeBytesReference(originalSourceBytes());
+            }
+        } else {
+            out.writeBytesReference(originalSourceBytes());
+        }
     }
 
     @Override

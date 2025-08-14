@@ -166,24 +166,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
         }
         id = in.readOptionalString();
         routing = in.readOptionalString();
-        final ESONFlat structuredSource;
-        final int originalSourceSize;
-        final BytesReference source;
-        if (in.getTransportVersion().onOrAfter(TransportVersions.STRUCTURED_SOURCE)) {
-            if (in.readBoolean()) {
-                originalSourceSize = in.readVInt();
-                structuredSource = new ESONFlat(in);
-                source = null;
-            } else {
-                source = in.readBytesReference();
-                originalSourceSize = source.length();
-                structuredSource = null;
-            }
-        } else {
-            source = in.readBytesReference();
-            originalSourceSize = source.length();
-            structuredSource = null;
-        }
+        modernSource = new ModernSource(in);
         opType = OpType.fromId(in.readByte());
         version = in.readLong();
         versionType = VersionType.fromValue(in.readByte());
@@ -198,7 +181,6 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
         } else {
             contentType = null;
         }
-        modernSource = new ModernSource(source, contentType, originalSourceSize, structuredSource);
         ifSeqNo = in.readZLong();
         ifPrimaryTerm = in.readVLong();
         requireAlias = in.readBoolean();
@@ -809,20 +791,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
         }
         out.writeOptionalString(id);
         out.writeOptionalString(routing);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.STRUCTURED_SOURCE)) {
-            if (modernSource != null && modernSource.isStructured()) {
-                out.writeBoolean(true);
-                out.writeVInt(modernSource.originalSourceSize());
-                ESONFlat structuredSource = modernSource.structuredSource();
-                out.writeBytesReference(structuredSource.getSerializedKeyBytes());
-                out.writeBytesReference(structuredSource.values().data());
-            } else {
-                out.writeBoolean(false);
-                out.writeBytesReference(source());
-            }
-        } else {
-            out.writeBytesReference(source());
-        }
+        modernSource.writeTo(out);
         out.writeByte(opType.getId());
         out.writeLong(version);
         out.writeByte(versionType.getValue());

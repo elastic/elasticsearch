@@ -21,11 +21,21 @@
 
 package org.elasticsearch.exponentialhistogram;
 
-import static org.hamcrest.Matchers.equalTo;
+/**
+ * Interface for a memory-allocation circuit breaker used for {@link ReleasableExponentialHistogram}s.
+ */
+public interface ExponentialHistogramCircuitBreaker {
 
-public class ZeroBucketTests extends ExponentialHistogramTestCase {
+    /**
+     * Adjusts the circuit breaker, potentially throwing an exception if the limit is exceeded.
+     * Guaranteed to never cause an exception when called with a negative number to reduce the breaker count.
+     *
+     * @param bytesAllocated the number of bytes allocated, or a negative value if deallocated
+     */
+    void adjustBreaker(long bytesAllocated);
 
-    public void testMinimalBucketHasZeroThreshold() {
-        assertThat(ZeroBucket.minimalWithCount(42).zeroThreshold(), equalTo(0.0));
+    static ExponentialHistogramCircuitBreaker noop() {
+        return bytesAllocated -> {};
     }
+
 }

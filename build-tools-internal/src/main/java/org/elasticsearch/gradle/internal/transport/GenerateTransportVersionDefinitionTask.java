@@ -46,7 +46,6 @@ import javax.inject.Inject;
 
 import static org.elasticsearch.gradle.internal.transport.TransportVersionReference.listFromFile;
 import static org.elasticsearch.gradle.internal.transport.TransportVersionUtils.latestFilePath;
-import static org.elasticsearch.gradle.internal.transport.TransportVersionUtils.readLatestFile;
 import static org.elasticsearch.gradle.internal.transport.TransportVersionUtils.writeDefinitionFile;
 import static org.elasticsearch.gradle.internal.transport.TransportVersionUtils.writeLatestFile;
 
@@ -168,7 +167,10 @@ public abstract class GenerateTransportVersionDefinitionTask extends DefaultTask
 
     private Set<String> getTargetReleaseBranches() {
         if (getBranches().isPresent()) {
-            return getBranches().get().stream().map(branch -> branch.equals("main") ? getMainReleaseBranch().get() : branch).collect(Collectors.toSet());
+            return getBranches().get()
+                .stream()
+                .map(branch -> branch.equals("main") ? getMainReleaseBranch().get() : branch)
+                .collect(Collectors.toSet());
         } else {
             // look for env var indicating github PR link from CI
             // use github api to find current labels, filter down to version labels
@@ -193,7 +195,7 @@ public abstract class GenerateTransportVersionDefinitionTask extends DefaultTask
                 if (label.startsWith("v") == false) {
                     continue;
                 }
-                int firstDot =  label.indexOf('.');
+                int firstDot = label.indexOf('.');
                 targetReleaseBranches.add(label.substring(1, label.indexOf('.', firstDot + 1)));
             }
             // if we didn't find any version labels we must be on serverless, so just use the main release branch

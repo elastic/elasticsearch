@@ -155,7 +155,6 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
                 Math.log10(totalDocsWVectors) * Math.log10(totalDocsWVectors) * (Math.min(10_000, Math.max(numCands, 5 * k)))
             );
             visitRatio = expected / totalDocsWVectors;
-
         } else {
             visitRatio = providedVisitRatio;
         }

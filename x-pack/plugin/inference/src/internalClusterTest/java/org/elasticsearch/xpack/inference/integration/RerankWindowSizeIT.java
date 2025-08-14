@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.core.inference.action.GetRerankerWindowSizeAction
 import org.elasticsearch.xpack.inference.LocalStateInferencePlugin;
 import org.elasticsearch.xpack.inference.Utils;
 import org.elasticsearch.xpack.inference.mock.TestInferenceServicePlugin;
+import org.elasticsearch.xpack.inference.mock.TestRerankingServiceExtension;
 import org.elasticsearch.xpack.inference.registry.ModelRegistry;
 import org.junit.Before;
 
@@ -41,7 +42,7 @@ public class RerankWindowSizeIT extends ESIntegTestCase {
     public void testRerankWindowSizeAction() {
         var response = client().execute(GetRerankerWindowSizeAction.INSTANCE, new GetRerankerWindowSizeAction.Request("rerank-endpoint"))
             .actionGet();
-        assertEquals(333, response.getWindowSize());
+        assertEquals(TestRerankingServiceExtension.RERANK_WINDOW_SIZE, response.getWindowSize());
     }
 
     public void testActionNotAReranker() {

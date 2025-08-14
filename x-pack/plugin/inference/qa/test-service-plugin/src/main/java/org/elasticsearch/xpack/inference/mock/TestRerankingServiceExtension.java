@@ -49,6 +49,8 @@ import static org.elasticsearch.xpack.inference.mock.AbstractTestInferenceServic
 
 public class TestRerankingServiceExtension implements InferenceServiceExtension {
 
+    public static final int RERANK_WINDOW_SIZE = 333;
+
     @Override
     public List<Factory> getInferenceServiceFactories() {
         return List.of(TestInferenceService::new);
@@ -203,7 +205,7 @@ public class TestRerankingServiceExtension implements InferenceServiceExtension 
 
         @Override
         public int rerankerWindowSize(String modelId) {
-            return 333;
+            return RERANK_WINDOW_SIZE;
         }
 
         public static class Configuration {

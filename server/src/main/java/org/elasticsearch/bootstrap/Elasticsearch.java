@@ -183,6 +183,7 @@ class Elasticsearch {
         bootstrap.spawner().spawnNativeControllers(nodeEnv);
 
         nodeEnv.validateNativesConfig(); // temporary directories are important for JNA
+        NativeAccess.loadCuvs();
         initializeNatives(
             nodeEnv.tmpDir(),
             BootstrapSettings.MEMORY_LOCK_SETTING.get(args.nodeSettings()),

@@ -9,7 +9,7 @@
 
 package org.elasticsearch.gradle.internal.transport;
 
-record TransportVersionLatest(String branch, String name, TransportVersionId id) {
+record TransportVersionLatest(String releaseBranch, String name, TransportVersionId id) {
 
     public static TransportVersionLatest fromString(String filename, String contents) {
         assert filename.endsWith(".csv");

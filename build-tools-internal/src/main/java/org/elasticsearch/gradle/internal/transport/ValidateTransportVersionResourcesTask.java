@@ -81,7 +81,7 @@ public abstract class ValidateTransportVersionResourcesTask extends DefaultTask 
     private final Map<Integer, String> definedIds = new HashMap<>();
     // lookup of base ids back to definition
     private final Map<Integer, List<IdAndDefinition>> idsByBase = new HashMap<>();
-    // direct lookup of latest for each branch
+    // direct lookup of latest for each releaseBranch
     Map<String, TransportVersionLatest> latestByBranch = new HashMap<>();
 
     @Inject
@@ -210,7 +210,7 @@ public abstract class ValidateTransportVersionResourcesTask extends DefaultTask 
             }
 
             if (ndx == 0) {
-                // TODO: initial versions will only be applicable to a release branch, so they won't have an associated
+                // TODO: initial versions will only be applicable to a release releaseBranch, so they won't have an associated
                 // main version. They will also be loaded differently in the future, but until they are separate, we ignore them here.
                 if (id.patch() != 0 && definition.name().startsWith("initial_") == false) {
                     throwDefinitionFailure(definition.name(), "has patch version " + id.complete() + " as primary id");
@@ -221,7 +221,7 @@ public abstract class ValidateTransportVersionResourcesTask extends DefaultTask 
                 }
             }
 
-            // check modifications of ids on same branch, ie sharing same base
+            // check modifications of ids on same releaseBranch, ie sharing same base
             TransportVersionId maybeModifiedId = existingIdsByBase.get(id.base());
             if (maybeModifiedId != null && maybeModifiedId.complete() != id.complete()) {
                 throwDefinitionFailure(definition.name(), "modifies existing patch id from " + maybeModifiedId + " to " + id);
@@ -247,15 +247,15 @@ public abstract class ValidateTransportVersionResourcesTask extends DefaultTask 
     }
 
     private void recordAndValidateLatest(TransportVersionLatest latest) {
-        latestByBranch.put(latest.branch(), latest);
+        latestByBranch.put(latest.releaseBranch(), latest);
 
         TransportVersionDefinition latestDefinition = definitions.get(latest.name());
         if (latestDefinition == null) {
-            throwLatestFailure(latest.branch(), "contains transport version name [" + latest.name() + "] which is not defined");
+            throwLatestFailure(latest.releaseBranch(), "contains transport version name [" + latest.name() + "] which is not defined");
         }
         if (latestDefinition.ids().contains(latest.id()) == false) {
             throwLatestFailure(
-                latest.branch(),
+                latest.releaseBranch(),
                 "has id " + latest.id() + " which is not in definition [" + definitionRelativePath(latest.name()) + "]"
             );
         }
@@ -264,7 +264,7 @@ public abstract class ValidateTransportVersionResourcesTask extends DefaultTask 
         IdAndDefinition lastId = baseIds.getLast();
         if (lastId.id().complete() != latest.id().complete()) {
             throwLatestFailure(
-                latest.branch(),
+                latest.releaseBranch(),
                 "has id "
                     + latest.id()
                     + " from ["
@@ -279,10 +279,10 @@ public abstract class ValidateTransportVersionResourcesTask extends DefaultTask 
             );
         }
 
-        TransportVersionLatest existingLatest = readExistingLatest(latest.branch());
+        TransportVersionLatest existingLatest = readExistingLatest(latest.releaseBranch());
         if (existingLatest != null) {
             if (latest.id().patch() != 0 && latest.id().base() != existingLatest.id().base()) {
-                throwLatestFailure(latest.branch(), "modifies base id from " + existingLatest.id().base() + " to " + latest.id().base());
+                throwLatestFailure(latest.releaseBranch(), "modifies base id from " + existingLatest.id().base() + " to " + latest.id().base());
             }
         }
     }

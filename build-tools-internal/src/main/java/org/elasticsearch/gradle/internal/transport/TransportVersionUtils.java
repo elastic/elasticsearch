@@ -13,6 +13,7 @@ import org.gradle.api.GradleException;
 import org.gradle.api.Project;
 import org.gradle.api.file.Directory;
 
+import java.io.File;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -23,7 +24,6 @@ import java.util.stream.Collectors;
 class TransportVersionUtils {
     static final String LATEST_DIR = "latest";
     static final String DEFINED_DIR = "defined";
-    static final String SERVERLESS_BRANCH = "SERVERLESS";
 
     private static final String CSV_SUFFIX = ".csv";
 
@@ -53,13 +53,13 @@ class TransportVersionUtils {
         return TransportVersionLatest.fromString(file.getFileName().toString(), contents);
     }
 
-    static TransportVersionLatest readLatestFile(Path resourcesDir, String branchName) throws IOException {
-        Path latestFilePath = resourcesDir.resolve(LATEST_DIR).resolve(branchName + CSV_SUFFIX);
+    static TransportVersionLatest readLatestFile(Path resourcesDir, String latestName) throws IOException {
+        Path latestFilePath = resourcesDir.resolve(LATEST_DIR).resolve(latestName + CSV_SUFFIX);
         return readLatestFile(latestFilePath);
     }
 
     static void writeLatestFile(Path resourcesDir, TransportVersionLatest latest) throws IOException {
-        var path = resourcesDir.resolve(LATEST_DIR).resolve(latest.branch() + CSV_SUFFIX);
+        var path = resourcesDir.resolve(LATEST_DIR).resolve(latest.releaseBranch() + CSV_SUFFIX);
         Files.writeString(path, latest.name() + "," + latest.id().complete() + "\n", StandardCharsets.UTF_8);
     }
 
@@ -71,7 +71,7 @@ class TransportVersionUtils {
 
     static void validateBranchFormat(String branchName) {
         if (Pattern.compile("^(\\d+\\.\\d+)|SERVERLESS$").matcher(branchName).matches() == false) {
-            throw new GradleException("The branch name must be of the form \"int.int\" or \"SERVERLESS\"");
+            throw new GradleException("The releaseBranch name must be of the form \"int.int\" or \"SERVERLESS\"");
         }
     }
 
@@ -83,6 +83,10 @@ class TransportVersionUtils {
         return resourcesDirectory.dir(LATEST_DIR);
     }
 
+    static String getResourcePath(String resourcesProjectPath, String subPath) {
+        return resourcesProjectPath + "/src/main/resources/transport/" + subPath;
+    }
+
     static Directory getResourcesDirectory(Project project) {
         var projectName = project.findProperty("org.elasticsearch.transport.definitionsProject");
         if (projectName == null) {
@@ -90,5 +94,9 @@ class TransportVersionUtils {
         }
         Directory projectDir = project.project(projectName.toString()).getLayout().getProjectDirectory();
         return projectDir.dir("src/main/resources/transport");
+    }
+
+    static String getNameFromCsv(String filepath) {
+        return filepath.substring(filepath.lastIndexOf(File.pathSeparator) + 1, filepath.length() - 4 /* .csv */);
     }
 }

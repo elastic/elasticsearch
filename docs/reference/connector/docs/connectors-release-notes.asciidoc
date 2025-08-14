@@ -78,6 +78,21 @@ IMPORTANT: Users building custom docker images based on this Dockerfile may have
 See https://github.com/elastic/connectors/pull/3063[*PR 3063*].
 
 [discrete]
+[[es-connectors-release-notes-8-17-10]]
+=== 8.17.10
+
+[discrete]
+[[es-connectors-release-notes-8-17-10-bug-fixes]]
+===== Bug fixes
+
+.Resolves missing access control for “Everyone Except External Users” in SharePoint connector
+[%collapsible]
+====
+Permissions granted to the “Everyone Except External Users” group were previously ignored, causing incomplete access control metadata in documents. This occurred because the connector did not recognize the group’s login name format.
+PR https://github.com/elastic/connectors/pull/3577[*#3577*] resolves this issue by recognizing the group’s login format and correctly applying its permissions to document access control metadata.
+====
+
+[discrete]
 [[es-connectors-release-notes-8-17-9]]
 === 8.17.9
 

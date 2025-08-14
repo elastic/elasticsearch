@@ -235,7 +235,23 @@ public record TransportVersion(String name, int id, TransportVersion nextPatchVe
     public static TransportVersion fromName(String name) {
         TransportVersion known = VersionsHolder.ALL_VERSIONS_BY_NAME.get(name);
         if (known == null) {
-            throw new IllegalStateException("unknown transport version [" + name + "]");
+            List<String> versionRelativePaths = parseFromBufferedReader(
+                "<server>",
+                "/transport/definitions/manifest.txt",
+                TransportVersion.class::getResourceAsStream,
+                (c, p, br) -> br.lines().filter(line -> line.isBlank() == false).toList()
+            );
+            throw new IllegalStateException(
+                "unknown transport version ["
+                    + name
+                    + "];\n"
+                    + "known names ["
+                    + VersionsHolder.ALL_VERSIONS_BY_NAME
+                    + "]\n"
+                    + "version relative paths ["
+                    + versionRelativePaths
+                    + "]\n"
+            );
         }
         return known;
     }

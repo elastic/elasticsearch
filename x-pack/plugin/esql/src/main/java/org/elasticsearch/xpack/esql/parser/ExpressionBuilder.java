@@ -873,6 +873,11 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
             || oldName instanceof UnresolvedStar) {
             throw new ParsingException(src, "Using wildcards [*] in RENAME is not allowed [{}]", src.text());
         }
+        assert newName instanceof UnresolvedAttribute && oldName instanceof UnresolvedAttribute;
+        UnresolvedAttribute ua = (UnresolvedAttribute) newName;
+        if (ua.qualifier() != null) {
+            throw qualifiersUnsupportedInFieldDefinitions(src, ua.qualifier() + " " + ua.name());
+        }
 
         return new Alias(src, newName.name(), oldName);
     }

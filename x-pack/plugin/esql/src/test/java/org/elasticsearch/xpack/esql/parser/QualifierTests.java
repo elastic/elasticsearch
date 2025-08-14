@@ -100,16 +100,17 @@ public class QualifierTests extends AbstractStatementParserTests {
         assertQualifiedAttributeInExpressions(sourceQuery + "DISSECT qualified `field` \"%{foo}\"", "qualified", "field", 1);
         assertQualifiedAttributeInExpressions(sourceQuery + "DISSECT qualified field \"\"\"%{foo}\"\"\"", "qualified", "field", 1);
 
-        assertQualifiedAttributeInExpressions(sourceQuery + "DROP qualified field", "qualified", "field", 1);
-        assertQualifiedAttributeInExpressions(sourceQuery + "DROP qualified `field`", "qualified", "field", 1);
+        String keepDrop = randomBoolean() ? "KEEP" : "DROP";
+        assertQualifiedAttributeInExpressions(sourceQuery + keepDrop + " qualified field", "qualified", "field", 1);
+        assertQualifiedAttributeInExpressions(sourceQuery + keepDrop + " qualified `field`", "qualified", "field", 1);
         assertQualifiedAttributeInExpressions(
-            sourceQuery + "DROP qualified field, field, qualified `field`, otherfield",
+            sourceQuery + keepDrop + " qualified field, field, qualified `field`, otherfield",
             "qualified",
             "field",
             2
         );
         assertQualifiedAttributeInExpressions(
-            sourceQuery + "DROP pat*ern, qualified field, other_pat*ern, qualified `field`, yet*other*pattern",
+            sourceQuery + keepDrop + " pat*ern, qualified field, other_pat*ern, qualified `field`, yet*other*pattern",
             "qualified",
             "field",
             2
@@ -125,7 +126,55 @@ public class QualifierTests extends AbstractStatementParserTests {
         assertQualifiedAttributeInExpressions(sourceQuery + "EVAL qualified field/qualified field", "qualified", "field", 2);
         assertQualifiedAttributeInExpressions(sourceQuery + "EVAL x=qualified field/qualified field, y = foo", "qualified", "field", 2);
 
-        assertQualifiedAttributeInExpressions(sourceQuery + "FORK (WHERE qualified field) (EVAL qualified field/2)", "qualified", "field", 2);
+        assertQualifiedAttributeInExpressions(
+            sourceQuery + "FORK (WHERE qualified field) (EVAL qualified field/2)",
+            "qualified",
+            "field",
+            2
+        );
+
+        assertQualifiedAttributeInExpressions(sourceQuery + "GROK qualified field \"%{WORD:foo}\"", "qualified", "field", 1);
+        assertQualifiedAttributeInExpressions(sourceQuery + "GROK qualified `field` \"%{WORD:foo}\"", "qualified", "field", 1);
+        assertQualifiedAttributeInExpressions(sourceQuery + "GROK qualified field \"\"\"%{WORD:foo}\"\"\"", "qualified", "field", 1);
+
+        assertQualifiedAttributeInExpressions(sourceQuery + "MV_EXPAND qualified field", "qualified", "field", 1);
+
+        assertQualifiedAttributeInExpressions(sourceQuery + "RENAME qualified field AS foo", "qualified", "field", 1);
+        assertQualifiedAttributeInExpressions(sourceQuery + "RENAME qualified field AS foo, other_field AS bar", "qualified", "field", 1);
+        assertQualifiedAttributeInExpressions(sourceQuery + "RENAME other_field AS bar, qualified field AS foo", "qualified", "field", 1);
+        assertQualifiedAttributeInExpressions(sourceQuery + "RENAME bar = other_field, foo = qualified field", "qualified", "field", 1);
+        assertQualifiedAttributeInExpressions(
+            sourceQuery + "RENAME qualified field AS foo, bar = qualified field",
+            "qualified",
+            "field",
+            2
+        );
+        assertQualifiedAttributeInExpressions(
+            sourceQuery + "RENAME bar = qualified field, qualified field AS foo",
+            "qualified",
+            "field",
+            2
+        );
+
+        assertQualifiedAttributeInExpressions(sourceQuery + "RERANK score = \"query\" ON qualified field", "qualified", "field", 1);
+        assertQualifiedAttributeInExpressions(
+            sourceQuery + "RERANK score = \"query\" ON qualified field, qualified field",
+            "qualified",
+            "field",
+            2
+        );
+        assertQualifiedAttributeInExpressions(
+            sourceQuery + "RERANK score = \"query\" ON field, qualified field, other_field",
+            "qualified",
+            "field",
+            1
+        );
+        assertQualifiedAttributeInExpressions(
+            sourceQuery + "RERANK score = \"query\" ON qualified field WITH {\"inference_id\": \"foo\"}",
+            "qualified",
+            "field",
+            1
+        );
 
         assertQualifiedAttributeInExpressions(sourceQuery + "WHERE qualified field", "qualified", "field", 1);
     }
@@ -151,10 +200,14 @@ public class QualifierTests extends AbstractStatementParserTests {
             "Qualified names are not supported in field definitions, found [qualified field]"
         );
 
-        expectError(sourceQuery + "DROP qualified pat*ern", "Qualified names are not supported in patterns, found [qualified pat*ern]");
-        expectError(sourceQuery + "DROP qual*fied field", "Qualified names are not supported in patterns, found [qual*fied field]");
-        expectError(sourceQuery + "DROP qualified *", "Qualified names are not supported in patterns, found [qualified *]");
-        expectError(sourceQuery + "DROP qual*fied *", "Qualified names are not supported in patterns, found [qual*fied *]");
+        String keepDrop = randomBoolean() ? "KEEP" : "DROP";
+        expectError(
+            sourceQuery + keepDrop + " qualified pat*ern",
+            "Qualified names are not supported in patterns, found [qualified pat*ern]"
+        );
+        expectError(sourceQuery + keepDrop + " qual*fied field", "Qualified names are not supported in patterns, found [qual*fied field]");
+        expectError(sourceQuery + keepDrop + " qualified *", "Qualified names are not supported in patterns, found [qualified *]");
+        expectError(sourceQuery + keepDrop + " qual*fied *", "Qualified names are not supported in patterns, found [qual*fied *]");
 
         expectError(
             sourceQuery + "ENRICH policy ON field WITH qualified field = y",
@@ -191,12 +244,48 @@ public class QualifierTests extends AbstractStatementParserTests {
             "Qualified names are not supported in field definitions, found [qualified field]"
         );
         expectError(
-                sourceQuery + "EVAL field = x, qualified field = \"foo\"",
-                "Qualified names are not supported in field definitions, found [qualified field]"
+            sourceQuery + "EVAL field = x, qualified field = \"foo\"",
+            "Qualified names are not supported in field definitions, found [qualified field]"
+        );
+        expectError(sourceQuery + "EVAL field = x, quali*ied field = \"foo\"", "mismatched input '='");
+
+        expectError(
+            sourceQuery + "LOOKUP JOIN another_idx ON qualified field",
+            "JOIN ON clause only supports unqualified fields, found [qualified field]"
         );
         expectError(
-                sourceQuery + "EVAL field = x, quali*ied field = \"foo\"",
-                "mismatched input '='"
+            sourceQuery + "LOOKUP JOIN another_idx ON another_field, qualified field",
+            "JOIN ON clause only supports unqualified fields, found [qualified field]"
+        );
+        expectError(
+            sourceQuery + "LOOKUP JOIN another_idx ON qualified field, another_field",
+            "JOIN ON clause only supports unqualified fields, found [qualified field]"
+        );
+        expectError(
+            sourceQuery + "LOOKUP JOIN another_idx qualified ON qualified field",
+            "JOIN ON clause only supports unqualified fields, found [qualified field]"
+        );
+        expectError(
+            sourceQuery + "LOOKUP JOIN another_idx another_qualifier ON qualified field",
+            "JOIN ON clause only supports unqualified fields, found [qualified field]"
+        );
+        expectError(
+            sourceQuery + "LOOKUP JOIN another_idx AS another_qualifier ON qualified field",
+            "JOIN ON clause only supports unqualified fields, found [qualified field]"
+        );
+
+        expectError(
+            sourceQuery + "RENAME foo AS qualified field",
+            "Qualified names are not supported in field definitions, found [qualified field]"
+        );
+        expectError(
+            sourceQuery + "RENAME qualified field = foo",
+            "Qualified names are not supported in field definitions, found [qualified field]"
+        );
+
+        expectError(
+            sourceQuery + "RERANK qualified field = \"query\" ON foo",
+            "Qualified names are not supported in field definitions, found [qualified field]"
         );
     }
 
@@ -209,6 +298,11 @@ public class QualifierTests extends AbstractStatementParserTests {
         expectError(sourceQuery + "EVAL y = qualified TRUE", "extraneous input 'TRUE'");
         expectError(sourceQuery + "EVAL y = qualified 1", "extraneous input '1'");
         expectError(sourceQuery + "EVAL y = qualified 1.2", "extraneous input '1.2'");
+
+        expectError(sourceQuery + "LIMIT qualified 1.2", "extraneous input 'qualified'");
+        expectError(sourceQuery + "LIMIT qualified field", "mismatched input 'qualified'");
+
+        expectError(sourceQuery + "SAMPLE qualified field", "mismatched input 'qualified'");
     }
 
     private void assertQualifiedAttributeInExpressions(String query, String qualifier, String name, int expectedCount) {

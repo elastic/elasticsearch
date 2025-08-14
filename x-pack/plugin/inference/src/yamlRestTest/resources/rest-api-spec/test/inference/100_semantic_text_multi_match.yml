@@ -124,8 +124,6 @@ setup:
         refresh: true
 
   - do:
-      headers:
-        Content-Type: application/json
       search:
         index: test-semantic-index
         body:

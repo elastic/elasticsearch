@@ -616,24 +616,25 @@ public class RRFRetrieverBuilderTests extends ESTestCase {
         Map<String, Float> expectedInferenceFields,
         String expectedQuery
     ) {
-        Set<Object> expectedInnerRetrievers = Set.of(
+        Set<Object> expectedInnerRetrievers = new HashSet<>();
+        expectedInnerRetrievers.add(
             CompoundRetrieverBuilder.RetrieverSource.from(
                 new StandardRetrieverBuilder(
                     new MultiMatchQueryBuilder(expectedQuery).type(MultiMatchQueryBuilder.Type.MOST_FIELDS)
                         .fields(expectedNonInferenceFields)
                 )
-            ),
-            Set.of(
-                expectedInferenceFields.entrySet()
-                    .stream()
-                    .map(
-                        e -> CompoundRetrieverBuilder.RetrieverSource.from(
-                            new StandardRetrieverBuilder(new MatchQueryBuilder(e.getKey(), expectedQuery))
-                        )
-                    )
-                    .toArray()
             )
         );
+        
+        if (!expectedInferenceFields.isEmpty()) {
+            expectedInnerRetrievers.add(
+                Set.of(expectedInferenceFields.entrySet().stream().map(e -> 
+                    CompoundRetrieverBuilder.RetrieverSource.from(
+                        new StandardRetrieverBuilder(new MatchQueryBuilder(e.getKey(), expectedQuery))
+                    )
+                ).toArray())
+            );
+        }
 
         RetrieverBuilder rewritten = retriever.doRewrite(ctx);
         assertNotSame(retriever, rewritten);

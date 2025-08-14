@@ -2,7 +2,7 @@ setup:
   - requires:
       cluster_features: [ "rrf_retriever.multi_fields_query_format_support" ]
       reason: "RRF retriever multi-fields query format support"
-      test_runner_features: [ "contains" ]
+      test_runner_features: [ "contains", "headers", "close_to" ]
 
   - do:
       inference.put:

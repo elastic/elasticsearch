@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.logsdb.patternedtext.charparser.patterned;
 
-import org.elasticsearch.xpack.logsdb.patternedtext.charparser.common.ByteUtils;
+import org.elasticsearch.common.util.ByteUtils;
 import org.elasticsearch.xpack.logsdb.patternedtext.charparser.common.EncodingType;
 
 import java.util.UUID;

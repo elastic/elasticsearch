@@ -137,7 +137,7 @@ class LegacyYamlRestTestPluginFuncTest extends AbstractRestResourcesFuncTest {
         """
 
         when:
-        def result = gradleRunner("yamlRestTest", "--console", 'plain', '--stacktrace').buildAndFail()
+        def result = gradleRunner("yamlRestTest", "--console", 'plain').buildAndFail()
 
         then:
         result.task(":distribution:archives:integ-test-zip:buildExpanded").outcome == TaskOutcome.SUCCESS

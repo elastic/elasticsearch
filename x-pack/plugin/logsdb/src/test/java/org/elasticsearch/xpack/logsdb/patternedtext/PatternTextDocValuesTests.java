@@ -177,11 +177,11 @@ public class PatternTextDocValuesTests extends ESTestCase {
     }
 
     private static String argSchema(int... offsets) throws IOException {
-        List<PatternedTextValueProcessor.ArgSchema> argSchemas = new ArrayList<>();
+        List<Arg.Schema> argSchemas = new ArrayList<>();
         for (var offset : offsets) {
-            argSchemas.add(new PatternedTextValueProcessor.ArgSchema(PatternedTextValueProcessor.ArgType.GENERAL, offset));
+            argSchemas.add(new Arg.Schema(Arg.Type.GENERAL, offset));
         }
-        return PatternedTextValueProcessor.encodeArgumentSchema(argSchemas);
+        return Arg.encodeSchema(argSchemas);
     }
 
     private static String[] removePlaceholders(String... values) {

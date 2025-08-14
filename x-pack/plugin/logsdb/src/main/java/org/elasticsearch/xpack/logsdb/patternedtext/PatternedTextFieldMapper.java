@@ -185,12 +185,12 @@ public class PatternedTextFieldMapper extends FieldMapper {
         context.doc().add(templateIdMapper.buildKeywordField(new BytesRef(parts.templateId())));
 
         // Add args schema
-        String argsSchemaEncoded = PatternedTextValueProcessor.encodeArgumentSchema(parts.schemas());
+        String argsSchemaEncoded = Arg.encodeSchema(parts.schemas());
         context.doc().add(new SortedSetDocValuesField(fieldType().argsSchemaFieldName(), new BytesRef(argsSchemaEncoded)));
 
         // Add args doc_values
         if (parts.args().isEmpty() == false) {
-            String remainingArgs = PatternedTextValueProcessor.encodeRemainingArgs(parts);
+            String remainingArgs = Arg.encodeRemainingArgs(parts);
             context.doc().add(new SortedSetDocValuesField(fieldType().argsFieldName(), new BytesRef(remainingArgs)));
         }
     }

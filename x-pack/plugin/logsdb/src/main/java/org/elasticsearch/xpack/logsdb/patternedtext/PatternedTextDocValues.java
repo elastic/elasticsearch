@@ -42,16 +42,14 @@ public class PatternedTextDocValues extends BinaryDocValues {
     private String getNextStringValue() throws IOException {
         assert templateDocValues.docValueCount() == 1;
         String template = templateDocValues.lookupOrd(templateDocValues.nextOrd()).utf8ToString();
-        List<PatternedTextValueProcessor.ArgSchema> argsSchema = PatternedTextValueProcessor.decodeArgumentSchema(
-            argsSchemaDocValues.lookupOrd(argsSchemaDocValues.nextOrd()).utf8ToString()
-        );
+        List<Arg.Schema> argsSchema = Arg.decodeSchema(argsSchemaDocValues.lookupOrd(argsSchemaDocValues.nextOrd()).utf8ToString());
 
         if (argsSchema.isEmpty() == false) {
             assert argsDocValues.docValueCount() == 1;
             assert argsSchemaDocValues.docValueCount() == 1;
             var mergedArgs = argsDocValues.lookupOrd(argsDocValues.nextOrd());
-            var args = PatternedTextValueProcessor.decodeRemainingArgs(mergedArgs.utf8ToString());
-            return PatternedTextValueProcessor.merge(new PatternedTextValueProcessor.Parts(template, args, argsSchema));
+            var args = Arg.decodeRemainingArgs(mergedArgs.utf8ToString());
+            return PatternedTextValueProcessor.merge(template, args, argsSchema);
         } else {
             return template;
         }

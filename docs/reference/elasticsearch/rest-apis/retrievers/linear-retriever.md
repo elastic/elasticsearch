@@ -107,25 +107,18 @@ GET my_index/_search
         {
           "retriever": {
             "knn": {
-              "field": "title_vector",
-              "query_vector": [0.1, 0.2, 0.3],
-              "k": 10,
-              "num_candidates": 100
+              ...
             }
           },
-          "weight": 5.0
+          "weight": 5 # KNN query weighted 5x
         },
         {
           "retriever": {
             "standard": {
-              "query": {
-                "match": {
-                  "title": "elasticsearch"
-                }
-              }
+              ...
             }
           },
-          "weight": 1.5
+          "weight": 1.5 # BM25 query weighted 1.5x
         }
       ]
     }

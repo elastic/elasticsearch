@@ -70,7 +70,14 @@ class JvmActions {
     }
 
     @EntitlementTest(expectedAccess = PLUGINS)
-    static void createClassLoaderNewInstance() throws IOException {
+    static void createClassLoaderNewInstance1() throws IOException {
+        try (var classLoader = URLClassLoader.newInstance(new URL[0])) {
+            // intentionally empty, just let the loader close
+        }
+    }
+
+    @EntitlementTest(expectedAccess = PLUGINS)
+    static void createClassLoaderNewInstance2() throws IOException {
         try (var classLoader = URLClassLoader.newInstance(new URL[0], RestEntitlementsCheckAction.class.getClassLoader())) {
             // intentionally empty, just let the loader close
         }

@@ -54,6 +54,7 @@ import static org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormat.
 final class ES819TSDBDocValuesProducer extends DocValuesProducer {
     final IntObjectHashMap<NumericEntry> numerics;
     private int primarySortFieldNumber = -1;
+    private boolean primarySortFieldReversed = false;
     final IntObjectHashMap<BinaryEntry> binaries;
     final IntObjectHashMap<SortedEntry> sorted;
     final IntObjectHashMap<SortedSetEntry> sortedSets;
@@ -93,9 +94,13 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
 
                 readFields(in, state.fieldInfos);
                 final var indexSort = state.segmentInfo.getIndexSort();
-                if (indexSort != null) {
-                    var primaryField = indexSort.getSort()[0];
-                    primarySortFieldNumber = state.fieldInfos.fieldInfo(primaryField.getField()).number;
+                if (indexSort != null && indexSort.getSort().length > 0) {
+                    var primarySortField = indexSort.getSort()[0];
+                    var sortField = state.fieldInfos.fieldInfo(primarySortField.getField());
+                    if (sortField != null) {
+                        primarySortFieldNumber = sortField.number;
+                        primarySortFieldReversed = primarySortField.getReverse();
+                    }
                 }
             } catch (Throwable exception) {
                 priorE = exception;

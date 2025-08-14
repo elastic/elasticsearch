@@ -754,7 +754,7 @@ public class ES819TSDBDocValuesFormatTests extends ES87TSDBDocValuesFormatTests 
                         {
                             // bulk loading timestamp:
                             var block = (TestBlock) timestampDV.tryRead(factory, docs, 0);
-                            assertNull(block);
+                            assertNotNull(block);
                             assertEquals(size, block.size());
                             for (int j = 0; j < block.size(); j++) {
                                 long actualTimestamp = (long) block.get(j);
@@ -766,7 +766,7 @@ public class ES819TSDBDocValuesFormatTests extends ES87TSDBDocValuesFormatTests 
                         {
                             // bulk loading counter field:
                             var block = (TestBlock) counterDV.tryRead(factory, docs, 0);
-                            assertNull(block);
+                            assertNotNull(block);
                             assertEquals(size, block.size());
                             for (int j = 0; j < block.size(); j++) {
                                 long actualCounter = (long) block.get(j);
@@ -778,7 +778,7 @@ public class ES819TSDBDocValuesFormatTests extends ES87TSDBDocValuesFormatTests 
                         {
                             // bulk loading gauge field:
                             var block = (TestBlock) gaugeDV.tryRead(factory, docs, 0);
-                            assertNull(block);
+                            assertNotNull(block);
                             assertEquals(size, block.size());
                             for (int j = 0; j < block.size(); j++) {
                                 long actualGauge = (long) block.get(j);
@@ -815,7 +815,7 @@ public class ES819TSDBDocValuesFormatTests extends ES87TSDBDocValuesFormatTests 
                 {
                     // bulk loading timestamp:
                     var block = (TestBlock) timestampDV.tryRead(blockFactory, docs, randomOffset);
-                    assertNull(block);
+                    assertNotNull(block);
                     assertEquals(size, block.size());
                     for (int j = 0; j < block.size(); j++) {
                         long actualTimestamp = (long) block.get(j);
@@ -827,7 +827,7 @@ public class ES819TSDBDocValuesFormatTests extends ES87TSDBDocValuesFormatTests 
                 {
                     // bulk loading counter field:
                     var block = (TestBlock) counterDV.tryRead(factory, docs, randomOffset);
-                    assertNull(block);
+                    assertNotNull(block);
                     assertEquals(size, block.size());
                     for (int j = 0; j < block.size(); j++) {
                         long actualCounter = (long) block.get(j);
@@ -839,7 +839,7 @@ public class ES819TSDBDocValuesFormatTests extends ES87TSDBDocValuesFormatTests 
                 {
                     // bulk loading gauge field:
                     var block = (TestBlock) gaugeDV.tryRead(factory, docs, randomOffset);
-                    assertNull(block);
+                    assertNotNull(block);
                     assertEquals(size, block.size());
                     for (int j = 0; j < block.size(); j++) {
                         long actualGauge = (long) block.get(j);
@@ -863,7 +863,7 @@ public class ES819TSDBDocValuesFormatTests extends ES87TSDBDocValuesFormatTests 
                 {
                     // bulk loading counter field:
                     var block = (TestBlock) counterDV.tryRead(factory, docs, 0);
-                    assertNull(block);
+                    assertNotNull(block);
                     assertEquals(size, block.size());
                     for (int j = 0; j < block.size(); j++) {
                         long actualCounter = (long) block.get(j);
@@ -947,7 +947,7 @@ public class ES819TSDBDocValuesFormatTests extends ES87TSDBDocValuesFormatTests 
                     {
                         timestampDV = getColumnAtTimeReader(leafReader, timestampField);
                         var block = (TestBlock) timestampDV.tryRead(factory, docs, 0);
-                        assertNull(block);
+                        assertNotNull(block);
                         assertEquals(numDocsPerQValue, block.size());
                         for (int j = 0; j < block.size(); j++) {
                             long actualTimestamp = (long) block.get(j);
@@ -958,7 +958,7 @@ public class ES819TSDBDocValuesFormatTests extends ES87TSDBDocValuesFormatTests 
                     {
                         counterDV = getColumnAtTimeReader(leafReader, counterField);
                         var block = (TestBlock) counterDV.tryRead(factory, docs, 0);
-                        assertNull(block);
+                        assertNotNull(block);
                         assertEquals(numDocsPerQValue, block.size());
                         for (int j = 0; j < block.size(); j++) {
                             long actualCounter = (long) block.get(j);

@@ -150,8 +150,8 @@ public final class ResponseValueUtils {
                 }
             }
             case DENSE_VECTOR -> ((FloatBlock) block).getFloat(offset);
-            case SHORT, BYTE, HALF_FLOAT, SCALED_FLOAT, OBJECT, DATE_PERIOD, TIME_DURATION,
-                DOC_DATA_TYPE, TSID_DATA_TYPE, NULL, PARTIAL_AGG -> throw EsqlIllegalArgumentException.illegalDataType(dataType);
+            case SHORT, BYTE, HALF_FLOAT, SCALED_FLOAT, OBJECT, DATE_PERIOD, TIME_DURATION, DOC_DATA_TYPE, TSID_DATA_TYPE, NULL,
+                PARTIAL_AGG -> throw EsqlIllegalArgumentException.illegalDataType(dataType);
         };
     }
 }

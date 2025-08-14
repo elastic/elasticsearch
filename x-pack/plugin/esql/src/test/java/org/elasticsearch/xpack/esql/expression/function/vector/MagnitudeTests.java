@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.esql.expression.function.vector;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
-import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -65,7 +64,7 @@ public class MagnitudeTests extends AbstractVectorTestCase {
             float[] array = listToFloatArray(input);
             double expected = scalarFunction.calculateScalar(array);
             return new TestCaseSupplier.TestCase(
-                List.of(new TestCaseSupplier.TypedData(array, DENSE_VECTOR, "vector")),
+                List.of(new TestCaseSupplier.TypedData(input, DENSE_VECTOR, "vector")),
                 evaluatorName,
                 DOUBLE,
                 equalTo(expected)
@@ -73,21 +72,5 @@ public class MagnitudeTests extends AbstractVectorTestCase {
         }));
 
         return parameterSuppliersFromTypedData(suppliers);
-    }
-
-    @Override
-    public void testFold() {
-        // TODO: doesn't currently work.
-    }
-
-    @Override
-    protected Page row(List<Object> values) {
-        // Convert from List<float[]> to List<ArrayList<Float>>.
-        List<Float> boxed = new ArrayList<>();
-        var array = (float[]) values.getFirst();
-        for (float v : array) {
-            boxed.add(v);
-        }
-        return super.row(List.of(boxed));
     }
 }

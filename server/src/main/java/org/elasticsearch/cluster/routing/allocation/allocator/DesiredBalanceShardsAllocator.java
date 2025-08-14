@@ -438,7 +438,7 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
         );
     }
 
-    public Map<ShardRouting.Role, DesiredBalanceMetrics.RoleAllocationStats> getAllocationStatsByRole() {
+    public DesiredBalanceMetrics.AllocationStats getAllocationStatsByRole() {
         return desiredBalanceMetrics.allocationStatsByRole();
     }
 

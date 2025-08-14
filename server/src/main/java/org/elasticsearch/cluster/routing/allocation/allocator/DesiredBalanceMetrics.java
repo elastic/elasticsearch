@@ -256,8 +256,8 @@ public class DesiredBalanceMetrics {
         return lastReconciliationAllocationStats.undesiredAllocationsExcludingShuttingDownNodes();
     }
 
-    public Map<ShardRouting.Role, RoleAllocationStats> allocationStatsByRole() {
-        return lastReconciliationAllocationStats.allocationStatsByRole();
+    public AllocationStats allocationStatsByRole() {
+        return lastReconciliationAllocationStats;
     }
 
     private List<LongWithAttributes> getUnassignedShardsMetrics() {

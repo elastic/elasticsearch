@@ -12,7 +12,6 @@ package org.elasticsearch.index.mapper;
 import org.elasticsearch.features.FeatureSpecification;
 import org.elasticsearch.features.NodeFeature;
 
-import java.util.HashSet;
 import java.util.Set;
 
 import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.RESCORE_VECTOR_QUANTIZED_VECTOR_MAPPING;
@@ -52,7 +51,7 @@ public class MapperFeatures implements FeatureSpecification {
 
     @Override
     public Set<NodeFeature> getTestFeatures() {
-        Set<NodeFeature> features = Set.of(
+        return Set.of(
             RangeFieldMapper.DATE_RANGE_INDEXING_FIX,
             IgnoredSourceFieldMapper.DONT_EXPAND_DOTS_IN_IGNORED_SOURCE,
             SourceFieldMapper.REMOVE_SYNTHETIC_SOURCE_ONLY_VALIDATION,
@@ -82,14 +81,8 @@ public class MapperFeatures implements FeatureSpecification {
             BBQ_DISK_SUPPORT,
             SEARCH_LOAD_PER_SHARD,
             SPARSE_VECTOR_INDEX_OPTIONS_FEATURE,
-            PATTERNED_TEXT
+            PATTERNED_TEXT,
+            IGNORED_SOURCE_FIELDS_PER_ENTRY
         );
-
-        if (IgnoredSourceFieldMapper.IGNORED_SOURCE_FIELDS_PER_ENTRY_FF.isEnabled()) {
-            features = new HashSet<>(features);
-            features.add(IGNORED_SOURCE_FIELDS_PER_ENTRY);
-        }
-
-        return features;
     }
 }

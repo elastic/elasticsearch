@@ -9,7 +9,6 @@
 
 package org.elasticsearch.action.index;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -36,7 +35,11 @@ public class ModernSource implements Writeable {
     private ESONFlat structuredSource;
 
     public ModernSource(StreamInput in) throws IOException {
-        contentType = XContentType.ofOrdinal(in.readByte());
+        if (in.readBoolean()) {
+            contentType = XContentType.ofOrdinal(in.readByte());
+        } else {
+            contentType = null;
+        }
         if (in.readBoolean()) {
             originalSourceSize = in.readVInt();
             structuredSource = new ESONFlat(in);
@@ -79,6 +82,10 @@ public class ModernSource implements Writeable {
         }
     }
 
+    public XContentType getContentType() {
+        return contentType;
+    }
+
     public int originalSourceSize() {
         return originalSourceSize;
     }
@@ -119,17 +126,18 @@ public class ModernSource implements Writeable {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (out.getTransportVersion().onOrAfter(TransportVersions.STRUCTURED_SOURCE)) {
+        if (contentType != null) {
+            out.writeBoolean(true);
             XContentHelper.writeTo(out, contentType);
-            if (isStructured()) {
-                out.writeBoolean(true);
-                out.writeVInt(originalSourceSize);
-                structuredSource.writeTo(out);
-            } else {
-                out.writeBoolean(false);
-                out.writeBytesReference(originalSourceBytes());
-            }
         } else {
+            out.writeBoolean(false);
+        }
+        if (isStructured()) {
+            out.writeBoolean(true);
+            out.writeVInt(originalSourceSize);
+            structuredSource.writeTo(out);
+        } else {
+            out.writeBoolean(false);
             out.writeBytesReference(originalSourceBytes());
         }
     }

@@ -483,9 +483,9 @@ public class TranslogTests extends ESTestCase {
             waitForPositiveAge();
             final TranslogStats stats = stats();
             assertThat(stats.estimatedNumberOfOperations(), equalTo(1));
-            assertThat(stats.getTranslogSizeInBytes(), equalTo(156L + sourceLength));
+            assertThat(stats.getTranslogSizeInBytes(), equalTo(158L + sourceLength));
             assertThat(stats.getUncommittedOperations(), equalTo(1));
-            assertThat(stats.getUncommittedSizeInBytes(), equalTo(101L + sourceLength));
+            assertThat(stats.getUncommittedSizeInBytes(), equalTo(103L + sourceLength));
             assertThat(stats.getEarliestLastModifiedAge(), greaterThan(0L));
         }
 
@@ -494,9 +494,9 @@ public class TranslogTests extends ESTestCase {
             waitForPositiveAge();
             final TranslogStats stats = stats();
             assertThat(stats.estimatedNumberOfOperations(), equalTo(2));
-            assertThat(stats.getTranslogSizeInBytes(), equalTo(192L + sourceLength));
+            assertThat(stats.getTranslogSizeInBytes(), equalTo(194L + sourceLength));
             assertThat(stats.getUncommittedOperations(), equalTo(2));
-            assertThat(stats.getUncommittedSizeInBytes(), equalTo(137L + sourceLength));
+            assertThat(stats.getUncommittedSizeInBytes(), equalTo(139L + sourceLength));
             assertThat(stats.getEarliestLastModifiedAge(), greaterThan(0L));
         }
 
@@ -505,9 +505,9 @@ public class TranslogTests extends ESTestCase {
             waitForPositiveAge();
             final TranslogStats stats = stats();
             assertThat(stats.estimatedNumberOfOperations(), equalTo(3));
-            assertThat(stats.getTranslogSizeInBytes(), equalTo(228L + sourceLength));
+            assertThat(stats.getTranslogSizeInBytes(), equalTo(230L + sourceLength));
             assertThat(stats.getUncommittedOperations(), equalTo(3));
-            assertThat(stats.getUncommittedSizeInBytes(), equalTo(173L + sourceLength));
+            assertThat(stats.getUncommittedSizeInBytes(), equalTo(175L + sourceLength));
             assertThat(stats.getEarliestLastModifiedAge(), greaterThan(0L));
         }
 
@@ -516,9 +516,9 @@ public class TranslogTests extends ESTestCase {
             waitForPositiveAge();
             final TranslogStats stats = stats();
             assertThat(stats.estimatedNumberOfOperations(), equalTo(4));
-            assertThat(stats.getTranslogSizeInBytes(), equalTo(270L + sourceLength));
+            assertThat(stats.getTranslogSizeInBytes(), equalTo(272L + sourceLength));
             assertThat(stats.getUncommittedOperations(), equalTo(4));
-            assertThat(stats.getUncommittedSizeInBytes(), equalTo(215L + sourceLength));
+            assertThat(stats.getUncommittedSizeInBytes(), equalTo(217L + sourceLength));
             assertThat(stats.getEarliestLastModifiedAge(), greaterThan(0L));
         }
 
@@ -527,9 +527,9 @@ public class TranslogTests extends ESTestCase {
             waitForPositiveAge();
             final TranslogStats stats = stats();
             assertThat(stats.estimatedNumberOfOperations(), equalTo(4));
-            assertThat(stats.getTranslogSizeInBytes(), equalTo(325L + sourceLength));
+            assertThat(stats.getTranslogSizeInBytes(), equalTo(327L + sourceLength));
             assertThat(stats.getUncommittedOperations(), equalTo(4));
-            assertThat(stats.getUncommittedSizeInBytes(), equalTo(270L + sourceLength));
+            assertThat(stats.getUncommittedSizeInBytes(), equalTo(272L + sourceLength));
             assertThat(stats.getEarliestLastModifiedAge(), greaterThan(0L));
         }
 
@@ -539,7 +539,7 @@ public class TranslogTests extends ESTestCase {
             stats.writeTo(out);
             final TranslogStats copy = new TranslogStats(out.bytes().streamInput());
             assertThat(copy.estimatedNumberOfOperations(), equalTo(4));
-            assertThat(copy.getTranslogSizeInBytes(), equalTo(325L + sourceLength));
+            assertThat(copy.getTranslogSizeInBytes(), equalTo(327L + sourceLength));
 
             try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
                 builder.startObject();
@@ -554,7 +554,7 @@ public class TranslogTests extends ESTestCase {
                         "uncommitted_size_in_bytes": %s,
                         "earliest_last_modified_age": %s
                       }
-                    }""", 325L + sourceLength, 270L + sourceLength, stats.getEarliestLastModifiedAge()))));
+                    }""", 327L + sourceLength, 272L + sourceLength, stats.getEarliestLastModifiedAge()))));
             }
         }
         translog.getDeletionPolicy().setLocalCheckpointOfSafeCommit(randomLongBetween(3, Long.MAX_VALUE));

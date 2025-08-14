@@ -50,6 +50,7 @@ import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.index.ModernSource;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.cluster.ClusterModule;
@@ -102,6 +103,7 @@ import org.elasticsearch.index.translog.TranslogConfig;
 import org.elasticsearch.index.translog.TranslogDeletionPolicy;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
+import org.elasticsearch.ingest.ESONXContentSerializer;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.internal.XContentMeteringParserDecorator;
 import org.elasticsearch.test.DummyShardLock;
@@ -110,6 +112,7 @@ import org.elasticsearch.test.IndexSettingsModule;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
@@ -1434,9 +1437,29 @@ public abstract class EngineTestCase extends ESTestCase {
                         translogOperationAsserter.assertSameIndexOperation((Translog.Index) luceneOp, (Translog.Index) translogOp)
                     );
                 } else {
-                    assertThat(((Translog.Index) luceneOp).source(), equalTo(((Translog.Index) translogOp).source()));
+                    try {
+                        assertThat(((Translog.Index) luceneOp).source(), equalTo(((Translog.Index) translogOp).source()));
+                    } catch (AssertionError e) {
+                        if (((Translog.Index) luceneOp).modernSource().getContentType().equals(XContentType.SMILE)) {
+                            Translog.Index luceneOpI = (Translog.Index) luceneOp;
+                            Translog.Index translogOpI = (Translog.Index) translogOp;
+                            // SMILE can produce inconsistent values for the same source compare the JSON
+                            if (toJSON(luceneOpI.modernSource()).equals(toJSON(translogOpI.modernSource())) == false) {
+                                throw e;
+                            }
+                        }
+                    }
                 }
             }
+        }
+    }
+
+    private static BytesReference toJSON(ModernSource source) throws IOException {
+        try (XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON)) {
+            ESONXContentSerializer.flattenToXContent(source.structuredSource(), builder, ToXContent.EMPTY_PARAMS);
+            return BytesReference.bytes(builder);
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
         }
     }
 

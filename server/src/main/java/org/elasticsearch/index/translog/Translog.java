@@ -1259,6 +1259,10 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
             return this.source.originalSourceBytes();
         }
 
+        public ModernSource modernSource() {
+            return this.source;
+        }
+
         public long version() {
             return this.version;
         }

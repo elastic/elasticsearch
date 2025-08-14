@@ -41,7 +41,6 @@ public record ESONFlat(List<ESONEntry> keys, ESONSource.Values values, AtomicRef
             int expected = streamInput.readVInt();
             ArrayList<ESONEntry> keys = new ArrayList<>(expected);
             for (int i = 0; i < expected; ++i) {
-                // TODO: Use UTF-8 byte length eventually
                 int stringLength = streamInput.readVInt();
                 byte[] sringBytes = new byte[stringLength];
                 streamInput.readBytes(sringBytes, 0, stringLength);
@@ -63,12 +62,12 @@ public record ESONFlat(List<ESONEntry> keys, ESONSource.Values values, AtomicRef
     public BytesReference getSerializedKeyBytes() {
         if (serializedKeyBytes.get() == null) {
             // TODO: Better estimate
-            int estimate = (int) (values.data().length() * 0.5);
-//            for (ESONEntry entry : keys) {
-//                String key = entry.key();
-//                estimate += key == null ? 0 : key.length() + 5;
-//            }
-            try (BytesStreamOutput streamOutput = new BytesStreamOutput((int) (estimate * 1.1))) {
+            int estimate = (int) (values.data().length() * 0.7);
+            // for (ESONEntry entry : keys) {
+            // String key = entry.key();
+            // estimate += key == null ? 0 : key.length() + 5;
+            // }
+            try (BytesStreamOutput streamOutput = new BytesStreamOutput(estimate)) {
                 streamOutput.writeVInt(keys.size());
                 for (ESONEntry entry : keys) {
                     String key = entry.key();

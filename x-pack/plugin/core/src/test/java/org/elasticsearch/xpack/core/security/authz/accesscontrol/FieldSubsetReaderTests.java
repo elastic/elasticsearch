@@ -711,8 +711,14 @@ public class FieldSubsetReaderTests extends MapperServiceTestCase {
             iw.addDocuments(doc.docs());
             iw.close();
 
+            String ignoredSourceFieldPattern = IgnoredSourceFieldMapper.ignoredSourceFormat(
+                indexVersion
+            ) == IgnoredSourceFieldMapper.IgnoredSourceFormat.PER_FIELD_IGNORED_SOURCE
+                ? IgnoredSourceFieldMapper.ignoredFieldName("*")
+                : IgnoredSourceFieldMapper.NAME;
+
             {
-                Automaton automaton = Automatons.patterns(Arrays.asList("fieldA", IgnoredSourceFieldMapper.ignoredFieldName("*")));
+                Automaton automaton = Automatons.patterns(Arrays.asList("fieldA", ignoredSourceFieldPattern));
                 try (
                     DirectoryReader indexReader = FieldSubsetReader.wrap(
                         wrapInMockESDirectoryReader(DirectoryReader.open(directory)),
@@ -743,7 +749,7 @@ public class FieldSubsetReaderTests extends MapperServiceTestCase {
             }
 
             {
-                Automaton automaton = Automatons.patterns(Arrays.asList("obj.fieldC", IgnoredSourceFieldMapper.ignoredFieldName("*")));
+                Automaton automaton = Automatons.patterns(Arrays.asList("obj.fieldC", ignoredSourceFieldPattern));
                 try (
                     DirectoryReader indexReader = FieldSubsetReader.wrap(
                         wrapInMockESDirectoryReader(DirectoryReader.open(directory)),
@@ -775,7 +781,7 @@ public class FieldSubsetReaderTests extends MapperServiceTestCase {
             }
 
             {
-                Automaton automaton = Automatons.patterns(Arrays.asList("arr.fieldD", IgnoredSourceFieldMapper.ignoredFieldName("*")));
+                Automaton automaton = Automatons.patterns(Arrays.asList("arr.fieldD", ignoredSourceFieldPattern));
                 try (
                     DirectoryReader indexReader = FieldSubsetReader.wrap(
                         wrapInMockESDirectoryReader(DirectoryReader.open(directory)),

@@ -342,9 +342,14 @@ public class IgnoredSourceFieldMapperTests extends MapperServiceTestCase {
     public void testEncodeFieldToMap() throws IOException {
         String value = randomAlphaOfLength(5);
         ParsedDocument parsedDocument = getParsedDocumentWithFieldLimit(b -> b.field("my_value", value));
-        byte[] bytes = parsedDocument.rootDoc().getField(IgnoredSourceFieldMapper.ignoredFieldName("my_value")).binaryValue().bytes;
-        IgnoredSourceFieldMapper.MappedNameValue mappedNameValue = IgnoredSourceFieldMapper.decodeAsMapMultipleFieldValues(bytes)
-            .getFirst();
+        IgnoredSourceFieldMapper.MappedNameValue mappedNameValue;
+        if (IgnoredSourceFieldMapper.IGNORED_SOURCE_FIELDS_PER_ENTRY_FF.isEnabled()) {
+            byte[] bytes = parsedDocument.rootDoc().getField(IgnoredSourceFieldMapper.ignoredFieldName("my_value")).binaryValue().bytes;
+            mappedNameValue = IgnoredSourceFieldMapper.decodeAsMapMultipleFieldValues(bytes).getFirst();
+        } else {
+            byte[] bytes = parsedDocument.rootDoc().getField(IgnoredSourceFieldMapper.NAME).binaryValue().bytes;
+            mappedNameValue = IgnoredSourceFieldMapper.decodeAsMap(bytes);
+        }
         assertEquals("my_value", mappedNameValue.nameValue().name());
         assertEquals(value, mappedNameValue.map().get("my_value"));
     }
@@ -355,13 +360,23 @@ public class IgnoredSourceFieldMapperTests extends MapperServiceTestCase {
         ParsedDocument parsedDocument = getParsedDocumentWithFieldLimit(
             b -> { b.startObject("my_object").field("my_value", value).endObject(); }
         );
-        var byteRef = parsedDocument.rootDoc().getField(IgnoredSourceFieldMapper.ignoredFieldName("my_object")).binaryValue();
-        byte[] bytes = ArrayUtil.copyOfSubArray(byteRef.bytes, byteRef.offset, byteRef.length);
-        IgnoredSourceFieldMapper.MappedNameValue mappedNameValue = IgnoredSourceFieldMapper.decodeAsMapMultipleFieldValues(bytes)
-            .getFirst();
+        byte[] bytes;
+        IgnoredSourceFieldMapper.MappedNameValue mappedNameValue;
+        if (IgnoredSourceFieldMapper.IGNORED_SOURCE_FIELDS_PER_ENTRY_FF.isEnabled()) {
+            var byteRef = parsedDocument.rootDoc().getField(IgnoredSourceFieldMapper.ignoredFieldName("my_object")).binaryValue();
+            bytes = ArrayUtil.copyOfSubArray(byteRef.bytes, byteRef.offset, byteRef.length);
+            mappedNameValue = IgnoredSourceFieldMapper.decodeAsMapMultipleFieldValues(bytes).getFirst();
+        } else {
+            bytes = parsedDocument.rootDoc().getField(IgnoredSourceFieldMapper.NAME).binaryValue().bytes;
+            mappedNameValue = IgnoredSourceFieldMapper.decodeAsMap(bytes);
+        }
         assertEquals("my_object", mappedNameValue.nameValue().name());
         assertEquals(value, ((Map<String, ?>) mappedNameValue.map().get("my_object")).get("my_value"));
-        assertArrayEquals(bytes, IgnoredSourceFieldMapper.encodeFromMapMultipleFieldValues(List.of(mappedNameValue)));
+        if (IgnoredSourceFieldMapper.IGNORED_SOURCE_FIELDS_PER_ENTRY_FF.isEnabled()) {
+            assertArrayEquals(bytes, IgnoredSourceFieldMapper.encodeFromMapMultipleFieldValues(List.of(mappedNameValue)));
+        } else {
+            assertArrayEquals(bytes, IgnoredSourceFieldMapper.encodeFromMap(mappedNameValue));
+        }
     }
 
     public void testEncodeArrayToMapAndDecode() throws IOException {
@@ -371,13 +386,23 @@ public class IgnoredSourceFieldMapperTests extends MapperServiceTestCase {
             b.startObject().field("int_value", 20).endObject();
             b.endArray();
         });
-        var byteRef = parsedDocument.rootDoc().getField(IgnoredSourceFieldMapper.ignoredFieldName("my_array")).binaryValue();
-        byte[] bytes = ArrayUtil.copyOfSubArray(byteRef.bytes, byteRef.offset, byteRef.length);
-        IgnoredSourceFieldMapper.MappedNameValue mappedNameValue = IgnoredSourceFieldMapper.decodeAsMapMultipleFieldValues(bytes)
-            .getFirst();
+        byte[] bytes;
+        IgnoredSourceFieldMapper.MappedNameValue mappedNameValue;
+        if (IgnoredSourceFieldMapper.IGNORED_SOURCE_FIELDS_PER_ENTRY_FF.isEnabled()) {
+            var byteRef = parsedDocument.rootDoc().getField(IgnoredSourceFieldMapper.ignoredFieldName("my_array")).binaryValue();
+            bytes = ArrayUtil.copyOfSubArray(byteRef.bytes, byteRef.offset, byteRef.length);
+            mappedNameValue = IgnoredSourceFieldMapper.decodeAsMapMultipleFieldValues(bytes).getFirst();
+        } else {
+            bytes = parsedDocument.rootDoc().getField(IgnoredSourceFieldMapper.NAME).binaryValue().bytes;
+            mappedNameValue = IgnoredSourceFieldMapper.decodeAsMap(bytes);
+        }
         assertEquals("my_array", mappedNameValue.nameValue().name());
         assertThat((List<?>) mappedNameValue.map().get("my_array"), Matchers.contains(Map.of("int_value", 10), Map.of("int_value", 20)));
-        assertArrayEquals(bytes, IgnoredSourceFieldMapper.encodeFromMapMultipleFieldValues(List.of(mappedNameValue)));
+        if (IgnoredSourceFieldMapper.IGNORED_SOURCE_FIELDS_PER_ENTRY_FF.isEnabled()) {
+            assertArrayEquals(bytes, IgnoredSourceFieldMapper.encodeFromMapMultipleFieldValues(List.of(mappedNameValue)));
+        } else {
+            assertArrayEquals(bytes, IgnoredSourceFieldMapper.encodeFromMap(mappedNameValue));
+        }
     }
 
     public void testMultipleIgnoredFieldsRootObject() throws IOException {
@@ -2464,10 +2489,16 @@ public class IgnoredSourceFieldMapperTests extends MapperServiceTestCase {
         assertEquals("{\"top\":{\"level1\":{\"level2\":{\"n\":25}}}}", syntheticSource);
     }
 
+    private static String getIgnoredSourceFieldMask() {
+        return IgnoredSourceFieldMapper.IGNORED_SOURCE_FIELDS_PER_ENTRY_FF.isEnabled()
+            ? IgnoredSourceFieldMapper.ignoredFieldName("*")
+            : IgnoredSourceFieldMapper.NAME;
+    }
+
     private final Set<String> roundtripMaskedFields = Set.of(
         SourceFieldMapper.RECOVERY_SOURCE_NAME,
         SourceFieldMapper.RECOVERY_SOURCE_SIZE_NAME,
-        IgnoredSourceFieldMapper.NAME + ".*",
+        getIgnoredSourceFieldMask(),
         "*.offsets"
     );
 

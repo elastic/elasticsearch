@@ -3,7 +3,7 @@ setup:
   - skip:
       features: headers
   - requires:
-      cluster_features: [ "mapper.source.mode_from_index_setting" ]
+      cluster_features: [ "mapper.source.mode_from_index_setting" , "mapper.ignored_source_fields_per_entry" ]
       reason: "Source mode configured through index setting"
 
   - do:

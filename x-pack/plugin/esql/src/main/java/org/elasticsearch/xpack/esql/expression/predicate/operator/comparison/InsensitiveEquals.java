@@ -31,7 +31,7 @@ import org.elasticsearch.xpack.esql.planner.TranslatorHandler;
 
 import java.io.IOException;
 
-import static org.elasticsearch.xpack.esql.core.expression.Foldables.valueOf;
+import static org.elasticsearch.xpack.esql.expression.Foldables.literalValueOf;
 
 public class InsensitiveEquals extends InsensitiveBinaryComparison {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
@@ -125,7 +125,7 @@ public class InsensitiveEquals extends InsensitiveBinaryComparison {
 
     private Query translate() {
         TypedAttribute attribute = LucenePushdownPredicates.checkIsPushableAttribute(left());
-        BytesRef value = BytesRefs.toBytesRef(valueOf(FoldContext.small() /* TODO remove me */, right()));
+        BytesRef value = BytesRefs.toBytesRef(literalValueOf(right()));
         String name = LucenePushdownPredicates.pushableAttributeName(attribute);
         return new TermQuery(source(), name, value.utf8ToString(), true);
     }

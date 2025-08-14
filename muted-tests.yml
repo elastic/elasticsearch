@@ -143,8 +143,6 @@ tests:
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
   method: test {p0=nodes.stats/11_indices_metrics/indices mappings exact count test for indices level}
   issue: https://github.com/elastic/elasticsearch/issues/120950
-- class: org.elasticsearch.test.rest.yaml.CcsCommonYamlTestSuiteIT
-  issue: https://github.com/elastic/elasticsearch/issues/121407
 - class: org.elasticsearch.analysis.common.CommonAnalysisClientYamlTestSuiteIT
   method: test {yaml=analysis-common/40_token_filters/stemmer_override file access}
   issue: https://github.com/elastic/elasticsearch/issues/121625
@@ -433,6 +431,9 @@ tests:
 - class: org.elasticsearch.search.sort.FieldSortIT
   method: testSortMixedFieldTypes
   issue: https://github.com/elastic/elasticsearch/issues/129445
+- class: org.elasticsearch.gradle.LoggedExecFuncTest
+  method: failed tasks output logged to console when spooling true
+  issue: https://github.com/elastic/elasticsearch/issues/119509
 
 # Examples:
 #

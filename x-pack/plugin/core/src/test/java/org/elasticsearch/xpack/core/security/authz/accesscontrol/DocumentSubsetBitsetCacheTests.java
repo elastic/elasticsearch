@@ -558,8 +558,9 @@ public class DocumentSubsetBitsetCacheTests extends ESTestCase {
             final BitSet bitSet2 = cache.getBitSet(query2, leafContext);
             assertThat(bitSet2, notNullValue());
 
-            // szymon: bug I believe, created issue: https://github.com/elastic/elasticsearch/issues/132842
-            // assertBusy can be removed once the bug is fixed.
+            // szymon: eviction callback calls `get` on the cache, asynchronously, which updates the stats.
+            // so assertion is current state of the code, rather than the expected state.
+            // issue: https://github.com/elastic/elasticsearch/issues/132842
             expectedStats.put("misses", 3L);
             expectedStats.put("evictions", 1L);
             assertBusy(() -> { assertThat(cache.usageStats(), equalTo(expectedStats)); }, 200, TimeUnit.MILLISECONDS);

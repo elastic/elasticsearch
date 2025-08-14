@@ -862,16 +862,6 @@ public class SparseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase
         });
     }
 
-    private IndexVersion getIndexVersionForTest(boolean usePreviousIndex) {
-        return usePreviousIndex
-            ? IndexVersionUtils.randomVersionBetween(
-                random(),
-                UPGRADE_TO_LUCENE_10_0_0,
-                IndexVersionUtils.getPreviousVersion(SPARSE_VECTOR_PRUNING_INDEX_OPTIONS_SUPPORT)
-            )
-            : IndexVersionUtils.randomVersionBetween(random(), SPARSE_VECTOR_PRUNING_INDEX_OPTIONS_SUPPORT, IndexVersion.current());
-    }
-
     private static final List<WeightedToken> QUERY_VECTORS = Stream.of(RARE_TOKENS, MEDIUM_TOKENS, COMMON_TOKENS)
         .flatMap(map -> map.entrySet().stream())
         .map(entry -> new WeightedToken(entry.getKey(), entry.getValue()))

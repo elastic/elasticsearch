@@ -24,7 +24,7 @@ public class MultifieldAddonHandler implements DataSourceHandler {
     private final Map<FieldType, List<FieldType>> subfieldTypes;
     private final float chanceOfChildField;
 
-    private static final Set<FieldType> STRING_TYPES = Set.of(
+    private static final List<FieldType> STRING_TYPES = List.of(
         FieldType.TEXT,
         FieldType.KEYWORD,
         FieldType.MATCH_ONLY_TEXT,

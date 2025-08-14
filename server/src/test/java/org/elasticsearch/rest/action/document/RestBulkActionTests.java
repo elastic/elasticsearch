@@ -240,7 +240,8 @@ public class RestBulkActionTests extends ESTestCase {
                 null,
                 null,
                 null,
-                MeterRegistry.NOOP.getLongHistogram(IncrementalBulkService.CHUNK_WAIT_TIME_HISTOGRAM_NAME)
+                MeterRegistry.NOOP.getLongHistogram(IncrementalBulkService.CHUNK_WAIT_TIME_HISTOGRAM_NAME),
+                false
             ) {
 
                 @Override

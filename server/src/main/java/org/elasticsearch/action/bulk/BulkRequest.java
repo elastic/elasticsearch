@@ -86,6 +86,7 @@ public class BulkRequest extends LegacyActionRequest
     private Boolean globalRequireAlias;
     private Boolean globalRequireDatsStream;
     private boolean includeSourceOnError = true;
+    private boolean streamsRestrictedParamsUsed = false;
 
     private long sizeInBytes = 0;
 
@@ -107,7 +108,10 @@ public class BulkRequest extends LegacyActionRequest
         }
         if (in.getTransportVersion().onOrAfter(TransportVersions.INGEST_REQUEST_INCLUDE_SOURCE_ON_ERROR)) {
             includeSourceOnError = in.readBoolean();
-        } // else default value is true
+        }
+        if (in.getTransportVersion().onOrAfter(TransportVersions.STREAMS_ENDPOINT_PARAM_RESTRICTIONS)) {
+            streamsRestrictedParamsUsed = in.readBoolean();
+        }
     }
 
     public BulkRequest(@Nullable String globalIndex) {
@@ -474,6 +478,9 @@ public class BulkRequest extends LegacyActionRequest
         if (out.getTransportVersion().onOrAfter(TransportVersions.INGEST_REQUEST_INCLUDE_SOURCE_ON_ERROR)) {
             out.writeBoolean(includeSourceOnError);
         }
+        if (out.getTransportVersion().onOrAfter(TransportVersions.STREAMS_ENDPOINT_PARAM_RESTRICTIONS)) {
+            out.writeBoolean(streamsRestrictedParamsUsed);
+        }
     }
 
     @Override
@@ -516,6 +523,14 @@ public class BulkRequest extends LegacyActionRequest
         return false; // Always false, but may be overridden by a subclass
     }
 
+    public boolean streamsRestrictedParamsUsed() {
+        return streamsRestrictedParamsUsed;
+    }
+
+    public void streamsRestrictedParamsUsed(boolean streamsRestrictedParamsUsed) {
+        this.streamsRestrictedParamsUsed = streamsRestrictedParamsUsed;
+    }
+
     /*
      * Returns any component template substitutions that are to be used as part of this bulk request. We would likely only have
      * substitutions in the event of a simulated request.
@@ -554,6 +569,7 @@ public class BulkRequest extends LegacyActionRequest
         bulkRequest.routing(routing());
         bulkRequest.requireAlias(requireAlias());
         bulkRequest.requireDataStream(requireDataStream());
+        bulkRequest.streamsRestrictedParamsUsed(streamsRestrictedParamsUsed());
         return bulkRequest;
     }
 }

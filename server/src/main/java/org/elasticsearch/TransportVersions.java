@@ -365,6 +365,7 @@ public class TransportVersions {
     public static final TransportVersion ESQL_LOOKUP_JOIN_ON_MANY_FIELDS = def(9_139_0_00);
     public static final TransportVersion SIMULATE_INGEST_EFFECTIVE_MAPPING = def(9_140_0_00);
     public static final TransportVersion RESOLVE_INDEX_MODE_ADDED = def(9_141_0_00);
+    public static final TransportVersion STREAMS_ENDPOINT_PARAM_RESTRICTIONS = def(9_142_00_00);
 
     /*
      * STOP! READ THIS FIRST! No, really,

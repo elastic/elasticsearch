@@ -185,16 +185,16 @@ public class SearchHighlightContext {
             return options;
         }
 
-        static class Builder {
+        public static class Builder {
 
             private final FieldOptions fieldOptions = new FieldOptions();
 
-            Builder fragmentCharSize(int fragmentCharSize) {
+            public Builder fragmentCharSize(int fragmentCharSize) {
                 fieldOptions.fragmentCharSize = fragmentCharSize;
                 return this;
             }
 
-            Builder numberOfFragments(int numberOfFragments) {
+            public Builder numberOfFragments(int numberOfFragments) {
                 fieldOptions.numberOfFragments = numberOfFragments;
                 return this;
             }
@@ -209,17 +209,17 @@ public class SearchHighlightContext {
                 return this;
             }
 
-            Builder preTags(String[] preTags) {
+            public Builder preTags(String[] preTags) {
                 fieldOptions.preTags = preTags;
                 return this;
             }
 
-            Builder postTags(String[] postTags) {
+            public Builder postTags(String[] postTags) {
                 fieldOptions.postTags = postTags;
                 return this;
             }
 
-            Builder scoreOrdered(boolean scoreOrdered) {
+            public Builder scoreOrdered(boolean scoreOrdered) {
                 fieldOptions.scoreOrdered = scoreOrdered;
                 return this;
             }
@@ -229,7 +229,7 @@ public class SearchHighlightContext {
                 return this;
             }
 
-            Builder requireFieldMatch(boolean requireFieldMatch) {
+            public Builder requireFieldMatch(boolean requireFieldMatch) {
                 fieldOptions.requireFieldMatch = requireFieldMatch;
                 return this;
             }
@@ -269,7 +269,7 @@ public class SearchHighlightContext {
                 return this;
             }
 
-            Builder highlightQuery(Query highlightQuery) {
+            public Builder highlightQuery(Query highlightQuery) {
                 fieldOptions.highlightQuery = highlightQuery;
                 return this;
             }
@@ -294,7 +294,7 @@ public class SearchHighlightContext {
                 return this;
             }
 
-            FieldOptions build() {
+            public FieldOptions build() {
                 return fieldOptions;
             }
 

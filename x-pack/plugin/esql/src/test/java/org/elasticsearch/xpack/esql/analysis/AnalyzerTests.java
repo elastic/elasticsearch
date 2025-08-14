@@ -18,6 +18,7 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.LoadMapping;
 import org.elasticsearch.xpack.esql.VerificationException;
@@ -146,7 +147,7 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.startsWith;
 
-//@TestLogging(value = "org.elasticsearch.xpack.esql.analysis:TRACE", reason = "debug")
+@TestLogging(value = "org.elasticsearch.xpack.esql.analysis:TRACE", reason = "debug")
 public class AnalyzerTests extends ESTestCase {
 
     private static final UnresolvedRelation UNRESOLVED_RELATION = new UnresolvedRelation(
@@ -2904,6 +2905,16 @@ public class AnalyzerTests extends ESTestCase {
         var eval = as(enrich.child(), Eval.class);
         var esRelation = as(eval.child(), EsRelation.class);
         assertEquals(esRelation.indexPattern(), "test");
+    }
+
+    public void testSnippets() {
+        LogicalPlan plan = analyze("""
+            from test
+            | EVAL x = extract_snippets(first_name, "text", 1, 10)
+            | KEEP x
+            """);
+        var limit = as(plan, Limit.class);
+        var filter = as(limit.child(), Filter.class);
     }
 
     public void testFunctionNamedParamsAsFunctionArgument() {

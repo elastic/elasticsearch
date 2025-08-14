@@ -53,6 +53,7 @@ import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.search.fetch.StoredFieldsSpec;
 import org.elasticsearch.search.internal.AliasFilter;
+import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.sort.SortAndFormats;
 import org.elasticsearch.search.sort.SortBuilder;
@@ -101,6 +102,10 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
                 ShardContext.this.close();
             }
         };
+
+        public abstract SearchExecutionContext searchExecutionContext();
+
+        public abstract SearchContext searchContext();
 
         @Override
         public void incRef() {
@@ -385,6 +390,19 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
             this.aliasFilter = aliasFilter;
             // Build the shardIdentifier once up front so we can reuse references to it in many places.
             this.shardIdentifier = this.ctx.getFullyQualifiedIndex().getName() + ":" + this.ctx.getShardId();
+        }
+
+        @Override
+        public SearchExecutionContext searchExecutionContext() {
+            return ctx;
+        }
+
+        @Override
+        public SearchContext searchContext() {
+            if (releasable instanceof org.elasticsearch.search.internal.SearchContext searchContext) {
+                return searchContext;
+            }
+            return null;
         }
 
         @Override

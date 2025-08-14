@@ -176,6 +176,33 @@ public class QualifierTests extends AbstractStatementParserTests {
             1
         );
 
+        assertQualifiedAttributeInExpressions(sourceQuery + "SORT qualified field", "qualified", "field", 1);
+        assertQualifiedAttributeInExpressions(sourceQuery + "SORT qualified field/qualified field", "qualified", "field", 2);
+        assertQualifiedAttributeInExpressions(
+            sourceQuery + "SORT qualified field ASC, qualified field DESC, qualified field NULLS FIRST, qualified field NULLS LAST",
+            "qualified",
+            "field",
+            4
+        );
+
+        // The unresolved attribute in the BY gets also used as an aggregate, so we must count it twice.
+        assertQualifiedAttributeInExpressions(
+            sourceQuery + "STATS avg(qualified field), max(1/qualified field) by qualified field, 2*qualified field",
+            "qualified",
+            "field",
+            5
+        );
+        assertQualifiedAttributeInExpressions(
+            sourceQuery + "STATS avg(x) WHERE qualified field, count(y) WHERE qualified field != qualified field BY qualified field",
+            "qualified",
+            "field",
+            5
+        );
+        // This one's a bit nonsensical because there's no aggregate function, but we still need to parse the qualified attribute as
+        // UnresolvedAttribute.
+        assertQualifiedAttributeInExpressions(sourceQuery + "STATS qualified field by qualified field", "qualified", "field", 3);
+
+        // WHERE is tested extensively in testQualifiersReferencedInExpressions, so we don't need to repeat it here.
         assertQualifiedAttributeInExpressions(sourceQuery + "WHERE qualified field", "qualified", "field", 1);
     }
 
@@ -287,6 +314,15 @@ public class QualifierTests extends AbstractStatementParserTests {
             sourceQuery + "RERANK qualified field = \"query\" ON foo",
             "Qualified names are not supported in field definitions, found [qualified field]"
         );
+
+        expectError(
+            sourceQuery + "STATS qualified field = avg(x)",
+            "Qualified names are not supported in field definitions, found [qualified field]"
+        );
+        expectError(
+            sourceQuery + "STATS avg(x) by qualified field = categorize(y)",
+            "Qualified names are not supported in field definitions, found [qualified field]"
+        );
     }
 
     public void testIllegalQualifiers() {
@@ -303,6 +339,14 @@ public class QualifierTests extends AbstractStatementParserTests {
         expectError(sourceQuery + "LIMIT qualified field", "mismatched input 'qualified'");
 
         expectError(sourceQuery + "SAMPLE qualified field", "mismatched input 'qualified'");
+
+        // first/last are special keywords that are exceptionally allowed in function names
+        expectError(sourceQuery + "STATS first field = avg(x)", "no viable alternative at input 'first field'");
+        expectError(sourceQuery + "STATS last field = avg(x)", "no viable alternative at input 'last field'");
+        expectError(sourceQuery + "STATS qualified first = avg(x)", "mismatched input 'first'");
+        expectError(sourceQuery + "STATS qualified last = avg(x)", "mismatched input 'last'");
+        expectError(sourceQuery + "STATS qualified first(x)", "mismatched input 'first'");
+        expectError(sourceQuery + "STATS qualified last(x)", "mismatched input 'last'");
     }
 
     private void assertQualifiedAttributeInExpressions(String query, String qualifier, String name, int expectedCount) {

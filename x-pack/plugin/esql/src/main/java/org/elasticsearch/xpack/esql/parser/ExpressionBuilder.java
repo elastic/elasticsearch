@@ -998,6 +998,9 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
                         name = source(field).text();
                     }
                 } else {
+                    if (id.qualifier() != null) {
+                        throw qualifiersUnsupportedInFieldDefinitions(source(field), id.qualifier() + " " + id.name());
+                    }
                     name = id.name();
                 }
                 // wrap when necessary - no alias and no underlying attribute

@@ -133,25 +133,29 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
         // we need to ensure we are getting at least 2*k results to ensure we cover overspill duplicates
         // TODO move the logic for automatically adjusting percentages to the query, so we can only pass
         // 2k to the collector.
-        KnnCollectorManager knnCollectorManager = getKnnCollectorManager(Math.max(Math.round(2f * k), numCands), indexSearcher);
+        KnnCollectorManager knnCollectorManager = getKnnCollectorManager(Math.round(2f * k), indexSearcher);
         TaskExecutor taskExecutor = indexSearcher.getTaskExecutor();
         List<LeafReaderContext> leafReaderContexts = reader.leaves();
 
-        long totalDocsWVectors = 0;
+        int totalDocsWVectors = 0;
+        assert this instanceof IVFKnnFloatVectorQuery;
         for (LeafReaderContext leafReaderContext : leafReaderContexts) {
             LeafReader leafReader = leafReaderContext.reader();
             FieldInfo fieldInfo = leafReader.getFieldInfos().fieldInfo(field);
             VectorScorer scorer = createVectorScorer(leafReaderContext, fieldInfo);
             if (scorer != null) {
-                totalDocsWVectors += scorer.iterator().cost();
+                totalDocsWVectors += (int) scorer.iterator().cost();
             }
         }
 
         final float visitRatio;
         if (providedVisitRatio == 0.0f) {
             // dynamically set the percentage
-            float expected = (float) Math.round(1.75f * Math.log10(numCands) * Math.log10(numCands) * (numCands));
+            float expected = (float) Math.round(
+                Math.log10(totalDocsWVectors) * Math.log10(totalDocsWVectors) * (Math.min(10_000, Math.max(numCands, 5 * k)))
+            );
             visitRatio = expected / totalDocsWVectors;
+
         } else {
             visitRatio = providedVisitRatio;
         }
@@ -230,7 +234,7 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
 
         // for low affinity scores, decrease visited ratio
         if (affinityScore <= affinityThreshold) {
-            return Math.max(visitRatio * 0.3f, 0.01f);
+            return Math.max(visitRatio * 0.5f, 0.01f);
         }
 
         return visitRatio;

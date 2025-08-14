@@ -232,20 +232,18 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
         }
 
         FieldEntry entry = fields.get(fieldInfo.number);
-        long maxVectorVisited;
         if (visitRatio == DYNAMIC_VISIT_RATIO) {
             // empirically based, and a good dynamic to get decent recall while scaling a la "efSearch"
             // scaling by the number of vectors vs. the nearest neighbors requested
             // not perfect, but a comparative heuristic.
             // TODO: we might want to consider the density of the centroids as experiments shows that for fewer vectors per centroid,
             // the least vectors we need to score to get a good recall.
-            maxVectorVisited = Math.round(1.75f * Math.log10(knnCollector.k()) * Math.log10(knnCollector.k()) * (knnCollector.k()));
+            float estimated = Math.round(Math.log10(numVectors) * Math.log10(numVectors) * (knnCollector.k()));
             // clip so we visit at least one vector
-            maxVectorVisited = Math.max(maxVectorVisited, 1L);
-        } else {
-            // we account for soar vectors here. We can potentially visit a vector twice so we multiply by 2 here.
-            maxVectorVisited = (long) (2.0 * visitRatio * numVectors);
+            visitRatio = estimated / numVectors;
         }
+        // we account for soar vectors here. We can potentially visit a vector twice so we multiply by 2 here.
+        long maxVectorVisited = (long) (2.0 * visitRatio * numVectors);
         CentroidIterator centroidIterator = getCentroidIterator(fieldInfo, entry.numCentroids, entry.centroidSlice(ivfCentroids), target);
         PostingVisitor scorer = getPostingVisitor(fieldInfo, entry.postingListSlice(ivfClusters), target, acceptDocs);
 

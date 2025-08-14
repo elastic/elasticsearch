@@ -156,15 +156,11 @@ public class ESONXContentParser extends AbstractXContentParser {
         } else if (type == ESONEntry.TYPE_ARRAY) {
             containerStack.pushArray(entry.offsetOrCount());
         } else {
-            currentType = castValue(entry);
+            currentType = entry.value();
         }
 
         currentToken = TOKEN_LOOKUP[type];
         return currentToken;
-    }
-
-    private static ESONSource.Value castValue(ESONEntry entry) {
-        return ((ESONEntry.FieldEntry) entry).value;
     }
 
     // Helper method to materialize the current value on demand

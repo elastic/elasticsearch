@@ -33,11 +33,17 @@ public abstract class ESONEntry {
 
     private final byte type;
     private final String key;
+    private final ESONSource.Value value;
     private int offsetOrCount = -1;
 
     ESONEntry(byte type, String key) {
+        this(type, key, null);
+    }
+
+    ESONEntry(byte type, String key, ESONSource.Value value) {
         this.type = type;
         this.key = key;
+        this.value = value;
     }
 
     public String key() {
@@ -46,6 +52,10 @@ public abstract class ESONEntry {
 
     public byte type() {
         return type;
+    }
+
+    public ESONSource.Value value() {
+        return value;
     }
 
     public int offsetOrCount() {
@@ -97,7 +107,7 @@ public abstract class ESONEntry {
         public final ESONSource.Value value;
 
         public FieldEntry(String key, ESONSource.Value value) {
-            super(value.type(), key);
+            super(value.type(), key, value);
             this.value = value;
         }
 

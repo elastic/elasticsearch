@@ -53,6 +53,7 @@ import static org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormat.
 
 final class ES819TSDBDocValuesProducer extends DocValuesProducer {
     final IntObjectHashMap<NumericEntry> numerics;
+    private int primarySortFieldNumber = -1;
     final IntObjectHashMap<BinaryEntry> binaries;
     final IntObjectHashMap<SortedEntry> sorted;
     final IntObjectHashMap<SortedSetEntry> sortedSets;
@@ -91,7 +92,11 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
                 );
 
                 readFields(in, state.fieldInfos);
-
+                final var indexSort = state.segmentInfo.getIndexSort();
+                if (indexSort != null) {
+                    var primaryField = indexSort.getSort()[0];
+                    primarySortFieldNumber = state.fieldInfos.fieldInfo(primaryField.getField()).number;
+                }
             } catch (Throwable exception) {
                 priorE = exception;
             } finally {
@@ -333,10 +338,10 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
     @Override
     public SortedDocValues getSorted(FieldInfo field) throws IOException {
         SortedEntry entry = sorted.get(field.number);
-        return getSorted(entry);
+        return getSorted(entry, field.number == primarySortFieldNumber);
     }
 
-    private SortedDocValues getSorted(SortedEntry entry) throws IOException {
+    private SortedDocValues getSorted(SortedEntry entry, boolean valuesSorted) throws IOException {
         final NumericDocValues ords = getNumeric(entry.ordsEntry, entry.termsDictEntry.termsDictSize);
         return new BaseSortedDocValues(entry) {
 
@@ -369,10 +374,29 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
             public long cost() {
                 return ords.cost();
             }
+
+            @Override
+            public BlockLoader.Block tryRead(BlockLoader.BlockFactory factory, BlockLoader.Docs docs, int offset) throws IOException {
+                if (valuesSorted && ords instanceof BaseDenseNumericValues denseOrds) {
+                    int firstDoc = docs.get(offset);
+                    denseOrds.advanceExact(firstDoc);
+                    long startValue = denseOrds.longValue();
+                    final int docCount = docs.count();
+                    int lastDoc = docs.get(docCount - 1);
+                    long lastValue = denseOrds.lookAheadValueAt(lastDoc);
+                    if (lastValue == startValue) {
+                        BytesRef b = lookupOrd(Math.toIntExact(startValue));
+                        return factory.constantBytes(BytesRef.deepCopyOf(b), docCount - offset);
+                    }
+                    // TODO: Since ordinals are sorted, start at 0 (offset by startValue), scan until lastValue,
+                    // then fill remaining positions with lastValue.
+                }
+                return null;
+            }
         };
     }
 
-    abstract class BaseSortedDocValues extends SortedDocValues {
+    abstract class BaseSortedDocValues extends SortedDocValues implements BlockLoader.OptionalColumnAtATimeReader {
 
         final SortedEntry entry;
         final TermsEnum termsEnum;
@@ -406,6 +430,15 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
         public TermsEnum termsEnum() throws IOException {
             return new TermsDict(entry.termsDictEntry, data, merging);
         }
+
+        @Override
+        public BlockLoader.Block tryRead(BlockLoader.BlockFactory factory, BlockLoader.Docs docs, int offset) throws IOException {
+            return null;
+        }
+    }
+
+    abstract static class BaseDenseNumericValues extends NumericDocValues implements BlockLoader.OptionalColumnAtATimeReader {
+        abstract long lookAheadValueAt(int targetDoc) throws IOException;
     }
 
     abstract static class BaseSortedSetDocValues extends SortedSetDocValues {
@@ -695,7 +728,7 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
     public SortedSetDocValues getSortedSet(FieldInfo field) throws IOException {
         SortedSetEntry entry = sortedSets.get(field.number);
         if (entry.singleValueEntry != null) {
-            return DocValues.singleton(getSorted(entry.singleValueEntry));
+            return DocValues.singleton(getSorted(entry.singleValueEntry, field.number == primarySortFieldNumber));
         }
 
         SortedNumericEntry ordsEntry = entry.ordsEntry;
@@ -1141,13 +1174,17 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
         final int bitsPerOrd = maxOrd >= 0 ? PackedInts.bitsRequired(maxOrd - 1) : -1;
         if (entry.docsWithFieldOffset == -1) {
             // dense
-            return new BulkNumericDocValues() {
+            return new BaseDenseNumericValues() {
 
                 private final int maxDoc = ES819TSDBDocValuesProducer.this.maxDoc;
                 private int doc = -1;
                 private final TSDBDocValuesEncoder decoder = new TSDBDocValuesEncoder(ES819TSDBDocValuesFormat.NUMERIC_BLOCK_SIZE);
                 private long currentBlockIndex = -1;
                 private final long[] currentBlock = new long[ES819TSDBDocValuesFormat.NUMERIC_BLOCK_SIZE];
+                // lookahead block
+                private long lookaheadBlockIndex = -1;
+                private long[] lookaheadBlock;
+                private IndexInput lookaheadData = null;
 
                 @Override
                 public int docID() {
@@ -1183,24 +1220,28 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
                     final int index = doc;
                     final int blockIndex = index >>> ES819TSDBDocValuesFormat.NUMERIC_BLOCK_SHIFT;
                     final int blockInIndex = index & ES819TSDBDocValuesFormat.NUMERIC_BLOCK_MASK;
-                    if (blockIndex != currentBlockIndex) {
-                        assert blockIndex > currentBlockIndex : blockIndex + " < " + currentBlockIndex;
-                        // no need to seek if the loading block is the next block
-                        if (currentBlockIndex + 1 != blockIndex) {
-                            valuesData.seek(indexReader.get(blockIndex));
-                        }
-                        currentBlockIndex = blockIndex;
-                        if (maxOrd >= 0) {
-                            decoder.decodeOrdinals(valuesData, currentBlock, bitsPerOrd);
-                        } else {
-                            decoder.decode(valuesData, currentBlock);
-                        }
+                    if (blockIndex == currentBlockIndex) {
+                        return currentBlock[blockInIndex];
+                    }
+                    if (blockIndex == lookaheadBlockIndex) {
+                        return lookaheadBlock[blockInIndex];
+                    }
+                    assert blockIndex > currentBlockIndex : blockIndex + " < " + currentBlockIndex;
+                    // no need to seek if the loading block is the next block
+                    if (currentBlockIndex + 1 != blockIndex) {
+                        valuesData.seek(indexReader.get(blockIndex));
+                    }
+                    currentBlockIndex = blockIndex;
+                    if (maxOrd >= 0) {
+                        decoder.decodeOrdinals(valuesData, currentBlock, bitsPerOrd);
+                    } else {
+                        decoder.decode(valuesData, currentBlock);
                     }
                     return currentBlock[blockInIndex];
                 }
 
                 @Override
-                public BlockLoader.Block read(BlockLoader.BlockFactory factory, BlockLoader.Docs docs, int offset) throws IOException {
+                public BlockLoader.Block tryRead(BlockLoader.BlockFactory factory, BlockLoader.Docs docs, int offset) throws IOException {
                     assert maxOrd == -1 : "unexpected maxOrd[" + maxOrd + "]";
                     final int docsCount = docs.count();
                     doc = docs.get(docsCount - 1);
@@ -1236,6 +1277,32 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
                         }
                         return builder.build();
                     }
+                }
+
+                @Override
+                long lookAheadValueAt(int targetDoc) throws IOException {
+                    final int blockIndex = targetDoc >>> ES819TSDBDocValuesFormat.NUMERIC_BLOCK_SHIFT;
+                    final int valueIndex = targetDoc & ES819TSDBDocValuesFormat.NUMERIC_BLOCK_MASK;
+                    if (blockIndex == currentBlockIndex) {
+                        return currentBlock[valueIndex];
+                    }
+                    // load data to the lookahead block
+                    if (lookaheadBlockIndex != blockIndex) {
+                        if (lookaheadBlock == null) {
+                            lookaheadBlock = new long[ES819TSDBDocValuesFormat.NUMERIC_BLOCK_SIZE];
+                            lookaheadData = data.slice("look_ahead_values", entry.valuesOffset, entry.valuesLength);
+                        }
+                        if (lookaheadBlockIndex + 1 != blockIndex) {
+                            lookaheadData.seek(indexReader.get(blockIndex));
+                        }
+                        if (maxOrd >= 0) {
+                            decoder.decodeOrdinals(lookaheadData, lookaheadBlock, bitsPerOrd);
+                        } else {
+                            decoder.decode(lookaheadData, lookaheadBlock);
+                        }
+                        lookaheadBlockIndex = blockIndex;
+                    }
+                    return lookaheadBlock[valueIndex];
                 }
 
                 static boolean isDense(int firstDocId, int lastDocId, int length) {

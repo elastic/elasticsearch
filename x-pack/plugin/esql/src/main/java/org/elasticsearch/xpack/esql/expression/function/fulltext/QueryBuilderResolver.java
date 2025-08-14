@@ -86,7 +86,7 @@ public final class QueryBuilderResolver {
                 if (expr instanceof RewriteableAware rewriteableAware) {
                     QueryBuilder builder = rewriteableAware.queryBuilder(), initial = builder;
                     builder = builder == null
-                        ? translationAware.asQuery(LucenePushdownPredicates.DEFAULT, TranslatorHandler.TRANSLATOR_HANDLER).toQueryBuilder()
+                        ? rewriteableAware.asQuery(LucenePushdownPredicates.DEFAULT, TranslatorHandler.TRANSLATOR_HANDLER).toQueryBuilder()
                         : builder;
                     try {
                         // TODO: Even when changing this to Rewriteable#rewrite, this still doesn't execute the full rewrite phase. Bug?

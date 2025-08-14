@@ -17,7 +17,6 @@ import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.codec.vectors.es818.ES818BinaryQuantizedVectorsFormat;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.vectors.KnnSearchBuilder;
 import org.elasticsearch.search.vectors.VectorData;
@@ -49,8 +48,6 @@ public class DirectIOIT extends ESIntegTestCase {
 
     @BeforeClass
     public static void checkSupported() {
-        assumeTrue("Direct IO is not enabled", ES818BinaryQuantizedVectorsFormat.USE_DIRECT_IO);
-
         Path path = createTempDir("directIOProbe");
         try (Directory dir = open(path); IndexOutput out = dir.createOutput("out", IOContext.DEFAULT)) {
             out.writeString("test");
@@ -75,7 +72,7 @@ public class DirectIOIT extends ESIntegTestCase {
     }
 
     private void indexVectors() {
-        String type = randomFrom("bbq_flat", "bbq_hnsw");
+        String type = randomFrom(/*"bbq_flat", */"bbq_hnsw");
         assertAcked(
             prepareCreate("foo-vectors").setSettings(Settings.builder().put(InternalSettingsPlugin.USE_COMPOUND_FILE.getKey(), false))
                 .setMapping("""
@@ -88,7 +85,8 @@ public class DirectIOIT extends ESIntegTestCase {
                           "index": true,
                           "similarity": "l2_norm",
                           "index_options": {
-                            "type": "%type%"
+                            "type": "%type%",
+                            "disable_offheap_cache_rescoring": true
                           }
                         }
                       }

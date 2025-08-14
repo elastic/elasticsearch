@@ -370,6 +370,20 @@ public class ESVectorUtilTests extends BaseVectorizationTests {
         assertArrayEquals(packedLegacy, packed);
     }
 
+    public void testTransposeHalfByte() {
+        int dims = randomIntBetween(16, 2048);
+        int[] toPack = new int[dims];
+        for (int i = 0; i < dims; i++) {
+            toPack[i] = randomInt(15);
+        }
+        int length = 4 * BQVectorUtils.discretize(dims, 64) / 8;
+        byte[] packed = new byte[length];
+        byte[] packedLegacy = new byte[length];
+        defaultedProvider.getVectorUtilSupport().transposeHalfByte(toPack, packedLegacy);
+        defOrPanamaProvider.getVectorUtilSupport().transposeHalfByte(toPack, packed);
+        assertArrayEquals(packedLegacy, packed);
+    }
+
     private float[] generateRandomVector(int size) {
         float[] vector = new float[size];
         for (int i = 0; i < size; ++i) {

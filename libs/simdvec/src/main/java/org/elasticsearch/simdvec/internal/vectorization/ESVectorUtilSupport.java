@@ -65,4 +65,6 @@ public interface ESVectorUtilSupport {
     );
 
     void packAsBinary(int[] vector, byte[] packed);
+
+    void transposeHalfByte(int[] q, byte[] quantQueryByte);
 }

@@ -23,6 +23,7 @@ abstract class AbstractGitAwareGradleFuncTest extends AbstractGradleFuncTest {
 
     def setup() {
         remoteGitRepo = new File(setupGitRemote(), '.git')
+        println "remoteGitRepo = ${remoteGitRepo.absolutePath}"
         execute("git clone ${remoteGitRepo.absolutePath} cloned", testProjectDir.root)
         buildFile = new File(testProjectDir.root, 'cloned/build.gradle')
         settingsFile = new File(testProjectDir.root, 'cloned/settings.gradle')

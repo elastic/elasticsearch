@@ -21,7 +21,6 @@ import org.apache.lucene.analysis.tokenattributes.PositionIncrementAttribute;
 import org.apache.lucene.analysis.tokenattributes.TermToBytesRefAttribute;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
-import org.apache.lucene.document.StoredField;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.queries.intervals.Intervals;
@@ -1430,8 +1429,14 @@ public final class TextFieldMapper extends TextFamilyFieldMapper {
                 return;
             }
 
-            final String fieldName = fieldType().syntheticSourceFallbackFieldName();
-            context.doc().add(new StoredField(fieldName, value));
+            // record this field's value in _ignored_source - synthetic source will fallback to it automatically
+            var utfBytes = context.parser().optimizedTextOrNull().bytes();
+            var valuesBytesRef = new BytesRef(utfBytes.bytes(), utfBytes.offset(), utfBytes.length());
+            context.addIgnoredField(
+                new IgnoredSourceFieldMapper.NameValue(fullPath(), fullPath().lastIndexOf(leafName()), valuesBytesRef, context.doc())
+            );
+            // final String fieldName = fieldType().syntheticSourceFallbackFieldName();
+            // context.doc().add(new StoredField(fieldName, value));
         }
     }
 
@@ -1599,6 +1604,7 @@ public final class TextFieldMapper extends TextFamilyFieldMapper {
 
     @Override
     protected SyntheticSourceSupport syntheticSourceSupport() {
+        // if we stored this field in Lucene, then use that for synthetic source
         if (store) {
             return new SyntheticSourceSupport.Native(() -> new StringStoredFieldFieldLoader(fullPath(), leafName()) {
                 @Override
@@ -1608,36 +1614,15 @@ public final class TextFieldMapper extends TextFamilyFieldMapper {
             });
         }
 
-        if (isIndexed()) {
-            return super.syntheticSourceSupport();
-        }
-
-        return new SyntheticSourceSupport.Native(() -> syntheticFieldLoader(fullPath(), leafName()));
-    }
-
-    private SourceLoader.SyntheticFieldLoader syntheticFieldLoader(String fullFieldName, String leafFieldName) {
-        // since we don't know whether the delegate field loader can be used for synthetic source until parsing, we
-        // need to check both this field and the delegate
-
-        // first field loader, representing this field
-        final String fieldName = fieldType().syntheticSourceFallbackFieldName();
-        final var thisFieldLayer = new CompositeSyntheticFieldLoader.StoredFieldLayer(fieldName) {
-            @Override
-            protected void writeValue(Object value, XContentBuilder b) throws IOException {
-                b.value(value.toString());
-            }
-        };
-
-        final CompositeSyntheticFieldLoader fieldLoader = new CompositeSyntheticFieldLoader(leafFieldName, fullFieldName, thisFieldLayer);
-
-        // second loader, representing a delegate field, if one exists
+        // otherwise, use the delegate
+        // note, the delegate itself might not be stored in Lucene due to various reasons (ex. it tripped ignore_above), in such cases, we
+        // should've added this field to ignored_source
         var kwd = TextFieldMapper.SyntheticSourceHelper.getKeywordFieldMapperForSyntheticSource(this);
         if (kwd != null) {
-            // merge the two field loaders into one
-            return fieldLoader.mergedWith(kwd.syntheticFieldLoader(fullPath(), leafName()));
+            return new SyntheticSourceSupport.Native(() -> kwd.syntheticFieldLoader(fullPath(), leafName()));
         }
 
-        return fieldLoader;
+        return super.syntheticSourceSupport();
     }
 
     public static class SyntheticSourceHelper {

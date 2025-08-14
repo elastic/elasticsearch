@@ -146,14 +146,6 @@ public abstract class StringFieldType extends TermBasedFieldType {
         return wildcardQuery(value, method, false, true, context);
     }
 
-    /**
-     * Returns the name of the "fallback" field that can be used for synthetic source when the "main" field was not
-     * stored for whatever reason.
-     */
-    public String syntheticSourceFallbackFieldName(final boolean isSyntheticSourceEnabled) {
-        return isSyntheticSourceEnabled ? name() + "._original" : null;
-    }
-
     protected Query wildcardQuery(
         String value,
         MultiTermQuery.RewriteMethod method,

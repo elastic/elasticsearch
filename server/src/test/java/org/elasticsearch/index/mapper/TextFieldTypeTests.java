@@ -48,7 +48,7 @@ import static org.hamcrest.Matchers.equalTo;
 public class TextFieldTypeTests extends FieldTypeTestCase {
 
     private static TextFieldType createFieldType() {
-        return new TextFieldType("field", randomBoolean());
+        return new TextFieldType("field", randomBoolean(), false);
     }
 
     public void testIsAggregatableDependsOnFieldData() {

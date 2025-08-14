@@ -137,6 +137,7 @@ public class AnnotatedTextFieldMapper extends TextFamilyFieldMapper {
                 store.getValue(),
                 tsi,
                 context.isSourceSynthetic(),
+                isWithinMultiField,
                 TextFieldMapper.SyntheticSourceHelper.syntheticSourceDelegate(fieldType, multiFields),
                 meta.getValue()
             );
@@ -487,15 +488,17 @@ public class AnnotatedTextFieldMapper extends TextFamilyFieldMapper {
     }
 
     public static final class AnnotatedTextFieldType extends TextFieldMapper.TextFieldType {
+
         private AnnotatedTextFieldType(
             String name,
             boolean store,
             TextSearchInfo tsi,
             boolean isSyntheticSource,
+            boolean isWithinMultiField,
             KeywordFieldMapper.KeywordFieldType syntheticSourceDelegate,
             Map<String, String> meta
         ) {
-            super(name, true, store, tsi, isSyntheticSource, syntheticSourceDelegate, meta, false, false);
+            super(name, true, store, tsi, isSyntheticSource, isWithinMultiField, syntheticSourceDelegate, meta, false, false);
         }
 
         public AnnotatedTextFieldType(String name, Map<String, String> meta) {
@@ -573,7 +576,7 @@ public class AnnotatedTextFieldMapper extends TextFamilyFieldMapper {
             // otherwise, we need to store a copy of this value so that synthetic source can load it
             var utfBytes = value.bytes();
             var bytesRef = new BytesRef(utfBytes.bytes(), utfBytes.offset(), utfBytes.length());
-            final String fieldName = fieldType().syntheticSourceFallbackFieldName(true);
+            final String fieldName = fieldType().syntheticSourceFallbackFieldName();
             context.doc().add(new StoredField(fieldName, bytesRef));
         }
     }
@@ -607,7 +610,7 @@ public class AnnotatedTextFieldMapper extends TextFamilyFieldMapper {
         // need to check both this field and the delegate
 
         // first field loader, representing this field
-        final String fieldName = fieldType().syntheticSourceFallbackFieldName(isSyntheticSourceEnabled);
+        final String fieldName = fieldType().syntheticSourceFallbackFieldName();
         final var thisFieldLayer = new CompositeSyntheticFieldLoader.StoredFieldLayer(fieldName) {
             @Override
             protected void writeValue(Object value, XContentBuilder b) throws IOException {

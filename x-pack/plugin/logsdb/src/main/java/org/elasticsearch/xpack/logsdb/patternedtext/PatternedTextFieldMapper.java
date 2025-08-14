@@ -109,6 +109,7 @@ public class PatternedTextFieldMapper extends TextFamilyFieldMapper {
                 tsi,
                 indexAnalyzer,
                 context.isSourceSynthetic(),
+                isWithinMultiField,
                 meta.getValue()
             );
         }

@@ -550,7 +550,7 @@ public final class KeywordFieldMapper extends FieldMapper {
 
     public static final TypeParser PARSER = createTypeParserWithLegacySupport(Builder::new);
 
-    public static final class KeywordFieldType extends StringFieldType {
+    public static final class KeywordFieldType extends TextFamilyFieldMapper.TextFamilyFieldType {
 
         private final int ignoreAbove;
         private final String nullValue;
@@ -558,8 +558,6 @@ public final class KeywordFieldMapper extends FieldMapper {
         private final boolean eagerGlobalOrdinals;
         private final FieldValues<String> scriptValues;
         private final boolean isDimension;
-        private final boolean isSyntheticSource;
-        private final boolean isWithinMultiField;
         private final IndexMode indexMode;
         private final IndexSortConfig indexSortConfig;
         private final boolean hasDocValuesSkipper;
@@ -579,7 +577,9 @@ public final class KeywordFieldMapper extends FieldMapper {
                 fieldType.stored(),
                 builder.hasDocValues.getValue(),
                 textSearchInfo(fieldType, builder.similarity.getValue(), searchAnalyzer, quoteAnalyzer),
-                builder.meta.getValue()
+                builder.meta.getValue(),
+                isSyntheticSource,
+                builder.isWithinMultiField
             );
             this.eagerGlobalOrdinals = builder.eagerGlobalOrdinals.getValue();
             this.normalizer = normalizer;
@@ -587,23 +587,19 @@ public final class KeywordFieldMapper extends FieldMapper {
             this.nullValue = builder.nullValue.getValue();
             this.scriptValues = builder.scriptValues();
             this.isDimension = builder.dimension.getValue();
-            this.isSyntheticSource = isSyntheticSource;
-            this.isWithinMultiField = builder.isWithinMultiField;
             this.indexMode = builder.indexMode;
             this.indexSortConfig = builder.indexSortConfig;
             this.hasDocValuesSkipper = DocValuesSkipIndexType.NONE.equals(fieldType.docValuesSkipIndexType()) == false;
         }
 
         public KeywordFieldType(String name, boolean isIndexed, boolean hasDocValues, Map<String, String> meta) {
-            super(name, isIndexed, false, hasDocValues, TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
+            super(name, isIndexed, false, hasDocValues, TextSearchInfo.SIMPLE_MATCH_ONLY, meta, false, false);
             this.normalizer = Lucene.KEYWORD_ANALYZER;
             this.ignoreAbove = Integer.MAX_VALUE;
             this.nullValue = null;
             this.eagerGlobalOrdinals = false;
             this.scriptValues = null;
             this.isDimension = false;
-            this.isSyntheticSource = false;
-            this.isWithinMultiField = false;
             this.indexMode = IndexMode.STANDARD;
             this.indexSortConfig = null;
             this.hasDocValuesSkipper = false;
@@ -620,7 +616,9 @@ public final class KeywordFieldMapper extends FieldMapper {
                 false,
                 false,
                 textSearchInfo(fieldType, null, Lucene.KEYWORD_ANALYZER, Lucene.KEYWORD_ANALYZER),
-                Collections.emptyMap()
+                Collections.emptyMap(),
+                false,
+                false
             );
             this.normalizer = Lucene.KEYWORD_ANALYZER;
             this.ignoreAbove = Integer.MAX_VALUE;
@@ -628,23 +626,28 @@ public final class KeywordFieldMapper extends FieldMapper {
             this.eagerGlobalOrdinals = false;
             this.scriptValues = null;
             this.isDimension = false;
-            this.isSyntheticSource = false;
-            this.isWithinMultiField = false;
             this.indexMode = IndexMode.STANDARD;
             this.indexSortConfig = null;
             this.hasDocValuesSkipper = DocValuesSkipIndexType.NONE.equals(fieldType.docValuesSkipIndexType()) == false;
         }
 
         public KeywordFieldType(String name, NamedAnalyzer analyzer) {
-            super(name, true, false, true, textSearchInfo(Defaults.FIELD_TYPE, null, analyzer, analyzer), Collections.emptyMap());
+            super(
+                name,
+                true,
+                false,
+                true,
+                textSearchInfo(Defaults.FIELD_TYPE, null, analyzer, analyzer),
+                Collections.emptyMap(),
+                false,
+                false
+            );
             this.normalizer = Lucene.KEYWORD_ANALYZER;
             this.ignoreAbove = Integer.MAX_VALUE;
             this.nullValue = null;
             this.eagerGlobalOrdinals = false;
             this.scriptValues = null;
             this.isDimension = false;
-            this.isSyntheticSource = false;
-            this.isWithinMultiField = false;
             this.indexMode = IndexMode.STANDARD;
             this.indexSortConfig = null;
             this.hasDocValuesSkipper = false;
@@ -808,7 +811,7 @@ public final class KeywordFieldMapper extends FieldMapper {
 
         @Override
         public BlockLoader blockLoader(BlockLoaderContext blContext) {
-            if (hasDocValues() && (blContext.fieldExtractPreference() != FieldExtractPreference.STORED || isSyntheticSource)) {
+            if (hasDocValues() && (blContext.fieldExtractPreference() != FieldExtractPreference.STORED || isSyntheticSourceEnabled)) {
                 return new BlockDocValuesReader.BytesRefsFromOrdsBlockLoader(name());
             }
             if (isStored()) {
@@ -816,7 +819,7 @@ public final class KeywordFieldMapper extends FieldMapper {
             }
 
             // Multi fields don't have fallback synthetic source.
-            if (isSyntheticSource && blContext.parentField(name()) == null) {
+            if (isSyntheticSourceEnabled && blContext.parentField(name()) == null) {
                 return new FallbackSyntheticSourceBlockLoader(fallbackSyntheticSourceBlockLoaderReader(), name()) {
                     @Override
                     public Builder builder(BlockFactory factory, int expectedCount) {
@@ -893,7 +896,7 @@ public final class KeywordFieldMapper extends FieldMapper {
             if (hasDocValues()) {
                 return fieldDataFromDocValues();
             }
-            if (isSyntheticSource) {
+            if (isSyntheticSourceEnabled) {
                 if (false == isStored()) {
                     throw new IllegalStateException(
                         "keyword field ["
@@ -1223,7 +1226,7 @@ public final class KeywordFieldMapper extends FieldMapper {
      */
     private boolean storeIgnoredValuesForSyntheticSource() {
         // skip all fields that are multi-fields
-        return fieldType().isSyntheticSource && fieldType().isWithinMultiField == false;
+        return fieldType().isSyntheticSourceEnabled && fieldType().isWithinMultiField == false;
     }
 
     private boolean indexValue(DocumentParserContext context, XContentString value) {
@@ -1244,7 +1247,7 @@ public final class KeywordFieldMapper extends FieldMapper {
             if (storeIgnoredValuesForSyntheticSource()) {
                 var utfBytes = value.bytes();
                 var bytesRef = new BytesRef(utfBytes.bytes(), utfBytes.offset(), utfBytes.length());
-                final String fieldName = fieldType().syntheticSourceFallbackFieldName(fieldType().isSyntheticSource);
+                final String fieldName = fieldType().syntheticSourceFallbackFieldName();
                 context.doc().add(new StoredField(fieldName, bytesRef));
             }
             return false;
@@ -1412,7 +1415,7 @@ public final class KeywordFieldMapper extends FieldMapper {
         // if ignore_above is set, then there is a chance that this field will be ignored. In such cases, we save an
         // extra copy of the field for supporting synthetic source. This layer will check that copy.
         if (fieldType().isIgnoreAboveSet()) {
-            final String fieldName = fieldType().syntheticSourceFallbackFieldName(fieldType().isSyntheticSource);
+            final String fieldName = fieldType().syntheticSourceFallbackFieldName();
             layers.add(new CompositeSyntheticFieldLoader.StoredFieldLayer(fieldName) {
                 @Override
                 protected void writeValue(Object value, XContentBuilder b) throws IOException {

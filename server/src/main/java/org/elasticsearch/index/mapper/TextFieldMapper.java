@@ -380,6 +380,7 @@ public final class TextFieldMapper extends TextFamilyFieldMapper {
                     store.getValue(),
                     tsi,
                     context.isSourceSynthetic(),
+                    isWithinMultiField,
                     SyntheticSourceHelper.syntheticSourceDelegate(fieldType, multiFields),
                     meta.getValue(),
                     eagerGlobalOrdinals.getValue(),
@@ -645,14 +646,13 @@ public final class TextFieldMapper extends TextFamilyFieldMapper {
 
     }
 
-    public static class TextFieldType extends StringFieldType {
+    public static class TextFieldType extends TextFamilyFieldType {
 
         private boolean fielddata;
         private FielddataFrequencyFilter filter;
         private PrefixFieldType prefixFieldType;
         private final boolean indexPhrases;
         private final boolean eagerGlobalOrdinals;
-        private final boolean isSyntheticSource;
         /**
          * In some configurations text fields use a sub-keyword field to provide
          * their values for synthetic source. This is that field. Or empty if we're
@@ -666,14 +666,14 @@ public final class TextFieldMapper extends TextFamilyFieldMapper {
             boolean stored,
             TextSearchInfo tsi,
             boolean isSyntheticSource,
+            boolean isWithinMultiField,
             KeywordFieldMapper.KeywordFieldType syntheticSourceDelegate,
             Map<String, String> meta,
             boolean eagerGlobalOrdinals,
             boolean indexPhrases
         ) {
-            super(name, indexed, stored, false, tsi, meta);
+            super(name, indexed, stored, false, tsi, meta, isSyntheticSource, isWithinMultiField);
             fielddata = false;
-            this.isSyntheticSource = isSyntheticSource;
             // TODO block loader could use a "fast loading" delegate which isn't always the same - but frequently is.
             this.syntheticSourceDelegate = Optional.ofNullable(syntheticSourceDelegate);
             this.eagerGlobalOrdinals = eagerGlobalOrdinals;
@@ -687,22 +687,24 @@ public final class TextFieldMapper extends TextFamilyFieldMapper {
                 stored,
                 false,
                 new TextSearchInfo(Defaults.FIELD_TYPE, null, Lucene.STANDARD_ANALYZER, Lucene.STANDARD_ANALYZER),
-                meta
+                meta,
+                false,
+                false
             );
             fielddata = false;
-            isSyntheticSource = false;
             syntheticSourceDelegate = null;
             eagerGlobalOrdinals = false;
             indexPhrases = false;
         }
 
-        public TextFieldType(String name, boolean isSyntheticSource) {
+        public TextFieldType(String name, boolean isSyntheticSource, boolean isWithinMultiField) {
             this(
                 name,
                 true,
                 false,
                 new TextSearchInfo(Defaults.FIELD_TYPE, null, Lucene.STANDARD_ANALYZER, Lucene.STANDARD_ANALYZER),
                 isSyntheticSource,
+                isWithinMultiField,
                 null,
                 Collections.emptyMap(),
                 false,
@@ -710,17 +712,23 @@ public final class TextFieldMapper extends TextFamilyFieldMapper {
             );
         }
 
-        public TextFieldType(String name, boolean isSyntheticSource, KeywordFieldMapper.KeywordFieldType syntheticSourceDelegate) {
+        public TextFieldType(
+            String name,
+            boolean isSyntheticSource,
+            boolean isWithinMultiField,
+            KeywordFieldMapper.KeywordFieldType syntheticSourceDelegate
+        ) {
             this(
-                    name,
-                    true,
-                    false,
-                    new TextSearchInfo(Defaults.FIELD_TYPE, null, Lucene.STANDARD_ANALYZER, Lucene.STANDARD_ANALYZER),
-                    isSyntheticSource,
-                    syntheticSourceDelegate,
-                    Collections.emptyMap(),
-                    false,
-                    false
+                name,
+                true,
+                false,
+                new TextSearchInfo(Defaults.FIELD_TYPE, null, Lucene.STANDARD_ANALYZER, Lucene.STANDARD_ANALYZER),
+                isSyntheticSource,
+                isWithinMultiField,
+                syntheticSourceDelegate,
+                Collections.emptyMap(),
+                false,
+                false
             );
         }
 
@@ -1062,7 +1070,7 @@ public final class TextFieldMapper extends TextFamilyFieldMapper {
             // But if a text field is a multi field it won't have an entry in _ignored_source.
             // The parent might, but we don't have enough context here to figure this out.
             // So we bail.
-            if (isSyntheticSource && syntheticSourceDelegate.isEmpty() && parentField == null) {
+            if (isSyntheticSourceEnabled && syntheticSourceDelegate.isEmpty() && parentField == null) {
                 return fallbackSyntheticSourceBlockLoader();
             }
 
@@ -1111,7 +1119,7 @@ public final class TextFieldMapper extends TextFamilyFieldMapper {
          * using whatever
          */
         private BlockSourceReader.LeafIteratorLookup blockReaderDisiLookup(BlockLoaderContext blContext) {
-            if (isSyntheticSource && syntheticSourceDelegate.isPresent()) {
+            if (isSyntheticSourceEnabled && syntheticSourceDelegate.isPresent()) {
                 // Since we are using synthetic source and a delegate, we can't use this field
                 // to determine if the delegate has values in the document (f.e. handling of `null` is different
                 // between text and keyword).
@@ -1162,7 +1170,7 @@ public final class TextFieldMapper extends TextFamilyFieldMapper {
             if (operation != FielddataOperation.SCRIPT) {
                 throw new IllegalStateException("unknown field data operation [" + operation.name() + "]");
             }
-            if (isSyntheticSource) {
+            if (isSyntheticSourceEnabled) {
                 if (isStored()) {
                     return (cache, breaker) -> new StoredFieldSortedBinaryIndexFieldData(
                         name(),
@@ -1199,8 +1207,8 @@ public final class TextFieldMapper extends TextFamilyFieldMapper {
             );
         }
 
-        public boolean isSyntheticSource() {
-            return isSyntheticSource;
+        public boolean isSyntheticSourceEnabled() {
+            return isSyntheticSourceEnabled;
         }
 
         public Optional<KeywordFieldMapper.KeywordFieldType> syntheticSourceDelegate() {
@@ -1211,7 +1219,7 @@ public final class TextFieldMapper extends TextFamilyFieldMapper {
     public static class ConstantScoreTextFieldType extends TextFieldType {
 
         public ConstantScoreTextFieldType(String name, boolean indexed, boolean stored, TextSearchInfo tsi, Map<String, String> meta) {
-            super(name, indexed, stored, tsi, false, null, meta, false, false);
+            super(name, indexed, stored, tsi, false, false, null, meta, false, false);
         }
 
         public ConstantScoreTextFieldType(String name) {
@@ -1422,7 +1430,7 @@ public final class TextFieldMapper extends TextFamilyFieldMapper {
                 return;
             }
 
-            final String fieldName = fieldType().syntheticSourceFallbackFieldName(true);
+            final String fieldName = fieldType().syntheticSourceFallbackFieldName();
             context.doc().add(new StoredField(fieldName, value));
         }
     }
@@ -1612,7 +1620,7 @@ public final class TextFieldMapper extends TextFamilyFieldMapper {
         // need to check both this field and the delegate
 
         // first field loader, representing this field
-        final String fieldName = fieldType().syntheticSourceFallbackFieldName(fieldType().isSyntheticSource);
+        final String fieldName = fieldType().syntheticSourceFallbackFieldName();
         final var thisFieldLayer = new CompositeSyntheticFieldLoader.StoredFieldLayer(fieldName) {
             @Override
             protected void writeValue(Object value, XContentBuilder b) throws IOException {

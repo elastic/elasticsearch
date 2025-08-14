@@ -78,10 +78,6 @@ public class ESONXContentParser extends AbstractXContentParser {
         // ESON already handles this during parsing
     }
 
-    private static final byte STATE_NEED_FIELD_NAME = 0;
-    private static final byte STATE_NEED_VALUE = 1;
-    private static final byte STATE_IN_ARRAY = 2;
-
     @Override
     public Token nextToken() throws IOException {
         if (currentToken != null && containerStack.isEmpty() == false) {
@@ -106,7 +102,7 @@ public class ESONXContentParser extends AbstractXContentParser {
                     ++currentIndex;
 
                     byte type = currentEntry.type();
-                    if (type > ESONEntry.TYPE_ARRAY) {
+                    if (type < ESONEntry.TYPE_OBJECT) {
                         return currentToken = TOKEN_LOOKUP[type];
                     } else {
                         newContainer(type);
@@ -128,12 +124,13 @@ public class ESONXContentParser extends AbstractXContentParser {
         if (currentToken == null) {
             // First token logic
             currentEntry = keyArray.get(currentIndex);
+            currentValue = null;
             containerStack.pushObject(currentEntry.offsetOrCount());
             currentIndex++;
             return currentToken = Token.START_OBJECT;
         }
 
-        return null;  // Finished parsing
+        return null;
     }
 
     private void newContainer(byte type) {
@@ -203,7 +200,7 @@ public class ESONXContentParser extends AbstractXContentParser {
     // }
     // }
 
-    private static final Token[] TOKEN_LOOKUP = new Token[32]; // Adjust size based on max type value
+    private static final Token[] TOKEN_LOOKUP = new Token[32];
 
     static {
         TOKEN_LOOKUP[ESONEntry.TYPE_OBJECT] = Token.START_OBJECT;
@@ -236,16 +233,10 @@ public class ESONXContentParser extends AbstractXContentParser {
             return null;
         } else if (type == ESONSource.ConstantValue.FALSE || type == ESONSource.ConstantValue.TRUE) {
             return type == ESONSource.ConstantValue.TRUE;
-        } else if (type instanceof ESONSource.Mutation mutation) {
-            return mutation.object();
         } else if (type instanceof ESONSource.FixedValue fixed) {
             return fixed.getValue(values);
         } else if (type instanceof ESONSource.VariableValue var) {
             return var.getValue(values);
-        } else if (type instanceof ESONIndexed.ESONObject obj) {
-            return obj;
-        } else if (type instanceof ESONIndexed.ESONArray arr) {
-            return arr;
         }
 
         throw new IllegalStateException("Cannot materialize type: " + type.getClass());

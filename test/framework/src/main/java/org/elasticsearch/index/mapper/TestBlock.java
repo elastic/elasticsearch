@@ -13,6 +13,7 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
 import org.hamcrest.Matcher;
 
 import java.io.IOException;
@@ -321,6 +322,24 @@ public class TestBlock implements BlockLoader.Block {
 
             public BlockLoader.AggregateMetricDoubleBuilder aggregateMetricDoubleBuilder(int expectedSize) {
                 return new AggregateMetricDoubleBlockBuilder(expectedSize);
+            }
+
+            @Override
+            public BlockLoader.ExponentialHistogramBuilder exponentialHistogramBuilder(int expectedSize) {
+                class ExponentialHistogramBuilder extends TestBlock.Builder implements BlockLoader.ExponentialHistogramBuilder {
+                    private ExponentialHistogramBuilder() {
+                        super(expectedSize);
+                    }
+
+                    @Override
+                    public BlockLoader.ExponentialHistogramBuilder append(ExponentialHistogram value) {
+                        //TODO: clean up the copying here?
+                        int numBuckets = value.negativeBuckets().bucketCount() + value.positiveBuckets().bucketCount();
+                        add(ExponentialHistogram.merge(numBuckets, value));
+                        return this;
+                    }
+                }
+                return new ExponentialHistogramBuilder();
             }
         };
     }

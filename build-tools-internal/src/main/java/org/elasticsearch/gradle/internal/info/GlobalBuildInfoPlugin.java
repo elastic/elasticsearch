@@ -347,14 +347,16 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
     }
 
     private Provider<File> findRuntimeJavaHome() {
-        Integer runtimeJavaProperty = Integer.getInteger("runtime.java");
+        String runtimeJavaProperty = System.getProperty("runtime.java");
+
         if (runtimeJavaProperty != null) {
-            if (runtimeJavaProperty > Integer.parseInt(VersionProperties.getBundledJdkMajorVersion())) {
+            if(runtimeJavaProperty.toLowerCase().endsWith("-ea")) {
                 // handle EA builds differently due to lack of support in Gradle toolchain service
                 // we resolve them using JdkDownloadPlugin for now.
-                return resolveEarlyAccessJavaHome(runtimeJavaProperty);
+                Integer major = Integer.parseInt(runtimeJavaProperty.substring(0, runtimeJavaProperty.length() - 3));
+                return resolveEarlyAccessJavaHome(major);
             } else {
-                return resolveJavaHomeFromToolChainService(runtimeJavaProperty.toString());
+                return resolveJavaHomeFromToolChainService(runtimeJavaProperty);
             }
         }
         if (System.getenv("RUNTIME_JAVA_HOME") != null) {

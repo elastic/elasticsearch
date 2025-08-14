@@ -35,6 +35,7 @@ import java.util.List;
 import java.util.Set;
 import java.util.stream.Stream;
 
+import static co.elastic.elasticsearch.stateless.Stateless.STATELESS_SHARD_ROLES;
 import static org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator.SHARD_BALANCE_FACTOR_SETTING;
 import static org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator.WRITE_LOAD_BALANCE_FACTOR_SETTING;
 
@@ -128,6 +129,7 @@ public class StatelessBalancingWeightsFactory implements BalancingWeightsFactory
 
         @Override
         public WeightFunction weightFunctionForShard(ShardRouting shard) {
+            assert STATELESS_SHARD_ROLES.contains(shard.role()) : "Non-stateless role encountered [" + shard.role() + "]";
             if (shard.role() == ShardRouting.Role.SEARCH_ONLY) {
                 return searchWeightFunction;
             } else if (shard.role() == ShardRouting.Role.INDEX_ONLY) {
@@ -180,6 +182,7 @@ public class StatelessBalancingWeightsFactory implements BalancingWeightsFactory
 
             @Override
             public BalancedShardsAllocator.NodeSorter sorterForShard(ShardRouting shard) {
+                assert STATELESS_SHARD_ROLES.contains(shard.role()) : "Non-stateless role encountered [" + shard.role() + "]";
                 if (shard.role() == ShardRouting.Role.SEARCH_ONLY) {
                     return searchNodeSorter;
                 } else if (shard.role() == ShardRouting.Role.INDEX_ONLY) {

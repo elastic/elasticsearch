@@ -28,10 +28,12 @@ import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.metadata.NodesShutdownMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
-import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceStats;
+import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceMetrics;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
@@ -52,6 +54,7 @@ import java.util.function.LongSupplier;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
+import static co.elastic.elasticsearch.stateless.Stateless.STATELESS_SHARD_ROLES;
 import static co.elastic.elasticsearch.stateless.autoscaling.indexing.IngestMetricsService.IngestMetricType.ADJUSTED;
 import static co.elastic.elasticsearch.stateless.autoscaling.indexing.IngestMetricsService.IngestMetricType.SINGLE;
 import static co.elastic.elasticsearch.stateless.autoscaling.indexing.IngestMetricsService.IngestMetricType.UNADJUSTED;
@@ -315,7 +318,7 @@ public class IngestMetricsService implements ClusterStateListener {
         // (deliberate empty line for spotless)
         ClusterState clusterState,
         @Nullable // if not using desired-balance allocator
-        DesiredBalanceStats desiredBalanceStats
+        DesiredBalanceMetrics.AllocationStats allocationStats
     ) {
         final var nodeLoadIterator = nodesIngestLoad.entrySet().iterator();
         final List<NodeIngestLoadSnapshot> ingestLoads = new ArrayList<>(nodesIngestLoad.size());
@@ -335,7 +338,7 @@ public class IngestMetricsService implements ClusterStateListener {
                 ingestLoads.add(nodeIngestLoad.getIngestLoadSnapshot());
             }
         }
-        final var adjustedIngestLoads = maybeAdjustIngestLoadsAndQuality(clusterState, ingestLoads, desiredBalanceStats);
+        final var adjustedIngestLoads = maybeAdjustIngestLoadsAndQuality(clusterState, ingestLoads, allocationStats);
         lastNodeIngestLoadSnapshotsRef.set(
             new RawAndAdjustedNodeIngestLoadSnapshots(ingestLoads, adjustedIngestLoads == ingestLoads ? null : adjustedIngestLoads)
         );
@@ -369,7 +372,7 @@ public class IngestMetricsService implements ClusterStateListener {
         ClusterState clusterState,
         List<NodeIngestLoadSnapshot> ingestLoads,
         @Nullable // if not using desired-balance allocator
-        DesiredBalanceStats desiredBalanceStats
+        DesiredBalanceMetrics.AllocationStats allocationStats
     ) {
 
         // The ingest loads reported by the nodes in the cluster are only really meaningful when the cluster is in a steady state. They may
@@ -379,7 +382,7 @@ public class IngestMetricsService implements ClusterStateListener {
 
         return maybeAdjustIngestLoadsForRelocationLoad(
             clusterState,
-            maybeAdjustIngestLoadQualityIfRebalancing(ingestLoads, desiredBalanceStats)
+            maybeAdjustIngestLoadQualityIfRebalancing(ingestLoads, allocationStats)
         );
     }
 
@@ -387,9 +390,9 @@ public class IngestMetricsService implements ClusterStateListener {
         // (deliberate empty line for spotless)
         List<NodeIngestLoadSnapshot> ingestLoads,
         @Nullable // if not using desired-balance allocator
-        DesiredBalanceStats desiredBalanceStats
+        DesiredBalanceMetrics.AllocationStats allocationStats
     ) {
-        if (desiredBalanceStats == null) {
+        if (allocationStats == null) {
             return ingestLoads;
         }
 
@@ -398,8 +401,11 @@ public class IngestMetricsService implements ClusterStateListener {
         // reconfiguration (e.g. a scaling event) before making further scaling decisions. More concretely, if many shards are not in their
         // desired locations then there may be some temporary indexing bottlenecks which reduce the apparent ingest load on the cluster,
         // leading to an inappropriate scale-down if we were to consider the measured ingest load to be accurate.
-
-        if (desiredBalanceStats.undesiredAllocationsRatio() <= inexactMetricsUndesiredShardsProportion) {
+        assert Sets.difference(allocationStats.allocationStatsByRole().keySet(), STATELESS_SHARD_ROLES).isEmpty()
+            : "Non-stateless shard routing roles encountered in allocation stats: " + allocationStats;
+        if (allocationStats.allocationStatsByRole()
+            .getOrDefault(ShardRouting.Role.INDEX_ONLY, DesiredBalanceMetrics.RoleAllocationStats.EMPTY)
+            .undesiredAllocationsRatio() <= inexactMetricsUndesiredShardsProportion) {
             return ingestLoads;
         }
 

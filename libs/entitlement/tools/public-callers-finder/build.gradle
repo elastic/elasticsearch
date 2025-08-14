@@ -44,7 +44,7 @@ application {
 // usage of Druntime.java=24 doesn't work here at the moment out of the box
 tasks.withType(JavaExec) {
   javaLauncher = javaToolchains.launcherFor {
-    languageVersion = JavaLanguageVersion.of(System.getProperty("runtime.java"))
+    languageVersion = JavaLanguageVersion.of(System.getProperty("runtime.java", "24"))
   }
 }
 

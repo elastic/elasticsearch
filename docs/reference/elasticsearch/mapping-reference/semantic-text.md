@@ -107,7 +107,6 @@ PUT my-index-000003
 ```
 
 ### Using ELSER on EIS
-
 ```{applies_to}
 stack: preview 9.1
 serverless: preview
@@ -223,6 +222,10 @@ generated from it. When querying, the individual passages will be automatically
 searched for each document, and the most relevant passage will be used to
 compute a score.
 
+Chunks are stored as start and end character offsets rather than as separate
+text strings. These offsets point to the exact location of each chunk within the
+original input text.
+
 For more details on chunking and how to configure chunking settings,
 see [Configuring chunking](https://www.elastic.co/docs/api/doc/elasticsearch/group/endpoint-inference)
 in the Inference API documentation.
@@ -238,7 +241,8 @@ stack: ga 9.1
 
 You can pre-chunk the input by sending it to Elasticsearch as an array of
 strings.
-Example:
+
+For example:
 
 ```console
 PUT test-index
@@ -539,7 +543,6 @@ POST test-index/_search
 
 This will return verbose chunked embeddings content that is used to perform
 semantic search for `semantic_text` fields.
-
 
 ## Limitations [limitations]
 

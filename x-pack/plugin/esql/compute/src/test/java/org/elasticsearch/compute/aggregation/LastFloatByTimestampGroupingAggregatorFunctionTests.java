@@ -24,10 +24,13 @@ import java.util.stream.IntStream;
 public class LastFloatByTimestampGroupingAggregatorFunctionTests extends GroupingAggregatorFunctionTestCase {
     @Override
     protected SourceOperator simpleInput(BlockFactory blockFactory, int size) {
+        FirstLongByTimestampGroupingAggregatorFunctionTests.TimestampGen tsgen = randomFrom(
+            FirstLongByTimestampGroupingAggregatorFunctionTests.TimestampGen.values()
+        );
         return new ListRowsBlockSourceOperator(
             blockFactory,
             List.of(ElementType.LONG, ElementType.FLOAT, ElementType.LONG),
-            IntStream.range(0, size).mapToObj(l -> List.of(randomLongBetween(0, 4), randomFloat(), randomLong())).toList()
+            IntStream.range(0, size).mapToObj(l -> List.of(randomLongBetween(0, 4), randomFloat(), tsgen.gen())).toList()
         );
     }
 

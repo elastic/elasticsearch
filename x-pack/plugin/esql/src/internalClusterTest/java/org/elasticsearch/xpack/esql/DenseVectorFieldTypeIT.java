@@ -43,8 +43,10 @@ public class DenseVectorFieldTypeIT extends AbstractEsqlIntegTestCase {
         .map(v -> v.getName().toLowerCase(Locale.ROOT))
         .collect(Collectors.toSet());
 
-    public static final Set<String> NON_QUANTIZED_DENSE_VECTOR_INDEX_TYPES = Set.of("hnsw", "flat");
-
+    public static final Set<String> NON_QUANTIZED_DENSE_VECTOR_INDEX_TYPES = Arrays.stream(DenseVectorFieldMapper.VectorIndexType.values())
+        .filter(t -> t.isEnabled() && t.isQuantized() == false)
+        .map(v -> v.getName().toLowerCase(Locale.ROOT))
+        .collect(Collectors.toSet());
 
     public static final float DELTA = 1e-7F;
 
@@ -58,15 +60,15 @@ public class DenseVectorFieldTypeIT extends AbstractEsqlIntegTestCase {
         List<Object[]> params = new ArrayList<>();
 
         for (ElementType elementType : List.of(ElementType.BYTE, ElementType.FLOAT)) {
-                // Test all similarities
+            // Test all similarities
             for (DenseVectorFieldMapper.VectorSimilarity similarity : DenseVectorFieldMapper.VectorSimilarity.values()) {
-                params.add(new Object[] { ElementType.FLOAT, similarity, true, false });
+                params.add(new Object[] { elementType, similarity, true, false });
             }
 
             // No indexing
-            params.add(new Object[] { ElementType.FLOAT, null, false, false });
+            params.add(new Object[] { elementType, null, false, false });
             // No indexing, synthetic source
-            params.add(new Object[] { ElementType.FLOAT, null, false, true });
+            params.add(new Object[] { elementType, null, false, true });
         }
 
         return params;

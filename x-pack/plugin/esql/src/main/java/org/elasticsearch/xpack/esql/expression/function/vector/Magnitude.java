@@ -142,7 +142,7 @@ public class Magnitude extends UnaryScalarFunction implements EvaluatorMapper, V
                             for (int p = 0; p < positionCount; p++) {
                                 int dims = block.getValueCount(p);
                                 if (dims == 0) {
-                                    // A null value for the vector, by default append 0 as result.
+                                    // A null value for the vector, by default append null as result.
                                     builder.appendNull();
                                     continue;
                                 }

@@ -18,7 +18,7 @@ import java.util.stream.Collectors;
 
 public class MultifieldAddonHandler implements DataSourceHandler {
 
-    private static final String PLACEHOLDER_NAME = "_an_improbable_placeholder_name";
+    private static final String PLACEHOLDER = DefaultObjectGenerationHandler.RESERVED_FIELD_NAME_PREFIX + "multifield";
     private static final float DEFAULT_CHANCE_OF_CHILD_FIELD = 0.5f;
     private final Map<FieldType, List<FieldType>> subfieldTypes;
     private final float chanceOfChildField;
@@ -47,7 +47,7 @@ public class MultifieldAddonHandler implements DataSourceHandler {
 
         // Need to delegate creation of the same type of field to other handlers. So skip request
         // if it's for the placeholder name used when creating the child and parent fields.
-        if (request.fieldName().equals(PLACEHOLDER_NAME)) {
+        if (request.fieldName().equals(PLACEHOLDER)) {
             return null;
         }
 
@@ -76,9 +76,7 @@ public class MultifieldAddonHandler implements DataSourceHandler {
 
     private static Map<String, Object> getChildMappingForType(FieldType type, DataSourceRequest.LeafMappingParametersGenerator request) {
         Map<String, Object> mapping = getMappingForType(type, request);
-        if (type == FieldType.KEYWORD) {
-            mapping.remove("copy_to");
-        }
+        mapping.remove("copy_to");
         return mapping;
     }
 
@@ -87,7 +85,7 @@ public class MultifieldAddonHandler implements DataSourceHandler {
             .get(
                 new DataSourceRequest.LeafMappingParametersGenerator(
                     request.dataSource(),
-                    PLACEHOLDER_NAME,
+                    PLACEHOLDER,
                     type.toString(),
                     request.eligibleCopyToFields(),
                     request.dynamicMapping()

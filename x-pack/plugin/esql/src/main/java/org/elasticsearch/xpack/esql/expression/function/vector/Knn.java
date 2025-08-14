@@ -79,8 +79,10 @@ public class Knn extends FullTextFunction implements OptionalArgument, VectorFun
     // Expressions to be used as prefilters in knn query
     private final List<Expression> filterExpressions;
 
+    public static final String MIN_CANDIDATES_OPTION = "min_candidates";
+
     public static final Map<String, DataType> ALLOWED_OPTIONS = Map.ofEntries(
-        entry(NUM_CANDS_FIELD.getPreferredName(), INTEGER),
+        entry(MIN_CANDIDATES_OPTION, INTEGER),
         entry(VECTOR_SIMILARITY_FIELD.getPreferredName(), FLOAT),
         entry(BOOST_FIELD.getPreferredName(), FLOAT),
         entry(KnnQuery.RESCORE_OVERSAMPLE_FIELD, FLOAT)

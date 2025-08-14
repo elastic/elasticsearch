@@ -28,12 +28,7 @@ public class SemanticMultiMatchQueryRewriteInterceptor extends SemanticQueryRewr
         "search.semantic_multi_match_query_rewrite_interception_supported"
     );
 
-    private final Supplier<ModelRegistry> modelRegistrySupplier;
-
-    public SemanticMultiMatchQueryRewriteInterceptor(Supplier<ModelRegistry> modelRegistrySupplier) {
-        super();
-        this.modelRegistrySupplier = modelRegistrySupplier;
-    }
+    public SemanticMultiMatchQueryRewriteInterceptor() {}
 
     @Override
     protected String getFieldName(QueryBuilder queryBuilder) {

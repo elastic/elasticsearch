@@ -148,14 +148,14 @@ public class JdkApiExtractor {
         @Override
         public void visit(int version, int access, String name, String signature, String superName, String[] interfaces) {
             if (superName != null) {
-                if(accessibleImplementationsByClass.containsKey(superName) == false) {
+                if (accessibleImplementationsByClass.containsKey(superName) == false) {
                     visitSuperClass(superName);
                 }
                 getMethods(accessibleForOverridesByClass, name).addAll(getMethods(accessibleForOverridesByClass, superName));
             }
             if (interfaces != null && interfaces.length > 0) {
                 for (var interfaceName : interfaces) {
-                    if(accessibleImplementationsByClass.containsKey(interfaceName) == false) {
+                    if (accessibleImplementationsByClass.containsKey(interfaceName) == false) {
                         visitInterface(interfaceName);
                     }
                     getMethods(accessibleForOverridesByClass, name).addAll(getMethods(accessibleForOverridesByClass, interfaceName));

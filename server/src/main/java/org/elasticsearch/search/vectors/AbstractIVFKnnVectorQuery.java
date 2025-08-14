@@ -136,7 +136,7 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
         final float visitRatio;
         if (providedVisitRatio == 0.0f) {
             // dynamically set the percentage
-            float expected = (float) Math.round(1.75f * Math.log10(numCands) * Math.log10(numCands) * (numCands));
+            float expected = (float) Math.round(Math.log10(totalVectors) * Math.log10(totalVectors) * (numCands));
             visitRatio = expected / totalVectors;
         } else {
             visitRatio = providedVisitRatio;

@@ -70,9 +70,9 @@ public class ES819TSDBDocValuesFormatTests extends ES87TSDBDocValuesFormatTests 
         try (var dir = newDirectory(); var iw = new IndexWriter(dir, config)) {
             long counter1 = 0;
             long counter2 = 10_000_000;
-            long[] gauge1Values = new long[]{2, 4, 6, 8, 10, 12, 14, 16};
-            long[] gauge2Values = new long[]{-2, -4, -6, -8, -10, -12, -14, -16};
-            String[] tags = new String[]{"tag_1", "tag_2", "tag_3", "tag_4", "tag_5", "tag_6", "tag_7", "tag_8"};
+            long[] gauge1Values = new long[] { 2, 4, 6, 8, 10, 12, 14, 16 };
+            long[] gauge2Values = new long[] { -2, -4, -6, -8, -10, -12, -14, -16 };
+            String[] tags = new String[] { "tag_1", "tag_2", "tag_3", "tag_4", "tag_5", "tag_6", "tag_7", "tag_8" };
 
             int numDocs = 256 + random().nextInt(1024);
             int numHosts = numDocs / 20;
@@ -293,9 +293,9 @@ public class ES819TSDBDocValuesFormatTests extends ES87TSDBDocValuesFormatTests 
         try (var dir = newDirectory(); var iw = new IndexWriter(dir, config)) {
             long counter1 = 0;
             long counter2 = 10_000_000;
-            long[] gauge1Values = new long[]{2, 4, 6, 8, 10, 12, 14, 16};
-            long[] gauge2Values = new long[]{-2, -4, -6, -8, -10, -12, -14, -16};
-            String[] tags = new String[]{"tag_1", "tag_2", "tag_3", "tag_4", "tag_5", "tag_6", "tag_7", "tag_8"};
+            long[] gauge1Values = new long[] { 2, 4, 6, 8, 10, 12, 14, 16 };
+            long[] gauge2Values = new long[] { -2, -4, -6, -8, -10, -12, -14, -16 };
+            String[] tags = new String[] { "tag_1", "tag_2", "tag_3", "tag_4", "tag_5", "tag_6", "tag_7", "tag_8" };
 
             int numDocs = 256 + random().nextInt(1024);
             int numHosts = numDocs / 20;
@@ -445,8 +445,8 @@ public class ES819TSDBDocValuesFormatTests extends ES87TSDBDocValuesFormatTests 
 
         var config = getTimeSeriesIndexWriterConfig(hostnameField, timestampField);
         try (var dir = newDirectory(); var iw = new IndexWriter(dir, config)) {
-            long[] gauge1Values = new long[]{2, 4, 6, 8, 10, 12, 14, 16};
-            String[] tags = new String[]{"tag_1", "tag_2", "tag_3", "tag_4", "tag_5", "tag_6", "tag_7", "tag_8"};
+            long[] gauge1Values = new long[] { 2, 4, 6, 8, 10, 12, 14, 16 };
+            String[] tags = new String[] { "tag_1", "tag_2", "tag_3", "tag_4", "tag_5", "tag_6", "tag_7", "tag_8" };
             {
                 long timestamp = baseTimestamp;
                 for (int i = 0; i < numRounds; i++) {
@@ -712,7 +712,7 @@ public class ES819TSDBDocValuesFormatTests extends ES87TSDBDocValuesFormatTests 
 
         var config = getTimeSeriesIndexWriterConfig(null, timestampField);
         try (var dir = newDirectory(); var iw = new IndexWriter(dir, config)) {
-            long[] gauge1Values = new long[]{2, 4, 6, 8, 10, 12, 14, 16};
+            long[] gauge1Values = new long[] { 2, 4, 6, 8, 10, 12, 14, 16 };
             int numDocs = 256 + random().nextInt(8096);
 
             for (int i = 0; i < numDocs; i++) {
@@ -743,7 +743,7 @@ public class ES819TSDBDocValuesFormatTests extends ES87TSDBDocValuesFormatTests 
                     var counterDV = getBulkNumericDocValues(leaf.reader(), counterField);
                     var gaugeDV = getBulkNumericDocValues(leaf.reader(), gaugeField);
                     int maxDoc = leaf.reader().maxDoc();
-                    for (int i = 0; i < maxDoc; ) {
+                    for (int i = 0; i < maxDoc;) {
                         int size = Math.max(1, random().nextInt(0, maxDoc - i));
                         var docs = TestBlock.docs(IntStream.range(i, i + size).toArray());
 
@@ -971,9 +971,8 @@ public class ES819TSDBDocValuesFormatTests extends ES87TSDBDocValuesFormatTests 
         try (var dir = newDirectory(); var iw = new IndexWriter(dir, config)) {
             long counter1 = 0;
 
-
-            long[] gauge2Values = new long[]{-2, -4, -6, -8, -10, -12, -14, -16};
-            String[] tags = new String[]{"tag_1", "tag_2", "tag_3", "tag_4", "tag_5", "tag_6", "tag_7", "tag_8"};
+            long[] gauge2Values = new long[] { -2, -4, -6, -8, -10, -12, -14, -16 };
+            String[] tags = new String[] { "tag_1", "tag_2", "tag_3", "tag_4", "tag_5", "tag_6", "tag_7", "tag_8" };
 
             // IndexedDISI stores ids in blocks of 4096. To test sparse end runs, we want a mixture of
             // dense and sparse blocks, so we need the gap frequency to be larger than

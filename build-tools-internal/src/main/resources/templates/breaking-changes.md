@@ -22,14 +22,14 @@ for(bundle in changelogBundles) {
     if (coming) {
         print "\n"
         print "```{applies_to}\n"
-        print "stack: coming ${version}\n"
+        print "stack: ga ${version}\n"
         print "```"
     }
 %>
 ## ${unqualifiedVersion} [elasticsearch-${versionForIds}-breaking-changes]
 <%
     if (!changelogsByTypeByArea['breaking']) {
-        print "\nNo breaking changes in this version.\n"
+        print "\nThere are no breaking changes associated with this release.\n"
     } else {
         for (team in (changelogsByTypeByArea['breaking'] ?: [:]).keySet()) {
             print "\n${team}:\n";

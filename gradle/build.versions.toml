@@ -22,7 +22,7 @@ hamcrest = "org.hamcrest:hamcrest:3.0"
 httpcore5 = "org.apache.httpcomponents.core5:httpcore5:5.3.3"
 httpclient5 = "org.apache.httpcomponents.client5:httpclient5:5.4.2"
 idea-ext = "gradle.plugin.org.jetbrains.gradle.plugin.idea-ext:gradle-idea-ext:1.1.4"
-javaparser = "com.github.javaparser:javaparser-core:3.18.0"
+javaparser = "com.github.javaparser:javaparser-core:3.27.0"
 json-schema-validator = "com.networknt:json-schema-validator:1.0.72"
 json-assert = "org.skyscreamer:jsonassert:1.5.0"
 jackson-core = { group = "com.fasterxml.jackson.core", name="jackson-core", version.ref="jackson" }

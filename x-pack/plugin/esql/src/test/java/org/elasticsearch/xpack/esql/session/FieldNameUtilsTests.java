@@ -2846,7 +2846,7 @@ public class FieldNameUtilsTests extends ESTestCase {
     }
 
     public void testForkBeforeInlineStatsIgnore() {
-        assumeTrue("INLINESTATS required", EsqlCapabilities.Cap.INLINESTATS_V9.isEnabled());
+        assumeTrue("INLINESTATS required", EsqlCapabilities.Cap.INLINESTATS_V10.isEnabled());
         assertTrue("FORK required", EsqlCapabilities.Cap.FORK_V9.isEnabled());
         assertFieldNames("""
             FROM employees
@@ -2859,7 +2859,7 @@ public class FieldNameUtilsTests extends ESTestCase {
     }
 
     public void testForkBranchWithInlineStatsIgnore() {
-        assumeTrue("INLINESTATS required", EsqlCapabilities.Cap.INLINESTATS_V9.isEnabled());
+        assumeTrue("INLINESTATS required", EsqlCapabilities.Cap.INLINESTATS_V10.isEnabled());
         assertTrue("FORK required", EsqlCapabilities.Cap.FORK_V9.isEnabled());
         assertFieldNames("""
             FROM employees
@@ -2873,7 +2873,7 @@ public class FieldNameUtilsTests extends ESTestCase {
     }
 
     public void testForkAfterInlineStatsIgnore() {
-        assumeTrue("INLINESTATS required", EsqlCapabilities.Cap.INLINESTATS_V9.isEnabled());
+        assumeTrue("INLINESTATS required", EsqlCapabilities.Cap.INLINESTATS_V10.isEnabled());
         assertTrue("FORK required", EsqlCapabilities.Cap.FORK_V9.isEnabled());
         assertFieldNames("""
             FROM employees

@@ -10,10 +10,8 @@
 package org.elasticsearch.index.codec.vectors.cluster;
 
 import org.apache.lucene.index.FloatVectorValues;
-import org.apache.lucene.store.IndexInput;
 
 import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.util.List;
 
 public abstract class PrefetchingFloatVectorValues extends FloatVectorValues {

@@ -147,12 +147,10 @@ public final class RemoteClusterService extends RemoteClusterAware
 
     public static final String REMOTE_CLUSTER_HANDSHAKE_ACTION_NAME = "cluster:internal/remote_cluster/handshake";
 
-    private final boolean enabled;
+    private final boolean isRemoteClusterClient;
+    private final boolean isSearchNode;
+    private final boolean isStateless;
     private final boolean remoteClusterServerEnabled;
-
-    public boolean isEnabled() {
-        return enabled;
-    }
 
     public boolean isRemoteClusterServerEnabled() {
         return remoteClusterServerEnabled;
@@ -166,7 +164,9 @@ public final class RemoteClusterService extends RemoteClusterAware
     @FixForMultiProject(description = "Inject the ProjectResolver instance.")
     RemoteClusterService(Settings settings, TransportService transportService) {
         super(settings);
-        this.enabled = DiscoveryNode.isRemoteClusterClient(settings);
+        this.isRemoteClusterClient = DiscoveryNode.isRemoteClusterClient(settings);
+        this.isSearchNode = DiscoveryNode.hasRole(settings, DiscoveryNodeRole.SEARCH_ROLE);
+        this.isStateless = DiscoveryNode.isStateless(settings);
         this.remoteClusterServerEnabled = REMOTE_CLUSTER_SERVER_ENABLED.get(settings);
         this.transportService = transportService;
         this.projectResolver = DefaultProjectResolver.INSTANCE;
@@ -177,10 +177,6 @@ public final class RemoteClusterService extends RemoteClusterAware
         if (remoteClusterServerEnabled) {
             registerRemoteClusterHandshakeRequestHandler(transportService);
         }
-    }
-
-    public DiscoveryNode getLocalNode() {
-        return transportService.getLocalNode();
     }
 
     /**
@@ -335,11 +331,7 @@ public final class RemoteClusterService extends RemoteClusterAware
     }
 
     public RemoteClusterConnection getRemoteClusterConnection(String cluster) {
-        if (enabled == false) {
-            throw new IllegalArgumentException(
-                "this node does not have the " + DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE.roleName() + " role"
-            );
-        }
+        ensureClientIsEnabled();
         @FixForMultiProject(description = "Verify all callers will have the proper context set for resolving the origin project ID.")
         RemoteClusterConnection connection = getConnectionsMapForCurrentProject().get(cluster);
         if (connection == null) {
@@ -595,11 +587,7 @@ public final class RemoteClusterService extends RemoteClusterAware
      * function on success.
      */
     public void collectNodes(Set<String> clusters, ActionListener<BiFunction<String, String, DiscoveryNode>> listener) {
-        if (enabled == false) {
-            throw new IllegalArgumentException(
-                "this node does not have the " + DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE.roleName() + " role"
-            );
-        }
+        ensureClientIsEnabled();
         @FixForMultiProject(description = "Analyze usages and determine if the project ID must be provided.")
         final var projectConnectionsMap = getConnectionsMapForCurrentProject();
         final var connectionsMap = new HashMap<String, RemoteClusterConnection>();
@@ -662,11 +650,7 @@ public final class RemoteClusterService extends RemoteClusterAware
         Executor responseExecutor,
         DisconnectedStrategy disconnectedStrategy
     ) {
-        if (transportService.getRemoteClusterService().isEnabled() == false) {
-            throw new IllegalArgumentException(
-                "this node does not have the " + DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE.roleName() + " role"
-            );
-        }
+        ensureClientIsEnabled();
         if (transportService.getRemoteClusterService().getRegisteredRemoteClusterNames().contains(clusterAlias) == false) {
             throw new NoSuchRemoteClusterException(clusterAlias);
         }
@@ -675,6 +659,34 @@ public final class RemoteClusterService extends RemoteClusterAware
             case FAIL_IF_DISCONNECTED -> false;
             case RECONNECT_UNLESS_SKIP_UNAVAILABLE -> transportService.getRemoteClusterService().isSkipUnavailable(clusterAlias) == false;
         });
+    }
+
+    /**
+     * Verifies this node is configured to support linked project client operations.
+     * @throws IllegalArgumentException If this node is not configured to support client operations.
+     */
+    public void ensureClientIsEnabled() {
+        if (isRemoteClusterClient) {
+            return;
+        }
+        if (isStateless == false) {
+            throw new IllegalArgumentException(
+                "node [" + getNodeName() + "] does not have the [" + DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE.roleName() + "] role"
+            );
+        }
+        // For stateless the remote cluster client is enabled by default for search nodes,
+        // REMOTE_CLUSTER_CLIENT_ROLE is not explicitly required.
+        if (isSearchNode == false) {
+            throw new IllegalArgumentException(
+                "node ["
+                    + getNodeName()
+                    + "] must have the ["
+                    + DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE.roleName()
+                    + "] role or the ["
+                    + DiscoveryNodeRole.SEARCH_ROLE.roleName()
+                    + "] role in stateless environments to use linked project client features"
+            );
+        }
     }
 
     static void registerRemoteClusterHandshakeRequestHandler(TransportService transportService) {

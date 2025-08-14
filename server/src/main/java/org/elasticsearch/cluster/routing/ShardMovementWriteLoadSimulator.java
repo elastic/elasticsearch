@@ -92,7 +92,7 @@ public class ShardMovementWriteLoadSimulator {
                 (writeThreadPoolStats.averageThreadPoolUtilization() + (writeLoadDelta / writeThreadPoolStats.totalThreadPoolThreads())),
                 0.0
             ),
-            writeThreadPoolStats.averageThreadPoolQueueLatencyMillis()
+            writeThreadPoolStats.maxThreadPoolQueueLatencyMillis()
         );
     }
 }

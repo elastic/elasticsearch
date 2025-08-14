@@ -48,9 +48,7 @@ public class LinearRetrieverComponent implements ToXContentObject {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.field(RETRIEVER_FIELD.getPreferredName(), retriever);
         builder.field(WEIGHT_FIELD.getPreferredName(), weight);
-        if (normalizer != null) {
-            builder.field(NORMALIZER_FIELD.getPreferredName(), normalizer.getName());
-        }
+        builder.field(NORMALIZER_FIELD.getPreferredName(), normalizer.getName());
         return builder;
     }
 

@@ -9,8 +9,6 @@ package org.elasticsearch.xpack.rank.linear;
 
 import org.apache.lucene.search.ScoreDoc;
 
-import java.util.Objects;
-
 /**
  * A no-op {@link ScoreNormalizer} that does not modify the scores.
  */
@@ -33,21 +31,4 @@ public abstract class ScoreNormalizer {
     public abstract String getName();
 
     public abstract ScoreDoc[] normalizeScores(ScoreDoc[] docs);
-
-    @Override
-    public boolean equals(Object obj) {
-        if (this == obj) {
-            return true;
-        }
-        if (obj == null || getClass() != obj.getClass()) {
-            return false;
-        }
-        ScoreNormalizer that = (ScoreNormalizer) obj;
-        return Objects.equals(getName(), that.getName());
-    }
-
-    @Override
-    public int hashCode() {
-        return Objects.hash(getName());
-    }
 }

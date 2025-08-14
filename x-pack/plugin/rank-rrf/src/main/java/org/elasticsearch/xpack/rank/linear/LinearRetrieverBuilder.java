@@ -389,18 +389,6 @@ public final class LinearRetrieverBuilder extends CompoundRetrieverBuilder<Linea
         return normalizers;
     }
 
-    List<String> getFields() {
-        return fields;
-    }
-
-    String getQuery() {
-        return query;
-    }
-
-    ScoreNormalizer getNormalizer() {
-        return normalizer;
-    }
-
     public void doToXContent(XContentBuilder builder, Params params) throws IOException {
         int index = 0;
         if (innerRetrievers.isEmpty() == false) {
@@ -435,12 +423,9 @@ public final class LinearRetrieverBuilder extends CompoundRetrieverBuilder<Linea
 
     @Override
     public boolean doEquals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        if (super.doEquals(o) == false) return false;
-
         LinearRetrieverBuilder that = (LinearRetrieverBuilder) o;
-        return Arrays.equals(weights, that.weights)
+        return super.doEquals(o)
+            && Arrays.equals(weights, that.weights)
             && Arrays.equals(normalizers, that.normalizers)
             && Objects.equals(fields, that.fields)
             && Objects.equals(query, that.query)

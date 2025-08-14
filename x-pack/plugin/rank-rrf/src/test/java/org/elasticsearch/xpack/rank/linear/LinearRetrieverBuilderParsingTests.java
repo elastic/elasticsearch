@@ -25,9 +25,9 @@ import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 
+import static java.util.Collections.emptyList;
 import static org.hamcrest.Matchers.instanceOf;
 
 public class LinearRetrieverBuilderParsingTests extends AbstractXContentTestCase<LinearRetrieverBuilder> {
@@ -35,7 +35,7 @@ public class LinearRetrieverBuilderParsingTests extends AbstractXContentTestCase
 
     @BeforeClass
     public static void init() {
-        xContentRegistryEntries = new SearchModule(Settings.EMPTY, Collections.emptyList()).getNamedXContents();
+        xContentRegistryEntries = new SearchModule(Settings.EMPTY, emptyList()).getNamedXContents();
     }
 
     @AfterClass
@@ -152,8 +152,11 @@ public class LinearRetrieverBuilderParsingTests extends AbstractXContentTestCase
 
         try (XContentParser parser = createParser(XContentType.JSON.xContent(), json)) {
             LinearRetrieverBuilder builder = doParseInstance(parser);
-            assertThat(builder.getNormalizer(), instanceOf(MinMaxScoreNormalizer.class));
-            for (ScoreNormalizer normalizer : builder.getNormalizers()) {
+            // Test that the top-level normalizer is properly applied - the individual
+            // retrievers specified "none" but should be overridden by top-level "minmax"
+            ScoreNormalizer[] normalizers = builder.getNormalizers();
+            assertEquals(2, normalizers.length);
+            for (ScoreNormalizer normalizer : normalizers) {
                 assertThat(normalizer, instanceOf(IdentityScoreNormalizer.class));
             }
         }

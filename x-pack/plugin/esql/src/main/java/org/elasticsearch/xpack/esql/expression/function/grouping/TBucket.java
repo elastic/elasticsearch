@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.esql.expression.function.grouping;
 
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -20,6 +22,7 @@ import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionType;
 import org.elasticsearch.xpack.esql.expression.function.Param;
+import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 
 import java.io.IOException;
 import java.util.List;
@@ -32,6 +35,7 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isTyp
  * Splits dates into a given number of buckets. The span is derived from a time range provided.
  */
 public class TBucket extends GroupingFunction.EvaluatableGroupingFunction implements SurrogateExpression {
+    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "TBucket", TBucket::new);
 
     private final Expression buckets;
     private final Expression timestamp;
@@ -73,14 +77,20 @@ public class TBucket extends GroupingFunction.EvaluatableGroupingFunction implem
         this.timestamp = timestamp;
     }
 
+    private TBucket(StreamInput in) throws IOException {
+        this(Source.readFrom((PlanStreamInput) in), in.readNamedWriteable(Expression.class), in.readNamedWriteable(Expression.class));
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        throw new UnsupportedOperationException("not serialized");
+        source().writeTo(out);
+        out.writeNamedWriteable(buckets);
+        out.writeNamedWriteable(timestamp);
     }
 
     @Override
     public String getWriteableName() {
-        throw new UnsupportedOperationException("not serialized");
+        return ENTRY.name;
     }
 
     @Override

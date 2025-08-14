@@ -2960,6 +2960,12 @@ public class FieldNameUtilsTests extends ESTestCase {
             | KEEP emp_no, gender, x, a, b, _fork""", Set.of("emp_no", "gender", "gender.*", "emp_no.*"));
     }
 
+    public void testImplicitFieldNames() {
+        assertFieldNames("""
+            FROM sample_data
+            | STATS x = 1 year + TBUCKET(1 day) BY b1d = TBUCKET(1 day)""", Set.of("@timestamp", "@timestamp.*"));
+    }
+
     private void assertFieldNames(String query, Set<String> expected) {
         assertFieldNames(query, new EnrichResolution(), expected, Set.of());
     }

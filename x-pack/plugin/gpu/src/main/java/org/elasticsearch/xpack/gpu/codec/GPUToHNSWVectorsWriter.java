@@ -245,14 +245,9 @@ final class GPUToHNSWVectorsWriter extends KnnVectorsWriter {
                 var dataset = datasetOrVectors.dataset;
                 var cuVSResources = cuVSResourceManager.acquire((int) dataset.size(), (int) dataset.columns());
                 try {
-                    var index = buildGPUIndex(cuVSResources, fieldInfo.getVectorSimilarityFunction(), dataset);
-                    try {
+                    try (var index = buildGPUIndex(cuVSResources, fieldInfo.getVectorSimilarityFunction(), dataset)) {
                         assert index != null : "GPU index should be built for field: " + fieldInfo.name;
                         mockGraph = writeGraph(index.getGraph(), graphLevelNodeOffsets);
-                    } finally {
-                        if (index != null) {
-                            index.destroyIndex();
-                        }
                     }
                 } finally {
                     cuVSResourceManager.release(cuVSResources);

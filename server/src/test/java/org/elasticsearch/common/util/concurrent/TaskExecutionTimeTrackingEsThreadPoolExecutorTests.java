@@ -463,8 +463,8 @@ public class TaskExecutionTimeTrackingEsThreadPoolExecutorTests extends ESTestCa
      */
     private static void waitForTimeToElapse() throws InterruptedException {
         final var startNanoTime = System.nanoTime();
-        while ((System.nanoTime() - startNanoTime) < 1) {
-            Thread.sleep(Duration.ofNanos(1));
+        while (TimeUnit.MILLISECONDS.convert(System.nanoTime() - startNanoTime, TimeUnit.NANOSECONDS) < 1) {
+            Thread.sleep(Duration.ofMillis(1));
         }
     }
 }

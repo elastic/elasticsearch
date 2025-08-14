@@ -38,7 +38,7 @@ public abstract class GenerateTransportVersionManifestTask extends DefaultTask {
             Files.walkFileTree(definitionsDir, new SimpleFileVisitor<>() {
                 @Override
                 public FileVisitResult visitFile(Path path, BasicFileAttributes attrs) throws IOException {
-                    String subPath = definitionsDir.relativize(path).toString();
+                    String subPath = definitionsDir.relativize(path).toString().replace('\\', '/');
                     writer.write(subPath + "\n");
                     return FileVisitResult.CONTINUE;
                 }

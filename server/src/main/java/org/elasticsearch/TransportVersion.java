@@ -242,15 +242,15 @@ public record TransportVersion(String name, int id, TransportVersion nextPatchVe
                 (c, p, br) -> br.lines().filter(line -> line.isBlank() == false).toList()
             );
             throw new IllegalStateException(
-                "unknown transport version ["
+                "\nunknown transport version ["
                     + name
-                    + "];\n"
-                    + "known names ["
+                    + "];"
+                    + "\nknown names ["
                     + VersionsHolder.ALL_VERSIONS_BY_NAME
-                    + "]\n"
-                    + "version relative paths ["
+                    + "]"
+                    + "\nrelative paths"
                     + versionRelativePaths
-                    + "]\n"
+                    + "\n"
             );
         }
         return known;

@@ -9,7 +9,6 @@
 
 package org.elasticsearch.index.codec.vectors.cluster;
 
-import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.util.VectorUtil;
 import org.elasticsearch.test.ESTestCase;
 
@@ -27,7 +26,7 @@ public class KMeansLocalTests extends ESTestCase {
         IllegalArgumentException ex = expectThrows(
             IllegalArgumentException.class,
             () -> kMeansLocal.cluster(
-                FloatVectorValues.fromFloats(List.of(), randomInt(1024)),
+                PrefetchingFloatVectorValues.floats(List.of(), randomInt(1024)),
                 kMeansIntermediate,
                 randomIntBetween(Integer.MIN_VALUE, 1),
                 randomFloat()
@@ -44,7 +43,7 @@ public class KMeansLocalTests extends ESTestCase {
         int maxIterations = random().nextInt(0, 100);
         int clustersPerNeighborhood = random().nextInt(2, 512);
         float soarLambda = random().nextFloat(0.5f, 1.5f);
-        FloatVectorValues vectors = generateData(nVectors, dims, nClusters);
+        PrefetchingFloatVectorValues vectors = generateData(nVectors, dims, nClusters);
 
         float[][] centroids = KMeansLocal.pickInitialCentroids(vectors, nClusters);
         KMeansLocal.cluster(vectors, centroids, sampleSize, maxIterations);
@@ -85,7 +84,7 @@ public class KMeansLocalTests extends ESTestCase {
             vectors.add(vector);
         }
         int sampleSize = vectors.size();
-        FloatVectorValues fvv = FloatVectorValues.fromFloats(vectors, 5);
+        PrefetchingFloatVectorValues fvv = PrefetchingFloatVectorValues.floats(vectors, 5);
 
         float[][] centroids = KMeansLocal.pickInitialCentroids(fvv, nClusters);
         KMeansLocal.cluster(fvv, centroids, sampleSize, maxIterations);
@@ -121,7 +120,7 @@ public class KMeansLocalTests extends ESTestCase {
         }
     }
 
-    private static FloatVectorValues generateData(int nSamples, int nDims, int nClusters) {
+    private static PrefetchingFloatVectorValues generateData(int nSamples, int nDims, int nClusters) {
         List<float[]> vectors = new ArrayList<>(nSamples);
         float[][] centroids = new float[nClusters][nDims];
         // Generate random centroids
@@ -139,6 +138,6 @@ public class KMeansLocalTests extends ESTestCase {
             }
             vectors.add(vector);
         }
-        return FloatVectorValues.fromFloats(vectors, nDims);
+        return PrefetchingFloatVectorValues.floats(vectors, nDims);
     }
 }

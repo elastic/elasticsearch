@@ -20,21 +20,21 @@
 package org.elasticsearch.index.codec.vectors;
 
 import org.apache.lucene.codecs.lucene95.HasIndexSlice;
-import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.Bits;
+import org.elasticsearch.index.codec.vectors.cluster.PrefetchingFloatVectorValues;
 
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Random;
 import java.util.function.IntUnaryOperator;
 
-public class SampleReader extends FloatVectorValues implements HasIndexSlice {
-    private final FloatVectorValues origin;
+public class SampleReader extends PrefetchingFloatVectorValues implements HasIndexSlice {
+    private final PrefetchingFloatVectorValues origin;
     private final int sampleSize;
     private final IntUnaryOperator sampleFunction;
 
-    SampleReader(FloatVectorValues origin, int sampleSize, IntUnaryOperator sampleFunction) {
+    SampleReader(PrefetchingFloatVectorValues origin, int sampleSize, IntUnaryOperator sampleFunction) {
         this.origin = origin;
         this.sampleSize = sampleSize;
         this.sampleFunction = sampleFunction;
@@ -51,7 +51,14 @@ public class SampleReader extends FloatVectorValues implements HasIndexSlice {
     }
 
     @Override
-    public FloatVectorValues copy() throws IOException {
+    public void prefetch(int... ord) throws IOException {
+        for (int o : ord) {
+            origin.prefetch(sampleFunction.applyAsInt(o));
+        }
+    }
+
+    @Override
+    public PrefetchingFloatVectorValues copy() throws IOException {
         throw new IllegalStateException("Not supported");
     }
 
@@ -81,7 +88,7 @@ public class SampleReader extends FloatVectorValues implements HasIndexSlice {
         throw new IllegalStateException("Not supported");
     }
 
-    public static SampleReader createSampleReader(FloatVectorValues origin, int k, long seed) {
+    public static SampleReader createSampleReader(PrefetchingFloatVectorValues origin, int k, long seed) {
         // TODO can we do something algorithmically that aligns an ordinal with a unique integer between 0 and numVectors?
         if (k >= origin.size()) {
             new SampleReader(origin, origin.size(), i -> i);

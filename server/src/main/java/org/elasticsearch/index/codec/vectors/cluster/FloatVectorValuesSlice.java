@@ -9,16 +9,14 @@
 
 package org.elasticsearch.index.codec.vectors.cluster;
 
-import org.apache.lucene.index.FloatVectorValues;
-
 import java.io.IOException;
 
-class FloatVectorValuesSlice extends FloatVectorValues {
+class FloatVectorValuesSlice extends PrefetchingFloatVectorValues {
 
-    private final FloatVectorValues allValues;
+    private final PrefetchingFloatVectorValues allValues;
     private final int[] slice;
 
-    FloatVectorValuesSlice(FloatVectorValues allValues, int[] slice) {
+    FloatVectorValuesSlice(PrefetchingFloatVectorValues allValues, int[] slice) {
         assert slice != null;
         assert slice.length <= allValues.size();
         this.allValues = allValues;
@@ -46,7 +44,14 @@ class FloatVectorValuesSlice extends FloatVectorValues {
     }
 
     @Override
-    public FloatVectorValues copy() throws IOException {
+    public PrefetchingFloatVectorValues copy() throws IOException {
         return new FloatVectorValuesSlice(this.allValues.copy(), this.slice);
+    }
+
+    @Override
+    public void prefetch(int... ord) throws IOException {
+        for (int o : ord) {
+            this.allValues.prefetch(slice[o]);
+        }
     }
 }

@@ -79,66 +79,130 @@ public class ESONXContentParser extends AbstractXContentParser {
         // ESON already handles this during parsing
     }
 
+    private static final byte STATE_NEED_FIELD_NAME = 0;
+    private static final byte STATE_NEED_VALUE = 1;
+    private static final byte STATE_IN_ARRAY = 2;
+
     @Override
     public Token nextToken() throws IOException {
+        if (currentToken != null && containerStack.isEmpty() == false) {
+            int remainingFields = containerStack.currentContainerFieldsRemaining();
+
+            if (remainingFields > 0) {
+                boolean isObject = containerStack.isCurrentContainerObject();
+
+                if (isObject && currentToken != Token.FIELD_NAME) {
+                    currentEntry = keyArray.get(currentIndex);
+                    currentValue = null;
+                    currentFieldName = currentEntry.key();
+                    return currentToken = Token.FIELD_NAME;
+                } else {
+                    if (currentToken != Token.FIELD_NAME) {
+                        // In array - need to fetch entry
+                        currentEntry = keyArray.get(currentIndex);
+                        currentValue = null;
+                    }
+
+                    containerStack.decrementCurrentContainerFields();
+                    ++currentIndex;
+
+                    byte type = currentEntry.type();
+                    if (type > ESONEntry.TYPE_ARRAY) {
+                        return currentToken = TOKEN_LOOKUP[type];
+                    } else {
+                        newContainer(type);
+                        return currentToken = TOKEN_LOOKUP[type];
+                    }
+                }
+            } else {
+                // End of container
+                boolean isObject = containerStack.isCurrentContainerObject();
+                containerStack.popContainer();
+                return currentToken = isObject ? Token.END_OBJECT : Token.END_ARRAY;
+            }
+        }
+
         if (closed) {
             return null;
         }
 
-        // Clear value state from previous token
-        currentValue = null;
-        valueComputed = false;
-
-        int size = keyArray.size();
-
-        // First token - start root object
         if (currentToken == null) {
-            assert size >= currentIndex;
-            ESONEntry.ObjectEntry rootEntry = (ESONEntry.ObjectEntry) keyArray.get(currentIndex);
-            containerStack.pushObject(rootEntry.offsetOrCount());
+            // First token logic
+            currentEntry = keyArray.get(currentIndex);
+            containerStack.pushObject(currentEntry.offsetOrCount());
             currentIndex++;
-            currentToken = Token.START_OBJECT;
-            return currentToken;
+            return currentToken = Token.START_OBJECT;
         }
 
-        // Check if we've finished parsing
-        if (containerStack.isEmpty()) {
-            return null;
-        }
+        return null;  // Finished parsing
+    }
 
-        if (containerStack.currentContainerFieldsRemaining() == 0) {
-            currentToken = containerStack.isCurrentContainerArray() ? Token.END_ARRAY : Token.END_OBJECT;
-            containerStack.popContainer();
-            return currentToken;
-        }
-
-        assert size > currentIndex;
-
-        // Process next entry
-        currentEntry = keyArray.get(currentIndex);
-
-        // Handle based on container type
-        if (containerStack.isCurrentContainerArray() == false && currentToken != Token.FIELD_NAME) {
-            currentFieldName = currentEntry.key();
-            currentToken = Token.FIELD_NAME;
-            return currentToken;
+    private void newContainer(byte type) {
+        if (type == ESONEntry.TYPE_OBJECT) {
+            containerStack.pushObject(currentEntry.offsetOrCount());
         } else {
-            containerStack.decrementCurrentContainerFields();
-            ++currentIndex;
-            // In array or object value
-            byte type = currentEntry.type();
-            if (type >= ESONEntry.TYPE_OBJECT) {
-                if (type == ESONEntry.TYPE_OBJECT) {
-                    containerStack.pushObject(currentEntry.offsetOrCount());
-                } else if (type == ESONEntry.TYPE_ARRAY) {
-                    containerStack.pushArray(currentEntry.offsetOrCount());
-                }
-            }
-
-            currentToken = TOKEN_LOOKUP[type];
-            return currentToken;
+            containerStack.pushArray(currentEntry.offsetOrCount());
         }
     }
+    // public Token nextToken() throws IOException {
+    // if (closed) {
+    // return null;
+    // }
+    //
+    // // Clear value state from previous token
+    // currentValue = null;
+    // valueComputed = false;
+    //
+    // int size = keyArray.size();
+    //
+    // // First token - start root object
+    // if (currentToken == null) {
+    // assert size >= currentIndex;
+    // ESONEntry.ObjectEntry rootEntry = (ESONEntry.ObjectEntry) keyArray.get(currentIndex);
+    // containerStack.pushObject(rootEntry.offsetOrCount());
+    // currentIndex++;
+    // currentToken = Token.START_OBJECT;
+    // return currentToken;
+    // }
+    //
+    // // Check if we've finished parsing
+    // if (containerStack.isEmpty()) {
+    // return null;
+    // }
+    //
+    // if (containerStack.currentContainerFieldsRemaining() == 0) {
+    // currentToken = containerStack.isCurrentContainerArray() ? Token.END_ARRAY : Token.END_OBJECT;
+    // containerStack.popContainer();
+    // return currentToken;
+    // }
+    //
+    // assert size > currentIndex;
+    //
+    // // Process next entry
+    // currentEntry = keyArray.get(currentIndex);
+    //
+    // // Handle based on container type
+    // if (containerStack.isCurrentContainerArray() == false && currentToken != Token.FIELD_NAME) {
+    // currentFieldName = currentEntry.key();
+    // currentToken = Token.FIELD_NAME;
+    // return currentToken;
+    // } else {
+    // containerStack.decrementCurrentContainerFields();
+    // ++currentIndex;
+    // // In array or object value
+    // byte type = currentEntry.type();
+    // if (type >= ESONEntry.TYPE_OBJECT) {
+    // if (type == ESONEntry.TYPE_OBJECT) {
+    // containerStack.pushObject(currentEntry.offsetOrCount());
+    // } else if (type == ESONEntry.TYPE_ARRAY) {
+    // containerStack.pushArray(currentEntry.offsetOrCount());
+    // }
+    // }
+    //
+    // currentToken = TOKEN_LOOKUP[type];
+    // return currentToken;
+    // }
+    // }
 
     private static final Token[] TOKEN_LOOKUP = new Token[32]; // Adjust size based on max type value
 
@@ -218,7 +282,7 @@ public class ESONXContentParser extends AbstractXContentParser {
             return currentFieldName;
         }
         // When on a value token, return the field name if in an object
-        if (containerStack.isEmpty() == false && containerStack.isCurrentContainerArray() == false && currentFieldName != null) {
+        if (containerStack.isEmpty() == false && containerStack.isCurrentContainerObject() && currentFieldName != null) {
             return currentFieldName;
         }
         return null;
@@ -462,8 +526,8 @@ public class ESONXContentParser extends AbstractXContentParser {
             containerStack = Arrays.copyOf(containerStack, containerStack.length << 1);
         }
 
-        private boolean isCurrentContainerArray() {
-            return (containerStack[stackTop] & CONTAINER_TYPE_MASK) != 0;
+        private boolean isCurrentContainerObject() {
+            return (containerStack[stackTop] & CONTAINER_TYPE_MASK) == 0;
         }
 
         private int currentContainerFieldsRemaining() {

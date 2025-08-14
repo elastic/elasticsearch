@@ -6,12 +6,12 @@
         "Api": {
             "type": "object",
             "propertyNames": {
-                "pattern": "^(?:[a-z]+?(_[a-z]+)*(\\.[a-z]+?(_[a-z]+)*)?|_internal\\.[a-z]+?(_[a-z]+)*)$"
+                "pattern": "^(?:[a-z][a-z0-9]*?(_[a-z0-9]+)*(\\.[a-z][a-z0-9]*?(_[a-z0-9]+)*)?|_internal\\.[a-z][a-z0-9]*?(_[a-z0-9]+)*)$"
             },
             "minProperties": 1,
             "maxProperties": 1,
             "patternProperties": {
-                "^(?:[a-z]+?(_[a-z]+)*(\\.[a-z]+?(_[a-z]+)*)?|_internal\\.[a-z]+?(_[a-z]+)*)$": {
+                "^(?:[a-z][a-z0-9]*?(_[a-z0-9]+)*(\\.[a-z][a-z0-9]*?(_[a-z0-9]+)*)?|_internal\\.[a-z][a-z0-9]*?(_[a-z0-9]+)*)$": {
                     "$ref": "#/definitions/Components"
                 }
             },
@@ -135,10 +135,10 @@
             "type": "object",
             "additionalProperties": true,
             "propertyNames": {
-              "pattern": "^_?[a-z]+?(_[a-z]+)*$"
+              "pattern": "^_?[a-z][a-z0-9]*?(_[a-z0-9]+)*$"
             },
             "patternProperties": {
-                "^_?[a-z]+?(_[a-z]+)*$": {
+                "^_?[a-z][a-z0-9]*?(_[a-z0-9]+)*$": {
                     "$ref": "#/definitions/ParamPart"
                 }
             },
@@ -232,10 +232,10 @@
             "type": "object",
             "additionalProperties": true,
             "propertyNames": {
-              "pattern": "^_?[a-z]+?(_[a-z]+)*$"
+              "pattern": "^_?[a-z][a-z0-9]*?(_[a-z0-9]+)*$"
             },
             "patternProperties": {
-                "^_?[a-z]+?(_[a-z]+)*$": {
+                "^_?[a-z][a-z0-9]*?(_[a-z0-9]+)*$": {
                     "$ref": "#/definitions/ParamPart"
                 }
             },

@@ -32,9 +32,11 @@ public class KnnQuery extends Query {
     private final List<QueryBuilder> filterQueries;
 
     public static final String RESCORE_OVERSAMPLE_FIELD = "rescore_oversample";
+    private final Integer k;
 
-    public KnnQuery(Source source, String field, float[] query, Map<String, Object> options, List<QueryBuilder> filterQueries) {
+    public KnnQuery(Source source, String field, float[] query, Integer k, Map<String, Object> options, List<QueryBuilder> filterQueries) {
         super(source);
+        this.k = k;
         assert options != null;
         this.field = field;
         this.query = query;
@@ -44,7 +46,6 @@ public class KnnQuery extends Query {
 
     @Override
     protected QueryBuilder asBuilder() {
-        Integer k = (Integer) options.get(K_FIELD.getPreferredName());
         Integer numCands = (Integer) options.get(NUM_CANDS_FIELD.getPreferredName());
         RescoreVectorBuilder rescoreVectorBuilder = null;
         Float oversample = (Float) options.get(RESCORE_OVERSAMPLE_FIELD);

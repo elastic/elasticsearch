@@ -8568,6 +8568,78 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         assertTrue(secondKnnFilters.contains(firstOr.right()));
     }
 
+    public void testKnnImplicitLimit() {
+        assumeTrue("knn must be enabled", EsqlCapabilities.Cap.KNN_FUNCTION_V3.isEnabled());
+
+        var query = """
+            from test
+            | where knn(dense_vector, [0, 1, 2])
+            """;
+        var optimized = planTypes(query);
+
+        var limit = as(optimized, Limit.class);
+        var filter = as(limit.child(), Filter.class);
+        var knn = as(filter.condition(), Knn.class);
+        assertThat(knn.k(), equalTo(1000));
+    }
+
+    public void testKnnWithLimit() {
+        assumeTrue("knn must be enabled", EsqlCapabilities.Cap.KNN_FUNCTION_V3.isEnabled());
+
+        var query = """
+            from test
+            | where knn(dense_vector, [0, 1, 2])
+            | limit 10
+            """;
+        var optimized = planTypes(query);
+
+        var limit = as(optimized, Limit.class);
+        var filter = as(limit.child(), Filter.class);
+        var knn = as(filter.condition(), Knn.class);
+        assertThat(knn.k(), equalTo(10));
+    }
+
+    public void testKnnWithMultipleLimits() {
+        assumeTrue("knn must be enabled", EsqlCapabilities.Cap.KNN_FUNCTION_V3.isEnabled());
+
+        var query = """
+            from test metadata _score
+            | where knn(dense_vector, [0, 1, 2])
+            | limit 20
+            | sort _score desc
+            | limit 10
+            """;
+        var optimized = planTypes(query);
+
+        var topN = as(optimized, TopN.class);
+        assertThat(topN.limit().fold(FoldContext.small()), equalTo(10));
+        var limit = as(topN.child(), Limit.class);
+        var filter = as(limit.child(), Filter.class);
+        var knn = as(filter.condition(), Knn.class);
+        assertThat(knn.k(), equalTo(20));
+    }
+
+    public void testKnnWithMultipleClauses() {
+        assumeTrue("knn must be enabled", EsqlCapabilities.Cap.KNN_FUNCTION_V3.isEnabled());
+
+        var query = """
+            from test metadata _score
+            | where knn(dense_vector, [0, 1, 2]) and match(keyword, "test")
+            | where knn(dense_vector, [1, 2, 3])
+            | limit 30
+            | sort _score desc
+            | limit 10
+            """;
+        var optimized = planTypes(query);
+
+        var topN = as(optimized, TopN.class);
+        assertThat(topN.limit().fold(FoldContext.small()), equalTo(10));
+        var limit = as(topN.child(), Limit.class);
+        var filter = as(limit.child(), Filter.class);
+        var knn = as(filter.condition(), Knn.class);
+        assertThat(knn.k(), equalTo(20));
+    }
+
     private LogicalPlanOptimizer getCustomRulesLogicalPlanOptimizer(List<RuleExecutor.Batch<LogicalPlan>> batches) {
         LogicalOptimizerContext context = new LogicalOptimizerContext(EsqlTestUtils.TEST_CFG, FoldContext.small());
         LogicalPlanOptimizer customOptimizer = new LogicalPlanOptimizer(context) {

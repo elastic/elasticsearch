@@ -21,8 +21,6 @@ import org.elasticsearch.index.query.TermsQueryBuilder;
 import org.elasticsearch.index.search.QueryParserHelper;
 import org.elasticsearch.plugins.internal.rewriter.QueryRewriteInterceptor;
 
-import static org.elasticsearch.index.IndexSettings.DEFAULT_FIELD_SETTING;
-
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
@@ -31,6 +29,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
+
+import static org.elasticsearch.index.IndexSettings.DEFAULT_FIELD_SETTING;
 
 /**
  * Intercepts and adapts a query to be rewritten to work seamlessly on a semantic_text field.
@@ -48,8 +48,7 @@ public abstract class SemanticQueryRewriteInterceptor implements QueryRewriteInt
             return queryBuilder;
         }
 
-        boolean resolveInferenceFieldWildcards =
-            isResolveInferenceFieldWildcardsRequired(queryBuilder);
+        boolean resolveInferenceFieldWildcards = isResolveInferenceFieldWildcardsRequired(queryBuilder);
         InferenceIndexInformationForField indexInformation = resolveIndicesForFields(
             queryBuilder,
             resolvedIndices,

@@ -7,15 +7,12 @@
 
 package org.elasticsearch.xpack.inference.queries;
 
-import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.DisMaxQueryBuilder;
 import org.elasticsearch.index.query.MultiMatchQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.inference.MinimalServiceSettings;
-import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.inference.registry.ModelRegistry;
 
 import java.util.HashMap;
@@ -99,9 +96,7 @@ public class SemanticMultiMatchQueryRewriteInterceptor extends SemanticQueryRewr
         return switch (originalQuery.type()) {
             case BEST_FIELDS -> buildBestFieldsCombinedQuery(originalQuery, indexInformation, queryValue);
             case MOST_FIELDS -> buildMostFieldsCombinedQuery(originalQuery, indexInformation, queryValue);
-            default -> throw new IllegalArgumentException(
-                "Unsupported query type [" + originalQuery.type() + "] for semantic_text fields"
-            );
+            default -> throw new IllegalArgumentException("Unsupported query type [" + originalQuery.type() + "] for semantic_text fields");
         };
     }
 
@@ -126,9 +121,7 @@ public class SemanticMultiMatchQueryRewriteInterceptor extends SemanticQueryRewr
         return switch (originalQuery.type()) {
             case BEST_FIELDS -> buildBestFieldsSemanticQuery(originalQuery, indexInformation, inferenceFields, queryValue);
             case MOST_FIELDS -> buildMostFieldsSemanticQuery(originalQuery, indexInformation, inferenceFields, queryValue);
-            default -> throw new IllegalArgumentException(
-                "Unsupported query type [" + originalQuery.type() + "] for semantic_text fields"
-            );
+            default -> throw new IllegalArgumentException("Unsupported query type [" + originalQuery.type() + "] for semantic_text fields");
         };
     }
 

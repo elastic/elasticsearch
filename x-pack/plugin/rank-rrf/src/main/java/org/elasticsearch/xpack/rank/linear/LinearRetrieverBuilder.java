@@ -76,7 +76,6 @@ public final class LinearRetrieverBuilder extends CompoundRetrieverBuilder<Linea
     private final ScoreNormalizer normalizer;
 
     private static ScoreNormalizer resolveNormalizer(ScoreNormalizer componentNormalizer, ScoreNormalizer topLevelNormalizer) {
-        // Priority: retriever-specific override (if specified) > top-level normalizer (if specified) > default (none)
         if (componentNormalizer != null) {
             return componentNormalizer;
         }
@@ -410,9 +409,7 @@ public final class LinearRetrieverBuilder extends CompoundRetrieverBuilder<Linea
                 builder.startObject();
                 builder.field(LinearRetrieverComponent.RETRIEVER_FIELD.getPreferredName(), entry.retriever());
                 builder.field(LinearRetrieverComponent.WEIGHT_FIELD.getPreferredName(), weights[index]);
-
                 builder.field(LinearRetrieverComponent.NORMALIZER_FIELD.getPreferredName(), normalizers[index].getName());
-
                 builder.endObject();
                 index++;
             }

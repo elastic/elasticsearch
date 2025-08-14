@@ -2260,7 +2260,7 @@ public class InternalEngine extends Engine {
                 // if we can't get the lock right away we block if needed otherwise barf
                 if (waitIfOngoing == false) {
                     logger.trace("detected an in-flight flush, not blocking to wait for it's completion");
-                    listener.onResponse(FlushResult.NO_FLUSH);
+                    listener.onResponse(FlushResult.FLUSH_REQUEST_SKIPPED_DUE_TO_COLLISION);
                     return;
                 }
                 logger.trace("waiting for in-flight flush to finish");
@@ -2347,7 +2347,7 @@ public class InternalEngine extends Engine {
             pruneDeletedTombstones();
         }
 
-        waitForCommitDurability(generation, listener.map(v -> new FlushResult(true, generation)));
+        waitForCommitDurability(generation, listener.map(v -> new FlushResult(false, generation)));
     }
 
     protected final boolean isFlushLockIsHeldByCurrentThread() {
@@ -2881,6 +2881,16 @@ public class InternalEngine extends Engine {
                 throttle.deactivate();
             }
         }
+    }
+
+    @Override
+    public void suspendThrottling() {
+        throttle.suspendThrottle();
+    }
+
+    @Override
+    public void resumeThrottling() {
+        throttle.resumeThrottle();
     }
 
     @Override

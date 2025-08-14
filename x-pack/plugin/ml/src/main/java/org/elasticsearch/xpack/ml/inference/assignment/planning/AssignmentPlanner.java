@@ -60,13 +60,26 @@ public class AssignmentPlanner {
         return computePlan(true);
     }
 
-    public AssignmentPlan computePlan(boolean tryAssigningPreviouslyAssignedModels) {
+    /**
+     * Computes an {@link AssignmentPlan} for the given nodes and deployments.
+     * If {@code tryAssigningAllPreviouslyAllocatedModels} is true, then the plan will
+     * attempt to assign at least one allocation to previously assigned models.
+     * Otherwise, it will only ensure that deployments assigned to existing nodes will preserve at least one allocation
+     *
+     * @param tryAssigningAllPreviouslyAllocatedModels whether to do the best effort assigning previously assigned models somewhere
+     *                                                 with at least one allocation
+     * @return the computed assignment plan
+     */
+    public AssignmentPlan computePlan(boolean tryAssigningAllPreviouslyAllocatedModels) {
         logger.debug(() -> format("Computing plan for nodes = %s; deployments = %s", nodes, deployments));
 
         AssignmentPlan bestPlan;
         AssignmentPlan planSatisfyingCurrentAssignments = solveSatisfyingCurrentAssignments();
         logger.debug(() -> "Plan satisfying current assignments =\n" + planSatisfyingCurrentAssignments.prettyPrint());
-        if (planSatisfyingCurrentAssignments.arePreviouslyAssignedModelsAssigned() == false && tryAssigningPreviouslyAssignedModels) {
+        if (planSatisfyingCurrentAssignments.arePreviouslyAssignedModelsAssigned() || tryAssigningAllPreviouslyAllocatedModels == false) {
+            bestPlan = planSatisfyingCurrentAssignments;
+        } else {
+            // try to reuse any deployment that would otherwise drop to zero allocations
             AssignmentPlan planAllocatingAtLeastOnceModelsThatWerePreviouslyAllocated =
                 solveAllocatingAtLeastOnceModelsThatWerePreviouslyAllocated();
             logger.debug(
@@ -82,8 +95,6 @@ public class AssignmentPlanner {
                             ? planSatisfyingCurrentAssignments
                             : planAllocatingAtLeastOnceModelsThatWerePreviouslyAllocated;
             }
-        } else {
-            bestPlan = planSatisfyingCurrentAssignments;
         }
 
         logger.debug(() -> "Best plan =\n" + bestPlan.prettyPrint());
@@ -91,19 +102,30 @@ public class AssignmentPlanner {
         return bestPlan;
     }
 
+    /**
+     * Computes the best assignment plan from two strategies:
+     * 1. Preserving one allocation on current assignments, which is the most flexible
+     * 2. Preserving all allocations on current assignments, which is more conservative
+     * @return the best assignment plan
+     */
     private AssignmentPlan solveSatisfyingCurrentAssignments() {
         AssignmentPlan bestPlan;
         // First solve preserving one allocation per assignment because that is most flexible
         AssignmentPlan planKeepingOneAllocationOnCurrentAssignments = solveKeepingOneAllocationOnCurrentAssignments();
-        if (planKeepingOneAllocationOnCurrentAssignments.satisfiesCurrentAssignments() == false) {
+
+        if (planKeepingOneAllocationOnCurrentAssignments.satisfiesAllModels()) {
+            // If the plan satisfies all models, then we can use it as is
+            bestPlan = planKeepingOneAllocationOnCurrentAssignments;
+        } else if (planKeepingOneAllocationOnCurrentAssignments.satisfiesCurrentAssignments() == false) {
+            // If in the new assignment plan, some deployments have fewer allocations than in the current assignments,
+            // try explicitly preserving all allocations on current assignments.
             bestPlan = solvePreservingAllAllocationsOnCurrentAssignments();
-        } else if (planKeepingOneAllocationOnCurrentAssignments.satisfiesAllModels() == false) {
+        } else {
+            // Choose the best strategy according to {@link AssignmentPlan#computeQuality(AssignmentPlan)}
             AssignmentPlan planKeepingAllAllocationsOnCurrentAssignments = solvePreservingAllAllocationsOnCurrentAssignments();
             bestPlan = planKeepingAllAllocationsOnCurrentAssignments.compareTo(planKeepingOneAllocationOnCurrentAssignments) >= 0
                 ? planKeepingAllAllocationsOnCurrentAssignments
                 : planKeepingOneAllocationOnCurrentAssignments;
-        } else {
-            bestPlan = planKeepingOneAllocationOnCurrentAssignments;
         }
         return bestPlan;
     }
@@ -120,7 +142,7 @@ public class AssignmentPlanner {
                     1,
                     m.threadsPerAllocation(),
                     // don't rely on the current allocation
-                    new HashMap<>(),
+                    Map.of(),
                     m.maxAssignedAllocations(),
                     m.getAdaptiveAllocationsSettings(),
                     m.perDeploymentMemoryBytes(),

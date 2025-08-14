@@ -268,7 +268,7 @@ public class WaitForNoFollowersStepTests extends AbstractStepTestCase<WaitForNoF
             XPackInfoFeatureResponse xPackInfoFeatureResponse = new XPackInfoFeatureResponse(featureSet);
             listener.onResponse(xPackInfoFeatureResponse);
             return null;
-        }).when(client).execute(Mockito.same(XPackInfoFeatureAction.CCR), Mockito.any(), Mockito.any());
+        }).when(projectClient).execute(Mockito.same(XPackInfoFeatureAction.CCR), Mockito.any(), Mockito.any());
     }
 
     private void mockIndexStatsCall(String expectedIndexName, IndexStats indexStats) {

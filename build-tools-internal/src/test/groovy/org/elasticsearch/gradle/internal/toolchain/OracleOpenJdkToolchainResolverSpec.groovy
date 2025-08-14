@@ -67,16 +67,16 @@ class OracleOpenJdkToolchainResolverSpec extends AbstractToolchainResolverSpec {
          [24, anyVendor(), LINUX, AARCH64, "https://download.oracle.com/java/GA/jdk24/1f9ff9062db4449d8ca828c504ffae90/36/GPL/openjdk-24_linux-aarch64_bin.tar.gz"],
          [24, anyVendor(), WINDOWS, X86_64, "https://download.oracle.com/java/GA/jdk24/1f9ff9062db4449d8ca828c504ffae90/36/GPL/openjdk-24_windows-x64_bin.zip"],
          // EA build
-         [25, ORACLE, MAC_OS, X86_64, "http://builds.es-jdk-archive.com/jdks/openjdk/25/openjdk-25-ea+3/openjdk-25-ea+3_macos-x64_bin.tar.gz"],
-         [25, ORACLE, MAC_OS, AARCH64, "http://builds.es-jdk-archive.com/jdks/openjdk/25/openjdk-25-ea+3/openjdk-25-ea+3_macos-aarch64_bin.tar.gz"],
-         [25, ORACLE, LINUX, X86_64, "http://builds.es-jdk-archive.com/jdks/openjdk/25/openjdk-25-ea+3/openjdk-25-ea+3_linux-x64_bin.tar.gz"],
-         [25, ORACLE, LINUX, AARCH64, "http://builds.es-jdk-archive.com/jdks/openjdk/25/openjdk-25-ea+3/openjdk-25-ea+3_linux-aarch64_bin.tar.gz"],
-         [25, ORACLE, WINDOWS, X86_64, "http://builds.es-jdk-archive.com/jdks/openjdk/25/openjdk-25-ea+3/openjdk-25-ea+3_windows-x64_bin.zip"],
-         [25, anyVendor(), MAC_OS, X86_64, "http://builds.es-jdk-archive.com/jdks/openjdk/25/openjdk-25-ea+3/openjdk-25-ea+3_macos-x64_bin.tar.gz"],
-         [25, anyVendor(), MAC_OS, AARCH64, "http://builds.es-jdk-archive.com/jdks/openjdk/25/openjdk-25-ea+3/openjdk-25-ea+3_macos-aarch64_bin.tar.gz"],
-         [25, anyVendor(), LINUX, X86_64, "http://builds.es-jdk-archive.com/jdks/openjdk/25/openjdk-25-ea+3/openjdk-25-ea+3_linux-x64_bin.tar.gz"],
-         [25, anyVendor(), LINUX, AARCH64, "http://builds.es-jdk-archive.com/jdks/openjdk/25/openjdk-25-ea+3/openjdk-25-ea+3_linux-aarch64_bin.tar.gz"],
-         [25, anyVendor(), WINDOWS, X86_64, "http://builds.es-jdk-archive.com/jdks/openjdk/25/openjdk-25-ea+3/openjdk-25-ea+3_windows-x64_bin.zip"]]
+         [25, ORACLE, MAC_OS, X86_64, "https://builds.es-jdk-archive.com/jdks/openjdk/25/openjdk-25-ea+3/openjdk-25-ea+3_macos-x64_bin.tar.gz"],
+         [25, ORACLE, MAC_OS, AARCH64, "https://builds.es-jdk-archive.com/jdks/openjdk/25/openjdk-25-ea+3/openjdk-25-ea+3_macos-aarch64_bin.tar.gz"],
+         [25, ORACLE, LINUX, X86_64, "https://builds.es-jdk-archive.com/jdks/openjdk/25/openjdk-25-ea+3/openjdk-25-ea+3_linux-x64_bin.tar.gz"],
+         [25, ORACLE, LINUX, AARCH64, "https://builds.es-jdk-archive.com/jdks/openjdk/25/openjdk-25-ea+3/openjdk-25-ea+3_linux-aarch64_bin.tar.gz"],
+         [25, ORACLE, WINDOWS, X86_64, "https://builds.es-jdk-archive.com/jdks/openjdk/25/openjdk-25-ea+3/openjdk-25-ea+3_windows-x64_bin.zip"],
+         [25, anyVendor(), MAC_OS, X86_64, "https://builds.es-jdk-archive.com/jdks/openjdk/25/openjdk-25-ea+3/openjdk-25-ea+3_macos-x64_bin.tar.gz"],
+         [25, anyVendor(), MAC_OS, AARCH64, "https://builds.es-jdk-archive.com/jdks/openjdk/25/openjdk-25-ea+3/openjdk-25-ea+3_macos-aarch64_bin.tar.gz"],
+         [25, anyVendor(), LINUX, X86_64, "https://builds.es-jdk-archive.com/jdks/openjdk/25/openjdk-25-ea+3/openjdk-25-ea+3_linux-x64_bin.tar.gz"],
+         [25, anyVendor(), LINUX, AARCH64, "https://builds.es-jdk-archive.com/jdks/openjdk/25/openjdk-25-ea+3/openjdk-25-ea+3_linux-aarch64_bin.tar.gz"],
+         [25, anyVendor(), WINDOWS, X86_64, "https://builds.es-jdk-archive.com/jdks/openjdk/25/openjdk-25-ea+3/openjdk-25-ea+3_windows-x64_bin.zip"]]
     }
 
     @RestoreSystemProperties
@@ -113,7 +113,7 @@ class OracleOpenJdkToolchainResolverSpec extends AbstractToolchainResolverSpec {
     }
 
     private static String urlPrefix(int i) {
-        return "http://builds.es-jdk-archive.com/jdks/openjdk/" + i + "/"
+        return "https://builds.es-jdk-archive.com/jdks/openjdk/" + i + "/"
     }
 
     def unsupportedRequests() {

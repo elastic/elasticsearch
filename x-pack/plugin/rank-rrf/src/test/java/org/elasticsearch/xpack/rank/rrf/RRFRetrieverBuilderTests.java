@@ -322,6 +322,7 @@ public class RRFRetrieverBuilderTests extends ESTestCase {
                 new StandardRetrieverBuilder(
                     new MultiMatchQueryBuilder(expectedQuery).type(MultiMatchQueryBuilder.Type.MOST_FIELDS)
                         .fields(expectedNonInferenceFields)
+                        .resolveInferenceFieldWildcards(false)
                 )
             ),
             Set.of(expectedInferenceFields.entrySet().stream().map(e -> {

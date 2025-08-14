@@ -70,6 +70,8 @@ public class TrackingPostingsInMemoryBytesCodec extends FilterCodec {
             this.state = state;
             this.in = in;
             this.totalBytes = new long[1];
+            // Alternatively, we can consider using a FixedBitSet here and size to max(fieldNumber). T
+            // his should be faster without worrying too much about memory usage.
             this.seenFields = new IntHashSet(state.fieldInfos.size());
         }
 
@@ -107,6 +109,8 @@ public class TrackingPostingsInMemoryBytesCodec extends FilterCodec {
             if (seenFields.add(fieldNum)) {
                 return new TrackingLengthTerms(terms, bytes -> totalBytes[0] += bytes);
             } else {
+                // As far as I know only when bloom filter for _id filter gets written this method gets invoked twice for the same field.
+                // So maybe we can get rid of the seenFields here? And just keep track of whether _id field has been seen?
                 return terms;
             }
         }

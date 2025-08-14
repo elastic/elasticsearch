@@ -244,6 +244,34 @@ public class RemoteClusterClientTests extends ESTestCase {
         }
     }
 
+    public void testGetRemoteClusterClientRejectsReconnectUnlessSkipUnavailableInStateless() {
+        final var settings = Settings.builder().put("stateless.enabled", true).putList("node.roles", "remote_cluster_client").build();
+        try (
+            MockTransportService service = MockTransportService.createNewService(
+                settings,
+                VersionInformation.CURRENT,
+                TransportVersion.current(),
+                threadPool,
+                null
+            )
+        ) {
+            final var remoteClusterService = service.getRemoteClusterService();
+            final var unsupportedDisconnectedStrategy = RemoteClusterService.DisconnectedStrategy.RECONNECT_UNLESS_SKIP_UNAVAILABLE;
+            final var error = expectThrows(
+                AssertionError.class,
+                () -> remoteClusterService.getRemoteClusterClient(
+                    "test",
+                    EsExecutors.DIRECT_EXECUTOR_SERVICE,
+                    unsupportedDisconnectedStrategy
+                )
+            );
+            assertThat(
+                error.getMessage(),
+                equalTo("DisconnectedStrategy [" + unsupportedDisconnectedStrategy + "] is not supported in stateless environments")
+            );
+        }
+    }
+
     public void testQuicklySkipUnavailableClusters() throws Exception {
         Settings remoteSettings = Settings.builder().put(ClusterName.CLUSTER_NAME_SETTING.getKey(), "foo_bar_cluster").build();
         try (

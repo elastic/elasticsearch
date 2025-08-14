@@ -268,7 +268,11 @@ public class TestBlock implements BlockLoader.Block {
             }
 
             @Override
-            public BlockLoader.SingletonOrdinalsBuilder singletonOrdinalsBuilder(SortedDocValues ordinals, int expectedCount) {
+            public BlockLoader.SingletonOrdinalsBuilder singletonOrdinalsBuilder(
+                SortedDocValues ordinals,
+                int expectedCount,
+                boolean isDense
+            ) {
                 class SingletonOrdsBuilder extends TestBlock.Builder implements BlockLoader.SingletonOrdinalsBuilder {
                     private SingletonOrdsBuilder() {
                         super(expectedCount);

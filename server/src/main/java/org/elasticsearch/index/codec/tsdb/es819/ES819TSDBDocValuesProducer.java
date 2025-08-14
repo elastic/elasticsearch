@@ -373,7 +373,7 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
             @Override
             public BlockLoader.Block read(BlockLoader.BlockFactory factory, BlockLoader.Docs docs, int offset) throws IOException {
                 if (ords instanceof BulkNumericDocValues b) {
-                    try (var builder = factory.singletonOrdinalsBuilder(this, docs.count() - offset)) {
+                    try (var builder = factory.singletonOrdinalsBuilder(this, docs.count() - offset, true)) {
                         return b.readOrdinals(builder, docs, offset);
                     }
                 } else {

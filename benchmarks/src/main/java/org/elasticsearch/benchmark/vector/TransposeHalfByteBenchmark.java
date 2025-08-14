@@ -83,4 +83,13 @@ public class TransposeHalfByteBenchmark {
             bh.consume(packed);
         }
     }
+
+    @Benchmark
+    @Fork(jvmArgsPrepend = { "--add-modules=jdk.incubator.vector" })
+    public void transposeHalfBytePanama(Blackhole bh) {
+        for (int i = 0; i < numVectors; i++) {
+            BQSpaceUtils.transposeHalfByte(qVectors[i], packed);
+            bh.consume(packed);
+        }
+    }
 }

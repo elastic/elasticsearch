@@ -35,7 +35,6 @@ import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.common.util.concurrent.ThrottledTaskRunner;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
@@ -76,12 +75,10 @@ public class SearchCommitPrefetcher {
         () -> ByteBuffer.allocateDirect(MAX_BYTES_PER_WRITE)
     );
 
-    private static final boolean SEARCH_PREFETCHING_FEATURE_FLAG = new FeatureFlag("search_prefetching_enabled").isEnabled();
-
     private static final TimeValue DEFAULT_SEARCH_IDLE_TIME = TimeValue.timeValueMinutes(5);
     public static final Setting<Boolean> PREFETCH_COMMITS_UPON_NOTIFICATIONS_ENABLED_SETTING = Setting.boolSetting(
         "stateless.search.prefetch_commits.enabled",
-        false,
+        true,
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );

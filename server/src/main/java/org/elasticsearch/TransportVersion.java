@@ -112,7 +112,7 @@ public record TransportVersion(String name, int id, TransportVersion nextPatchVe
         String component,
         String path,
         boolean nameInFile,
-        boolean ignoreName,
+        boolean isNamed,
         BufferedReader bufferedReader,
         Integer latest
     ) {
@@ -129,7 +129,7 @@ public record TransportVersion(String name, int id, TransportVersion nextPatchVe
                 throw new IllegalStateException("invalid transport version file format [" + toComponentPath(component, path) + "]");
             }
             String name = null;
-            if (ignoreName == false) {
+            if (isNamed) {
                 if (nameInFile) {
                     name = parts[0];
                 } else {
@@ -188,7 +188,7 @@ public record TransportVersion(String name, int id, TransportVersion nextPatchVe
                         component,
                         "/transport/definitions/" + versionRelativePath,
                         nameToStream,
-                        (c, p, br) -> fromBufferedReader(c, p, false, versionRelativePath.startsWith("initial/"), br, latest.id())
+                        (c, p, br) -> fromBufferedReader(c, p, false, versionRelativePath.startsWith("named/"), br, latest.id())
                     );
                     if (transportVersion != null) {
                         transportVersions.add(transportVersion);
@@ -235,23 +235,7 @@ public record TransportVersion(String name, int id, TransportVersion nextPatchVe
     public static TransportVersion fromName(String name) {
         TransportVersion known = VersionsHolder.ALL_VERSIONS_BY_NAME.get(name);
         if (known == null) {
-            List<String> versionRelativePaths = parseFromBufferedReader(
-                "<server>",
-                "/transport/definitions/manifest.txt",
-                TransportVersion.class::getResourceAsStream,
-                (c, p, br) -> br.lines().filter(line -> line.isBlank() == false).toList()
-            );
-            throw new IllegalStateException(
-                "\nunknown transport version ["
-                    + name
-                    + "];"
-                    + "\nknown names ["
-                    + VersionsHolder.ALL_VERSIONS_BY_NAME
-                    + "]"
-                    + "\nrelative paths"
-                    + versionRelativePaths
-                    + "\n"
-            );
+            throw new IllegalStateException("unknown transport version [" + name + "]");
         }
         return known;
     }

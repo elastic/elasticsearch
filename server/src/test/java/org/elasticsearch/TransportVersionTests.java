@@ -242,7 +242,7 @@ public class TransportVersionTests extends ESTestCase {
             "<test>",
             "testSupports0",
             false,
-            false,
+            true,
             new BufferedReader(new InputStreamReader(new ByteArrayInputStream(data0), StandardCharsets.UTF_8)),
             5000000
         );
@@ -255,7 +255,7 @@ public class TransportVersionTests extends ESTestCase {
             "<test>",
             "testSupports1",
             false,
-            false,
+            true,
             new BufferedReader(new InputStreamReader(new ByteArrayInputStream(data1), StandardCharsets.UTF_8)),
             5000000
         );
@@ -271,7 +271,7 @@ public class TransportVersionTests extends ESTestCase {
             "<test>",
             "testSupports2",
             false,
-            false,
+            true,
             new BufferedReader(new InputStreamReader(new ByteArrayInputStream(data2), StandardCharsets.UTF_8)),
             5000000
         );
@@ -299,7 +299,7 @@ public class TransportVersionTests extends ESTestCase {
             "<test>",
             "testSupports3",
             false,
-            false,
+            true,
             new BufferedReader(new InputStreamReader(new ByteArrayInputStream(data3), StandardCharsets.UTF_8)),
             5000000
         );
@@ -328,7 +328,7 @@ public class TransportVersionTests extends ESTestCase {
             "<test>",
             "testSupports3",
             false,
-            false,
+            true,
             new BufferedReader(new InputStreamReader(new ByteArrayInputStream(data4), StandardCharsets.UTF_8)),
             5000000
         );

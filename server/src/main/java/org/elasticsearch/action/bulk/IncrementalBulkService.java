@@ -62,12 +62,25 @@ public class IncrementalBulkService {
 
     public Handler newBulkRequest() {
         ensureEnabled();
-        return newBulkRequest(null, null, null);
+        return newBulkRequest(null, null, null, false);
     }
 
-    public Handler newBulkRequest(@Nullable String waitForActiveShards, @Nullable TimeValue timeout, @Nullable String refresh) {
+    public Handler newBulkRequest(
+        @Nullable String waitForActiveShards,
+        @Nullable TimeValue timeout,
+        @Nullable String refresh,
+        boolean usesStreamsRestrictedParams
+    ) {
         ensureEnabled();
-        return new Handler(client, indexingPressure, waitForActiveShards, timeout, refresh, chunkWaitTimeMillisHistogram);
+        return new Handler(
+            client,
+            indexingPressure,
+            waitForActiveShards,
+            timeout,
+            refresh,
+            chunkWaitTimeMillisHistogram,
+            usesStreamsRestrictedParams
+        );
     }
 
     private void ensureEnabled() {
@@ -105,6 +118,7 @@ public class IncrementalBulkService {
         private final Client client;
         private final ActiveShardCount waitForActiveShards;
         private final TimeValue timeout;
+        private final boolean usesStreamsRestrictedParams;
         private final String refresh;
 
         private final ArrayList<Releasable> releasables = new ArrayList<>(4);
@@ -125,12 +139,14 @@ public class IncrementalBulkService {
             @Nullable String waitForActiveShards,
             @Nullable TimeValue timeout,
             @Nullable String refresh,
-            LongHistogram chunkWaitTimeMillisHistogram
+            LongHistogram chunkWaitTimeMillisHistogram,
+            boolean usesStreamsRestrictedParams
         ) {
             this.client = client;
             this.waitForActiveShards = waitForActiveShards != null ? ActiveShardCount.parseString(waitForActiveShards) : null;
             this.timeout = timeout;
             this.refresh = refresh;
+            this.usesStreamsRestrictedParams = usesStreamsRestrictedParams;
             this.incrementalOperation = indexingPressure.startIncrementalCoordinating(0, 0, false);
             this.chunkWaitTimeMillisHistogram = chunkWaitTimeMillisHistogram;
             createNewBulkRequest(EMPTY_STATE);
@@ -310,6 +326,7 @@ public class IncrementalBulkService {
             if (refresh != null) {
                 bulkRequest.setRefreshPolicy(refresh);
             }
+            bulkRequest.streamsRestrictedParamsUsed(usesStreamsRestrictedParams);
         }
     }
 }

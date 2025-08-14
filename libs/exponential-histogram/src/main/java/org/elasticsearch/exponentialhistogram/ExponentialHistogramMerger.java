@@ -118,7 +118,7 @@ public class ExponentialHistogramMerger implements Accountable, Releasable {
      */
     public ReleasableExponentialHistogram getAndClear() {
         assert closed == false : "ExponentialHistogramMerger already closed";
-        ReleasableExponentialHistogram retVal = result == null ? ReleasableExponentialHistogram.empty() : result;
+        ReleasableExponentialHistogram retVal = (result == null) ? ReleasableExponentialHistogram.empty() : result;
         result = null;
         return retVal;
     }

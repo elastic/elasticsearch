@@ -22,7 +22,7 @@ for(bundle in changelogBundles) {
     if (coming) {
         print "\n"
         print "```{applies_to}\n"
-        print "stack: ga ${version}\n"
+        print "stack: coming ${version}\n"
         print "```"
     }
 %>

@@ -63,7 +63,11 @@ public class NodeJoiningIT extends ESIntegTestCase {
             ensureSufficientMasterEligibleNodes();
             String masterNodeName = internalCluster().getMasterName();
             int numberOfNodesOriginallyInCluster = internalCluster().clusterService(masterNodeName).state().getNodes().size();
-            int numberOfMasterNodesOriginallyInCluster = internalCluster().clusterService(masterNodeName).state().nodes().getMasterNodes().size();
+            int numberOfMasterNodesOriginallyInCluster = internalCluster().clusterService(masterNodeName)
+                .state()
+                .nodes()
+                .getMasterNodes()
+                .size();
             List<String> namesOfDataNodesInOriginalCluster = getListOfDataNodeNamesFromCluster(masterNodeName);
 
             // Attempt to add new node
@@ -97,7 +101,11 @@ public class NodeJoiningIT extends ESIntegTestCase {
             final var newMasterNodeName = ensureSufficientMasterEligibleNodes();
             String originalMasterNodeName = internalCluster().getMasterName();
             int numberOfNodesOriginallyInCluster = internalCluster().clusterService(originalMasterNodeName).state().getNodes().size();
-            int numberOfMasterNodesOriginallyInCluster = internalCluster().clusterService(originalMasterNodeName).state().nodes().getMasterNodes().size();
+            int numberOfMasterNodesOriginallyInCluster = internalCluster().clusterService(originalMasterNodeName)
+                .state()
+                .nodes()
+                .getMasterNodes()
+                .size();
             List<String> namesOfDataNodesInOriginalCluster = getListOfDataNodeNamesFromCluster(originalMasterNodeName);
 
             // Sets MockTransportService behaviour
@@ -133,13 +141,10 @@ public class NodeJoiningIT extends ESIntegTestCase {
 
                 // Wait until the old master has acknowledged the new master's election
                 ClusterService originalMasterClusterService = internalCluster().getInstance(ClusterService.class, originalMasterNodeName);
-                ClusterServiceUtils.addTemporaryStateListener(
-                        originalMasterClusterService,
-                        clusterState -> {
-                            DiscoveryNode currentMasterNode = clusterState.nodes().getMasterNode();
-                            return currentMasterNode != null && currentMasterNode.getName().equals(newMasterNodeName);
-                        }
-                );
+                ClusterServiceUtils.addTemporaryStateListener(originalMasterClusterService, clusterState -> {
+                    DiscoveryNode currentMasterNode = clusterState.nodes().getMasterNode();
+                    return currentMasterNode != null && currentMasterNode.getName().equals(newMasterNodeName);
+                });
                 assertNotEquals(originalMasterNodeName, internalCluster().getMasterName());
                 logger.info("New master is elected");
 
@@ -184,7 +189,11 @@ public class NodeJoiningIT extends ESIntegTestCase {
 
             long originalTerm = internalCluster().clusterService(masterNodeName).state().coordinationMetadata().term();
             int numberOfNodesOriginallyInCluster = internalCluster().clusterService(masterNodeName).state().getNodes().size();
-            int numberOfMasterNodesOriginallyInCluster = internalCluster().clusterService(masterNodeName).state().nodes().getMasterNodes().size();
+            int numberOfMasterNodesOriginallyInCluster = internalCluster().clusterService(masterNodeName)
+                .state()
+                .nodes()
+                .getMasterNodes()
+                .size();
             List<String> namesOfDataNodesInOriginalCluster = getListOfDataNodeNamesFromCluster(masterNodeName);
             String[] namesOfAllNodesInOriginalCluster = internalCluster().getNodeNames();
 
@@ -250,14 +259,11 @@ public class NodeJoiningIT extends ESIntegTestCase {
 
                 // Wait until the master acknowledges its re-election. The master is only re-elected once it's publishing ban is lifted
                 ClusterService masterClusterService = internalCluster().getInstance(ClusterService.class, masterNodeName);
-                ClusterServiceUtils.addTemporaryStateListener(
-                        masterClusterService,
-                        clusterState -> {
-                            DiscoveryNode currentMasterNode = clusterState.nodes().getMasterNode();
-                            long currentTerm = clusterState.coordinationMetadata().term();
-                            return currentMasterNode != null && currentMasterNode.getName().equals(masterNodeName) && currentTerm > originalTerm;
-                        }
-                );
+                ClusterServiceUtils.addTemporaryStateListener(masterClusterService, clusterState -> {
+                    DiscoveryNode currentMasterNode = clusterState.nodes().getMasterNode();
+                    long currentTerm = clusterState.coordinationMetadata().term();
+                    return currentMasterNode != null && currentMasterNode.getName().equals(masterNodeName) && currentTerm > originalTerm;
+                });
                 assertEquals(masterNodeName, internalCluster().getMasterName());
                 logger.info("Master has been re-elected");
 
@@ -266,7 +272,7 @@ public class NodeJoiningIT extends ESIntegTestCase {
                     for (String nodeName : namesOfAllNodesInOriginalCluster) {
                         ClusterServiceUtils.awaitClusterState(
                             logger,
-                            clusterState -> nodeExistsWithName(clusterState.nodes(),newNodeName),
+                            clusterState -> nodeExistsWithName(clusterState.nodes(), newNodeName),
                             internalCluster().clusterService(nodeName)
                         );
                     }
@@ -416,7 +422,7 @@ public class NodeJoiningIT extends ESIntegTestCase {
      */
     protected static String ensureSufficientMasterEligibleNodes() {
         final var votingConfigSizeListener = ClusterServiceUtils.addTemporaryStateListener(
-                cs -> 3 <= cs.coordinationMetadata().getLastCommittedConfiguration().getNodeIds().size()
+            cs -> 3 <= cs.coordinationMetadata().getLastCommittedConfiguration().getNodeIds().size()
         );
 
         try {

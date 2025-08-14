@@ -43,6 +43,10 @@ public abstract class StringFieldType extends TermBasedFieldType {
 
     private static final Pattern WILDCARD_PATTERN = Pattern.compile("(\\\\.)|([?*]+)");
 
+    // using Boolean instead of boolean is deliberate as not all children of this class care about these two fields
+    protected final Boolean isSyntheticSourceEnabled;
+    protected final Boolean isWithinMultiField;
+
     public StringFieldType(
         String name,
         boolean isIndexed,
@@ -51,7 +55,22 @@ public abstract class StringFieldType extends TermBasedFieldType {
         TextSearchInfo textSearchInfo,
         Map<String, String> meta
     ) {
+        this(name, isIndexed, isStored, hasDocValues, textSearchInfo, meta, null, null);
+    }
+
+    public StringFieldType(
+        String name,
+        boolean isIndexed,
+        boolean isStored,
+        boolean hasDocValues,
+        TextSearchInfo textSearchInfo,
+        Map<String, String> meta,
+        Boolean isSyntheticSourceEnabled,
+        Boolean isWithinMultiField
+    ) {
         super(name, isIndexed, isStored, hasDocValues, textSearchInfo, meta);
+        this.isSyntheticSourceEnabled = isSyntheticSourceEnabled;
+        this.isWithinMultiField = isWithinMultiField;
     }
 
     @Override
@@ -223,5 +242,13 @@ public abstract class StringFieldType extends TermBasedFieldType {
             includeLower,
             includeUpper
         );
+    }
+
+    /**
+     * Returns the name of the "fallback" field that can be used for synthetic source when the "main" field was not
+     * stored for whatever reason.
+     */
+    public String syntheticSourceFallbackFieldName() {
+        return isSyntheticSourceEnabled ? name() + "._original" : null;
     }
 }

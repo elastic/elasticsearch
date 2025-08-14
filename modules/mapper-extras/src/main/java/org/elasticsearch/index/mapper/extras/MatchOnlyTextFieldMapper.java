@@ -53,6 +53,7 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.mapper.SourceValueFetcher;
+import org.elasticsearch.index.mapper.StringFieldType;
 import org.elasticsearch.index.mapper.TextFamilyFieldMapper;
 import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.mapper.TextFieldMapper.TextFieldType;
@@ -189,7 +190,7 @@ public class MatchOnlyTextFieldMapper extends TextFamilyFieldMapper {
         )
     );
 
-    public static class MatchOnlyTextFieldType extends TextFamilyFieldType {
+    public static class MatchOnlyTextFieldType extends StringFieldType {
 
         private final Analyzer indexAnalyzer;
         private final TextFieldType textFieldType;

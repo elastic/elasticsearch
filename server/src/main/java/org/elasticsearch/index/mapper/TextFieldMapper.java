@@ -646,7 +646,7 @@ public final class TextFieldMapper extends TextFamilyFieldMapper {
 
     }
 
-    public static class TextFieldType extends TextFamilyFieldType {
+    public static class TextFieldType extends StringFieldType {
 
         private boolean fielddata;
         private FielddataFrequencyFilter filter;

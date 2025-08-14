@@ -1333,6 +1333,7 @@ public class CCSDuelIT extends ESRestTestCase {
         Map<String, Object> responseMap = XContentHelper.convertToMap(bytesReference, false, XContentType.JSON).v2();
         assertNotNull(responseMap.put("took", -1));
         responseMap.remove("num_reduce_phases");
+        responseMap.remove("terminated_early");
         Map<String, Object> profile = (Map<String, Object>) responseMap.get("profile");
         if (profile != null) {
             List<Map<String, Object>> shards = (List<Map<String, Object>>) profile.get("shards");

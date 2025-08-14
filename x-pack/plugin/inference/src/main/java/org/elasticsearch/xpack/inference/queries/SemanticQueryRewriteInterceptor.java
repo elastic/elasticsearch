@@ -48,7 +48,7 @@ public abstract class SemanticQueryRewriteInterceptor implements QueryRewriteInt
             return queryBuilder;
         }
 
-        boolean resolveInferenceFieldWildcards = isResolveInferenceFieldWildcardsRequired(queryBuilder);
+        boolean resolveInferenceFieldWildcards = shouldResolveInferenceFieldWildcards(queryBuilder);
         InferenceIndexInformationForField indexInformation = resolveIndicesForFields(
             queryBuilder,
             resolvedIndices,
@@ -98,7 +98,7 @@ public abstract class SemanticQueryRewriteInterceptor implements QueryRewriteInt
      * @param queryBuilder {@link QueryBuilder}
      * @return true if inference field wildcards should be resolved, false otherwise.
      */
-    protected abstract boolean isResolveInferenceFieldWildcardsRequired(QueryBuilder queryBuilder);
+    protected abstract boolean shouldResolveInferenceFieldWildcards(QueryBuilder queryBuilder);
 
     /**
      * Builds the inference query

@@ -99,7 +99,7 @@ public class SemanticMultiMatchQueryRewriteInterceptor extends SemanticQueryRewr
     }
 
     @Override
-    public boolean isResolveInferenceFieldWildcardsRequired(QueryBuilder queryBuilder) {
+    public boolean shouldResolveInferenceFieldWildcards(QueryBuilder queryBuilder) {
         assert (queryBuilder instanceof MultiMatchQueryBuilder);
         MultiMatchQueryBuilder multiMatchQuery = (MultiMatchQueryBuilder) queryBuilder;
         return multiMatchQuery.resolveInferenceFieldWildcards();

@@ -35,7 +35,7 @@ public class SemanticMatchQueryRewriteInterceptor extends SemanticQueryRewriteIn
     }
 
     @Override
-    protected boolean isResolveInferenceFieldWildcardsRequired(QueryBuilder queryBuilder) {
+    protected boolean shouldResolveInferenceFieldWildcards(QueryBuilder queryBuilder) {
         return false;
     }
 

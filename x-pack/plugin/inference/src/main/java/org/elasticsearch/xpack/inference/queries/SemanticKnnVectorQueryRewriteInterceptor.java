@@ -48,7 +48,7 @@ public class SemanticKnnVectorQueryRewriteInterceptor extends SemanticQueryRewri
     }
 
     @Override
-    protected boolean isResolveInferenceFieldWildcardsRequired(QueryBuilder queryBuilder) {
+    protected boolean shouldResolveInferenceFieldWildcards(QueryBuilder queryBuilder) {
         return false;
     }
 

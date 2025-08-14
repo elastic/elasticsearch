@@ -21,15 +21,17 @@
 
 package org.elasticsearch.exponentialhistogram;
 
-import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.unit.ByteSizeValue;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 
-public class FixedCapacityExponentialHistogramTests extends ESTestCase {
+public class FixedCapacityExponentialHistogramTests extends ExponentialHistogramTestCase {
 
     public void testValueCountUpdatedCorrectly() {
 
-        FixedCapacityExponentialHistogram histogram = new FixedCapacityExponentialHistogram(100);
+        FixedCapacityExponentialHistogram histogram = createAutoReleasedHistogram(100);
 
         assertThat(histogram.negativeBuckets().valueCount(), equalTo(0L));
         assertThat(histogram.positiveBuckets().valueCount(), equalTo(0L));
@@ -56,5 +58,14 @@ public class FixedCapacityExponentialHistogramTests extends ESTestCase {
 
         assertThat(histogram.negativeBuckets().valueCount(), equalTo(0L));
         assertThat(histogram.positiveBuckets().valueCount(), equalTo(0L));
+    }
+
+    public void testMemoryAccounting() {
+        CircuitBreaker esBreaker = newLimitedBreaker(ByteSizeValue.ofMb(100));
+        try (FixedCapacityExponentialHistogram histogram = FixedCapacityExponentialHistogram.create(100, breaker(esBreaker))) {
+            assertThat(histogram.ramBytesUsed(), greaterThan(2 * RamEstimationUtil.estimateLongArray(100)));
+            assertThat(esBreaker.getUsed(), equalTo(histogram.ramBytesUsed()));
+        }
+        assertThat(esBreaker.getUsed(), equalTo(0L));
     }
 }

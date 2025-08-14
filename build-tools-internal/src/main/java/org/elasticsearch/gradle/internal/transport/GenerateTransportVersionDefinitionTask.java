@@ -215,10 +215,10 @@ public abstract class GenerateTransportVersionDefinitionTask extends DefaultTask
     private List<String> getChangedDefinitionNames() throws IOException {
         List<String> changedDefinitionNames = new ArrayList<>();
         String namedDefinitionsBasePath = TransportVersionUtils.getResourcePath(getResourcesProjectDir().get(), "definitions/named/");
-        for (String mainResource : getMainResources(namedDefinitionsBasePath)) {
-            String definitionName = mainResource.substring(
-                mainResource.lastIndexOf(File.pathSeparator) + 1,
-                mainResource.length() - 4 /* .csv */
+        for (String changedResource : getChangedResources(namedDefinitionsBasePath)) {
+            String definitionName = changedResource.substring(
+                changedResource.lastIndexOf(File.pathSeparator) + 1,
+                changedResource.length() - 4 /* .csv */
             );
             changedDefinitionNames.add(definitionName);
         }
@@ -247,10 +247,9 @@ public abstract class GenerateTransportVersionDefinitionTask extends DefaultTask
     }
 
     private String findAddedTransportVersionName(Set<String> referencedNames, List<String> changedDefinitionNames) throws IOException {
-
-        // First check for unreferenced names. There should only be at most one. If there is more than
-        // one reference the remaining reference will still be unreferenced when validation runs later
-        // and the developer will remove the unreferenced name.
+        // First check for unreferenced names. We only care about the first one. If there is more than one
+        // validation will fail later and the developer will have to remove one. When that happens, generation
+        // will re-run and we will fixup the state to use whatever new name remains.
         for (String referencedName : referencedNames) {
             Path definitionFile = TransportVersionUtils.definitionFilePath(getResourcesDirectory().get(), referencedName);
             if (Files.exists(definitionFile) == false) {
@@ -258,6 +257,8 @@ public abstract class GenerateTransportVersionDefinitionTask extends DefaultTask
             }
         }
 
+        // Since we didn't find any missing names, we use the first changed name. If there is more than
+        // one changed name, validation will fail later, just as above.
         if (changedDefinitionNames.isEmpty()) {
             return "";
         } else {
@@ -268,6 +269,11 @@ public abstract class GenerateTransportVersionDefinitionTask extends DefaultTask
     // TODO duplicated
     private Set<String> getMainResources(String subPath) {
         String output = gitCommand("ls-tree", "--name-only", "-r", "main", getResourcesProjectDir().get() + "/" + subPath);
+        return Set.of(output.split(System.lineSeparator()));
+    }
+
+    private Set<String> getChangedResources(String subPath) {
+        String output = gitCommand("diff", "--name-only", "main", getResourcesProjectDir().get() + "/" + subPath);
         return Set.of(output.split(System.lineSeparator()));
     }
 

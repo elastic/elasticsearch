@@ -57,7 +57,6 @@ import java.util.Objects;
 import java.util.concurrent.Callable;
 
 import static org.apache.lucene.index.VectorSimilarityFunction.COSINE;
-import static org.apache.lucene.index.VectorSimilarityFunction.MAXIMUM_INNER_PRODUCT;
 
 abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerProvider {
 
@@ -285,9 +284,6 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
                     }
                     // similarity between query vector and global centroid, higher is better
                     float centroidsScore = similarityFunction.compare(queryVector, globalCentroid);
-                    if (similarityFunction == MAXIMUM_INNER_PRODUCT) {
-                        centroidsScore = VectorUtil.scaleMaxInnerProductScore(centroidsScore);
-                    }
 
                     // clusters per vector (< 1), higher is better (better coverage)
                     int numCentroids = reader.getNumCentroids(fieldInfo);
@@ -307,10 +303,6 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
                         Arrays.sort(centroidScores);
                         float first = centroidScores[centroidScores.length - 1];
                         float second = centroidScores[centroidScores.length - 2];
-                        if (similarityFunction == MAXIMUM_INNER_PRODUCT) {
-                            first = VectorUtil.scaleMaxInnerProductScore(first);
-                            second = VectorUtil.scaleMaxInnerProductScore(second);
-                        }
                         centroidsScore = (centroidsScore + first + second) / 3;
                     }
 
@@ -365,16 +357,7 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
         final LeafReader reader = ctx.reader();
         final Bits liveDocs = reader.getLiveDocs();
 
-        KnnSearchStrategy searchStrategy;
-        if (visitRatio == 0.0f) {
-            // dynamically set the percentage
-            float expected = (float) Math.round(1.75f * Math.log10(numCands) * Math.log10(numCands) * (numCands));
-            float ratio = expected / reader.getFloatVectorValues(field).size();
-            searchStrategy = new IVFKnnSearchStrategy(ratio);
-        } else {
-            searchStrategy = new IVFKnnSearchStrategy(visitRatio);
-        }
-
+        KnnSearchStrategy searchStrategy = new IVFKnnSearchStrategy(visitRatio);
         if (filterWeight == null) {
             return approximateSearch(ctx, liveDocs, visitingBudget, knnCollectorManager, searchStrategy);
         }

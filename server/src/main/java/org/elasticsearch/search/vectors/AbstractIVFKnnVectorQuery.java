@@ -178,7 +178,7 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
             double cutoffAffinity = lowerAffinity * 0.1; // minimum affinity score for a segment to be considered
             double affinityThreshold = (maxAffinity + lowerAffinity) * 0.66; // min affinity for increasing visited ratio
 
-            int maxAdjustments = (int) (visitRatio * 1.5);
+            float maxAdjustments = visitRatio * 1.5f;
 
             if (Double.isNaN(maxAffinity) || Double.isNaN(averageAffinity)) {
                 tasks = new ArrayList<>(leafReaderContexts.size());
@@ -221,7 +221,7 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
 
     abstract VectorScorer createVectorScorer(LeafReaderContext context, FieldInfo fi) throws IOException;
 
-    private float adjustVisitRatioForSegment(double affinityScore, double affinityThreshold, int maxAdjustment, float visitRatio) {
+    private float adjustVisitRatioForSegment(double affinityScore, double affinityThreshold, float maxAdjustment, float visitRatio) {
         // for high affinity scores, increase visited ratio
         if (affinityScore > affinityThreshold) {
             int adjustment = (int) Math.ceil((affinityScore - affinityThreshold) * maxAdjustment);
@@ -230,7 +230,7 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
 
         // for low affinity scores, decrease visited ratio
         if (affinityScore <= affinityThreshold) {
-            return Math.max(visitRatio / 3, 1);
+            return Math.max(visitRatio * 0.3f, 0.01f);
         }
 
         return visitRatio;

@@ -115,10 +115,6 @@ public class DefaultIVFVectorsReader extends IVFVectorsReader implements OffHeap
         int numParents = centroids.readVInt();
         if (parents && numParents > 0) {
             final NeighborQueue parentsQueue = new NeighborQueue(numParents, true);
-            final int maxChildrenSize = centroids.readVInt();
-            final NeighborQueue currentParentQueue = new NeighborQueue(maxChildrenSize, true);
-            final int bufferSize = (int) Math.max(numCentroids * CENTROID_SAMPLING_PERCENTAGE, 1);
-            final NeighborQueue neighborQueue = new NeighborQueue(bufferSize, true);
             score(
                 parentsQueue,
                 numParents,

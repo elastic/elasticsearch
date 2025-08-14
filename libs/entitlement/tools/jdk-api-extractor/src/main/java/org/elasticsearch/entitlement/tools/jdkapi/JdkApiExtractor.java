@@ -26,6 +26,7 @@ import java.util.TreeMap;
 import java.util.TreeSet;
 import java.util.stream.Stream;
 
+import static org.objectweb.asm.Opcodes.ACC_DEPRECATED;
 import static org.objectweb.asm.Opcodes.ACC_FINAL;
 import static org.objectweb.asm.Opcodes.ACC_PROTECTED;
 import static org.objectweb.asm.Opcodes.ACC_PUBLIC;
@@ -47,16 +48,26 @@ public class JdkApiExtractor {
     );
 
     public static void main(String[] args) throws IOException {
-        if (args.length != 1) {
-            System.err.println("Exactly one argument is required: the output file path");
+        boolean valid = args.length == 1 || (args.length == 2 && "--deprecations-only".equals(args[1]));
+
+        if (valid == false) {
+            System.err.println("usage: <output file path> [--deprecations-only]");
             System.exit(1);
         }
 
+        boolean deprecationsOnly = args.length == 2 && args[1].equals("--deprecations-only");
+
         Map<String, Set<AccessibleMethod>> accessibleImplementationsByClass = new TreeMap<>();
-        Map<String, Set<AccessibleMethod>> accessibleForOverwritesByClass = new TreeMap<>();
+        Map<String, Set<AccessibleMethod>> accessibleForOverridesByClass = new TreeMap<>();
+        Map<String, Set<AccessibleMethod>> deprecationsByClass = new TreeMap<>();
 
         Utils.walkJdkModules((moduleName, moduleClasses, moduleExports) -> {
-            var visitor = new AccessibleClassVisitor(moduleExports, accessibleImplementationsByClass, accessibleForOverwritesByClass);
+            var visitor = new AccessibleClassVisitor(
+                moduleExports,
+                accessibleImplementationsByClass,
+                accessibleForOverridesByClass,
+                deprecationsByClass
+            );
             for (var classFile : moduleClasses) {
                 try {
                     ClassReader cr = new ClassReader(Files.newInputStream(classFile));
@@ -67,14 +78,12 @@ public class JdkApiExtractor {
             }
         });
 
-        Path path = Path.of(args[0]);
-        System.out.println("Writing accessible methods of " + Runtime.version() + " to " + path.toAbsolutePath());
+        writeFile(Path.of(args[0]), deprecationsOnly ? deprecationsByClass : accessibleImplementationsByClass);
+    }
 
-        Files.write(
-            path,
-            () -> accessibleImplementationsByClass.entrySet().stream().flatMap(AccessibleMethod::toLines).iterator(),
-            StandardCharsets.UTF_8
-        );
+    private static void writeFile(Path path, Map<String, Set<AccessibleMethod>> methods) throws IOException {
+        System.out.println("Writing result for " + Runtime.version() + " to " + path.toAbsolutePath());
+        Files.write(path, () -> methods.entrySet().stream().flatMap(AccessibleMethod::toLines).iterator(), StandardCharsets.UTF_8);
     }
 
     record AccessibleMethod(String method, String descriptor, boolean isPublic, boolean isFinal, boolean isStatic) {
@@ -105,25 +114,30 @@ public class JdkApiExtractor {
     static class AccessibleClassVisitor extends ClassVisitor {
         private final Set<String> moduleExports;
         private final Map<String, Set<AccessibleMethod>> accessibleImplementationsByClass;
-        private final Map<String, Set<AccessibleMethod>> accessibleForOverwritesByClass;
+        private final Map<String, Set<AccessibleMethod>> accessibleForOverridesByClass;
+        private final Map<String, Set<AccessibleMethod>> deprecationsByClass;
 
         private Set<AccessibleMethod> accessibleImplementations;
-        private Set<AccessibleMethod> accessibleForOverwrites;
+        private Set<AccessibleMethod> accessibleForOverrides;
+        private Set<AccessibleMethod> deprecations;
 
         private String className;
         private boolean isPublicClass;
         private boolean isFinalClass;
+        private boolean isDeprecatedClass;
         private boolean isExported;
 
         AccessibleClassVisitor(
             Set<String> moduleExports,
             Map<String, Set<AccessibleMethod>> accessibleImplementationsByClass,
-            Map<String, Set<AccessibleMethod>> accessibleForOverwritesByClass
+            Map<String, Set<AccessibleMethod>> accessibleForOverridesByClass,
+            Map<String, Set<AccessibleMethod>> deprecationsByClass
         ) {
             super(ASM9);
             this.moduleExports = moduleExports;
             this.accessibleImplementationsByClass = accessibleImplementationsByClass;
-            this.accessibleForOverwritesByClass = accessibleForOverwritesByClass;
+            this.accessibleForOverridesByClass = accessibleForOverridesByClass;
+            this.deprecationsByClass = deprecationsByClass;
         }
 
         private Set<AccessibleMethod> getMethods(Map<String, Set<AccessibleMethod>> methods, String clazz) {
@@ -134,12 +148,12 @@ public class JdkApiExtractor {
         public void visit(int version, int access, String name, String signature, String superName, String[] interfaces) {
             if (superName != null) {
                 visitSuperClass(superName);
-                getMethods(accessibleForOverwritesByClass, name).addAll(getMethods(accessibleForOverwritesByClass, superName));
+                getMethods(accessibleForOverridesByClass, name).addAll(getMethods(accessibleForOverridesByClass, superName));
             }
             if (interfaces != null && interfaces.length > 0) {
                 for (var interfaceName : interfaces) {
                     visitInterface(interfaceName);
-                    getMethods(accessibleForOverwritesByClass, name).addAll(getMethods(accessibleForOverwritesByClass, interfaceName));
+                    getMethods(accessibleForOverridesByClass, name).addAll(getMethods(accessibleForOverridesByClass, interfaceName));
                 }
             }
             super.visit(version, access, name, signature, superName, interfaces);
@@ -147,8 +161,10 @@ public class JdkApiExtractor {
             this.className = name;
             this.isPublicClass = (access & ACC_PUBLIC) != 0;
             this.isFinalClass = (access & ACC_FINAL) != 0;
+            this.isDeprecatedClass = (access & ACC_DEPRECATED) != 0;
             this.accessibleImplementations = getMethods(accessibleImplementationsByClass, name);
-            this.accessibleForOverwrites = getMethods(accessibleForOverwritesByClass, name);
+            this.accessibleForOverrides = getMethods(accessibleForOverridesByClass, name);
+            this.deprecations = getMethods(deprecationsByClass, name);
         }
 
         @Override
@@ -157,8 +173,11 @@ public class JdkApiExtractor {
             if (accessibleImplementations.isEmpty()) {
                 accessibleImplementationsByClass.remove(className);
             }
-            if (accessibleForOverwrites.isEmpty()) {
-                accessibleForOverwritesByClass.remove(className);
+            if (accessibleForOverrides.isEmpty()) {
+                accessibleForOverridesByClass.remove(className);
+            }
+            if (deprecations.isEmpty()) {
+                deprecationsByClass.remove(className);
             }
         }
 
@@ -196,6 +215,7 @@ public class JdkApiExtractor {
             boolean isProtected = (access & ACC_PROTECTED) != 0;
             boolean isFinal = (access & ACC_FINAL) != 0;
             boolean isStatic = (access & ACC_STATIC) != 0;
+            boolean isDeprecated = (access & ACC_DEPRECATED) != 0;
             if ((isPublic || isProtected) == false) {
                 return mv;
             }
@@ -205,13 +225,19 @@ public class JdkApiExtractor {
                 // class is public and exported, for final classes skip non-public methods
                 if (isPublic || isFinalClass == false) {
                     accessibleImplementations.add(method);
+                    // if not static, the method is accessible for overrides
+                    if (isStatic == false) {
+                        accessibleForOverrides.add(method);
+                    }
+                    if (isDeprecatedClass || isDeprecated) {
+                        deprecations.add(method);
+                    }
                 }
-                // if not static, the method is accessible for overwrites
-                if (isStatic == false) {
-                    accessibleForOverwrites.add(method);
-                }
-            } else if (accessibleForOverwrites.contains(method)) {
+            } else if (accessibleForOverrides.contains(method)) {
                 accessibleImplementations.add(method);
+                if (isDeprecatedClass || isDeprecated) {
+                    deprecations.add(method);
+                }
             }
             return mv;
         }

@@ -54,4 +54,8 @@ public abstract class ActionRequestBuilder<Request extends ActionRequest, Respon
     public void execute(ActionListener<Response> listener) {
         client.execute(action, request, listener);
     }
+
+    public ElasticsearchClient client() {
+        return client;
+    }
 }

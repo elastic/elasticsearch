@@ -933,7 +933,8 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
                 name,
                 nodeCount,
                 indexSettings(shardCount, replicaCount).put(Store.INDEX_STORE_STATS_REFRESH_INTERVAL_SETTING.getKey(), 0)
-            )
+            ),
+            false
         );
         ensureGreen();
 

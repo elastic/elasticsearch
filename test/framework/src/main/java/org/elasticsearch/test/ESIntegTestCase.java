@@ -40,7 +40,6 @@ import org.elasticsearch.action.admin.cluster.tasks.PendingClusterTasksResponse;
 import org.elasticsearch.action.admin.cluster.tasks.TransportPendingClusterTasksAction;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
-import org.elasticsearch.action.admin.indices.rename.RenameIndexAction;
 import org.elasticsearch.action.admin.indices.segments.IndexSegments;
 import org.elasticsearch.action.admin.indices.segments.IndexShardSegments;
 import org.elasticsearch.action.admin.indices.segments.IndicesSegmentResponse;
@@ -86,8 +85,6 @@ import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
-import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
@@ -808,31 +805,37 @@ public abstract class ESIntegTestCase extends ESTestCase {
      * creates an index with the given setting
      */
     public final void createIndex(String name, Settings indexSettings, boolean rename) {
-        // We don't rename the index if the name matches an index template or if the name starts with special characters.
-        final var clusterState = client().admin().cluster().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
-        final String template = MetadataIndexTemplateService.findV2Template(clusterState.metadata().getProject(), name, true);
-        if (rename == false || template != null || name.startsWith(".") || name.startsWith("<")) {
-            final var createIndexRequestBuilder = prepareCreate(name);
-            if (indexSettings != null) {
-                createIndexRequestBuilder.setSettings(indexSettings);
-            }
-            assertAcked(createIndexRequestBuilder);
-            return;
-        }
-        // Create a temporary index
-        final var tempName = "temp_" + name.substring(0, Math.min(name.length(), MetadataCreateIndexService.MAX_INDEX_NAME_BYTES - 5));
-        final var createIndexRequestBuilder = prepareCreate(tempName);
+        final var createIndexRequestBuilder = prepareCreate(name);
         if (indexSettings != null) {
             createIndexRequestBuilder.setSettings(indexSettings);
         }
-        assertAcked(createIndexRequestBuilder);
-        ensureYellowAndNoInitializingShards(tempName);
+        assertAcked(createIndexRequestBuilder, rename);
 
-        // Rename the temporary index to the desired name
-        client().execute(
-            RenameIndexAction.INSTANCE,
-            new RenameIndexAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, tempName, name)
-        ).actionGet();
+        // // We don't rename the index if the name matches an index template or if the name starts with special characters.
+        // final var clusterState = client().admin().cluster().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
+        // final String template = MetadataIndexTemplateService.findV2Template(clusterState.metadata().getProject(), name, true);
+        // if (rename == false || template != null || name.startsWith(".") || name.startsWith("<")) {
+        // final var createIndexRequestBuilder = prepareCreate(name);
+        // if (indexSettings != null) {
+        // createIndexRequestBuilder.setSettings(indexSettings);
+        // }
+        // assertAcked(createIndexRequestBuilder);
+        // return;
+        // }
+        // // Create a temporary index
+        // final var tempName = "temp_" + name.substring(0, Math.min(name.length(), MetadataCreateIndexService.MAX_INDEX_NAME_BYTES - 5));
+        // final var createIndexRequestBuilder = prepareCreate(tempName);
+        // if (indexSettings != null) {
+        // createIndexRequestBuilder.setSettings(indexSettings);
+        // }
+        // assertAcked(createIndexRequestBuilder);
+        // ensureYellowAndNoInitializingShards(tempName);
+        //
+        // // Rename the temporary index to the desired name
+        // client().execute(
+        // RenameIndexAction.INSTANCE,
+        // new RenameIndexAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, tempName, name)
+        // ).actionGet();
     }
 
     /**

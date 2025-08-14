@@ -44,9 +44,10 @@ public class KnnFunctionIT extends AbstractEsqlIntegTestCase {
 
         var query = String.format(Locale.ROOT, """
             FROM test METADATA _score
-            | WHERE knn(vector, %s, 10)
+            | WHERE knn(vector, %s)
             | KEEP id, floats, _score, vector
             | SORT _score DESC
+            | LIMIT 10
             """, Arrays.toString(queryVector));
 
         try (var resp = run(query)) {
@@ -72,36 +73,16 @@ public class KnnFunctionIT extends AbstractEsqlIntegTestCase {
         }
     }
 
-    public void testKnnOptions() {
-        float[] queryVector = new float[numDims];
-        Arrays.fill(queryVector, 1.0f);
-
-        var query = String.format(Locale.ROOT, """
-            FROM test METADATA _score
-            | WHERE knn(vector, %s, 5)
-            | KEEP id, floats, _score, vector
-            | SORT _score DESC
-            """, Arrays.toString(queryVector));
-
-        try (var resp = run(query)) {
-            assertColumnNames(resp.columns(), List.of("id", "floats", "_score", "vector"));
-            assertColumnTypes(resp.columns(), List.of("integer", "double", "double", "dense_vector"));
-
-            List<List<Object>> valuesList = EsqlTestUtils.getValuesList(resp);
-            assertEquals(5, valuesList.size());
-        }
-    }
-
     public void testKnnNonPushedDown() {
         float[] queryVector = new float[numDims];
         Arrays.fill(queryVector, 1.0f);
 
-        // TODO we need to decide what to do when / if user uses k for limit, as no more than k results will be returned from knn query
         var query = String.format(Locale.ROOT, """
             FROM test METADATA _score
-            | WHERE knn(vector, %s, 5) OR id > 10
+            | WHERE knn(vector, %s) OR id > 10
             | KEEP id, floats, _score, vector
             | SORT _score DESC
+            | LIMIT 10
             """, Arrays.toString(queryVector));
 
         try (var resp = run(query)) {
@@ -109,8 +90,7 @@ public class KnnFunctionIT extends AbstractEsqlIntegTestCase {
             assertColumnTypes(resp.columns(), List.of("integer", "double", "double", "dense_vector"));
 
             List<List<Object>> valuesList = EsqlTestUtils.getValuesList(resp);
-            // K = 5, 1 more for every id > 10
-            assertEquals(5 + Math.max(0, numDocs - 10 - 1), valuesList.size());
+            assertEquals(10, valuesList.size());
         }
     }
 
@@ -121,7 +101,7 @@ public class KnnFunctionIT extends AbstractEsqlIntegTestCase {
         // We retrieve 5 from knn, but must be prefiltered with id > 5 or no result will be returned as it would be post-filtered
         var query = String.format(Locale.ROOT, """
             FROM test METADATA _score
-            | WHERE knn(vector, %s, 5) AND id > 5
+            | WHERE knn(vector, %s) AND id > 5
             | KEEP id, floats, _score, vector
             | SORT _score DESC
             | LIMIT 5
@@ -144,7 +124,8 @@ public class KnnFunctionIT extends AbstractEsqlIntegTestCase {
         var query = String.format(Locale.ROOT, """
             FROM test
             | LOOKUP JOIN test_lookup ON id
-            | WHERE KNN(lookup_vector, %s, 5) OR id > 10
+            | WHERE KNN(lookup_vector, %s) OR id > 10
+            | LIMIT 5
             """, Arrays.toString(queryVector));
 
         var error = expectThrows(VerificationException.class, () -> run(query));

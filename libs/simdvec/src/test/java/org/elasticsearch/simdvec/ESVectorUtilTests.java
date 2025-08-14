@@ -9,6 +9,7 @@
 
 package org.elasticsearch.simdvec;
 
+import org.elasticsearch.index.codec.vectors.BQVectorUtils;
 import org.elasticsearch.index.codec.vectors.OptimizedScalarQuantizer;
 import org.elasticsearch.simdvec.internal.vectorization.BaseVectorizationTests;
 import org.elasticsearch.simdvec.internal.vectorization.ESVectorizationProvider;
@@ -353,6 +354,34 @@ public class ESVectorUtilTests extends BaseVectorizationTests {
         defaultedProvider.getVectorUtilSupport().soarDistanceBulk(query, v0, v1, v2, v3, diff, soarLambda, rnorm, expectedDistances);
         defOrPanamaProvider.getVectorUtilSupport().soarDistanceBulk(query, v0, v1, v2, v3, diff, soarLambda, rnorm, panamaDistances);
         assertArrayEquals(expectedDistances, panamaDistances, deltaEps);
+    }
+
+    public void testPackAsBinary() {
+        int dims = randomIntBetween(16, 2048);
+        int[] toPack = new int[dims];
+        for (int i = 0; i < dims; i++) {
+            toPack[i] = randomInt(1);
+        }
+        int length = BQVectorUtils.discretize(dims, 64) / 8;
+        byte[] packed = new byte[length];
+        byte[] packedLegacy = new byte[length];
+        defaultedProvider.getVectorUtilSupport().packAsBinary(toPack, packedLegacy);
+        defOrPanamaProvider.getVectorUtilSupport().packAsBinary(toPack, packed);
+        assertArrayEquals(packedLegacy, packed);
+    }
+
+    public void testTransposeHalfByte() {
+        int dims = randomIntBetween(16, 2048);
+        int[] toPack = new int[dims];
+        for (int i = 0; i < dims; i++) {
+            toPack[i] = randomInt(15);
+        }
+        int length = 4 * BQVectorUtils.discretize(dims, 64) / 8;
+        byte[] packed = new byte[length];
+        byte[] packedLegacy = new byte[length];
+        defaultedProvider.getVectorUtilSupport().transposeHalfByte(toPack, packedLegacy);
+        defOrPanamaProvider.getVectorUtilSupport().transposeHalfByte(toPack, packed);
+        assertArrayEquals(packedLegacy, packed);
     }
 
     private float[] generateRandomVector(int size) {

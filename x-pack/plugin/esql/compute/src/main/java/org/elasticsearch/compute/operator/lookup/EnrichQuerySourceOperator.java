@@ -141,6 +141,7 @@ public final class EnrichQuerySourceOperator extends SourceOperator {
         try {
             positionsVector = positionsBuilder.build();
             shardsVector = blockFactory.newConstantIntVector(0, positions);
+            int globalShard = 0;
             if (segmentsBuilder == null) {
                 segmentsVector = blockFactory.newConstantIntVector(0, positions);
             } else {
@@ -148,7 +149,8 @@ public final class EnrichQuerySourceOperator extends SourceOperator {
             }
             docsVector = docsBuilder.build();
             page = new Page(
-                new DocVector(ShardRefCounted.fromShardContext(shardContext), shardsVector, segmentsVector, docsVector, null).asBlock(),
+                new DocVector(ShardRefCounted.fromShardContext(shardContext), shardsVector, globalShard, segmentsVector, docsVector, null)
+                    .asBlock(),
                 positionsVector.asBlock()
             );
         } finally {

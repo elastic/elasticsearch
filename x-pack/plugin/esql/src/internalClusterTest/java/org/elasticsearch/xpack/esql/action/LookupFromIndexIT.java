@@ -185,6 +185,7 @@ public class LookupFromIndexIT extends AbstractEsqlIntegTestCase {
         ) {
             ShardContext esqlContext = new EsPhysicalOperationProviders.DefaultShardContext(
                 0,
+                0,
                 searchContext,
                 searchContext.getSearchExecutionContext(),
                 AliasFilter.EMPTY

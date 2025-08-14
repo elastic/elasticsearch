@@ -54,7 +54,13 @@ class ResultBuilderForDoc implements ResultBuilder {
         if (nextRefCounted == null) {
             throw new IllegalStateException("setNextRefCounted must be set before each decodeValue call");
         }
-        shards[position] = TopNEncoder.DEFAULT_UNSORTABLE.decodeInt(values);
+        // FIXME(gal, NOCOMMIT) document global shard stuff
+        shards[position] = TopNEncoder.DEFAULT_UNSORTABLE.decodeInt(values); // Skipping over the original local shard.
+        int globalShard = TopNEncoder.DEFAULT_UNSORTABLE.decodeInt(values);
+        if (globalShard != DocVector.NO_GLOBAL_SHARD) {
+            shards[position] = globalShard;
+        }
+        // Since the doc (might) next be used by a more global worker, we set the global shard as the local shard.
         segments[position] = TopNEncoder.DEFAULT_UNSORTABLE.decodeInt(values);
         docs[position] = TopNEncoder.DEFAULT_UNSORTABLE.decodeInt(values);
         refCounted.putIfAbsent(shards[position], nextRefCounted);
@@ -71,7 +77,15 @@ class ResultBuilderForDoc implements ResultBuilder {
             shardsVector = blockFactory.newIntArrayVector(shards, position);
             segmentsVector = blockFactory.newIntArrayVector(segments, position);
             var docsVector = blockFactory.newIntArrayVector(docs, position);
-            var docsBlock = new DocVector(new ShardRefCountedMap(refCounted), shardsVector, segmentsVector, docsVector, null).asBlock();
+            var docsBlock = new DocVector(
+                new ShardRefCountedMap(refCounted),
+                shardsVector,
+                // FIXME(gal, NOCOMMIT) document this too
+                DocVector.NO_GLOBAL_SHARD,
+                segmentsVector,
+                docsVector,
+                null
+            ).asBlock();
             success = true;
             return docsBlock;
         } finally {

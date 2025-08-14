@@ -31,6 +31,7 @@ class ValueExtractorForDoc implements ValueExtractor {
     @Override
     public void writeValue(BreakingBytesRefBuilder values, int position) {
         TopNEncoder.DEFAULT_UNSORTABLE.encodeInt(vector.shards().getInt(position), values);
+        TopNEncoder.DEFAULT_UNSORTABLE.encodeInt(vector.globalShard(), values);
         TopNEncoder.DEFAULT_UNSORTABLE.encodeInt(vector.segments().getInt(position), values);
         TopNEncoder.DEFAULT_UNSORTABLE.encodeInt(vector.docs().getInt(position), values);
     }

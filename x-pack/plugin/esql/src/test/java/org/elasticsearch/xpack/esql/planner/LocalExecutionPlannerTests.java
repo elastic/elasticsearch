@@ -365,7 +365,7 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
                 b.startObject("point").field("type", "geo_point").endObject();
             })), searcher);
             shardContexts.add(
-                new EsPhysicalOperationProviders.DefaultShardContext(i, new NoOpReleasable(), searchExecutionContext, AliasFilter.EMPTY)
+                new EsPhysicalOperationProviders.DefaultShardContext(i, i, new NoOpReleasable(), searchExecutionContext, AliasFilter.EMPTY)
             );
         }
         releasables.add(searcher);

@@ -237,6 +237,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
         private final int maxConcurrentShards;
         private final ExchangeSink blockingSink; // block until we have completed on all shards or the coordinator has enough data
         private final boolean failFastOnShardFailure;
+        private final AtomicInteger globalIndex = new AtomicInteger(0);
         private final Map<ShardId, Exception> shardLevelFailures;
         private final List<ComputeSearchContext> reduceNodeSearchContexts;
 
@@ -306,7 +307,6 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                 }
             };
             acquireSearchContexts(clusterAlias, shardIds, configuration, request.aliasFilters(), ActionListener.wrap(searchContexts -> {
-                this.reduceNodeSearchContexts.addAll(searchContexts);
                 assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.SEARCH, ESQL_WORKER_THREAD_POOL_NAME);
                 if (searchContexts.isEmpty()) {
                     batchListener.onResponse(DriverCompletionInfo.EMPTY);
@@ -363,7 +363,16 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                         // we need to limit the number of active search contexts here or in SearchService
                         context = searchService.createSearchContext(shardRequest, SearchService.NO_TIMEOUT);
                         context.preProcess();
-                        searchContexts.add(new ComputeSearchContext(i, context));
+                        // FIXME(gal, NOCOMMIT) Yuck
+                        int globalIndex = -1;
+                        synchronized (reduceNodeSearchContexts) {
+                            globalIndex = this.globalIndex.getAndIncrement();
+                            assert globalIndex == reduceNodeSearchContexts.size()
+                                : "globalIndex: " + globalIndex + ", reduceNodeSearchContexts.size(): " + reduceNodeSearchContexts.size();
+                            ComputeSearchContext cse = new ComputeSearchContext(i, globalIndex, context);
+                            reduceNodeSearchContexts.add(cse);
+                            searchContexts.add(cse);
+                        }
                     } catch (Exception e) {
                         if (addShardLevelFailure(shard.shardId(), e)) {
                             IOUtils.close(context);

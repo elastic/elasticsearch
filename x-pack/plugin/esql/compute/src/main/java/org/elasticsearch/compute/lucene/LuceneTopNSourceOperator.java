@@ -25,7 +25,6 @@ import org.elasticsearch.compute.data.DocBlock;
 import org.elasticsearch.compute.data.DocVector;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.DoubleVector;
-import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
@@ -212,7 +211,7 @@ public final class LuceneTopNSourceOperator extends LuceneOperator {
             return null;
         }
         int size = Math.min(maxPageSize, scoreDocs.length - offset);
-        IntBlock shard = null;
+        IntVector shard = null;
         IntVector segments = null;
         IntVector docs = null;
         DocBlock docBlock = null;
@@ -225,7 +224,8 @@ public final class LuceneTopNSourceOperator extends LuceneOperator {
         ) {
             int start = offset;
             offset += size;
-            List<LeafReaderContext> leafContexts = perShardCollector.shardContext.searcher().getLeafContexts();
+            ShardContext shardContext = perShardCollector.shardContext;
+            List<LeafReaderContext> leafContexts = shardContext.searcher().getLeafContexts();
             for (int i = start; i < offset; i++) {
                 int doc = scoreDocs[i].doc;
                 int segment = ReaderUtil.subIndex(doc, leafContexts);
@@ -237,12 +237,12 @@ public final class LuceneTopNSourceOperator extends LuceneOperator {
                 }
             }
 
-            int shardId = perShardCollector.shardContext.index();
-            shard = blockFactory.newConstantIntBlockWith(shardId, size);
+            int shardId = shardContext.index();
+            shard = blockFactory.newConstantIntBlockWith(shardId, size).asVector();
             segments = currentSegmentBuilder.build();
             docs = currentDocsBuilder.build();
             ShardRefCounted shardRefCounted = ShardRefCounted.single(shardId, contexts.get(shardId));
-            docBlock = new DocVector(shardRefCounted, shard.asVector(), segments, docs, null).asBlock();
+            docBlock = new DocVector(shardRefCounted, shard, shardContext.globalIndex(), segments, docs, null).asBlock();
             shard = null;
             segments = null;
             docs = null;

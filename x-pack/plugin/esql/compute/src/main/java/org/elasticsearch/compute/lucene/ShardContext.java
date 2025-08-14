@@ -24,6 +24,9 @@ import java.util.Optional;
  * Context of each shard we're operating against.
  */
 public interface ShardContext extends RefCounted {
+    // FIXME(gal, NOCOMMIT) Document
+    int globalIndex();
+
     /**
      * The index of this shard in the list of shards being processed.
      */

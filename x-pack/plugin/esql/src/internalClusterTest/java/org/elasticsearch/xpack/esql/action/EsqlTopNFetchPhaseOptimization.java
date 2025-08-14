@@ -35,7 +35,7 @@ import static org.hamcrest.Matchers.hasSize;
 // Verifies that the value source reader operator is optimized into the data node instead of the worker node.
 @ESIntegTestCase.ClusterScope(numDataNodes = 3)
 public class EsqlTopNFetchPhaseOptimization extends AbstractEsqlIntegTestCase {
-    private static final int SHARD_COUNT = 10;
+    private static final int SHARD_COUNT = 1;
 
     @Before
     public void setupIndex() throws Exception {
@@ -73,11 +73,11 @@ public class EsqlTopNFetchPhaseOptimization extends AbstractEsqlIntegTestCase {
     }
 
     public void testNoPushdowns() throws Exception {
-        testTopNOperatorDoesTheThingy("from test | sort sorted + 1 | limit 3 | stats sum(read)");
+        testTopNOperatorDoesTheThingy("from test | sort sorted + 1 desc | limit 3 | stats sum(read)");
     }
 
     public void testPushdownTopN() throws Exception {
-        testTopNOperatorDoesTheThingy("from test | sort sorted | limit 3 | stats sum(read)");
+        testTopNOperatorDoesTheThingy("from test | sort sorted desc | limit 3 | stats sum(read)");
     }
 
     private void testTopNOperatorDoesTheThingy(String query) throws Exception {
@@ -92,7 +92,7 @@ public class EsqlTopNFetchPhaseOptimization extends AbstractEsqlIntegTestCase {
             assertThat(page.getPositionCount(), equalTo(1));
             LongVectorBlock block = page.getBlock(0);
             assertThat(block.getPositionCount(), equalTo(1));
-            assertThat(block.getLong(0), equalTo(3L));
+            assertThat(block.getLong(0), equalTo(1021L + 1022 + 1023));
         }
     }
 

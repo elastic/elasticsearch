@@ -698,16 +698,17 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
         SearchExecutionContext executionContext,
         Releasable release
     ) {
-        public static LookupShardContext fromSearchContext(SearchContext context) {
+        public static LookupShardContext fromSearchContext(SearchContext searchContext) {
             return new LookupShardContext(
                 new EsPhysicalOperationProviders.DefaultShardContext(
                     0,
-                    context,
-                    context.getSearchExecutionContext(),
-                    context.request().getAliasFilter()
+                    0,
+                    searchContext,
+                    searchContext.getSearchExecutionContext(),
+                    searchContext.request().getAliasFilter()
                 ),
-                context.getSearchExecutionContext(),
-                context
+                searchContext.getSearchExecutionContext(),
+                searchContext
             );
         }
     }

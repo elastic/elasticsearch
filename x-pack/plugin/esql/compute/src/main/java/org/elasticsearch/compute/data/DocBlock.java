@@ -96,6 +96,7 @@ public class DocBlock extends AbstractVectorBlock implements Block, RefCounted {
 
     public static class Builder implements Block.Builder {
         private final IntVector.Builder shards;
+        private int globalShard = DocVector.NO_GLOBAL_SHARD;
         private final IntVector.Builder segments;
         private final IntVector.Builder docs;
         private ShardRefCounted shardRefCounters = ShardRefCounted.ALWAYS_REFERENCED;
@@ -125,6 +126,11 @@ public class DocBlock extends AbstractVectorBlock implements Block, RefCounted {
 
         public Builder appendShard(int shard) {
             shards.appendInt(shard);
+            if (globalShard != DocVector.NO_GLOBAL_SHARD) {
+                assert globalShard == shard : "all shards in a doc block must be the same, got " + globalShard + " and " + shard;
+            } else {
+                globalShard = DocVector.NO_GLOBAL_SHARD;
+            }
             return this;
         }
 
@@ -191,7 +197,7 @@ public class DocBlock extends AbstractVectorBlock implements Block, RefCounted {
                 shards = this.shards.build();
                 segments = this.segments.build();
                 docs = this.docs.build();
-                result = new DocVector(shardRefCounters, shards, segments, docs, null);
+                result = new DocVector(shardRefCounters, shards, globalShard, segments, docs, null);
                 return result.asBlock();
             } finally {
                 if (result == null) {

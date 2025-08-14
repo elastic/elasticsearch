@@ -217,7 +217,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         private final KeywordEsField unmappedEsField;
 
         DefaultShardContextForUnmappedField(DefaultShardContext ctx, PotentiallyUnmappedKeywordEsField unmappedEsField) {
-            super(ctx.index, ctx.releasable, ctx.ctx, ctx.aliasFilter);
+            super(ctx.index, ctx.globalIndex, ctx.releasable, ctx.ctx, ctx.aliasFilter);
             this.unmappedEsField = unmappedEsField;
         }
 
@@ -368,6 +368,8 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
 
     public static class DefaultShardContext extends ShardContext {
         private final int index;
+        private final int globalIndex;
+
         /**
          * In production, this will be a {@link org.elasticsearch.search.internal.SearchContext}, but we don't want to drag that huge
          * dependency here.
@@ -377,8 +379,9 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         private final AliasFilter aliasFilter;
         private final String shardIdentifier;
 
-        public DefaultShardContext(int index, Releasable releasable, SearchExecutionContext ctx, AliasFilter aliasFilter) {
+        public DefaultShardContext(int index, int globalIndex, Releasable releasable, SearchExecutionContext ctx, AliasFilter aliasFilter) {
             this.index = index;
+            this.globalIndex = globalIndex;
             this.releasable = releasable;
             this.ctx = ctx;
             this.aliasFilter = aliasFilter;
@@ -389,6 +392,11 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         @Override
         public int index() {
             return index;
+        }
+
+        @Override
+        public int globalIndex() {
+            return globalIndex;
         }
 
         @Override

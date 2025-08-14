@@ -326,15 +326,16 @@ public class LuceneSourceOperator extends LuceneOperator {
                 IntVector docs = null;
                 Block[] blocks = new Block[1 + (scoreBuilder == null ? 0 : 1) + scorer.tags().size()];
                 currentPagePos -= discardedDocs;
+                ShardContext shardContext = scorer.shardContext();
+                int shardId = shardContext.index();
                 try {
-                    int shardId = scorer.shardContext().index();
                     shard = blockFactory.newConstantIntVector(shardId, currentPagePos);
                     leaf = blockFactory.newConstantIntVector(scorer.leafReaderContext().ord, currentPagePos);
                     docs = buildDocsVector(currentPagePos);
                     docsBuilder = blockFactory.newIntVectorBuilder(Math.min(remainingDocs, maxPageSize));
                     int b = 0;
                     ShardRefCounted refCounted = ShardRefCounted.single(shardId, shardContextCounters.get(shardId));
-                    blocks[b++] = new DocVector(refCounted, shard, leaf, docs, true).asBlock();
+                    blocks[b++] = new DocVector(refCounted, shard, shardContext.globalIndex(), leaf, docs, true).asBlock();
                     shard = null;
                     leaf = null;
                     docs = null;

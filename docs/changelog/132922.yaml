@@ -1,0 +1,5 @@
+pr: 132922
+summary: '`GeoIpCache` and `EnrichCache` improvements'
+area: Authorization
+type: enhancement
+issues: []

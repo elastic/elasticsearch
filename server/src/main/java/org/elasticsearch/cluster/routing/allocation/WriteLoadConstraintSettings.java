@@ -100,27 +100,37 @@ public class WriteLoadConstraintSettings {
         Setting.Property.NodeScope
     );
 
-    WriteLoadDeciderStatus writeLoadDeciderStatus;
-    TimeValue writeLoadDeciderRerouteIntervalSetting;
+    private volatile WriteLoadDeciderStatus writeLoadDeciderStatus;
+    private volatile TimeValue minimumRerouteInterval;
+    private volatile TimeValue queueLatencyThreshold;
+    private volatile RatioValue highUtilizationThreshold;
 
     WriteLoadConstraintSettings(ClusterSettings clusterSettings) {
-        clusterSettings.initializeAndWatch(WRITE_LOAD_DECIDER_ENABLED_SETTING, this::setWriteLoadConstraintEnabled);
-        clusterSettings.initializeAndWatch(WRITE_LOAD_DECIDER_REROUTE_INTERVAL_SETTING, this::setWriteLoadDeciderRerouteIntervalSetting);
-    };
-
-    private void setWriteLoadConstraintEnabled(WriteLoadDeciderStatus status) {
-        this.writeLoadDeciderStatus = status;
+        clusterSettings.initializeAndWatch(WRITE_LOAD_DECIDER_ENABLED_SETTING, status -> this.writeLoadDeciderStatus = status);
+        clusterSettings.initializeAndWatch(
+            WRITE_LOAD_DECIDER_REROUTE_INTERVAL_SETTING,
+            timeValue -> this.minimumRerouteInterval = timeValue
+        );
+        clusterSettings.initializeAndWatch(WRITE_LOAD_DECIDER_QUEUE_LATENCY_THRESHOLD_SETTING, value -> queueLatencyThreshold = value);
+        clusterSettings.initializeAndWatch(
+            WRITE_LOAD_DECIDER_HIGH_UTILIZATION_THRESHOLD_SETTING,
+            value -> highUtilizationThreshold = value
+        );
     }
 
     public WriteLoadDeciderStatus getWriteLoadConstraintEnabled() {
         return this.writeLoadDeciderStatus;
     }
 
-    public TimeValue getWriteLoadDeciderRerouteIntervalSetting() {
-        return this.writeLoadDeciderRerouteIntervalSetting;
+    public TimeValue getMinimumRerouteInterval() {
+        return this.minimumRerouteInterval;
     }
 
-    private void setWriteLoadDeciderRerouteIntervalSetting(TimeValue timeValue) {
-        this.writeLoadDeciderRerouteIntervalSetting = timeValue;
+    public TimeValue getQueueLatencyThreshold() {
+        return this.queueLatencyThreshold;
+    }
+
+    public RatioValue getHighUtilizationThreshold() {
+        return this.highUtilizationThreshold;
     }
 }

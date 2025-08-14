@@ -15,19 +15,24 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.ClusterInfoService;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.NodeUsageStatsForThreadPools;
 import org.elasticsearch.cluster.routing.RerouteService;
+import org.elasticsearch.cluster.routing.RoutingNodes;
+import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.common.Priority;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.gateway.GatewayService;
+import org.elasticsearch.threadpool.ThreadPool;
 
+import java.util.Set;
 import java.util.function.LongSupplier;
 import java.util.function.Supplier;
 
 /**
  * Monitors the node-level write thread pool usage across the cluster and initiates (coming soon) a rebalancing round (via
  * {@link RerouteService#reroute}) whenever a node crosses the node-level write load thresholds.
- *
- * TODO (ES-11992): implement
  */
 public class WriteLoadConstraintMonitor {
     private static final Logger logger = LogManager.getLogger(WriteLoadConstraintMonitor.class);
@@ -35,6 +40,8 @@ public class WriteLoadConstraintMonitor {
     private final Supplier<ClusterState> clusterStateSupplier;
     private final LongSupplier currentTimeMillisSupplier;
     private final RerouteService rerouteService;
+    private volatile long lastRerouteTimeMillis = 0;
+    private volatile Set<String> lastSetOfHotSpottedNodes = Set.of();
 
     public WriteLoadConstraintMonitor(
         ClusterSettings clusterSettings,
@@ -60,29 +67,76 @@ public class WriteLoadConstraintMonitor {
             return;
         }
 
-        if (writeLoadConstraintSettings.getWriteLoadConstraintEnabled() == WriteLoadConstraintSettings.WriteLoadDeciderStatus.DISABLED) {
+        if (writeLoadConstraintSettings.getWriteLoadConstraintEnabled() == WriteLoadConstraintSettings.WriteLoadDeciderStatus.ENABLED) {
             logger.trace("skipping monitor because the write load decider is disabled");
             return;
         }
 
         logger.trace("processing new cluster info");
 
-        boolean reroute = false;
-        String explanation = "";
-        final long currentTimeMillis = currentTimeMillisSupplier.getAsLong();
+        final int numberOfNodes = clusterInfo.getNodeUsageStatsForThreadPools().size();
+        final Set<String> nodeIdsExceedingLatencyThreshold = Sets.newHashSetWithExpectedSize(numberOfNodes);
+        final Set<String> nodeIdsBelowUtilizationThreshold = Sets.newHashSetWithExpectedSize(numberOfNodes);
+        clusterInfo.getNodeUsageStatsForThreadPools().forEach((nodeId, usageStats) -> {
+            final NodeUsageStatsForThreadPools.ThreadPoolUsageStats writeThreadPoolStats = usageStats.threadPoolUsageStatsMap()
+                .get(ThreadPool.Names.WRITE);
+            if (writeThreadPoolStats.maxThreadPoolQueueLatencyMillis() > writeLoadConstraintSettings.getQueueLatencyThreshold().millis()) {
+                nodeIdsExceedingLatencyThreshold.add(nodeId);
+            }
+            if (writeThreadPoolStats.averageThreadPoolUtilization() < writeLoadConstraintSettings.getHighUtilizationThreshold()
+                .getAsPercent()) {
+                nodeIdsBelowUtilizationThreshold.add(nodeId);
+            }
+        });
 
-        // TODO (ES-11992): implement
-
-        if (reroute) {
-            logger.debug("rerouting shards: [{}]", explanation);
-            rerouteService.reroute("disk threshold monitor", Priority.NORMAL, ActionListener.wrap(ignored -> {
-                final var reroutedClusterState = clusterStateSupplier.get();
-
-                // TODO (ES-11992): implement
-
-            }, e -> logger.debug("reroute failed", e)));
-        } else {
-            logger.trace("no reroute required");
+        if (nodeIdsExceedingLatencyThreshold.isEmpty()) {
+            logger.debug("No nodes exceeding latency threshold");
+            return;
         }
+
+        // Remove any over-threshold nodes that already have shards relocating away
+        final RoutingNodes routingNodes = state.getRoutingNodes();
+        nodeIdsExceedingLatencyThreshold.removeIf(
+            nodeId -> routingNodes.node(nodeId).numberOfShardsWithState(ShardRoutingState.RELOCATING) > 0
+        );
+
+        if (nodeIdsExceedingLatencyThreshold.isEmpty()) {
+            logger.debug("All nodes over threshold have relocation in progress");
+            return;
+        }
+
+        if (Sets.difference(nodeIdsBelowUtilizationThreshold, nodeIdsExceedingLatencyThreshold).isEmpty()) {
+            logger.debug("No nodes below utilization threshold that are not exceeding latency threshold");
+            return;
+        }
+
+        final long currentTimeMillis = currentTimeMillisSupplier.getAsLong();
+        final long timeSinceLastRerouteMillis = currentTimeMillis - lastRerouteTimeMillis;
+        final boolean haveCalledRerouteRecently = timeSinceLastRerouteMillis < writeLoadConstraintSettings.getMinimumRerouteInterval()
+            .millis();
+
+        if (haveCalledRerouteRecently == false
+            || Sets.difference(nodeIdsExceedingLatencyThreshold, lastSetOfHotSpottedNodes).isEmpty() == false) {
+            callReroute(nodeIdsExceedingLatencyThreshold);
+        } else {
+            logger.debug("Not calling reroute because we called reroute recently and there are no new hot spots");
+        }
+    }
+
+    private void callReroute(Set<String> hotSpottedNodes) {
+        final String reason = Strings.format(
+            "write load constraint monitor: Found %d node(s) exceeding the write thread pool queue latency threshold",
+            hotSpottedNodes.size()
+        );
+        rerouteService.reroute(
+            reason,
+            Priority.NORMAL,
+            ActionListener.wrap(
+                ignored -> logger.trace("{} reroute successful", reason),
+                e -> logger.debug(() -> Strings.format("reroute failed, reason: %s", reason), e)
+            )
+        );
+        lastRerouteTimeMillis = currentTimeMillisSupplier.getAsLong();
+        lastSetOfHotSpottedNodes = hotSpottedNodes;
     }
 }

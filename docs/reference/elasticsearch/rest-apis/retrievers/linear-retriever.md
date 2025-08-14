@@ -94,8 +94,46 @@ The `linear` retriever supports the following normalizers:
     ```
 * `l2_norm`: Normalizes scores using the L2 norm of the score values {applies_to}`stack: ga 9.1`
 
-## Examples [linear-retriever-examples]
+## Example
 
+This example of a hybrid search weights KNN results five times more heavily than BM25 results in the final ranking.
+
+```console
+GET my_index/_search
+{
+  "retriever": {
+    "linear": {
+      "retrievers": [
+        {
+          "retriever": {
+            "knn": {
+              "field": "title_vector",
+              "query_vector": [0.1, 0.2, 0.3],
+              "k": 10,
+              "num_candidates": 100
+            }
+          },
+          "weight": 5.0
+        },
+        {
+          "retriever": {
+            "standard": {
+              "query": {
+                "match": {
+                  "title": "elasticsearch"
+                }
+              }
+            }
+          },
+          "weight": 1.5
+        }
+      ]
+    }
+  }
+}
+```
+
+### Using top-level normalizer
 
 This example shows how to use a top-level normalizer that applies to all sub-retrievers:
 
@@ -136,3 +174,5 @@ GET my_index/_search
 ```
 
 In this example, the `minmax` normalizer is applied to both the standard retriever and the kNN retriever. The top-level normalizer serves as a default that can be overridden by individual sub-retrievers. When using the multi-field query format, the top-level normalizer is applied to all generated inner retrievers.
+
+See also [this hybrid search example](retrievers-examples.md#retrievers-examples-linear-retriever).

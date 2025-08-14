@@ -43,14 +43,15 @@ import static org.hamcrest.Matchers.not;
 
 public class JvmOptionsParserTests extends ESTestCase {
 
-    private static final Map<String, String> TEST_SYSPROPS = Map.of("os.name", "Linux", "os.arch", "aarch64");
-
-    private static final Path ENTITLEMENTS_LIB_DIR = Path.of("lib", "entitlement-bridge");
+    private static Map<String, String> testSysprops;
 
     @BeforeClass
     public static void beforeClass() throws IOException {
-        Files.createDirectories(ENTITLEMENTS_LIB_DIR);
-        Files.createTempFile(ENTITLEMENTS_LIB_DIR, "mock-entitlements-bridge", ".jar");
+        Path homeDir = createTempDir();
+        Path entitlementLibDir = homeDir.resolve("lib/entitlement-bridge");
+        Files.createDirectories(entitlementLibDir);
+        Files.createTempFile(entitlementLibDir, "mock-entitlements-bridge", ".jar");
+        testSysprops = Map.of("os.name", "Linux", "os.arch", "aarch64", "es.path.home", homeDir.toString());
     }
 
     @AfterClass
@@ -367,30 +368,30 @@ public class JvmOptionsParserTests extends ESTestCase {
 
     public void testNodeProcessorsActiveCount() {
         {
-            final List<String> jvmOptions = SystemJvmOptions.systemJvmOptions(Settings.EMPTY, TEST_SYSPROPS);
+            final List<String> jvmOptions = SystemJvmOptions.systemJvmOptions(Settings.EMPTY, testSysprops);
             assertThat(jvmOptions, not(hasItem(containsString("-XX:ActiveProcessorCount="))));
         }
         {
             Settings nodeSettings = Settings.builder().put(EsExecutors.NODE_PROCESSORS_SETTING.getKey(), 1).build();
-            final List<String> jvmOptions = SystemJvmOptions.systemJvmOptions(nodeSettings, TEST_SYSPROPS);
+            final List<String> jvmOptions = SystemJvmOptions.systemJvmOptions(nodeSettings, testSysprops);
             assertThat(jvmOptions, hasItem("-XX:ActiveProcessorCount=1"));
         }
         {
             // check rounding
             Settings nodeSettings = Settings.builder().put(EsExecutors.NODE_PROCESSORS_SETTING.getKey(), 0.2).build();
-            final List<String> jvmOptions = SystemJvmOptions.systemJvmOptions(nodeSettings, TEST_SYSPROPS);
+            final List<String> jvmOptions = SystemJvmOptions.systemJvmOptions(nodeSettings, testSysprops);
             assertThat(jvmOptions, hasItem("-XX:ActiveProcessorCount=1"));
         }
         {
             // check validation
             Settings nodeSettings = Settings.builder().put(EsExecutors.NODE_PROCESSORS_SETTING.getKey(), 10000).build();
-            var e = expectThrows(IllegalArgumentException.class, () -> SystemJvmOptions.systemJvmOptions(nodeSettings, TEST_SYSPROPS));
+            var e = expectThrows(IllegalArgumentException.class, () -> SystemJvmOptions.systemJvmOptions(nodeSettings, testSysprops));
             assertThat(e.getMessage(), containsString("setting [node.processors] must be <="));
         }
     }
 
     public void testCommandLineDistributionType() {
-        var sysprops = new HashMap<>(TEST_SYSPROPS);
+        var sysprops = new HashMap<>(testSysprops);
         sysprops.put("es.distribution.type", "testdistro");
         final List<String> jvmOptions = SystemJvmOptions.systemJvmOptions(Settings.EMPTY, sysprops);
         assertThat(jvmOptions, hasItem("-Des.distribution.type=testdistro"));

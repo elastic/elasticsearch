@@ -501,27 +501,15 @@ tests:
 - class: org.elasticsearch.test.rest.yaml.RcsCcsCommonYamlTestSuiteIT
   method: test {p0=search/160_exists_query/Test exists query on keyword field in empty index}
   issue: https://github.com/elastic/elasticsearch/issues/132829
-- class: org.elasticsearch.xpack.esql.CsvTests
-  method: test {csv-spec:floats.EqualToMultivalue}
-  issue: https://github.com/elastic/elasticsearch/issues/132852
-- class: org.elasticsearch.xpack.esql.CsvTests
-  method: test {csv-spec:string.MvStringEquals}
-  issue: https://github.com/elastic/elasticsearch/issues/132856
-- class: org.elasticsearch.xpack.esql.CsvTests
-  method: test {csv-spec:string.LengthOfText}
-  issue: https://github.com/elastic/elasticsearch/issues/132857
-- class: org.elasticsearch.xpack.esql.CsvTests
-  method: test {csv-spec:floats.InMultivalue}
-  issue: https://github.com/elastic/elasticsearch/issues/132859
-- class: org.elasticsearch.xpack.esql.CsvTests
-  method: test {csv-spec:ip.CdirMatchEqualsInsOrs}
-  issue: https://github.com/elastic/elasticsearch/issues/132860
 - class: org.elasticsearch.test.rest.yaml.CcsCommonYamlTestSuiteIT
   method: test {p0=search.vectors/40_knn_search_cosine/kNN search only regular query}
   issue: https://github.com/elastic/elasticsearch/issues/132890
 - class: org.elasticsearch.test.rest.yaml.CcsCommonYamlTestSuiteIT
   method: test {p0=search/410_named_queries/named_queries_with_score}
   issue: https://github.com/elastic/elasticsearch/issues/132906
+- class: org.elasticsearch.xpack.esql.qa.mixed.EsqlClientYamlIT
+  method: test {p0=esql/230_folding/CIDR_MATCH with non-foldable CIDRs}
+  issue: https://github.com/elastic/elasticsearch/issues/132931
 
 # Examples:
 #

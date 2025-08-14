@@ -21,11 +21,24 @@
 
 package org.elasticsearch.exponentialhistogram;
 
-import static org.hamcrest.Matchers.equalTo;
+import org.apache.lucene.util.RamUsageEstimator;
 
-public class ZeroBucketTests extends ExponentialHistogramTestCase {
+class RamEstimationUtil {
 
-    public void testMinimalBucketHasZeroThreshold() {
-        assertThat(ZeroBucket.minimalWithCount(42).zeroThreshold(), equalTo(0.0));
+    private static long estimatedArraySize(int arrayLength, int bytesPerElement) {
+        return RamUsageEstimator.alignObjectSize(RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + ((long) arrayLength) * bytesPerElement);
     }
+
+    static long estimateLongArray(int length) {
+        return estimatedArraySize(length, Long.BYTES);
+    }
+
+    static long estimateIntArray(int length) {
+        return estimatedArraySize(length, Integer.BYTES);
+    }
+
+    static long estimateDoubleArray(int length) {
+        return estimatedArraySize(length, Double.BYTES);
+    }
+
 }

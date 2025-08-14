@@ -946,6 +946,21 @@ public final class PanamaESVectorUtilSupport implements ESVectorUtilSupport {
     }
 
     private static final VectorSpecies<Integer> INT_SPECIES_128 = IntVector.SPECIES_128;
+    private static final IntVector SHIFTS_256;
+    private static final IntVector HIGH_SHIFTS_128;
+    private static final IntVector LOW_SHIFTS_128;
+    static {
+        final int[] shifts = new int[] { 7, 6, 5, 4, 3, 2, 1, 0 };
+        if (VECTOR_BITSIZE == 128) {
+            HIGH_SHIFTS_128 = IntVector.fromArray(INT_SPECIES_128, shifts, 0);
+            LOW_SHIFTS_128 = IntVector.fromArray(INT_SPECIES_128, shifts, INT_SPECIES_128.length());
+            SHIFTS_256 = null;
+        } else {
+            SHIFTS_256 = IntVector.fromArray(INT_SPECIES_256, shifts, 0);
+            HIGH_SHIFTS_128 = null;
+            LOW_SHIFTS_128 = null;
+        }
+    }
     private static final int[] SHIFTS = new int[] { 7, 6, 5, 4, 3, 2, 1, 0 };
 
     @Override
@@ -968,10 +983,9 @@ public final class PanamaESVectorUtilSupport implements ESVectorUtilSupport {
         final int limit = INT_SPECIES_256.loopBound(vector.length);
         int i = 0;
         int index = 0;
-        IntVector shifts = IntVector.fromArray(INT_SPECIES_256, SHIFTS, 0);
         for (; i < limit; i += INT_SPECIES_256.length(), index++) {
             IntVector v = IntVector.fromArray(INT_SPECIES_256, vector, i);
-            int result = v.lanewise(LSHL, shifts).reduceLanes(OR);
+            int result = v.lanewise(LSHL, SHIFTS_256).reduceLanes(OR);
             packed[index] = (byte) result;
         }
         if (i == vector.length) {
@@ -989,13 +1003,11 @@ public final class PanamaESVectorUtilSupport implements ESVectorUtilSupport {
         final int limit = INT_SPECIES_128.loopBound(vector.length) - INT_SPECIES_128.length();
         int i = 0;
         int index = 0;
-        IntVector highShifts = IntVector.fromArray(INT_SPECIES_128, SHIFTS, 0);
-        IntVector lowShifts = IntVector.fromArray(INT_SPECIES_128, SHIFTS, INT_SPECIES_128.length());
         for (; i < limit; i += 2 * INT_SPECIES_128.length(), index++) {
             IntVector v = IntVector.fromArray(INT_SPECIES_128, vector, i);
-            var v1 = v.lanewise(LSHL, highShifts);
+            var v1 = v.lanewise(LSHL, HIGH_SHIFTS_128);
             v = IntVector.fromArray(INT_SPECIES_128, vector, i + INT_SPECIES_128.length());
-            var v2 = v.lanewise(LSHL, lowShifts);
+            var v2 = v.lanewise(LSHL, LOW_SHIFTS_128);
             int result = v1.lanewise(OR, v2).reduceLanes(OR);
             packed[index] = (byte) result;
         }

@@ -104,6 +104,6 @@ public class AvgOverTime extends TimeSeriesAggregateFunction implements Surrogat
 
     @Override
     public AggregateFunction perTimeSeriesAggregation() {
-        return new Avg(source(), field(), filter());
+        return new Avg(source(), field(), filter(), SummationMode.LOSSY_LITERAL);
     }
 }

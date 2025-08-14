@@ -2300,28 +2300,25 @@ public class VerifierTests extends ESTestCase {
 
     public void testVectorSimilarityFunctionsNullArgs() throws Exception {
         if (EsqlCapabilities.Cap.COSINE_VECTOR_SIMILARITY_FUNCTION.isEnabled()) {
-            checkVectorSimilarityFunctionsNullArgs("v_cosine(null, vector)", "first");
-            checkVectorSimilarityFunctionsNullArgs("v_cosine(vector, null)", "second");
+            checkVectorSimilarityFunctionsNullArgs("v_cosine(null, vector)");
+            checkVectorSimilarityFunctionsNullArgs("v_cosine(vector, null)");
         }
         if (EsqlCapabilities.Cap.DOT_PRODUCT_VECTOR_SIMILARITY_FUNCTION.isEnabled()) {
-            checkVectorSimilarityFunctionsNullArgs("v_dot_product(null, vector)", "first");
-            checkVectorSimilarityFunctionsNullArgs("v_dot_product(vector, null)", "second");
+            checkVectorSimilarityFunctionsNullArgs("v_dot_product(null, vector)");
+            checkVectorSimilarityFunctionsNullArgs("v_dot_product(vector, null)");
         }
         if (EsqlCapabilities.Cap.L1_NORM_VECTOR_SIMILARITY_FUNCTION.isEnabled()) {
-            checkVectorSimilarityFunctionsNullArgs("v_l1_norm(null, vector)", "first");
-            checkVectorSimilarityFunctionsNullArgs("v_l1_norm(vector, null)", "second");
+            checkVectorSimilarityFunctionsNullArgs("v_l1_norm(null, vector)");
+            checkVectorSimilarityFunctionsNullArgs("v_l1_norm(vector, null)");
         }
         if (EsqlCapabilities.Cap.L2_NORM_VECTOR_SIMILARITY_FUNCTION.isEnabled()) {
-            checkVectorSimilarityFunctionsNullArgs("v_l2_norm(null, vector)", "first");
-            checkVectorSimilarityFunctionsNullArgs("v_l2_norm(vector, null)", "second");
+            checkVectorSimilarityFunctionsNullArgs("v_l2_norm(null, vector)");
+            checkVectorSimilarityFunctionsNullArgs("v_l2_norm(vector, null)");
         }
     }
 
-    private void checkVectorSimilarityFunctionsNullArgs(String functionInvocation, String argOrdinal) throws Exception {
-        assertThat(
-            error("from test | eval similarity = " + functionInvocation, fullTextAnalyzer),
-            containsString(argOrdinal + " argument of [" + functionInvocation + "] cannot be null, received [null]")
-        );
+    private void checkVectorSimilarityFunctionsNullArgs(String functionInvocation) throws Exception {
+        query("from test | eval similarity = " + functionInvocation, fullTextAnalyzer);
     }
 
     private void query(String query) {

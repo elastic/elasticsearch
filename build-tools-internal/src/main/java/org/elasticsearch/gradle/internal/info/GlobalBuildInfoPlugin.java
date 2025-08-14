@@ -376,9 +376,6 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
         NamedDomainObjectContainer<Jdk> container = project.getPlugins().apply(JdkDownloadPlugin.class).getContainer(project);
         Integer buildNumber = Integer.getInteger("runtime.java.build");
         if (buildNumber == null) {
-            buildNumber = Integer.getInteger("runtime.java." + runtimeJavaProperty + ".build");
-        }
-        if (buildNumber == null) {
             buildNumber = findLatestEABuildNumber(runtimeJavaProperty);
         }
         String eaVersionString = String.format("%d-ea+%d", runtimeJavaProperty, buildNumber);

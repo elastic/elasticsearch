@@ -9,8 +9,7 @@
          <trust group="beats" name="metricbeat"/>
          <trust group="beats" name="metricbeat-fips"/>
          <trust group="elasticsearch-distribution" name="elasticsearch"/>
-         <trust group="openjdk_25"/>
-         <trust group="openjdk_26"/>
+         <trust group="openjdk_.*" regex="true"/>
          <trust group="org.elasticsearch"/>
          <trust group="org.elasticsearch.distribution.zip" name="elasticsearch"/>
          <trust group="org.elasticsearch.ml"/>

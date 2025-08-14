@@ -238,7 +238,7 @@ public abstract class AsyncOperator<Fetched> implements Operator {
 
     @Override
     public final Operator.Status status() {
-        return status(Math.max(0L, checkpoint.getMaxSeqNo()), Math.max(0L, checkpoint.getProcessedCheckpoint()), processNanos.sum());
+        return status(checkpoint.getMaxSeqNo() + 1, checkpoint.getProcessedCheckpoint() + 1, processNanos.sum());
     }
 
     protected Operator.Status status(long receivedPages, long completedPages, long processNanos) {
@@ -289,7 +289,7 @@ public abstract class AsyncOperator<Fetched> implements Operator {
             return completedPages;
         }
 
-        public long procesNanos() {
+        public long processNanos() {
             return processNanos;
         }
 
@@ -310,8 +310,8 @@ public abstract class AsyncOperator<Fetched> implements Operator {
             if (builder.humanReadable()) {
                 builder.field("process_time", TimeValue.timeValueNanos(processNanos));
             }
-            builder.field("received_pages", receivedPages);
-            builder.field("completed_pages", completedPages);
+            builder.field("pages_received", receivedPages);
+            builder.field("pages_completed", completedPages);
             return builder;
         }
 

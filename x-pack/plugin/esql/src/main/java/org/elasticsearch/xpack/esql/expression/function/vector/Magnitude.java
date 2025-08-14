@@ -36,7 +36,11 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.DENSE_VECTOR;
 
 public class Magnitude extends UnaryScalarFunction implements EvaluatorMapper, VectorFunction {
 
-    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Hamming", Magnitude::new);
+    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
+        Expression.class,
+        "Magnitude",
+        Magnitude::new
+    );
     static final ScalarEvaluatorFunction SCALAR_FUNCTION = Magnitude::calculateScalar;
 
     @FunctionInfo(

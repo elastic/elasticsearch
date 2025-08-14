@@ -50,7 +50,6 @@ public class ESONXContentParser extends AbstractXContentParser {
     private String currentFieldName = null;
     private ESONEntry currentEntry = null;
     private Object currentValue = null;
-    private boolean valueComputed = false;
 
     private final IntStack containerStack = new IntStack();
 
@@ -225,9 +224,8 @@ public class ESONXContentParser extends AbstractXContentParser {
     // Helper method to materialize the current value on demand
     private Object getCurrentValue() {
         // TODO: Could probably optimize to not box all the numbers
-        if (valueComputed == false) {
+        if (currentValue == null) {
             currentValue = materializeValue();
-            valueComputed = true;
         }
         return currentValue;
     }

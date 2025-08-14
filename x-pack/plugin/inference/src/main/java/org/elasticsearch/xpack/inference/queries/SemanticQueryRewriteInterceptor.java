@@ -122,6 +122,10 @@ public abstract class SemanticQueryRewriteInterceptor implements QueryRewriteInt
         InferenceIndexInformationForField indexInformation
     );
 
+    private static void addToFieldBoostsMap(Map<String, Float> fieldBoosts, String field, Float boost) {
+        fieldBoosts.compute(field, (k, v) -> v == null ? boost : v * boost);
+    }
+
     private InferenceIndexInformationForField resolveIndicesForFields(
         QueryBuilder queryBuilder,
         ResolvedIndices resolvedIndices,
@@ -147,7 +151,7 @@ public abstract class SemanticQueryRewriteInterceptor implements QueryRewriteInt
                 fieldsToProcess = QueryParserHelper.parseFieldsAndWeights(defaultFields);
             }
 
-            // Resolve wildcards for inference fields and store boosts
+            // Resolve wildcards for inference fields and multiply boosts when field matches multiple patterns
             for (Map.Entry<String, Float> entry : fieldsToProcess.entrySet()) {
                 String field = entry.getKey();
                 Float boost = entry.getValue();
@@ -155,16 +159,16 @@ public abstract class SemanticQueryRewriteInterceptor implements QueryRewriteInt
                 if (resolveInferenceFieldWildcards && Regex.isMatchAllPattern(field)) {
                     indexInferenceMetadata.keySet().forEach(f -> {
                         indexInferenceFields.put(f, indexInferenceMetadata.get(f));
-                        fieldBoosts.put(f, boost);
+                        addToFieldBoostsMap(fieldBoosts, f, boost);
                     });
                 } else if (resolveInferenceFieldWildcards && Regex.isSimpleMatchPattern(field)) {
                     indexInferenceMetadata.keySet().stream().filter(f -> Regex.simpleMatch(field, f)).forEach(f -> {
                         indexInferenceFields.put(f, indexInferenceMetadata.get(f));
-                        fieldBoosts.put(f, boost);
+                        addToFieldBoostsMap(fieldBoosts, f, boost);
                     });
                 } else if (indexInferenceMetadata.containsKey(field)) {
                     indexInferenceFields.put(field, indexInferenceMetadata.get(field));
-                    fieldBoosts.put(field, boost);
+                    addToFieldBoostsMap(fieldBoosts, field, boost);
                 }
             }
 
@@ -174,7 +178,7 @@ public abstract class SemanticQueryRewriteInterceptor implements QueryRewriteInt
 
             // Store boosts for non-inference fields in global fieldBoosts map
             for (String nonInferenceField : indexNonInferenceFields) {
-                fieldBoosts.put(nonInferenceField, fieldsToProcess.get(nonInferenceField));
+                addToFieldBoostsMap(fieldBoosts, nonInferenceField, fieldsToProcess.get(nonInferenceField));
             }
 
             if (indexInferenceFields.isEmpty() == false) {

@@ -802,7 +802,10 @@ public class SparseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase
         }
 
         if (shouldPrune == null) {
-            shouldPrune = indexVersion.between(SPARSE_VECTOR_PRUNING_INDEX_OPTIONS_SUPPORT_BACKPORT_8_X, IndexVersions.UPGRADE_TO_LUCENE_10_0_0) || indexVersion.onOrAfter(SPARSE_VECTOR_PRUNING_INDEX_OPTIONS_SUPPORT);
+            shouldPrune = indexVersion.between(
+                SPARSE_VECTOR_PRUNING_INDEX_OPTIONS_SUPPORT_BACKPORT_8_X,
+                IndexVersions.UPGRADE_TO_LUCENE_10_0_0
+            ) || indexVersion.onOrAfter(SPARSE_VECTOR_PRUNING_INDEX_OPTIONS_SUPPORT);
         }
 
         PruningScenario pruningScenario = PruningScenario.NO_PRUNING;
@@ -840,10 +843,9 @@ public class SparseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase
     }
 
     private void assertPruningScenario(PruningOptions indexPruningOptions, PruningOptions queryPruningOptions) throws IOException {
-        IndexVersion indexVersion = ESTestCase.randomFrom(IndexVersionUtils.allReleasedVersions().subSet(
-            SPARSE_VECTOR_PRUNING_INDEX_OPTIONS_SUPPORT_BACKPORT_8_X,
-            IndexVersion.current()
-        ));
+        IndexVersion indexVersion = ESTestCase.randomFrom(
+            IndexVersionUtils.allReleasedVersions().subSet(SPARSE_VECTOR_PRUNING_INDEX_OPTIONS_SUPPORT_BACKPORT_8_X, IndexVersion.current())
+        );
         MapperService mapperService = createMapperService(indexVersion, getIndexMapping(indexPruningOptions));
         PruningScenario effectivePruningScenario = getEffectivePruningScenario(indexPruningOptions, queryPruningOptions, indexVersion);
         withSearchExecutionContext(mapperService, (context) -> {

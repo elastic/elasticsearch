@@ -149,7 +149,6 @@ public class TransportVersions {
     public static final TransportVersion INITIAL_ELASTICSEARCH_8_18_2 = def(8_840_0_04);
     public static final TransportVersion INITIAL_ELASTICSEARCH_8_18_3 = def(8_840_0_05);
     public static final TransportVersion INITIAL_ELASTICSEARCH_8_18_4 = def(8_840_0_06);
-    public static final TransportVersion INITIAL_ELASTICSEARCH_8_18_5 = def(8_840_0_07);
     public static final TransportVersion INITIAL_ELASTICSEARCH_8_18_6 = def(8_840_0_08);
     public static final TransportVersion INITIAL_ELASTICSEARCH_8_19 = def(8_841_0_00);
     public static final TransportVersion COHERE_BIT_EMBEDDING_TYPE_SUPPORT_ADDED_BACKPORT_8_X = def(8_841_0_01);
@@ -222,7 +221,6 @@ public class TransportVersions {
     public static final TransportVersion INITIAL_ELASTICSEARCH_9_0_2 = def(9_000_0_11);
     public static final TransportVersion INITIAL_ELASTICSEARCH_9_0_3 = def(9_000_0_12);
     public static final TransportVersion INITIAL_ELASTICSEARCH_9_0_4 = def(9_000_0_13);
-    public static final TransportVersion INITIAL_ELASTICSEARCH_9_0_5 = def(9_000_0_14);
     public static final TransportVersion INITIAL_ELASTICSEARCH_9_0_6 = def(9_000_0_15);
     public static final TransportVersion COHERE_BIT_EMBEDDING_TYPE_SUPPORT_ADDED = def(9_001_0_00);
     public static final TransportVersion REMOVE_SNAPSHOT_FAILURES = def(9_002_0_00);
@@ -365,6 +363,7 @@ public class TransportVersions {
     public static final TransportVersion INDEX_TEMPLATE_TRACKING_INFO = def(9_136_0_00);
     public static final TransportVersion EXTENDED_SNAPSHOT_STATS_IN_NODE_INFO = def(9_137_0_00);
     public static final TransportVersion SIMULATE_INGEST_MAPPING_MERGE_TYPE = def(9_138_0_00);
+    public static final TransportVersion ESQL_LOOKUP_JOIN_ON_MANY_FIELDS = def(9_139_0_00);
 
     /*
      * STOP! READ THIS FIRST! No, really,

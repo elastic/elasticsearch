@@ -45,7 +45,6 @@ import org.gradle.jvm.toolchain.JavaLanguageVersion;
 import org.gradle.jvm.toolchain.JavaToolchainService;
 import org.gradle.jvm.toolchain.JavaToolchainSpec;
 import org.gradle.jvm.toolchain.JvmVendorSpec;
-import org.gradle.jvm.toolchain.internal.DefaultJvmVendorSpec;
 import org.gradle.jvm.toolchain.internal.InstallationLocation;
 import org.gradle.util.GradleVersion;
 import org.jetbrains.annotations.NotNull;
@@ -57,14 +56,12 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.UncheckedIOException;
-import java.lang.reflect.Field;
 import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Random;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -107,6 +104,7 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
         }
         this.project = project;
         project.getPlugins().apply(JvmToolchainsPlugin.class);
+        project.getPlugins().apply(JdkDownloadPlugin.class);
         Provider<GitInfo> gitInfo = project.getPlugins().apply(GitInfoPlugin.class).getGitInfo();
 
         toolChainService = project.getExtensions().getByType(JavaToolchainService.class);
@@ -350,7 +348,7 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
         String runtimeJavaProperty = System.getProperty("runtime.java");
 
         if (runtimeJavaProperty != null) {
-            if(runtimeJavaProperty.toLowerCase().endsWith("-ea")) {
+            if (runtimeJavaProperty.toLowerCase().endsWith("-ea")) {
                 // handle EA builds differently due to lack of support in Gradle toolchain service
                 // we resolve them using JdkDownloadPlugin for now.
                 Integer major = Integer.parseInt(runtimeJavaProperty.substring(0, runtimeJavaProperty.length() - 3));
@@ -373,7 +371,7 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
     }
 
     private Provider<File> resolveEarlyAccessJavaHome(Integer runtimeJavaProperty) {
-        NamedDomainObjectContainer<Jdk> container = project.getPlugins().apply(JdkDownloadPlugin.class).getContainer(project);
+        NamedDomainObjectContainer<Jdk> container = (NamedDomainObjectContainer<Jdk>) project.getExtensions().getByName("jdks");
         Integer buildNumber = Integer.getInteger("runtime.java.build");
         if (buildNumber == null) {
             buildNumber = findLatestEABuildNumber(runtimeJavaProperty);

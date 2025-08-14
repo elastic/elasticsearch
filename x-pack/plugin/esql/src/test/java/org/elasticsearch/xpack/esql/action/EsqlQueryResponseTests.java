@@ -1175,6 +1175,10 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                     case LONG, COUNTER_LONG -> ((LongBlock.Builder) builder).appendLong(((Number) value).longValue());
                     case INTEGER, COUNTER_INTEGER -> ((IntBlock.Builder) builder).appendInt(((Number) value).intValue());
                     case DOUBLE, COUNTER_DOUBLE -> ((DoubleBlock.Builder) builder).appendDouble(((Number) value).doubleValue());
+<<<<<<< HEAD
+=======
+                    case FLOAT, COUNTER_FLOAT -> ((FloatBlock.Builder) builder).appendFloat(((Number) value).floatValue());
+>>>>>>> db1a3e23e2b (Without comments. Eveything passes with passing `false` (default).)
                     case KEYWORD, TEXT -> ((BytesRefBlock.Builder) builder).appendBytesRef(new BytesRef(value.toString()));
                     case UNSUPPORTED -> ((BytesRefBlock.Builder) builder).appendNull();
                     case IP -> ((BytesRefBlock.Builder) builder).appendBytesRef(stringToIP(value.toString()));
@@ -1227,6 +1231,9 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                         }
                         floatBuilder.endPositionEntry();
                     }
+                    default -> throw new IllegalArgumentException(
+                        "Unsupported data type [" + dataTypes.get(c) + "] for value [" + value + "] at column " + c
+                    );
                 }
             }
         }

@@ -320,6 +320,10 @@ public class PlannerUtils {
             case LONG, DATETIME, DATE_NANOS, UNSIGNED_LONG, COUNTER_LONG -> ElementType.LONG;
             case INTEGER, COUNTER_INTEGER -> ElementType.INT;
             case DOUBLE, COUNTER_DOUBLE -> ElementType.DOUBLE;
+<<<<<<< HEAD
+=======
+            case FLOAT, COUNTER_FLOAT -> ElementType.FLOAT;
+>>>>>>> db1a3e23e2b (Without comments. Eveything passes with passing `false` (default).)
             // unsupported fields are passed through as a BytesRef
             case KEYWORD, TEXT, IP, SOURCE, VERSION, UNSUPPORTED -> ElementType.BYTES_REF;
             case NULL -> ElementType.NULL;
@@ -331,7 +335,7 @@ public class PlannerUtils {
             case PARTIAL_AGG -> ElementType.COMPOSITE;
             case AGGREGATE_METRIC_DOUBLE -> ElementType.AGGREGATE_METRIC_DOUBLE;
             case DENSE_VECTOR -> ElementType.FLOAT;
-            case SHORT, BYTE, DATE_PERIOD, TIME_DURATION, OBJECT, FLOAT, HALF_FLOAT, SCALED_FLOAT -> throw EsqlIllegalArgumentException
+            case SHORT, BYTE, DATE_PERIOD, TIME_DURATION, OBJECT, HALF_FLOAT, SCALED_FLOAT -> throw EsqlIllegalArgumentException
                 .illegalDataType(dataType);
         };
     }

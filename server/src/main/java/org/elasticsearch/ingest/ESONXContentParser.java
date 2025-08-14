@@ -95,7 +95,7 @@ public class ESONXContentParser extends AbstractXContentParser {
         if (currentToken == null) {
             assert size >= currentIndex;
             ESONEntry.ObjectEntry rootEntry = (ESONEntry.ObjectEntry) keyArray.get(currentIndex);
-            containerStack.pushContainer(rootEntry.offsetOrCount(), false);
+            containerStack.pushObject(rootEntry.offsetOrCount());
             currentIndex++;
             currentToken = Token.START_OBJECT;
             return currentToken;
@@ -151,8 +151,10 @@ public class ESONXContentParser extends AbstractXContentParser {
         currentIndex++;
 
         byte type = entry.type();
-        if (type == ESONEntry.TYPE_OBJECT || type == ESONEntry.TYPE_ARRAY) {
-            containerStack.pushContainer(entry.offsetOrCount(), type == ESONEntry.TYPE_ARRAY);
+        if (type == ESONEntry.TYPE_OBJECT) {
+            containerStack.pushObject(entry.offsetOrCount());
+        } else if (type == ESONEntry.TYPE_ARRAY) {
+            containerStack.pushArray(entry.offsetOrCount());
         } else {
             currentType = ((ESONEntry.FieldEntry) entry).value;
         }
@@ -447,11 +449,22 @@ public class ESONXContentParser extends AbstractXContentParser {
         private static final int CONTAINER_TYPE_MASK = 0x80000000;  // Top bit
         private static final int COUNT_MASK = 0x7FFFFFFF;           // Bottom 31 bits
 
-        private void pushContainer(int count, boolean isArray) {
+        private void pushArray(int count) {
             if (++stackTop >= containerStack.length) {
-                containerStack = Arrays.copyOf(containerStack, containerStack.length * 2);
+                growStack();
             }
-            containerStack[stackTop] = isArray ? count | CONTAINER_TYPE_MASK : count;
+            containerStack[stackTop] = count | CONTAINER_TYPE_MASK;
+        }
+
+        private void pushObject(int count) {
+            if (++stackTop >= containerStack.length) {
+                growStack();
+            }
+            containerStack[stackTop] = count;
+        }
+
+        private void growStack() {
+            containerStack = Arrays.copyOf(containerStack, containerStack.length << 1);
         }
 
         private boolean isCurrentContainerArray() {

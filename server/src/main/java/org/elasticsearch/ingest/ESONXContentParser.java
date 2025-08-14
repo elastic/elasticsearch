@@ -127,10 +127,12 @@ public class ESONXContentParser extends AbstractXContentParser {
             ++currentIndex;
             // In array or object value
             byte type = currentEntry.type();
-            if (type == ESONEntry.TYPE_OBJECT) {
-                containerStack.pushObject(currentEntry.offsetOrCount());
-            } else if (type == ESONEntry.TYPE_ARRAY) {
-                containerStack.pushArray(currentEntry.offsetOrCount());
+            if (type >= ESONEntry.TYPE_OBJECT) {
+                if (type == ESONEntry.TYPE_OBJECT) {
+                    containerStack.pushObject(currentEntry.offsetOrCount());
+                } else if (type == ESONEntry.TYPE_ARRAY) {
+                    containerStack.pushArray(currentEntry.offsetOrCount());
+                }
             }
 
             currentToken = TOKEN_LOOKUP[type];

@@ -23,11 +23,11 @@ public abstract class ESONEntry {
     public static final byte TYPE_DOUBLE = 0x06;
     public static final byte STRING = 0x07;
     public static final byte BINARY = 0x08;
-    public static final byte TYPE_OBJECT = 0x09;
     // TODO: Maybe add fixed width arrays
-    public static final byte TYPE_ARRAY = 0x0A;
-    public static final byte BIG_INTEGER = 0x0B;
-    public static final byte BIG_DECIMAL = 0x0C;
+    public static final byte BIG_INTEGER = 0x09;
+    public static final byte BIG_DECIMAL = 0x0A;
+    public static final byte TYPE_OBJECT = 0x0B;
+    public static final byte TYPE_ARRAY = 0x0C;
     // TODO: Fix
     public static final byte MUTATION = 0x64;
 

@@ -18,7 +18,7 @@
     },
     {
       "enabled": true,
-      "pipeline_slug": "elasticsearch-performance-esbench-pr",
+      "pipeline_slug": "elasticsearch-pull-request-performance-benchmark",
       "allow_org_users": true,
       "allowed_repo_permissions": [
         "admin",

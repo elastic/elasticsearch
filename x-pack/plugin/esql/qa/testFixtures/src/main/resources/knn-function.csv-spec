@@ -3,7 +3,7 @@
 # top-n query at the shard level 
 
 knnSearch
-required_capability: knn_function_v3
+required_capability: knn_function_v4
 
 // tag::knn-function[]
 from colors metadata _score 
@@ -30,7 +30,7 @@ chartreuse | [127.0, 255.0, 0.0]
 ;
 
 knnSearchWithSimilarityOption
-required_capability: knn_function_v3
+required_capability: knn_function_v4
 
 from colors metadata _score 
 | where knn(rgb_vector, [255,192,203], {"similarity": 40})
@@ -46,7 +46,7 @@ wheat      | [245.0, 222.0, 179.0]
 ;
 
 knnHybridSearch
-required_capability: knn_function_v3
+required_capability: knn_function_v4
 
 from colors metadata _score 
 | where match(color, "blue") or knn(rgb_vector, [65,105,225])
@@ -69,7 +69,7 @@ yellow     | [255.0, 255.0, 0.0]
 ;
 
 knnWithPrefilter
-required_capability: knn_function_v3
+required_capability: knn_function_v4
 
 from colors metadata _score
 | where knn(rgb_vector, [128,128,0]) and (match(color, "olive") or match(color, "green")) 
@@ -83,7 +83,7 @@ green            | [0.0, 128.0, 0.0]
 ;
 
 knnWithNegatedPrefilter
-required_capability: knn_function_v3
+required_capability: knn_function_v4
 
 from colors metadata _score
 | where knn(rgb_vector, [128,128,0]) and not (match(color, "olive") or match(color, "chocolate")) 
@@ -106,7 +106,7 @@ orange     | [255.0, 165.0, 0.0]
 ;
 
 knnAfterKeep
-required_capability: knn_function_v3
+required_capability: knn_function_v4
 
 from colors metadata _score
 | keep rgb_vector, color, _score 
@@ -125,7 +125,7 @@ rgb_vector:dense_vector
 ;
 
 knnAfterDrop
-required_capability: knn_function_v3
+required_capability: knn_function_v4
 
 from colors metadata _score
 | drop primary
@@ -144,7 +144,7 @@ lime           | [0.0, 255.0, 0.0]
 ;
 
 knnAfterEval
-required_capability: knn_function_v3
+required_capability: knn_function_v4
 
 from colors metadata _score
 | eval composed_name = locate(color, " ") > 0 
@@ -163,7 +163,7 @@ golden rod | true
 ;
 
 knnWithConjunction
-required_capability: knn_function_v3
+required_capability: knn_function_v4
 
 from colors metadata _score 
 | where knn(rgb_vector, [255,255,238]) and hex_code like "#FFF*" 
@@ -183,7 +183,7 @@ yellow        | #FFFF00          | [255.0, 255.0, 0.0]
 ;
 
 knnWithDisjunctionAndFiltersConjunction
-required_capability: knn_function_v3
+required_capability: knn_function_v4
 
 from colors metadata _score 
 | where (knn(rgb_vector, [0,255,255]) or knn(rgb_vector, [128, 0, 255])) and primary == true 
@@ -206,7 +206,7 @@ yellow     | [255.0, 255.0, 0.0]
 ;
 
 knnWithNegationsAndFiltersConjunction
-required_capability: knn_function_v3
+required_capability: knn_function_v4
 
 from colors metadata _score 
 | where (knn(rgb_vector, [0,255,255]) and not(primary == true and match(color, "blue"))) 
@@ -229,7 +229,7 @@ azure       | [240.0, 255.0, 255.0]
 ;
 
 knnWithNonPushableConjunction
-required_capability: knn_function_v3
+required_capability: knn_function_v4
 
 from colors metadata _score
 | eval composed_name = locate(color, " ") > 0 
@@ -253,7 +253,7 @@ maroon     | false
 ;
 
 testKnnWithNonPushableDisjunctions
-required_capability: knn_function_v3
+required_capability: knn_function_v4
 
 from colors metadata _score 
 | where knn(rgb_vector, [128,128,0]) or length(color) > 10 
@@ -276,7 +276,7 @@ green
 ;
 
 testKnnWithNonPushableDisjunctionsOnComplexExpressions
-required_capability: knn_function_v3
+required_capability: knn_function_v4
 
 from colors metadata _score 
 | where (knn(rgb_vector, [128,128,0], {"similarity": 70}) and length(color) > 10) or (knn(rgb_vector, [128,0,128], {"similarity": 60}) and primary == true) 

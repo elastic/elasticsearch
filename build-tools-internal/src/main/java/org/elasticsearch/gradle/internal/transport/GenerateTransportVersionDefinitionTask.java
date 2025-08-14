@@ -40,12 +40,11 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.function.BiFunction;
 import java.util.function.Function;
-import java.util.stream.Stream;
+import java.util.stream.Collectors;
 
 import javax.inject.Inject;
 
 import static org.elasticsearch.gradle.internal.transport.TransportVersionReference.listFromFile;
-import static org.elasticsearch.gradle.internal.transport.TransportVersionUtils.LATEST_DIR;
 import static org.elasticsearch.gradle.internal.transport.TransportVersionUtils.latestFilePath;
 import static org.elasticsearch.gradle.internal.transport.TransportVersionUtils.readLatestFile;
 import static org.elasticsearch.gradle.internal.transport.TransportVersionUtils.writeDefinitionFile;
@@ -84,12 +83,11 @@ public abstract class GenerateTransportVersionDefinitionTask extends DefaultTask
     public abstract Property<String> getTransportVersionName(); // The plugin should always set this, not optional
 
     /**
-     * Used to set the `major.minor` release version for which the specific TransportVersion ID will be generated.
-     * E.g.: "9.2", "8.18", etc.
+     * The release branch names the generated transport version should target.
      */
-    @Optional // This is optional as we will look for labels in an env var if this is not set.
+    @Optional // In CI we find these from the github PR labels
     @Input
-    @Option(option = "branches", description = "The branches for which to generate IDs, e.g. --releaseBranch=\"main,9.1\"")
+    @Option(option = "branches", description = "The branches for which to generate IDs, e.g. --branches=\"main,9.1\"")
     public abstract ListProperty<String> getBranches();
 
     @Input
@@ -102,9 +100,6 @@ public abstract class GenerateTransportVersionDefinitionTask extends DefaultTask
 
     @Input
     public abstract Property<String> getResourcesProjectDir();
-    // @Optional
-    // @Input
-    // public abstract Property<Function<String, Component>> getIdIncrementSupplier();
 
     private final Path rootPath;
     private final ExecOperations execOperations;
@@ -117,8 +112,6 @@ public abstract class GenerateTransportVersionDefinitionTask extends DefaultTask
 
     @TaskAction
     public void run() throws IOException {
-        getLogger().lifecycle("Name: " + getTransportVersionName().get());
-        getLogger().lifecycle("Versions: " + getBranches().get());
         Path resourcesDir = Objects.requireNonNull(getResourcesDirectory().getAsFile().get()).toPath();
         Set<String> referencedNames = getReferencedNames();
         List<String> changedDefinitionNames = getChangedDefinitionNames();
@@ -134,7 +127,7 @@ public abstract class GenerateTransportVersionDefinitionTask extends DefaultTask
             writeDefinitionFile(resourcesDir, new TransportVersionDefinition(name, ids));
         }
 
-        removeUnusedDefinitions(referencedNames, changedDefinitionNames);
+        removeUnusedNamedDefinitions(referencedNames, changedDefinitionNames);
     }
 
     private Set<String> getReferencedNames() throws IOException {
@@ -146,29 +139,26 @@ public abstract class GenerateTransportVersionDefinitionTask extends DefaultTask
     }
 
     private List<TransportVersionId> updateLatestFiles(Path resourcesDir, String name) throws IOException {
-        Set<String> targetReleaseBranches = new HashSet<>(
-            getBranches().isPresent() ? mapBranchesToReleaseBranches(getBranches().get()) : findTargetReleaseBranches()
-        );
+        Set<String> targetReleaseBranches = getTargetReleaseBranches();
         String mainReleaseBranch = getMainReleaseBranch().get();
         int primaryIncrement = getPrimaryIncrement().get();
         List<TransportVersionId> ids = new ArrayList<>();
 
-        // TODO: this should be reading from main, in case there are merge conflicts that have messed up the latest files
-        for (TransportVersionLatest latest : getKnownLatestFiles(resourcesDir)) {
+        for (TransportVersionLatest mainLatest : getMainLatestFiles()) {
 
-            if (name.equals(latest.name())) {
-                if (targetReleaseBranches.contains(latest.releaseBranch()) == false) {
+            if (name.equals(mainLatest.name())) {
+                if (targetReleaseBranches.contains(mainLatest.releaseBranch()) == false) {
                     // we don't want to target this latest file but we already changed it
                     // Regenerate to make this operation idempotent. Need to undo prior updates to the latest files if the list of minor
                     // versions has changed.
-                    writeLatestFile(resourcesDir, readLatestFromMain(latest.releaseBranch()));
+                    writeLatestFile(resourcesDir, mainLatest);
                 }
             } else {
-                if (targetReleaseBranches.contains(latest.releaseBranch())) {
-                    int increment = latest.releaseBranch().equals(mainReleaseBranch) ? primaryIncrement : 1;
-                    TransportVersionId id = TransportVersionId.fromInt(latest.id().complete() + increment);
+                if (targetReleaseBranches.contains(mainLatest.releaseBranch())) {
+                    int increment = mainLatest.releaseBranch().equals(mainReleaseBranch) ? primaryIncrement : 1;
+                    TransportVersionId id = TransportVersionId.fromInt(mainLatest.id().complete() + increment);
                     ids.add(id);
-                    writeLatestFile(resourcesDir, new TransportVersionLatest(latest.releaseBranch(), name, id));
+                    writeLatestFile(resourcesDir, new TransportVersionLatest(mainLatest.releaseBranch(), name, id));
                 }
             }
         }
@@ -176,28 +166,64 @@ public abstract class GenerateTransportVersionDefinitionTask extends DefaultTask
         return ids;
     }
 
+    private Set<String> getTargetReleaseBranches() {
+        if (getBranches().isPresent()) {
+            return getBranches().get().stream().map(branch -> branch.equals("main") ? getMainReleaseBranch().get() : branch).collect(Collectors.toSet());
+        } else {
+            // look for env var indicating github PR link from CI
+            // use github api to find current labels, filter down to version labels
+            // map version labels to branches
+            String prUrl = System.getenv("BUILDKITE_PULL_REQUEST");
+            if (prUrl == null) {
+                throw new RuntimeException("When running outside CI, --branches must be specified");
+            }
+
+            ByteArrayOutputStream output = new ByteArrayOutputStream();
+            ExecResult result = execOperations.exec(spec -> {
+                spec.setCommandLine(List.of("gh", "pr", "view", prUrl, "--json", "labels", "--jq", ".labels[].name"));
+                spec.setErrorOutput(output);
+                spec.setStandardOutput(output);
+                spec.setIgnoreExitValue(true);
+            });
+            if (result.getExitValue() != 0) {
+                throw new RuntimeException("Failed to get labels from github API:\n" + output);
+            }
+            Set<String> targetReleaseBranches = new HashSet<>();
+            for (String label : output.toString().split(System.lineSeparator())) {
+                if (label.startsWith("v") == false) {
+                    continue;
+                }
+                int firstDot =  label.indexOf('.');
+                targetReleaseBranches.add(label.substring(1, label.indexOf('.', firstDot + 1)));
+            }
+            // if we didn't find any version labels we must be on serverless, so just use the main release branch
+            if (targetReleaseBranches.isEmpty()) {
+                targetReleaseBranches.add(getMainReleaseBranch().get());
+            }
+            return targetReleaseBranches;
+        }
+    }
+
     private void resetAllLatestFiles(Path resourcesDir) throws IOException {
-        for (TransportVersionLatest latest : getKnownLatestFiles(resourcesDir)) {
-            writeLatestFile(resourcesDir, readLatestFromMain(latest.releaseBranch()));
+        for (TransportVersionLatest latest : getMainLatestFiles()) {
+            writeLatestFile(resourcesDir, latest);
         }
     }
 
     private List<String> getChangedDefinitionNames() throws IOException {
         List<String> changedDefinitionNames = new ArrayList<>();
         String namedDefinitionsBasePath = TransportVersionUtils.getResourcePath(getResourcesProjectDir().get(), "definitions/named/");
-        for (String changedResource : getChangedResources(namedDefinitionsBasePath)) {
-            if (changedResource.startsWith(namedDefinitionsBasePath)) {
-                String definitionName = changedResource.substring(
-                    changedResource.lastIndexOf(File.pathSeparator) + 1,
-                    changedResource.length() - 4 /* .csv */
-                );
-                changedDefinitionNames.add(definitionName);
-            }
+        for (String mainResource : getMainResources(namedDefinitionsBasePath)) {
+            String definitionName = mainResource.substring(
+                mainResource.lastIndexOf(File.pathSeparator) + 1,
+                mainResource.length() - 4 /* .csv */
+            );
+            changedDefinitionNames.add(definitionName);
         }
         return changedDefinitionNames;
     }
 
-    private void removeUnusedDefinitions(Set<String> referencedNames, List<String> changedDefinitionNames) throws IOException {
+    private void removeUnusedNamedDefinitions(Set<String> referencedNames, List<String> changedDefinitionNames) throws IOException {
         for (String definitionName : changedDefinitionNames) {
             if (referencedNames.contains(definitionName) == false) {
                 // we added this definition file, but it's now unreferenced, so delete it
@@ -208,16 +234,12 @@ public abstract class GenerateTransportVersionDefinitionTask extends DefaultTask
         }
     }
 
-    private List<String> mapBranchesToReleaseBranches(List<String> strings) {
-        return strings.stream().map(branch -> branch.equals("main") ? getMainReleaseBranch().get() : branch).toList();
-    }
-
-    private List<TransportVersionLatest> getKnownLatestFiles(Path resourcesDir) throws IOException {
+    private List<TransportVersionLatest> getMainLatestFiles() throws IOException {
         List<TransportVersionLatest> latestFiles = new ArrayList<>();
-        try (Stream<Path> stream = Files.list(resourcesDir.resolve(LATEST_DIR))) {
-            for (Path latestFile : stream.toList()) {
-                latestFiles.add(readLatestFile(latestFile));
-            }
+        String latestBasePath = TransportVersionUtils.getResourcePath(getResourcesProjectDir().get(), "latest/");
+        for (String latestPath : getMainResources(latestBasePath)) {
+            TransportVersionLatest latest = readExistingFile(latestPath, this::latestRelativePath, TransportVersionLatest::fromString);
+            latestFiles.add(latest);
         }
         return latestFiles;
     }
@@ -241,22 +263,15 @@ public abstract class GenerateTransportVersionDefinitionTask extends DefaultTask
         }
     }
 
-    private List<String> findTargetReleaseBranches() {
-        // look for env var indicating github PR link from CI
-        // use github api to find current labels, filter down to version labels
-        // map version labels to branches
-        return List.of();
-    }
-
     // TODO duplicated
-    private Set<String> getChangedResources(String subPath) {
+    private Set<String> getMainResources(String subPath) {
         String output = gitCommand("ls-tree", "--name-only", "-r", "main", getResourcesProjectDir().get() + "/" + subPath);
         return Set.of(output.split(System.lineSeparator()));
     }
 
     // TODO duplicated
-    private TransportVersionLatest readLatestFromMain(String branch) {
-        return readExistingFile(branch, this::latestRelativePath, TransportVersionLatest::fromString);
+    private TransportVersionLatest readLatestFromMain(String releaseBranch) {
+        return readExistingFile(releaseBranch, this::latestRelativePath, TransportVersionLatest::fromString);
     }
 
     // TODO duplicated

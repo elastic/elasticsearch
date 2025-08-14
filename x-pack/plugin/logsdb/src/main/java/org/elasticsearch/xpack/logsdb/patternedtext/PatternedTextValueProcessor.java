@@ -21,11 +21,15 @@ import java.util.Base64;
 import java.util.List;
 
 public class PatternedTextValueProcessor {
-    private static final String ARG_PLACEHOLDER = "%";
     private static final String DELIMITER = "[\\s\\[\\]]";
     private static final String SPACE = " ";
 
-    record Parts(String template, String templateId, List<String> args, List<ArgSchema> schemas) {
+    public record Parts(String template, String templateId, List<String> args, List<ArgSchema> schemas) {
+
+        Parts(String template, List<String> args) {
+            this(template, PatternedTextValueProcessor.templateId(template), args, null);
+        }
+
         Parts(String template, List<String> args, List<ArgSchema> schemas) {
             this(template, PatternedTextValueProcessor.templateId(template), args, schemas);
         }
@@ -33,9 +37,17 @@ public class PatternedTextValueProcessor {
         Parts(String template, List<String> args, String encodedArgsSchema) throws IOException {
             this(template, PatternedTextValueProcessor.templateId(template), args, decodeArgumentSchema(encodedArgsSchema));
         }
+
+        public int messageSize() {
+            int size = template.length();
+            for (var arg : args) {
+                size += arg.length();
+            }
+            return size;
+        }
     }
 
-    enum ArgType {
+    public enum ArgType {
         GENERAL(0),
         IP4(1),
         INTEGER(2);
@@ -61,38 +73,42 @@ public class PatternedTextValueProcessor {
         }
     }
 
-    record ArgSchema(ArgType type, int offsetInTemplate) {
+    record ArgSchema(ArgType type, int offsetFromPrevArg) {
+        void writeTo(ByteArrayDataOutput out) throws IOException {
+            out.writeVInt(type.toCode());
+            out.writeVInt(offsetFromPrevArg);
+        }
 
+        static ArgSchema readFrom(ByteArrayDataInput in) {
+            return new ArgSchema(ArgType.fromCode(in.readVInt()), in.readVInt());
+        }
     }
 
-    static String encodeArgumentSchema(List<ArgSchema> arguments) throws IOException {
+    private static final Base64.Decoder DECODER = Base64.getUrlDecoder();
+    private static final Base64.Encoder ENCODER = Base64.getUrlEncoder().withoutPadding();
+
+    public static String encodeArgumentSchema(List<ArgSchema> arguments) throws IOException {
         int maxSize = Integer.BYTES + arguments.size() * (Integer.BYTES + Integer.BYTES);
         byte[] buffer = new byte[maxSize];
         var dataInput = new ByteArrayDataOutput(buffer);
         dataInput.writeVInt(arguments.size());
         for (var arg : arguments) {
-            dataInput.writeVInt(arg.type.toCode());
-            dataInput.writeVInt(arg.offsetInTemplate);
+            arg.writeTo(dataInput);
         }
 
         int size = dataInput.getPosition();
         byte[] data = Arrays.copyOfRange(buffer, 0, size);
-        return Strings.BASE_64_NO_PADDING_URL_ENCODER.encodeToString(data);
+        return ENCODER.encodeToString(data);
     }
 
-    private static final Base64.Decoder DECODER = Base64.getUrlDecoder();
-
-    static List<ArgSchema> decodeArgumentSchema(String encoded) throws IOException {
+    public static List<ArgSchema> decodeArgumentSchema(String encoded) throws IOException {
         byte[] encodedBytes = DECODER.decode(encoded);
         var input = new ByteArrayDataInput(encodedBytes);
 
         int numArgs = input.readVInt();
         List<ArgSchema> arguments = new ArrayList<>(numArgs);
-
         for (int i = 0; i < numArgs; i++) {
-            var argType = ArgType.fromCode(input.readVInt());
-            int offsetInTemplate = input.readVInt();
-            arguments.add(new ArgSchema(argType, offsetInTemplate));
+            arguments.add(ArgSchema.readFrom(input));
         }
         return arguments;
     }
@@ -106,12 +122,13 @@ public class PatternedTextValueProcessor {
         return Strings.BASE_64_NO_PADDING_URL_ENCODER.encodeToString(hashBytes);
     }
 
-    static Parts split(String text) throws IOException {
-        StringBuilder template = new StringBuilder();
+    public static Parts split(String text) throws IOException {
+        StringBuilder template = new StringBuilder(text.length());
         List<String> args = new ArrayList<>();
         List<ArgSchema> schemas = new ArrayList<>();
         String[] tokens = text.split(DELIMITER);
         int textIndex = 0;
+        int prevArgOffset = 0;
         for (String token : tokens) {
             if (token.isEmpty()) {
                 // add the previous delimiter
@@ -121,8 +138,8 @@ public class PatternedTextValueProcessor {
             } else {
                 if (isArg(token)) {
                     args.add(token);
-                    schemas.add(new ArgSchema(ArgType.GENERAL, template.length()));
-                    template.append(ARG_PLACEHOLDER);
+                    schemas.add(new ArgSchema(ArgType.GENERAL, template.length() - prevArgOffset));
+                    prevArgOffset = template.length();
                 } else {
                     template.append(token);
                 }
@@ -147,22 +164,24 @@ public class PatternedTextValueProcessor {
         return false;
     }
 
-    static String merge(Parts parts) {
-        StringBuilder builder = new StringBuilder();
+    public static String merge(Parts parts) {
+        StringBuilder builder = new StringBuilder(parts.messageSize());
         int numArgs = parts.args.size();
 
-        int lastWritten = 0;
+        int offsetInTemplate = 0;
+        int nextToWrite = 0;
         for (int i = 0; i < numArgs; i++) {
             String arg = parts.args.get(i);
             ArgSchema argSchema = parts.schemas.get(i);
 
-            builder.append(parts.template, lastWritten, argSchema.offsetInTemplate);
+            offsetInTemplate += argSchema.offsetFromPrevArg;
+            builder.append(parts.template, nextToWrite, offsetInTemplate);
             builder.append(arg);
-            lastWritten = argSchema.offsetInTemplate + ARG_PLACEHOLDER.length();
+            nextToWrite = offsetInTemplate;
         }
 
-        if (lastWritten < parts.template.length()) {
-            builder.append(parts.template.substring(lastWritten));
+        if (nextToWrite < parts.template.length()) {
+            builder.append(parts.template.substring(nextToWrite));
         }
         return builder.toString();
     }

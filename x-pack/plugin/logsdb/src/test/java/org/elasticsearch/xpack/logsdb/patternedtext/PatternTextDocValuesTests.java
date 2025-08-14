@@ -23,21 +23,21 @@ import static org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS;
 public class PatternTextDocValuesTests extends ESTestCase {
 
     private static PatternedTextDocValues makeDocValueSparseArgs() throws IOException {
-        var template = new SimpleSortedSetDocValues("% dog", "cat", "% mouse %", "hat %");
+        var template = new SimpleSortedSetDocValues(removePlaceholders("% dog", "cat", "% mouse %", "hat %"));
         var args = new SimpleSortedSetDocValues("1", null, "2 3", "4");
-        var schema = new SimpleSortedSetDocValues(argSchema(0), argSchema(), argSchema(0, 8), argSchema(4));
+        var schema = new SimpleSortedSetDocValues(argSchema(0), argSchema(), argSchema(0, 7), argSchema(4));
         return new PatternedTextDocValues(template, args, schema);
     }
 
     private static PatternedTextDocValues makeDocValuesDenseArgs() throws IOException {
-        var template = new SimpleSortedSetDocValues("% moose", "% goose %", "% mouse %", "% house");
+        var template = new SimpleSortedSetDocValues(removePlaceholders("% moose", "% goose %", "% mouse %", "% house"));
         var args = new SimpleSortedSetDocValues("1", "4 5", "2 3", "7");
-        var schema = new SimpleSortedSetDocValues(argSchema(0), argSchema(0, 8), argSchema(0, 8), argSchema(0));
+        var schema = new SimpleSortedSetDocValues(argSchema(0), argSchema(0, 7), argSchema(0, 7), argSchema(0));
         return new PatternedTextDocValues(template, args, schema);
     }
 
     private static PatternedTextDocValues makeDocValueMissingValues() throws IOException {
-        var template = new SimpleSortedSetDocValues("% cheddar", "cat", null, "% cheese");
+        var template = new SimpleSortedSetDocValues(removePlaceholders("% cheddar", "cat", null, "% cheese"));
         var args = new SimpleSortedSetDocValues("1", null, null, "4");
         var schema = new SimpleSortedSetDocValues(argSchema(0), argSchema(), argSchema(), argSchema(0));
         return new PatternedTextDocValues(template, args, schema);
@@ -184,4 +184,8 @@ public class PatternTextDocValuesTests extends ESTestCase {
         return PatternedTextValueProcessor.encodeArgumentSchema(argSchemas);
     }
 
+    private static String[] removePlaceholders(String... values) {
+        var d = Arrays.stream(values).map(s -> s == null ? null : s.replace("%", "")).toList().toArray(String[]::new);
+        return d;
+    }
 }

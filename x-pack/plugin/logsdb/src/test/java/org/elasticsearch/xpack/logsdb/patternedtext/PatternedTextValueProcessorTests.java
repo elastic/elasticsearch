@@ -36,7 +36,7 @@ public class PatternedTextValueProcessorTests extends ESTestCase {
     public void testWithoutTimestamp() throws IOException {
         String text = " some text with arg1 and 2arg2 and 333 ";
         PatternedTextValueProcessor.Parts parts = PatternedTextValueProcessor.split(text);
-        assertEquals(" some text with % and % and % ", parts.template());
+        assertEquals(" some text with % and % and % ".replace("%", ""), parts.template());
         assertThat(parts.args(), Matchers.contains("arg1", "2arg2", "333"));
         assertEquals(text, PatternedTextValueProcessor.merge(parts));
     }
@@ -44,7 +44,7 @@ public class PatternedTextValueProcessorTests extends ESTestCase {
     public void testWithTimestamp() throws IOException {
         String text = " 2021-04-13T13:51:38.000Z some text with arg1 and arg2 and arg3";
         PatternedTextValueProcessor.Parts parts = PatternedTextValueProcessor.split(text);
-        assertEquals(" % some text with % and % and %", parts.template());
+        assertEquals(" % some text with % and % and %".replace("%", ""), parts.template());
         assertThat(parts.args(), Matchers.contains("2021-04-13T13:51:38.000Z", "arg1", "arg2", "arg3"));
         assertEquals(text, PatternedTextValueProcessor.merge(parts));
     }
@@ -52,7 +52,7 @@ public class PatternedTextValueProcessorTests extends ESTestCase {
     public void testWithDateSpaceTime() throws IOException {
         String text = " 2021-04-13 13:51:38 some text with arg1 and arg2 and arg3";
         PatternedTextValueProcessor.Parts parts = PatternedTextValueProcessor.split(text);
-        assertEquals(" % % some text with % and % and %", parts.template());
+        assertEquals(" % % some text with % and % and %".replace("%", ""), parts.template());
         assertThat(parts.args(), Matchers.contains("2021-04-13", "13:51:38", "arg1", "arg2", "arg3"));
         assertEquals(text, PatternedTextValueProcessor.merge(parts));
     }
@@ -60,7 +60,7 @@ public class PatternedTextValueProcessorTests extends ESTestCase {
     public void testMalformedDate() throws IOException {
         String text = "2020/09/06 10:11:38 Using namespace: kubernetes-dashboard' | HTTP status: 400, message: [1:395]";
         PatternedTextValueProcessor.Parts parts = PatternedTextValueProcessor.split(text);
-        assertEquals("% % Using namespace: kubernetes-dashboard' | HTTP status: % message: [%]", parts.template());
+        assertEquals("% % Using namespace: kubernetes-dashboard' | HTTP status: % message: [%]".replace("%", ""), parts.template());
         assertThat(parts.args(), Matchers.contains("2020/09/06", "10:11:38", "400,", "1:395"));
         assertEquals(text, PatternedTextValueProcessor.merge(parts));
     }
@@ -69,7 +69,7 @@ public class PatternedTextValueProcessorTests extends ESTestCase {
         String text = "[2020-08-18T00:58:56.751+00:00][15][2354][action_controller][INFO]: [18be2355-6306-4a00-9db9-f0696aa1a225] "
             + "some text with arg1 and arg2";
         PatternedTextValueProcessor.Parts parts = PatternedTextValueProcessor.split(text);
-        assertEquals("[%][%][%][action_controller][INFO]: [%] some text with % and %", parts.template());
+        assertEquals("[%][%][%][action_controller][INFO]: [%] some text with % and %".replace("%", ""), parts.template());
         assertThat(
             parts.args(),
             Matchers.contains("2020-08-18T00:58:56.751+00:00", "15", "2354", "18be2355-6306-4a00-9db9-f0696aa1a225", "arg1", "arg2")
@@ -80,7 +80,7 @@ public class PatternedTextValueProcessorTests extends ESTestCase {
     public void testIP() throws IOException {
         String text = "[2020-08-18T00:58:56.751+00:00][15][2354][action_controller][INFO]: from 94.168.152.150 and arg1";
         PatternedTextValueProcessor.Parts parts = PatternedTextValueProcessor.split(text);
-        assertEquals("[%][%][%][action_controller][INFO]: from % and %", parts.template());
+        assertEquals("[%][%][%][action_controller][INFO]: from % and %".replace("%", ""), parts.template());
         assertThat(parts.args(), Matchers.contains("2020-08-18T00:58:56.751+00:00", "15", "2354", "94.168.152.150", "arg1"));
         assertEquals(text, PatternedTextValueProcessor.merge(parts));
     }
@@ -88,7 +88,7 @@ public class PatternedTextValueProcessorTests extends ESTestCase {
     public void testSecondDate() throws IOException {
         String text = "[2020-08-18T00:58:56.751+00:00][15][2354][action_controller][INFO]: at 2020-08-18 00:58:56 +0000 and arg1";
         PatternedTextValueProcessor.Parts parts = PatternedTextValueProcessor.split(text);
-        assertEquals("[%][%][%][action_controller][INFO]: at % % % and %", parts.template());
+        assertEquals("[%][%][%][action_controller][INFO]: at % % % and %".replace("%", ""), parts.template());
         assertThat(
             parts.args(),
             Matchers.contains("2020-08-18T00:58:56.751+00:00", "15", "2354", "2020-08-18", "00:58:56", "+0000", "arg1")
@@ -99,7 +99,7 @@ public class PatternedTextValueProcessorTests extends ESTestCase {
     public void testWithTimestamp1() throws IOException {
         String text = "[2020-08-18T00:58:56] Found 123 errors for service [cheddar1]";
         PatternedTextValueProcessor.Parts parts = PatternedTextValueProcessor.split(text);
-        assertEquals("[%] Found % errors for service [%]", parts.template());
+        assertEquals("[%] Found % errors for service [%]".replace("%", ""), parts.template());
         assertThat(parts.args(), Matchers.contains("2020-08-18T00:58:56", "123", "cheddar1"));
         assertEquals(text, PatternedTextValueProcessor.merge(parts));
     }
@@ -107,7 +107,7 @@ public class PatternedTextValueProcessorTests extends ESTestCase {
     public void testTemplateIdIsExpectedShape() throws IOException {
         String text = "[2020-08-18T00:58:56] Found 123 errors for service [cheddar1]";
         PatternedTextValueProcessor.Parts parts = PatternedTextValueProcessor.split(text);
-        assertEquals("atAkcLfCtvU", parts.templateId());
+        assertEquals("1l_PtCLQ5xY", parts.templateId());
     }
 
     public void testTemplateIdHasVeryFewCollisions() throws IOException {
@@ -128,15 +128,11 @@ public class PatternedTextValueProcessorTests extends ESTestCase {
         StringBuilder sb = new StringBuilder();
         int numTokens = randomIntBetween(1, 20);
         for (int i = 0; i < numTokens; i++) {
-            var token = randomBoolean() ? randomAlphaOfLength(between(1, 10)) : randomPlaceholder();
+            var token = randomBoolean() ? randomAlphaOfLength(between(1, 10)) : "";
             sb.append(token);
             sb.append(randomDelimiter());
         }
         return sb.toString();
-    }
-
-    private static String randomPlaceholder() {
-        return randomFrom(List.of("%", "%D", "%I", "%U", "%T"));
     }
 
     private static String randomDelimiter() {

@@ -405,7 +405,7 @@ public class CrossClusterEnrichIT extends AbstractEnrichBasedCrossClusterTestCas
             | sort vendor
             """, enrichHosts(Enrich.Mode.ANY), enrichVendors(Enrich.Mode.REMOTE));
         var error = expectThrows(VerificationException.class, () -> runQuery(query, randomBoolean()).close());
-        assertThat(error.getMessage(), containsString("ENRICH with remote policy can't be executed after STATS"));
+        assertThat(error.getMessage(), containsString("ENRICH with remote policy can't be executed after [stats c = COUNT(*) by os]@4:3"));
     }
 
     public void testEnrichCoordinatorThenEnrichRemote() {
@@ -417,10 +417,7 @@ public class CrossClusterEnrichIT extends AbstractEnrichBasedCrossClusterTestCas
             | sort vendor
             """, enrichHosts(Enrich.Mode.COORDINATOR), enrichVendors(Enrich.Mode.REMOTE));
         var error = expectThrows(VerificationException.class, () -> runQuery(query, randomBoolean()).close());
-        assertThat(
-            error.getMessage(),
-            containsString("ENRICH with remote policy can't be executed after another ENRICH with coordinator policy")
-        );
+        assertThat(error.getMessage(), containsString("ENRICH with remote policy can't be executed after [ENRICH  _COORDINATOR"));
     }
 
     private static void assertCCSExecutionInfoDetails(EsqlExecutionInfo executionInfo) {

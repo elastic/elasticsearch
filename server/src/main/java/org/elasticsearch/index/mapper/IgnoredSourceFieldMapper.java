@@ -20,6 +20,7 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.util.ByteUtils;
+import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.features.NodeFeature;
@@ -73,6 +74,8 @@ public class IgnoredSourceFieldMapper extends MetadataFieldMapper {
     static final NodeFeature ALWAYS_STORE_OBJECT_ARRAYS_IN_NESTED_OBJECTS = new NodeFeature(
         "mapper.ignored_source.always_store_object_arrays_in_nested"
     );
+
+    public static final FeatureFlag IGNORED_SOURCE_FIELDS_PER_ENTRY_FF = new FeatureFlag("ignored_source_fields_per_entry");
 
     /*
         Setting to disable encoding and writing values for this field.
@@ -420,9 +423,10 @@ public class IgnoredSourceFieldMapper extends MetadataFieldMapper {
     }
 
     public static IgnoredSourceFormat ignoredSourceFormat(IndexVersion indexCreatedVersion) {
-        return indexCreatedVersion.onOrAfter(IndexVersions.IGNORED_SOURCE_FIELDS_PER_ENTRY)
-            ? IgnoredSourceFormat.PER_FIELD_IGNORED_SOURCE
-            : IgnoredSourceFormat.SINGLE_IGNORED_SOURCE;
+        return indexCreatedVersion.onOrAfter(IndexVersions.IGNORED_SOURCE_FIELDS_PER_ENTRY_WITH_FF)
+            && IGNORED_SOURCE_FIELDS_PER_ENTRY_FF.isEnabled()
+                ? IgnoredSourceFormat.PER_FIELD_IGNORED_SOURCE
+                : IgnoredSourceFormat.SINGLE_IGNORED_SOURCE;
     }
 
     @Override

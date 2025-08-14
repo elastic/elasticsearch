@@ -827,7 +827,7 @@ public final class EsqlTestUtils {
             case DATETIME -> randomMillisUpToYear9999();
             case DATE_NANOS -> randomLongBetween(0, Long.MAX_VALUE);
             case DOUBLE, SCALED_FLOAT, COUNTER_DOUBLE -> randomDouble();
-            case FLOAT /* TODO native floats ,COUNTER_FLOAT */ -> randomFloat();
+            case FLOAT, COUNTER_FLOAT -> randomFloat();
             case HALF_FLOAT -> HalfFloatPoint.sortableShortToHalfFloat(HalfFloatPoint.halfFloatToSortableShort(randomFloat()));
             case KEYWORD -> new BytesRef(randomAlphaOfLength(5));
             case IP -> new BytesRef(InetAddressPoint.encode(randomIp(randomBoolean())));

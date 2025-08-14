@@ -117,8 +117,7 @@ public final class ResponseValueUtils {
             case LONG, COUNTER_LONG -> ((LongBlock) block).getLong(offset);
             case INTEGER, COUNTER_INTEGER -> ((IntBlock) block).getInt(offset);
             case DOUBLE, COUNTER_DOUBLE -> ((DoubleBlock) block).getDouble(offset);
-            // TODO NATIVE FLOATS
-            // case FLOAT, COUNTER_FLOAT -> ((FloatBlock) block).getFloat(offset);
+            case FLOAT, COUNTER_FLOAT -> ((FloatBlock) block).getFloat(offset);
             case KEYWORD, TEXT -> ((BytesRefBlock) block).getBytesRef(offset, scratch).utf8ToString();
             case IP -> {
                 BytesRef val = ((BytesRefBlock) block).getBytesRef(offset, scratch);
@@ -151,7 +150,7 @@ public final class ResponseValueUtils {
                 }
             }
             case DENSE_VECTOR -> ((FloatBlock) block).getFloat(offset);
-            case SHORT, BYTE, FLOAT, /* TODO native floats COUNTER_FLOAT, */ HALF_FLOAT, SCALED_FLOAT, OBJECT, DATE_PERIOD, TIME_DURATION,
+            case SHORT, BYTE, HALF_FLOAT, SCALED_FLOAT, OBJECT, DATE_PERIOD, TIME_DURATION,
                 DOC_DATA_TYPE, TSID_DATA_TYPE, NULL, PARTIAL_AGG -> throw EsqlIllegalArgumentException.illegalDataType(dataType);
         };
     }

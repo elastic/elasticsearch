@@ -1092,8 +1092,7 @@ public class EvaluatorImplementer {
         return type.equals(INT_BLOCK)
             || type.equals(LONG_BLOCK)
             || type.equals(DOUBLE_BLOCK)
-            // TODO NATIVE FLOATS
-            // || type.equals(FLOAT_BLOCK)
+            || type.equals(FLOAT_BLOCK)
             || type.equals(BOOLEAN_BLOCK)
             || type.equals(BYTES_REF_BLOCK);
     }

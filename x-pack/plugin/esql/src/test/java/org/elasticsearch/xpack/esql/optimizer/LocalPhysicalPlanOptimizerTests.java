@@ -161,8 +161,6 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
         DataType.INTEGER,
         DataType.LONG,
         DataType.DOUBLE,
-        // TODO NATIVE FLOATS
-        // DataType.FLOAT,
         DataType.KEYWORD,
         DataType.TEXT
     );

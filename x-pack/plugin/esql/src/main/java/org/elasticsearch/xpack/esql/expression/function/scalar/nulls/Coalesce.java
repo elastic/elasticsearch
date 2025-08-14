@@ -204,14 +204,14 @@ public class Coalesce extends EsqlScalarFunction implements OptionalArgument {
         return switch (dataType()) {
             case BOOLEAN -> CoalesceBooleanEvaluator.toEvaluator(toEvaluator, children());
             case DOUBLE, COUNTER_DOUBLE -> CoalesceDoubleEvaluator.toEvaluator(toEvaluator, children());
+            case FLOAT, COUNTER_FLOAT -> CoalesceDoubleEvaluator.toEvaluator(toEvaluator, children());
             case INTEGER, COUNTER_INTEGER -> CoalesceIntEvaluator.toEvaluator(toEvaluator, children());
             case LONG, DATE_NANOS, DATETIME, COUNTER_LONG, UNSIGNED_LONG -> CoalesceLongEvaluator.toEvaluator(toEvaluator, children());
             case KEYWORD, TEXT, CARTESIAN_POINT, CARTESIAN_SHAPE, GEO_POINT, GEO_SHAPE, IP, VERSION -> CoalesceBytesRefEvaluator
                 .toEvaluator(toEvaluator, children());
             case NULL -> EvalOperator.CONSTANT_NULL_FACTORY;
-            case UNSUPPORTED, SHORT, BYTE, DATE_PERIOD, OBJECT, DOC_DATA_TYPE, SOURCE, TIME_DURATION, FLOAT,
-                HALF_FLOAT, /* TODO native floats COUNTER_FLOAT, */
-                TSID_DATA_TYPE, SCALED_FLOAT, PARTIAL_AGG, AGGREGATE_METRIC_DOUBLE, DENSE_VECTOR -> throw new UnsupportedOperationException(
+            case UNSUPPORTED, SHORT, BYTE, DATE_PERIOD, OBJECT, DOC_DATA_TYPE, SOURCE, TIME_DURATION, HALF_FLOAT, TSID_DATA_TYPE,
+                SCALED_FLOAT, PARTIAL_AGG, AGGREGATE_METRIC_DOUBLE, DENSE_VECTOR -> throw new UnsupportedOperationException(
                     dataType() + " can’t be coalesced"
                 );
         };

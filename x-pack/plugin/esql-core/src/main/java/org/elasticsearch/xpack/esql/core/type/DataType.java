@@ -23,6 +23,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
@@ -192,7 +193,7 @@ public enum DataType {
      * These fields are strictly for use in retrieval from indices, rate
      * aggregation, and casting to their parent numeric type.
      */
-    //COUNTER_FLOAT(builder().esType("counter_float").estimatedSize(Float.BYTES).docValues().counter()),
+    COUNTER_FLOAT(builder().esType("counter_float").estimatedSize(Float.BYTES).docValues().counter()),
     /**
      * 64-bit signed numbers loaded as a java {@code long}.
      */
@@ -227,7 +228,9 @@ public enum DataType {
      * Values of this type never escape type resolution and functions,
      * operators, and results should never encounter one.
      */
-    FLOAT(builder().esType("float").estimatedSize(Float.BYTES).rationalNumber().docValues()/*.counter(COUNTER_FLOAT)*/.widenSmallNumeric(DOUBLE)),
+    FLOAT(
+        builder().esType("float").estimatedSize(Float.BYTES).rationalNumber().docValues().counter(COUNTER_FLOAT).widenSmallNumeric(DOUBLE)
+    ),
     /**
      * 16-bit floating point numbers widened on load to {@link #DOUBLE}.
      * Values of this type never escape type resolution and functions,
@@ -856,5 +859,10 @@ public enum DataType {
             return this;
         }
     }
+
     public static final boolean NATIVE_FLOATS_FEATURE_FLAG = Booleans.parseBoolean(System.getProperty("esql_native_floats_enabled"), false);
+
+    public static List<DataType> native_floats_only(DataType... ts) {
+        return NATIVE_FLOATS_FEATURE_FLAG ? List.of(ts) : List.of();
+    }
 }

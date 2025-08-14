@@ -213,8 +213,7 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                 case UNSIGNED_LONG, LONG, COUNTER_LONG -> ((LongBlock.Builder) builder).appendLong(randomLong());
                 case INTEGER, COUNTER_INTEGER -> ((IntBlock.Builder) builder).appendInt(randomInt());
                 case DOUBLE, COUNTER_DOUBLE -> ((DoubleBlock.Builder) builder).appendDouble(randomDouble());
-                // TODO NATIVE FLOATS
-                // case FLOAT, COUNTER_FLOAT -> ((FloatBlock.Builder) builder).appendFloat(randomFloat());
+                case FLOAT, COUNTER_FLOAT -> ((FloatBlock.Builder) builder).appendFloat(randomFloat());
                 case KEYWORD -> ((BytesRefBlock.Builder) builder).appendBytesRef(new BytesRef(randomAlphaOfLength(10)));
                 case TEXT -> ((BytesRefBlock.Builder) builder).appendBytesRef(new BytesRef(randomAlphaOfLength(10000)));
                 case IP -> ((BytesRefBlock.Builder) builder).appendBytesRef(

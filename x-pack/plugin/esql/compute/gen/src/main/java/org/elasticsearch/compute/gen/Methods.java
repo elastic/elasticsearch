@@ -227,7 +227,7 @@ public class Methods {
         if (t.equals(TypeName.DOUBLE) || t.equals(DOUBLE_BLOCK) || t.equals(DOUBLE_VECTOR)) {
             return "appendDouble";
         }
-        if (t.equals(TypeName.FLOAT) || t.equals(FLOAT_BLOCK_BUILDER) /* TODO NATIVE FLOATS || t.equals(FLOAT_VECTOR) */ ) {
+        if (t.equals(TypeName.FLOAT) || t.equals(FLOAT_BLOCK_BUILDER) || t.equals(FLOAT_VECTOR)) {
             return "appendFloat";
         }
         throw new IllegalArgumentException("unknown append method for [" + t + "]");

@@ -1547,3 +1547,567 @@ setup:
 
   - match: { hits.total.value: 0 }
   - length: { hits.hits: 0 }
+
+---
+"Linear retriever with top-level L2 normalization":
+  - requires:
+      cluster_features: [ "linear_retriever.l2_norm" ]
+      reason: "Support for L2 normalization"
+
+  - do:
+      search:
+        index: test
+        body:
+          retriever:
+            linear:
+              normalizer: l2_norm
+              retrievers: [
+                {
+                  retriever: {
+                    standard: {
+                      query: {
+                        constant_score: {
+                          filter: {
+                            term: {
+                              keyword: {
+                                value: "one"
+                              }
+                            }
+                          },
+                          boost: 5.0
+                        }
+                      }
+                    }
+                  },
+                  weight: 1.0
+                },
+                {
+                  retriever: {
+                    standard: {
+                      query: {
+                        constant_score: {
+                          filter: {
+                            term: {
+                              keyword: {
+                                value: "four"
+                              }
+                            }
+                          },
+                          boost: 12.0
+                        }
+                      }
+                    }
+                  },
+                  weight: 1.0
+                }
+              ]
+
+  - match: { hits.total.value: 2 }
+  - match: { hits.hits.0._id: "4" }  # Doc 4 should rank higher with normalized scores
+  - match: { hits.hits.1._id: "1" }
+  # With L2 normalization: [5.0, 12.0] becomes [5.0/13.0, 12.0/13.0]
+  - close_to: { hits.hits.0._score: { value: 0.923, error: 0.01} }  # 12.0/13.0
+  - close_to: { hits.hits.1._score: { value: 0.385, error: 0.01} }  # 5.0/13.0
+
+---
+"Linear retriever with top-level minmax normalization":
+  - do:
+      search:
+        index: test
+        body:
+          retriever:
+            linear:
+              normalizer: minmax
+              retrievers: [
+                {
+                  retriever: {
+                    standard: {
+                      query: {
+                        constant_score: {
+                          filter: {
+                            term: {
+                              keyword: {
+                                value: "one"
+                              }
+                            }
+                          },
+                          boost: 3.0
+                        }
+                      }
+                    }
+                  },
+                  weight: 2.0
+                },
+                {
+                  retriever: {
+                    standard: {
+                      query: {
+                        constant_score: {
+                          filter: {
+                            term: {
+                              keyword: {
+                                value: "four"
+                              }
+                            }
+                          },
+                          boost: 9.0
+                        }
+                      }
+                    }
+                  },
+                  weight: 1.5
+                }
+              ]
+
+  - match: { hits.total.value: 2 }
+  - match: { hits.hits.0._id: "4" }
+  - match: { hits.hits.1._id: "1" }
+  # With minmax normalization: [3.0, 9.0] becomes [0.0, 1.0] (min=3, max=9)
+  # Final scores: doc1 = 2.0 * 0.0 = 0.0, doc4 = 1.5 * 1.0 = 1.5
+  - close_to: { hits.hits.0._score: { value: 1.5, error: 0.001} }
+  - close_to: { hits.hits.1._score: { value: 0.0, error: 0.001} }
+
+---
+"Linear retriever with per-retriever normalizer override":
+  - requires:
+      cluster_features: [ "linear_retriever.l2_norm" ]
+      reason: "Support for L2 normalization"
+
+  - do:
+      search:
+        index: test
+        body:
+          retriever:
+            linear:
+              normalizer: minmax  # Top-level normalizer
+              retrievers: [
+                {
+                  retriever: {
+                    standard: {
+                      query: {
+                        constant_score: {
+                          filter: {
+                            term: {
+                              keyword: {
+                                value: "one"
+                              }
+                            }
+                          },
+                          boost: 5.0
+                        }
+                      }
+                    }
+                  },
+                  weight: 1.0,
+                  normalizer: l2_norm  # Override with L2 norm
+                },
+                {
+                  retriever: {
+                    standard: {
+                      query: {
+                        constant_score: {
+                          filter: {
+                            term: {
+                              keyword: {
+                                value: "four"
+                              }
+                            }
+                          },
+                          boost: 12.0
+                        }
+                      }
+                    }
+                  },
+                  weight: 1.0  # Uses top-level minmax normalizer
+                }
+              ]
+
+  - match: { hits.total.value: 2 }
+  # First retriever uses L2 norm (score normalized to 1.0)
+  # Second retriever uses minmax (score normalized to 1.0 since it's the only score)
+  # Both docs get final score of 1.0, ranking by document order
+  - match: { hits.hits.0._id: "1" }
+  - match: { hits.hits.1._id: "4" }
+  - close_to: { hits.hits.0._score: { value: 1.0, error: 0.001} }
+  - close_to: { hits.hits.1._score: { value: 1.0, error: 0.001} }
+
+---
+"Linear retriever with mixed normalizers - inheritance test":
+  - requires:
+      cluster_features: [ "linear_retriever.l2_norm" ]
+      reason: "Support for L2 normalization"
+
+  - do:
+      search:
+        index: test
+        body:
+          retriever:
+            linear:
+              normalizer: l2_norm  # Top-level normalizer
+              retrievers: [
+                {
+                  retriever: {
+                    standard: {
+                      query: {
+                        constant_score: {
+                          filter: {
+                            term: {
+                              keyword: {
+                                value: "one"
+                              }
+                            }
+                          },
+                          boost: 4.0
+                        }
+                      }
+                    }
+                  },
+                  weight: 1.0
+                  # No normalizer specified - should inherit top-level L2 norm
+                },
+                {
+                  retriever: {
+                    standard: {
+                      query: {
+                        constant_score: {
+                          filter: {
+                            term: {
+                              keyword: {
+                                value: "two"
+                              }
+                            }
+                          },
+                          boost: 8.0
+                        }
+                      }
+                    }
+                  },
+                  weight: 1.0,
+                  normalizer: minmax  # Override with minmax
+                },
+                {
+                  retriever: {
+                    standard: {
+                      query: {
+                        constant_score: {
+                          filter: {
+                            term: {
+                              keyword: {
+                                value: "three"
+                              }
+                            }
+                          },
+                          boost: 6.0
+                        }
+                      }
+                    }
+                  },
+                  weight: 2.0
+                  # No normalizer specified - should inherit top-level L2 norm
+                }
+              ]
+
+  - match: { hits.total.value: 3 }
+  # Complex mixed normalization scenario with different weights
+  # First retriever: L2 norm on [4.0] = 1.0, final = 1.0 * 1.0 = 1.0
+  # Second retriever: minmax on [8.0] = 1.0, final = 1.0 * 1.0 = 1.0  
+  # Third retriever: L2 norm on [6.0] = 1.0, final = 1.0 * 2.0 = 2.0
+  - match: { hits.hits.0._id: "3" }  # Highest score due to weight=2.0
+  - close_to: { hits.hits.0._score: { value: 2.0, error: 0.001} }
+
+---
+"Linear retriever with identity normalizer (no normalization)":
+  - do:
+      search:
+        index: test
+        body:
+          retriever:
+            linear:
+              normalizer: none
+              retrievers: [
+                {
+                  retriever: {
+                    standard: {
+                      query: {
+                        constant_score: {
+                          filter: {
+                            term: {
+                              keyword: {
+                                value: "one"
+                              }
+                            }
+                          },
+                          boost: 7.5
+                        }
+                      }
+                    }
+                  },
+                  weight: 2.0
+                },
+                {
+                  retriever: {
+                    standard: {
+                      query: {
+                        constant_score: {
+                          filter: {
+                            term: {
+                              keyword: {
+                                value: "four"
+                              }
+                            }
+                          },
+                          boost: 3.2
+                        }
+                      }
+                    }
+                  },
+                  weight: 1.0
+                }
+              ]
+
+  - match: { hits.total.value: 2 }
+  - match: { hits.hits.0._id: "1" }  # 7.5 * 2.0 = 15.0
+  - match: { hits.hits.1._id: "4" }  # 3.2 * 1.0 = 3.2
+  - close_to: { hits.hits.0._score: { value: 15.0, error: 0.001} }
+  - close_to: { hits.hits.1._score: { value: 3.2, error: 0.001} }
+
+---
+"Linear retriever with all normalizers applied to same data":
+  - requires:
+      cluster_features: [ "linear_retriever.l2_norm" ]
+      reason: "Support for L2 normalization"
+
+  - do:
+      search:
+        index: test
+        body:
+          retriever:
+            linear:
+              retrievers: [
+                {
+                  retriever: {
+                    standard: {
+                      query: {
+                        constant_score: {
+                          filter: {
+                            term: {
+                              keyword: {
+                                value: "one"
+                              }
+                            }
+                          },
+                          boost: 10.0
+                        }
+                      }
+                    }
+                  },
+                  weight: 1.0,
+                  normalizer: none
+                },
+                {
+                  retriever: {
+                    standard: {
+                      query: {
+                        constant_score: {
+                          filter: {
+                            term: {
+                              keyword: {
+                                value: "one"
+                              }
+                            }
+                          },
+                          boost: 10.0
+                        }
+                      }
+                    }
+                  },
+                  weight: 1.0,
+                  normalizer: l2_norm
+                },
+                {
+                  retriever: {
+                    standard: {
+                      query: {
+                        constant_score: {
+                          filter: {
+                            term: {
+                              keyword: {
+                                value: "one"
+                              }
+                            }
+                          },
+                          boost: 10.0
+                        }
+                      }
+                    }
+                  },
+                  weight: 1.0,
+                  normalizer: minmax
+                }
+              ]
+
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._id: "1" }
+  # All three retrievers return same doc with different normalizations:
+  # none: 10.0, l2_norm: 1.0, minmax: 1.0 (single value)
+  # Final score: 10.0 + 1.0 + 1.0 = 12.0
+  - close_to: { hits.hits.0._score: { value: 12.0, error: 0.001} }
+
+---
+"Linear retriever normalization with zero scores":
+  - do:
+      search:
+        index: test
+        body:
+          retriever:
+            linear:
+              normalizer: minmax
+              retrievers: [
+                {
+                  retriever: {
+                    standard: {
+                      query: {
+                        constant_score: {
+                          filter: {
+                            term: {
+                              nonexistent_field: "nonexistent_value"
+                            }
+                          },
+                          boost: 5.0
+                        }
+                      }
+                    }
+                  },
+                  weight: 1.0
+                },
+                {
+                  retriever: {
+                    standard: {
+                      query: {
+                        constant_score: {
+                          filter: {
+                            term: {
+                              keyword: {
+                                value: "one"
+                              }
+                            }
+                          },
+                          boost: 10.0
+                        }
+                      }
+                    }
+                  },
+                  weight: 2.0
+                }
+              ]
+
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._id: "1" }
+  # Only second retriever returns results, minmax normalization on [10.0] = 1.0
+  # Final score: 2.0 * 1.0 = 2.0
+  - close_to: { hits.hits.0._score: { value: 2.0, error: 0.001} }
+
+---
+"Linear retriever with field+query format and normalizer inheritance":
+  - requires:
+      cluster_features: [ "multi_fields_query_format_support" ]
+      reason: "Support for multi-fields query format"
+
+  - do:
+      search:
+        index: test
+        body:
+          retriever:
+            linear:
+              fields: ["keyword", "other_keyword"]
+              query: "other"
+              normalizer: l2_norm
+
+  - match: { hits.total.value: 2 }
+  # Both doc1 and doc4 have "other" in other_keyword field
+  # L2 normalization should be applied to generated retrievers
+
+---
+"Linear retriever error handling - invalid normalizer":
+  - do:
+      catch: bad_request
+      search:
+        index: test
+        body:
+          retriever:
+            linear:
+              normalizer: invalid_normalizer
+              retrievers: [
+                {
+                  retriever: {
+                    standard: {
+                      query: {
+                        match_all: {}
+                      }
+                    }
+                  },
+                  weight: 1.0
+                }
+              ]
+
+---
+"Linear retriever with large score differences and L2 normalization":
+  - requires:
+      cluster_features: [ "linear_retriever.l2_norm" ]
+      reason: "Support for L2 normalization"
+
+  - do:
+      search:
+        index: test
+        body:
+          retriever:
+            linear:
+              normalizer: l2_norm
+              retrievers: [
+                {
+                  retriever: {
+                    standard: {
+                      query: {
+                        constant_score: {
+                          filter: {
+                            term: {
+                              keyword: {
+                                value: "one"
+                              }
+                            }
+                          },
+                          boost: 1000.0
+                        }
+                      }
+                    }
+                  },
+                  weight: 1.0
+                },
+                {
+                  retriever: {
+                    standard: {
+                      query: {
+                        constant_score: {
+                          filter: {
+                            term: {
+                              keyword: {
+                                value: "four"
+                              }
+                            }
+                          },
+                          boost: 1.0
+                        }
+                      }
+                    }
+                  },
+                  weight: 1.0
+                }
+              ]
+
+  - match: { hits.total.value: 2 }
+  - match: { hits.hits.0._id: "1" }
+  - match: { hits.hits.1._id: "4" }
+  # L2 normalization handles large score differences gracefully
+  # [1000.0, 1.0] normalized = [1000.0/sqrt(1000000+1), 1.0/sqrt(1000000+1)]
+  - close_to: { hits.hits.0._score: { value: 0.9999995, error: 0.0001} }
+  - close_to: { hits.hits.1._score: { value: 0.001, error: 0.0001} }

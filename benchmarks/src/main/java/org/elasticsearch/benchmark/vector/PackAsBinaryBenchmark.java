@@ -82,4 +82,13 @@ public class PackAsBinaryBenchmark {
             bh.consume(packed);
         }
     }
+
+    @Benchmark
+    @Fork(jvmArgsPrepend = { "--add-modules=jdk.incubator.vector" })
+    public void packAsBinaryPanama(Blackhole bh) {
+        for (int i = 0; i < numVectors; i++) {
+            BQVectorUtils.packAsBinary(qVectors[i], packed);
+            bh.consume(packed);
+        }
+    }
 }

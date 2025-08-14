@@ -160,6 +160,7 @@ public final class RemoteClusterService extends RemoteClusterAware
     private final Map<ProjectId, Map<String, RemoteClusterConnection>> remoteClusters;
     private final RemoteClusterCredentialsManager remoteClusterCredentialsManager;
     private final ProjectResolver projectResolver;
+    private final boolean inSkippableContext;
 
     @FixForMultiProject(description = "Inject the ProjectResolver instance.")
     RemoteClusterService(Settings settings, TransportService transportService) {
@@ -177,6 +178,7 @@ public final class RemoteClusterService extends RemoteClusterAware
         if (remoteClusterServerEnabled) {
             registerRemoteClusterHandshakeRequestHandler(transportService);
         }
+        this.inSkippableContext = settings.getAsBoolean("serverless.cross_project.enabled", false);
     }
 
     /**
@@ -291,6 +293,18 @@ public final class RemoteClusterService extends RemoteClusterAware
      */
     public boolean isSkipUnavailable(String clusterAlias) {
         return getRemoteClusterConnection(clusterAlias).isSkipUnavailable();
+    }
+
+    /**
+     * Returns whether we're in a skippable context. Skippable context is true when either in CPS environment
+     * or skip_unavailable is set to true for the specified cluster.
+     * @param clusterAlias Name of the cluster
+     * @param allowPartialSearchResults If partial results can be served for the search request.
+     * @return boolean
+     */
+    public boolean shouldSkipOnFailure(String clusterAlias, Boolean allowPartialSearchResults) {
+        return (inSkippableContext && (allowPartialSearchResults != null && allowPartialSearchResults))
+            || getRemoteClusterConnection(clusterAlias).isSkipUnavailable();
     }
 
     public Transport.Connection getConnection(String cluster) {

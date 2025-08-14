@@ -25,9 +25,7 @@ dependencies {
   testImplementation(testArtifact(project(':server')))
   clusterModules project(xpackModule('gpu'))
 }
-tasks.named("yamlRestTest") {
-  usesDefaultDistribution("uses gpu plugin")
-}
+
 artifacts {
   restXpackTests(new File(projectDir, "src/yamlRestTest/resources/rest-api-spec/test"))
 }

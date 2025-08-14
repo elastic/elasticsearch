@@ -46,7 +46,7 @@ public class GPUSupport {
                 if (t instanceof ExceptionInInitializerError ex) {
                     t = ex.getCause();
                 }
-                LOG.warn("Exception occurred during creation of cuvs resources. " + t);
+                LOG.warn("Exception occurred during creation of cuvs resources", t);
             }
         }
         return null;

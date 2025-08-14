@@ -297,6 +297,7 @@ final class GPUToHNSWVectorsWriter extends KnnVectorsWriter {
         int maxGraphDegree = (int) cagraGraph.columns();
         int[] neighbors = new int[maxGraphDegree];
 
+        levelNodeOffsets[0] = new int[maxElementCount];
         // write the cagra graph to the Lucene vectorIndex file
         int[] scratch = new int[maxGraphDegree];
         for (int node = 0; node < maxElementCount; node++) {

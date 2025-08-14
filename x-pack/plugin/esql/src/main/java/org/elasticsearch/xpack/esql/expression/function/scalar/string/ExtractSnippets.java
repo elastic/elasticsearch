@@ -225,7 +225,7 @@ public class ExtractSnippets extends EsqlScalarFunction implements OptionalArgum
                     QueryBuilder rewritten = Rewriteable.rewrite(queryBuilder, searchExecutionContext);
                     highlightBuilder.highlightQuery(rewritten);
                 }
-                highlightBuilder.field(field.sourceText()).preTags("").postTags("");
+                highlightBuilder.field(fieldName()).preTags("").postTags("");
                 highlightBuilder.order(HighlightBuilder.Order.SCORE);
 
                 highlightBuilder.numOfFragments(numSnippets);
@@ -238,9 +238,9 @@ public class ExtractSnippets extends EsqlScalarFunction implements OptionalArgum
             } catch (IOException e) {
                 throw new RuntimeException(
                     "Failed to create highlight context for field ["
-                        + field.sourceText()
+                        + fieldName()
                         + "], str ["
-                        + str.sourceText()
+                        + searchString()
                         + "], numSnippets: ["
                         + numSnippets
                         + "], snippetLength: ["
@@ -253,12 +253,11 @@ public class ExtractSnippets extends EsqlScalarFunction implements OptionalArgum
             shardConfigs[i++] = new LuceneQueryEvaluator.ShardConfig(shardContext.toQuery(queryBuilder), shardContext.searcher());
         }
         // Get field name and search context from the first shard context
-        String fieldNameStr = field.sourceText();
-        SearchContext firstSearchContext = shardContexts.isEmpty() ? null : shardContexts.get(0).searchContext();
+        SearchContext firstSearchContext = shardContexts.isEmpty() ? null : shardContexts.getFirst().searchContext();
         Map<String, Highlighter> highlighters = firstSearchContext == null ? Map.of() : firstSearchContext.highlighters();
         return new HighlighterExpressionEvaluator.Factory(
             shardConfigs,
-            fieldNameStr,
+            fieldName(),
             numSnippets,
             snippedSize,
             firstSearchContext,
@@ -290,20 +289,29 @@ public class ExtractSnippets extends EsqlScalarFunction implements OptionalArgum
     }
 
     private Query translate(LucenePushdownPredicates pushdownPredicates, TranslatorHandler handler) {
-        var fieldAttribute = fieldAsFieldAttribute(field());
-        Check.notNull(fieldAttribute, "Highlight must have a field attribute as the first argument");
-        String fieldName = getNameFromFieldAttribute(fieldAttribute);
         Object query = str().fold(FoldContext.small());
         // Make query lenient so mixed field types can be queried when a field type is incompatible with the value provided
-        return new MatchQuery(source(), fieldName, query, Map.of(MatchQueryBuilder.LENIENT_FIELD.getPreferredName(), true));
+        return new MatchQuery(source(), fieldName(), query, Map.of(MatchQueryBuilder.LENIENT_FIELD.getPreferredName(), true));
     }
 
     Expression field() {
         return field;
     }
 
+    private String fieldName() {
+        var fieldAttribute = fieldAsFieldAttribute(field());
+        Check.notNull(fieldAttribute, "Highlight must have a field attribute as the first argument");
+        return getNameFromFieldAttribute(fieldAttribute);
+    }
+
     Expression str() {
         return str;
+    }
+
+    private String searchString() {
+        var strAttribute = fieldAsFieldAttribute(str());
+        Check.notNull(strAttribute, "Highlight must have a str attribute as the second argument");
+        return getNameFromFieldAttribute(strAttribute);
     }
 
     Expression numSnippets() {

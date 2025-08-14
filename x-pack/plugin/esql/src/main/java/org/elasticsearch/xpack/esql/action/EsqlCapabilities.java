@@ -826,6 +826,11 @@ public class EsqlCapabilities {
         JOIN_LOOKUP_SKIP_MV_WARNINGS(JOIN_LOOKUP_V12.isEnabled()),
 
         /**
+         * Fix for async operator sometimes completing the driver without emitting the stored warnings
+         */
+        ASYNC_OPERATOR_WARNINGS_FIX,
+
+        /**
          * Fix pushing down LIMIT past LOOKUP JOIN in case of multiple matching join keys.
          */
         JOIN_LOOKUP_FIX_LIMIT_PUSHDOWN(JOIN_LOOKUP_V12.isEnabled()),

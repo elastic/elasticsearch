@@ -28,7 +28,7 @@ import java.io.IOException;
 public class EsqlSpecIT extends EsqlSpecTestCase {
     @ClassRule
     public static ElasticsearchCluster cluster = Clusters.testCluster(
-        spec -> spec.plugin("inference-service-test").setting("logger." + ComputeService.class.getName(), "DEBUG").setting("xpack.ml.enabled", "false") // So we log a profile
+        spec -> spec.plugin("inference-service-test").setting("logger." + ComputeService.class.getName(), "DEBUG") // So we log a profile
     );
 
     @Override

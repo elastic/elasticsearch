@@ -2801,8 +2801,8 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
         @Override
         public BlockLoader blockLoader(MappedFieldType.BlockLoaderContext blContext) {
-            if (elementType != ElementType.FLOAT) {
-                // Just float dense vector support for now
+            if (elementType == ElementType.BIT) {
+                // Just float and byte dense vector support for now
                 return null;
             }
 
@@ -2816,7 +2816,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             }
 
             if (hasDocValues() && (blContext.fieldExtractPreference() != FieldExtractPreference.STORED || isSyntheticSource)) {
-                return new BlockDocValuesReader.DenseVectorFromBinaryBlockLoader(name(), dims, indexVersionCreated);
+                return new BlockDocValuesReader.DenseVectorFromBinaryBlockLoader(name(), dims, indexVersionCreated, elementType);
             }
 
             BlockSourceReader.LeafIteratorLookup lookup = BlockSourceReader.lookupMatchingAll();

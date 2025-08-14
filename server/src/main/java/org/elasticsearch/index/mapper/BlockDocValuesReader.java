@@ -10,6 +10,7 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.index.BinaryDocValues;
+import org.apache.lucene.index.ByteVectorValues;
 import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.index.KnnVectorValues;
@@ -31,12 +32,14 @@ import org.elasticsearch.index.mapper.BlockLoader.DoubleBuilder;
 import org.elasticsearch.index.mapper.BlockLoader.IntBuilder;
 import org.elasticsearch.index.mapper.BlockLoader.LongBuilder;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
+import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.ElementType;
 import org.elasticsearch.index.mapper.vectors.VectorEncoderDecoder;
 import org.elasticsearch.search.fetch.StoredFieldsSpec;
 
 import java.io.IOException;
 
 import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.COSINE_MAGNITUDE_FIELD_SUFFIX;
+import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.ElementType.BYTE;
 
 /**
  * A reader that supports reading doc-values from a Lucene segment in Block fashion.
@@ -534,14 +537,24 @@ public abstract class BlockDocValuesReader implements BlockLoader.AllReader {
 
         @Override
         public AllReader reader(LeafReaderContext context) throws IOException {
-            FloatVectorValues floatVectorValues = context.reader().getFloatVectorValues(fieldName);
-            if (floatVectorValues != null) {
-                if (fieldType.isNormalized()) {
-                    NumericDocValues magnitudeDocValues = context.reader()
-                        .getNumericDocValues(fieldType.name() + COSINE_MAGNITUDE_FIELD_SUFFIX);
-                    return new FloatDenseVectorNormalizedValuesBlockReader(floatVectorValues, dimensions, magnitudeDocValues);
+            switch (fieldType.getElementType()) {
+                case FLOAT -> {
+                    FloatVectorValues floatVectorValues = context.reader().getFloatVectorValues(fieldName);
+                    if (floatVectorValues != null) {
+                        if (fieldType.isNormalized()) {
+                            NumericDocValues magnitudeDocValues = context.reader()
+                                .getNumericDocValues(fieldType.name() + COSINE_MAGNITUDE_FIELD_SUFFIX);
+                            return new FloatDenseVectorNormalizedValuesBlockReader(floatVectorValues, dimensions, magnitudeDocValues);
+                        }
+                        return new FloatDenseVectorValuesBlockReader(floatVectorValues, dimensions);
+                    }
                 }
-                return new FloatDenseVectorValuesBlockReader(floatVectorValues, dimensions);
+                case BYTE -> {
+                    ByteVectorValues byteVectorValues = context.reader().getByteVectorValues(fieldName);
+                    if (byteVectorValues != null) {
+                        return new ByteDenseVectorValuesBlockReader(byteVectorValues, dimensions);
+                    }
+                }
             }
 
             return new ConstantNullsReader();
@@ -647,6 +660,24 @@ public abstract class BlockDocValuesReader implements BlockLoader.AllReader {
         @Override
         public String toString() {
             return "BlockDocValuesReader.FloatDenseVectorNormalizedValuesBlockReader";
+        }
+    }
+
+    private static class ByteDenseVectorValuesBlockReader extends DenseVectorValuesBlockReader<ByteVectorValues> {
+        ByteDenseVectorValuesBlockReader(ByteVectorValues floatVectorValues, int dimensions) {
+            super(floatVectorValues, dimensions);
+        }
+
+        protected void appendDoc(BlockLoader.FloatBuilder builder) throws IOException {
+            byte[] bytes = vectorValues.vectorValue(iterator.index());
+            for (byte aFloat : bytes) {
+                builder.appendFloat(aFloat);
+            }
+        }
+
+        @Override
+        public String toString() {
+            return "BlockDocValuesReader.ByteDenseVectorValuesBlockReader";
         }
     }
 
@@ -938,11 +969,13 @@ public abstract class BlockDocValuesReader implements BlockLoader.AllReader {
         private final String fieldName;
         private final int dims;
         private final IndexVersion indexVersion;
+        private final ElementType elementType;
 
-        public DenseVectorFromBinaryBlockLoader(String fieldName, int dims, IndexVersion indexVersion) {
+        public DenseVectorFromBinaryBlockLoader(String fieldName, int dims, IndexVersion indexVersion, ElementType elementType) {
             this.fieldName = fieldName;
             this.dims = dims;
             this.indexVersion = indexVersion;
+            this.elementType = elementType;
         }
 
         @Override
@@ -956,23 +989,40 @@ public abstract class BlockDocValuesReader implements BlockLoader.AllReader {
             if (docValues == null) {
                 return new ConstantNullsReader();
             }
-            return new DenseVectorFromBinary(docValues, dims, indexVersion);
+            switch (elementType) {
+                case FLOAT:
+                    return new FloatDenseVectorFromBinary(docValues, dims, indexVersion);
+                case BYTE:
+                    return new ByteDenseVectorFromBinary(docValues, dims, indexVersion);
+                default:
+                    throw new IllegalArgumentException("Unknown element type [" + elementType + "]");
+            }
         }
     }
 
-    private static class DenseVectorFromBinary extends BlockDocValuesReader {
-        private final BinaryDocValues docValues;
-        private final IndexVersion indexVersion;
-        private final int dimensions;
-        private final float[] scratch;
+    // Abstract base for dense vector readers
+    private abstract static class AbstractDenseVectorFromBinary<T> extends BlockDocValuesReader {
+        protected final BinaryDocValues docValues;
+        protected final IndexVersion indexVersion;
+        protected final int dimensions;
+        protected final T scratch;
+        protected int docID = -1;
 
-        private int docID = -1;
-
-        DenseVectorFromBinary(BinaryDocValues docValues, int dims, IndexVersion indexVersion) {
+        AbstractDenseVectorFromBinary(BinaryDocValues docValues, int dims, IndexVersion indexVersion, T scratch) {
             this.docValues = docValues;
-            this.scratch = new float[dims];
             this.indexVersion = indexVersion;
             this.dimensions = dims;
+            this.scratch = scratch;
+        }
+
+        @Override
+        public int docId() {
+            return docID;
+        }
+
+        @Override
+        public void read(int docId, BlockLoader.StoredFields storedFields, Builder builder) throws IOException {
+            read(docId, (BlockLoader.FloatBuilder) builder);
         }
 
         @Override
@@ -989,36 +1039,67 @@ public abstract class BlockDocValuesReader implements BlockLoader.AllReader {
             }
         }
 
-        @Override
-        public void read(int docId, BlockLoader.StoredFields storedFields, Builder builder) throws IOException {
-            read(docId, (BlockLoader.FloatBuilder) builder);
-        }
-
         private void read(int doc, BlockLoader.FloatBuilder builder) throws IOException {
             this.docID = doc;
-            if (false == docValues.advanceExact(doc)) {
+            if (docValues.advanceExact(doc) == false) {
                 builder.appendNull();
                 return;
             }
             BytesRef bytesRef = docValues.binaryValue();
             assert bytesRef.length > 0;
-            VectorEncoderDecoder.decodeDenseVector(indexVersion, bytesRef, scratch);
+            decodeDenseVector(bytesRef, scratch);
 
             builder.beginPositionEntry();
-            for (float value : scratch) {
-                builder.appendFloat(value);
-            }
+            writeScratchToBuilder(scratch, builder);
             builder.endPositionEntry();
         }
 
+        protected abstract void decodeDenseVector(BytesRef bytesRef, T scratch);
+
+        protected abstract void writeScratchToBuilder(T scratch, BlockLoader.FloatBuilder builder);
+    }
+
+    private static class FloatDenseVectorFromBinary extends AbstractDenseVectorFromBinary<float[]> {
+        FloatDenseVectorFromBinary(BinaryDocValues docValues, int dims, IndexVersion indexVersion) {
+            super(docValues, dims, indexVersion, new float[dims]);
+        }
+
         @Override
-        public int docId() {
-            return docID;
+        protected void writeScratchToBuilder(float[] scratch, BlockLoader.FloatBuilder builder) {
+            for (float value : scratch) {
+                builder.appendFloat(value);
+            }
+        }
+
+        @Override
+        protected void decodeDenseVector(BytesRef bytesRef, float[] scratch) {
+            VectorEncoderDecoder.decodeDenseVector(indexVersion, bytesRef, scratch);
         }
 
         @Override
         public String toString() {
-            return "DenseVectorFromBinary.Bytes";
+            return "FloatDenseVectorFromBinary.Bytes";
+        }
+    }
+
+    private static class ByteDenseVectorFromBinary extends AbstractDenseVectorFromBinary<byte[]> {
+        ByteDenseVectorFromBinary(BinaryDocValues docValues, int dims, IndexVersion indexVersion) {
+            super(docValues, dims, indexVersion, new byte[dims]);
+        }
+
+        @Override
+        public String toString() {
+            return "ByteDenseVectorFromBinary.Bytes";
+        }
+
+        protected void writeScratchToBuilder(byte[] scratch, BlockLoader.FloatBuilder builder) {
+            for (byte value : scratch) {
+                builder.appendFloat(value);
+            }
+        }
+
+        protected void decodeDenseVector(BytesRef bytesRef, byte[] scratch) {
+            VectorEncoderDecoder.decodeDenseVector(indexVersion, bytesRef, scratch);
         }
     }
 

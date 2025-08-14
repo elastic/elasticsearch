@@ -43,6 +43,9 @@ public class DenseVectorFieldTypeIT extends AbstractEsqlIntegTestCase {
         .map(v -> v.getName().toLowerCase(Locale.ROOT))
         .collect(Collectors.toSet());
 
+    public static final Set<String> NON_QUANTIZED_DENSE_VECTOR_INDEX_TYPES = Set.of("hnsw", "flat");
+
+
     public static final float DELTA = 1e-7F;
 
     private final ElementType elementType;
@@ -54,15 +57,17 @@ public class DenseVectorFieldTypeIT extends AbstractEsqlIntegTestCase {
     public static Iterable<Object[]> parameters() throws Exception {
         List<Object[]> params = new ArrayList<>();
 
-        // Test all similarities
-        for (DenseVectorFieldMapper.VectorSimilarity similarity : DenseVectorFieldMapper.VectorSimilarity.values()) {
-            params.add(new Object[] { ElementType.FLOAT, similarity, true, false });
-        }
+        for (ElementType elementType : List.of(ElementType.BYTE, ElementType.FLOAT)) {
+                // Test all similarities
+            for (DenseVectorFieldMapper.VectorSimilarity similarity : DenseVectorFieldMapper.VectorSimilarity.values()) {
+                params.add(new Object[] { ElementType.FLOAT, similarity, true, false });
+            }
 
-        // No indexing
-        params.add(new Object[] { ElementType.FLOAT, null, false, false });
-        // No indexing, synthetic source
-        params.add(new Object[] { ElementType.FLOAT, null, false, true });
+            // No indexing
+            params.add(new Object[] { ElementType.FLOAT, null, false, false });
+            // No indexing, synthetic source
+            params.add(new Object[] { ElementType.FLOAT, null, false, true });
+        }
 
         return params;
     }
@@ -129,6 +134,7 @@ public class DenseVectorFieldTypeIT extends AbstractEsqlIntegTestCase {
         try (var resp = run(query)) {
             List<List<Object>> valuesList = EsqlTestUtils.getValuesList(resp);
             assertEquals(valuesList.size(), indexedVectors.size());
+            // print all values for debugging
             valuesList.forEach(value -> {
                 assertEquals(2, value.size());
                 Integer id = (Integer) value.get(0);
@@ -203,7 +209,7 @@ public class DenseVectorFieldTypeIT extends AbstractEsqlIntegTestCase {
                         default -> throw new IllegalArgumentException("Unexpected element type: " + elementType);
                     }
                 }
-                if ((similarity == DenseVectorFieldMapper.VectorSimilarity.DOT_PRODUCT) || rarely()) {
+                if ((elementType == ElementType.FLOAT) && (similarity == DenseVectorFieldMapper.VectorSimilarity.DOT_PRODUCT || rarely())) {
                     // Normalize the vector
                     float magnitude = DenseVector.getMagnitude(vector);
                     vector.replaceAll(number -> number.floatValue() / magnitude);
@@ -230,7 +236,9 @@ public class DenseVectorFieldTypeIT extends AbstractEsqlIntegTestCase {
             .field("index", index);
         if (index) {
             mapping.field("similarity", similarity.name().toLowerCase(Locale.ROOT));
-            String indexType = randomFrom(ALL_DENSE_VECTOR_INDEX_TYPES);
+            String indexType = elementType == ElementType.FLOAT
+                ? randomFrom(ALL_DENSE_VECTOR_INDEX_TYPES)
+                : randomFrom(NON_QUANTIZED_DENSE_VECTOR_INDEX_TYPES);
             mapping.startObject("index_options").field("type", indexType).endObject();
         }
         mapping.endObject().endObject().endObject();

@@ -35,6 +35,7 @@ import java.util.Map;
 import static org.elasticsearch.index.IndexMode.LOOKUP;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.esql.DenseVectorFieldTypeIT.ALL_DENSE_VECTOR_INDEX_TYPES;
+import static org.elasticsearch.xpack.esql.DenseVectorFieldTypeIT.NON_QUANTIZED_DENSE_VECTOR_INDEX_TYPES;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
@@ -52,6 +53,9 @@ public class KnnFunctionIT extends AbstractEsqlIntegTestCase {
         List<Object[]> params = new ArrayList<>();
         for (String indexType : ALL_DENSE_VECTOR_INDEX_TYPES) {
             params.add(new Object[] { DenseVectorFieldMapper.ElementType.FLOAT, indexType });
+        }
+        for (String indexType : NON_QUANTIZED_DENSE_VECTOR_INDEX_TYPES) {
+            params.add(new Object[] { DenseVectorFieldMapper.ElementType.BYTE, indexType });
         }
 
         // Remove flat index types, as knn does not do a top k for flat
@@ -226,7 +230,16 @@ public class KnnFunctionIT extends AbstractEsqlIntegTestCase {
         for (int i = 0; i < numDocs; i++) {
             List<Number> vector = new ArrayList<>(numDims);
             for (int j = 0; j < numDims; j++) {
-                vector.add(randomFloatBetween(0F, 1F, true));
+                switch (elementType) {
+                    case FLOAT:
+                        vector.add(randomFloatBetween(0F, 1F, true));
+                        break;
+                    case BYTE:
+                        vector.add((byte) (randomFloatBetween(0F, 1F, true) * 127));
+                        break;
+                    default:
+                        throw new IllegalArgumentException("Unexpected element type: " + elementType);
+                }
             }
             docs[i] = prepareIndex("test").setId(String.valueOf(i)).setSource("id", String.valueOf(i), "vector", vector);
             indexedVectors.put(i, vector);

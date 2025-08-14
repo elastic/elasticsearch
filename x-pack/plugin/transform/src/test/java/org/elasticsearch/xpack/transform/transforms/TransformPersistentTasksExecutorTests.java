@@ -43,6 +43,7 @@ import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.indexing.IndexerState;
 import org.elasticsearch.xpack.core.transform.TransformConfigVersion;
+import org.elasticsearch.xpack.core.transform.action.StartTransformAction;
 import org.elasticsearch.xpack.core.transform.transforms.AuthorizationState;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfigTests;
@@ -75,12 +76,16 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.startsWith;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.argThat;
+import static org.mockito.ArgumentMatchers.assertArg;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -375,7 +380,7 @@ public class TransformPersistentTasksExecutorTests extends ESTestCase {
         var taskExecutor = buildTaskExecutor(transformServices(transformsConfigManager, transformScheduler));
 
         var transformId = "testNodeOperation";
-        var params = mockTaskParams(transformId);
+        var params = taskParams(transformId);
 
         putTransformConfiguration(transformsConfigManager, transformId);
         var task = mockTransformTask();
@@ -391,7 +396,7 @@ public class TransformPersistentTasksExecutorTests extends ESTestCase {
         );
     }
 
-    public void testNodeOperationStartupRetry() throws Exception {
+    public void testNodeOperationStartupRetryWithGetConfigFailure() throws Exception {
         var failFirstCall = new AtomicBoolean(true);
         var transformsConfigManager = new InMemoryTransformConfigManager() {
             @Override
@@ -407,8 +412,8 @@ public class TransformPersistentTasksExecutorTests extends ESTestCase {
         var transformScheduler = new TransformScheduler(Clock.systemUTC(), threadPool, fastRetry(), TimeValue.ZERO);
         var taskExecutor = buildTaskExecutor(transformServices(transformsConfigManager, transformScheduler));
 
-        var transformId = "testNodeOperationStartupRetry";
-        var params = mockTaskParams(transformId);
+        var transformId = "testNodeOperationStartupRetryWithGetConfigFailure";
+        var params = taskParams(transformId);
         putTransformConfiguration(transformsConfigManager, transformId);
 
         var task = mockTransformTask();
@@ -426,16 +431,48 @@ public class TransformPersistentTasksExecutorTests extends ESTestCase {
         verify(task).start(isNull(), any());
     }
 
+    public void testNodeOperationStartupRetryWithStartFailure() throws Exception {
+        var failFirstCall = new AtomicBoolean(true);
+        var transformsConfigManager = new InMemoryTransformConfigManager();
+
+        var transformScheduler = new TransformScheduler(Clock.systemUTC(), threadPool, fastRetry(), TimeValue.ZERO);
+        var transformServices = transformServices(transformsConfigManager, transformScheduler);
+        var taskExecutor = buildTaskExecutor(transformServices);
+
+        var transformId = "testNodeOperationStartupRetryWithStartFailure";
+        var params = taskParams(transformId);
+        putTransformConfiguration(transformsConfigManager, transformId);
+
+        var task = mockTransformTask();
+        doAnswer(ans -> {
+            ActionListener<StartTransformAction.Response> listener = ans.getArgument(1);
+            if (failFirstCall.compareAndSet(true, false)) {
+                listener.onFailure(new IllegalStateException("ahhhh"));
+            } else {
+                listener.onResponse(new StartTransformAction.Response(true));
+            }
+            return Void.TYPE;
+        }).when(task).start(any(), any());
+        taskExecutor.nodeOperation(task, params, mock());
+
+        // skip waiting for the scheduler to run the task a second time and just rerun it now
+        transformScheduler.scheduleNow(transformId);
+
+        verify(task, times(2)).start(isNull(), any());
+        assertThat(transformScheduler.getStats().peekTransformName(), equalTo(transformId));
+        verify(transformServices.auditor()).warning(
+            eq(transformId),
+            assertArg(message -> assertThat(message, startsWith("Failed while starting Transform. Automatically retrying")))
+        );
+    }
+
     private Settings fastRetry() {
         // must be >= [1s]
         return Settings.builder().put(Transform.SCHEDULER_FREQUENCY.getKey(), TimeValue.timeValueSeconds(1)).build();
     }
 
-    private TransformTaskParams mockTaskParams(String transformId) {
-        var params = mock(TransformTaskParams.class);
-        when(params.getId()).thenReturn(transformId);
-        when(params.getFrequency()).thenReturn(TimeValue.timeValueSeconds(1));
-        return params;
+    private TransformTaskParams taskParams(String transformId) {
+        return new TransformTaskParams(transformId, TransformConfigVersion.CURRENT, null, TimeValue.timeValueSeconds(1), false);
     }
 
     private TransformTask mockTransformTask() {

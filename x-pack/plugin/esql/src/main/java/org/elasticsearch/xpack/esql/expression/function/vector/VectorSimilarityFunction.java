@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.expression.function.vector;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.DoubleVector;
 import org.elasticsearch.compute.data.FloatBlock;
 import org.elasticsearch.compute.data.Page;
@@ -59,9 +60,7 @@ public abstract class VectorSimilarityFunction extends BinaryScalarFunction impl
     }
 
     private TypeResolution checkDenseVectorParam(Expression param, TypeResolutions.ParamOrdinal paramOrdinal) {
-        return isNotNull(param, sourceText(), paramOrdinal).and(
-            isType(param, dt -> dt == DENSE_VECTOR, sourceText(), paramOrdinal, "dense_vector")
-        );
+        return isType(param, dt -> dt == DENSE_VECTOR, sourceText(), paramOrdinal, "dense_vector");
     }
 
     /**
@@ -124,14 +123,14 @@ public abstract class VectorSimilarityFunction extends BinaryScalarFunction impl
 
                         float[] leftScratch = new float[dimensions];
                         float[] rightScratch = new float[dimensions];
-                        try (DoubleVector.Builder builder = context.blockFactory().newDoubleVectorBuilder(positionCount * dimensions)) {
+                        try (DoubleBlock.Builder builder = context.blockFactory().newDoubleBlockBuilder(positionCount * dimensions)) {
                             for (int p = 0; p < positionCount; p++) {
                                 int dimsLeft = leftBlock.getValueCount(p);
                                 int dimsRight = rightBlock.getValueCount(p);
 
                                 if (dimsLeft == 0 || dimsRight == 0) {
-                                    // A null value on the left or right vector. Similarity is 0
-                                    builder.appendDouble(0.0);
+                                    // A null value on the left or right vector. Similarity is null
+                                    builder.appendNull();
                                     continue;
                                 } else if (dimsLeft != dimsRight) {
                                     throw new EsqlClientException(
@@ -145,7 +144,7 @@ public abstract class VectorSimilarityFunction extends BinaryScalarFunction impl
                                 float result = similarityFunction.calculateSimilarity(leftScratch, rightScratch);
                                 builder.appendDouble(result);
                             }
-                            return builder.build().asBlock();
+                            return builder.build();
                         }
                     }
                 }

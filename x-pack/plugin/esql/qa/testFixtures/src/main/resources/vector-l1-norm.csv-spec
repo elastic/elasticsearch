@@ -74,6 +74,18 @@ avg:double | min:double | max:double
 391.254    | 0.0        | 765.0
 ;
 
+similarityWithNull
+required_capability: l1_norm_vector_similarity_function
+
+from colors
+| eval similarity = v_l1_norm(rgb_vector, null) 
+| stats total_null = count(*) where similarity is null
+;
+
+total_null:long
+59
+;
+
 # TODO Need to implement a conversion function to convert a non-foldable row to a dense_vector
 similarityWithRow-Ignore
 required_capability: l1_norm_vector_similarity_function

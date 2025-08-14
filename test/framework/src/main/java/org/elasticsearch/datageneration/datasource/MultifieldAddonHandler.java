@@ -14,7 +14,6 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.stream.Collectors;
 
 public class MultifieldAddonHandler implements DataSourceHandler {
@@ -30,7 +29,7 @@ public class MultifieldAddonHandler implements DataSourceHandler {
         FieldType.MATCH_ONLY_TEXT,
         FieldType.WILDCARD
     );
-    public static MultifieldAddonHandler ALL_STRING_TYPES = new MultifieldAddonHandler(
+    public static MultifieldAddonHandler STRING_TYPE_HANDLER = new MultifieldAddonHandler(
         STRING_TYPES.stream().collect(Collectors.toMap(t -> t, t -> STRING_TYPES.stream().filter(s -> s != t).toList()))
     );
 

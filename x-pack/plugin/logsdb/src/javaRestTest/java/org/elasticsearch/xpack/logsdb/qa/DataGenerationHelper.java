@@ -107,7 +107,7 @@ public class DataGenerationHelper {
                     });
                 }
             }))
-            .withDataSourceHandlers(List.of(MultifieldAddonHandler.ALL_STRING_TYPES));
+            .withDataSourceHandlers(List.of(MultifieldAddonHandler.STRING_TYPE_HANDLER));
 
         // Customize builder if necessary
         builderConfigurator.accept(specificationBuilder);

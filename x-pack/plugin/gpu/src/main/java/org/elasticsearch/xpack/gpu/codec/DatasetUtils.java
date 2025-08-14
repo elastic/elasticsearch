@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.gpu.codec;
 
-import com.nvidia.cuvs.Dataset;
+import com.nvidia.cuvs.CuVSMatrix;
 
 import org.apache.lucene.store.MemorySegmentAccessInput;
 
@@ -20,6 +20,5 @@ public interface DatasetUtils {
     }
 
     /** Returns a Dataset over the float32 vectors in the input. */
-    Dataset fromInput(MemorySegmentAccessInput input, int numVectors, int dims) throws IOException;
-
+    CuVSMatrix fromInput(MemorySegmentAccessInput input, int numVectors, int dims) throws IOException;
 }

@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.gpu.codec;
 
-import com.nvidia.cuvs.Dataset;
+import com.nvidia.cuvs.CuVSMatrix;
 import com.nvidia.cuvs.spi.CuVSProvider;
 
 import org.apache.lucene.store.MemorySegmentAccessInput;
@@ -20,15 +20,15 @@ public class DatasetUtilsImpl implements DatasetUtils {
 
     private static final DatasetUtils INSTANCE = new DatasetUtilsImpl();
 
-    private static final MethodHandle createDataset$mh = CuVSProvider.provider().newNativeDatasetBuilder();
+    private static final MethodHandle createDataset$mh = CuVSProvider.provider().newNativeMatrixBuilder();
 
     static DatasetUtils getInstance() {
         return INSTANCE;
     }
 
-    static Dataset fromMemorySegment(MemorySegment memorySegment, int size, int dimensions) {
+    static CuVSMatrix fromMemorySegment(MemorySegment memorySegment, int size, int dimensions, CuVSMatrix.DataType dataType) {
         try {
-            return (Dataset) createDataset$mh.invokeExact(memorySegment, size, dimensions);
+            return (CuVSMatrix) createDataset$mh.invokeExact(memorySegment, size, dimensions, dataType);
         } catch (Throwable e) {
             if (e instanceof Error err) {
                 throw err;
@@ -43,7 +43,7 @@ public class DatasetUtilsImpl implements DatasetUtils {
     private DatasetUtilsImpl() {}
 
     @Override
-    public Dataset fromInput(MemorySegmentAccessInput input, int numVectors, int dims) throws IOException {
+    public CuVSMatrix fromInput(MemorySegmentAccessInput input, int numVectors, int dims) throws IOException {
         if (numVectors < 0 || dims < 0) {
             throwIllegalArgumentException(numVectors, dims);
         }
@@ -52,7 +52,7 @@ public class DatasetUtilsImpl implements DatasetUtils {
         if (((long) numVectors * dims * Float.BYTES) > ms.byteSize()) {
             throwIllegalArgumentException(ms, numVectors, dims);
         }
-        return fromMemorySegment(ms, numVectors, dims);
+        return fromMemorySegment(ms, numVectors, dims, CuVSMatrix.DataType.FLOAT);
     }
 
     static void throwIllegalArgumentException(MemorySegment ms, int numVectors, int dims) {

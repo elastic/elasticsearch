@@ -21,6 +21,7 @@ public class GPUClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
         .module("gpu")
         .setting("xpack.license.self_generated.type", "trial")
         .setting("xpack.security.enabled", "false")
+        .environment("LD_LIBRARY_PATH", System.getenv("LD_LIBRARY_PATH"))
         .build();
 
     public GPUClientYamlTestSuiteIT(final ClientYamlTestCandidate testCandidate) {

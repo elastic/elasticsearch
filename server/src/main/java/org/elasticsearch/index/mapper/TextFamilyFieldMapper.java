@@ -12,6 +12,8 @@ package org.elasticsearch.index.mapper;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 
+import java.util.Map;
+
 /**
  * This class is meant to contain common functionality that is needed by the Text family of field mappers. Namely
  * {@link TextFieldMapper} and anything strongly related to it.
@@ -54,6 +56,36 @@ public abstract class TextFamilyFieldMapper extends FieldMapper {
                 IndexVersions.MAPPER_TEXT_MATCH_ONLY_MULTI_FIELDS_DEFAULT_NOT_STORED_8_19,
                 IndexVersions.UPGRADE_TO_LUCENE_10_0_0
             );
+    }
+
+    public abstract static class TextFamilyFieldType extends StringFieldType {
+
+        protected final boolean isSyntheticSourceEnabled;
+        protected final boolean isWithinMultiField;
+
+        public TextFamilyFieldType(
+            String name,
+            boolean isIndexed,
+            boolean isStored,
+            boolean hasDocValues,
+            TextSearchInfo textSearchInfo,
+            Map<String, String> meta,
+            boolean isSyntheticSourceEnabled,
+            boolean isWithinMultiField
+        ) {
+            super(name, isIndexed, isStored, hasDocValues, textSearchInfo, meta);
+            this.isSyntheticSourceEnabled = isSyntheticSourceEnabled;
+            this.isWithinMultiField = isWithinMultiField;
+        }
+
+        /**
+         * Returns the name of the "fallback" field that can be used for synthetic source when the "main" field was not
+         * stored for whatever reason.
+         */
+        public String syntheticSourceFallbackFieldName() {
+            return isSyntheticSourceEnabled ? name() + "._original" : null;
+        }
+
     }
 
 }

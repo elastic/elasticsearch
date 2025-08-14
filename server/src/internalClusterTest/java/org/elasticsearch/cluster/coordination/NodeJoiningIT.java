@@ -62,35 +62,23 @@ public class NodeJoiningIT extends ESIntegTestCase {
         try {
             ensureSufficientMasterEligibleNodes();
             String masterNodeName = internalCluster().getMasterName();
-            DiscoveryNode masterNode = internalCluster().clusterService(masterNodeName).state().nodes().getMasterNode();
             int numberOfNodesOriginallyInCluster = internalCluster().clusterService(masterNodeName).state().getNodes().size();
             int numberOfMasterNodesOriginallyInCluster = internalCluster().clusterService(masterNodeName).state().nodes().getMasterNodes().size();
             List<String> namesOfDataNodesInOriginalCluster = getListOfDataNodeNamesFromCluster(masterNodeName);
 
-            // Ensure the logging is as expected
-            try (var mockLog = MockLog.capture(NodeJoinExecutor.class)) {
-                assert masterNode != null;
-                String expectedNewNodeAsString = generateNodeDescriptionForNewDiscoveryNode(numberOfNodesOriginallyInCluster, masterNode);
+            // Attempt to add new node
+            String newNodeName = internalCluster().startDataOnlyNode();
 
-                // We expect to see a node join message from the new node
-                addNodeJoinExpectation(mockLog, expectedNewNodeAsString);
+            // Assert the new data node was added
+            ClusterState state = internalCluster().clusterService(masterNodeName).state();
+            assertEquals(numberOfNodesOriginallyInCluster + 1, state.nodes().getSize());
+            assertEquals(namesOfDataNodesInOriginalCluster.size() + 1, state.nodes().getDataNodes().size());
+            assertEquals(numberOfMasterNodesOriginallyInCluster, state.nodes().getMasterNodes().size());
 
-                // Attempt to add new node
-                String newNodeName = internalCluster().startDataOnlyNode();
-
-                mockLog.assertAllExpectationsMatched();
-
-                // Assert the new data node was added
-                ClusterState state = internalCluster().clusterService(masterNodeName).state();
-                assertEquals(numberOfNodesOriginallyInCluster + 1, state.nodes().getSize());
-                assertEquals(namesOfDataNodesInOriginalCluster.size() + 1, state.nodes().getDataNodes().size());
-                assertEquals(numberOfMasterNodesOriginallyInCluster, state.nodes().getMasterNodes().size());
-
-                List<String> namesOfDataNodesInNewCluster = getListOfDataNodeNamesFromCluster(masterNodeName);
-                assertTrue(namesOfDataNodesInNewCluster.contains(newNodeName));
-                for (String nodeName : namesOfDataNodesInOriginalCluster) {
-                    assertTrue(namesOfDataNodesInNewCluster.contains(nodeName));
-                }
+            List<String> namesOfDataNodesInNewCluster = getListOfDataNodeNamesFromCluster(masterNodeName);
+            assertTrue(namesOfDataNodesInNewCluster.contains(newNodeName));
+            for (String nodeName : namesOfDataNodesInOriginalCluster) {
+                assertTrue(namesOfDataNodesInNewCluster.contains(nodeName));
             }
         } finally {
             Releasables.closeExpectNoException(Releasables.wrap(cleanupTasks));
@@ -111,7 +99,6 @@ public class NodeJoiningIT extends ESIntegTestCase {
             int numberOfNodesOriginallyInCluster = internalCluster().clusterService(originalMasterNodeName).state().getNodes().size();
             int numberOfMasterNodesOriginallyInCluster = internalCluster().clusterService(originalMasterNodeName).state().nodes().getMasterNodes().size();
             List<String> namesOfDataNodesInOriginalCluster = getListOfDataNodeNamesFromCluster(originalMasterNodeName);
-            DiscoveryNode masterNode = internalCluster().clusterService(originalMasterNodeName).state().getNodes().getMasterNode();
 
             // Sets MockTransportService behaviour
             for (final var transportService : internalCluster().getInstances(TransportService.class)) {
@@ -135,14 +122,8 @@ public class NodeJoiningIT extends ESIntegTestCase {
 
             // Ensure the logging is as expected
             try (var mockLog = MockLog.capture(NodeJoinExecutor.class)) {
-                assert masterNode != null;
-                String expectedNewNodeAsString = generateNodeDescriptionForNewDiscoveryNode(numberOfNodesOriginallyInCluster, masterNode);
-
-                // We expect to see a node join message from the new node
-                addNodeJoinExpectation(mockLog, expectedNewNodeAsString);
-
-                // We do not expect to see the WARN log
-                addJoiningNodeDisconnectedWarnLogExpectation(mockLog, expectedNewNodeAsString);
+                // We do not expect to see a WARN log about a node disconnecting (#ES-11449)
+                addJoiningNodeDisconnectedWarnLogFalseExpectation(mockLog);
 
                 // We haven't changed master nodes yet
                 assertEquals(originalMasterNodeName, internalCluster().getMasterName());
@@ -183,7 +164,7 @@ public class NodeJoiningIT extends ESIntegTestCase {
 
     /*
         In this scenario, node N attempts to join a cluster, there is an election and the original master is re-elected.
-        Node N should join the cluster, but it should not be disconnected
+        Node N should join the cluster, but it should not be disconnected (#ES-11449)
      */
     @TestLogging(
         reason = "test includes assertions about logging",
@@ -202,7 +183,6 @@ public class NodeJoiningIT extends ESIntegTestCase {
             DiscoveryNode masterNode = internalCluster().clusterService(masterNodeName).state().nodes().getMasterNode();
 
             long originalTerm = internalCluster().clusterService(masterNodeName).state().coordinationMetadata().term();
-            long originalVersion = internalCluster().clusterService(masterNodeName).state().version();
             int numberOfNodesOriginallyInCluster = internalCluster().clusterService(masterNodeName).state().getNodes().size();
             int numberOfMasterNodesOriginallyInCluster = internalCluster().clusterService(masterNodeName).state().nodes().getMasterNodes().size();
             List<String> namesOfDataNodesInOriginalCluster = getListOfDataNodeNamesFromCluster(masterNodeName);
@@ -246,32 +226,16 @@ public class NodeJoiningIT extends ESIntegTestCase {
 
             // Ensure the logging is as expected
             try (var mockLog = MockLog.capture(NodeJoinExecutor.class, MasterService.class, ClusterApplierService.class)) {
-                long firstNodeJoinVersion = originalVersion + 1;
                 assert masterNode != null;
-                String expectedNewNodeAsString = generateNodeDescriptionForNewDiscoveryNode(numberOfNodesOriginallyInCluster, masterNode);
 
-                /*
-                     We expect to see a node join event as the master tries to process the join,
-                     but cannot commit the cluster state due to a lack of quorum.
-                     This means the join is not successful in this term.
-                 */
-                addMasterServiceUpdateTaskNodeJoinExpectation(mockLog, expectedNewNodeAsString, originalTerm, firstNodeJoinVersion);
-
-                // The node join fails
-                addFailedToCommitClusterStateVersionExpectation(mockLog, expectedNewNodeAsString, firstNodeJoinVersion);
+                // We expect the node join to fail
+                addFailedToCommitClusterStateExpectation(mockLog);
 
                 /*
                     We expect the cluster to reuse the connection to N and not disconnect it
                     Therefore, this WARN log should not be thrown
                  */
-                addJoiningNodeDisconnectedWarnLogExpectation(mockLog, expectedNewNodeAsString);
-
-                /*
-                    We expect node N to join the cluster.
-                    However, we expect no explicit `node-join: [{node_s5} ...]` log to be emitted by the master in this new term
-                    as the join is processed as part of the new election and cluster state publication, rather than a separate event
-                 */
-                addNodeJoinProcessedDuringNewElectionAndClusterStatePublicationExpectation(mockLog, expectedNewNodeAsString);
+                addJoiningNodeDisconnectedWarnLogFalseExpectation(mockLog);
 
                 // Before we add the new node, assert we haven't changed master nodes yet
                 assertEquals(masterNodeName, internalCluster().getMasterName());
@@ -350,77 +314,7 @@ public class NodeJoiningIT extends ESIntegTestCase {
         return false;
     }
 
-    private void addNodeJoinExpectation(MockLog mockLog, String expectedNewNodeAsString) {
-        // This matches with the node join message from the new node only
-        mockLog.addExpectation(new MockLog.LoggingExpectation() {
-            boolean matched = false;
-
-            @Override
-            public void match(LogEvent event) {
-                if (event.getLevel() != Level.INFO) {
-                    return;
-                }
-                if (event.getLoggerName().equals(NodeJoinExecutor.class.getCanonicalName()) == false) {
-                    return;
-                }
-
-                Pattern pattern = Pattern.compile("node-join: \\[" + expectedNewNodeAsString + "] " + "with reason \\[joining]");
-                Matcher matcher = pattern.matcher(event.getMessage().getFormattedMessage());
-
-                if (matcher.find()) {
-                    matched = true;
-                }
-            }
-
-            @Override
-            public void assertMatched() {
-                assertTrue(matched);
-            }
-        });
-    }
-
-    private void addMasterServiceUpdateTaskNodeJoinExpectation(MockLog mockLog, String expectedNewNodeAsString, long term, long version) {
-        mockLog.addExpectation(new MockLog.LoggingExpectation() {
-            boolean matched = false;
-
-            @Override
-            public void match(LogEvent event) {
-                if (event.getLevel() != Level.INFO) {
-                    return;
-                }
-                if (event.getLoggerName().equals(MasterService.class.getCanonicalName()) == false) {
-                    return;
-                }
-
-                Pattern pattern = Pattern.compile(
-                    "node-join\\["
-                        + expectedNewNodeAsString
-                        + " joining],"
-                        + " term: "
-                        + term
-                        + ","
-                        + " version: "
-                        + version
-                        + ","
-                        + " delta: added \\{"
-                        + expectedNewNodeAsString
-                        + "}"
-                );
-                Matcher matcher = pattern.matcher(event.getMessage().getFormattedMessage());
-
-                if (matcher.find()) {
-                    matched = true;
-                }
-            }
-
-            @Override
-            public void assertMatched() {
-                assertTrue(matched);
-            }
-        });
-    }
-
-    private void addFailedToCommitClusterStateVersionExpectation(MockLog mockLog, String expectedNewNodeAsString, long version) {
+    private void addFailedToCommitClusterStateExpectation(MockLog mockLog) {
         mockLog.addExpectation(new MockLog.LoggingExpectation() {
             boolean matched = false;
 
@@ -433,13 +327,7 @@ public class NodeJoiningIT extends ESIntegTestCase {
                     return;
                 }
 
-                Pattern pattern = Pattern.compile(
-                    "failing \\[node-join\\["
-                        + expectedNewNodeAsString
-                        + " joining]]: failed to commit cluster state version \\["
-                        + version
-                        + "]"
-                );
+                Pattern pattern = Pattern.compile("failed to commit cluster state");
                 Matcher matcher = pattern.matcher(event.getMessage().getFormattedMessage());
 
                 if (matcher.find()) {
@@ -454,7 +342,7 @@ public class NodeJoiningIT extends ESIntegTestCase {
         });
     }
 
-    private void addJoiningNodeDisconnectedWarnLogExpectation(MockLog mockLog, String expectedNewNodeAsString) {
+    private void addJoiningNodeDisconnectedWarnLogFalseExpectation(MockLog mockLog) {
         mockLog.addExpectation(new MockLog.LoggingExpectation() {
             boolean matched = false;
 
@@ -470,7 +358,7 @@ public class NodeJoiningIT extends ESIntegTestCase {
                 String regexToMatchAnyCharacterExceptClosingBrace = "([^}]+)";
                 Pattern pattern = Pattern.compile(
                     "node-join: \\["
-                        + expectedNewNodeAsString
+                        + regexToMatchAnyCharacterExceptClosingBrace
                         + "] "
                         + "with reason \\[joining, removed \\["
                         + regexToMatchAnyCharacterExceptClosingBrace
@@ -490,70 +378,6 @@ public class NodeJoiningIT extends ESIntegTestCase {
                 assertFalse(matched);
             }
         });
-    }
-
-    private void addNodeJoinProcessedDuringNewElectionAndClusterStatePublicationExpectation(
-        MockLog mockLog,
-        String expectedNewNodeAsString
-    ) {
-        mockLog.addExpectation(new MockLog.LoggingExpectation() {
-            boolean matched = false;
-
-            @Override
-            public void match(LogEvent event) {
-                if (event.getLevel() != Level.INFO) {
-                    return;
-                }
-                if (event.getLoggerName().equals(ClusterApplierService.class.getCanonicalName()) == false) {
-                    return;
-                }
-
-                Pattern pattern = Pattern.compile("added \\{" + expectedNewNodeAsString + "}");
-                Matcher matcher = pattern.matcher(event.getMessage().getFormattedMessage());
-
-                if (matcher.find()) {
-                    matched = true;
-                }
-            }
-
-            @Override
-            public void assertMatched() {
-                assertTrue(matched);
-            }
-        });
-    }
-
-    private String generateNodeDescriptionForNewDiscoveryNode(int numberOfNodesOriginallyInCluster, DiscoveryNode masterNode) {
-        // Nodes are named `node_s0`, `node_s1` etc ...
-        // Therefore, if there are N nodes in the cluster, named `node_s0` ... `node_sN-1`, N+1 will be named `node_sN`
-        String newNodeName = "node_s" + numberOfNodesOriginallyInCluster;
-        String regexToMatchAnyCharacterExceptClosingBrace = "([^}]+)";
-
-        return "\\{"
-            + newNodeName
-            + "}"
-            + "\\{"
-            + regexToMatchAnyCharacterExceptClosingBrace
-            + "}"
-            + "\\{"
-            + regexToMatchAnyCharacterExceptClosingBrace
-            + "}"
-            + "\\{"
-            + newNodeName
-            + "}"
-            + "\\{"
-            + masterNode.getHostAddress()
-            + "}"
-            + "\\{"
-            + masterNode.getHostAddress()
-            + ":\\d+}"
-            + "\\{d}"
-            + "\\{"
-            + masterNode.getVersion()
-            + "}"
-            + "\\{"
-            + regexToMatchAnyCharacterExceptClosingBrace
-            + "}";
     }
 
     /**

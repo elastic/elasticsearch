@@ -28,6 +28,7 @@ import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.search.RescoreDocIds;
 import org.elasticsearch.search.SearchExtBuilder;
+import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.aggregations.SearchContextAggregations;
 import org.elasticsearch.search.collapse.CollapseContext;
@@ -40,6 +41,7 @@ import org.elasticsearch.search.fetch.subphase.FetchFieldsContext;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.search.fetch.subphase.InnerHitsContext;
 import org.elasticsearch.search.fetch.subphase.ScriptFieldsContext;
+import org.elasticsearch.search.fetch.subphase.highlight.Highlighter;
 import org.elasticsearch.search.fetch.subphase.highlight.SearchHighlightContext;
 import org.elasticsearch.search.lookup.SourceFilter;
 import org.elasticsearch.search.profile.Profilers;
@@ -151,6 +153,10 @@ public abstract class SearchContext implements Releasable {
     public abstract SearchHighlightContext highlight();
 
     public abstract void highlight(SearchHighlightContext highlight);
+
+    public Map<String, Highlighter> highlighters() {
+        return SearchModule.getStaticHighlighters();
+    }
 
     public InnerHitsContext innerHits() {
         if (innerHitsContext == null) {

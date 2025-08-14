@@ -82,11 +82,6 @@ public final class EvalMapper {
                 public List<ShardContext> shardContexts() {
                     return shardContexts;
                 }
-
-                @Override
-                public Map<String, Highlighter> highlighters() {
-                    return SearchModule.getStaticHighlighters();
-                }
             });
         }
         for (ExpressionMapper em : MAPPERS) {

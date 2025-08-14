@@ -18,6 +18,7 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder;
+import org.elasticsearch.search.fetch.subphase.highlight.Highlighter;
 import org.elasticsearch.search.fetch.subphase.highlight.SearchHighlightContext;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.xpack.esql.capabilities.RewriteableAware;
@@ -254,13 +255,14 @@ public class ExtractSnippets extends EsqlScalarFunction implements OptionalArgum
         // Get field name and search context from the first shard context
         String fieldNameStr = field.sourceText();
         SearchContext firstSearchContext = shardContexts.isEmpty() ? null : shardContexts.get(0).searchContext();
+        Map<String, Highlighter> highlighters = firstSearchContext == null ? Map.of() : firstSearchContext.highlighters();
         return new HighlighterExpressionEvaluator.Factory(
             shardConfigs,
             fieldNameStr,
             numSnippets,
             snippedSize,
             firstSearchContext,
-            toEvaluator.highlighters()
+            highlighters
         );
     }
 

@@ -17,7 +17,6 @@ import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.indices.breaker.AllCircuitBreakerStats;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.breaker.CircuitBreakerStats;
-import org.elasticsearch.search.fetch.subphase.highlight.Highlighter;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -26,7 +25,6 @@ import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders;
 import org.elasticsearch.xpack.esql.planner.Layout;
 
 import java.util.List;
-import java.util.Map;
 
 import static org.elasticsearch.compute.data.BlockUtils.fromArrayRow;
 import static org.elasticsearch.compute.data.BlockUtils.toJavaObject;
@@ -42,10 +40,6 @@ public interface EvaluatorMapper {
 
         default List<EsPhysicalOperationProviders.ShardContext> shardContexts() {
             throw new UnsupportedOperationException("Shard contexts should only be needed for evaluation operations");
-        }
-
-        default Map<String, Highlighter> highlighters() {
-            throw new UnsupportedOperationException("Highlighters should only be needed for highlight operations");
         }
     }
 

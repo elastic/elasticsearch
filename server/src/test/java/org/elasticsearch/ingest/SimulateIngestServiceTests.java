@@ -36,7 +36,6 @@ import static org.elasticsearch.test.LambdaMatchers.transformedMatch;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
-import static org.junit.Assert.assertThrows;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -136,7 +135,8 @@ public class SimulateIngestServiceTests extends ESTestCase {
             newHashMap("pipeline1", newHashMap("processors", List.of(Map.of("parse_exception_processor", new HashMap<>(0))))),
             Map.of(),
             Map.of(),
-            Map.of()
+            Map.of(),
+            null
         );
 
         final ElasticsearchParseException ex = assertThrows(

@@ -6,7 +6,7 @@ issues: []
 
 breaking:
   title: Return 400 on invalid processor(s) in Simulate API
-  area: Ingest Node
+  area: Ingest
   details: >-
     In earlier versions of {es}, the Simulate API would return a 500 error when encountering invalid processors. Now, it returns a 400 Bad Request error instead.
 

@@ -2,7 +2,7 @@
 asm = "9.7.1"
 jackson = "2.15.0"
 junit5 = "5.12.1"
-spock = "2.1-groovy-3.0"
+spock = "2.3-groovy-4.0"
 nmcp = "0.1.5"
 
 [libraries]

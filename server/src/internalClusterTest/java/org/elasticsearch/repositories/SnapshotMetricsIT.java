@@ -194,12 +194,12 @@ public class SnapshotMetricsIT extends AbstractSnapshotIntegTestCase {
         final String repositoryName = randomIdentifier();
         final Settings.Builder repositorySettings = randomRepositorySettings().put(
             BlobStoreRepository.MAX_SNAPSHOT_BYTES_PER_SEC.getKey(),
-            ByteSizeValue.ofBytes(1024)
+            ByteSizeValue.ofBytes(2048)
         )
-            .put(BlobStoreRepository.MAX_RESTORE_BYTES_PER_SEC.getKey(), ByteSizeValue.ofBytes(1024))
+            .put(BlobStoreRepository.MAX_RESTORE_BYTES_PER_SEC.getKey(), ByteSizeValue.ofBytes(2048))
             // Small chunk size ensures we don't get stuck throttling for too long
             .put("chunk_size", ByteSizeValue.ofBytes(100));
-        createRepository(repositoryName, "mock", repositorySettings);
+        createRepository(repositoryName, "mock", repositorySettings, false);
 
         final String snapshotName = randomIdentifier();
         final ActionFuture<CreateSnapshotResponse> snapshotFuture;
@@ -212,6 +212,7 @@ public class SnapshotMetricsIT extends AbstractSnapshotIntegTestCase {
             .execute();
 
         // Poll until we see some throttling occurring
+        final long snap_ts0 = System.currentTimeMillis();
         assertBusy(() -> {
             collectMetrics();
             assertThat(getTotalClusterLongCounterValue(SnapshotMetrics.SNAPSHOT_CREATE_THROTTLE_DURATION), greaterThan(0L));
@@ -219,14 +220,25 @@ public class SnapshotMetricsIT extends AbstractSnapshotIntegTestCase {
         assertThat(getTotalClusterLongCounterValue(SnapshotMetrics.SNAPSHOT_RESTORE_THROTTLE_DURATION), equalTo(0L));
 
         // Remove create throttling
+        final long snap_ts1 = System.currentTimeMillis();
         createRepository(
             repositoryName,
             "mock",
-            repositorySettings.put(BlobStoreRepository.MAX_SNAPSHOT_BYTES_PER_SEC.getKey(), ByteSizeValue.ZERO)
+            repositorySettings.put(BlobStoreRepository.MAX_SNAPSHOT_BYTES_PER_SEC.getKey(), ByteSizeValue.ZERO),
+            false
         );
+        final long snap_ts2 = System.currentTimeMillis();
 
         // wait for the snapshot to finish
         safeGet(snapshotFuture);
+        final long snap_ts3 = System.currentTimeMillis();
+
+        logger.info(
+            "saw throttling in [{}] remove throttling took [{}], snapshot took [{}]",
+            TimeValue.timeValueMillis(snap_ts1 - snap_ts0),
+            TimeValue.timeValueMillis(snap_ts2 - snap_ts1),
+            TimeValue.timeValueMillis(snap_ts3 - snap_ts2)
+        );
 
         // Work out the maximum amount of concurrency per node
         final ThreadPool tp = internalCluster().getDataNodeInstance(ThreadPool.class);
@@ -242,18 +254,21 @@ public class SnapshotMetricsIT extends AbstractSnapshotIntegTestCase {
         );
 
         // Restore the snapshot
+        final long restore_ts0 = System.currentTimeMillis();
         ActionFuture<RestoreSnapshotResponse> restoreFuture = clusterAdmin().prepareRestoreSnapshot(
             TEST_REQUEST_TIMEOUT,
             repositoryName,
             snapshotName
         ).setIndices(indexName).setWaitForCompletion(true).setRenamePattern("(.+)").setRenameReplacement("restored-$1").execute();
 
+        final long restore_ts1 = System.currentTimeMillis();
         // assert we throttled on restore
         assertBusy(() -> {
             collectMetrics();
             assertThat(getTotalClusterLongCounterValue(SnapshotMetrics.SNAPSHOT_RESTORE_THROTTLE_DURATION), greaterThan(0L));
         });
 
+        final long restore_ts2 = System.currentTimeMillis();
         // Remove restore throttling
         createRepository(
             repositoryName,
@@ -261,6 +276,14 @@ public class SnapshotMetricsIT extends AbstractSnapshotIntegTestCase {
             repositorySettings.put(BlobStoreRepository.MAX_RESTORE_BYTES_PER_SEC.getKey(), ByteSizeValue.ZERO)
         );
         safeGet(restoreFuture);
+        final long restore_ts3 = System.currentTimeMillis();
+
+        logger.info(
+            "saw throttling in [{}] remove throttling took [{}], restore took [{}]",
+            TimeValue.timeValueMillis(restore_ts1 - restore_ts0),
+            TimeValue.timeValueMillis(restore_ts2 - restore_ts1),
+            TimeValue.timeValueMillis(restore_ts3 - restore_ts2)
+        );
 
         // assert appropriate attributes are present
         final Map<String, Object> expectedAttrs = Map.of(

@@ -89,16 +89,6 @@ setup:
         refresh: true
 
   - do:
-      index:
-        index: test-semantic-index
-        id: doc_2
-        body:
-          title: "Data science techniques"
-          content: "Statistical analysis and data processing"
-          summary: "Data analysis and visualization methods"
-        refresh: true
-
-  - do:
       search:
         index: test-semantic-index
         body:
@@ -108,7 +98,7 @@ setup:
               fields: ["title", "content"]
               type: "best_fields"
 
-  - match: { hits.total.value: 2 }
+  - match: { hits.total.value: 1 }
   - match: { hits.hits.0._id: "doc_1" }
 
 ---

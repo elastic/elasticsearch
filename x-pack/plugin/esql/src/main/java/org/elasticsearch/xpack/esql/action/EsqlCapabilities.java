@@ -236,6 +236,11 @@ public class EsqlCapabilities {
         FN_SCALB,
 
         /**
+         * Support for function DAY_NAME
+         */
+        FN_DAY_NAME,
+
+        /**
          * Fixes for multiple functions not serializing their source, and emitting warnings with wrong line number and text.
          */
         FUNCTIONS_SOURCE_SERIALIZATION_WARNINGS,
@@ -1313,6 +1318,10 @@ public class EsqlCapabilities {
         FIXED_PROFILE_SERIALIZATION,
 
         /**
+         * Support for lookup join on multiple fields.
+         */
+        LOOKUP_JOIN_ON_MULTIPLE_FIELDS,
+        /**
          * Dot product vector similarity function
          */
         DOT_PRODUCT_VECTOR_SIMILARITY_FUNCTION(Build.current().isSnapshot()),
@@ -1331,6 +1340,11 @@ public class EsqlCapabilities {
          * Support for the options field of CATEGORIZE.
          */
         CATEGORIZE_OPTIONS,
+
+        /**
+         * FIRST and LAST aggregate functions.
+         */
+        AGG_FIRST_LAST(Build.current().isSnapshot()),
 
         /**
          * Support correct counting of skipped shards.

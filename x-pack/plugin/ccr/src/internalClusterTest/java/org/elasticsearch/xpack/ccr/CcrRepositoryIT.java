@@ -318,7 +318,7 @@ public class CcrRepositoryIT extends CcrIntegTestCase {
         startRestore(clusterService, restoreService, restoreRequest).actionGet();
 
         if (followerRateLimiting) {
-            assertTrue(repositories.stream().anyMatch(cr -> cr.getRestoreThrottleTimeInNanos() > 0));
+            assertTrue(repositories.stream().anyMatch(cr -> cr.getSnapshotStats().totalReadThrottledNanos() > 0));
         } else {
             assertTrue(restoreSources.stream().anyMatch(cr -> cr.getThrottleTime() > 0));
         }

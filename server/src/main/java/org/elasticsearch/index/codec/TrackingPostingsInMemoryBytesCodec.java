@@ -22,7 +22,7 @@ import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.index.SegmentWriteState;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
-import org.apache.lucene.internal.hppc.IntIntHashMap;
+import org.apache.lucene.internal.hppc.IntHashSet;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.util.FeatureFlag;
 
@@ -63,22 +63,20 @@ public class TrackingPostingsInMemoryBytesCodec extends FilterCodec {
     static final class TrackingLengthFieldsConsumer extends FieldsConsumer {
         final SegmentWriteState state;
         final FieldsConsumer in;
-        final IntIntHashMap termsBytesPerField;
+        final IntHashSet seenFields;
+        final long[] totalBytes;
 
         TrackingLengthFieldsConsumer(SegmentWriteState state, FieldsConsumer in) {
             this.state = state;
             this.in = in;
-            this.termsBytesPerField = new IntIntHashMap(state.fieldInfos.size());
+            this.totalBytes = new long[1];
+            this.seenFields = new IntHashSet(state.fieldInfos.size());
         }
 
         @Override
         public void write(Fields fields, NormsProducer norms) throws IOException {
-            in.write(new TrackingLengthFields(fields, termsBytesPerField, state.fieldInfos), norms);
-            long totalBytes = 0;
-            for (int bytes : termsBytesPerField.values) {
-                totalBytes += bytes;
-            }
-            state.segmentInfo.putAttribute(IN_MEMORY_POSTINGS_BYTES_KEY, Long.toString(totalBytes));
+            in.write(new TrackingLengthFields(fields, state.fieldInfos, seenFields, totalBytes), norms);
+            state.segmentInfo.putAttribute(IN_MEMORY_POSTINGS_BYTES_KEY, Long.toString(totalBytes[0]));
         }
 
         @Override
@@ -88,13 +86,15 @@ public class TrackingPostingsInMemoryBytesCodec extends FilterCodec {
     }
 
     static final class TrackingLengthFields extends FilterLeafReader.FilterFields {
-        final IntIntHashMap termsBytesPerField;
         final FieldInfos fieldInfos;
+        final IntHashSet seenFields;
+        final long[] totalBytes;
 
-        TrackingLengthFields(Fields in, IntIntHashMap termsBytesPerField, FieldInfos fieldInfos) {
+        TrackingLengthFields(Fields in, FieldInfos fieldInfos, IntHashSet seenFields, long[] totalBytes) {
             super(in);
-            this.termsBytesPerField = termsBytesPerField;
+            this.seenFields = seenFields;
             this.fieldInfos = fieldInfos;
+            this.totalBytes = totalBytes;
         }
 
         @Override
@@ -104,10 +104,11 @@ public class TrackingPostingsInMemoryBytesCodec extends FilterCodec {
                 return null;
             }
             int fieldNum = fieldInfos.fieldInfo(field).number;
-            return new TrackingLengthTerms(
-                terms,
-                bytes -> termsBytesPerField.put(fieldNum, Math.max(termsBytesPerField.getOrDefault(fieldNum, 0), bytes))
-            );
+            if (seenFields.add(fieldNum)) {
+                return new TrackingLengthTerms(terms, bytes -> totalBytes[0] += bytes);
+            } else {
+                return terms;
+            }
         }
     }
 

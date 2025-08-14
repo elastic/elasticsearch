@@ -13,6 +13,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.compute.lucene.TimeSeriesSourceOperator;
 import org.elasticsearch.compute.operator.DriverProfile;
+import org.elasticsearch.compute.operator.OperatorStatus;
 import org.elasticsearch.compute.operator.TimeSeriesAggregationOperator;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -28,8 +29,10 @@ import java.util.Objects;
 import static org.elasticsearch.index.mapper.DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.not;
 
 public class TimeSeriesIT extends AbstractEsqlIntegTestCase {
 
@@ -479,7 +482,7 @@ public class TimeSeriesIT extends AbstractEsqlIntegTestCase {
         }
     }
 
-    public void testProfile() {
+    public void testRateProfile() {
         EsqlQueryRequest request = new EsqlQueryRequest();
         request.profile(true);
         request.query("TS hosts | STATS sum(rate(request_count)) BY cluster, bucket(@timestamp, 1minute) | SORT cluster");
@@ -506,6 +509,26 @@ public class TimeSeriesIT extends AbstractEsqlIntegTestCase {
                 }
             }
             assertThat(totalTimeSeries, equalTo(dataProfiles.size() / 3));
+        }
+    }
+
+    public void testAvgOrSumOverTimeProfile() {
+        EsqlQueryRequest request = new EsqlQueryRequest();
+        request.profile(true);
+        String tsFunction = randomFrom("sum_over_time", "avg_over_time");
+        request.query("TS hosts | STATS AVG(" + tsFunction + "(cpu)) BY cluster, bucket(@timestamp, 1minute) | SORT cluster");
+        try (var resp = run(request)) {
+            EsqlQueryResponse.Profile profile = resp.profile();
+            List<DriverProfile> dataProfiles = profile.drivers().stream().filter(d -> d.description().equals("data")).toList();
+            assertThat(dataProfiles, not(empty()));
+            for (DriverProfile p : dataProfiles) {
+                List<OperatorStatus> aggregatorOperators = p.operators()
+                    .stream()
+                    .filter(s -> s.status() instanceof TimeSeriesAggregationOperator.Status)
+                    .toList();
+                assertThat(aggregatorOperators, hasSize(1));
+                assertThat(aggregatorOperators.getFirst().operator(), containsString("LossySumDoubleGroupingAggregatorFunction"));
+            }
         }
     }
 }

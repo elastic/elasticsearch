@@ -273,7 +273,8 @@ public class SnapshotMetricsIT extends AbstractSnapshotIntegTestCase {
         createRepository(
             repositoryName,
             "mock",
-            repositorySettings.put(BlobStoreRepository.MAX_RESTORE_BYTES_PER_SEC.getKey(), ByteSizeValue.ZERO)
+            repositorySettings.put(BlobStoreRepository.MAX_RESTORE_BYTES_PER_SEC.getKey(), ByteSizeValue.ZERO),
+            false
         );
         safeGet(restoreFuture);
         final long restore_ts3 = System.currentTimeMillis();

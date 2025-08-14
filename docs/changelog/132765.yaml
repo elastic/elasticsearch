@@ -2,4 +2,4 @@ pr: 132765
 summary: Implement `v_magnitude` function
 area: ES|QL
 type: feature
-issues: []
+issues: [132768]

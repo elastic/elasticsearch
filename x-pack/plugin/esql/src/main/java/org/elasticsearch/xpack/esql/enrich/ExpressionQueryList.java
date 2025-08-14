@@ -55,7 +55,7 @@ public class ExpressionQueryList implements LookupEnrichQueryGenerator, PostJoin
 
     private void buildPrePostJoinFilter(PhysicalPlan rightPreJoinPlan, ClusterService clusterService) {
         // we support a FilterExec as the pre-join filter
-        // if we filter Exec is not translatable to a QueryBuilder, we will apply it after the join
+        // if the filter Exec is not translatable to a QueryBuilder, we will apply it after the join
         if (rightPreJoinPlan instanceof FilterExec filterExec) {
             try {
                 LucenePushdownPredicates lucenePushdownPredicates = LucenePushdownPredicates.from(

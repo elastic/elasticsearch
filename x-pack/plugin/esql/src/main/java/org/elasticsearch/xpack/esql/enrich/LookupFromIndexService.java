@@ -277,9 +277,11 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
             }
             if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_LOOKUP_JOIN_PRE_JOIN_FILTER)) {
                 planOut.writeOptionalNamedWriteable(rightPreJoinPlan);
-            } else if (rightPreJoinPlan != null) {
-                throw new EsqlIllegalArgumentException("LOOKUP JOIN with pre-join filter is not supported on remote node");
             }
+            // JULIAN TODO: need a better way to indicate that the filter does not need to be applied here
+            /*else if (rightPreJoinPlan != null) {
+                throw new EsqlIllegalArgumentException("LOOKUP JOIN with pre-join filter is not supported on remote node");
+            }*/
         }
 
         @Override

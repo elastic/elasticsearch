@@ -5163,6 +5163,9 @@ FROM multi_column_joinable
 | LIMIT 20
 ;
 
+warning:Line 2:3: evaluation of [LOOKUP JOIN multi_column_joinable_lookup ON id_int, is_active_bool] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:3: java.lang.IllegalArgumentException: LOOKUP JOIN encountered multi-value
+
 id_int:integer | name_str:keyword | extra1:keyword | other1:keyword | other2:integer
 4              | David            | qux            | zeta           | 6000
 5              | Eve              | quux           | eta            | 7000
@@ -5187,6 +5190,9 @@ FROM multi_column_joinable
 | SORT id_int, name_str, extra1, other1, other2
 | LIMIT 20
 ;
+
+warning:Line 2:3: evaluation of [LOOKUP JOIN multi_column_joinable_lookup ON id_int, is_active_bool] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:3: java.lang.IllegalArgumentException: LOOKUP JOIN encountered multi-value
 
 id_int:integer | name_str:keyword | extra1:keyword | other1:keyword | other2:integer
 4              | David            | qux            | zeta           | 6000
@@ -5242,6 +5248,11 @@ FROM multi_column_joinable
 | LIMIT 20
 ;
 
+warning:Line 2:3: evaluation of [LOOKUP JOIN multi_column_joinable_lookup ON id_int, is_active_bool] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:3: java.lang.IllegalArgumentException: LOOKUP JOIN encountered multi-value
+warning:Line 3:23: evaluation of [id_int + 5000] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 3:23: java.lang.IllegalArgumentException: single-value function encountered multi-value
+
 id_int:integer | name_str:keyword | extra1:keyword | other1:keyword | other2:integer
 4              | David            | qux            | zeta           | 6000
 5              | Eve              | quux           | eta            | 7000
@@ -5267,6 +5278,11 @@ lookupJoinWithMixJoinAndNonJoinColumnsPushable
  | LIMIT 20
  ;
  
+warning:Line 2:3: evaluation of [LOOKUP JOIN multi_column_joinable_lookup ON id_int, is_active_bool] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:3: java.lang.IllegalArgumentException: LOOKUP JOIN encountered multi-value
+warning:Line 3:18: evaluation of [id_int + 5000] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 3:18: java.lang.IllegalArgumentException: single-value function encountered multi-value
+ 
  id_int:integer | name_str:keyword | extra1:keyword | other1:keyword | other2:integer
  4              | David            | qux            | zeta           | 6000
  5              | Eve              | quux           | eta            | 7000
@@ -5290,6 +5306,9 @@ lookupJoinWithMixJoinAndNonJoinColumnsPushable
  | SORT id_int, name_str, extra1, other1, other2
  | LIMIT 20
  ;
+ 
+warning:Line 3:9: evaluation of [id_int > 7] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 3:9: java.lang.IllegalArgumentException: single-value function encountered multi-value
  
 id_int:integer | name_str:keyword | extra1:keyword | other1:keyword | other2:integer
 8              | Hank             | garply         | lambda         | 11000
@@ -5316,6 +5335,9 @@ lookupJoinWithExpressionOfOtherFields
       NEED TO DEBUG WHY THE FILTER IS NOT PUSHED TO THE RIGHT SIDE OF THE LOOKUP JOIN
    */
   ;
+
+warning:Line 2:3: evaluation of [LOOKUP JOIN multi_column_joinable_lookup ON id_int, is_active_bool] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:3: java.lang.IllegalArgumentException: LOOKUP JOIN encountered multi-value
   
 id_int:integer | name_str:keyword | extra1:keyword | other1:keyword | other2:integer
 5              | Eve              | quux           | eta            | 7000

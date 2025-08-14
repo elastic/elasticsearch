@@ -106,7 +106,7 @@ public class TransportNodeUsageStatsForThreadPoolsAction extends TransportNodesA
             ),
             Math.max(
                 trackingForWriteExecutor.getMaxQueueLatencyMillisSinceLastPollAndReset(),
-                trackingForWriteExecutor.peekMaxQueueLatencyInQueue()
+                trackingForWriteExecutor.peekMaxQueueLatencyInQueueMillis()
             )
         );
 

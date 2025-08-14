@@ -404,7 +404,7 @@ public class ClusterInfoServiceIT extends ESIntegTestCase {
     /**
      * The {@link TransportNodeUsageStatsForThreadPoolsAction} returns the max value of two kinds of queue latencies:
      * {@link TaskExecutionTimeTrackingEsThreadPoolExecutor#getMaxQueueLatencyMillisSinceLastPollAndReset()} and
-     * {@link TaskExecutionTimeTrackingEsThreadPoolExecutor#peekMaxQueueLatencyInQueue()}. The latter looks at currently queued tasks, and
+     * {@link TaskExecutionTimeTrackingEsThreadPoolExecutor#peekMaxQueueLatencyInQueueMillis()}. The latter looks at currently queued tasks, and
      * the former tracks the queue latency of tasks when they are taken off of the queue to start execution.
      */
     public void testMaxQueueLatenciesInClusterInfo() throws Exception {
@@ -443,7 +443,7 @@ public class ClusterInfoServiceIT extends ESIntegTestCase {
                 // Wait for the parallel threads' writes to get queued in the write thread pool.
                 () -> assertThat(
                     "Write thread pool dump: " + trackingWriteExecutor,
-                    trackingWriteExecutor.peekMaxQueueLatencyInQueue(),
+                    trackingWriteExecutor.peekMaxQueueLatencyInQueueMillis(),
                     greaterThan(0L)
                 )
             );
@@ -492,10 +492,11 @@ public class ClusterInfoServiceIT extends ESIntegTestCase {
                 // machines, and it's reasonable to queue a little in that situation.
                 () -> assertThat(
                     "Write thread pool dump: " + trackingWriteExecutor,
-                    trackingWriteExecutor.peekMaxQueueLatencyInQueue(),
+                    trackingWriteExecutor.peekMaxQueueLatencyInQueueMillis(),
                     equalTo(0L)
                 )
             );
+
             final ClusterInfo nextClusterInfo = ClusterInfoServiceUtils.refresh(masterClusterInfoService);
             {
                 final Map<String, NodeUsageStatsForThreadPools> usageStatsForThreadPools = nextClusterInfo

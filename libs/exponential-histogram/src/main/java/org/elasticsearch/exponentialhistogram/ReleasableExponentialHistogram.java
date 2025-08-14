@@ -21,11 +21,17 @@
 
 package org.elasticsearch.exponentialhistogram;
 
-import static org.hamcrest.Matchers.equalTo;
+import org.elasticsearch.core.Releasable;
 
-public class ZeroBucketTests extends ExponentialHistogramTestCase {
+/**
+ * A histogram which participates in the {@link ExponentialHistogramCircuitBreaker} and therefore requires proper releasing.
+ */
+public interface ReleasableExponentialHistogram extends ExponentialHistogram, Releasable {
 
-    public void testMinimalBucketHasZeroThreshold() {
-        assertThat(ZeroBucket.minimalWithCount(42).zeroThreshold(), equalTo(0.0));
+    /**
+     * @return an empty singleton, which does not allocate any memory and therefore {@link #close()} is a no-op.
+     */
+    static ReleasableExponentialHistogram empty() {
+        return EmptyExponentialHistogram.INSTANCE;
     }
 }

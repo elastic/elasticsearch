@@ -368,4 +368,17 @@ public class ESVectorUtil {
         }
         IMPL.soarDistanceBulk(v1, c0, c1, c2, c3, originalResidual, soarLambda, rnorm, distances);
     }
+
+    /**
+     * Packs the provided int array populated with "0" and "1" values into a byte array.
+     *
+     * @param vector the int array to pack, must contain only "0" and "1" values.
+     * @param packed the byte array to store the packed result, must be large enough to hold the packed data.
+     */
+    public static void packAsBinary(int[] vector, byte[] packed) {
+        if (packed.length * Byte.SIZE < vector.length) {
+            throw new IllegalArgumentException("packed array is too small: " + packed.length * Byte.SIZE + " < " + vector.length);
+        }
+        IMPL.packAsBinary(vector, packed);
+    }
 }

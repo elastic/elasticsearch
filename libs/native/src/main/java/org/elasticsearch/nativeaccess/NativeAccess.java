@@ -9,6 +9,10 @@
 
 package org.elasticsearch.nativeaccess;
 
+import org.elasticsearch.logging.LogManager;
+
+import java.lang.foreign.Arena;
+import java.lang.foreign.SymbolLookup;
 import java.nio.file.Path;
 import java.util.Optional;
 import java.util.OptionalLong;
@@ -17,6 +21,11 @@ import java.util.OptionalLong;
  * Provides access to native functionality needed by Elastisearch.
  */
 public interface NativeAccess {
+
+    static void loadCuvs() {
+        var libCuvs = SymbolLookup.libraryLookup(System.mapLibraryName("cuvs_c"), Arena.ofAuto());
+        LogManager.getLogger(NativeAccess.class).info("Loaded libcuvs_c.so: " + libCuvs);
+    }
 
     /**
      * Get the one and only instance of {@link NativeAccess} which is specific to the running platform and JVM.

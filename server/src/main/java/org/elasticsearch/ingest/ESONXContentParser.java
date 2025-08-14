@@ -48,7 +48,7 @@ public class ESONXContentParser extends AbstractXContentParser {
     // Current token state
     private Token currentToken = null;
     private String currentFieldName = null;
-    private ESONSource.Value currentType = null;
+    private ESONEntry currentEntry = null;
     private Object currentValue = null;
     private boolean valueComputed = false;
 
@@ -115,16 +115,26 @@ public class ESONXContentParser extends AbstractXContentParser {
         assert size > currentIndex;
 
         // Process next entry
-        ESONEntry entry = keyArray.get(currentIndex);
+        currentEntry = keyArray.get(currentIndex);
 
         // Handle based on container type
         if (containerStack.isCurrentContainerArray() == false && currentToken != Token.FIELD_NAME) {
-            currentFieldName = entry.key();
+            currentFieldName = currentEntry.key();
             currentToken = Token.FIELD_NAME;
             return currentToken;
         } else {
+            containerStack.decrementCurrentContainerFields();
+            ++currentIndex;
             // In array or object value
-            return emitValue(entry);
+            byte type = currentEntry.type();
+            if (type == ESONEntry.TYPE_OBJECT) {
+                containerStack.pushObject(currentEntry.offsetOrCount());
+            } else if (type == ESONEntry.TYPE_ARRAY) {
+                containerStack.pushArray(currentEntry.offsetOrCount());
+            }
+
+            currentToken = TOKEN_LOOKUP[type];
+            return currentToken;
         }
     }
 
@@ -146,23 +156,6 @@ public class ESONXContentParser extends AbstractXContentParser {
         TOKEN_LOOKUP[ESONEntry.BINARY] = Token.VALUE_EMBEDDED_OBJECT;
     }
 
-    private Token emitValue(ESONEntry entry) {
-        containerStack.decrementCurrentContainerFields();
-        ++currentIndex;
-
-        byte type = entry.type();
-        if (type == ESONEntry.TYPE_OBJECT) {
-            containerStack.pushObject(entry.offsetOrCount());
-        } else if (type == ESONEntry.TYPE_ARRAY) {
-            containerStack.pushArray(entry.offsetOrCount());
-        } else {
-            currentType = entry.value();
-        }
-
-        currentToken = TOKEN_LOOKUP[type];
-        return currentToken;
-    }
-
     // Helper method to materialize the current value on demand
     private Object getCurrentValue() {
         // TODO: Could probably optimize to not box all the numbers
@@ -174,7 +167,7 @@ public class ESONXContentParser extends AbstractXContentParser {
     }
 
     private Object materializeValue() {
-        ESONSource.Value type = this.currentType;
+        ESONSource.Value type = this.currentEntry.value();
         if (type == null || type == ESONSource.ConstantValue.NULL) {
             return null;
         } else if (type == ESONSource.ConstantValue.FALSE || type == ESONSource.ConstantValue.TRUE) {
@@ -244,7 +237,7 @@ public class ESONXContentParser extends AbstractXContentParser {
             throwOnNoText();
         }
         // For strings, try to access raw bytes directly without materializing the string
-        if (currentType instanceof ESONSource.VariableValue varValue && varValue.type() == ESONEntry.STRING) {
+        if (currentEntry.value() instanceof ESONSource.VariableValue varValue && varValue.type() == ESONEntry.STRING) {
             BytesRef bytesRef = ESONSource.Values.readByteSlice(values.data(), varValue.position());
             // TODO: Fix Length
             return new Text(new XContentString.UTF8Bytes(bytesRef.bytes, bytesRef.offset, bytesRef.length), bytesRef.length);
@@ -265,7 +258,7 @@ public class ESONXContentParser extends AbstractXContentParser {
             throwOnNoText();
         }
         // For strings, try to write raw bytes directly without materializing the string
-        if (currentType instanceof ESONSource.VariableValue varValue && varValue.type() == ESONEntry.STRING) {
+        if (currentEntry.value() instanceof ESONSource.VariableValue varValue && varValue.type() == ESONEntry.STRING) {
             try {
                 BytesRef bytesRef = ESONSource.Values.readByteSlice(values.data(), varValue.position());
                 out.write(bytesRef.bytes, bytesRef.offset, bytesRef.length);

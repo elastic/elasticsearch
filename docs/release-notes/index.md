@@ -288,7 +288,6 @@ The FORK command add a discriminator column called `_fork`:
 | 3   | brown fox | fork1 |
 | 4   | white dog | fork2 |
 ```
-
 ::::
 
 ::::{dropdown} ES|QL cross-cluster querying is now generally available

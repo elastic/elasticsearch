@@ -40,19 +40,19 @@ public class LookupFromIndexOperatorStatusTests extends AbstractWireSerializingT
         long receivedPages = in.receivedPages();
         long completedPages = in.completedPages();
         long procesNanos = in.processNanos();
-        long totalTerms = in.totalTerms();
+        long totalRows = in.totalRows();
         long emittedPages = in.emittedPages();
         long emittedRows = in.emittedRows();
         switch (randomIntBetween(0, 5)) {
             case 0 -> receivedPages = randomValueOtherThan(receivedPages, ESTestCase::randomNonNegativeLong);
             case 1 -> completedPages = randomValueOtherThan(completedPages, ESTestCase::randomNonNegativeLong);
             case 2 -> procesNanos = randomValueOtherThan(procesNanos, ESTestCase::randomNonNegativeLong);
-            case 3 -> totalTerms = randomValueOtherThan(totalTerms, ESTestCase::randomNonNegativeLong);
+            case 3 -> totalRows = randomValueOtherThan(totalRows, ESTestCase::randomNonNegativeLong);
             case 4 -> emittedPages = randomValueOtherThan(emittedPages, ESTestCase::randomNonNegativeLong);
             case 5 -> emittedRows = randomValueOtherThan(emittedRows, ESTestCase::randomNonNegativeLong);
             default -> throw new UnsupportedOperationException();
         }
-        return new LookupFromIndexOperator.Status(receivedPages, completedPages, procesNanos, totalTerms, emittedPages, emittedRows);
+        return new LookupFromIndexOperator.Status(receivedPages, completedPages, procesNanos, totalRows, emittedPages, emittedRows);
     }
 
     public void testToXContent() {
@@ -66,7 +66,7 @@ public class LookupFromIndexOperatorStatusTests extends AbstractWireSerializingT
               "pages_completed" : 50,
               "pages_emitted" : 88,
               "rows_emitted" : 800,
-              "total_terms" : 120
+              "total_rows" : 120
             }"""));
     }
 }

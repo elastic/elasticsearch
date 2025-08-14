@@ -1,5 +1,0 @@
-pr: 127573
-summary: "[Failure store] Introduce default retention for failure indices"
-area: Data streams
-type: enhancement
-issues: []

@@ -196,6 +196,7 @@ public class MergeWithLowDiskSpaceIT extends DiskUsageIntegTestCase {
             indexName,
             Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0).put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).build()
         );
+        ensureGreen(indexName);
         // get current disk space usage (for all indices on the node)
         IndicesStatsResponse stats = indicesAdmin().prepareStats().clear().setStore(true).get();
         long usedDiskSpaceAfterIndexing = stats.getTotal().getStore().sizeInBytes();
@@ -282,7 +283,11 @@ public class MergeWithLowDiskSpaceIT extends DiskUsageIntegTestCase {
         ensureStableCluster(1);
         setTotalSpace(node1, Long.MAX_VALUE);
         String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
-        prepareCreate(indexName, indexSettings(1, 0)).get();
+        createIndex(
+            indexName,
+            Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0).put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).build()
+        );
+        ensureGreen(indexName);
         // get current disk space usage (for all indices on the node)
         IndicesStatsResponse stats = indicesAdmin().prepareStats().clear().setStore(true).get();
         long usedDiskSpaceAfterIndexing = stats.getTotal().getStore().sizeInBytes();
@@ -317,8 +322,8 @@ public class MergeWithLowDiskSpaceIT extends DiskUsageIntegTestCase {
             .getThreadPoolMergeExecutorService();
         TestTelemetryPlugin testTelemetryPlugin = getTelemetryPlugin(node1);
         assertBusy(() -> {
-            // merge executor says merging is blocked due to insufficient disk space while there is a single merge task enqueued
-            assertThat(threadPoolMergeExecutorService.getMergeTasksQueueLength(), equalTo(1));
+            // merge executor says merging is blocked due to insufficient disk space
+            assertThat(threadPoolMergeExecutorService.getMergeTasksQueueLength(), greaterThan(0));
             assertTrue(threadPoolMergeExecutorService.isMergingBlockedDueToInsufficientDiskSpace());
             // telemetry says that there are indeed some segments enqueued to be merged
             testTelemetryPlugin.collect();

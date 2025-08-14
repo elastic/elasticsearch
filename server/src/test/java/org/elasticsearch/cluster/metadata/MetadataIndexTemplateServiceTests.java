@@ -43,6 +43,8 @@ import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentParseException;
 
 import java.io.IOException;
+import java.time.Instant;
+import java.time.InstantSource;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -54,6 +56,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static java.util.Collections.singletonList;
@@ -424,8 +427,9 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         ComponentTemplate componentTemplate = new ComponentTemplate(template, 1L, new HashMap<>());
         project = metadataIndexTemplateService.addComponentTemplate(project, false, "foo", componentTemplate);
 
-        assertNotNull(project.componentTemplates().get("foo"));
-        assertThat(project.componentTemplates().get("foo"), equalTo(componentTemplate));
+        ComponentTemplate actualTemplateFoo = project.componentTemplates().get("foo");
+        ComponentTemplate expectedTemplateFoo = new ComponentTemplate(template, 1L, Map.of(), null, 0L, 0L);
+        assertThat(actualTemplateFoo, equalTo(expectedTemplateFoo));
 
         ProjectMetadata throwState = ProjectMetadata.builder(project).build();
         IllegalArgumentException e = expectThrows(
@@ -529,8 +533,8 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         ComposableIndexTemplate template = ComposableIndexTemplateTests.randomInstance();
         project = metadataIndexTemplateService.addIndexTemplateV2(project, false, "foo", template);
 
-        assertNotNull(project.templatesV2().get("foo"));
-        assertTemplatesEqual(project.templatesV2().get("foo"), template);
+        final ComposableIndexTemplate expectedTemplateFoo = template.toBuilder().createdDate(0L).modifiedDate(0L).build();
+        assertTemplatesEqual(expectedTemplateFoo, project.templatesV2().get("foo"));
 
         ComposableIndexTemplate newTemplate = randomValueOtherThanMany(
             t -> Objects.equals(template.priority(), t.priority()),
@@ -554,16 +558,16 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         ComposableIndexTemplate template = ComposableIndexTemplateTests.randomInstance();
         project = metadataIndexTemplateService.addIndexTemplateV2(project, false, "foo", template);
 
-        assertNotNull(project.templatesV2().get("foo"));
-        assertTemplatesEqual(project.templatesV2().get("foo"), template);
+        final ComposableIndexTemplate expectedTemplateFoo = template.toBuilder().createdDate(0L).modifiedDate(0L).build();
+        assertTemplatesEqual(expectedTemplateFoo, project.templatesV2().get("foo"));
 
         List<String> patterns = new ArrayList<>(template.indexPatterns());
         patterns.add("new-pattern");
         template = template.toBuilder().indexPatterns(patterns).build();
         project = metadataIndexTemplateService.addIndexTemplateV2(project, false, "foo", template);
 
-        assertNotNull(project.templatesV2().get("foo"));
-        assertTemplatesEqual(project.templatesV2().get("foo"), template);
+        final ComposableIndexTemplate updatedExpectedTemplateFoo = template.toBuilder().createdDate(0L).modifiedDate(2L).build();
+        assertTemplatesEqual(updatedExpectedTemplateFoo, project.templatesV2().get("foo"));
     }
 
     public void testRemoveIndexTemplateV2() throws Exception {
@@ -577,8 +581,8 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         assertThat(e.getMessage(), equalTo("index_template [foo] missing"));
 
         ProjectMetadata project = service.addIndexTemplateV2(initialProject, false, "foo", template);
-        assertNotNull(project.templatesV2().get("foo"));
-        assertTemplatesEqual(project.templatesV2().get("foo"), template);
+        final ComposableIndexTemplate expectedTemplateFoo = template.toBuilder().createdDate(0L).modifiedDate(0L).build();
+        assertTemplatesEqual(expectedTemplateFoo, project.templatesV2().get("foo"));
 
         ProjectMetadata updatedState = MetadataIndexTemplateService.innerRemoveIndexTemplateV2(project, "foo");
         assertNull(updatedState.templatesV2().get("foo"));
@@ -594,7 +598,8 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         ProjectMetadata project = metadataIndexTemplateService.addIndexTemplateV2(initialProject, false, "foo", template);
         assertThat(project.templatesV2().get("foo"), notNullValue());
 
-        assertTemplatesEqual(project.templatesV2().get("foo"), template);
+        final ComposableIndexTemplate expectedTemplateFoo = template.toBuilder().createdDate(0L).modifiedDate(0L).build();
+        assertTemplatesEqual(expectedTemplateFoo, project.templatesV2().get("foo"));
 
         Exception e = expectThrows(
             IndexTemplateMissingException.class,
@@ -616,12 +621,12 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         ProjectMetadata project = service.addIndexTemplateV2(initialProject, false, "foo", fooTemplate);
         project = service.addIndexTemplateV2(project, false, "bar", barTemplate);
         project = service.addIndexTemplateV2(project, false, "baz", bazTemplate);
-        assertNotNull(project.templatesV2().get("foo"));
-        assertNotNull(project.templatesV2().get("bar"));
-        assertNotNull(project.templatesV2().get("baz"));
-        assertTemplatesEqual(project.templatesV2().get("foo"), fooTemplate);
-        assertTemplatesEqual(project.templatesV2().get("bar"), barTemplate);
-        assertTemplatesEqual(project.templatesV2().get("baz"), bazTemplate);
+        final ComposableIndexTemplate expectedTemplateFoo = fooTemplate.toBuilder().createdDate(0L).modifiedDate(0L).build();
+        final ComposableIndexTemplate expectedTemplateBar = barTemplate.toBuilder().createdDate(2L).modifiedDate(2L).build();
+        final ComposableIndexTemplate expectedTemplateBaz = bazTemplate.toBuilder().createdDate(4L).modifiedDate(4L).build();
+        assertTemplatesEqual(expectedTemplateFoo, project.templatesV2().get("foo"));
+        assertTemplatesEqual(expectedTemplateBar, project.templatesV2().get("bar"));
+        assertTemplatesEqual(expectedTemplateBaz, project.templatesV2().get("baz"));
 
         ProjectMetadata updatedState = MetadataIndexTemplateService.innerRemoveIndexTemplateV2(project, "foo", "baz");
         assertNull(updatedState.templatesV2().get("foo"));
@@ -649,12 +654,13 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         );
         assertThat(e.getMessage(), equalTo("index_template [b*,k*,*] missing"));
 
-        assertNotNull(project.templatesV2().get("foo"));
-        assertNotNull(project.templatesV2().get("bar"));
-        assertNotNull(project.templatesV2().get("baz"));
-        assertTemplatesEqual(project.templatesV2().get("foo"), fooTemplate);
-        assertTemplatesEqual(project.templatesV2().get("bar"), barTemplate);
-        assertTemplatesEqual(project.templatesV2().get("baz"), bazTemplate);
+        final ComposableIndexTemplate expectedTemplateFoo = fooTemplate.toBuilder().createdDate(0L).modifiedDate(0L).build();
+        final ComposableIndexTemplate expectedTemplateBar = barTemplate.toBuilder().createdDate(2L).modifiedDate(2L).build();
+        final ComposableIndexTemplate expectedTemplateBaz = bazTemplate.toBuilder().createdDate(4L).modifiedDate(4L).build();
+
+        assertTemplatesEqual(expectedTemplateFoo, project.templatesV2().get("foo"));
+        assertTemplatesEqual(expectedTemplateBar, project.templatesV2().get("bar"));
+        assertTemplatesEqual(expectedTemplateBaz, project.templatesV2().get("baz"));
     }
 
     /**
@@ -677,8 +683,8 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
                 + "take precedence during new index creation"
         );
 
-        assertNotNull(project.templatesV2().get("v2-template"));
-        assertTemplatesEqual(project.templatesV2().get("v2-template"), v2Template);
+        final ComposableIndexTemplate expectedV2Template = v2Template.toBuilder().createdDate(0L).modifiedDate(0L).build();
+        assertTemplatesEqual(expectedV2Template, project.templatesV2().get("v2-template"));
     }
 
     public void testPutGlobalV2TemplateWhichResolvesIndexHiddenSetting() throws Exception {
@@ -828,8 +834,8 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
                 + "take precedence during new index creation"
         );
 
-        assertNotNull(project.templatesV2().get("v2-template"));
-        assertTemplatesEqual(project.templatesV2().get("v2-template"), v2Template);
+        final ComposableIndexTemplate expectedV2Template = v2Template.toBuilder().createdDate(0L).modifiedDate(0L).build();
+        assertTemplatesEqual(expectedV2Template, project.templatesV2().get("v2-template"));
 
         // Now try to update the existing v1-template
 
@@ -868,8 +874,8 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
                 + "take precedence during new index creation"
         );
 
-        assertNotNull(project.templatesV2().get("v2-template"));
-        assertTemplatesEqual(project.templatesV2().get("v2-template"), v2Template);
+        final ComposableIndexTemplate expectedV2 = v2Template.toBuilder().createdDate(0L).modifiedDate(0L).build();
+        assertTemplatesEqual(expectedV2, project.templatesV2().get("v2-template"));
 
         // Now try to update the existing v1-template
 
@@ -1927,12 +1933,37 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         ProjectMetadata projectMetadata = service.addComponentTemplate(temp, false, "baz", baz);
 
         ProjectMetadata result = innerRemoveComponentTemplate(projectMetadata, "foo");
+        // created_date and modified_date come from monotonically increasing clock
+        ComponentTemplate expectedTemplateBar = new ComponentTemplate(
+            bar.template(),
+            bar.version(),
+            bar.metadata(),
+            bar.deprecated(),
+            1L,
+            1L
+        );
+        ComponentTemplate expectedTemplateBaz = new ComponentTemplate(
+            baz.template(),
+            baz.version(),
+            baz.metadata(),
+            baz.deprecated(),
+            2L,
+            2L
+        );
         assertThat(result.componentTemplates().get("foo"), nullValue());
-        assertThat(result.componentTemplates().get("bar"), equalTo(bar));
-        assertThat(result.componentTemplates().get("baz"), equalTo(baz));
+        assertThat(result.componentTemplates().get("bar"), equalTo(expectedTemplateBar));
+        assertThat(result.componentTemplates().get("baz"), equalTo(expectedTemplateBaz));
 
         result = innerRemoveComponentTemplate(projectMetadata, "bar", "baz");
-        assertThat(result.componentTemplates().get("foo"), equalTo(foo));
+        ComponentTemplate expectedTemplateFoo = new ComponentTemplate(
+            foo.template(),
+            foo.version(),
+            foo.metadata(),
+            foo.deprecated(),
+            0L,
+            0L
+        );
+        assertThat(result.componentTemplates().get("foo"), equalTo(expectedTemplateFoo));
         assertThat(result.componentTemplates().get("bar"), nullValue());
         assertThat(result.componentTemplates().get("baz"), nullValue());
 
@@ -1946,7 +1977,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
 
         result = innerRemoveComponentTemplate(projectMetadata, "b*");
         assertThat(result.componentTemplates().size(), equalTo(1));
-        assertThat(result.componentTemplates().get("foo"), equalTo(foo));
+        assertThat(result.componentTemplates().get("foo"), equalTo(expectedTemplateFoo));
 
         e = expectThrows(ResourceNotFoundException.class, () -> innerRemoveComponentTemplate(projectMetadata, "foo", "b*"));
         assertThat(e.getMessage(), equalTo("b*"));
@@ -2445,14 +2476,14 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
                 .build();
 
             // when validating is false, we return the conflicts instead of throwing an exception
-            var overlaps = MetadataIndexTemplateService.v2TemplateOverlaps(project, "foo2", newTemplate, false);
+            var overlaps = MetadataIndexTemplateService.v2TemplateOverlaps(project.templatesV2(), "foo2", newTemplate, false);
 
             assertThat(overlaps, allOf(aMapWithSize(1), hasKey("foo")));
 
             // try now the same thing with validation on
             IllegalArgumentException e = expectThrows(
                 IllegalArgumentException.class,
-                () -> MetadataIndexTemplateService.v2TemplateOverlaps(project, "foo2", newTemplate, true)
+                () -> MetadataIndexTemplateService.v2TemplateOverlaps(project.templatesV2(), "foo2", newTemplate, true)
             );
             assertThat(
                 e.getMessage(),
@@ -2468,7 +2499,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
                 .priority(1L)
                 .build();
 
-            overlaps = MetadataIndexTemplateService.v2TemplateOverlaps(project, "no-conflict", nonConflict, true);
+            overlaps = MetadataIndexTemplateService.v2TemplateOverlaps(project.templatesV2(), "no-conflict", nonConflict, true);
             assertTrue(overlaps.isEmpty());
         }
 
@@ -2482,7 +2513,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
                 .build();
             IllegalArgumentException e = expectThrows(
                 IllegalArgumentException.class,
-                () -> MetadataIndexTemplateService.v2TemplateOverlaps(project, "foo2", newTemplate, true)
+                () -> MetadataIndexTemplateService.v2TemplateOverlaps(project.templatesV2(), "foo2", newTemplate, true)
             );
             assertThat(
                 e.getMessage(),
@@ -2743,6 +2774,160 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         assertWarnings("index template [foo] uses deprecated component template [ct]");
     }
 
+    public void testComponentTemplateNoUpdateWhenNoChange() throws Exception {
+        final String name = "test-template";
+        final ProjectId projectId = randomProjectIdOrDefault();
+
+        final Template template = new Template(Settings.builder().put("index.number_of_shards", 1).build(), null, null);
+        final MetadataIndexTemplateService service = getMetadataIndexTemplateService();
+
+        // create template
+        final ComponentTemplate componentTemplate = new ComponentTemplate(template, 1L, null);
+        final ProjectMetadata initialMetadata = ProjectMetadata.builder(projectId).build();
+        final ProjectMetadata updatedMetadata = service.addComponentTemplate(initialMetadata, false, name, componentTemplate);
+        final ComponentTemplate addedTemplate = updatedMetadata.componentTemplates().get(name);
+        assertThat(addedTemplate.createdDateMillis().orElseThrow(), is(0L));
+        assertThat(addedTemplate.modifiedDateMillis().orElseThrow(), is(0L));
+
+        // update template which should result in NOP
+        final ProjectMetadata sameMetadata = service.addComponentTemplate(updatedMetadata, false, name, componentTemplate);
+        assertThat(sameMetadata, sameInstance(updatedMetadata));
+        final ComponentTemplate unchangedTemplate = sameMetadata.componentTemplates().get(name);
+        assertThat(unchangedTemplate.createdDateMillis().orElseThrow(), is(0L));
+        assertThat(unchangedTemplate.modifiedDateMillis().orElseThrow(), is(0L));
+    }
+
+    public void testComponentTemplateUpdateWithoutExistingTracking() throws Exception {
+        final String name = "test-template";
+        final ProjectId projectId = randomProjectIdOrDefault();
+        final MetadataIndexTemplateService service = getMetadataIndexTemplateService();
+        final ComponentTemplate initialTemplate = new ComponentTemplate(
+            new Template(Settings.builder().put("index.number_of_shards", 1).build(), null, null),
+            1L,
+            null
+        );
+        final ProjectMetadata initialMetadata = ProjectMetadata.builder(projectId)
+            .componentTemplates(Map.of(name, initialTemplate))
+            .build();
+
+        final ComponentTemplate updateTemplate = new ComponentTemplate(
+            new Template(Settings.builder().put("index.number_of_shards", 2).build(), null, null),
+            1L,
+            null
+        );
+        final ProjectMetadata afterCreateMetadata = service.addComponentTemplate(initialMetadata, false, name, updateTemplate);
+
+        final ComponentTemplate newTemplate = afterCreateMetadata.componentTemplates().get(name);
+        assertTrue(newTemplate.createdDateMillis().isEmpty());
+        assertThat(newTemplate.modifiedDateMillis().orElseThrow(), is(0L));
+    }
+
+    public void testComponentTemplateUpdateChangesModifiedDate() throws Exception {
+        final String name = "test-template";
+        final ProjectId projectId = randomProjectIdOrDefault();
+        final MetadataIndexTemplateService service = getMetadataIndexTemplateService();
+        final ProjectMetadata initialMetadata = ProjectMetadata.builder(projectId).build();
+        final Template template = new Template(Settings.builder().put("index.number_of_shards", 1).build(), null, null);
+
+        // create template
+        final ComponentTemplate componentTemplate = new ComponentTemplate(template, 1L, null);
+        final ProjectMetadata afterCreateMetadata = service.addComponentTemplate(initialMetadata, false, name, componentTemplate);
+        final ComponentTemplate addedTemplate = afterCreateMetadata.componentTemplates().get(name);
+        assertThat(addedTemplate.createdDateMillis().orElseThrow(), is(0L));
+        assertThat(addedTemplate.modifiedDateMillis().orElseThrow(), is(0L));
+
+        // update template
+        final ComponentTemplate updatedComponentTemplate = new ComponentTemplate(template, 2L, null);
+        final ProjectMetadata afterUpdateMetadata = service.addComponentTemplate(
+            afterCreateMetadata,
+            false,
+            name,
+            updatedComponentTemplate
+        );
+        final ComponentTemplate newTemplate = afterUpdateMetadata.componentTemplates().get(name);
+        assertThat(newTemplate.createdDateMillis().orElseThrow(), is(0L));
+        assertThat(newTemplate.modifiedDateMillis().orElseThrow(), is(1L));
+    }
+
+    public void testIndexTemplateNoOpDoesNotChangeTracking() throws Exception {
+        final String name = "test-template";
+        final ProjectId projectId = randomProjectIdOrDefault();
+        final Template template = new Template(Settings.builder().put("index.number_of_shards", 1).build(), null, null);
+        final MetadataIndexTemplateService service = getMetadataIndexTemplateService();
+
+        // create template
+        final ComposableIndexTemplate indexTemplate = ComposableIndexTemplate.builder()
+            .indexPatterns(List.of("test-*"))
+            .template(template)
+            .priority(1L)
+            .build();
+        final ProjectMetadata initialMetadata = ProjectMetadata.builder(projectId).build();
+        final ProjectMetadata updatedMetadata = service.addIndexTemplateV2(initialMetadata, false, name, indexTemplate);
+        final ComposableIndexTemplate addedTemplate = updatedMetadata.templatesV2().get(name);
+        assertThat(addedTemplate.createdDateMillis().orElseThrow(), is(0L));
+        assertThat(addedTemplate.modifiedDateMillis().orElseThrow(), is(0L));
+
+        // update template which should result in NOP
+        final ProjectMetadata sameMetadata = service.addIndexTemplateV2(updatedMetadata, false, name, indexTemplate);
+        assertThat(sameMetadata, sameInstance(updatedMetadata));
+        final ComposableIndexTemplate unchangedTemplate = sameMetadata.templatesV2().get(name);
+        assertThat(unchangedTemplate.createdDateMillis().orElseThrow(), is(0L));
+        assertThat(unchangedTemplate.modifiedDateMillis().orElseThrow(), is(0L));
+    }
+
+    public void testIndexTemplateUpdateWithoutExistingTracking() throws Exception {
+        final String name = "test-template";
+        final ProjectId projectId = randomProjectIdOrDefault();
+        final MetadataIndexTemplateService service = getMetadataIndexTemplateService();
+        final ComposableIndexTemplate initialTemplate = ComposableIndexTemplate.builder()
+            .indexPatterns(List.of("test-*"))
+            .template(new Template(Settings.builder().put("index.number_of_shards", 1).build(), null, null))
+            .priority(1L)
+            .build();
+        final ProjectMetadata initialMetadata = ProjectMetadata.builder(projectId).put(name, initialTemplate).build();
+
+        final ComposableIndexTemplate updateTemplate = ComposableIndexTemplate.builder()
+            .indexPatterns(List.of("test-*"))
+            .template(new Template(Settings.builder().put("index.number_of_shards", 2).build(), null, null))
+            .priority(1L)
+            .build();
+        final ProjectMetadata afterCreateMetadata = service.addIndexTemplateV2(initialMetadata, false, name, updateTemplate);
+
+        final ComposableIndexTemplate newTemplate = afterCreateMetadata.templatesV2().get(name);
+        assertTrue(newTemplate.createdDateMillis().isEmpty());
+        assertThat(newTemplate.modifiedDateMillis().orElseThrow(), is(0L));
+    }
+
+    public void testIndexTemplateUpdateChangesModifiedDate() throws Exception {
+        final String name = "test-template";
+        final ProjectId projectId = randomProjectIdOrDefault();
+        final MetadataIndexTemplateService service = getMetadataIndexTemplateService();
+        final ProjectMetadata initialMetadata = ProjectMetadata.builder(projectId).build();
+        final Template template = new Template(Settings.builder().put("index.number_of_shards", 1).build(), null, null);
+
+        // create template
+        final ComposableIndexTemplate indexTemplate = ComposableIndexTemplate.builder()
+            .indexPatterns(List.of("test-*"))
+            .template(template)
+            .priority(1L)
+            .build();
+        final ProjectMetadata afterCreateMetadata = service.addIndexTemplateV2(initialMetadata, false, name, indexTemplate);
+        final ComposableIndexTemplate addedTemplate = afterCreateMetadata.templatesV2().get(name);
+        assertThat(addedTemplate.createdDateMillis().orElseThrow(), is(0L));
+        assertThat(addedTemplate.modifiedDateMillis().orElseThrow(), is(0L));
+
+        // update template
+        final ComposableIndexTemplate updatedIndexTemplate = ComposableIndexTemplate.builder()
+            .indexPatterns(List.of("test-*"))
+            .template(template)
+            .priority(2L)
+            .build();
+        final ProjectMetadata afterUpdateMetadata = service.addIndexTemplateV2(afterCreateMetadata, false, name, updatedIndexTemplate);
+        final ComposableIndexTemplate newTemplate = afterUpdateMetadata.templatesV2().get(name);
+        assertThat(newTemplate.createdDateMillis().orElseThrow(), is(0L));
+        assertThat(newTemplate.modifiedDateMillis().orElseThrow(), is(2L));
+    }
+
     private static List<Throwable> putTemplate(NamedXContentRegistry xContentRegistry, PutRequest request) {
         ThreadPool testThreadPool = mock(ThreadPool.class);
         when(testThreadPool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
@@ -2825,6 +3010,8 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             true,
             new IndexSettingProviders(Set.of())
         );
+        AtomicInteger instantSourceInvocationCounter = new AtomicInteger();
+        InstantSource instantSource = () -> Instant.ofEpochMilli(instantSourceInvocationCounter.getAndIncrement());
         return new MetadataIndexTemplateService(
             clusterService,
             createIndexService,
@@ -2833,11 +3020,12 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             xContentRegistry(),
             EmptySystemIndices.INSTANCE,
             new IndexSettingProviders(Set.of()),
-            DataStreamGlobalRetentionSettings.create(ClusterSettings.createBuiltInClusterSettings())
+            DataStreamGlobalRetentionSettings.create(ClusterSettings.createBuiltInClusterSettings()),
+            instantSource
         );
     }
 
-    public static void assertTemplatesEqual(ComposableIndexTemplate actual, ComposableIndexTemplate expected) {
-        assertEquals(actual, expected);
+    public static void assertTemplatesEqual(ComposableIndexTemplate expected, ComposableIndexTemplate actual) {
+        assertThat(actual, equalTo(expected));
     }
 }

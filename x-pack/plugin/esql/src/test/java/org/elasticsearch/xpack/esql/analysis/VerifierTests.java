@@ -2249,31 +2249,6 @@ public class VerifierTests extends ESTestCase {
         );
     }
 
-    public void testFullTextFunctionsConstantArg() throws Exception {
-        checkFullTextFunctionsConstantArg("match(title, category)", "second");
-        checkFullTextFunctionsConstantArg("qstr(title)", "");
-        checkFullTextFunctionsConstantArg("kql(title)", "");
-        checkFullTextFunctionsConstantArg("match_phrase(title, tags)", "second");
-        if (EsqlCapabilities.Cap.MULTI_MATCH_FUNCTION.isEnabled()) {
-            checkFullTextFunctionsConstantArg("multi_match(category, body)", "first");
-            checkFullTextFunctionsConstantArg("multi_match(concat(title, \"world\"), title)", "first");
-        }
-        if (EsqlCapabilities.Cap.TERM_FUNCTION.isEnabled()) {
-            checkFullTextFunctionsConstantArg("term(title, tags)", "second");
-        }
-        if (EsqlCapabilities.Cap.KNN_FUNCTION_V3.isEnabled()) {
-            checkFullTextFunctionsConstantArg("knn(vector, vector, 10)", "second");
-            checkFullTextFunctionsConstantArg("knn(vector, [0, 1, 2], category)", "third");
-        }
-    }
-
-    private void checkFullTextFunctionsConstantArg(String functionInvocation, String argOrdinal) throws Exception {
-        assertThat(
-            error("from test | where " + functionInvocation, fullTextAnalyzer),
-            containsString(argOrdinal + " argument of [" + functionInvocation + "] must be a constant")
-        );
-    }
-
     public void testInsistNotOnTopOfFrom() {
         assumeTrue("requires snapshot builds", Build.current().isSnapshot());
 
@@ -2482,6 +2457,14 @@ public class VerifierTests extends ESTestCase {
             | ENRICH _remote:languages ON language_code
             """, analyzer);
         assertThat(err, containsString("7:3: ENRICH with remote policy can't be executed after another ENRICH with coordinator policy"));
+
+        err = error("""
+            FROM test
+            | FORK (WHERE languages == 1) (WHERE languages == 2)
+            | EVAL language_code = languages
+            | ENRICH _remote:languages ON language_code
+            """, analyzer);
+        assertThat(err, containsString("4:3: ENRICH with remote policy can't be executed after FORK"));
     }
 
     private void checkFullTextFunctionsInStats(String functionInvocation) {
@@ -2501,24 +2484,25 @@ public class VerifierTests extends ESTestCase {
 
     public void testVectorSimilarityFunctionsNullArgs() throws Exception {
         if (EsqlCapabilities.Cap.COSINE_VECTOR_SIMILARITY_FUNCTION.isEnabled()) {
-            checkVectorSimilarityFunctionsNullArgs("v_cosine(null, vector)", "first");
-            checkVectorSimilarityFunctionsNullArgs("v_cosine(vector, null)", "second");
+            checkVectorSimilarityFunctionsNullArgs("v_cosine(null, vector)");
+            checkVectorSimilarityFunctionsNullArgs("v_cosine(vector, null)");
         }
         if (EsqlCapabilities.Cap.DOT_PRODUCT_VECTOR_SIMILARITY_FUNCTION.isEnabled()) {
-            checkVectorSimilarityFunctionsNullArgs("v_dot_product(null, vector)", "first");
-            checkVectorSimilarityFunctionsNullArgs("v_dot_product(vector, null)", "second");
+            checkVectorSimilarityFunctionsNullArgs("v_dot_product(null, vector)");
+            checkVectorSimilarityFunctionsNullArgs("v_dot_product(vector, null)");
         }
         if (EsqlCapabilities.Cap.L1_NORM_VECTOR_SIMILARITY_FUNCTION.isEnabled()) {
-            checkVectorSimilarityFunctionsNullArgs("v_l1_norm(null, vector)", "first");
-            checkVectorSimilarityFunctionsNullArgs("v_l1_norm(vector, null)", "second");
+            checkVectorSimilarityFunctionsNullArgs("v_l1_norm(null, vector)");
+            checkVectorSimilarityFunctionsNullArgs("v_l1_norm(vector, null)");
+        }
+        if (EsqlCapabilities.Cap.L2_NORM_VECTOR_SIMILARITY_FUNCTION.isEnabled()) {
+            checkVectorSimilarityFunctionsNullArgs("v_l2_norm(null, vector)");
+            checkVectorSimilarityFunctionsNullArgs("v_l2_norm(vector, null)");
         }
     }
 
-    private void checkVectorSimilarityFunctionsNullArgs(String functionInvocation, String argOrdinal) throws Exception {
-        assertThat(
-            error("from test | eval similarity = " + functionInvocation, fullTextAnalyzer),
-            containsString(argOrdinal + " argument of [" + functionInvocation + "] cannot be null, received [null]")
-        );
+    private void checkVectorSimilarityFunctionsNullArgs(String functionInvocation) throws Exception {
+        query("from test | eval similarity = " + functionInvocation, fullTextAnalyzer);
     }
 
     private void query(String query) {

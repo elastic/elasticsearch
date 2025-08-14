@@ -26,7 +26,6 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.EmptyAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
@@ -39,6 +38,7 @@ import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -48,6 +48,7 @@ import java.util.function.BiConsumer;
 
 import static org.elasticsearch.xpack.esql.common.Failure.fail;
 import static org.elasticsearch.xpack.esql.core.expression.Expressions.asAttributes;
+import static org.elasticsearch.xpack.esql.expression.Foldables.literalValueOf;
 import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutputAttributes;
 
 public class Enrich extends UnaryPlan implements GeneratingPlan<Enrich>, PostAnalysisPlanVerificationAware, TelemetryAware, SortAgnostic {
@@ -56,7 +57,7 @@ public class Enrich extends UnaryPlan implements GeneratingPlan<Enrich>, PostAna
         "Enrich",
         Enrich::readFrom
     );
-
+    // policyName can only be a string literal once it's resolved
     private final Expression policyName;
     private final NamedExpression matchField;
     private final EnrichPolicy policy;
@@ -152,7 +153,8 @@ public class Enrich extends UnaryPlan implements GeneratingPlan<Enrich>, PostAna
         out.writeNamedWriteable(policyName());
         out.writeNamedWriteable(matchField());
         if (out.getTransportVersion().before(TransportVersions.V_8_13_0)) {
-            out.writeString(BytesRefs.toString(policyName().fold(FoldContext.small() /* TODO remove me */))); // old policy name
+            // policyName can only be a string literal once it's resolved
+            out.writeString(BytesRefs.toString(literalValueOf(policyName()))); // old policy name
         }
         policy().writeTo(out);
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
@@ -193,6 +195,10 @@ public class Enrich extends UnaryPlan implements GeneratingPlan<Enrich>, PostAna
 
     public Expression policyName() {
         return policyName;
+    }
+
+    public String resolvedPolicyName() {
+        return BytesRefs.toString(literalValueOf(policyName));
     }
 
     public Mode mode() {
@@ -309,30 +315,20 @@ public class Enrich extends UnaryPlan implements GeneratingPlan<Enrich>, PostAna
             return;
         }
 
-        // TODO: shouldn't we also include FORK? Everything downstream from FORK should be coordinator-only.
-        // https://github.com/elastic/elasticsearch/issues/131445
-        boolean[] aggregate = { false };
-        boolean[] coordinatorOnlyEnrich = { false };
-        boolean[] lookupJoin = { false };
+        Set<String> badCommands = new HashSet<>();
 
         enrich.forEachUp(LogicalPlan.class, u -> {
             if (u instanceof Aggregate) {
-                aggregate[0] = true;
+                badCommands.add("STATS");
             } else if (u instanceof Enrich upstreamEnrich && upstreamEnrich.mode() == Enrich.Mode.COORDINATOR) {
-                coordinatorOnlyEnrich[0] = true;
+                badCommands.add("another ENRICH with coordinator policy");
             } else if (u instanceof LookupJoin) {
-                lookupJoin[0] = true;
+                badCommands.add("LOOKUP JOIN");
+            } else if (u instanceof Fork) {
+                badCommands.add("FORK");
             }
         });
 
-        if (aggregate[0]) {
-            failures.add(fail(enrich, "ENRICH with remote policy can't be executed after STATS"));
-        }
-        if (coordinatorOnlyEnrich[0]) {
-            failures.add(fail(enrich, "ENRICH with remote policy can't be executed after another ENRICH with coordinator policy"));
-        }
-        if (lookupJoin[0]) {
-            failures.add(fail(enrich, "ENRICH with remote policy can't be executed after LOOKUP JOIN"));
-        }
+        badCommands.forEach(c -> failures.add(fail(enrich, "ENRICH with remote policy can't be executed after " + c)));
     }
 }

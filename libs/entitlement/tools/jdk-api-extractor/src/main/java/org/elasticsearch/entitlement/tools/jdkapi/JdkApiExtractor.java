@@ -9,6 +9,7 @@
 
 package org.elasticsearch.entitlement.tools.jdkapi;
 
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.entitlement.tools.Utils;
 import org.objectweb.asm.ClassReader;
 import org.objectweb.asm.ClassVisitor;
@@ -49,13 +50,7 @@ public class JdkApiExtractor {
     );
 
     public static void main(String[] args) throws IOException {
-        boolean valid = args.length == 1 || (args.length == 2 && "--deprecations-only".equals(args[1]));
-
-        if (valid == false) {
-            System.err.println("usage: <output file path> [--deprecations-only]");
-            System.exit(1);
-        }
-
+        validateArgs(args);
         boolean deprecationsOnly = args.length == 2 && args[1].equals("--deprecations-only");
 
         Map<String, Set<AccessibleMethod>> accessibleImplementationsByClass = new TreeMap<>();
@@ -82,6 +77,17 @@ public class JdkApiExtractor {
         writeFile(Path.of(args[0]), deprecationsOnly ? deprecationsByClass : accessibleImplementationsByClass);
     }
 
+    @SuppressForbidden(reason = "cli tool printing to standard err/out")
+    private static void validateArgs(String[] args) {
+        boolean valid = args.length == 1 || (args.length == 2 && "--deprecations-only".equals(args[1]));
+
+        if (valid == false) {
+            System.err.println("usage: <output file path> [--deprecations-only]");
+            System.exit(1);
+        }
+    }
+
+    @SuppressForbidden(reason = "cli tool printing to standard err/out")
     private static void writeFile(Path path, Map<String, Set<AccessibleMethod>> methods) throws IOException {
         System.out.println("Writing result for " + Runtime.version() + " to " + path.toAbsolutePath());
         Files.write(path, () -> methods.entrySet().stream().flatMap(AccessibleMethod::toLines).iterator(), StandardCharsets.UTF_8);
@@ -186,6 +192,7 @@ public class JdkApiExtractor {
             }
         }
 
+        @SuppressForbidden(reason = "cli tool printing to standard err/out")
         private void visitSuperClass(String superName) {
             try {
                 ClassReader cr = new ClassReader(superName);
@@ -195,6 +202,7 @@ public class JdkApiExtractor {
             }
         }
 
+        @SuppressForbidden(reason = "cli tool printing to standard err/out")
         private void visitInterface(String interfaceName) {
             try {
                 ClassReader cr = new ClassReader(interfaceName);

@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.parser;
 
+import org.elasticsearch.Build;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
@@ -14,6 +15,17 @@ import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 
 public class QualifierTests extends AbstractStatementParserTests {
+    public void testQualifiersAreDisabledInReleaseBuilds() {
+        assumeFalse("Test only release builds", Build.current().isSnapshot());
+
+        // Check that qualifiers are disabled in the qualifiedName grammar rule.
+        expectError("ROW x = 1 | WHERE qualified field", "no viable alternative at input 'qualified'");
+        // Check that qualifiers are disabled in the qualifiedNamePattern grammar rule.
+        expectError("ROW x = 1 | KEEP qualified field", "no viable alternative at input 'qualified'");
+        // Check that qualifiers are disabled in the LOOKUP JOIN grammar.
+        expectError("ROW x = 1 | LOOKUP JOIN lu_idx AS qualified ON x", "no viable alternative at input 'lu_idx'");
+        expectError("ROW x = 1 | LOOKUP JOIN lu_idx qualified ON x", "no viable alternative at input 'lu_idx'");
+    }
 
     /**
      * Test that qualifiers are parsed correctly in various expressions.
@@ -326,6 +338,8 @@ public class QualifierTests extends AbstractStatementParserTests {
     }
 
     public void testIllegalQualifiers() {
+        assumeTrue("Error messages are different when qualifiers are disabled in the grammar", EsqlCapabilities.Cap.NAME_QUALIFIERS.isEnabled());
+
         String sourceQuery = "ROW x = 1 | LOOKUP JOIN lu_idx qualified ON x | ";
 
         expectError(sourceQuery + "EVAL qualified function(x)", "mismatched input '('");

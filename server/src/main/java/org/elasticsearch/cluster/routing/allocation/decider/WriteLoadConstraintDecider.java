@@ -65,8 +65,8 @@ public class WriteLoadConstraintDecider extends AllocationDecider {
         if (nodeWriteThreadPoolStats.averageThreadPoolUtilization() >= nodeWriteThreadPoolLoadThreshold) {
             // The node's write thread pool usage stats already show high utilization above the threshold for accepting new shards.
             String explain = Strings.format(
-                "Node [%s] with write thread pool utilization [%f] already exceeds the high utilization threshold of [%f]. Cannot allocate "
-                    + "shard [%s] to node without risking increased write latencies.",
+                "Node [%s] with write thread pool utilization [%.2f] already exceeds the high utilization threshold of [%f]. Cannot "
+                    + "allocate shard [%s] to node without risking increased write latencies.",
                 node.nodeId(),
                 nodeWriteThreadPoolStats.averageThreadPoolUtilization(),
                 nodeWriteThreadPoolLoadThreshold,
@@ -80,9 +80,9 @@ public class WriteLoadConstraintDecider extends AllocationDecider {
             // The node's write thread pool usage would be raised above the high utilization threshold with assignment of the new shard.
             // This could lead to a hot spot on this node and is undesirable.
             String explain = Strings.format(
-                "The high utilization threshold of [%f] would be exceeded on node [%s] with utilization [%f] if shard [%s] with estimated "
-                    + "write load [%f] (execution time [%f] / threads [%d]) were assigned to it. Cannot allocate shard to node without "
-                    + "risking increased write latencies.",
+                "The high utilization threshold of [%f] would be exceeded on node [%s] with utilization [%.2f] if shard [%s] with "
+                    + "estimated additional utilisation [%.5f] (write load [%.5f] / threads [%d]) were assigned to it. Cannot allocate "
+                    + "shard to node without risking increased write latencies.",
                 nodeWriteThreadPoolLoadThreshold,
                 node.nodeId(),
                 nodeWriteThreadPoolStats.averageThreadPoolUtilization(),

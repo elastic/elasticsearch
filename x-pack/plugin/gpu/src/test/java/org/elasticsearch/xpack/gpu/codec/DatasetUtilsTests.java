@@ -53,7 +53,7 @@ public class DatasetUtilsTests extends ESTestCase {
                 var dataset = datasetUtils.fromInput((MemorySegmentAccessInput) in, numVecs, dims)
             ) {
                 assertEquals(numVecs, dataset.size());
-                assertEquals(dims, dataset.dimensions());
+                assertEquals(dims, dataset.columns());
             }
         }
     }

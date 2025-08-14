@@ -1359,7 +1359,8 @@ public class EsqlCapabilities {
         /*
          * Support for calculating the scalar vector magnitude.
          */
-        MAGNITUDE_SCALAR_VECTOR_FUNCTION(Build.current().isSnapshot());
+        MAGNITUDE_SCALAR_VECTOR_FUNCTION(Build.current().isSnapshot()),
+
         /**
          * Byte elements dense vector field type support.
          */

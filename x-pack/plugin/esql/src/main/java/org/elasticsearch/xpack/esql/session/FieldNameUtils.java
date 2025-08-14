@@ -50,6 +50,7 @@ import org.elasticsearch.xpack.esql.session.EsqlSession.PreAnalysisResult;
 
 import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.stream.Collectors;
@@ -58,7 +59,7 @@ import static org.elasticsearch.xpack.esql.core.util.StringUtils.WILDCARD;
 
 public class FieldNameUtils {
 
-    private static final Set<String> FUNCTIONS_REQUIRING_TIMESTAMP = Set.of(TBucket.ENTRY.name.toLowerCase());
+    private static final Set<String> FUNCTIONS_REQUIRING_TIMESTAMP = Set.of(TBucket.ENTRY.name.toLowerCase(Locale.ROOT));
 
     public static PreAnalysisResult resolveFieldNames(LogicalPlan parsed, EnrichResolution enrichResolution) {
 
@@ -172,7 +173,7 @@ public class FieldNameUtils {
                 }
 
                 p.forEachExpression(UnresolvedFunction.class, uf -> {
-                    if (FUNCTIONS_REQUIRING_TIMESTAMP.contains(uf.name().toLowerCase())) {
+                    if (FUNCTIONS_REQUIRING_TIMESTAMP.contains(uf.name().toLowerCase(Locale.ROOT))) {
                         referencesBuilder.get().add(new UnresolvedAttribute(uf.source(), MetadataAttribute.TIMESTAMP_FIELD));
                     }
                 });

@@ -128,29 +128,36 @@ public class ESONXContentParser extends AbstractXContentParser {
         }
     }
 
+    private static final Token[] TOKEN_LOOKUP = new Token[32]; // Adjust size based on max type value
+
+    static {
+        TOKEN_LOOKUP[ESONEntry.TYPE_OBJECT] = Token.START_OBJECT;
+        TOKEN_LOOKUP[ESONEntry.TYPE_ARRAY] = Token.START_ARRAY;
+        TOKEN_LOOKUP[ESONEntry.TYPE_NULL] = Token.VALUE_NULL;
+        TOKEN_LOOKUP[ESONEntry.TYPE_TRUE] = Token.VALUE_BOOLEAN;
+        TOKEN_LOOKUP[ESONEntry.TYPE_FALSE] = Token.VALUE_BOOLEAN;
+        TOKEN_LOOKUP[ESONEntry.TYPE_INT] = Token.VALUE_NUMBER;
+        TOKEN_LOOKUP[ESONEntry.TYPE_LONG] = Token.VALUE_NUMBER;
+        TOKEN_LOOKUP[ESONEntry.TYPE_FLOAT] = Token.VALUE_NUMBER;
+        TOKEN_LOOKUP[ESONEntry.TYPE_DOUBLE] = Token.VALUE_NUMBER;
+        TOKEN_LOOKUP[ESONEntry.BIG_INTEGER] = Token.VALUE_NUMBER;
+        TOKEN_LOOKUP[ESONEntry.BIG_DECIMAL] = Token.VALUE_NUMBER;
+        TOKEN_LOOKUP[ESONEntry.STRING] = Token.VALUE_STRING;
+        TOKEN_LOOKUP[ESONEntry.BINARY] = Token.VALUE_EMBEDDED_OBJECT;
+    }
+
     private Token emitValue(ESONEntry entry) {
         containerStack.decrementCurrentContainerFields();
         currentIndex++;
 
-        if (entry.type() == ESONEntry.TYPE_OBJECT) {
-            containerStack.pushContainer(entry.offsetOrCount(), false);
-        } else if (entry.type() == ESONEntry.TYPE_ARRAY) {
-            containerStack.pushContainer(entry.offsetOrCount(), true);
+        byte type = entry.type();
+        if (type == ESONEntry.TYPE_OBJECT || type == ESONEntry.TYPE_ARRAY) {
+            containerStack.pushContainer(entry.offsetOrCount(), type == ESONEntry.TYPE_ARRAY);
         } else {
             currentType = ((ESONEntry.FieldEntry) entry).value;
         }
 
-        currentToken = switch (entry.type()) {
-            case ESONEntry.TYPE_OBJECT -> Token.START_OBJECT;
-            case ESONEntry.TYPE_ARRAY -> Token.START_ARRAY;
-            case ESONEntry.TYPE_NULL -> Token.VALUE_NULL;
-            case ESONEntry.TYPE_TRUE, ESONEntry.TYPE_FALSE -> Token.VALUE_BOOLEAN;
-            case ESONEntry.TYPE_INT, ESONEntry.TYPE_LONG, ESONEntry.TYPE_FLOAT, ESONEntry.TYPE_DOUBLE, ESONEntry.BIG_INTEGER,
-                ESONEntry.BIG_DECIMAL -> Token.VALUE_NUMBER;
-            case ESONEntry.STRING -> Token.VALUE_STRING;
-            case ESONEntry.BINARY -> Token.VALUE_EMBEDDED_OBJECT;
-            default -> throw new IllegalStateException("Unexpected entry type: " + entry.type());
-        };
+        currentToken = TOKEN_LOOKUP[type];
         return currentToken;
     }
 

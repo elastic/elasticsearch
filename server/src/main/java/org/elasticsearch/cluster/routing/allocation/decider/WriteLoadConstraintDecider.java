@@ -101,12 +101,12 @@ public class WriteLoadConstraintDecider extends AllocationDecider {
     @Override
     public Decision canRemain(IndexMetadata indexMetadata, ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
         if (writeLoadConstraintSettings.getWriteLoadConstraintEnabled().notFullyEnabled()) {
-            return Decision.YES;
+            return Decision.single(Decision.Type.YES, NAME, "canRemain() is not enabled");
         }
 
         // TODO: implement
 
-        return Decision.YES;
+        return Decision.single(Decision.Type.YES, NAME, "canRemain() is not yet implemented");
     }
 
     /**

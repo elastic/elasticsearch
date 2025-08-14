@@ -36,21 +36,14 @@ public class ModernSource implements Writeable {
     private ESONFlat structuredSource;
 
     public ModernSource(StreamInput in) throws IOException {
-        if (in.getTransportVersion().onOrAfter(TransportVersions.STRUCTURED_SOURCE)) {
-            contentType = XContentType.ofOrdinal(in.readByte());
-            if (in.readBoolean()) {
-                originalSourceSize = in.readVInt();
-                structuredSource = new ESONFlat(in);
-                originalSource = null;
-            } else {
-                originalSource = in.readBytesReference();
-                originalSourceSize = originalSource.length();
-                structuredSource = null;
-            }
+        contentType = XContentType.ofOrdinal(in.readByte());
+        if (in.readBoolean()) {
+            originalSourceSize = in.readVInt();
+            structuredSource = new ESONFlat(in);
+            originalSource = null;
         } else {
             originalSource = in.readBytesReference();
             originalSourceSize = originalSource.length();
-            contentType = XContentHelper.xContentType(originalSource);
             structuredSource = null;
         }
     }

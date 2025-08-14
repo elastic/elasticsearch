@@ -166,7 +166,12 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
         }
         id = in.readOptionalString();
         routing = in.readOptionalString();
-        modernSource = new ModernSource(in);
+        if (in.getTransportVersion().onOrAfter(TransportVersions.STRUCTURED_SOURCE)) {
+            modernSource = in.readOptional(ModernSource::new);
+        } else {
+            BytesReference bytesReference = in.readBytesReference();
+            modernSource = new ModernSource(bytesReference);
+        }
         opType = OpType.fromId(in.readByte());
         version = in.readLong();
         versionType = VersionType.fromValue(in.readByte());
@@ -430,10 +435,6 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
 
     public void ensureStructureSource() {
         modernSource.ensureStructured();
-    }
-
-    public boolean isStructuredSource() {
-        return modernSource.isStructured();
     }
 
     public ESONFlat structuredSource() {
@@ -791,7 +792,11 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
         }
         out.writeOptionalString(id);
         out.writeOptionalString(routing);
-        modernSource.writeTo(out);
+        if (out.getTransportVersion().onOrAfter(TransportVersions.STRUCTURED_SOURCE)) {
+            out.writeOptionalWriteable(modernSource);
+        } else {
+            out.writeBytesReference(modernSource == null ? null : modernSource.originalSourceBytes());
+        }
         out.writeByte(opType.getId());
         out.writeLong(version);
         out.writeByte(versionType.getValue());

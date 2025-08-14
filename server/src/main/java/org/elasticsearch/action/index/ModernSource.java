@@ -131,8 +131,7 @@ public class ModernSource implements Writeable {
             if (isStructured()) {
                 out.writeBoolean(true);
                 out.writeVInt(originalSourceSize);
-                out.writeBytesReference(structuredSource.getSerializedKeyBytes());
-                out.writeBytesReference(structuredSource.values().data());
+                structuredSource.writeTo(out);
             } else {
                 out.writeBoolean(false);
                 out.writeBytesReference(originalSourceBytes());

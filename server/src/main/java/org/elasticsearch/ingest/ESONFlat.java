@@ -10,9 +10,9 @@
 package org.elasticsearch.ingest;
 
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -33,30 +33,32 @@ public record ESONFlat(List<ESONEntry> keys, ESONSource.Values values, AtomicRef
         this(readKeys(in), new ESONSource.Values(in.readBytesReference()), new AtomicReference<>());
     }
 
+    public void writeTo(StreamOutput out) throws IOException {
+        out.writeBytesReference(getSerializedKeyBytes());
+        out.writeBytesReference(values.data());
+    }
+
     private static List<ESONEntry> readKeys(StreamInput in) throws IOException {
-        try (
-            ReleasableBytesReference bytesReference = in.readReleasableBytesReference();
-            StreamInput streamInput = bytesReference.streamInput()
-        ) {
-            int expected = streamInput.readVInt();
-            ArrayList<ESONEntry> keys = new ArrayList<>(expected);
-            for (int i = 0; i < expected; ++i) {
-                int stringLength = streamInput.readVInt();
-                byte[] sringBytes = new byte[stringLength];
-                streamInput.readBytes(sringBytes, 0, stringLength);
-                String key = new String(sringBytes, StandardCharsets.UTF_8);
-                byte type = streamInput.readByte();
-                int offsetOrCount = streamInput.readInt();
-                ESONEntry entry = switch (type) {
-                    case ESONEntry.TYPE_OBJECT -> new ESONEntry.ObjectEntry(key.isEmpty() ? null : key);
-                    case ESONEntry.TYPE_ARRAY -> new ESONEntry.ArrayEntry(key);
-                    default -> new ESONEntry.FieldEntry(key, type, offsetOrCount);
-                };
-                entry.offsetOrCount(offsetOrCount);
-                keys.add(entry);
-            }
-            return keys;
+        // TODO: Because bytes reference
+        in.readVInt();
+        int expected = in.readVInt();
+        ArrayList<ESONEntry> keys = new ArrayList<>(expected);
+        for (int i = 0; i < expected; ++i) {
+            int stringLength = in.readVInt();
+            byte[] stringBytes = new byte[stringLength];
+            in.readBytes(stringBytes, 0, stringLength);
+            String key = stringBytes.length == 0 ? null : new String(stringBytes, StandardCharsets.UTF_8);
+            byte type = in.readByte();
+            int offsetOrCount = in.readInt();
+            ESONEntry entry = switch (type) {
+                case ESONEntry.TYPE_OBJECT -> new ESONEntry.ObjectEntry(key);
+                case ESONEntry.TYPE_ARRAY -> new ESONEntry.ArrayEntry(key);
+                default -> new ESONEntry.FieldEntry(key, type, offsetOrCount);
+            };
+            entry.offsetOrCount(offsetOrCount);
+            keys.add(entry);
         }
+        return keys;
     }
 
     public BytesReference getSerializedKeyBytes() {

@@ -81,7 +81,7 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
         }
         // execute the SubstituteRoundToWithQueryAndTags rule once after all the other pushdown rules are applied, as this rule generate
         // multiple QueryBuilders according the number of RoundTo points, it should be applied after all the other eligible pushdowns are
-        // done.
+        // done, and it should be executed only once.
         @SuppressWarnings("unchecked")
         var substituteRoundToWithQueryAndTags = new Batch<PhysicalPlan>(
             "Substitute RoundTo with QueryAndTags",

@@ -309,7 +309,6 @@ public class ReplaceRoundToWithQueryAndTags extends PhysicalOptimizerRules.Param
             queryExec.indexMode(),
             queryExec.indexNameWithModes(),
             newAttributes,
-            queryExec.query(),
             queryExec.limit(),
             queryExec.sorts(),
             queryExec.estimatedRowSize(),
@@ -427,7 +426,7 @@ public class ReplaceRoundToWithQueryAndTags extends PhysicalOptimizerRules.Param
         } else if (upper == null) {
             return new GreaterThanOrEqual(source, field, lowerValue, zoneId);
         } else {
-            // lower and upper should not be both null, should an assert be added here
+            // lower and upper should not be both null
             return new Range(source, field, lowerValue, true, upperValue, false, dataType.isDate() ? zoneId : null);
         }
     }

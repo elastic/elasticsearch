@@ -65,6 +65,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
 import org.elasticsearch.index.mapper.IgnoredSourceFieldMapper;
@@ -684,7 +685,9 @@ public class FieldSubsetReaderTests extends MapperServiceTestCase {
     }
 
     public void testIgnoredSourceFilteringIntegration() throws Exception {
+        IndexVersion indexVersion = randomBoolean() ? getVersion() : IndexVersions.MATCH_ONLY_TEXT_STORED_AS_BYTES;
         DocumentMapper mapper = createMapperService(
+            indexVersion,
             Settings.builder()
                 .put("index.mapping.total_fields.limit", 1)
                 .put("index.mapping.total_fields.ignore_dynamic_beyond_limit", true)

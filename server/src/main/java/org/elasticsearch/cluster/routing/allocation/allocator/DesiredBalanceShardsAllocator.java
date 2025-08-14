@@ -438,8 +438,8 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
         );
     }
 
-    public DesiredBalanceMetrics.AllocationStats getAllocationStatsByRole() {
-        return desiredBalanceMetrics.allocationStatsByRole();
+    public DesiredBalanceMetrics.AllocationStats getAllocationStats() {
+        return desiredBalanceMetrics.allocationStats();
     }
 
     private void onNoLongerMaster() {

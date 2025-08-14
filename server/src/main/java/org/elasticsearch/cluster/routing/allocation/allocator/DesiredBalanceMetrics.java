@@ -61,7 +61,7 @@ public class DesiredBalanceMetrics {
          * @return a value in [0.0, 1.0]
          */
         public double undesiredAllocationsRatio() {
-            long totalAllocations = totalAllocations();
+            final long totalAllocations = totalAllocations();
             if (totalAllocations == 0) {
                 return 0;
             }
@@ -256,7 +256,7 @@ public class DesiredBalanceMetrics {
         return lastReconciliationAllocationStats.undesiredAllocationsExcludingShuttingDownNodes();
     }
 
-    public AllocationStats allocationStatsByRole() {
+    public AllocationStats allocationStats() {
         return lastReconciliationAllocationStats;
     }
 

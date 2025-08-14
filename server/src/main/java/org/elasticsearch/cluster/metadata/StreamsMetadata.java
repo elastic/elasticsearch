@@ -13,7 +13,6 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.AbstractNamedDiffable;
 import org.elasticsearch.cluster.NamedDiff;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -91,7 +90,9 @@ public class StreamsMetadata extends AbstractNamedDiffable<Metadata.ProjectCusto
 
     @Override
     public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
-        return Iterators.concat(ChunkedToXContentHelper.chunk((builder, bParams) -> builder.field(LOGS_ENABLED.getPreferredName(), logsEnabled)));
+        return Iterators.concat(
+            ChunkedToXContentHelper.chunk((builder, bParams) -> builder.field(LOGS_ENABLED.getPreferredName(), logsEnabled))
+        );
     }
 
     @Override

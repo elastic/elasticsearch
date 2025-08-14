@@ -282,7 +282,10 @@ public abstract class ValidateTransportVersionResourcesTask extends DefaultTask 
         TransportVersionLatest existingLatest = readExistingLatest(latest.releaseBranch());
         if (existingLatest != null) {
             if (latest.id().patch() != 0 && latest.id().base() != existingLatest.id().base()) {
-                throwLatestFailure(latest.releaseBranch(), "modifies base id from " + existingLatest.id().base() + " to " + latest.id().base());
+                throwLatestFailure(
+                    latest.releaseBranch(),
+                    "modifies base id from " + existingLatest.id().base() + " to " + latest.id().base()
+                );
             }
         }
     }

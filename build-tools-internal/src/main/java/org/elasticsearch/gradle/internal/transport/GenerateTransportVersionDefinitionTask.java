@@ -122,7 +122,9 @@ public abstract class GenerateTransportVersionDefinitionTask extends DefaultTask
         Path resourcesDir = Objects.requireNonNull(getResourcesDirectory().getAsFile().get()).toPath();
         Set<String> referencedNames = getReferencedNames();
         List<String> changedDefinitionNames = getChangedDefinitionNames();
-        String name = getTransportVersionName().isPresent() ? getTransportVersionName().get() : findAddedTransportVersionName(referencedNames, changedDefinitionNames);
+        String name = getTransportVersionName().isPresent()
+            ? getTransportVersionName().get()
+            : findAddedTransportVersionName(referencedNames, changedDefinitionNames);
 
         if (name.isEmpty()) {
             resetAllLatestFiles(resourcesDir);
@@ -135,7 +137,7 @@ public abstract class GenerateTransportVersionDefinitionTask extends DefaultTask
         removeUnusedDefinitions(referencedNames, changedDefinitionNames);
     }
 
-    private Set<String> getReferencedNames() throws IOException{
+    private Set<String> getReferencedNames() throws IOException {
         Set<String> referencedNames = new HashSet<>();
         for (var referencesFile : getReferencesFiles()) {
             listFromFile(referencesFile.toPath()).stream().map(TransportVersionReference::name).forEach(referencedNames::add);
@@ -185,7 +187,10 @@ public abstract class GenerateTransportVersionDefinitionTask extends DefaultTask
         String namedDefinitionsBasePath = TransportVersionUtils.getResourcePath(getResourcesProjectDir().get(), "definitions/named/");
         for (String changedResource : getChangedResources(namedDefinitionsBasePath)) {
             if (changedResource.startsWith(namedDefinitionsBasePath)) {
-                String definitionName = changedResource.substring(changedResource.lastIndexOf(File.pathSeparator) + 1, changedResource.length() - 4 /* .csv */);
+                String definitionName = changedResource.substring(
+                    changedResource.lastIndexOf(File.pathSeparator) + 1,
+                    changedResource.length() - 4 /* .csv */
+                );
                 changedDefinitionNames.add(definitionName);
             }
         }
@@ -207,7 +212,7 @@ public abstract class GenerateTransportVersionDefinitionTask extends DefaultTask
         return strings.stream().map(branch -> branch.equals("main") ? getMainReleaseBranch().get() : branch).toList();
     }
 
-    private List<TransportVersionLatest> getKnownLatestFiles(Path resourcesDir) throws IOException{
+    private List<TransportVersionLatest> getKnownLatestFiles(Path resourcesDir) throws IOException {
         List<TransportVersionLatest> latestFiles = new ArrayList<>();
         try (Stream<Path> stream = Files.list(resourcesDir.resolve(LATEST_DIR))) {
             for (Path latestFile : stream.toList()) {

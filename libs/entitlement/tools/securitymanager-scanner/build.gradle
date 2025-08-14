@@ -40,14 +40,22 @@ application {
   ]
 }
 
+// TODO Better integrate this into the existing tooling,
+// usage of Druntime.java=24 doesn't work here at the moment out of the box
+tasks.withType(JavaExec) {
+  javaLauncher = javaToolchains.launcherFor {
+    languageVersion = JavaLanguageVersion.of(System.getProperty("runtime.java"))
+  }
+}
+
 repositories {
   mavenCentral()
 }
 
 dependencies {
   compileOnly(project(':libs:core'))
-  implementation 'org.ow2.asm:asm:9.7.1'
-  implementation 'org.ow2.asm:asm-util:9.7.1'
+  implementation 'org.ow2.asm:asm:9.8'
+  implementation 'org.ow2.asm:asm-util:9.8'
   implementation(project(':libs:entitlement:tools:common'))
 }
 

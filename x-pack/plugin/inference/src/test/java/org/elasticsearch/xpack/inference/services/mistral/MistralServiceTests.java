@@ -1230,7 +1230,7 @@ public class MistralServiceTests extends InferenceServiceTestCase {
                                "supported_task_types": ["text_embedding", "completion", "chat_completion"]
                            },
                            "model": {
-                               "description": "Refer to the Mistral models documentation for the list of available text embedding models.",
+                               "description": "Refer to the Mistral models documentation for the list of available inference models.",
                                "label": "Model",
                                "required": true,
                                "sensitive": false,

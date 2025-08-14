@@ -23,12 +23,11 @@ import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.core.type.DataType;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
@@ -37,47 +36,45 @@ import java.util.function.Function;
 
 // TODO rename package
 public final class LookupFromIndexOperator extends AsyncOperator<LookupFromIndexOperator.OngoingJoin> {
+
     public record Factory(
+        List<MatchConfig> matchFields,
         String sessionId,
         CancellableTask parentTask,
         int maxOutstandingRequests,
-        int inputChannel,
         Function<DriverContext, LookupFromIndexService> lookupService,
-        DataType inputDataType,
         String lookupIndexPattern,
         String lookupIndex,
-        FieldAttribute.FieldName matchField,
         List<NamedExpression> loadFields,
         Source source
     ) implements OperatorFactory {
         @Override
         public String describe() {
-            return "LookupOperator[index="
-                + lookupIndex
-                + " input_type="
-                + inputDataType
-                + " match_field="
-                + matchField.string()
-                + " load_fields="
-                + loadFields
-                + " inputChannel="
-                + inputChannel
-                + "]";
+            StringBuilder stringBuilder = new StringBuilder();
+            stringBuilder.append("LookupOperator[index=").append(lookupIndex).append(" load_fields=").append(loadFields);
+            for (MatchConfig matchField : matchFields) {
+                stringBuilder.append(" input_type=")
+                    .append(matchField.type())
+                    .append(" match_field=")
+                    .append(matchField.fieldName().string())
+                    .append(" inputChannel=")
+                    .append(matchField.channel());
+            }
+            stringBuilder.append("]");
+            return stringBuilder.toString();
         }
 
         @Override
         public Operator get(DriverContext driverContext) {
             return new LookupFromIndexOperator(
+                matchFields,
                 sessionId,
                 driverContext,
                 parentTask,
                 maxOutstandingRequests,
-                inputChannel,
                 lookupService.apply(driverContext),
-                inputDataType,
                 lookupIndexPattern,
                 lookupIndex,
-                matchField.string(),
                 loadFields,
                 source
             );
@@ -87,14 +84,12 @@ public final class LookupFromIndexOperator extends AsyncOperator<LookupFromIndex
     private final LookupFromIndexService lookupService;
     private final String sessionId;
     private final CancellableTask parentTask;
-    private final int inputChannel;
-    private final DataType inputDataType;
     private final String lookupIndexPattern;
     private final String lookupIndex;
-    private final String matchField;
     private final List<NamedExpression> loadFields;
     private final Source source;
-    private long totalTerms = 0L;
+    private long totalRows = 0L;
+    private List<MatchConfig> matchFields;
     /**
      * Total number of pages emitted by this {@link Operator}.
      */
@@ -105,43 +100,51 @@ public final class LookupFromIndexOperator extends AsyncOperator<LookupFromIndex
     private OngoingJoin ongoing = null;
 
     public LookupFromIndexOperator(
+        List<MatchConfig> matchFields,
         String sessionId,
         DriverContext driverContext,
         CancellableTask parentTask,
         int maxOutstandingRequests,
-        int inputChannel,
         LookupFromIndexService lookupService,
-        DataType inputDataType,
         String lookupIndexPattern,
         String lookupIndex,
-        String matchField,
         List<NamedExpression> loadFields,
         Source source
     ) {
         super(driverContext, lookupService.getThreadContext(), maxOutstandingRequests);
+        this.matchFields = matchFields;
         this.sessionId = sessionId;
         this.parentTask = parentTask;
-        this.inputChannel = inputChannel;
         this.lookupService = lookupService;
-        this.inputDataType = inputDataType;
         this.lookupIndexPattern = lookupIndexPattern;
         this.lookupIndex = lookupIndex;
-        this.matchField = matchField;
         this.loadFields = loadFields;
         this.source = source;
     }
 
     @Override
     protected void performAsync(Page inputPage, ActionListener<OngoingJoin> listener) {
-        final Block inputBlock = inputPage.getBlock(inputChannel);
-        totalTerms += inputBlock.getTotalValueCount();
+        Block[] inputBlockArray = new Block[matchFields.size()];
+        List<MatchConfig> newMatchFields = new ArrayList<>();
+        for (int i = 0; i < matchFields.size(); i++) {
+            MatchConfig matchField = matchFields.get(i);
+            int inputChannel = matchField.channel();
+            final Block inputBlock = inputPage.getBlock(inputChannel);
+            inputBlockArray[i] = inputBlock;
+            // the matchFields we have are indexed by the input channel on the left side of the join
+            // create a new MatchConfig that uses the field name and type from the matchField
+            // but the new channel index in the inputBlockArray
+            newMatchFields.add(new MatchConfig(matchField.fieldName(), i, matchField.type()));
+        }
+        // we only add to the totalRows once, so we can use the first block
+        totalRows += inputPage.getBlock(0).getTotalValueCount();
+
         LookupFromIndexService.Request request = new LookupFromIndexService.Request(
             sessionId,
             lookupIndex,
             lookupIndexPattern,
-            inputDataType,
-            matchField,
-            new Page(inputBlock),
+            newMatchFields,
+            new Page(inputBlockArray),
             loadFields,
             source
         );
@@ -190,17 +193,18 @@ public final class LookupFromIndexOperator extends AsyncOperator<LookupFromIndex
 
     @Override
     public String toString() {
-        return "LookupOperator[index="
-            + lookupIndex
-            + " input_type="
-            + inputDataType
-            + " match_field="
-            + matchField
-            + " load_fields="
-            + loadFields
-            + " inputChannel="
-            + inputChannel
-            + "]";
+        StringBuilder stringBuilder = new StringBuilder();
+        stringBuilder.append("LookupOperator[index=").append(lookupIndex).append(" load_fields=").append(loadFields);
+        for (MatchConfig matchField : matchFields) {
+            stringBuilder.append(" input_type=")
+                .append(matchField.type())
+                .append(" match_field=")
+                .append(matchField.fieldName().string())
+                .append(" inputChannel=")
+                .append(matchField.channel());
+        }
+        stringBuilder.append("]");
+        return stringBuilder.toString();
     }
 
     @Override
@@ -225,7 +229,7 @@ public final class LookupFromIndexOperator extends AsyncOperator<LookupFromIndex
 
     @Override
     protected Operator.Status status(long receivedPages, long completedPages, long processNanos) {
-        return new LookupFromIndexOperator.Status(receivedPages, completedPages, processNanos, totalTerms, emittedPages);
+        return new LookupFromIndexOperator.Status(receivedPages, completedPages, processNanos, totalRows, emittedPages);
     }
 
     public static class Status extends AsyncOperator.Status {
@@ -235,28 +239,28 @@ public final class LookupFromIndexOperator extends AsyncOperator<LookupFromIndex
             Status::new
         );
 
-        private final long totalTerms;
+        private final long totalRows;
         /**
          * Total number of pages emitted by this {@link Operator}.
          */
         private final long emittedPages;
 
-        Status(long receivedPages, long completedPages, long totalTimeInMillis, long totalTerms, long emittedPages) {
+        Status(long receivedPages, long completedPages, long totalTimeInMillis, long totalRows, long emittedPages) {
             super(receivedPages, completedPages, totalTimeInMillis);
-            this.totalTerms = totalTerms;
+            this.totalRows = totalRows;
             this.emittedPages = emittedPages;
         }
 
         Status(StreamInput in) throws IOException {
             super(in);
-            this.totalTerms = in.readVLong();
+            this.totalRows = in.readVLong();
             this.emittedPages = in.readVLong();
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            out.writeVLong(totalTerms);
+            out.writeVLong(totalRows);
             out.writeVLong(emittedPages);
         }
 
@@ -269,8 +273,8 @@ public final class LookupFromIndexOperator extends AsyncOperator<LookupFromIndex
             return emittedPages;
         }
 
-        public long totalTerms() {
-            return totalTerms;
+        public long totalRows() {
+            return totalRows;
         }
 
         @Override
@@ -278,7 +282,7 @@ public final class LookupFromIndexOperator extends AsyncOperator<LookupFromIndex
             builder.startObject();
             super.innerToXContent(builder);
             builder.field("emitted_pages", emittedPages());
-            builder.field("total_terms", totalTerms());
+            builder.field("total_rows", totalRows());
             return builder.endObject();
         }
 
@@ -291,12 +295,12 @@ public final class LookupFromIndexOperator extends AsyncOperator<LookupFromIndex
                 return false;
             }
             Status status = (Status) o;
-            return totalTerms == status.totalTerms && emittedPages == status.emittedPages;
+            return totalRows == status.totalRows && emittedPages == status.emittedPages;
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(super.hashCode(), totalTerms, emittedPages);
+            return Objects.hash(super.hashCode(), totalRows, emittedPages);
         }
     }
 

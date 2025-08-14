@@ -837,15 +837,12 @@ public class LinearRetrieverIT extends ESIntegTestCase {
     }
 
     public void testMixedNormalizerInheritance() throws IOException {
-        // Index some test documents with different score characteristics  
+        // Index some test documents with different score characteristics
         client().prepareIndex(INDEX)
             .setId("1")
             .setSource("field1", "elasticsearch search", "field2", "database technology", "score", 10)
             .get();
-        client().prepareIndex(INDEX)
-            .setId("2")  
-            .setSource("field1", "lucene engine", "field2", "search technology", "score", 5)
-            .get();
+        client().prepareIndex(INDEX).setId("2").setSource("field1", "lucene engine", "field2", "search technology", "score", 5).get();
         client().prepareIndex(INDEX)
             .setId("3")
             .setSource("field1", "information retrieval", "field2", "database search", "score", 15)
@@ -853,7 +850,7 @@ public class LinearRetrieverIT extends ESIntegTestCase {
         refresh(INDEX);
 
         // Create linear retriever with mixed normalizer configuration:
-        // - Top-level normalizer: minmax  
+        // - Top-level normalizer: minmax
         // - First component: uses minmax (inherited from top-level)
         // - Second component: explicitly uses l2_norm (overrides top-level)
         // - Third component: uses minmax (inherited from top-level)
@@ -865,30 +862,25 @@ public class LinearRetrieverIT extends ESIntegTestCase {
                 CompoundRetrieverBuilder.RetrieverSource.from(
                     new StandardRetrieverBuilder(QueryBuilders.matchQuery("field2", "technology"))
                 ),
-                CompoundRetrieverBuilder.RetrieverSource.from(
-                    new StandardRetrieverBuilder(QueryBuilders.matchQuery("field1", "search"))
-                )
+                CompoundRetrieverBuilder.RetrieverSource.from(new StandardRetrieverBuilder(QueryBuilders.matchQuery("field1", "search")))
             ),
             null,
             null,
             MinMaxScoreNormalizer.INSTANCE, // top-level normalizer
             10,
-            new float[]{1.0f, 1.0f, 1.0f},
-            new ScoreNormalizer[]{null, L2ScoreNormalizer.INSTANCE, null} // mixed component normalizers
+            new float[] { 1.0f, 1.0f, 1.0f },
+            new ScoreNormalizer[] { null, L2ScoreNormalizer.INSTANCE, null } // mixed component normalizers
         );
 
         // Verify that the normalizer inheritance works correctly
         assertThat(linearRetriever.getNormalizers()[0], equalTo(MinMaxScoreNormalizer.INSTANCE)); // inherited
-        assertThat(linearRetriever.getNormalizers()[1], equalTo(L2ScoreNormalizer.INSTANCE));     // overridden  
+        assertThat(linearRetriever.getNormalizers()[1], equalTo(L2ScoreNormalizer.INSTANCE));     // overridden
         assertThat(linearRetriever.getNormalizers()[2], equalTo(MinMaxScoreNormalizer.INSTANCE)); // inherited
 
         // Execute the search to ensure it works end-to-end
-        assertResponse(
-            client().prepareSearch(INDEX).setSource(new SearchSourceBuilder().retriever(linearRetriever)), 
-            searchResponse -> {
-                // Verify we get some results - exact ranking depends on score normalization
-                assertThat(searchResponse.getHits().getTotalHits().value() > 0L, is(true));
-            }
-        );
+        assertResponse(client().prepareSearch(INDEX).setSource(new SearchSourceBuilder().retriever(linearRetriever)), searchResponse -> {
+            // Verify we get some results - exact ranking depends on score normalization
+            assertThat(searchResponse.getHits().getTotalHits().value() > 0L, is(true));
+        });
     }
 }

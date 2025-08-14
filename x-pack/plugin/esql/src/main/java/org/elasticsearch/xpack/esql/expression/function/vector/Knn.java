@@ -118,8 +118,8 @@ public class Knn extends FullTextFunction implements OptionalArgument, VectorFun
                     name = "min_candidates",
                     type = "integer",
                     valueHint = { "10" },
-                    description = "The minimum number of nearest neighbor candidates to consider per shard while doing knn search. " +
-                        " KNN may use a higher number of candidates in case the query can't use a approximate results. "
+                    description = "The minimum number of nearest neighbor candidates to consider per shard while doing knn search. "
+                        + " KNN may use a higher number of candidates in case the query can't use a approximate results. "
                         + "Cannot exceed 10,000. Increasing min_candidates tends to improve the accuracy of the final results. "
                         + "Defaults to 1.5 * LIMIT used for the query."
                 ),

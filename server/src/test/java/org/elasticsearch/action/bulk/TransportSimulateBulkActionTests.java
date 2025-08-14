@@ -378,7 +378,7 @@ public class TransportSimulateBulkActionTests extends ESTestCase {
             IndexMetadata imd = invocation.getArgument(0);
             if (indicesWithInvalidMappings.contains(imd.getIndex().getName())
                 // We only want to throw exceptions inside TransportSimulateBulkAction:
-                && invocation.getArgument(1).getClass().getSimpleName().contains("TransportSimulateBulkAction")) {
+                && invocation.getArgument(1).getClass().getSimpleName().contains(TransportSimulateBulkAction.class.getSimpleName())) {
                 throw new ElasticsearchException("invalid mapping");
             } else {
                 // we don't actually care what is returned, as long as no exception is thrown the request is considered valid:

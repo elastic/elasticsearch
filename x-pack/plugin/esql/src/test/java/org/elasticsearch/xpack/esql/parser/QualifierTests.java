@@ -338,7 +338,10 @@ public class QualifierTests extends AbstractStatementParserTests {
     }
 
     public void testIllegalQualifiers() {
-        assumeTrue("Error messages are different when qualifiers are disabled in the grammar", EsqlCapabilities.Cap.NAME_QUALIFIERS.isEnabled());
+        assumeTrue(
+            "Error messages are different when qualifiers are disabled in the grammar",
+            EsqlCapabilities.Cap.NAME_QUALIFIERS.isEnabled()
+        );
 
         String sourceQuery = "ROW x = 1 | LOOKUP JOIN lu_idx qualified ON x | ";
 

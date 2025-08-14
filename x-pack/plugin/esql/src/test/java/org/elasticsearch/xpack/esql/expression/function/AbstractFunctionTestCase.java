@@ -66,7 +66,6 @@ import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
@@ -758,13 +757,13 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         for (int i = 0; i < args.size(); i++) {
             typesFromSignature.add(new HashSet<>());
         }
-        for (Map.Entry<List<DataType>, DataType> entry : signatures(testClass).entrySet()) {
-            List<DataType> types = entry.getKey();
+        for (TestClassSignatureTypes entry : signatures(testClass)) {
+            List<DataType> types = entry.argTypes();
             for (int i = 0; i < args.size() && i < types.size(); i++) {
                 typesFromSignature.get(i).add(types.get(i).esNameIfPossible());
             }
-            if (DataType.UNDER_CONSTRUCTION.containsKey(entry.getValue()) == false) {
-                returnFromSignature.add(entry.getValue().esNameIfPossible());
+            if (DataType.UNDER_CONSTRUCTION.containsKey(entry.returnType()) == false) {
+                returnFromSignature.add(entry.returnType().esNameIfPossible());
             }
         }
 
@@ -838,7 +837,8 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         TestCheckLicense checkLicense = new TestCheckLicense();
 
         // Go through all signatures and assert that the license is as expected
-        signatures(testClass).forEach((signature, returnType) -> {
+        signatures(testClass).forEach((signatureItem) -> {
+            List<DataType> signature = signatureItem.argTypes();
             try {
                 License.OperationMode license = licenseChecker.invoke(signature);
                 assertNotNull("License should not be null", license);
@@ -933,14 +933,14 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
     /**
      * Unique signatures in this test’s parameters.
      */
-    private static Map<List<DataType>, DataType> signatures;
+    private static Set<TestClassSignatureTypes> signatures;
 
-    public static Map<List<DataType>, DataType> signatures(Class<?> testClass) {
+    public static Set<TestClassSignatureTypes> signatures(Class<?> testClass) {
         if (signatures != null && classGeneratingSignatures == testClass) {
             return signatures;
         }
         classGeneratingSignatures = testClass;
-        signatures = new HashMap<>();
+        signatures = new HashSet<>();
         Set<Method> paramsFactories = new ClassModel(testClass).getAnnotatedLeafMethods(ParametersFactory.class).keySet();
         assertThat(paramsFactories, hasSize(1));
         Method paramsFactory = paramsFactories.iterator().next();
@@ -960,7 +960,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
                 continue;
             }
             List<DataType> types = tc.getData().stream().map(TestCaseSupplier.TypedData::type).toList();
-            signatures.putIfAbsent(signatureTypes(testClass, types), tc.expectedType());
+            signatures.add(new TestClassSignatureTypes(signatureTypes(testClass, types), tc.expectedType()));
         }
         return signatures;
     }

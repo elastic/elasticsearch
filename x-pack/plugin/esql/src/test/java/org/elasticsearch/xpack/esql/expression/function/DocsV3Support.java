@@ -64,6 +64,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.TreeMap;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -372,7 +373,7 @@ public abstract class DocsV3Support {
     protected final String category;
     protected final String name;
     protected final FunctionDefinition definition;
-    protected final Supplier<Map<List<DataType>, DataType>> signatures;
+    protected final Supplier<Set<TestClassSignatureTypes>> signatures;
     protected final Callbacks callbacks;
     private final LicenseRequirementChecker licenseChecker;
 
@@ -380,7 +381,7 @@ public abstract class DocsV3Support {
         String category,
         String name,
         Class<?> testClass,
-        Supplier<Map<List<DataType>, DataType>> signatures,
+        Supplier<Set<TestClassSignatureTypes>> signatures,
         Callbacks callbacks
     ) {
         this(category, name, null, testClass, signatures, callbacks);
@@ -391,7 +392,7 @@ public abstract class DocsV3Support {
         String name,
         FunctionDefinition definition,
         Class<?> testClass,
-        Supplier<Map<List<DataType>, DataType>> signatures,
+        Supplier<Set<TestClassSignatureTypes>> signatures,
         Callbacks callbacks
     ) {
         this.category = category;
@@ -571,7 +572,7 @@ public abstract class DocsV3Support {
             String name,
             Class<?> testClass,
             FunctionDefinition definition,
-            Supplier<Map<List<DataType>, DataType>> signatures,
+            Supplier<Set<TestClassSignatureTypes>> signatures,
             Callbacks callbacks
         ) {
             super("functions", name, definition, testClass, signatures, callbacks);
@@ -755,7 +756,7 @@ public abstract class DocsV3Support {
             String name,
             Class<?> testClass,
             OperatorConfig op,
-            Supplier<Map<List<DataType>, DataType>> signatures,
+            Supplier<Set<TestClassSignatureTypes>> signatures,
             Callbacks callbacks
         ) {
             super("operators", name, testClass, signatures, callbacks);
@@ -944,7 +945,7 @@ public abstract class DocsV3Support {
             ObservabilityTier observabilityTier,
             Callbacks callbacks
         ) {
-            super("commands", name, testClass, Map::of, callbacks);
+            super("commands", name, testClass, Set::of, callbacks);
             this.command = command;
             this.licenseState = licenseState;
             this.observabilityTier = observabilityTier;
@@ -956,7 +957,7 @@ public abstract class DocsV3Support {
             Class<?> testClass,
             LogicalPlan command,
             List<EsqlFunctionRegistry.ArgSignature> args,
-            Supplier<Map<List<DataType>, DataType>> signatures,
+            Supplier<Set<TestClassSignatureTypes>> signatures,
             Callbacks callbacks
         ) {
             super("commands", name, testClass, signatures, callbacks);
@@ -1016,12 +1017,12 @@ public abstract class DocsV3Support {
             }
 
             Map<String, List<String>> compactedTable = new TreeMap<>();
-            for (Map.Entry<List<DataType>, DataType> sig : this.signatures.get().entrySet()) {
-                if (shouldHideSignature(sig.getKey(), sig.getValue())) {
+            for (TestClassSignatureTypes sig : this.signatures.get()) {
+                if (shouldHideSignature(sig.argTypes(), sig.returnType())) {
                     continue;
                 }
-                String mainType = sig.getKey().getFirst().esNameIfPossible();
-                String secondaryType = sig.getKey().get(1).esNameIfPossible();
+                String mainType = sig.argTypes().getFirst().esNameIfPossible();
+                String secondaryType = sig.argTypes().get(1).esNameIfPossible();
                 List<String> secondaryTypes = compactedTable.computeIfAbsent(mainType, (k) -> new ArrayList<>());
                 secondaryTypes.add(secondaryType);
             }
@@ -1065,7 +1066,7 @@ public abstract class DocsV3Support {
     }
 
     void renderTypes(String name, List<EsqlFunctionRegistry.ArgSignature> args) throws IOException {
-        boolean showResultColumn = signatures.get().values().stream().anyMatch(Objects::nonNull);
+        boolean showResultColumn = signatures.get().stream().anyMatch(Objects::nonNull);
         StringBuilder header = new StringBuilder("| ");
         StringBuilder separator = new StringBuilder("| ");
         List<String> argNames = args.stream().map(EsqlFunctionRegistry.ArgSignature::name).toList();
@@ -1079,11 +1080,11 @@ public abstract class DocsV3Support {
         }
 
         List<String> table = new ArrayList<>();
-        for (Map.Entry<List<DataType>, DataType> sig : this.signatures.get().entrySet()) { // TODO flip to using sortedSignatures
-            if (shouldHideSignature(sig.getKey(), sig.getValue())) {
+        for (TestClassSignatureTypes sig : sortedSignatures()) {
+            if (shouldHideSignature(sig.argTypes(), sig.returnType())) {
                 continue;
             }
-            if (sig.getKey().size() > argNames.size()) { // skip variadic [test] cases (but not those with optional parameters)
+            if (sig.argTypes().size() > argNames.size()) { // skip variadic [test] cases (but not those with optional parameters)
                 continue;
             }
             table.add(getTypeRow(args, sig, argNames, showResultColumn));
@@ -1104,13 +1105,13 @@ public abstract class DocsV3Support {
 
     private static String getTypeRow(
         List<EsqlFunctionRegistry.ArgSignature> args,
-        Map.Entry<List<DataType>, DataType> sig,
+        TestClassSignatureTypes sig,
         List<String> argNames,
         boolean showResultColumn
     ) {
         StringBuilder b = new StringBuilder("| ");
-        for (int i = 0; i < sig.getKey().size(); i++) {
-            DataType argType = sig.getKey().get(i);
+        for (int i = 0; i < sig.argTypes().size(); i++) {
+            DataType argType = sig.argTypes().get(i);
             EsqlFunctionRegistry.ArgSignature argSignature = args.get(i);
             if (argSignature.mapArg()) {
                 b.append("named parameters");
@@ -1119,9 +1120,9 @@ public abstract class DocsV3Support {
             }
             b.append(" | ");
         }
-        b.append("| ".repeat(argNames.size() - sig.getKey().size()));
+        b.append("| ".repeat(argNames.size() - sig.argTypes().size()));
         if (showResultColumn) {
-            b.append(sig.getValue().esNameIfPossible());
+            b.append(sig.returnType().esNameIfPossible());
             b.append(" |");
         }
         return b.toString();
@@ -1270,24 +1271,24 @@ public abstract class DocsV3Support {
                 builder.startArray("params");
                 builder.endArray();
                 // There should only be one return type so just use that as the example
-                builder.field("returnType", signatures.get().values().iterator().next().esNameIfPossible());
+                builder.field("returnType", signatures.get().iterator().next().returnType().esNameIfPossible());
                 builder.endObject();
             } else {
                 int minArgCount = (int) args.stream().filter(a -> false == a.optional()).count();
-                for (Map.Entry<List<DataType>, DataType> sig : sortedSignatures()) {
-                    if (variadic && sig.getKey().size() > args.size()) {
+                for (TestClassSignatureTypes sig : sortedSignatures()) {
+                    if (variadic && sig.argTypes().size() > args.size()) {
                         // For variadic functions we test much longer signatures, let’s just stop at the last one
                         continue;
                     }
-                    if (sig.getKey().size() < minArgCount) {
-                        throw new IllegalArgumentException("signature " + sig.getKey() + " is missing non-optional arg for " + args);
+                    if (sig.argTypes().size() < minArgCount) {
+                        throw new IllegalArgumentException("signature " + sig.argTypes() + " is missing non-optional arg for " + args);
                     }
-                    if (shouldHideSignature(sig.getKey(), sig.getValue())) {
+                    if (shouldHideSignature(sig.argTypes(), sig.returnType())) {
                         continue;
                     }
                     builder.startObject();
                     builder.startArray("params");
-                    for (int i = 0; i < sig.getKey().size(); i++) {
+                    for (int i = 0; i < sig.argTypes().size(); i++) {
                         EsqlFunctionRegistry.ArgSignature arg = args.get(i);
                         builder.startObject();
                         builder.field("name", arg.name());
@@ -1302,7 +1303,7 @@ public abstract class DocsV3Support {
                                     .collect(Collectors.joining(", "))
                             );
                         } else {
-                            builder.field("type", sig.getKey().get(i).esNameIfPossible());
+                            builder.field("type", sig.argTypes().get(i).esNameIfPossible());
                         }
                         builder.field("optional", arg.optional());
                         String cleanedParamDesc = removeAppliesToBlocks(arg.description());
@@ -1310,12 +1311,12 @@ public abstract class DocsV3Support {
                         builder.endObject();
                     }
                     builder.endArray();
-                    license = licenseChecker.invoke(sig.getKey());
+                    license = licenseChecker.invoke(sig.argTypes());
                     if (license != null && license != License.OperationMode.BASIC) {
                         builder.field("license", license.toString());
                     }
                     builder.field("variadic", variadic);
-                    builder.field("returnType", sig.getValue().esNameIfPossible());
+                    builder.field("returnType", sig.returnType().esNameIfPossible());
                     builder.endObject();
                 }
             }
@@ -1358,23 +1359,23 @@ public abstract class DocsV3Support {
         return content.replaceAll("\\s*\\{applies_to\\}`[^`]*`\\s*", "");
     }
 
-    private List<Map.Entry<List<DataType>, DataType>> sortedSignatures() {
-        List<Map.Entry<List<DataType>, DataType>> sortedSignatures = new ArrayList<>(signatures.get().entrySet());
+    private List<TestClassSignatureTypes> sortedSignatures() {
+        List<TestClassSignatureTypes> sortedSignatures = new ArrayList<>(signatures.get());
         sortedSignatures.sort((lhs, rhs) -> {
-            int maxlen = Math.max(lhs.getKey().size(), rhs.getKey().size());
+            int maxlen = Math.max(lhs.argTypes().size(), rhs.argTypes().size());
             for (int i = 0; i < maxlen; i++) {
-                if (lhs.getKey().size() <= i) {
+                if (lhs.argTypes().size() <= i) {
                     return -1;
                 }
-                if (rhs.getKey().size() <= i) {
+                if (rhs.argTypes().size() <= i) {
                     return 1;
                 }
-                int c = lhs.getKey().get(i).esNameIfPossible().compareTo(rhs.getKey().get(i).esNameIfPossible());
+                int c = lhs.argTypes().get(i).esNameIfPossible().compareTo(rhs.argTypes().get(i).esNameIfPossible());
                 if (c != 0) {
                     return c;
                 }
             }
-            return lhs.getValue().esNameIfPossible().compareTo(rhs.getValue().esNameIfPossible());
+            return lhs.returnType().esNameIfPossible().compareTo(rhs.returnType().esNameIfPossible());
         });
         return sortedSignatures;
     }

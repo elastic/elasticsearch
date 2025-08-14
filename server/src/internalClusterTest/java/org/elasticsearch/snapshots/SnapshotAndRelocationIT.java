@@ -16,15 +16,18 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.snapshots.mockstore.MockRepository;
+import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.transport.MockTransportService;
 
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.StreamSupport;
 
@@ -51,6 +54,7 @@ public class SnapshotAndRelocationIT extends AbstractSnapshotIntegTestCase {
         final String masterNode = internalCluster().startMasterOnlyNode();
         final String dataNodeA = internalCluster().startDataOnlyNode();
         final String dataNodeB = internalCluster().startDataOnlyNode();
+        ensureStableCluster(3);
         final String repoName = "test-repo";
         createRepository(repoName, "mock");
 
@@ -125,5 +129,51 @@ public class SnapshotAndRelocationIT extends AbstractSnapshotIntegTestCase {
         logger.info("--> run delayed action");
         delayedAction.get().run();
         assertSuccessful(future);
+    }
+
+    public void testSnapshotStartedEarlierCompletesFirst() throws Exception {
+        final String masterNode = internalCluster().startMasterOnlyNode();
+        final String dataNode = internalCluster().startDataOnlyNode();
+        ensureStableCluster(2);
+        final String repoName = "test-repo";
+        createRepository(repoName, "mock");
+
+        final var numIndices = between(2, 4);
+        final var indexNames = IntStream.range(0, numIndices).mapToObj(i -> "index-" + i).toList();
+
+        for (var indexName : indexNames) {
+            createIndex(indexName, 1, 0);
+            indexRandomDocs(indexName, between(10, 42));
+        }
+        ensureGreen();
+
+        final String firstSnapshot = "snapshot-0";
+        final String secondSnapshot = "snapshot-1";
+
+        // Start two snapshots and wait for both of them to appear in the cluster state
+        blockDataNode(repoName, dataNode);
+        final var future0 = startFullSnapshot(repoName, firstSnapshot);
+        final var future1 = startFullSnapshot(repoName, secondSnapshot);
+        safeAwait(ClusterServiceUtils.addMasterTemporaryStateListener(state -> {
+            final var snapshotsInProgress = SnapshotsInProgress.get(state);
+            final Set<String> snapshotNames = snapshotsInProgress.asStream()
+                .map(entry -> entry.snapshot().getSnapshotId().getName())
+                .collect(Collectors.toSet());
+            return snapshotNames.equals(Set.of(firstSnapshot, secondSnapshot));
+        }));
+
+        // Ensure the first snapshot is completed first before the second one by observing a cluster state containing only the 2nd one
+        final var listenerForFirstSnapshotCompletion = ClusterServiceUtils.addMasterTemporaryStateListener(state -> {
+            final var snapshotsInProgress = SnapshotsInProgress.get(state);
+            final Set<String> snapshotNames = snapshotsInProgress.asStream()
+                .map(entry -> entry.snapshot().getSnapshotId().getName())
+                .collect(Collectors.toSet());
+            return snapshotNames.equals(Set.of(secondSnapshot));
+        });
+        unblockNode(repoName, dataNode);
+        safeAwait(listenerForFirstSnapshotCompletion);
+
+        assertSuccessful(future0);
+        assertSuccessful(future1);
     }
 }

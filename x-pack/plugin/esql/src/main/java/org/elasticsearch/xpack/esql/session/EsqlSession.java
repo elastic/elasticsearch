@@ -180,31 +180,19 @@ public class EsqlSession {
         analyzedPlan(parsed, executionInfo, request.filter(), new EsqlCCSUtils.CssPartialErrorsActionListener(executionInfo, listener) {
             @Override
             public void onResponse(LogicalPlan analyzedPlan) {
-                optimizeAndExecute(request, executionInfo, planRunner, analyzedPlan, listener);
+                SubscribableListener.<LogicalPlan>newForked(l -> preOptimizedPlan(analyzedPlan, l))
+                    .<LogicalPlan>andThen((l, p) -> preMapper.preMapper(optimizedPlan(p), l))
+                    .<Result>andThen((l, p) -> executeOptimizedPlan(request, executionInfo, planRunner, p, l))
+                    .addListener(listener);
             }
         });
-    }
-
-    // visible for testing in CsvTests
-    public void optimizeAndExecute(
-        EsqlQueryRequest request,
-        EsqlExecutionInfo executionInfo,
-        PlanRunner planRunner,
-        LogicalPlan analyzedPlan,
-        ActionListener<Result> listener
-    ) {
-        SubscribableListener.<LogicalPlan>newForked(l -> logicalPlanPreOptimizer.preOptimize(analyzedPlan, l))
-            .andThenApply(this::optimizedPlan)
-            .<LogicalPlan>andThen((l, p) -> preMapper.preMapper(p, l))
-            .<Result>andThen((l, p) -> executeOptimizedPlan(request, executionInfo, planRunner, p, l))
-            .addListener(listener);
     }
 
     /**
      * Execute an analyzed plan. Most code should prefer calling {@link #execute} but
      * this is public for testing.
      */
-    private void executeOptimizedPlan(
+    public void executeOptimizedPlan(
         EsqlQueryRequest request,
         EsqlExecutionInfo executionInfo,
         PlanRunner planRunner,
@@ -344,7 +332,7 @@ public class EsqlSession {
                 assert cluster.getStatus() != EsqlExecutionInfo.Cluster.Status.SUCCESSFUL : "can't mark a cluster success with failures";
                 continue;
             }
-            if (allowPartialResults == false && executionInfo.isSkipUnavailable(clusterAlias) == false) {
+            if (allowPartialResults == false && executionInfo.shouldSkipOnFailure(clusterAlias) == false) {
                 for (FieldCapabilitiesFailure failure : e.getValue()) {
                     failureCollector.unwrapAndCollect(failure.getException());
                 }
@@ -487,7 +475,7 @@ public class EsqlSession {
     private void skipClusterOrError(String clusterAlias, EsqlExecutionInfo executionInfo, String message) {
         VerificationException error = new VerificationException(message);
         // If we can, skip the cluster and mark it as such
-        if (executionInfo.isSkipUnavailable(clusterAlias)) {
+        if (executionInfo.shouldSkipOnFailure(clusterAlias)) {
             EsqlCCSUtils.markClusterWithFinalStateAndNoShards(executionInfo, clusterAlias, EsqlExecutionInfo.Cluster.Status.SKIPPED, error);
         } else {
             throw error;
@@ -804,7 +792,7 @@ public class EsqlSession {
         return EstimatesRowSize.estimateRowSize(0, physicalPlan);
     }
 
-    private LogicalPlan optimizedPlan(LogicalPlan logicalPlan) {
+    public LogicalPlan optimizedPlan(LogicalPlan logicalPlan) {
         if (logicalPlan.preOptimized() == false) {
             throw new IllegalStateException("Expected pre-optimized plan");
         }
@@ -813,7 +801,11 @@ public class EsqlSession {
         return plan;
     }
 
-    private PhysicalPlan physicalPlan(LogicalPlan optimizedPlan) {
+    public void preOptimizedPlan(LogicalPlan logicalPlan, ActionListener<LogicalPlan> listener) {
+        logicalPlanPreOptimizer.preOptimize(logicalPlan, listener);
+    }
+
+    public PhysicalPlan physicalPlan(LogicalPlan optimizedPlan) {
         if (optimizedPlan.optimized() == false) {
             throw new IllegalStateException("Expected optimized plan");
         }
@@ -823,7 +815,7 @@ public class EsqlSession {
         return plan;
     }
 
-    private PhysicalPlan optimizedPhysicalPlan(LogicalPlan optimizedPlan) {
+    public PhysicalPlan optimizedPhysicalPlan(LogicalPlan optimizedPlan) {
         var plan = physicalPlanOptimizer.optimize(physicalPlan(optimizedPlan));
         LOGGER.debug("Optimized physical plan:\n{}", plan);
         return plan;

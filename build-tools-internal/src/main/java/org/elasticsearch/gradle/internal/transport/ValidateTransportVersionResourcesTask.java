@@ -11,10 +11,6 @@ package org.elasticsearch.gradle.internal.transport;
 
 import com.google.common.collect.Comparators;
 
-import org.elasticsearch.gradle.internal.transport.TransportVersionUtils.TransportVersionDefinition;
-import org.elasticsearch.gradle.internal.transport.TransportVersionUtils.TransportVersionId;
-import org.elasticsearch.gradle.internal.transport.TransportVersionUtils.TransportVersionLatest;
-import org.elasticsearch.gradle.internal.transport.TransportVersionUtils.TransportVersionReference;
 import org.gradle.api.DefaultTask;
 import org.gradle.api.file.ConfigurableFileCollection;
 import org.gradle.api.file.DirectoryProperty;
@@ -47,17 +43,17 @@ import java.util.regex.Pattern;
 
 import javax.inject.Inject;
 
+import static org.elasticsearch.gradle.internal.transport.TransportVersionReference.listFromFile;
 import static org.elasticsearch.gradle.internal.transport.TransportVersionUtils.definitionFilePath;
 import static org.elasticsearch.gradle.internal.transport.TransportVersionUtils.latestFilePath;
 import static org.elasticsearch.gradle.internal.transport.TransportVersionUtils.readDefinitionFile;
 import static org.elasticsearch.gradle.internal.transport.TransportVersionUtils.readLatestFile;
-import static org.elasticsearch.gradle.internal.transport.TransportVersionUtils.readReferencesFile;
 
 /**
  * Validates that each defined transport version constant is referenced by at least one project.
  */
 @CacheableTask
-public abstract class ValidateTransportVersionDefinitionsTask extends DefaultTask {
+public abstract class ValidateTransportVersionResourcesTask extends DefaultTask {
 
     @InputDirectory
     @Optional
@@ -89,7 +85,7 @@ public abstract class ValidateTransportVersionDefinitionsTask extends DefaultTas
     Map<String, TransportVersionLatest> latestByBranch = new HashMap<>();
 
     @Inject
-    public ValidateTransportVersionDefinitionsTask(ExecOperations execOperations) {
+    public ValidateTransportVersionResourcesTask(ExecOperations execOperations) {
         this.execOperations = execOperations;
         this.rootPath = getProject().getRootProject().getLayout().getProjectDirectory().getAsFile().toPath();
     }
@@ -105,7 +101,7 @@ public abstract class ValidateTransportVersionDefinitionsTask extends DefaultTas
 
         // then collect all names referenced in the codebase
         for (var referencesFile : getReferencesFiles()) {
-            readReferencesFile(referencesFile.toPath()).stream().map(TransportVersionReference::name).forEach(allNames::add);
+            listFromFile(referencesFile.toPath()).stream().map(TransportVersionReference::name).forEach(allNames::add);
         }
 
         // now load all definitions, do some validation and record them by various keys for later quick lookup

@@ -107,7 +107,7 @@ class KnnSearcher {
     private final float selectivity;
     private final int topK;
     private final int efSearch;
-    private final int nProbe;
+    private final double visitPercentage;
     private final KnnIndexTester.IndexType indexType;
     private int dim;
     private final VectorSimilarityFunction similarityFunction;
@@ -116,7 +116,7 @@ class KnnSearcher {
     private final int searchThreads;
     private final int numSearchers;
 
-    KnnSearcher(Path indexPath, CmdLineArgs cmdLineArgs, int nProbe) {
+    KnnSearcher(Path indexPath, CmdLineArgs cmdLineArgs, double visitPercentage) {
         this.docPath = cmdLineArgs.docVectors();
         this.indexPath = indexPath;
         this.queryPath = cmdLineArgs.queryVectors();
@@ -131,7 +131,7 @@ class KnnSearcher {
             throw new IllegalArgumentException("numQueryVectors must be > 0");
         }
         this.efSearch = cmdLineArgs.numCandidates();
-        this.nProbe = nProbe;
+        this.visitPercentage = visitPercentage;
         this.indexType = cmdLineArgs.indexType();
         this.searchThreads = cmdLineArgs.searchThreads();
         this.numSearchers = cmdLineArgs.numSearchers();
@@ -298,7 +298,7 @@ class KnnSearcher {
         }
         logger.info("checking results");
         int[][] nn = getOrCalculateExactNN(offsetByteSize, filterQuery);
-        finalResults.nProbe = indexType == KnnIndexTester.IndexType.IVF ? nProbe : 0;
+        finalResults.visitPercentage = indexType == KnnIndexTester.IndexType.IVF ? visitPercentage : 0;
         finalResults.avgRecall = checkResults(resultIds, nn, topK);
         finalResults.qps = (1000f * numQueryVectors) / elapsed;
         finalResults.avgLatency = (float) elapsed / numQueryVectors;
@@ -424,7 +424,8 @@ class KnnSearcher {
         }
         int efSearch = Math.max(topK, this.efSearch);
         if (indexType == KnnIndexTester.IndexType.IVF) {
-            knnQuery = new IVFKnnFloatVectorQuery(VECTOR_FIELD, vector, topK, efSearch, filterQuery, nProbe);
+            float visitRatio = (float) (visitPercentage / 100);
+            knnQuery = new IVFKnnFloatVectorQuery(VECTOR_FIELD, vector, topK, efSearch, filterQuery, visitRatio);
         } else {
             knnQuery = new ESKnnFloatVectorQuery(
                 VECTOR_FIELD,

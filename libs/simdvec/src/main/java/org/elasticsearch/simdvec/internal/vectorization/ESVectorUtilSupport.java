@@ -63,4 +63,6 @@ public interface ESVectorUtilSupport {
         float rnorm,
         float[] distances
     );
+
+    void packAsBinary(int[] vector, byte[] packed);
 }

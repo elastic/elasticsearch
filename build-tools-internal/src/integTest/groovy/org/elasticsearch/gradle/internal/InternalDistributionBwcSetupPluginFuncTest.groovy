@@ -117,5 +117,4 @@ class InternalDistributionBwcSetupPluginFuncTest extends AbstractGitAwareGradleF
         result.output.contains("nested folder /distribution/bwc/minor/build/bwc/checkout-8.x/" +
                         "distribution/archives/darwin-tar/build/install/elasticsearch-8.4.0-SNAPSHOT")
     }
-
 }

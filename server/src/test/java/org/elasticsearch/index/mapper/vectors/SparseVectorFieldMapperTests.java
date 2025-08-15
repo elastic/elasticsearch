@@ -525,11 +525,7 @@ public class SparseVectorFieldMapperTests extends MapperTestCase {
     }
 
     public void testSparseVectorUnsupportedIndex() {
-        IndexVersion version = IndexVersionUtils.randomVersionBetween(
-            random(),
-            V_8_0_0,
-            IndexVersions.FIRST_DETACHED_INDEX_VERSION
-        );
+        IndexVersion version = IndexVersionUtils.randomVersionBetween(random(), V_8_0_0, IndexVersions.FIRST_DETACHED_INDEX_VERSION);
         Exception e = expectThrows(MapperParsingException.class, () -> createMapperService(version, fieldMapping(b -> {
             b.field("type", "sparse_vector");
         })));
@@ -890,7 +886,7 @@ public class SparseVectorFieldMapperTests extends MapperTestCase {
 
         IndexVersion getRandomVersion() {
             // TODO: replace implementation with `IndexVersionUtils::randomVersionBetween` once support is added
-            //  for handling unbalanced version distributions.
+            // for handling unbalanced version distributions.
             NavigableSet<IndexVersion> allReleaseVersions = IndexVersionUtils.allReleasedVersions();
             Set<IndexVersion> candidateVersions = allReleaseVersions.subSet(fromVersion, toVersion);
             return ESTestCase.randomFrom(candidateVersions);

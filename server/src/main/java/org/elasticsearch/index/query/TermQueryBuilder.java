@@ -167,11 +167,7 @@ public class TermQueryBuilder extends BaseTermQueryBuilder<TermQueryBuilder> {
     }
 
     @Override
-    protected QueryBuilder doIndexMetadataRewrite(QueryRewriteContext context) {
-        MappedFieldType fieldType = context.getFieldType(this.fieldName);
-        if (fieldType == null) {
-            return new MatchNoneQueryBuilder("The \"" + getName() + "\" query is against a field that does not exist");
-        }
+    protected QueryBuilder doIndexMetadataRewrite(QueryRewriteContext context, MappedFieldType fieldType) throws IOException {
         return maybeRewriteBasedOnConstantFields(fieldType, context);
     }
 

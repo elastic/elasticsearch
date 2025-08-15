@@ -90,7 +90,7 @@ public class ESONXContentSerializer {
                     builder.field(fieldEntry.key());
                 }
 
-                writeValue(values, builder, fieldEntry.value, params);
+                writeValue(values, builder, fieldEntry.value(), params);
                 currentContainer.remainingFields--;
                 index++;
 

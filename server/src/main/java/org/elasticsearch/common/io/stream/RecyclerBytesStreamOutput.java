@@ -38,13 +38,13 @@ public class RecyclerBytesStreamOutput extends BytesStream implements Releasable
     static final VarHandle VH_BE_LONG = MethodHandles.byteArrayViewVarHandle(long[].class, ByteOrder.BIG_ENDIAN);
     static final VarHandle VH_LE_LONG = MethodHandles.byteArrayViewVarHandle(long[].class, ByteOrder.LITTLE_ENDIAN);
 
-    private ArrayList<Recycler.V<BytesRef>> pages = new ArrayList<>();
+    private ArrayList<Recycler.V<BytesRef>> pages = new ArrayList<>(8);
     private final Recycler<BytesRef> recycler;
     private final int pageSize;
     private int pageIndex = -1;
     private int currentCapacity = 0;
     private int currentPageOffset;
-    
+
     private byte[] bytesRefBytes;
     private int bytesRefOffset;
 
@@ -213,9 +213,14 @@ public class RecyclerBytesStreamOutput extends BytesStream implements Releasable
             this.pageIndex = pageIndex;
             this.currentPageOffset = offsetInPage;
         }
-        BytesRef page = pages.get(this.pageIndex).v();
-        this.bytesRefBytes = page.bytes;
-        this.bytesRefOffset = page.offset;
+        if (position != 0) {
+            BytesRef page = pages.get(this.pageIndex).v();
+            this.bytesRefBytes = page.bytes;
+            this.bytesRefOffset = page.offset;
+        } else {
+            this.bytesRefBytes = null;
+            this.bytesRefOffset = 0;
+        }
     }
 
     public void skip(int length) {

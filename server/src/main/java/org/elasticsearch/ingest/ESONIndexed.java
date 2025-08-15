@@ -63,7 +63,7 @@ public class ESONIndexed {
                 for (int i = 0; i < objEntry.offsetOrCount(); i++) {
                     ESONEntry entry = esonFlat.keys().get(currentIndex);
                     if (entry instanceof ESONEntry.FieldEntry fieldEntry) {
-                        materializedMap.put(fieldEntry.key(), fieldEntry.value);
+                        materializedMap.put(fieldEntry.key(), fieldEntry.value());
                         currentIndex++;
                     } else {
                         if (entry instanceof ESONEntry.ObjectEntry) {
@@ -374,7 +374,7 @@ public class ESONIndexed {
                 for (int i = 0; i < arrEntry.offsetOrCount(); i++) {
                     ESONEntry entry = esonFlat.keys().get(currentIndex);
                     if (entry instanceof ESONEntry.FieldEntry fieldEntry) {
-                        materializedList.add(fieldEntry.value);
+                        materializedList.add(fieldEntry.value());
                         currentIndex++;
                     } else {
                         if (entry instanceof ESONEntry.ObjectEntry) {
@@ -661,7 +661,7 @@ public class ESONIndexed {
                 handleObject(flatKeyArray, value, null, newOffset, newValuesOut);
             }
         } else {
-            flatKeyArray.add(new ESONEntry.FieldEntry(key, mutationToValue(newOffset, newValuesOut, obj)));
+            flatKeyArray.add(mutationToValue(newOffset, key, newValuesOut, obj));
         }
     }
 
@@ -717,7 +717,7 @@ public class ESONIndexed {
                 switch (type) {
                     case ESONSource.Mutation mutation -> {
                         // This is a mutated element - create new FieldEntry with mutation
-                        flatKeyArray.add(new ESONEntry.FieldEntry(null, mutationToValue(newOffset, newValuesOut, mutation.object())));
+                        flatKeyArray.add(mutationToValue(newOffset, null, newValuesOut, mutation.object()));
                         elementCount++;
                     }
                     case ESONObject nestedObj -> {
@@ -746,68 +746,69 @@ public class ESONIndexed {
         }
     }
 
-    private static ESONSource.Value mutationToValue(int newOffset, BytesStreamOutput newValuesOut, Object obj) throws IOException {
+    private static ESONEntry.FieldEntry mutationToValue(int newOffset, String fieldName, BytesStreamOutput newValuesOut, Object obj)
+        throws IOException {
         int position = newOffset + Math.toIntExact(newValuesOut.position());
-        ESONSource.Value value;
+        ESONEntry.FieldEntry value;
         if (obj == null) {
-            value = ESONSource.ConstantValue.NULL;
+            value = new ESONEntry.FieldEntry(fieldName, ESONSource.ConstantValue.NULL);
         } else if (obj instanceof Number num) {
             value = switch (num) {
                 case Byte byteValue -> {
                     newValuesOut.writeInt(byteValue.intValue());
-                    yield new ESONSource.FixedValue(position, ESONEntry.TYPE_INT);
+                    yield new ESONEntry.FieldEntry(fieldName, ESONEntry.TYPE_INT, position);
                 }
                 case Short shortValue -> {
                     newValuesOut.writeInt(shortValue);
-                    yield new ESONSource.FixedValue(position, ESONEntry.TYPE_INT);
+                    yield new ESONEntry.FieldEntry(fieldName, ESONEntry.TYPE_INT, position);
                 }
                 case Integer intValue -> {
                     newValuesOut.writeInt(intValue);
-                    yield new ESONSource.FixedValue(position, ESONEntry.TYPE_INT);
+                    yield new ESONEntry.FieldEntry(fieldName, ESONEntry.TYPE_INT, position);
                 }
                 case Long longValue -> {
                     newValuesOut.writeLong(longValue);
-                    yield new ESONSource.FixedValue(position, ESONEntry.TYPE_LONG);
+                    yield new ESONEntry.FieldEntry(fieldName, ESONEntry.TYPE_LONG, position);
                 }
                 case Float floatValue -> {
                     newValuesOut.writeFloat(floatValue);
-                    yield new ESONSource.FixedValue(position, ESONEntry.TYPE_FLOAT);
+                    yield new ESONEntry.FieldEntry(fieldName, ESONEntry.TYPE_FLOAT, position);
                 }
                 case Double doubleValue -> {
                     newValuesOut.writeDouble(doubleValue);
-                    yield new ESONSource.FixedValue(position, ESONEntry.TYPE_DOUBLE);
+                    yield new ESONEntry.FieldEntry(fieldName, ESONEntry.TYPE_DOUBLE, position);
                 }
                 case BigInteger bigInteger -> {
                     byte[] numberBytes = bigInteger.toString().getBytes(StandardCharsets.UTF_8);
                     newValuesOut.writeVInt(numberBytes.length);
                     newValuesOut.write(numberBytes);
-                    yield new ESONSource.VariableValue(position, ESONEntry.BIG_INTEGER);
+                    yield new ESONEntry.FieldEntry(fieldName, ESONEntry.BIG_INTEGER, position);
                 }
                 case BigDecimal bigDecimal -> {
                     byte[] numberBytes = bigDecimal.toString().getBytes(StandardCharsets.UTF_8);
                     newValuesOut.writeVInt(numberBytes.length);
                     newValuesOut.write(numberBytes);
-                    yield new ESONSource.VariableValue(position, ESONEntry.BIG_DECIMAL);
+                    yield new ESONEntry.FieldEntry(fieldName, ESONEntry.BIG_DECIMAL, position);
                 }
                 default -> {
                     byte[] utf8Bytes = num.toString().getBytes(StandardCharsets.UTF_8);
                     newValuesOut.writeVInt(utf8Bytes.length);
                     newValuesOut.write(utf8Bytes);
-                    yield new ESONSource.VariableValue(position, ESONEntry.STRING);
+                    yield new ESONEntry.FieldEntry(fieldName, ESONEntry.STRING, position);
                 }
             };
         } else if (obj instanceof Boolean bool) {
-            value = bool ? ESONSource.ConstantValue.TRUE : ESONSource.ConstantValue.FALSE;
+            value = new ESONEntry.FieldEntry(fieldName, bool ? ESONSource.ConstantValue.TRUE : ESONSource.ConstantValue.FALSE);
         } else if (obj instanceof byte[] bytes) {
             newValuesOut.writeVInt(bytes.length);
             newValuesOut.writeBytes(bytes);
-            value = new ESONSource.VariableValue(position, ESONEntry.BINARY);
+            value = new ESONEntry.FieldEntry(fieldName, ESONEntry.BINARY, position);
         } else {
             String str = obj.toString();
             byte[] bytes = str.getBytes(StandardCharsets.UTF_8);
             newValuesOut.writeVInt(bytes.length);
             newValuesOut.writeBytes(bytes);
-            value = new ESONSource.VariableValue(position, ESONEntry.STRING);
+            value = new ESONEntry.FieldEntry(fieldName, ESONEntry.STRING, position);
         }
 
         return value;

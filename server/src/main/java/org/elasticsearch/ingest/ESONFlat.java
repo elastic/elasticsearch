@@ -79,12 +79,7 @@ public record ESONFlat(List<ESONEntry> keys, ESONSource.Values values, AtomicRef
                     streamOutput.writeVInt(bytes.length);
                     streamOutput.writeBytes(bytes, 0, bytes.length);
                     streamOutput.writeByte(entry.type());
-                    // TODO: Combine
-                    if (entry instanceof ESONEntry.FieldEntry fieldEntry) {
-                        streamOutput.writeInt(fieldEntry.value.offset());
-                    } else {
-                        streamOutput.writeInt(entry.offsetOrCount());
-                    }
+                    streamOutput.writeInt(entry.offsetOrCount());
                 }
                 BytesReference bytes = streamOutput.bytes();
                 ByteArrayOutputStream os = new ByteArrayOutputStream(bytes.length());

@@ -37,12 +37,13 @@ public abstract class ESONEntry {
     private int offsetOrCount = -1;
 
     ESONEntry(byte type, String key) {
-        this(type, key, null);
+        this(type, key, -1, null);
     }
 
-    ESONEntry(byte type, String key, ESONSource.Value value) {
+    ESONEntry(byte type, String key, int offsetOrCount, ESONSource.Value value) {
         this.type = type;
         this.key = key;
+        this.offsetOrCount = offsetOrCount;
         this.value = value;
     }
 
@@ -104,15 +105,12 @@ public abstract class ESONEntry {
 
     public static class FieldEntry extends ESONEntry {
 
-        public final ESONSource.Value value;
-
         public FieldEntry(String key, ESONSource.Value value) {
-            super(value.type(), key, value);
-            this.value = value;
+            super(value.type(), key, -1, value);
         }
 
         public FieldEntry(String key, byte type, int offset) {
-            this(key, parseValue(type, offset));
+            super(type, key, offset, parseValue(type, offset));
         }
 
         private static ESONSource.Value parseValue(byte type, int offset) {
@@ -130,7 +128,7 @@ public abstract class ESONEntry {
         public String toString() {
             return "FieldEntry{"
                 + "value="
-                + value
+                + value()
                 + ", type="
                 + type()
                 + ", key='"

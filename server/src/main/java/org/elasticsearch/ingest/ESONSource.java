@@ -94,10 +94,7 @@ public class ESONSource {
                 switch (token) {
                     case START_OBJECT -> parseObject(parser, bytes, keyArray, null);
                     case START_ARRAY -> parseArray(parser, bytes, keyArray, null);
-                    default -> {
-                        Value type = parseSimpleValue(parser, bytes, token);
-                        keyArray.add(new ESONEntry.FieldEntry(null, type));
-                    }
+                    default -> keyArray.add(parseSimpleValue(parser, null, bytes, token));
                 }
                 count++;
             }
@@ -112,15 +109,16 @@ public class ESONSource {
             switch (token) {
                 case START_OBJECT -> parseObject(parser, bytes, keyArray, fieldName);
                 case START_ARRAY -> parseArray(parser, bytes, keyArray, fieldName);
-                default -> {
-                    Value type = parseSimpleValue(parser, bytes, token);
-                    keyArray.add(new ESONEntry.FieldEntry(fieldName, type));
-                }
+                default -> keyArray.add(parseSimpleValue(parser, fieldName, bytes, token));
             }
         }
 
-        private static Value parseSimpleValue(XContentParser parser, RecyclerBytesStreamOutput bytes, XContentParser.Token token)
-            throws IOException {
+        private static ESONEntry.FieldEntry parseSimpleValue(
+            XContentParser parser,
+            String fieldName,
+            RecyclerBytesStreamOutput bytes,
+            XContentParser.Token token
+        ) throws IOException {
             long position = bytes.position();
 
             return switch (token) {
@@ -128,43 +126,45 @@ public class ESONSource {
                     XContentString.UTF8Bytes stringBytes = parser.optimizedText().bytes();
                     bytes.writeVInt(stringBytes.length());
                     bytes.writeBytes(stringBytes.bytes(), stringBytes.offset(), stringBytes.length());
-                    yield new VariableValue((int) position, ESONEntry.STRING);
+                    yield new ESONEntry.FieldEntry(fieldName, ESONEntry.STRING, (int) position);
                 }
                 case VALUE_NUMBER -> {
                     XContentParser.NumberType numberType = parser.numberType();
                     yield switch (numberType) {
                         case INT -> {
                             bytes.writeInt(parser.intValue());
-                            yield new FixedValue((int) position, ESONEntry.TYPE_INT);
+                            yield new ESONEntry.FieldEntry(fieldName, ESONEntry.TYPE_INT, (int) position);
                         }
                         case LONG -> {
                             bytes.writeLong(parser.longValue());
-                            yield new FixedValue((int) position, ESONEntry.TYPE_LONG);
+                            yield new ESONEntry.FieldEntry(fieldName, ESONEntry.TYPE_LONG, (int) position);
                         }
                         case FLOAT -> {
                             bytes.writeFloat(parser.floatValue());
-                            yield new FixedValue((int) position, ESONEntry.TYPE_FLOAT);
+                            yield new ESONEntry.FieldEntry(fieldName, ESONEntry.TYPE_FLOAT, (int) position);
                         }
                         case DOUBLE -> {
                             bytes.writeDouble(parser.doubleValue());
-                            yield new FixedValue((int) position, ESONEntry.TYPE_DOUBLE);
+                            yield new ESONEntry.FieldEntry(fieldName, ESONEntry.TYPE_DOUBLE, (int) position);
                         }
                         case BIG_INTEGER, BIG_DECIMAL -> {
                             byte type = numberType == XContentParser.NumberType.BIG_INTEGER ? ESONEntry.BIG_INTEGER : ESONEntry.BIG_DECIMAL;
                             byte[] numberBytes = parser.text().getBytes(StandardCharsets.UTF_8);
                             bytes.writeVInt(numberBytes.length);
                             bytes.writeBytes(numberBytes, 0, numberBytes.length);
-                            yield new VariableValue((int) position, type);
+                            yield new ESONEntry.FieldEntry(fieldName, type, (int) position);
                         }
                     };
                 }
-                case VALUE_BOOLEAN -> parser.booleanValue() ? ConstantValue.TRUE : ConstantValue.FALSE;
-                case VALUE_NULL -> ConstantValue.NULL;
+                case VALUE_BOOLEAN -> parser.booleanValue()
+                    ? new ESONEntry.FieldEntry(fieldName, ConstantValue.TRUE)
+                    : new ESONEntry.FieldEntry(fieldName, ConstantValue.FALSE);
+                case VALUE_NULL -> new ESONEntry.FieldEntry(fieldName, ConstantValue.NULL);
                 case VALUE_EMBEDDED_OBJECT -> {
                     byte[] binaryValue = parser.binaryValue();
                     bytes.writeVInt(binaryValue.length);
                     bytes.write(binaryValue);
-                    yield new VariableValue((int) position, ESONEntry.BINARY);
+                    yield new ESONEntry.FieldEntry(fieldName, ESONEntry.BINARY, (int) position);
                 }
                 default -> throw new IllegalArgumentException("Unexpected token: " + token);
             };

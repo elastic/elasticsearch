@@ -9,12 +9,12 @@ package org.elasticsearch.compute.test;
 
 import java.util.Map;
 
-import static org.hamcrest.Matchers.hasKey;
+import static org.elasticsearch.test.MapMatcher.assertMap;
+import static org.elasticsearch.test.MapMatcher.matchesMap;
 
 public abstract class SourceOperatorTestCase extends AnyOperatorTestCase {
     @Override
     protected void assertEmptyStatus(Map<String, Object> map) {
-        assertThat(map, hasKey("pages_emitted"));
-        assertThat(map, hasKey("rows_emitted"));
+        assertMap(map, matchesMap().extraOk().entry("pages_emitted", 0).entry("rows_emitted", 0));
     }
 }

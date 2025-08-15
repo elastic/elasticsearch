@@ -139,6 +139,7 @@ public class ReplaceRoundToWithQueryAndTagsTests extends LocalPhysicalPlanOptimi
                 true
             );
             verifyQueryAndTags(expectedQueryBuilderAndTags, queryBuilderAndTags);
+            assertThrows(UnsupportedOperationException.class, esQueryExec::query);
         }
     }
 
@@ -170,7 +171,12 @@ public class ReplaceRoundToWithQueryAndTagsTests extends LocalPhysicalPlanOptimi
             assertEquals(4, roundTo.points().size());
             fieldExtractExec = as(evalExec.child(), FieldExtractExec.class);
             EsQueryExec esQueryExec = as(fieldExtractExec.child(), EsQueryExec.class);
-            assertNull(esQueryExec.queryBuilderAndTags());
+            List<EsQueryExec.QueryBuilderAndTags> queryBuilderAndTags = esQueryExec.queryBuilderAndTags();
+            assertEquals(1, queryBuilderAndTags.size());
+            EsQueryExec.QueryBuilderAndTags queryBuilder = queryBuilderAndTags.get(0);
+            assertNull(queryBuilder.query());
+            assertTrue(queryBuilder.tags().isEmpty());
+            assertNull(esQueryExec.query());
         }
     }
 
@@ -216,6 +222,7 @@ public class ReplaceRoundToWithQueryAndTagsTests extends LocalPhysicalPlanOptimi
                 true
             );
             verifyQueryAndTags(expectedQueryBuilderAndTags, queryBuilderAndTags);
+            assertThrows(UnsupportedOperationException.class, esQueryExec::query);
         }
     }
 
@@ -232,7 +239,12 @@ public class ReplaceRoundToWithQueryAndTagsTests extends LocalPhysicalPlanOptimi
                     """, predicate, dateHistogram);
                 QueryBuilder mainQueryBuilder = qb instanceof MatchQueryBuilder
                     ? qb
-                    : wrapWithSingleQuery(query, qb, "keyword", new Source(2, 8, predicate.substring(6)));
+                    : wrapWithSingleQuery(
+                        query,
+                        qb,
+                        "keyword",
+                        new Source(2, 8, predicate.substring(6))
+                    );
 
                 PhysicalPlan plan = plannerOptimizer.plan(query, searchStats, makeAnalyzer("mapping-all-types.json"));
 
@@ -263,6 +275,7 @@ public class ReplaceRoundToWithQueryAndTagsTests extends LocalPhysicalPlanOptimi
                     true
                 );
                 verifyQueryAndTags(expectedQueryBuilderAndTags, queryBuilderAndTags);
+                assertThrows(UnsupportedOperationException.class, esQueryExec::query);
             }
         }
     }
@@ -359,6 +372,7 @@ public class ReplaceRoundToWithQueryAndTagsTests extends LocalPhysicalPlanOptimi
                 false
             );
             verifyQueryAndTags(expectedQueryBuilderAndTags, queryBuilderAndTags);
+            assertThrows(UnsupportedOperationException.class, esQueryExec::query);
         }
     }
 
@@ -409,6 +423,7 @@ public class ReplaceRoundToWithQueryAndTagsTests extends LocalPhysicalPlanOptimi
                 false
             );
             verifyQueryAndTags(expectedQueryBuilderAndTags, queryBuilderAndTags);
+            assertThrows(UnsupportedOperationException.class, esQueryExec::query);
         }
     }
 
@@ -453,7 +468,12 @@ public class ReplaceRoundToWithQueryAndTagsTests extends LocalPhysicalPlanOptimi
 
                 otherQueryBuilder = otherQueryBuilder instanceof MatchQueryBuilder
                     ? otherQueryBuilder
-                    : wrapWithSingleQuery(query, otherQueryBuilder, "keyword", new Source(2, 8, otherPredicate.substring(6)));
+                    : wrapWithSingleQuery(
+                        query,
+                        otherQueryBuilder,
+                        "keyword",
+                        new Source(2, 8, otherPredicate.contains("and") ? otherPredicate.substring(6, 29) : otherPredicate.substring(6))
+                    );
 
                 RangeQueryBuilder rangeQueryBuilder = rangeQuery(fieldName).from(
                     lowerInPredicate instanceof String s ? s.replaceAll("\"", "") : lowerInPredicate
@@ -509,6 +529,7 @@ public class ReplaceRoundToWithQueryAndTagsTests extends LocalPhysicalPlanOptimi
                     false
                 );
                 verifyQueryAndTags(expectedQueryBuilderAndTags, queryBuilderAndTags);
+                assertThrows(UnsupportedOperationException.class, esQueryExec::query);
             }
         }
     }
@@ -534,11 +555,21 @@ public class ReplaceRoundToWithQueryAndTagsTests extends LocalPhysicalPlanOptimi
 
                 otherQueryBuilder = otherQueryBuilder instanceof MatchQueryBuilder
                     ? otherQueryBuilder
-                    : wrapWithSingleQuery(query, otherQueryBuilder, "keyword", new Source(2, 8, otherPredicate.substring(6)));
+                    : wrapWithSingleQuery(
+                        query,
+                        otherQueryBuilder,
+                        "keyword",
+                        new Source(2, 8, otherPredicate.contains("and") ? otherPredicate.substring(6, 29) : otherPredicate.substring(6))
+                    );
 
                 ExistsQueryBuilder existsQueryBuilder = existsQuery(fieldName).boost(0);
 
-                QueryBuilder mainQueryBuilder = Queries.combine(MUST, List.of(otherQueryBuilder, existsQueryBuilder));
+                QueryBuilder mainQueryBuilder = Queries.combine(
+                    MUST,
+                    otherPredicate.contains("and")
+                        ? List.of(existsQueryBuilder, otherQueryBuilder)
+                        : List.of(otherQueryBuilder, existsQueryBuilder)
+                );
 
                 PhysicalPlan plan = plannerOptimizer.plan(query, searchStats, makeAnalyzer("mapping-all-types.json"));
 
@@ -568,6 +599,7 @@ public class ReplaceRoundToWithQueryAndTagsTests extends LocalPhysicalPlanOptimi
                     false
                 );
                 verifyQueryAndTags(expectedQueryBuilderAndTags, queryBuilderAndTags);
+                assertThrows(UnsupportedOperationException.class, esQueryExec::query);
             }
         }
     }

@@ -289,7 +289,8 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
             for (Sort sort : sorts) {
                 sortBuilders.add(sort.sortBuilder());
             }
-            // LuceneTopNSourceOperator does not support QueryAndTags
+            // LuceneTopNSourceOperator does not support QueryAndTags, if there are multiple queries or if the single query has tags,
+            // UnsupportedOperationException will be thrown by esQueryExec.query()
             luceneFactory = new LuceneTopNSourceOperator.Factory(
                 shardContexts,
                 querySupplier(esQueryExec.query()),
@@ -303,9 +304,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         } else {
             luceneFactory = new LuceneSourceOperator.Factory(
                 shardContexts,
-                esQueryExec.queryBuilderAndTags() != null && esQueryExec.queryBuilderAndTags().isEmpty() == false
-                    ? querySupplier(esQueryExec.queryBuilderAndTags())
-                    : querySupplier(esQueryExec.query()),
+                querySupplier(esQueryExec.queryBuilderAndTags()),
                 context.queryPragmas().dataPartitioning(physicalSettings.defaultDataPartitioning()),
                 context.queryPragmas().taskConcurrency(),
                 context.pageSize(rowEstimatedSize),

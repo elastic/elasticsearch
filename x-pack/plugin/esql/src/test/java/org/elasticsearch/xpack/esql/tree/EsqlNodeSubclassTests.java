@@ -16,6 +16,9 @@ import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.dissect.DissectParser;
 import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.query.MatchAllQueryBuilder;
+import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 import org.elasticsearch.xpack.esql.core.capabilities.UnresolvedException;
@@ -96,7 +99,6 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_POINT;
 import static org.elasticsearch.xpack.esql.index.EsIndexSerializationTests.randomEsIndex;
 import static org.elasticsearch.xpack.esql.index.EsIndexSerializationTests.randomIndexNameWithModes;
 import static org.elasticsearch.xpack.esql.plan.AbstractNodeSerializationTests.randomFieldAttributes;
-import static org.elasticsearch.xpack.esql.plan.physical.EsQueryExecSerializationTests.randomQuery;
 import static org.mockito.Mockito.mock;
 
 /**
@@ -520,7 +522,7 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
         }
 
         if (argClass == EsQueryExec.QueryBuilderAndTags.class) {
-            return new EsQueryExec.QueryBuilderAndTags(randomQuery(), List.of(randomBoolean() ? randomLong() : randomDouble()));
+            return randomQueryBuildAndTags();
         }
 
         try {
@@ -735,6 +737,14 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
             randomIndexNameWithModes(),
             randomFieldAttributes(0, 10, false)
         );
+    }
+
+    static QueryBuilder randomQuery() {
+        return randomBoolean() ? new MatchAllQueryBuilder() : new TermQueryBuilder(randomAlphaOfLength(4), randomAlphaOfLength(4));
+    }
+
+    static EsQueryExec.QueryBuilderAndTags randomQueryBuildAndTags() {
+        return new EsQueryExec.QueryBuilderAndTags(randomQuery(), List.of(randomBoolean() ? randomLong() : randomDouble()));
     }
 
     static FieldAttribute field(String name, DataType type) {

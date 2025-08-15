@@ -620,7 +620,7 @@ public class InternalEngine extends Engine {
         pendingTranslogRecovery.set(false); // we are good - now we can commit
     }
 
-    public boolean pendingTranslogRecovery() {
+    protected boolean pendingTranslogRecovery() {
         return pendingTranslogRecovery.get();
     }
 

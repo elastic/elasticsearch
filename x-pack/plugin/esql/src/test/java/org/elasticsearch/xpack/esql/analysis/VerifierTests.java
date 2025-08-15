@@ -2319,8 +2319,8 @@ public class VerifierTests extends ESTestCase {
             checkVectorFunctionsNullArgs("v_magnitude(null)");
         }
         if (EsqlCapabilities.Cap.HAMMING_VECTOR_SIMILARITY_FUNCTION.isEnabled()) {
-            checkVectorSimilarityFunctionsNullArgs("v_hamming(null, vector)");
-            checkVectorSimilarityFunctionsNullArgs("v_hamming(vector, null)");
+            checkVectorFunctionsNullArgs("v_hamming(null, vector)");
+            checkVectorFunctionsNullArgs("v_hamming(vector, null)");
         }
     }
 

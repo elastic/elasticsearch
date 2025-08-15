@@ -71,10 +71,7 @@ public class RemoteClusterServiceTests extends ESTestCase {
         ThreadPool.terminate(threadPool, 10, TimeUnit.SECONDS);
     }
 
-    private RemoteClusterService createRemoteClusterService(
-        final Settings settings,
-        final MockTransportService transportService
-    ) {
+    private RemoteClusterService createRemoteClusterService(final Settings settings, final MockTransportService transportService) {
         return new RemoteClusterService(settings, transportService, DefaultProjectResolver.INSTANCE);
     }
 

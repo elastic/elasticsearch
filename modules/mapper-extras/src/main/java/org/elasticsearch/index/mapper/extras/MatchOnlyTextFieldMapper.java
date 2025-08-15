@@ -13,6 +13,7 @@ import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
+import org.apache.lucene.document.StoredField;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.Term;
@@ -682,11 +683,13 @@ public class MatchOnlyTextFieldMapper extends TextFamilyFieldMapper {
             // if the delegate can't support synthetic source for the given value, then store a copy of said value so
             // that synthetic source can load it
             if (fieldType().textFieldType.canUseSyntheticSourceDelegateForSyntheticSource(value.string()) == false) {
+                final String fieldName = fieldType().syntheticSourceFallbackFieldName();
                 if (storedFieldInBinaryFormat) {
                     final var bytesRef = new BytesRef(utfBytes.bytes(), utfBytes.offset(), utfBytes.length());
-                    context.storeFieldForSyntheticSource(fullPath(), leafName(), bytesRef, context.doc());
+                    context.doc().add(new StoredField(fieldName, bytesRef));
                 } else {
-                    context.storeFieldForSyntheticSource(fullPath(), leafName(), context.encodeFlattenedToken(), context.doc());
+
+                    context.doc().add(new StoredField(fieldName, value.string()));
                 }
             }
         }
@@ -704,13 +707,7 @@ public class MatchOnlyTextFieldMapper extends TextFamilyFieldMapper {
 
     @Override
     protected SyntheticSourceSupport syntheticSourceSupport() {
-        var kwd = TextFieldMapper.SyntheticSourceHelper.getKeywordFieldMapperForSyntheticSource(this);
-        if (kwd != null) {
-            // merge the two field loaders into one
-            return new SyntheticSourceSupport.Native(() -> kwd.syntheticFieldLoader(fullPath(), leafName()));
-        }
-
-        return super.syntheticSourceSupport();
+        return new SyntheticSourceSupport.Native(() -> syntheticFieldLoader(fullPath(), leafName()));
     }
 
     private SourceLoader.SyntheticFieldLoader syntheticFieldLoader(String fullFieldName, String leafFieldName) {

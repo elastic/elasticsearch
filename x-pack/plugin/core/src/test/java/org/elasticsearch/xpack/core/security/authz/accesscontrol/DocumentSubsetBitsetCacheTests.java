@@ -551,13 +551,11 @@ public class DocumentSubsetBitsetCacheTests extends ESTestCase {
             expectedStats.put("misses", 1L);
             expectedStats.put("memory", EXPECTED_BYTES_PER_BIT_SET + "b");
             expectedStats.put("memory_in_bytes", EXPECTED_BYTES_PER_BIT_SET);
-
             assertThat(cache.usageStats(), equalTo(expectedStats));
 
             // second same lookup - hit
             final BitSet bitSet1Again = cache.getBitSet(query1, leafContext);
             assertThat(bitSet1Again, sameInstance(bitSet1));
-
             expectedStats.put("hits", 1L);
             assertThat(cache.usageStats(), equalTo(expectedStats));
 
@@ -565,7 +563,6 @@ public class DocumentSubsetBitsetCacheTests extends ESTestCase {
             final Query query2 = QueryBuilders.termQuery("field-2", "value-2").toQuery(searchExecutionContext);
             final BitSet bitSet2 = cache.getBitSet(query2, leafContext);
             assertThat(bitSet2, notNullValue());
-
             // eviction callback calls `get` on the cache, asynchronously, which updates the stats.
             // so assertion is current state of the code, rather than the expected state.
             // issue: https://github.com/elastic/elasticsearch/issues/132842

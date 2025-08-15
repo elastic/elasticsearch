@@ -21,8 +21,6 @@
 
 package org.elasticsearch.exponentialhistogram;
 
-import org.elasticsearch.test.ESTestCase;
-
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashSet;
@@ -33,10 +31,9 @@ import java.util.stream.LongStream;
 import static org.elasticsearch.exponentialhistogram.ExponentialHistogram.MAX_INDEX;
 import static org.elasticsearch.exponentialhistogram.ExponentialHistogram.MAX_INDEX_BITS;
 import static org.elasticsearch.exponentialhistogram.ExponentialHistogram.MIN_INDEX;
-import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 
-public class DownscaleStatsTests extends ESTestCase {
+public class DownscaleStatsTests extends ExponentialHistogramTestCase {
 
     public void testExponential() {
         long[] values = IntStream.range(0, 100).mapToLong(i -> (long) Math.min(MAX_INDEX, Math.pow(1.1, i))).distinct().toArray();

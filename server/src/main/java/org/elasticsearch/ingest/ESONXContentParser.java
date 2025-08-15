@@ -85,12 +85,13 @@ public class ESONXContentParser extends AbstractXContentParser {
             nextToken = null;
             return currentToken;
         } else if (currentToken != null && containerStack.isEmpty() == false) {
-            int remainingFields = containerStack.currentContainerFieldsRemaining();
-            boolean isObject = containerStack.isCurrentContainerObject();
+            int stackValue = containerStack.currentStackValue();
+            int remainingFields = IntStack.fieldsRemaining(stackValue);
+            boolean isObject = IntStack.isObject(stackValue);
             if (remainingFields > 0) {
                 currentEntry = keyArray.get(currentIndex);
                 currentValue = null;
-                containerStack.decrementCurrentContainerFields();
+                containerStack.updateRemainingFields(stackValue - 1);
                 ++currentIndex;
 
                 final Token token;
@@ -453,16 +454,20 @@ public class ESONXContentParser extends AbstractXContentParser {
             containerStack = Arrays.copyOf(containerStack, containerStack.length << 1);
         }
 
-        private boolean isCurrentContainerObject() {
-            return (containerStack[stackTop] & CONTAINER_TYPE_MASK) == 0;
+        private int currentStackValue() {
+            return containerStack[stackTop];
         }
 
-        private int currentContainerFieldsRemaining() {
-            return containerStack[stackTop] & COUNT_MASK;
+        private static boolean isObject(int value) {
+            return (value & CONTAINER_TYPE_MASK) == 0;
         }
 
-        private void decrementCurrentContainerFields() {
-            containerStack[stackTop]--;  // This works because we only decrement the count part
+        private static int fieldsRemaining(int value) {
+            return value & COUNT_MASK;
+        }
+
+        private void updateRemainingFields(int stackValue) {
+            containerStack[stackTop] = stackValue;
         }
 
         private boolean isEmpty() {

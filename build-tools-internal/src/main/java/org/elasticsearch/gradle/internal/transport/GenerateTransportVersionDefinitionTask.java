@@ -26,6 +26,7 @@ import org.gradle.api.tasks.options.Option;
 import org.gradle.process.ExecOperations;
 import org.gradle.process.ExecResult;
 
+import javax.inject.Inject;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.IOException;
@@ -41,8 +42,6 @@ import java.util.Set;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.stream.Collectors;
-
-import javax.inject.Inject;
 
 import static org.elasticsearch.gradle.internal.transport.TransportVersionReference.listFromFile;
 import static org.elasticsearch.gradle.internal.transport.TransportVersionUtils.latestFilePath;
@@ -240,7 +239,7 @@ public abstract class GenerateTransportVersionDefinitionTask extends DefaultTask
         List<TransportVersionLatest> latestFiles = new ArrayList<>();
         String latestBasePath = TransportVersionUtils.getResourcePath(getResourcesProjectDir().get(), "latest/");
         for (String latestPath : getMainResources(latestBasePath)) {
-            TransportVersionLatest latest = readExistingFile(latestPath, this::latestRelativePath, TransportVersionLatest::fromString);
+            TransportVersionLatest latest = readExistingFile(latestPath, Function.identity(), TransportVersionLatest::fromString);
             latestFiles.add(latest);
         }
         return latestFiles;
@@ -268,18 +267,16 @@ public abstract class GenerateTransportVersionDefinitionTask extends DefaultTask
 
     // TODO duplicated
     private Set<String> getMainResources(String subPath) {
-        String output = gitCommand("ls-tree", "--name-only", "-r", "main", getResourcesProjectDir().get() + "/" + subPath);
+        String output = gitCommand("ls-tree", "--name-only", "-r", "main", subPath);
         return Set.of(output.split(System.lineSeparator()));
     }
 
     private Set<String> getChangedResources(String subPath) {
-        String output = gitCommand("diff", "--name-only", "main", getResourcesProjectDir().get() + "/" + subPath);
+        String output = gitCommand("diff", "--name-only", "main", subPath).strip();
+        if (output.isEmpty()) {
+            return Set.of();
+        }
         return Set.of(output.split(System.lineSeparator()));
-    }
-
-    // TODO duplicated
-    private TransportVersionLatest readLatestFromMain(String releaseBranch) {
-        return readExistingFile(releaseBranch, this::latestRelativePath, TransportVersionLatest::fromString);
     }
 
     // TODO duplicated
@@ -287,21 +284,6 @@ public abstract class GenerateTransportVersionDefinitionTask extends DefaultTask
         String relativePath = pathFunction.apply(name);
         String content = gitCommand("show", "main:" + relativePath).strip();
         return parser.apply(relativePath, content);
-    }
-
-    // TODO duplicated
-    private String latestRelativePath(String branch) {
-        return relativePath(latestFilePath(getResourcesDirectory().get(), branch));
-    }
-
-    // TODO duplicated
-    private Path resourcesDirPath() {
-        return getResourcesDirectory().get().getAsFile().toPath();
-    }
-
-    // TODO duplicated
-    private String relativePath(Path file) {
-        return rootPath.relativize(file).toString();
     }
 
     // TODO duplicated

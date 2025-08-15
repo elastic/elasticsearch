@@ -32,8 +32,8 @@ import java.util.OptionalLong;
 public class CompressedExponentialHistogram implements ExponentialHistogram {
 
     private static final int SCALE_OFFSET = 11;
-    private static final int HAS_NEGATIVE_BUCKETS_FLAG = 1 << 6;
-    private static final int SCALE_MASK = 0x3F;
+    private static final int HAS_NEGATIVE_BUCKETS_FLAG = 1 << 6; // = 64
+    private static final int SCALE_MASK = 0x3F; // = 63
     static {
         // protection against changes to MIN_SCALE and MAX_SCALE messing with our encoding
         assert MIN_SCALE + SCALE_OFFSET >= 0;
@@ -271,6 +271,7 @@ public class CompressedExponentialHistogram implements ExponentialHistogram {
         assert scale >= MIN_SCALE && scale <= MAX_SCALE : "scale must be in range [" + MIN_SCALE + ", " + MAX_SCALE + "]";
         boolean hasNegativeBuckets = negativeBuckets.isEmpty() == false;
         int scaleWithFlags = (scale + SCALE_OFFSET);
+        assert scale >= 0 && scale <= SCALE_MASK;
         if (hasNegativeBuckets) {
             scaleWithFlags |= HAS_NEGATIVE_BUCKETS_FLAG;
         }
@@ -285,32 +286,22 @@ public class CompressedExponentialHistogram implements ExponentialHistogram {
         serializeBuckets(output, positiveBuckets);
     }
 
-    /**
-     * Encodes the given bucket indices and counts as bytes into the given output.
-     * The following scheme is used to maximize compression:
-     * <ul>
-     *     <li>if there are no buckets, the result is an empty array ({@code byte[0]})</li>
-     *     <li> write the index of the first bucket as ZigZag-VLong</li>
-     *     <li> write the count of the first bucket as ZigZag-VLong</li>
-     *     <li> for each remaining bucket:
-     *     <ul>
-     *         <li>if the index of the bucket is exactly {@code previousBucketIndex+1}, write the count for the bucket as ZigZag-VLong</li>
-     *         <li>Otherwise there is at least one empty bucket between this one and the previous one.
-     *         We compute that number as {@code n=currentBucketIndex-previousIndex-1} and then write {@code -n} out as
-     *         ZigZag-VLong followed by the count for the bucket as ZigZag-VLong. The negation is performed to allow to
-     *         distinguish the cases when decoding.</li>
-     *     </ul>
-     *     </li>
-     * </ul>
-     *
-     * This encoding provides a compact storage for both dense and sparse histograms:
-     * For dense histograms it effectively results in encoding the index of the first bucket, followed by just an array of counts.
-     * For sparse histograms it corresponds to an interleaved encoding of the bucket indices with delta compression and the bucket counts.
-     * Even partially dense histograms profit from this encoding.
-     *
-     * @param out the output to write the encoded buckets to
-     * @param buckets the indices and counts of the buckets to encode, must be provided sorted based on the indices.
-     */
+    // Encodes the given bucket indices and counts as bytes into the given output.
+    // The following scheme is used to maximize compression:
+    // - if there are no buckets, the result is an empty array (byte[0])
+    // - write the index of the first bucket as ZigZag-VLong
+    // - write the count of the first bucket as ZigZag-VLong
+    // - for each remaining bucket:
+    //   - if the index of the bucket is exactly previousBucketIndex+1, write the count for the bucket as ZigZag-VLong
+    //   - Otherwise there is at least one empty bucket between this one and the previous one.
+    //     We compute that number as n=currentBucketIndex-previousIndex-1 and then write -n out as
+    //     ZigZag-VLong followed by the count for the bucket as ZigZag-VLong. The negation is performed to allow to
+    //     distinguish the cases when decoding.
+    //
+    // This encoding provides a compact storage for both dense and sparse histograms:
+    // For dense histograms it effectively results in encoding the index of the first bucket, followed by just an array of counts.
+    // For sparse histograms it corresponds to an interleaved encoding of the bucket indices with delta compression and the bucket counts.
+    // Even partially dense histograms profit from this encoding.
     private static void serializeBuckets(StreamOutput out, List<IndexWithCount> buckets) throws IOException {
         if (buckets.isEmpty()) {
             return; // no buckets, therefore nothing to write

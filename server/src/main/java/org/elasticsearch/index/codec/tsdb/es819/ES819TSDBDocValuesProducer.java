@@ -1309,10 +1309,10 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
                         if (lookaheadBlockIndex + 1 != blockIndex) {
                             lookaheadData.seek(indexReader.get(blockIndex));
                         }
-                        if (maxOrd >= 0) {
-                            decoder.decodeOrdinals(lookaheadData, lookaheadBlock, bitsPerOrd);
-                        } else {
+                        if (maxOrd == -1L) {
                             decoder.decode(lookaheadData, lookaheadBlock);
+                        } else {
+                            decoder.decodeOrdinals(lookaheadData, lookaheadBlock, bitsPerOrd);
                         }
                         lookaheadBlockIndex = blockIndex;
                     }

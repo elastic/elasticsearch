@@ -47,6 +47,8 @@ import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
 import static org.elasticsearch.index.query.QueryBuilders.rangeQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.DEFAULT_DATE_NANOS_FORMATTER;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.DEFAULT_DATE_TIME_FORMATTER;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.dateNanosToLong;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.dateTimeToLong;
 import static org.hamcrest.Matchers.is;
@@ -91,8 +93,12 @@ public class ReplaceRoundToWithQueryAndTagsTests extends LocalPhysicalPlanOptimi
         Map.ofEntries(
             Map.entry("keyword == \"keyword\"", termQuery("keyword", "keyword").boost(0)),
             Map.entry(
-                "keyword >= \"2023-10-19\" and keyword <= \"2023-10-24\"",
-                rangeQuery("keyword").gte("2023-10-19").lte("2023-10-24").timeZone("Z").boost(0)
+                "date >= \"2023-10-19\" and date <= \"2023-10-24\"",
+                rangeQuery("date").gte("2023-10-19T00:00:00.000Z")
+                    .lte("2023-10-24T00:00:00.000Z")
+                    .timeZone("Z")
+                    .boost(0)
+                    .format(DEFAULT_DATE_TIME_FORMATTER.pattern())
             ),
             Map.entry("keyword : \"keyword\"", matchQuery("keyword", "keyword").lenient(true))
         )
@@ -238,8 +244,8 @@ public class ReplaceRoundToWithQueryAndTagsTests extends LocalPhysicalPlanOptimi
                     : wrapWithSingleQuery(
                         query,
                         qb,
-                        "keyword",
-                        new Source(2, 8, predicate.contains("and") ? predicate.substring(0, 23) : predicate)
+                        predicate.contains("and") ? "date" : "keyword",
+                        new Source(2, 8, predicate.contains("and") ? predicate.substring(0, 20) : predicate)
                     );
 
                 PhysicalPlan plan = plannerOptimizer.plan(query, searchStats, makeAnalyzer("mapping-all-types.json"));
@@ -305,9 +311,9 @@ public class ReplaceRoundToWithQueryAndTagsTests extends LocalPhysicalPlanOptimi
             if (isNumericField) {
                 rangeQueryBuilder = rangeQuery(fieldName).boost(0);
             } else if (isDateField) { // date
-                rangeQueryBuilder = rangeQuery(fieldName).boost(0).timeZone("Z").format("strict_date_optional_time");
+                rangeQueryBuilder = rangeQuery(fieldName).boost(0).timeZone("Z").format(DEFAULT_DATE_TIME_FORMATTER.pattern());
             } else { // date_nanos
-                rangeQueryBuilder = rangeQuery(fieldName).boost(0).timeZone("Z").format("strict_date_optional_time_nanos");
+                rangeQueryBuilder = rangeQuery(fieldName).boost(0).timeZone("Z").format(DEFAULT_DATE_NANOS_FORMATTER.pattern());
             }
             if (upper != null) {
                 rangeQueryBuilder = rangeQueryBuilder.lt(upper);

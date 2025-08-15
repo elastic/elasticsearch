@@ -1434,11 +1434,7 @@ public final class TextFieldMapper extends TextFamilyFieldMapper {
             }
 
             // otherwise, store this field in Lucene so that synthetic source can load it
-            var utfBytes = context.parser().optimizedTextOrNull().bytes();
-            var valuesBytesRef = new BytesRef(utfBytes.bytes(), utfBytes.offset(), utfBytes.length());
-            context.storeFieldForSyntheticSource(fullPath(), leafName(), valuesBytesRef, context.doc());
-            // final String fieldName = fieldType().syntheticSourceFallbackFieldName();
-            // context.doc().add(new StoredField(fieldName, value));
+            context.storeFieldForSyntheticSource(fullPath(), leafName(), context.encodeFlattenedToken(), context.doc());
         }
     }
 

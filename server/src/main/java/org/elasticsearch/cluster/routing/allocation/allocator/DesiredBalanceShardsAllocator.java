@@ -438,6 +438,10 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
         );
     }
 
+    public DesiredBalanceMetrics.AllocationStats getAllocationStats() {
+        return desiredBalanceMetrics.allocationStats();
+    }
+
     private void onNoLongerMaster() {
         if (indexGenerator.getAndSet(-1) != -1) {
             currentDesiredBalanceRef.set(DesiredBalance.NOT_MASTER);

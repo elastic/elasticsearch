@@ -18,6 +18,7 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.BoostingQueryBuilder;
 import org.elasticsearch.index.query.ConstantScoreQueryBuilder;
@@ -45,6 +46,9 @@ public final class FieldCapabilitiesRequest extends LegacyActionRequest implemen
     public static final IndicesOptions DEFAULT_INDICES_OPTIONS = IndicesOptions.strictExpandOpenAndForbidClosed();
 
     private String clusterAlias = RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY;
+
+    @Nullable
+    private String projectRouting;
 
     private String[] indices = Strings.EMPTY_ARRAY;
     private IndicesOptions indicesOptions = DEFAULT_INDICES_OPTIONS;
@@ -111,6 +115,15 @@ public final class FieldCapabilitiesRequest extends LegacyActionRequest implemen
 
     String clusterAlias() {
         return clusterAlias;
+    }
+
+    @Nullable
+    public String projectRouting() {
+        return projectRouting;
+    }
+
+    public void projectRouting(String projectRouting) {
+        this.projectRouting = projectRouting;
     }
 
     @Override

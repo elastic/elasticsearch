@@ -1130,7 +1130,8 @@ public class Security extends Plugin
             operatorPrivilegesService.get(),
             restrictedIndices,
             authorizationDenialMessages.get(),
-            projectResolver
+            projectResolver,
+            new EsqlProjectRouter(client)
         );
 
         components.add(nativeRolesStore); // used by roles actions

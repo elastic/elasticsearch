@@ -81,6 +81,7 @@ import org.elasticsearch.xpack.core.security.user.AnonymousUser;
 import org.elasticsearch.xpack.core.security.user.InternalUser;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
+import org.elasticsearch.xpack.security.EsqlProjectRouter;
 import org.elasticsearch.xpack.security.Security;
 import org.elasticsearch.xpack.security.audit.AuditLevel;
 import org.elasticsearch.xpack.security.audit.AuditTrail;
@@ -164,12 +165,13 @@ public class AuthorizationService {
         OperatorPrivilegesService operatorPrivilegesService,
         RestrictedIndices restrictedIndices,
         AuthorizationDenialMessages authorizationDenialMessages,
-        ProjectResolver projectResolver
+        ProjectResolver projectResolver,
+        EsqlProjectRouter router
     ) {
         this.clusterService = clusterService;
         this.auditTrailService = auditTrailService;
         this.restrictedIndices = restrictedIndices;
-        this.indicesAndAliasesResolver = new IndicesAndAliasesResolver(settings, clusterService, resolver);
+        this.indicesAndAliasesResolver = new IndicesAndAliasesResolver(settings, clusterService, resolver, router);
         this.authcFailureHandler = authcFailureHandler;
         this.threadContext = threadPool.getThreadContext();
         this.securityContext = new SecurityContext(settings, this.threadContext);

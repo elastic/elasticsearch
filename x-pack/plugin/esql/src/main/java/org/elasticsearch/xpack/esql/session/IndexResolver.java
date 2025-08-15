@@ -270,6 +270,8 @@ public class IndexResolver {
         req.fields(fieldNames.toArray(String[]::new));
         req.includeUnmapped(true);
         req.indexFilter(requestFilter);
+        // Note: this is just some bogus query to demonstrate that we can invoke the full ES|QL engine from the security layer
+        req.projectRouting("row a = 1, b = \"x\", c = 1000000000000, d = 1.1");
         // lenient because we throw our own errors looking at the response e.g. if something was not resolved
         // also because this way security doesn't throw authorization exceptions but rather honors ignore_unavailable
         req.indicesOptions(FIELD_CAPS_INDICES_OPTIONS);

@@ -1139,20 +1139,11 @@ public class ES819TSDBDocValuesFormatTests extends ES87TSDBDocValuesFormatTests 
                                         return docId;
                                     }
                                 }, start);
-                                Set<String> seenValues = new HashSet<>();
-                                for (int p = start; p <= end; p++) {
-                                    String hostName = hostnames.get(((Number) idBlock.get(p)).intValue());
-                                    seenValues.add(hostName);
-                                }
-                                if (seenValues.size() == 1) {
-                                    assertNotNull(hostBlock);
-                                    assertThat(hostBlock.size(), equalTo(end - start + 1));
-                                    for (int i = 0; i < hostBlock.size(); i++) {
-                                        String actualHostName = BytesRefs.toString(hostBlock.get(i));
-                                        assertThat(actualHostName, equalTo(hostnames.get(((Number) idBlock.get(i + start)).intValue())));
-                                    }
-                                } else {
-                                    assertNull(hostBlock);
+                                assertNotNull(hostBlock);
+                                assertThat(hostBlock.size(), equalTo(end - start + 1));
+                                for (int i = 0; i < hostBlock.size(); i++) {
+                                    String actualHostName = BytesRefs.toString(hostBlock.get(i));
+                                    assertThat(actualHostName, equalTo(hostnames.get(((Number) idBlock.get(i + start)).intValue())));
                                 }
                                 if (start == idBlock.size() - 1) {
                                     break;

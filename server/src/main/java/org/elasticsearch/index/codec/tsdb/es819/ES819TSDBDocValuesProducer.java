@@ -398,7 +398,7 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
                         }
                         // TODO: Since ordinals are sorted, start at 0 (offset by startValue), scan until lastValue,
                         // then fill remaining positions with lastValue.
-                        return null;
+                        // Falling back to tryRead(...) is safe here, given that current block index wasn't altered by looking ahead.
                     }
                     try (var builder = factory.singletonOrdinalsBuilder(this, docs.count() - offset, true)) {
                         BlockLoader.SingletonLongBuilder delegate = new SingletonLongToSingletonOrdinalDelegate(builder);

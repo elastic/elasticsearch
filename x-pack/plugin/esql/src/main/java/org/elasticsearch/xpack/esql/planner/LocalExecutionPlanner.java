@@ -119,7 +119,6 @@ import org.elasticsearch.xpack.esql.plan.physical.SampleExec;
 import org.elasticsearch.xpack.esql.plan.physical.ShowExec;
 import org.elasticsearch.xpack.esql.plan.physical.TimeSeriesSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
-import org.elasticsearch.xpack.esql.plan.physical.UnaryExec;
 import org.elasticsearch.xpack.esql.plan.physical.inference.CompletionExec;
 import org.elasticsearch.xpack.esql.plan.physical.inference.RerankExec;
 import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders.ShardContext;
@@ -733,8 +732,8 @@ public class LocalExecutionPlanner {
         }
         Layout layout = layoutBuilder.build();
 
-        EsQueryExec localSourceExec = fildEsQueryExec(join.lookup());
-        if (localSourceExec == null || localSourceExec.indexMode() != IndexMode.LOOKUP) {
+        EsQueryExec localSourceExec = (EsQueryExec) join.lookup();
+        if (localSourceExec.indexMode() != IndexMode.LOOKUP) {
             throw new IllegalArgumentException("can't plan [" + join + "]");
         }
 
@@ -781,7 +780,11 @@ public class LocalExecutionPlanner {
             }
             matchFields.add(new MatchConfig(right, input));
         }
-
+        PhysicalPlan rightPreJoinPlan = join.right();
+        if (join.getOptionalRightHandFilters() != null) {
+            // If there are filters on the right side, we need to apply them before the join
+            rightPreJoinPlan = new FilterExec(Source.EMPTY, rightPreJoinPlan, join.getOptionalRightHandFilters());
+        }
         return source.with(
             new LookupFromIndexOperator.Factory(
                 matchFields,
@@ -793,19 +796,10 @@ public class LocalExecutionPlanner {
                 indexName,
                 join.addedFields().stream().map(f -> (NamedExpression) f).toList(),
                 join.source(),
-                join.right()
+                rightPreJoinPlan
             ),
             layout
         );
-    }
-
-    private EsQueryExec fildEsQueryExec(PhysicalPlan lookup) {
-        if (lookup instanceof EsQueryExec esQueryExec) {
-            return esQueryExec;
-        } else if (lookup instanceof UnaryExec unaryExec) {
-            return fildEsQueryExec(unaryExec.child());
-        }
-        return null;
     }
 
     private PhysicalOperation planLocal(LocalSourceExec localSourceExec, LocalExecutionPlannerContext context) {

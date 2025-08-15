@@ -129,7 +129,15 @@ public class LocalMapper {
 
     private static LookupJoinExec getLookupJoinExec(Join join, PhysicalPlan right, PhysicalPlan left, JoinConfig config) {
         if (right instanceof EsSourceExec source && source.indexMode() == IndexMode.LOOKUP) {
-            return new LookupJoinExec(join.source(), left, right, config.leftFields(), config.rightFields(), join.rightOutputFields());
+            return new LookupJoinExec(
+                join.source(),
+                left,
+                right,
+                config.leftFields(),
+                config.rightFields(),
+                join.rightOutputFields(),
+                join.optionalRightHandFilters()
+            );
         }
         return null;
     }

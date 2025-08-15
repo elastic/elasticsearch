@@ -159,9 +159,11 @@ public final class PushDownAndCombineFilters extends OptimizerRules.OptimizerRul
                 // push the filter down to the right child
                 List<Expression> rightPushableFilters = buildRightPushableFilters(scoped.rightFilters());
                 if (rightPushableFilters.isEmpty() == false) {
-                    right = new Filter(right.source(), right, Predicates.combineAnd(rightPushableFilters));
+                    // right = new Filter(right.source(), right, Predicates.combineAnd(rightPushableFilters));
                     // update the join with the new right child
-                    join = (Join) join.replaceRight(right);
+                    // join = (Join) join.replaceRight(right);
+                    Expression optionalRightHandSideFilters = Predicates.combineAnd(rightPushableFilters);
+                    join = join.withOptionalRightHandFilters(optionalRightHandSideFilters);
                     optimizationApplied = true;
                 }
                 // We still want to reapply the filters that we just applied to the right child,

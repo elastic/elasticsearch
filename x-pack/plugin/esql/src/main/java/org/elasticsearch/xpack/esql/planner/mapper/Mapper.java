@@ -240,7 +240,8 @@ public class Mapper {
                         right,
                         config.leftFields(),
                         config.rightFields(),
-                        join.rightOutputFields()
+                        join.rightOutputFields(),
+                        join.optionalRightHandFilters()
                     );
                 }
             }

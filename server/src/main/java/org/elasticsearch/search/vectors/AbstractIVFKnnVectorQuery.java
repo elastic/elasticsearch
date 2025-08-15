@@ -173,12 +173,18 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
                 .mapToDouble(Double::doubleValue)
                 .toArray();
 
-            double averageAffinity = Arrays.stream(affinityScores).average().orElse(Double.NaN);
-            // max affinity for decreasing visited ratio
-            double maxAffinity = Arrays.stream(affinityScores).max().orElse(Double.NaN);
-            double lowerAffinity = (maxAffinity + averageAffinity) * 0.5;
-            double cutoffAffinity = lowerAffinity * 0.1; // minimum affinity score for a segment to be considered
-            double affinityThreshold = (maxAffinity + lowerAffinity) * 0.66; // min affinity for increasing visited ratio
+
+            double[] filteredAffinityScores = Arrays.stream(affinityScores).filter(x -> Double.isNaN(x) == false &&
+                Double.isInfinite(x) == false).toArray();
+
+            final double averageAffinity = Arrays.stream(filteredAffinityScores).average().orElse(0.0);
+            double variance = Arrays.stream(filteredAffinityScores).map(x -> (x-averageAffinity) * (x-averageAffinity)).sum() /
+                filteredAffinityScores.length;
+            double stdDev = Math.sqrt(variance);
+
+            double maxAffinity = averageAffinity + 50 * stdDev;
+            double cutoffAffinity = averageAffinity - 50 * stdDev;
+            double affinityThreshold = averageAffinity + stdDev;
 
             float maxAdjustments = visitRatio * 1.5f;
 
@@ -190,7 +196,11 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
             } else {
                 tasks = new ArrayList<>(segmentAffinities.size());
                 double scoreVectorsSum = segmentAffinities.stream()
-                    .map(segmentAffinity -> segmentAffinity.affinityScore * segmentAffinity.context.reader().numDocs())
+                    .map(segmentAffinity -> {
+                        double affinity = Double.isNaN(segmentAffinity.affinityScore) ? maxAffinity : segmentAffinity.affinityScore;
+                        affinity = Math.clamp(affinity, 0.0, maxAffinity);
+                        return affinity * segmentAffinity.context.reader().numDocs();
+                    })
                     .mapToDouble(Double::doubleValue)
                     .sum();
 

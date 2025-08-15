@@ -1931,14 +1931,15 @@ emp_no:integer | birth_date:date                     | hire_date:date           
 10040          | null                                | 1993-02-14T00:00:00.000Z   | null  
 ;
 
+
 monthNameRowTest
 required_capability:fn_month_name
 // tag::docsMonthName[]
 ROW dt = to_datetime("1996-03-21T00:00:00.000Z")
-| EVAL weekday = MONTH_NAME(dt);
+| EVAL monthName = MONTH_NAME(dt);
 // end::docsMonthName[]
 
-dt:date   | weekday:keyword
+dt:date   | monthName:keyword
 1996-03-21T00:00:00.000Z | March
 ;
 
@@ -1947,10 +1948,10 @@ required_capability:fn_month_name
 from employees 
 | sort emp_no 
 | keep emp_no, hire_date
-| eval day = month_name(hire_date) 
+| eval monthName = month_name(hire_date) 
 | limit 1;
 
-emp_no:integer | hire_date:date             | day:keyword
+emp_no:integer | hire_date:date             | monthName:keyword
 10001          | 1986-06-26T00:00:00.000Z   | June     
 ;
 
@@ -1962,12 +1963,12 @@ FROM employees
 | WHERE a > "1987-01-01" and a < "1988-01-01"
 | EVAL y = date_trunc(1 month, b) 
 | STATS c = count(emp_no) by y
-| EVAL week_day = month_name(y)
+| EVAL monthName = month_name(y)
 | SORT y
-| KEEP y, c, week_day
+| KEEP y, c, monthName
 | LIMIT 5;
 
-y:date                   | c:long   | week_day:keyword
+y:date                   | c:long   | monthName:keyword
 1987-03-01T00:00:00.000Z | 5      | March
 1987-04-01T00:00:00.000Z | 3      | April
 1987-05-01T00:00:00.000Z | 1      | May
@@ -1979,11 +1980,11 @@ monthNameNestedCall
 required_capability:fn_month_name
 from employees 
 | sort emp_no 
-| eval first_day_of_month = month_name(date_trunc(1 month, hire_date))
-| keep emp_no, hire_date, first_day_of_month
+| eval monthName = month_name(date_trunc(1 month, hire_date))
+| keep emp_no, hire_date, monthName
 | limit 10;
 
-emp_no:integer | hire_date:datetime       | first_day_of_month:keyword
+emp_no:integer | hire_date:datetime       | monthName:keyword
 10001          | 1986-06-26T00:00:00.000Z | June
 10002          | 1985-11-21T00:00:00.000Z | November
 10003          | 1986-08-28T00:00:00.000Z | August
@@ -2000,11 +2001,11 @@ monthNameNestedCall
 required_capability:fn_month_name
 from employees 
 | sort emp_no desc
-| eval first_day_of_month = to_upper(month_name(date_trunc(1 month, hire_date)))
-| keep emp_no, hire_date, first_day_of_month
+| eval monthName = to_upper(month_name(date_trunc(1 month, hire_date)))
+| keep emp_no, hire_date, monthName
 | limit 10;
 
-emp_no:integer | hire_date:datetime       | first_day_of_month:keyword
+emp_no:integer | hire_date:datetime       | monthName:keyword
 10100          | 1987-09-21T00:00:00.000Z | SEPTEMBER
 10099          | 1988-10-18T00:00:00.000Z | OCTOBER
 10098          | 1985-05-13T00:00:00.000Z | MAY
@@ -2019,8 +2020,11 @@ emp_no:integer | hire_date:datetime       | first_day_of_month:keyword
 
 monthNameNull
 required_capability:fn_month_name
-from employees | where emp_no == 10040 | eval x = day_name(birth_date) | keep emp_no, birth_date, hire_date, x;
+from employees 
+| where emp_no == 10040 
+| eval monthName = month_name(birth_date) 
+| keep emp_no, birth_date, hire_date, monthName;
 
-emp_no:integer | birth_date:date                     | hire_date:date             | x:keyword
+emp_no:integer | birth_date:date                     | hire_date:date             | monthName:keyword
 10040          | null                                | 1993-02-14T00:00:00.000Z   | null  
 ;

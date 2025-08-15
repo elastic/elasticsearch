@@ -4,7 +4,7 @@
 
 ```esql
 ROW dt = to_datetime("1996-03-21T00:00:00.000Z")
-| EVAL weekday = MONTH_NAME(dt);
+| EVAL monthName = MONTH_NAME(dt);
 ```
 
 

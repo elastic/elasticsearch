@@ -30,7 +30,7 @@
     }
   ],
   "examples" : [
-    "ROW dt = to_datetime(\"1996-03-21T00:00:00.000Z\")\n| EVAL weekday = MONTH_NAME(dt);"
+    "ROW dt = to_datetime(\"1996-03-21T00:00:00.000Z\")\n| EVAL monthName = MONTH_NAME(dt);"
   ],
   "preview" : false,
   "snapshot_only" : false

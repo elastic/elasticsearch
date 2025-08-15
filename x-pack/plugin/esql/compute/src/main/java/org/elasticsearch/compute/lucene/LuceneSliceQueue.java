@@ -80,10 +80,24 @@ public final class LuceneSliceQueue {
     public static final int MAX_SEGMENTS_PER_SLICE = 5; // copied from IndexSearcher
 
     private final int totalSlices;
-    private final AtomicReferenceArray<LuceneSlice> slices;
-    private final Queue<Integer> startedPositions;
-    private final Queue<Integer> followedPositions;
     private final Map<String, PartitioningStrategy> partitioningStrategies;
+
+    private final AtomicReferenceArray<LuceneSlice> slices;
+    /**
+     * Queue of slice IDs that are the primary entry point for a new group of segments.
+     * A driver should prioritize polling from this queue after failing to get a sequential
+     * slice (the segment affinity). This ensures that threads start work on fresh,
+     * independent segment groups before resorting to work stealing.
+     */
+    private final Queue<Integer> sliceHeads;
+
+    /**
+     * Queue of slice IDs that are not the primary entry point for a segment group.
+     * This queue serves as a fallback pool for work stealing. When a thread has no more independent work,
+     * it will "steal" a slice from this queue to keep itself utilized. A driver should pull tasks from
+     * this queue only when {@code sliceHeads} has been exhausted.
+     */
+    private final Queue<Integer> stealableSlices;
 
     LuceneSliceQueue(List<LuceneSlice> sliceList, Map<String, PartitioningStrategy> partitioningStrategies) {
         this.totalSlices = sliceList.size();
@@ -92,25 +106,27 @@ public final class LuceneSliceQueue {
             slices.set(i, sliceList.get(i));
         }
         this.partitioningStrategies = partitioningStrategies;
-        this.startedPositions = ConcurrentCollections.newQueue();
-        this.followedPositions = ConcurrentCollections.newQueue();
+        this.sliceHeads = ConcurrentCollections.newQueue();
+        this.stealableSlices = ConcurrentCollections.newQueue();
         for (LuceneSlice slice : sliceList) {
             if (slice.getLeaf(0).minDoc() == 0) {
-                startedPositions.add(slice.slicePosition());
+                sliceHeads.add(slice.slicePosition());
             } else {
-                followedPositions.add(slice.slicePosition());
+                stealableSlices.add(slice.slicePosition());
             }
         }
     }
 
     /**
      * Retrieves the next available {@link LuceneSlice} for processing.
-     * If a previous slice is provided, this method first attempts to return the next sequential slice to maintain segment affinity
-     * and minimize the cost of switching between segments.
      * <p>
-     * If no sequential slice is available, it returns the next slice from the {@code startedPositions} queue, which starts a new
-     * group of segments. If all started positions are exhausted, it steals a slice from the {@code followedPositions} queue,
-     * enabling work stealing.
+     * This method implements a three-tiered strategy to minimize the overhead of switching between segments:
+     * 1. If a previous slice is provided, it first attempts to return the next sequential slice.
+     * This keeps a thread working on the same segments, minimizing the overhead of segment switching.
+     * 2. If affinity fails, it returns a slice from the {@link #sliceHeads} queue, which is an entry point for
+     * a new, independent group of segments, allowing the calling Driver to work on a fresh set of segments.
+     * 3. If the {@link #sliceHeads} queue is exhausted, it "steals" a slice
+     * from the {@link #stealableSlices} queue. This fallback ensures all threads remain utilized.
      *
      * @param prev the previously returned {@link LuceneSlice}, or {@code null} if starting
      * @return the next available {@link LuceneSlice}, or {@code null} if exhausted
@@ -126,7 +142,7 @@ public final class LuceneSliceQueue {
                 }
             }
         }
-        for (var ids : List.of(startedPositions, followedPositions)) {
+        for (var ids : List.of(sliceHeads, stealableSlices)) {
             Integer nextId;
             while ((nextId = ids.poll()) != null) {
                 var slice = slices.getAndSet(nextId, null);

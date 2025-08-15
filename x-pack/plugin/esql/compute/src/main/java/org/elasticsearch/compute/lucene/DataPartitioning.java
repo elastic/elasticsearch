@@ -42,17 +42,17 @@ public enum DataPartitioning {
      * Partitions into dynamic-sized slices to improve CPU utilization while keeping overhead low.
      * This approach is more flexible than {@link #SEGMENT} and works as follows:
      *
-     * <p>1. The slice size starts from a desired size based on {@code task_concurrency} but is capped
-     * at around {@link LuceneSliceQueue#MAX_DOCS_PER_SLICE}. This prevents poor CPU usage when
-     * matching documents are clustered together.
-     *
-     * <p>2. For small and medium segments (less than five times the desired slice size), it uses a
-     * slightly different {@link #SEGMENT} strategy, which also splits segments that are larger
-     * than the desired size. See {@link org.apache.lucene.search.IndexSearcher#slices(List, int, int, boolean)}.
-     *
-     * <p>3. For very large segments, multiple segments are not combined into a single slice. This allows
-     * one driver to process an entire large segment until other drivers steal the work after finishing
-     * their own tasks. See {@link LuceneSliceQueue#nextSlice(LuceneSlice)}.
+     * <ol>
+     *   <li>The slice size starts from a desired size based on {@code task_concurrency} but is capped
+     *       at around {@link LuceneSliceQueue#MAX_DOCS_PER_SLICE}. This prevents poor CPU usage when
+     *       matching documents are clustered together.</li>
+     *   <li>For small and medium segments (less than five times the desired slice size), it uses a
+     *       slightly different {@link #SEGMENT} strategy, which also splits segments that are larger
+     *       than the desired size. See {@link org.apache.lucene.search.IndexSearcher#slices(List, int, int, boolean)}.</li>
+     *   <li>For very large segments, multiple segments are not combined into a single slice. This allows
+     *       one driver to process an entire large segment until other drivers steal the work after finishing
+     *       their own tasks. See {@link LuceneSliceQueue#nextSlice(LuceneSlice)}.</li>
+     * </ol>
      */
     DOC
 }

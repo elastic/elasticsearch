@@ -546,6 +546,9 @@ tests:
 - class: org.elasticsearch.test.rest.yaml.CcsCommonYamlTestSuiteIT
   method: test {p0=search/160_exists_query/Test exists query on unmapped float field}
   issue: https://github.com/elastic/elasticsearch/issues/132984
+- class: org.elasticsearch.xpack.esql.analysis.AnalyzerTests
+  method: testMagnitudePlanWithDenseVectorImplicitCasting
+  issue: https://github.com/elastic/elasticsearch/issues/132985
 
 # Examples:
 #

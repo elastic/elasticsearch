@@ -385,7 +385,7 @@ public abstract class DocumentParserContext {
      * For instance: { "a.b": "b", "a.c": "c" } => { "a": { "b": "b" }, "a": { "c": "c" } }
      * This can happen when storing parts of document source that are not indexed (e.g. disabled objects).
      */
-    BytesRef encodeFlattenedToken() throws IOException {
+    public BytesRef encodeFlattenedToken() throws IOException {
         boolean old = path().isWithinLeafObject();
         path().setWithinLeafObject(true);
         BytesRef encoded = XContentDataHelper.encodeToken(parser());

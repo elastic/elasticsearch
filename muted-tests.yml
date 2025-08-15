@@ -552,6 +552,9 @@ tests:
 - class: org.elasticsearch.xpack.search.AsyncSearchErrorTraceIT
   method: testAsyncSearchFailingQueryErrorTraceDefault
   issue: https://github.com/elastic/elasticsearch/issues/133010
+- class: org.elasticsearch.xpack.esql.plugin.IndexResolutionIT
+  method: testDoesNotResolveClosedIndex
+  issue: https://github.com/elastic/elasticsearch/issues/133011
 
 # Examples:
 #

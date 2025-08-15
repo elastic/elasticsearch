@@ -8,11 +8,10 @@
  */
 
 
-import de.thetaphi.forbiddenapis.gradle.ForbiddenApisPlugin
 import com.avast.gradle.dockercompose.tasks.ComposePull
 import com.fasterxml.jackson.databind.JsonNode
 import com.fasterxml.jackson.databind.ObjectMapper
-
+import de.thetaphi.forbiddenapis.gradle.ForbiddenApisPlugin
 import org.elasticsearch.gradle.DistributionDownloadPlugin
 import org.elasticsearch.gradle.Version
 import org.elasticsearch.gradle.VersionProperties
@@ -22,6 +21,9 @@ import org.elasticsearch.gradle.util.GradleUtils
 import org.gradle.plugins.ide.eclipse.model.AccessRule
 
 import java.nio.file.Files
+import java.util.Map.Entry
+import java.util.regex.Matcher
+import java.util.stream.Collectors
 
 import static java.nio.file.StandardCopyOption.REPLACE_EXISTING
 import static org.elasticsearch.gradle.util.GradleUtils.maybeConfigure
@@ -200,6 +202,89 @@ tasks.register("updateCIBwcVersions") {
       ".buildkite/pipelines/periodic-packaging.bwc.template.yml",
       filterIntermediatePatches(buildParams.bwcVersions.indexCompatible)
     )
+  }
+}
+
+/**
+ * This task forces all TransportVersion (TV) changes to first go through the main branch, to force synchronization of
+ * TV changes. We never want to be in a situation where a transport version integer ID is duplicated in two places
+ * (e.g. 8.x and main) for two independent constants. This situation has happened historically, and was a result of
+ * forward-porting TV changes to main. This task is not applicable to PRs to main, but only for PRs to older versions.
+ */
+tasks.register("ensureTransportVersionsInMain") {
+  doLast {
+    if (gradle.startParameter.isOffline()) {
+      throw new GradleException("Must run in online mode to verify that transport versions already exist in main first.")
+    }
+    def mainTransportVersions = new URI('https://raw.githubusercontent.com/elastic/elasticsearch/refs/heads/main/server/src/main/java/org/elasticsearch/TransportVersions.java').toURL().text
+    def currentTransportVersions = file('server/src/main/java/org/elasticsearch/TransportVersions.java').text
+
+    def mainTVNameAndIds = extractTransportVersionNameAndID(mainTransportVersions)
+    def currentNameAndIds = extractTransportVersionNameAndID(currentTransportVersions)
+
+    ensureAllCurrentTVsExistInMain(currentNameAndIds, mainTVNameAndIds)
+  }
+}
+
+static def ensureAllCurrentTVsExistInMain(Map<String, Integer> currentNameAndIds, Map<String, Integer> mainTVNameAndIds) {
+  currentNameAndIds.each { versionName, versionValue ->
+    if (mainTVNameAndIds[versionName] != versionValue) {
+      throw new GradleException("Transport version ${versionName} with value ${versionValue} is not present in " +
+              "the main branch. All TVs must be added to main first, prior to backporting.")
+    }
+  }
+}
+
+static Map<String, Integer> extractTransportVersionNameAndID(String transportVersionFileAsText) {
+  def transportVersionRegex = /public static final TransportVersion (\w+) = def\((\w+)\);/
+  Matcher tVMatcher = transportVersionFileAsText =~ transportVersionRegex
+  return tVMatcher.iterator().collectEntries { [(it[1]): Integer.valueOf(it[2].replace("_", ""))] }
+}
+
+/**
+ * This task validates that the transport versions in the current branch are consistent with the main branch, and tests
+ * for a number of race conditions that would lead to an invalid state if this branch was merged.
+ */
+tasks.register("validateTransportVersions") {
+  doLast {
+    if (gradle.startParameter.isOffline()) {
+      throw new GradleException("Must run in online mode to validate transport versions")
+    }
+    def mainTransportVersions = new URI('https://raw.githubusercontent.com/elastic/elasticsearch/refs/heads/main/server/src/main/java/org/elasticsearch/TransportVersions.java').toURL().text
+    def currentTransportVersions = file('server/src/main/java/org/elasticsearch/TransportVersions.java').text
+
+    def mainTVNameAndIds = extractTransportVersionNameAndID(mainTransportVersions)
+    def currentNameAndIds = extractTransportVersionNameAndID(currentTransportVersions)
+
+    // Ensure that this is the latest TV (e.g. there are no newer Ids merged to main). Applicable for all branches.
+    def latestCurrentId = currentNameAndIds.values().stream().max(Integer::compare).get();
+    def latestMainId = mainTVNameAndIds.values().stream().max(Integer::compare).get();
+    if (latestCurrentId < latestMainId) {
+      throw new GradleException("The latest transport version with id ${latestCurrentId} on the current branch is " +
+              "out of date with main, who latest transport version has the id ${latestMainId}")
+    }
+
+    // Ensure that there are no duplicate IDs. Applicable for main builds, preventing the race conditions author1
+    // checks-out main, then author2 checks out main and commits a new TV with the next TV id, then author1 commits a
+    // TV with the same TV id as author 2. This will break the main build in this situation, but catch the bug.
+    def idSet = new HashSet<Integer>()
+    currentNameAndIds.each { versionName, versionValue ->
+      if (idSet.contains(versionValue)) {
+        throw new GradleException("Duplicate transport version id ${versionValue} found for version ${versionName}. " +
+                "Transport versions must have unique IDs.")
+      }
+      idSet.add(versionValue)
+    }
+
+    // Ensure there isn't a TV with another name but same ID in main. An additional check to try to catch the race
+    // condition described above, but hopefully earlier on the PR prior to breaking the main build.
+    def mainTVIdToName = mainTVNameAndIds.entrySet().stream().collect(Collectors.toMap(Entry::getValue, Entry::getKey))
+    currentNameAndIds.each { versionName, versionValue ->
+      if (mainTVIdToName.containsKey(versionValue) && mainTVIdToName.get(versionValue) != versionName) {
+        throw new GradleException("Transport version id ${versionValue} is already used by ${mainTVIdToName.get(versionValue)} in main, " +
+                "but is being used by ${versionName} in the current branch. Transport versions must have unique IDs.")
+      }
+    }
   }
 }
 

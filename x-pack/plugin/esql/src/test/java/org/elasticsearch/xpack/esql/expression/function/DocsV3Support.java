@@ -664,6 +664,17 @@ public abstract class DocsV3Support {
             writeToTempSnippetsDir("functionNamedParams", rendered.toString());
         }
 
+        /**
+         * Build the {@code {applies_to}} annotation for the docs to tell users which version of
+         * Elasticsearch first supported this function/operator/signature.
+         * @param functionAppliesTos The version information for stateful Elasticsearch
+         * @param preview Is this tech preview? Effectively just generates the
+         *                {@code serverless: preview} annotation if true and nothing if false.
+         * @param oneLine Should we generate a single line variant of the {@code {applies_to}}
+         *                annotation compatible with tables (true) or the more readable
+         *                multi-line variant (false)?
+         * @return Text of the {@code {applies_to}} annotation
+         */
         private static String makeAppliesToText(List<FunctionAppliesTo> functionAppliesTos, boolean preview, boolean oneLine) {
             StringBuilder appliesToText = new StringBuilder();
             if (false == functionAppliesTos.isEmpty()) {

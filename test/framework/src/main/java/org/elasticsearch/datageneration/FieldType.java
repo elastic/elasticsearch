@@ -23,6 +23,7 @@ import org.elasticsearch.datageneration.fields.leaf.IntegerFieldDataGenerator;
 import org.elasticsearch.datageneration.fields.leaf.IpFieldDataGenerator;
 import org.elasticsearch.datageneration.fields.leaf.KeywordFieldDataGenerator;
 import org.elasticsearch.datageneration.fields.leaf.LongFieldDataGenerator;
+import org.elasticsearch.datageneration.fields.leaf.MatchOnlyTextFieldDataGenerator;
 import org.elasticsearch.datageneration.fields.leaf.ScaledFloatFieldDataGenerator;
 import org.elasticsearch.datageneration.fields.leaf.ShortFieldDataGenerator;
 import org.elasticsearch.datageneration.fields.leaf.TextFieldDataGenerator;
@@ -52,6 +53,7 @@ public enum FieldType {
     CONSTANT_KEYWORD("constant_keyword"),
     PASSTHROUGH("passthrough"), // For now this field type does not have default generators.
     WILDCARD("wildcard");
+    MATCH_ONLY_TEXT("match_only_text");
 
     private final String name;
 
@@ -79,6 +81,7 @@ public enum FieldType {
             case IP -> new IpFieldDataGenerator(dataSource);
             case CONSTANT_KEYWORD -> new ConstantKeywordFieldDataGenerator();
             case WILDCARD -> new WildcardFieldDataGenerator(dataSource);
+            case MATCH_ONLY_TEXT -> new MatchOnlyTextFieldDataGenerator(dataSource);
             case PASSTHROUGH -> throw new IllegalArgumentException("Passthrough field type does not have a default generator");
         };
     }
@@ -104,6 +107,7 @@ public enum FieldType {
             case "constant_keyword" -> FieldType.CONSTANT_KEYWORD;
             case "wildcard" -> FieldType.WILDCARD;
             case "passthrough" -> FieldType.PASSTHROUGH;
+            case "match_only_text" -> FieldType.MATCH_ONLY_TEXT;
             default -> throw new IllegalArgumentException("Unknown field type: " + name);
         };
     }

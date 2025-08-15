@@ -4,20 +4,24 @@
  * 2.0; you may not use this file except in compliance with the Elastic License
  * 2.0.
  */
-package org.elasticsearch.xpack.esql.expression.function;
+package org.elasticsearch.xpack.esql.expression;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.common.Failure;
 import org.elasticsearch.xpack.esql.common.Failures;
+import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 import static org.elasticsearch.xpack.esql.common.Failure.fail;
 
-public class FunctionUtils {
+public abstract class Foldables {
     /**
      * A utility class to validate the type resolution of expressions before and after logical planning.
      * If null is passed for Failures to the constructor, it means we are only type resolution.
@@ -62,6 +66,34 @@ public class FunctionUtils {
         public Expression.TypeResolution getResolvedType() {
             return typeResolution;
         }
+    }
+
+    public static Object valueOf(FoldContext ctx, Expression e) {
+        if (e.foldable()) {
+            return e.fold(ctx);
+        }
+        throw new QlIllegalArgumentException("Cannot determine value for {}", e);
+    }
+
+    public static String stringLiteralValueOf(Expression expression, String message) {
+        if (expression instanceof Literal literal && literal.value() instanceof BytesRef bytesRef) {
+            return bytesRef.utf8ToString();
+        }
+        throw new QlIllegalArgumentException(message);
+    }
+
+    public static Object literalValueOf(Expression e) {
+        if (e instanceof Literal literal) {
+            return literal.value();
+        }
+        throw new QlIllegalArgumentException("Expected literal, but got {}", e);
+    }
+
+    public static Object extractLiteralOrReturnSelf(Expression e) {
+        if (e instanceof Literal literal) {
+            return literal.value();
+        }
+        return e;
     }
 
     public static Integer limitValue(Expression limitField, String sourceText) {
@@ -146,6 +178,15 @@ public class FunctionUtils {
         }
         throw new EsqlIllegalArgumentException(
             format(null, "Query value must be a constant string in [{}], found [{}]", sourceText, queryField)
+        );
+    }
+
+    public static int intValueOf(Expression field, String sourceText, String fieldName) {
+        if (field instanceof Literal literal && literal.value() instanceof Number n) {
+            return n.intValue();
+        }
+        throw new EsqlIllegalArgumentException(
+            Strings.format(null, "[{}] value must be a constant number in [{}], found [{}]", fieldName, sourceText, field)
         );
     }
 }

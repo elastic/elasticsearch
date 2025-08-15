@@ -77,7 +77,7 @@ public class SnapshotMetricsIT extends AbstractSnapshotIntegTestCase {
             .build();
     }
 
-    public void testSnapshotAPMMetrics() {
+    public void testSnapshotAPMMetrics() throws Exception {
         final String indexName = randomIdentifier();
         final int numShards = randomIntBetween(1, 10);
         final int numReplicas = randomIntBetween(0, 1);
@@ -99,10 +99,15 @@ public class SnapshotMetricsIT extends AbstractSnapshotIntegTestCase {
                 .setWaitForCompletion(true)
                 .execute();
 
+            // We are able to wait for either the creation to complete (`wait_for_completion=false`), or the snapshot to complete
+            // (`wait_for_completion=true`), but not both. To know when the creation listeners complete, we must assertBusy
+            assertBusy(() -> {
+                collectMetrics();
+                assertThat(getTotalClusterLongCounterValue(SnapshotMetrics.SNAPSHOTS_STARTED), equalTo(1L));
+            });
+
             waitForBlockOnAnyDataNode(repositoryName);
-            collectMetrics();
             assertShardsInProgressMetricIs(hasItem(greaterThan(0L)));
-            assertThat(getTotalClusterLongCounterValue(SnapshotMetrics.SNAPSHOTS_STARTED), equalTo(1L));
             assertThat(getTotalClusterLongCounterValue(SnapshotMetrics.SNAPSHOTS_COMPLETED), equalTo(0L));
             assertThat(getTotalClusterLongCounterValue(SnapshotMetrics.SNAPSHOT_SHARDS_STARTED), greaterThan(0L));
             assertThat(getTotalClusterLongCounterValue(SnapshotMetrics.SNAPSHOT_SHARDS_COMPLETED), equalTo(0L));

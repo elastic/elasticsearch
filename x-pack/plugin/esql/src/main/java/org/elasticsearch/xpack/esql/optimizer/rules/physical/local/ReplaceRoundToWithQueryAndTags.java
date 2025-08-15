@@ -258,6 +258,7 @@ public class ReplaceRoundToWithQueryAndTags extends PhysicalOptimizerRules.Param
     protected PhysicalPlan rule(EvalExec evalExec, LocalPhysicalOptimizerContext ctx) {
         PhysicalPlan plan = evalExec;
         // TimeSeriesSourceOperator and LuceneTopNSourceOperator do not support QueryAndTags, skip them
+        // Lookup join is not supported yet
         if (evalExec.child() instanceof EsQueryExec queryExec && queryExec.canSubstituteRoundToWithQueryBuilderAndTags()) {
             // Look for RoundTo and plan the push down for it.
             List<RoundTo> roundTos = evalExec.fields()

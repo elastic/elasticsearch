@@ -14,12 +14,17 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
+import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
+import org.elasticsearch.xpack.esql.core.expression.function.Function;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.function.grouping.Bucket;
+import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateTrunc;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.RoundTo;
 import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalPlanOptimizerTests;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
@@ -28,6 +33,8 @@ import org.elasticsearch.xpack.esql.plan.physical.EvalExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeExec;
 import org.elasticsearch.xpack.esql.plan.physical.FieldExtractExec;
 import org.elasticsearch.xpack.esql.plan.physical.LimitExec;
+import org.elasticsearch.xpack.esql.plan.physical.LookupJoinExec;
+import org.elasticsearch.xpack.esql.plan.physical.MergeExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
 import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
@@ -41,6 +48,7 @@ import java.util.Map;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.compute.aggregation.AggregatorMode.FINAL;
+import static org.elasticsearch.compute.aggregation.AggregatorMode.INITIAL;
 import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
 import static org.elasticsearch.index.query.QueryBuilders.existsQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
@@ -278,6 +286,108 @@ public class ReplaceRoundToWithQueryAndTagsTests extends LocalPhysicalPlanOptimi
                 verifyQueryAndTags(expectedQueryBuilderAndTags, queryBuilderAndTags);
                 assertThrows(UnsupportedOperationException.class, esQueryExec::query);
             }
+        }
+    }
+
+    // ReplaceRoundToWithQueryAndTags does not support lookup joins yet
+    public void testDateTruncBucketNotTransformToQueryAndTagsWithLookupJoin() {
+        for (String dateHistogram : dateHistograms) {
+            String query = LoggerMessageFormat.format(null, """
+                from test
+                | rename integer as language_code
+                | lookup join languages_lookup on language_code
+                | stats count(*) by x = {}
+                """, dateHistogram);
+            PhysicalPlan plan = plannerOptimizer.plan(query, searchStats, makeAnalyzer("mapping-all-types.json"));
+
+            LimitExec limit = as(plan, LimitExec.class);
+            AggregateExec agg = as(limit.child(), AggregateExec.class);
+            assertThat(agg.getMode(), is(FINAL));
+            List<? extends Expression> groupings = agg.groupings();
+            NamedExpression grouping = as(groupings.get(0), NamedExpression.class);
+            assertEquals("x", grouping.name());
+            assertEquals(DataType.DATETIME, grouping.dataType());
+            assertEquals(List.of("count(*)", "x"), Expressions.names(agg.aggregates()));
+            ExchangeExec exchange = as(agg.child(), ExchangeExec.class);
+            assertThat(exchange.inBetweenAggs(), is(true));
+            agg = as(exchange.child(), AggregateExec.class);
+            EvalExec eval = as(agg.child(), EvalExec.class);
+            List<Alias> aliases = eval.fields();
+            assertEquals(1, aliases.size());
+            RoundTo roundTo = as(aliases.get(0).child(), RoundTo.class);
+            assertEquals(4, roundTo.points().size());
+            FieldExtractExec fieldExtractExec = as(eval.child(), FieldExtractExec.class);
+            List<Attribute> attributes = fieldExtractExec.attributesToExtract();
+            assertEquals(1, attributes.size());
+            assertEquals("date", attributes.get(0).name());
+            LookupJoinExec lookupJoinExec = as(fieldExtractExec.child(), LookupJoinExec.class); // this is why the rule doesn't apply
+            // lhs of lookup join
+            fieldExtractExec = as(lookupJoinExec.left(), FieldExtractExec.class);
+            attributes = fieldExtractExec.attributesToExtract();
+            assertEquals(1, attributes.size());
+            assertEquals("integer", attributes.get(0).name());
+            EsQueryExec esQueryExec = as(fieldExtractExec.child(), EsQueryExec.class);
+            assertEquals("test", esQueryExec.indexPattern());
+            List<EsQueryExec.QueryBuilderAndTags> queryBuilderAndTags = esQueryExec.queryBuilderAndTags();
+            assertEquals(1, queryBuilderAndTags.size());
+            EsQueryExec.QueryBuilderAndTags queryBuilder = queryBuilderAndTags.get(0);
+            assertNull(queryBuilder.query());
+            assertTrue(queryBuilder.tags().isEmpty());
+            assertNull(esQueryExec.query());
+            // rhs of lookup join
+            esQueryExec = as(lookupJoinExec.right(), EsQueryExec.class);
+            assertEquals("languages_lookup", esQueryExec.indexPattern());
+            queryBuilderAndTags = esQueryExec.queryBuilderAndTags();
+            assertEquals(1, queryBuilderAndTags.size());
+            queryBuilder = queryBuilderAndTags.get(0);
+            assertNull(queryBuilder.query());
+            assertTrue(queryBuilder.tags().isEmpty());
+            assertNull(esQueryExec.query());
+        }
+    }
+
+    // ReplaceRoundToWithQueryAndTags does not support lookup joins yet
+    public void testDateTruncBucketNotTransformToQueryAndTagsWithFork() {
+        for (String dateHistogram : dateHistograms) {
+            String query = LoggerMessageFormat.format(null, """
+                from test
+                | fork (where integer > 100)
+                       (where keyword : "keyword")
+                | stats count(*) by x = {}
+                """, dateHistogram);
+            PhysicalPlan plan = plannerOptimizer.plan(query, searchStats, makeAnalyzer("mapping-all-types.json"));
+
+            LimitExec limit = as(plan, LimitExec.class);
+            AggregateExec agg = as(limit.child(), AggregateExec.class);
+            assertThat(agg.getMode(), is(FINAL));
+            List<? extends Expression> groupings = agg.groupings();
+            NamedExpression grouping = as(groupings.get(0), NamedExpression.class);
+            assertEquals("x", grouping.name());
+            assertEquals(DataType.DATETIME, grouping.dataType());
+            assertEquals(List.of("count(*)", "x"), Expressions.names(agg.aggregates()));
+            agg = as(agg.child(), AggregateExec.class);
+            assertThat(agg.getMode(), is(INITIAL));
+            groupings = agg.groupings();
+            grouping = as(groupings.get(0), NamedExpression.class);
+            assertEquals("x", grouping.name());
+            assertEquals(DataType.DATETIME, grouping.dataType());
+            assertEquals(List.of("count(*)", "x"), Expressions.names(agg.aggregates()));
+            EvalExec eval = as(agg.child(), EvalExec.class);
+            List<Alias> aliases = eval.fields();
+            assertEquals(1, aliases.size());
+            var function = as(aliases.get(0).child(), Function.class);
+            ReferenceAttribute fa = null; // if merge returns FieldAttribute instead of ReferenceAttribute, the rule might apply
+            if (function instanceof DateTrunc dateTrunc) {
+                fa = as(dateTrunc.field(), ReferenceAttribute.class);
+            } else if (function instanceof Bucket bucket) {
+                fa = as(bucket.field(), ReferenceAttribute.class);
+            } else if (function instanceof RoundTo roundTo) {
+                fa = as(roundTo.field(), ReferenceAttribute.class);
+            }
+            assertNotNull(fa);
+            assertEquals("date", fa.name());
+            assertEquals(DataType.DATETIME, fa.dataType());
+            MergeExec mergeExec = as(eval.child(), MergeExec.class);
         }
     }
 

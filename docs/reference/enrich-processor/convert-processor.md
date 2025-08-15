@@ -6,16 +6,48 @@ mapped_pages:
 
 # Convert processor [convert-processor]
 
-
 Converts a field in the currently ingested document to a different type, such as converting a string to an integer. If the field value is an array, all members will be converted.
 
 The supported types include: `integer`, `long`, `float`, `double`, `string`, `boolean`, `ip`, and `auto`.
+
+Specifying a target `type` of `integer` supports inputs which are `Integer` values, `Long` values in 32-bit signed
+integer range, or `String` values representing an integer in 32-bit signed integer range in either decimal format
+(without a decimal point) or hex format (e.g. `"123"` or `"0x7b"`).
+
+Specifying `long` supports inputs which are `Integer` values, `Long` values, or `String` values representing an integer
+in 64-bit signed integer range in either decimal format (without a decimal point) or hex format (e.g. `"123"` or
+`"0x7b"`).
+
+Specifying `float` supports inputs which are `Integer` values, `Long` values (conversions from either `Integer` or
+`Long` may lose precision for absolute values greater than 2^24), `Float` values, `Double` values (may lose precision),
+`String` values representing a floating point number in decimal, scientific, or hex format (e.g. `"123.0"`, `"123.45"`,
+`"1.23e2"`, or `"0x1.ecp6"`) or an integer (conversions from `String` may lose precision, and will give positive or
+negative infinity if out of range for a 32-bit floating point value).
+
+Specifying `double` supports inputs which are `Integer` values, `Long` values (may lose precision for absolute values
+greater than 2^53), `Float` values, `Double` values, `String` values representing a floating point number in decimal,
+scientific, or hex format (e.g. `"123.0"`, `"123.45"`, `"1.23e2"`, or `"0x1.ecp6"`) or an integer (conversions from
+`String` may lose precision, and will give positive or negative infinity if out of range for a 64-bit floating point
+value).
 
 Specifying `boolean` will set the field to true if its string value is equal to `true` (ignore case), to false if its string value is equal to `false` (ignore case), or it will throw an exception otherwise.
 
 Specifying `ip` will set the target field to the value of `field` if it contains a valid IPv4 or IPv6 address that can be indexed into an [IP field type](/reference/elasticsearch/mapping-reference/ip.md).
 
-Specifying `auto` will attempt to convert the string-valued `field` into the closest non-string, non-IP type. For example, a field whose value is `"true"` will be converted to its respective boolean type: `true`. Do note that float takes precedence of double in `auto`. A value of `"242.15"` will "automatically" be converted to `242.15` of type `float`. If a provided field cannot be appropriately converted, the processor will still process successfully and leave the field value as-is. In such a case, `target_field` will be updated with the unconverted field value.
+Specifying `auto` will attempt to convert a string-valued `field` into the closest non-string, non-IP type. For example,
+a field whose value is `"true"` will be converted to its respective boolean type: `true`. A string representing an
+integer in decimal or hex format (e.g. `"123"` or `"0x7b"`) will be converted to an `Integer` if the number fits in a
+32-bit signed integer, else to a `Long` if it fits in a 64-bit signed integer, else to a `Float` (in which case it may
+lose precision, and will give positive or negative infinity if out of range for a 32-bit floating point value). A string
+representing a floating point number in decimal, scientific, or hex format (e.g. `"123.0"`, `"123.45"`, `"1.23e2"`, or
+`"0x1.ecp6"`) will be converted to a `Float` (and may lose precision, and will give positive or negative infinity if out
+of range for a 32-bit floating point value). If a provided field is either not a `String` or a `String` which cannot be
+converted, the processor will still process successfully and leave the field value as-is. In such a case, `target_field`
+will be updated with the unconverted field value.
+
+N.B. If conversions other than those provided by this processor are required, the
+[`script`](/reference/enrich-processor/script-processor.md) processor mey be used to implement the desired behaviour.
+(The performance of the `script` processor should be as good or better than the `convert` processor.)
 
 $$$convert-options$$$
 

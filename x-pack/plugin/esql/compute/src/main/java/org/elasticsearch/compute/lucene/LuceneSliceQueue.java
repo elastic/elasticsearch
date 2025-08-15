@@ -213,7 +213,7 @@ public final class LuceneSliceQueue {
          */
         SHARD(0) {
             @Override
-            List<List<PartialLeafReaderContext>> groups(IndexSearcher searcher, int requestedNumSlices) {
+            List<List<PartialLeafReaderContext>> groups(IndexSearcher searcher, int taskConcurrency) {
                 return List.of(searcher.getLeafContexts().stream().map(PartialLeafReaderContext::new).toList());
             }
         },
@@ -222,7 +222,7 @@ public final class LuceneSliceQueue {
          */
         SEGMENT(1) {
             @Override
-            List<List<PartialLeafReaderContext>> groups(IndexSearcher searcher, int requestedNumSlices) {
+            List<List<PartialLeafReaderContext>> groups(IndexSearcher searcher, int taskConcurrency) {
                 IndexSearcher.LeafSlice[] gs = IndexSearcher.slices(
                     searcher.getLeafContexts(),
                     MAX_DOCS_PER_SLICE,
@@ -237,10 +237,10 @@ public final class LuceneSliceQueue {
          */
         DOC(2) {
             @Override
-            List<List<PartialLeafReaderContext>> groups(IndexSearcher searcher, int requestedNumSlices) {
+            List<List<PartialLeafReaderContext>> groups(IndexSearcher searcher, int taskConcurrency) {
                 final int totalDocCount = searcher.getIndexReader().maxDoc();
                 // Cap the desired slice to prevent CPU underutilization when matching documents are concentrated in one segment region.
-                int desiredSliceSize = Math.clamp(Math.ceilDiv(totalDocCount, requestedNumSlices), 1, MAX_DOCS_PER_SLICE);
+                int desiredSliceSize = Math.clamp(Math.ceilDiv(totalDocCount, taskConcurrency), 1, MAX_DOCS_PER_SLICE);
                 return new AdaptivePartitioner(Math.max(1, desiredSliceSize), MAX_SEGMENTS_PER_SLICE).partition(searcher.getLeafContexts());
             }
         };
@@ -266,7 +266,7 @@ public final class LuceneSliceQueue {
             out.writeByte(id);
         }
 
-        abstract List<List<PartialLeafReaderContext>> groups(IndexSearcher searcher, int requestedNumSlices);
+        abstract List<List<PartialLeafReaderContext>> groups(IndexSearcher searcher, int taskConcurrency);
 
         private static PartitioningStrategy pick(
             DataPartitioning dataPartitioning,

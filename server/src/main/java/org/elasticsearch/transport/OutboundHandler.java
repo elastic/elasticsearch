@@ -18,6 +18,7 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
 import org.elasticsearch.common.network.CloseableChannel;
@@ -293,6 +294,16 @@ final class OutboundHandler {
                 }
             });
         } catch (RuntimeException ex) {
+            logger.error(
+                Strings.format(
+                    "unexpected exception calling sendMessage for transport message [%s] of size [%d] on [%s]",
+                    message,
+                    messageSize,
+                    channel
+                ),
+                ex
+            );
+            assert Thread.currentThread().getName().startsWith("TEST-") : ex;
             Releasables.closeExpectNoException(() -> listener.onFailure(ex), () -> CloseableChannel.closeChannel(channel));
             throw ex;
         }

@@ -537,6 +537,12 @@ tests:
 - class: org.elasticsearch.cluster.ClusterInfoServiceIT
   method: testMaxQueueLatenciesInClusterInfo
   issue: https://github.com/elastic/elasticsearch/issues/132957
+- class: org.elasticsearch.test.rest.yaml.CcsCommonYamlTestSuiteIT
+  method: test {p0=search/400_synthetic_source/_doc_count}
+  issue: https://github.com/elastic/elasticsearch/issues/132965
+- class: org.elasticsearch.index.mapper.LongFieldMapperTests
+  method: testSyntheticSourceWithTranslogSnapshot
+  issue: https://github.com/elastic/elasticsearch/issues/132964
 
 # Examples:
 #

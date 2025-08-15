@@ -9,30 +9,23 @@
 
 package org.elasticsearch.gradle.internal.transport;
 
-import org.gradle.api.GradleException;
 import org.gradle.api.Project;
 import org.gradle.api.file.Directory;
 
-import java.io.File;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 class TransportVersionUtils {
-    static final String LATEST_DIR = "latest";
-    static final String DEFINED_DIR = "defined";
-
-    private static final String CSV_SUFFIX = ".csv";
 
     static Path definitionFilePath(Directory resourcesDirectory, String name) {
-        return getDefinitionsDirectory(resourcesDirectory).getAsFile().toPath().resolve(name + CSV_SUFFIX);
+        return getDefinitionsDirectory(resourcesDirectory).getAsFile().toPath().resolve("named/" + name + ".csv");
     }
 
-    static Path latestFilePath(Directory resourcesDir, String name) {
-        return getLatestDirectory(resourcesDir).getAsFile().toPath().resolve(name + CSV_SUFFIX);
+    static Path latestFilePath(Directory resourcesDirectory, String name) {
+        return getLatestDirectory(resourcesDirectory).getAsFile().toPath().resolve(name + ".csv");
     }
 
     static TransportVersionDefinition readDefinitionFile(Path file) throws IOException {
@@ -42,7 +35,7 @@ class TransportVersionUtils {
 
     static void writeDefinitionFile(Path resourcesDir, TransportVersionDefinition definition) throws IOException {
         Files.writeString(
-            resourcesDir.resolve(DEFINED_DIR).resolve(definition.name() + CSV_SUFFIX),
+            resourcesDir.resolve("definitions/named").resolve(definition.name() + ".csv"),
             definition.ids().stream().map(id -> String.valueOf(id.complete())).collect(Collectors.joining(",")) + "\n",
             StandardCharsets.UTF_8
         );
@@ -54,33 +47,21 @@ class TransportVersionUtils {
     }
 
     static TransportVersionLatest readLatestFile(Path resourcesDir, String latestName) throws IOException {
-        Path latestFilePath = resourcesDir.resolve(LATEST_DIR).resolve(latestName + CSV_SUFFIX);
+        Path latestFilePath = resourcesDir.resolve("latest").resolve(latestName + ".csv");
         return readLatestFile(latestFilePath);
     }
 
     static void writeLatestFile(Path resourcesDir, TransportVersionLatest latest) throws IOException {
-        var path = resourcesDir.resolve(LATEST_DIR).resolve(latest.releaseBranch() + CSV_SUFFIX);
+        var path = resourcesDir.resolve("latest").resolve(latest.releaseBranch() + ".csv");
         Files.writeString(path, latest.name() + "," + latest.id().complete() + "\n", StandardCharsets.UTF_8);
     }
 
-    static void validateNameFormat(String name) {
-        if (Pattern.compile("^\\w+$").matcher(name).matches() == false) {
-            throw new GradleException("The TransportVersion name must only contain underscores and alphanumeric characters: " + name);
-        }
-    }
-
-    static void validateBranchFormat(String branchName) {
-        if (Pattern.compile("^(\\d+\\.\\d+)|SERVERLESS$").matcher(branchName).matches() == false) {
-            throw new GradleException("The releaseBranch name must be of the form \"int.int\" or \"SERVERLESS\"");
-        }
-    }
-
     static Directory getDefinitionsDirectory(Directory resourcesDirectory) {
-        return resourcesDirectory.dir(DEFINED_DIR);
+        return resourcesDirectory.dir("definitions");
     }
 
     static Directory getLatestDirectory(Directory resourcesDirectory) {
-        return resourcesDirectory.dir(LATEST_DIR);
+        return resourcesDirectory.dir("latest");
     }
 
     static String getResourcePath(String resourcesProjectPath, String subPath) {
@@ -94,9 +75,5 @@ class TransportVersionUtils {
         }
         Directory projectDir = project.project(projectName.toString()).getLayout().getProjectDirectory();
         return projectDir.dir("src/main/resources/transport");
-    }
-
-    static String getNameFromCsv(String filepath) {
-        return filepath.substring(filepath.lastIndexOf(File.pathSeparator) + 1, filepath.length() - 4 /* .csv */);
     }
 }

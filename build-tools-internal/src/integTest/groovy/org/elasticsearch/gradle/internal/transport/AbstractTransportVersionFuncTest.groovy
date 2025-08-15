@@ -42,8 +42,12 @@ class AbstractTransportVersionFuncTest extends AbstractGradleFuncTest {
         }
     }
 
-    def definedTransportVersion(String name, String ids) {
-        javaResource("myserver", "transport/defined/" + name + ".csv", ids)
+    def namedTransportVersion(String name, String ids) {
+        javaResource("myserver", "transport/definitions/named/" + name + ".csv", ids)
+    }
+
+    def initialTransportVersion(String name, String id) {
+        javaResource("myserver", "transport/definitions/initial/" + name + ".csv", id)
     }
 
     def definedAndUsedTransportVersion(String name, String ids) {
@@ -54,7 +58,7 @@ class AbstractTransportVersionFuncTest extends AbstractGradleFuncTest {
         javaSource("myserver", "org.elasticsearch", classname, "", """
             static final TransportVersion usage = TransportVersion.fromName("${name}");
         """)
-        definedTransportVersion(name, ids)
+        namedTransportVersion(name, ids)
     }
 
     def latestTransportVersion(String branch, String name, String id) {
@@ -95,8 +99,9 @@ class AbstractTransportVersionFuncTest extends AbstractGradleFuncTest {
             apply plugin: 'elasticsearch.transport-version-references'
             apply plugin: 'elasticsearch.transport-version-resources'
         """
-        definedTransportVersion("existing_91", "8012000")
-        definedTransportVersion("existing_92", "8123000,8012001")
+        namedTransportVersion("existing_91", "8012000")
+        namedTransportVersion("existing_92", "8123000,8012001")
+        initialTransportVersion("initial_9_0_0", "8000000")
         latestTransportVersion("9.2", "existing_92", "8123000")
         latestTransportVersion("9.1", "existing_92", "8012001")
         // a mock version of TransportVersion, just here so we can compile Dummy.java et al

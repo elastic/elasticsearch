@@ -10,7 +10,6 @@ package org.elasticsearch.compute.lucene.read;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedDocValues;
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BytesRefBlock;
@@ -199,11 +198,6 @@ public class TimeSeriesExtractFieldOperator extends AbstractPageMappingOperator 
 
         @Override
         public BlockLoader.Block constantNulls(int count) {
-            throw new UnsupportedOperationException("must not be used by column readers");
-        }
-
-        @Override
-        public BlockLoader.Block constantBytes(BytesRef value, int count) {
             throw new UnsupportedOperationException("must not be used by column readers");
         }
 

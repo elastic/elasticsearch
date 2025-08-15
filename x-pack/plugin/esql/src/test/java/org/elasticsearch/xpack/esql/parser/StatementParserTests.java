@@ -3688,8 +3688,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testRerankDefaultInferenceIdAndScoreAttribute() {
-        assumeTrue("RERANK requires corresponding capability", EsqlCapabilities.Cap.RERANK.isEnabled());
-
         var plan = processingCommand("RERANK \"query text\" ON title");
         var rerank = as(plan, Rerank.class);
 
@@ -3700,8 +3698,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testRerankEmptyOptions() {
-        assumeTrue("RERANK requires corresponding capability", EsqlCapabilities.Cap.RERANK.isEnabled());
-
         var plan = processingCommand("RERANK \"query text\" ON title WITH {}");
         var rerank = as(plan, Rerank.class);
 
@@ -3712,8 +3708,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testRerankInferenceId() {
-        assumeTrue("RERANK requires corresponding capability", EsqlCapabilities.Cap.RERANK.isEnabled());
-
         var plan = processingCommand("RERANK \"query text\" ON title WITH { \"inference_id\" : \"inferenceId\" }");
         var rerank = as(plan, Rerank.class);
 
@@ -3724,8 +3718,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testRerankScoreAttribute() {
-        assumeTrue("RERANK requires corresponding capability", EsqlCapabilities.Cap.RERANK.isEnabled());
-
         var plan = processingCommand("RERANK rerank_score=\"query text\" ON title");
         var rerank = as(plan, Rerank.class);
 
@@ -3736,8 +3728,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testRerankInferenceIdAnddScoreAttribute() {
-        assumeTrue("RERANK requires corresponding capability", EsqlCapabilities.Cap.RERANK.isEnabled());
-
         var plan = processingCommand("RERANK rerank_score=\"query text\" ON title WITH { \"inference_id\" : \"inferenceId\" }");
         var rerank = as(plan, Rerank.class);
 
@@ -3748,8 +3738,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testRerankSingleField() {
-        assumeTrue("RERANK requires corresponding capability", EsqlCapabilities.Cap.RERANK.isEnabled());
-
         var plan = processingCommand("RERANK \"query text\" ON title WITH { \"inference_id\" : \"inferenceID\" }");
         var rerank = as(plan, Rerank.class);
 
@@ -3760,8 +3748,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testRerankMultipleFields() {
-        assumeTrue("RERANK requires corresponding capability", EsqlCapabilities.Cap.RERANK.isEnabled());
-
         var plan = processingCommand(
             "RERANK \"query text\" ON title, description, authors_renamed=authors WITH { \"inference_id\" : \"inferenceID\" }"
         );
@@ -3783,8 +3769,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testRerankComputedFields() {
-        assumeTrue("RERANK requires corresponding capability", EsqlCapabilities.Cap.RERANK.isEnabled());
-
         var plan = processingCommand("""
             RERANK "query text" ON title, short_description = SUBSTRING(description, 0, 100) WITH { "inference_id": "inferenceID" }
             """);
@@ -3805,7 +3789,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testRerankComputedFieldsWithoutName() {
-        assumeTrue("RERANK requires corresponding capability", EsqlCapabilities.Cap.RERANK.isEnabled());
         // Unnamed alias are forbidden
         expectError(
             "FROM books METADATA _score | RERANK \"food\" ON title, SUBSTRING(description, 0, 100), yearRenamed=year`",
@@ -3814,8 +3797,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testRerankWithPositionalParameters() {
-        assumeTrue("RERANK requires corresponding capability", EsqlCapabilities.Cap.RERANK.isEnabled());
-
         var queryParams = new QueryParams(List.of(paramAsConstant(null, "query text"), paramAsConstant(null, "reranker")));
         var rerank = as(
             parser.createStatement(
@@ -3833,8 +3814,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testRerankWithNamedParameters() {
-        assumeTrue("RERANK requires corresponding capability", EsqlCapabilities.Cap.RERANK.isEnabled());
-
         var queryParams = new QueryParams(List.of(paramAsConstant("queryText", "query text"), paramAsConstant("inferenceId", "reranker")));
         var rerank = as(
             parser.createStatement(
@@ -3852,7 +3831,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testInvalidRerank() {
-        assumeTrue("RERANK requires corresponding capability", EsqlCapabilities.Cap.RERANK.isEnabled());
         expectError(
             "FROM foo* | RERANK \"query text\" ON title WITH { \"inference_id\": 3 }",
             "line 1:65: Option [inference_id] must be a valid string, found [3]"
@@ -3861,7 +3839,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
             "FROM foo* | RERANK \"query text\" ON title WITH { \"inference_id\": \"inferenceId\", \"unknown_option\": 3 }",
             "line 1:42: Inavalid option [unknown_option] in RERANK, expected one of [[inference_id]]"
         );
-        expectError("FROM foo* | RERANK 45 ON title", "Query must be a valid string in RERANK, found [45]");
         expectError("FROM foo* | RERANK ON title WITH inferenceId", "line 1:20: extraneous input 'ON' expecting {QUOTED_STRING");
         expectError("FROM foo* | RERANK \"query text\" WITH inferenceId", "line 1:33: mismatched input 'WITH' expecting 'on'");
 

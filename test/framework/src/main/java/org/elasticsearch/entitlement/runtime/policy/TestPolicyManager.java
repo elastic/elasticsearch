@@ -31,7 +31,7 @@ public class TestPolicyManager extends PolicyManager {
 
     boolean isActive;
     boolean isTriviallyAllowingTestCode;
-    String[] entitledTestPackages = TEST_FRAMEWORK_PACKAGE_PREFIXES;
+    String[] entitledTestPackages;
 
     /**
      * We don't have modules in tests, so we can't use the inherited map of entitlements per module.
@@ -65,27 +65,30 @@ public class TestPolicyManager extends PolicyManager {
     }
 
     public void setEntitledTestPackages(String... entitledTestPackages) {
+        if (entitledTestPackages == null || entitledTestPackages.length == 0) {
+            this.entitledTestPackages = TEST_FRAMEWORK_PACKAGE_PREFIXES; // already validated and sorted
+            return;
+        }
+
         assertNoRedundantPrefixes(TEST_FRAMEWORK_PACKAGE_PREFIXES, entitledTestPackages, false);
         if (entitledTestPackages.length > 1) {
             assertNoRedundantPrefixes(entitledTestPackages, entitledTestPackages, true);
         }
-        String[] packages = ArrayUtils.concat(this.entitledTestPackages, entitledTestPackages);
+        String[] packages = ArrayUtils.concat(TEST_FRAMEWORK_PACKAGE_PREFIXES, entitledTestPackages);
         Arrays.sort(packages);
         this.entitledTestPackages = packages;
     }
 
-    /**
-     * Called between tests so each test is not affected by prior tests
-     */
     public final void resetAfterTest() {
-        clearModuleEntitlementsCache();
         isActive = false;
         isTriviallyAllowingTestCode = true;
+        entitledTestPackages = TEST_FRAMEWORK_PACKAGE_PREFIXES;
+        clearModuleEntitlementsCache();
     }
 
     /**
      * Clear cached module entitlements.
-     * This is required after updating entries in {@link TestPathLookup}.
+     * This is required after updating path entries.
      */
     public final void clearModuleEntitlementsCache() {
         assert moduleEntitlementsMap.isEmpty() : "We're not supposed to be using moduleEntitlementsMap in tests";

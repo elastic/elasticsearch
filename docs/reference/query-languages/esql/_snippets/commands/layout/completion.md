@@ -137,7 +137,6 @@ FROM movies
 | KEEP title, summary, rating
 ```
 
-
 | title:keyword | summary:keyword | rating:double |
 | --- | --- | --- |
 | The Shawshank Redemption | A tale of hope and redemption in prison. | 9.3 |

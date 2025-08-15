@@ -11,7 +11,6 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xpack.esql.AssertWarnings;
-import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Rule;
@@ -28,14 +27,6 @@ public class RestRerankTestCase extends ESRestTestCase {
 
     @Rule(order = Integer.MIN_VALUE)
     public ProfileLogger profileLogger = new ProfileLogger();
-
-    @Before
-    public void skipWhenRerankDisabled() throws IOException {
-        assumeTrue(
-            "Requires RERANK capability",
-            RestEsqlTestCase.hasCapabilities(adminClient(), List.of(EsqlCapabilities.Cap.RERANK.capabilityName()))
-        );
-    }
 
     @Before
     @After

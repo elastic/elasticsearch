@@ -61,8 +61,8 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.index.IndexVersions.NEW_SPARSE_VECTOR;
-import static org.elasticsearch.index.IndexVersions.V_8_0_0;
 import static org.elasticsearch.index.IndexVersions.SPARSE_VECTOR_PRUNING_INDEX_OPTIONS_SUPPORT_BACKPORT_8_X;
+import static org.elasticsearch.index.IndexVersions.V_8_0_0;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.containsString;
@@ -564,11 +564,7 @@ public class SparseVectorFieldMapperTests extends MapperTestCase {
     }
 
     public void testSparseVectorUnsupportedIndex() throws Exception {
-        IndexVersion version = IndexVersionUtils.randomVersionBetween(
-            random(),
-            V_8_0_0,
-            IndexVersions.FIRST_DETACHED_INDEX_VERSION
-        );
+        IndexVersion version = IndexVersionUtils.randomVersionBetween(random(), V_8_0_0, IndexVersions.FIRST_DETACHED_INDEX_VERSION);
         Exception e = expectThrows(MapperParsingException.class, () -> createMapperService(version, fieldMapping(b -> {
             b.field("type", "sparse_vector");
         })));
@@ -914,10 +910,7 @@ public class SparseVectorFieldMapperTests extends MapperTestCase {
             NEW_SPARSE_VECTOR,
             IndexVersionUtils.getPreviousVersion(SPARSE_VECTOR_PRUNING_INDEX_OPTIONS_SUPPORT_BACKPORT_8_X)
         ),
-        ES_V8X_WITH_SUPPORT(
-            SPARSE_VECTOR_PRUNING_INDEX_OPTIONS_SUPPORT_BACKPORT_8_X,
-            IndexVersion.current()
-        );
+        ES_V8X_WITH_SUPPORT(SPARSE_VECTOR_PRUNING_INDEX_OPTIONS_SUPPORT_BACKPORT_8_X, IndexVersion.current());
 
         private final IndexVersion fromVersion;
         private final IndexVersion toVersion;

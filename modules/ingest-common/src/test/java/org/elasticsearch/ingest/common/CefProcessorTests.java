@@ -36,6 +36,7 @@ public class CefProcessorTests extends ESTestCase {
         URL resource = TestClass.class.getResource("/" + fileName);
         return Files.readString(Paths.get(Objects.requireNonNull(resource).toURI()));
     }
+
     private IngestDocument document;
 
     public void testParse() throws IOException, URISyntaxException {

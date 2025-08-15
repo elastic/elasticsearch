@@ -317,11 +317,7 @@ public class ClusterModule extends AbstractModule {
             )
         );
         entries.add(
-            new NamedXContentRegistry.Entry(
-                Metadata.Custom.class,
-                new ParseField(StreamsMetadata.TYPE),
-                StreamsMetadata::fromXContent
-            )
+            new NamedXContentRegistry.Entry(Metadata.Custom.class, new ParseField(StreamsMetadata.TYPE), StreamsMetadata::fromXContent)
         );
         return entries;
     }

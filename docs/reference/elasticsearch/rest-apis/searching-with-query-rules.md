@@ -15,8 +15,8 @@ $$$query-rules$$$
 * A user-entered query string
 * Personalized metadata about users (e.g. country, language, etc)
 * A particular topic
-* A referring site
-* etc.
+* A referring site and so on
+
 
 Query rules define a metadata key that will be used to match the metadata provided in the [rule retriever](/reference/elasticsearch/rest-apis/retrievers/rule-retriever.md) with the criteria specified in the rule.
 
@@ -26,6 +26,7 @@ For example, a query rule could be defined to match a user-entered query string 
 
 Rules are defined using the [query rules API](https://www.elastic.co/docs/api/doc/elasticsearch/group/endpoint-query_rules) and searched using the [rule retriever](/reference/elasticsearch/rest-apis/retrievers/rule-retriever.md) or the [rule query](/reference/query-languages/query-dsl/query-dsl-rule-query.md).
 
+Alternatively, you can manage query rules through the [Query Rules UI](https://www.elastic.co/docs/solutions/search/query-rules-ui) instead of the API.
 
 ## Rule definition [query-rule-definition]
 
@@ -68,7 +69,7 @@ The actions to take when the rule matches a query:
 Use `ids` when searching over a single index, and `docs` when searching over multiple indices. `ids` and `docs` cannot be combined in the same query.
 
 
-## Add query rules [add-query-rules]
+## Manage query rules [manage-query-rules]
 
 You can add query rules using the [Create or update query ruleset](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-query-rules-put-ruleset) call. This adds a ruleset containing one or more query rules that will be applied to queries that match their specified criteria.
 
@@ -144,6 +145,8 @@ There is a limit of 100 rules per ruleset. This can be increased up to 1000 usin
 ```
 
 You can use the [Get query ruleset](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-query-rules-get-ruleset) call to retrieve the ruleset you just created, the [List query rulesets](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-query-rules-list-rulesets) call to retrieve a summary of all query rulesets, and the [Delete query ruleset](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-query-rules-delete-ruleset) call to delete a query ruleset.
+
+To execute these requests through the Query Rules UI, refer to [Accessing the UI and managing query rules](https://www.elastic.co/docs/solutions/search/query-rules-ui#accessing-the-query-rules-ui).
 
 
 ## Search using query rules [rule-query-search]

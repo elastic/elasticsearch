@@ -6157,7 +6157,6 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             return;
         }
         var plan = optimizedPlan(query);
-        System.err.println("XXX\n" + plan);
 
         var project = as(plan, EsqlProject.class);
         assertThat(Expressions.names(project.projections()), is(List.of("emp_no", "count")));

@@ -130,7 +130,7 @@ public class ES818BinaryQuantizedVectorsReader extends FlatVectorsReader {
     }
 
     @Override
-    public FlatVectorsReader getMergeInstance() {
+    public FlatVectorsReader getMergeInstance() throws IOException {
         return new ES818BinaryQuantizedVectorsReader(this, rawVectorsReader.getMergeInstance());
     }
 

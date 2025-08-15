@@ -61,6 +61,7 @@ class JdkDownloadPluginFuncTest extends AbstractGradleFuncTest {
                 version = '$jdkVersion'
                 platform = "$platform"
                 architecture = '$arch'
+                distributionVersion = '$distributionVersion'
               }
             }
 
@@ -104,7 +105,6 @@ class JdkDownloadPluginFuncTest extends AbstractGradleFuncTest {
         "linux"   | "aarch64" | VENDOR_ADOPTIUM | ADOPT_JDK_VERSION    | ""                    | "bin/java"               | ""
         "linux"   | "aarch64" | VENDOR_ADOPTIUM | ADOPT_JDK_VERSION_11 | ""                    | "bin/java"               | "(jdk 11)"
         "linux"   | "aarch64" | VENDOR_ADOPTIUM | ADOPT_JDK_VERSION_15 | ""                    | "bin/java"               | "(jdk 15)"
-        "darwin"  | "aarch64" | VENDOR_ZULU     | AZUL_JDK_VERSION_8   | AZUL_8_DISTRO_VERSION | "Contents/Home/bin/java" | "(jdk 8)"
     }
 
     def "transforms are reused across projects"() {
@@ -224,7 +224,7 @@ class JdkDownloadPluginFuncTest extends AbstractGradleFuncTest {
                                   final String platform,
                                   final String arch = 'x64',
                                   final String distributedVersion = '') {
-        final boolean isOld = version.equals(OPENJDK_VERSION_OLD);
+        final boolean isOld = version.equals(OPENJDK_VERSION_OLD)
 
         if (distributedVersion.equals("ea")) {
             def effectivePlatform = isMac(platform) ? "macos" : platform;

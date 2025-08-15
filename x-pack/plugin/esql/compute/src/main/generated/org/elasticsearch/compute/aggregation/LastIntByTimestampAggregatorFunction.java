@@ -101,23 +101,48 @@ public final class LastIntByTimestampAggregatorFunction implements AggregatorFun
   }
 
   private void addRawVector(IntVector valueVector, LongVector timestampVector) {
-    state.seen(true);
-    for (int valuesPosition = 0; valuesPosition < valueVector.getPositionCount(); valuesPosition++) {
+    // Find the first value up front in the Vector path which is more complex but should be faster
+    int valuesPosition = 0;
+    while (state.seen() == false && valuesPosition < valueVector.getPositionCount()) {
+      int valueValue = valueVector.getInt(valuesPosition);
+      long timestampValue = timestampVector.getLong(valuesPosition);
+      LastIntByTimestampAggregator.first(state, valueValue, timestampValue);
+      valuesPosition++;
+      state.seen(true);
+      break;
+    }
+    while (valuesPosition < valueVector.getPositionCount()) {
       int valueValue = valueVector.getInt(valuesPosition);
       long timestampValue = timestampVector.getLong(valuesPosition);
       LastIntByTimestampAggregator.combine(state, valueValue, timestampValue);
+      valuesPosition++;
     }
   }
 
   private void addRawVector(IntVector valueVector, LongVector timestampVector, BooleanVector mask) {
-    state.seen(true);
-    for (int valuesPosition = 0; valuesPosition < valueVector.getPositionCount(); valuesPosition++) {
+    // Find the first value up front in the Vector path which is more complex but should be faster
+    int valuesPosition = 0;
+    while (state.seen() == false && valuesPosition < valueVector.getPositionCount()) {
       if (mask.getBoolean(valuesPosition) == false) {
+        valuesPosition++;
+        continue;
+      }
+      int valueValue = valueVector.getInt(valuesPosition);
+      long timestampValue = timestampVector.getLong(valuesPosition);
+      LastIntByTimestampAggregator.first(state, valueValue, timestampValue);
+      valuesPosition++;
+      state.seen(true);
+      break;
+    }
+    while (valuesPosition < valueVector.getPositionCount()) {
+      if (mask.getBoolean(valuesPosition) == false) {
+        valuesPosition++;
         continue;
       }
       int valueValue = valueVector.getInt(valuesPosition);
       long timestampValue = timestampVector.getLong(valuesPosition);
       LastIntByTimestampAggregator.combine(state, valueValue, timestampValue);
+      valuesPosition++;
     }
   }
 
@@ -129,7 +154,6 @@ public final class LastIntByTimestampAggregatorFunction implements AggregatorFun
       if (timestampBlock.isNull(p)) {
         continue;
       }
-      state.seen(true);
       int valueStart = valueBlock.getFirstValueIndex(p);
       int valueEnd = valueStart + valueBlock.getValueCount(p);
       for (int valueOffset = valueStart; valueOffset < valueEnd; valueOffset++) {
@@ -138,7 +162,13 @@ public final class LastIntByTimestampAggregatorFunction implements AggregatorFun
         int timestampEnd = timestampStart + timestampBlock.getValueCount(p);
         for (int timestampOffset = timestampStart; timestampOffset < timestampEnd; timestampOffset++) {
           long timestampValue = timestampBlock.getLong(timestampOffset);
-          LastIntByTimestampAggregator.combine(state, valueValue, timestampValue);
+          // Check seen in every iteration to save on complexity in the Block path
+          if (state.seen()) {
+            LastIntByTimestampAggregator.combine(state, valueValue, timestampValue);
+          } else {
+            state.seen(true);
+            LastIntByTimestampAggregator.first(state, valueValue, timestampValue);
+          }
         }
       }
     }
@@ -155,7 +185,6 @@ public final class LastIntByTimestampAggregatorFunction implements AggregatorFun
       if (timestampBlock.isNull(p)) {
         continue;
       }
-      state.seen(true);
       int valueStart = valueBlock.getFirstValueIndex(p);
       int valueEnd = valueStart + valueBlock.getValueCount(p);
       for (int valueOffset = valueStart; valueOffset < valueEnd; valueOffset++) {
@@ -164,7 +193,13 @@ public final class LastIntByTimestampAggregatorFunction implements AggregatorFun
         int timestampEnd = timestampStart + timestampBlock.getValueCount(p);
         for (int timestampOffset = timestampStart; timestampOffset < timestampEnd; timestampOffset++) {
           long timestampValue = timestampBlock.getLong(timestampOffset);
-          LastIntByTimestampAggregator.combine(state, valueValue, timestampValue);
+          // Check seen in every iteration to save on complexity in the Block path
+          if (state.seen()) {
+            LastIntByTimestampAggregator.combine(state, valueValue, timestampValue);
+          } else {
+            state.seen(true);
+            LastIntByTimestampAggregator.first(state, valueValue, timestampValue);
+          }
         }
       }
     }

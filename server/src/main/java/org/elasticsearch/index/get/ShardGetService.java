@@ -322,7 +322,8 @@ public final class ShardGetService extends AbstractIndexShardComponent {
             ? new SourceLoader.Synthetic(
                 sourceFilter,
                 () -> mappingLookup.getMapping().syntheticFieldLoader(sourceFilter),
-                mapperMetrics.sourceFieldMetrics()
+                mapperMetrics.sourceFieldMetrics(),
+                mappingLookup.getMapping().ignoredSourceFormat()
             )
             : mappingLookup.newSourceLoader(sourceFilter, mapperMetrics.sourceFieldMetrics());
         StoredFieldLoader storedFieldLoader = buildStoredFieldLoader(storedFieldSet, fetchSourceContext, loader);

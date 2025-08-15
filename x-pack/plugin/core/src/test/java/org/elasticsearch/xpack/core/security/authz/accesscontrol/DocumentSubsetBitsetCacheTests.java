@@ -63,6 +63,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -527,13 +528,18 @@ public class DocumentSubsetBitsetCacheTests extends ESTestCase {
             .build();
         final DocumentSubsetBitsetCache cache = newCache(settings);
 
-        final Map<String, Object> expectedStats = new LinkedHashMap<>();
-        expectedStats.put("count", 0);
-        expectedStats.put("memory", "0b");
-        expectedStats.put("memory_in_bytes", 0L);
-        expectedStats.put("hits", 0L);
-        expectedStats.put("misses", 0L);
-        expectedStats.put("evictions", 0L);
+        final Supplier<Map<String, Object>> emptyStatsSupplier = () -> {
+            final Map<String, Object> stats = new LinkedHashMap<>();
+            stats.put("count", 0);
+            stats.put("memory", "0b");
+            stats.put("memory_in_bytes", 0L);
+            stats.put("hits", 0L);
+            stats.put("misses", 0L);
+            stats.put("evictions", 0L);
+            return stats;
+        };
+
+        final Map<String, Object> expectedStats = emptyStatsSupplier.get();
         assertThat(cache.usageStats(), equalTo(expectedStats));
 
         runTestOnIndex((searchExecutionContext, leafContext) -> {
@@ -541,16 +547,18 @@ public class DocumentSubsetBitsetCacheTests extends ESTestCase {
             final Query query1 = QueryBuilders.termQuery("field-1", "value-1").toQuery(searchExecutionContext);
             final BitSet bitSet1 = cache.getBitSet(query1, leafContext);
             assertThat(bitSet1, notNullValue());
+            expectedStats.put("count", 1);
+            expectedStats.put("misses", 1L);
+            expectedStats.put("memory", EXPECTED_BYTES_PER_BIT_SET + "b");
+            expectedStats.put("memory_in_bytes", EXPECTED_BYTES_PER_BIT_SET);
+
+            assertThat(cache.usageStats(), equalTo(expectedStats));
 
             // second same lookup - hit
             final BitSet bitSet1Again = cache.getBitSet(query1, leafContext);
             assertThat(bitSet1Again, sameInstance(bitSet1));
 
             expectedStats.put("hits", 1L);
-            expectedStats.put("misses", 1L);
-            expectedStats.put("count", 1);
-            expectedStats.put("memory", EXPECTED_BYTES_PER_BIT_SET + "b");
-            expectedStats.put("memory_in_bytes", EXPECTED_BYTES_PER_BIT_SET);
             assertThat(cache.usageStats(), equalTo(expectedStats));
 
             // second query - miss, should evict the first one
@@ -558,13 +566,21 @@ public class DocumentSubsetBitsetCacheTests extends ESTestCase {
             final BitSet bitSet2 = cache.getBitSet(query2, leafContext);
             assertThat(bitSet2, notNullValue());
 
-            // szymon: eviction callback calls `get` on the cache, asynchronously, which updates the stats.
+            // eviction callback calls `get` on the cache, asynchronously, which updates the stats.
             // so assertion is current state of the code, rather than the expected state.
             // issue: https://github.com/elastic/elasticsearch/issues/132842
             expectedStats.put("misses", 3L);
             expectedStats.put("evictions", 1L);
             assertBusy(() -> { assertThat(cache.usageStats(), equalTo(expectedStats)); }, 200, TimeUnit.MILLISECONDS);
         });
+
+        final Map<String, Object> finalStats = emptyStatsSupplier.get();
+        // related to comment above: surprisingly last eviction doesn't increment hits nor misses, because it goes through onClose(),
+        // and short-circuits in the eviction callback before doing a `get`.
+        finalStats.put("hits", 1L);
+        finalStats.put("misses", 3L);
+        finalStats.put("evictions", 2L);
+        assertThat(cache.usageStats(), equalTo(finalStats));
     }
 
     private void runTestOnIndex(CheckedBiConsumer<SearchExecutionContext, LeafReaderContext, Exception> body) throws Exception {

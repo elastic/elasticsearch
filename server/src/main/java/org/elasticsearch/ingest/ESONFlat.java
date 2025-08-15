@@ -10,12 +10,15 @@
 package org.elasticsearch.ingest;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.recycler.Recycler;
 
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
@@ -70,34 +73,8 @@ public record ESONFlat(List<ESONEntry> keys, ESONSource.Values values, AtomicRef
             // String key = entry.key();
             // estimate += key == null ? 0 : key.length() + 5;
             // }
-            try (RecyclerBytesStreamOutput streamOutput = new RecyclerBytesStreamOutput(new Recycler<>() {
-
-                // TODO: Better estimate
-                final int estimate = 512;
-
-                @Override
-                public V<BytesRef> obtain() {
-                    return new V<>() {
-                        @Override
-                        public BytesRef v() {
-                            return new BytesRef(new byte[estimate]);
-                        }
-
-                        @Override
-                        public boolean isRecycled() {
-                            return false;
-                        }
-
-                        @Override
-                        public void close() {}
-                    };
-                }
-
-                @Override
-                public int pageSize() {
-                    return estimate;
-                }
-            })) {
+            // try (BytesStreamOutput streamOutput = new BytesStreamOutput()) {
+            try (RecyclerBytesStreamOutput streamOutput = new RecyclerBytesStreamOutput(getBytesRefRecycler())) {
                 streamOutput.writeVInt(keys.size());
                 for (ESONEntry entry : keys) {
                     String key = entry.key();
@@ -112,11 +89,54 @@ public record ESONFlat(List<ESONEntry> keys, ESONSource.Values values, AtomicRef
                         streamOutput.writeInt(entry.offsetOrCount());
                     }
                 }
-                serializedKeyBytes.set(streamOutput.bytes());
+                BytesReference bytes = streamOutput.bytes();
+                ByteArrayOutputStream os = new ByteArrayOutputStream(bytes.length());
+                bytes.writeTo(os);
+                serializedKeyBytes.set(bytes);
             } catch (IOException e) {
                 throw new UncheckedIOException(e);
             }
         }
         return serializedKeyBytes.get();
+    }
+
+    private static final ThreadLocal<BytesRef> BYTES_REF = ThreadLocal.withInitial(() -> new BytesRef(new byte[16384]));
+
+    private static Recycler<BytesRef> getBytesRefRecycler() {
+        return new Recycler<>() {
+
+            private boolean first = true;
+
+            @Override
+            public V<BytesRef> obtain() {
+                final BytesRef bytesRef;
+                if (first) {
+                    first = false;
+                    bytesRef = BYTES_REF.get();
+                } else {
+                    bytesRef = new BytesRef(new byte[16384]);
+                }
+                return new V<>() {
+
+                    @Override
+                    public BytesRef v() {
+                        return bytesRef;
+                    }
+
+                    @Override
+                    public boolean isRecycled() {
+                        return false;
+                    }
+
+                    @Override
+                    public void close() {}
+                };
+            }
+
+            @Override
+            public int pageSize() {
+                return 16384;
+            }
+        };
     }
 }

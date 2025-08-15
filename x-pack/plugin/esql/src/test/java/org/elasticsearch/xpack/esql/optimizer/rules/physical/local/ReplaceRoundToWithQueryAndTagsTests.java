@@ -132,6 +132,7 @@ public class ReplaceRoundToWithQueryAndTagsTests extends LocalPhysicalPlanOptimi
                 null
             );
             verifyQueryAndTags(expectedQueryBuilderAndTags, queryBuilderAndTags);
+            assertThrows(UnsupportedOperationException.class, esQueryExec::query);
         }
     }
 
@@ -163,7 +164,12 @@ public class ReplaceRoundToWithQueryAndTagsTests extends LocalPhysicalPlanOptimi
             assertEquals(4, roundTo.points().size());
             fieldExtractExec = as(evalExec.child(), FieldExtractExec.class);
             EsQueryExec esQueryExec = as(fieldExtractExec.child(), EsQueryExec.class);
-            assertNull(esQueryExec.queryBuilderAndTags());
+            List<EsQueryExec.QueryBuilderAndTags> queryBuilderAndTags = esQueryExec.queryBuilderAndTags();
+            assertEquals(1, queryBuilderAndTags.size());
+            EsQueryExec.QueryBuilderAndTags queryBuilder = queryBuilderAndTags.get(0);
+            assertNull(queryBuilder.query());
+            assertTrue(queryBuilder.tags().isEmpty());
+            assertNull(esQueryExec.query());
         }
     }
 
@@ -208,6 +214,7 @@ public class ReplaceRoundToWithQueryAndTagsTests extends LocalPhysicalPlanOptimi
                 null
             );
             verifyQueryAndTags(expectedQueryBuilderAndTags, queryBuilderAndTags);
+            assertThrows(UnsupportedOperationException.class, esQueryExec::query);
         }
     }
 
@@ -254,6 +261,7 @@ public class ReplaceRoundToWithQueryAndTagsTests extends LocalPhysicalPlanOptimi
                     mainQueryBuilder
                 );
                 verifyQueryAndTags(expectedQueryBuilderAndTags, queryBuilderAndTags);
+                assertThrows(UnsupportedOperationException.class, esQueryExec::query);
             }
         }
     }

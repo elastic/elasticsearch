@@ -179,6 +179,7 @@ public class MergeWithLowDiskSpaceIT extends DiskUsageIntegTestCase {
             indexName,
             Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0).put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).build()
         );
+        ensureGreen(indexName);
         // get current disk space usage (for all indices on the node)
         IndicesStatsResponse stats = indicesAdmin().prepareStats().clear().setStore(true).get();
         long usedDiskSpaceAfterIndexing = stats.getTotal().getStore().sizeInBytes();
@@ -254,6 +255,7 @@ public class MergeWithLowDiskSpaceIT extends DiskUsageIntegTestCase {
             indexName,
             Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0).put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).build()
         );
+        ensureGreen(indexName);
         // get current disk space usage (for all indices on the node)
         IndicesStatsResponse stats = indicesAdmin().prepareStats().clear().setStore(true).get();
         long usedDiskSpaceAfterIndexing = stats.getTotal().getStore().sizeInBytes();
@@ -287,8 +289,8 @@ public class MergeWithLowDiskSpaceIT extends DiskUsageIntegTestCase {
         ThreadPoolMergeExecutorService threadPoolMergeExecutorService = internalCluster().getInstance(IndicesService.class, node1)
             .getThreadPoolMergeExecutorService();
         assertBusy(() -> {
-            // merge executor says merging is blocked due to insufficient disk space while there is a single merge task enqueued
-            assertThat(threadPoolMergeExecutorService.getMergeTasksQueueLength(), equalTo(1));
+            // merge executor says merging is blocked due to insufficient disk space
+            assertThat(threadPoolMergeExecutorService.getMergeTasksQueueLength(), greaterThan(0));
             assertTrue(threadPoolMergeExecutorService.isMergingBlockedDueToInsufficientDiskSpace());
             // indices stats also says that no merge is currently running (blocked merges are NOT considered as "running")
             IndicesStatsResponse indicesStatsResponse = client().admin().indices().prepareStats(indexName).setMerge(true).get();

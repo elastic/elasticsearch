@@ -342,16 +342,18 @@ public class EsqlCCSUtils {
             // initialize the cluster entries in EsqlExecutionInfo before throwing the invalid license error
             // so that the CCS telemetry handler can recognize that this error is CCS-related
             try {
-            for (var entry : groupedIndices.entrySet()) {
-                final String clusterAlias = entry.getKey();
-                final String indexExpr = Strings.arrayToCommaDelimitedString(entry.getValue().indices());
-                executionInfo.swapCluster(clusterAlias, (k, v) -> {
-                    assert v == null : "No cluster for " + clusterAlias + " should have been added to ExecutionInfo yet";
-                    return new EsqlExecutionInfo.Cluster(clusterAlias, indexExpr, executionInfo.shouldSkipOnFailure(clusterAlias));
-                });
+                for (var entry : groupedIndices.entrySet()) {
+                    final String clusterAlias = entry.getKey();
+                    final String indexExpr = Strings.arrayToCommaDelimitedString(entry.getValue().indices());
+                    executionInfo.swapCluster(clusterAlias, (k, v) -> {
+                        assert v == null : "No cluster for " + clusterAlias + " should have been added to ExecutionInfo yet";
+                        return new EsqlExecutionInfo.Cluster(clusterAlias, indexExpr, executionInfo.shouldSkipOnFailure(clusterAlias));
+                    });
+                }
             } finally {
                 executionInfo.clusterInfoInitializing(false);
             }
+
             // check if it is a cross-cluster query
             if (groupedIndices.size() > 1 || groupedIndices.containsKey(RemoteClusterService.LOCAL_CLUSTER_GROUP_KEY) == false) {
                 if (EsqlLicenseChecker.isCcsAllowed(licenseState) == false) {

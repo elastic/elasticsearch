@@ -63,6 +63,10 @@ gradlePlugin {
       id = 'elasticsearch.formatting'
       implementationClass = 'org.elasticsearch.gradle.internal.conventions.precommit.FormattingPrecommitPlugin'
     }
+    rewrite {
+      id = 'elasticsearch.rewrite'
+      implementationClass = 'org.elasticsearch.gradle.internal.conventions.precommit.RewritePrecommitPlugin'
+    }
   }
 }
 
@@ -76,6 +80,7 @@ dependencies {
   api buildLibs.shadow.plugin
   api buildLibs.apache.rat
   api buildLibs.nmcp
+  api buildLibs.rewrite.plugin
   compileOnly buildLibs.checkstyle
   constraints {
     api("org.eclipse.platform:org.eclipse.osgi:3.18.300") {

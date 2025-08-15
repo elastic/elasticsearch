@@ -3,6 +3,7 @@ plugins {
   id 'elasticsearch.eclipse'
   id 'elasticsearch.versions'
   id 'elasticsearch.formatting'
+  //id 'elasticsearch.rewrite'
 }
 
 group = "org.elasticsearch.gradle"

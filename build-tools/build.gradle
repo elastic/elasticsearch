@@ -22,6 +22,7 @@ plugins {
     id 'elasticsearch.eclipse'
     id 'elasticsearch.versions'
     id 'elasticsearch.formatting'
+    //id 'elasticsearch.rewrite'
 }
 
 description = "The elasticsearch build tools"

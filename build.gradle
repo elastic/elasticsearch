@@ -342,7 +342,8 @@ allprojects {
     }
     if (project.path.contains(":libs:cli")) {
       // ensure we resolve p2 dependencies for the spotless eclipse formatter
-      dependsOn "spotlessJavaCheck"
+      dependsOn(spotlessJavaCheck)
+      //dependsOn(spotlessJavaCheck, rewriteDryRun)
     }
 
   }
@@ -442,6 +443,7 @@ allprojects {
   }
 
   apply plugin: 'elasticsearch.formatting'
+  apply plugin: 'elasticsearch.rewrite'
 }
 
 tasks.named("updateDaemonJvm") {

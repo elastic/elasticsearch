@@ -35,11 +35,11 @@ buildscript {
 plugins {
   id 'lifecycle-base'
   id 'elasticsearch.docker-support'
+  id 'elasticsearch.internal-distribution-download'
+  id 'elasticsearch.jdk-download'
   id 'elasticsearch.global-build-info'
   id 'elasticsearch.build-complete'
   id 'elasticsearch.build-scan'
-  id 'elasticsearch.jdk-download'
-  id 'elasticsearch.internal-distribution-download'
   id 'elasticsearch.runtime-jdk-provision'
   id 'elasticsearch.ide'
   id 'elasticsearch.forbidden-dependencies'

@@ -554,7 +554,6 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
 
     private void startElection() {
         synchronized (mutex) {
-            logger.info("starting election");
             // The preVoteCollector is only active while we are candidate, but it does not call this method with synchronisation, so we have
             // to check our mode again here.
             if (mode == Mode.CANDIDATE) {

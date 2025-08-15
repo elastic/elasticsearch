@@ -1,0 +1,6 @@
+pr: 132889
+summary: Improve Expanding Lookup Join performance by pushing a filter to the lookup
+  join
+area: "ES|QL, Performance"
+type: enhancement
+issues: []

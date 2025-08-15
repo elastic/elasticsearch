@@ -7,12 +7,14 @@
 
 package org.elasticsearch.xpack.esql.plan.logical.join;
 
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockUtils;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -152,7 +154,7 @@ public class InlineJoin extends Join {
         List<Attribute> leftFields,
         List<Attribute> rightFields
     ) {
-        super(source, left, right, type, matchFields, leftFields, rightFields);
+        super(source, left, right, type, matchFields, leftFields, rightFields, false, null);
     }
 
     private static InlineJoin readFrom(StreamInput in) throws IOException {
@@ -161,6 +163,9 @@ public class InlineJoin extends Join {
         LogicalPlan left = in.readNamedWriteable(LogicalPlan.class);
         LogicalPlan right = in.readNamedWriteable(LogicalPlan.class);
         JoinConfig config = new JoinConfig(in);
+        if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_LOOKUP_JOIN_PRE_JOIN_FILTER)) {
+            Expression ignored = in.readOptionalNamedWriteable(Expression.class);
+        }
         return new InlineJoin(source, left, replaceStub(left, right), config);
     }
 

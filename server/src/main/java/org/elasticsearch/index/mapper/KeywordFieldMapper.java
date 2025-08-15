@@ -214,8 +214,6 @@ public final class KeywordFieldMapper extends FieldMapper {
         private final SourceKeepMode indexSourceKeepMode;
         private final boolean isWithinMultiField;
 
-        private boolean isSyntheticSourceEnabled;
-
         public Builder(final String name, final MappingParserContext mappingParserContext) {
             this(
                 name,
@@ -461,8 +459,6 @@ public final class KeywordFieldMapper extends FieldMapper {
 
         @Override
         public KeywordFieldMapper build(MapperBuilderContext context) {
-            this.isSyntheticSourceEnabled = context.isSourceSynthetic();
-
             FieldType fieldtype = resolveFieldType(
                 enableDocValuesSkipper,
                 forceDocValuesSkipper,

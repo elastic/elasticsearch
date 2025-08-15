@@ -365,7 +365,7 @@ public class ResolveIndexTests extends ESTestCase {
             assertThat(resolvedIndex.getAliases(), is(((String[]) indexInfo[6])));
             assertThat(resolvedIndex.getAttributes(), is(flagsToAttributes(indexInfo)));
             assertThat(resolvedIndex.getDataStream(), equalTo((String) indexInfo[5]));
-            assertThat(resolvedIndex.getMode(), equalTo(((IndexMode) indexInfo[7]).toString()));
+            assertThat(resolvedIndex.getMode().toString(), equalTo(((IndexMode) indexInfo[7]).toString()));
         }
     }
 

@@ -14,8 +14,8 @@ setup:
 ---
 "resolve index returns mode for standard and time_series indices":
   - requires:
-      cluster_features: ["gte_v8.5.0"]
-      reason: "Requires time series indexing support introduced in v8.5.0"
+      cluster_features: ["gte_v8.5.0", "resolve_index_returns_mode"]
+      reason: "Requires time series indexing support introduced in v8.5.0 & Node must support returning 'mode' in indices.resolve_index response"
 
   # Create a standard index
   - do:

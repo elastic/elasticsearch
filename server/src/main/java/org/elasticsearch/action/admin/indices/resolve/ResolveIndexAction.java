@@ -183,7 +183,7 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
         private final String[] aliases;
         private final String[] attributes;
         private final String dataStream;
-        private final String mode;
+        private final IndexMode mode;
 
         ResolvedIndex(StreamInput in) throws IOException {
             setName(in.readString());
@@ -191,17 +191,13 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
             this.attributes = in.readStringArray();
             this.dataStream = in.readOptionalString();
             if (in.getTransportVersion().onOrAfter(TransportVersions.RESOLVE_INDEX_MODE_ADDED)) {
-                this.mode = in.readOptionalString();
+                this.mode = IndexMode.readFrom(in);
             } else {
                 this.mode = null;
             }
         }
 
-        ResolvedIndex(String name, String[] aliases, String[] attributes, @Nullable String dataStream) {
-            this(name, aliases, attributes, dataStream, null);
-        }
-
-        ResolvedIndex(String name, String[] aliases, String[] attributes, @Nullable String dataStream, String mode) {
+        ResolvedIndex(String name, String[] aliases, String[] attributes, @Nullable String dataStream, IndexMode mode) {
             super(name);
             this.aliases = aliases;
             this.attributes = attributes;
@@ -225,7 +221,7 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
             return dataStream;
         }
 
-        public String getMode() {
+        public IndexMode getMode() {
             return mode;
         }
 
@@ -236,7 +232,7 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
             out.writeStringArray(attributes);
             out.writeOptionalString(dataStream);
             if (out.getTransportVersion().onOrAfter(TransportVersions.RESOLVE_INDEX_MODE_ADDED)) {
-                out.writeOptionalString(mode);
+                IndexMode.writeTo(mode, out);
             }
         }
 
@@ -251,8 +247,8 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
             if (Strings.isNullOrEmpty(dataStream) == false) {
                 builder.field(DATA_STREAM_FIELD.getPreferredName(), dataStream);
             }
-            if (Strings.isNullOrEmpty(mode) == false) {
-                builder.field(MODE_FIELD.getPreferredName(), mode);
+            if (mode != null) {
+                builder.field(MODE_FIELD.getPreferredName(), mode.toString());
             }
             builder.endObject();
             return builder;
@@ -666,7 +662,7 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
                                 aliasNames,
                                 attributes.stream().map(Enum::name).map(e -> e.toLowerCase(Locale.ROOT)).toArray(String[]::new),
                                 ia.getParentDataStream() == null ? null : ia.getParentDataStream().getName(),
-                                writeIndex.getIndexMode() == null ? IndexMode.STANDARD.toString() : writeIndex.getIndexMode().getName()
+                                writeIndex.getIndexMode() == null ? IndexMode.STANDARD : writeIndex.getIndexMode()
                             )
                         );
                     }

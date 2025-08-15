@@ -1025,7 +1025,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
     }
 
     /**
-     * Creates a new Cluster object using the {@link ShardSearchFailure} info and skip_unavailable
+     * Creates a new Cluster object using the {@link ShardSearchFailure} info and shouldSkipOnFailure
      * flag to set Status. Then it swaps it in the clusters CHM at key clusterAlias
      */
     static void ccsClusterInfoUpdate(
@@ -1063,8 +1063,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
     ) {
         /*
          * Cluster Status logic:
-         * 1) FAILED if total_shards > 0 && all shards failed && skip_unavailable=false
-         * 2) SKIPPED if total_shards > 0 && all shards failed && skip_unavailable=true
+         * 1) FAILED if total_shards > 0 && all shards failed && shouldSkipOnFailure=false
+         * 2) SKIPPED if total_shards > 0 && all shards failed && shouldSkipOnFailure=true
          * 3) PARTIAL if it timed out
          * 4) PARTIAL if it at least one of the shards succeeded but not all
          * 5) SUCCESSFUL if no shards failed (and did not time out)
@@ -1862,7 +1862,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
      * causes of shard failures.
      * @param f ShardSearchFailure to log
      * @param clusterAlias cluster on which the failure occurred
-     * @param shouldSkipOnFailure the skip_unavailable setting of the cluster with the search error
+     * @param shouldSkipOnFailure the shouldSkipOnFailure setting of the cluster with the search error
      */
     private static void logCCSError(ShardSearchFailure f, String clusterAlias, boolean shouldSkipOnFailure) {
         String errorInfo;
@@ -1873,7 +1873,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             errorInfo = f.toString();
         }
         logger.debug(
-            "CCS remote cluster failure. Cluster [{}]. skip_unavailable: [{}]. Error: {}",
+            "CCS remote cluster failure. Cluster [{}]. shouldSkipOnFailure: [{}]. Error: {}",
             clusterAlias,
             shouldSkipOnFailure,
             errorInfo

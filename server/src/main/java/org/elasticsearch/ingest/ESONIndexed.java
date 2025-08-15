@@ -646,17 +646,13 @@ public class ESONIndexed {
         throws IOException {
         Object obj = unwrapObject(object);
         if (obj instanceof Map<?, ?> map) {
-            ESONEntry.ObjectEntry objectEntry = new ESONEntry.ObjectEntry(key);
-            flatKeyArray.add(objectEntry);
-            objectEntry.offsetOrCount(map.size());
+            flatKeyArray.add(new ESONEntry.ObjectEntry(key, map.size()));
             for (Map.Entry<?, ?> entry1 : map.entrySet()) {
                 Object value = entry1.getValue();
                 handleObject(flatKeyArray, value, entry1.getKey().toString(), newOffset, newValuesOut);
             }
         } else if (obj instanceof List<?> list) {
-            ESONEntry.ArrayEntry arrayEntry = new ESONEntry.ArrayEntry(key);
-            flatKeyArray.add(arrayEntry);
-            arrayEntry.offsetOrCount(list.size());
+            flatKeyArray.add(new ESONEntry.ArrayEntry(key, list.size()));
             for (Object value : list) {
                 handleObject(flatKeyArray, value, null, newOffset, newValuesOut);
             }

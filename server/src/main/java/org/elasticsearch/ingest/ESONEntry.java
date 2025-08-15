@@ -34,13 +34,14 @@ public abstract class ESONEntry {
     private final byte type;
     private final String key;
     private final ESONSource.Value value;
-    private int offsetOrCount = -1;
+    private int offsetOrCount;
 
-    ESONEntry(byte type, String key) {
-        this(type, key, -1, null);
+    ESONEntry(byte type, String key, int offsetOrCount) {
+        this(type, key, offsetOrCount, null);
     }
 
     ESONEntry(byte type, String key, int offsetOrCount, ESONSource.Value value) {
+        assert value == null || value.offset() == offsetOrCount;
         this.type = type;
         this.key = key;
         this.offsetOrCount = offsetOrCount;
@@ -72,7 +73,11 @@ public abstract class ESONEntry {
         public Map<String, ESONSource.Value> mutationMap = null;
 
         public ObjectEntry(String key) {
-            super(TYPE_OBJECT, key);
+            this(key, -1);
+        }
+
+        public ObjectEntry(String key, int fieldCount) {
+            super(TYPE_OBJECT, key, fieldCount);
         }
 
         public boolean hasMutations() {
@@ -90,7 +95,11 @@ public abstract class ESONEntry {
         public List<ESONSource.Value> mutationArray = null;
 
         public ArrayEntry(String key) {
-            super(TYPE_ARRAY, key);
+            this(key, -1);
+        }
+
+        public ArrayEntry(String key, int elementCount) {
+            super(TYPE_ARRAY, key, elementCount);
         }
 
         public boolean hasMutations() {
@@ -106,7 +115,7 @@ public abstract class ESONEntry {
     public static class FieldEntry extends ESONEntry {
 
         public FieldEntry(String key, ESONSource.Value value) {
-            super(value.type(), key, -1, value);
+            super(value.type(), key, value.offset(), value);
         }
 
         public FieldEntry(String key, byte type, int offset) {

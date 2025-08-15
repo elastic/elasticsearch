@@ -10,13 +10,13 @@
 package org.elasticsearch.ingest;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.recycler.Recycler;
 
-import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
@@ -54,8 +54,8 @@ public record ESONFlat(List<ESONEntry> keys, ESONSource.Values values, AtomicRef
             byte type = in.readByte();
             int offsetOrCount = in.readInt();
             ESONEntry entry = switch (type) {
-                case ESONEntry.TYPE_OBJECT -> new ESONEntry.ObjectEntry(key);
-                case ESONEntry.TYPE_ARRAY -> new ESONEntry.ArrayEntry(key);
+                case ESONEntry.TYPE_OBJECT -> new ESONEntry.ObjectEntry(key, offsetOrCount);
+                case ESONEntry.TYPE_ARRAY -> new ESONEntry.ArrayEntry(key, offsetOrCount);
                 default -> new ESONEntry.FieldEntry(key, type, offsetOrCount);
             };
             entry.offsetOrCount(offsetOrCount);
@@ -82,9 +82,13 @@ public record ESONFlat(List<ESONEntry> keys, ESONSource.Values values, AtomicRef
                     streamOutput.writeInt(entry.offsetOrCount());
                 }
                 BytesReference bytes = streamOutput.bytes();
-                ByteArrayOutputStream os = new ByteArrayOutputStream(bytes.length());
-                bytes.writeTo(os);
-                serializedKeyBytes.set(bytes);
+                final BytesRef bytesRef;
+                if (bytes.hasArray()) {
+                    bytesRef = BytesRef.deepCopyOf(bytes.toBytesRef());
+                } else {
+                    bytesRef = bytes.toBytesRef();
+                }
+                serializedKeyBytes.set(new BytesArray(bytesRef));
             } catch (IOException e) {
                 throw new UncheckedIOException(e);
             }
@@ -92,19 +96,19 @@ public record ESONFlat(List<ESONEntry> keys, ESONSource.Values values, AtomicRef
         return serializedKeyBytes.get();
     }
 
-    private static final ThreadLocal<BytesRef> BYTES_REF = ThreadLocal.withInitial(() -> new BytesRef(new byte[16384]));
+    private static final ThreadLocal<byte[]> BYTES_REF = ThreadLocal.withInitial(() -> new byte[16384]);
 
     public static Recycler<BytesRef> getBytesRefRecycler() {
         return new Recycler<>() {
 
-            private boolean first = true;
+            private boolean first = false;
 
             @Override
             public V<BytesRef> obtain() {
                 final BytesRef bytesRef;
                 if (first) {
                     first = false;
-                    bytesRef = BYTES_REF.get();
+                    bytesRef = new BytesRef(BYTES_REF.get());
                 } else {
                     bytesRef = new BytesRef(new byte[16384]);
                 }

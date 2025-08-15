@@ -18,7 +18,6 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentString;
 
-import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.math.BigDecimal;
 import java.math.BigInteger;
@@ -53,9 +52,14 @@ public class ESONSource {
 
             try (RecyclerBytesStreamOutput bytes = new RecyclerBytesStreamOutput(refRecycler)) {
                 parseObject(parser, bytes, keyArray, null);
-                ByteArrayOutputStream bao = new ByteArrayOutputStream(bytes.size());
-                bytes.bytes().writeTo(bao);
-                return new ESONIndexed.ESONObject(0, new ESONFlat(keyArray, new Values(new BytesArray(bao.toByteArray()))));
+                BytesReference bytesReference = bytes.bytes();
+                final BytesRef bytesRef;
+                if (bytesReference.hasArray()) {
+                    bytesRef = BytesRef.deepCopyOf(bytesReference.toBytesRef());
+                } else {
+                    bytesRef = bytesReference.toBytesRef();
+                }
+                return new ESONIndexed.ESONObject(0, new ESONFlat(keyArray, new Values(new BytesArray(bytesRef))));
             }
 
         }
@@ -119,40 +123,40 @@ public class ESONSource {
             RecyclerBytesStreamOutput bytes,
             XContentParser.Token token
         ) throws IOException {
-            long position = bytes.position();
+            int position = Math.toIntExact(bytes.position());
 
             return switch (token) {
                 case VALUE_STRING -> {
                     XContentString.UTF8Bytes stringBytes = parser.optimizedText().bytes();
                     bytes.writeVInt(stringBytes.length());
                     bytes.writeBytes(stringBytes.bytes(), stringBytes.offset(), stringBytes.length());
-                    yield new ESONEntry.FieldEntry(fieldName, ESONEntry.STRING, (int) position);
+                    yield new ESONEntry.FieldEntry(fieldName, ESONEntry.STRING, position);
                 }
                 case VALUE_NUMBER -> {
                     XContentParser.NumberType numberType = parser.numberType();
                     yield switch (numberType) {
                         case INT -> {
                             bytes.writeInt(parser.intValue());
-                            yield new ESONEntry.FieldEntry(fieldName, ESONEntry.TYPE_INT, (int) position);
+                            yield new ESONEntry.FieldEntry(fieldName, ESONEntry.TYPE_INT, position);
                         }
                         case LONG -> {
                             bytes.writeLong(parser.longValue());
-                            yield new ESONEntry.FieldEntry(fieldName, ESONEntry.TYPE_LONG, (int) position);
+                            yield new ESONEntry.FieldEntry(fieldName, ESONEntry.TYPE_LONG, position);
                         }
                         case FLOAT -> {
                             bytes.writeFloat(parser.floatValue());
-                            yield new ESONEntry.FieldEntry(fieldName, ESONEntry.TYPE_FLOAT, (int) position);
+                            yield new ESONEntry.FieldEntry(fieldName, ESONEntry.TYPE_FLOAT, position);
                         }
                         case DOUBLE -> {
                             bytes.writeDouble(parser.doubleValue());
-                            yield new ESONEntry.FieldEntry(fieldName, ESONEntry.TYPE_DOUBLE, (int) position);
+                            yield new ESONEntry.FieldEntry(fieldName, ESONEntry.TYPE_DOUBLE, position);
                         }
                         case BIG_INTEGER, BIG_DECIMAL -> {
                             byte type = numberType == XContentParser.NumberType.BIG_INTEGER ? ESONEntry.BIG_INTEGER : ESONEntry.BIG_DECIMAL;
                             byte[] numberBytes = parser.text().getBytes(StandardCharsets.UTF_8);
                             bytes.writeVInt(numberBytes.length);
                             bytes.writeBytes(numberBytes, 0, numberBytes.length);
-                            yield new ESONEntry.FieldEntry(fieldName, type, (int) position);
+                            yield new ESONEntry.FieldEntry(fieldName, type, position);
                         }
                     };
                 }
@@ -164,7 +168,7 @@ public class ESONSource {
                     byte[] binaryValue = parser.binaryValue();
                     bytes.writeVInt(binaryValue.length);
                     bytes.write(binaryValue);
-                    yield new ESONEntry.FieldEntry(fieldName, ESONEntry.BINARY, (int) position);
+                    yield new ESONEntry.FieldEntry(fieldName, ESONEntry.BINARY, position);
                 }
                 default -> throw new IllegalArgumentException("Unexpected token: " + token);
             };

@@ -1420,21 +1420,19 @@ public final class TextFieldMapper extends TextFamilyFieldMapper {
             if (phraseFieldInfo != null) {
                 context.doc().add(new Field(phraseFieldInfo.field, value, phraseFieldInfo.fieldType));
             }
-        } else if (needsToSupportSyntheticSource() && fieldType.stored() == false) {
-            // if synthetic source needs to be supported, yet the field isn't stored, then we need to rely on something
-            // else to support synthetic source
+        }
 
-            // if we can rely on the synthetic source delegate for synthetic source, then return
+        // if synthetic source needs to be supported, yet the field isn't stored, then we need to rely on something else
+        if (needsToSupportSyntheticSource() && fieldType.stored() == false) {
+            // if we can rely on the synthetic source delegate for synthetic source, then exit as there is nothing to do
             if (fieldType().canUseSyntheticSourceDelegateForSyntheticSource(value)) {
                 return;
             }
 
-            // record this field's value in _ignored_source - synthetic source will fallback to it automatically
+            // otherwise, store this field in Lucene so that synthetic source can load it
             var utfBytes = context.parser().optimizedTextOrNull().bytes();
             var valuesBytesRef = new BytesRef(utfBytes.bytes(), utfBytes.offset(), utfBytes.length());
-            context.addIgnoredField(
-                new IgnoredSourceFieldMapper.NameValue(fullPath(), fullPath().lastIndexOf(leafName()), valuesBytesRef, context.doc())
-            );
+            context.storeFieldForSyntheticSource(fullPath(), leafName(), valuesBytesRef, context.doc());
             // final String fieldName = fieldType().syntheticSourceFallbackFieldName();
             // context.doc().add(new StoredField(fieldName, value));
         }

@@ -41,8 +41,7 @@ public abstract class TextFamilyFieldMapper extends FieldMapper {
      */
     protected boolean needsToSupportSyntheticSource() {
         if (multiFieldsNotStoredByDefaultIndexVersionCheck()) {
-            // if we're within a multi field, then supporting synthetic source isn't necessary as that's the
-            // responsibility of the parent field
+            // if we're within a multi field, then supporting synthetic source isn't necessary as that's the responsibility of the parent
             return isSyntheticSourceEnabled && isWithinMultiField == false;
         }
         return isSyntheticSourceEnabled;

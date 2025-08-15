@@ -71,6 +71,3 @@ checkstyle_ide.xml
 x-pack/plugin/esql/src/main/generated-src/generated/
 server/src/main/resources/transport/definitions/manifest.txt
 
-# JEnv
-.java-version
->>>>>>> bde40041100 (Update transport version directory structure (#132891))

@@ -801,10 +801,8 @@ public class SparseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase
         }
 
         if (shouldPrune == null) {
-            shouldPrune = indexVersion.between(
-                SPARSE_VECTOR_PRUNING_INDEX_OPTIONS_SUPPORT_BACKPORT_8_X,
-                UPGRADE_TO_LUCENE_10_0_0
-            ) || indexVersion.onOrAfter(SPARSE_VECTOR_PRUNING_INDEX_OPTIONS_SUPPORT);
+            shouldPrune = indexVersion.between(SPARSE_VECTOR_PRUNING_INDEX_OPTIONS_SUPPORT_BACKPORT_8_X, UPGRADE_TO_LUCENE_10_0_0)
+                || indexVersion.onOrAfter(SPARSE_VECTOR_PRUNING_INDEX_OPTIONS_SUPPORT);
         }
 
         PruningScenario pruningScenario = PruningScenario.NO_PRUNING;
@@ -875,14 +873,8 @@ public class SparseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase
             SPARSE_VECTOR_PRUNING_INDEX_OPTIONS_SUPPORT_BACKPORT_8_X,
             IndexVersionUtils.getPreviousVersion(UPGRADE_TO_LUCENE_10_0_0)
         ),
-        ES_V9X_WITHOUT_SUPPORT(
-            UPGRADE_TO_LUCENE_10_0_0,
-            IndexVersionUtils.getPreviousVersion(SPARSE_VECTOR_PRUNING_INDEX_OPTIONS_SUPPORT)
-        ),
-        ES_V9X_WITH_SUPPORT(
-            SPARSE_VECTOR_PRUNING_INDEX_OPTIONS_SUPPORT,
-            IndexVersion.current()
-        );
+        ES_V9X_WITHOUT_SUPPORT(UPGRADE_TO_LUCENE_10_0_0, IndexVersionUtils.getPreviousVersion(SPARSE_VECTOR_PRUNING_INDEX_OPTIONS_SUPPORT)),
+        ES_V9X_WITH_SUPPORT(SPARSE_VECTOR_PRUNING_INDEX_OPTIONS_SUPPORT, IndexVersion.current());
 
         private final IndexVersion fromVersion;
         private final IndexVersion toVersion;
@@ -894,7 +886,7 @@ public class SparseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase
 
         IndexVersion getRandomVersion() {
             // TODO: replace implementation with `IndexVersionUtils::randomVersionBetween` once support is added
-            //  for handling unbalanced version distributions.
+            // for handling unbalanced version distributions.
             NavigableSet<IndexVersion> allReleaseVersions = IndexVersionUtils.allReleasedVersions();
             Set<IndexVersion> candidateVersions = allReleaseVersions.subSet(fromVersion, toVersion);
             return ESTestCase.randomFrom(candidateVersions);

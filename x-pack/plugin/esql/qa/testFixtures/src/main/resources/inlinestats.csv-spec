@@ -1418,7 +1418,7 @@ FROM employees
 | LIMIT 5
 ;
 
-emp_no:integer |jobs:integer|count:long|min:long
+emp_no:integer |jobs:integer|count:long|min:integer
 10001          |2           |18        |1
 10002          |1           |27        |1
 10003          |null        |11        |1

@@ -22,7 +22,6 @@ import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.ByteArrayStreamInput;
 import org.elasticsearch.index.IndexVersion;
-import org.elasticsearch.index.codec.tsdb.es819.BulkNumericDocValues;
 import org.elasticsearch.index.mapper.BlockLoader.BlockFactory;
 import org.elasticsearch.index.mapper.BlockLoader.BooleanBuilder;
 import org.elasticsearch.index.mapper.BlockLoader.Builder;
@@ -133,8 +132,11 @@ public abstract class BlockDocValuesReader implements BlockLoader.AllReader {
 
         @Override
         public BlockLoader.Block read(BlockFactory factory, Docs docs, int offset) throws IOException {
-            if (numericDocValues instanceof BulkNumericDocValues bulkDv) {
-                return bulkDv.read(factory, docs, offset);
+            if (numericDocValues instanceof BlockLoader.OptionalColumnAtATimeReader direct) {
+                BlockLoader.Block result = direct.tryRead(factory, docs, offset);
+                if (result != null) {
+                    return result;
+                }
             }
             try (BlockLoader.LongBuilder builder = factory.longsFromDocValues(docs.count() - offset)) {
                 int lastDoc = -1;
@@ -747,6 +749,12 @@ public abstract class BlockDocValuesReader implements BlockLoader.AllReader {
         public BlockLoader.Block read(BlockFactory factory, Docs docs, int offset) throws IOException {
             if (docs.count() - offset == 1) {
                 return readSingleDoc(factory, docs.get(offset));
+            }
+            if (ordinals instanceof BlockLoader.OptionalColumnAtATimeReader direct) {
+                BlockLoader.Block block = direct.tryRead(factory, docs, offset);
+                if (block != null) {
+                    return block;
+                }
             }
             try (var builder = factory.singletonOrdinalsBuilder(ordinals, docs.count() - offset)) {
                 for (int i = offset; i < docs.count(); i++) {

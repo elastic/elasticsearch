@@ -28,8 +28,7 @@ echo "--- Updating snapshot"
 
 echo "$CUVS_SNAPSHOT_VERSION" > "$SNAPSHOT_VERSION_FILE"
 
-# CURRENT_SHA="$(gh api "/repos/elastic/elasticsearch/contents/$SNAPSHOT_VERSION_FILE?ref=$BRANCH_TO_UPDATE" | jq -r .sha)"
-CURRENT_SHA=test
+CURRENT_SHA="$(gh api "/repos/elastic/elasticsearch/contents/$SNAPSHOT_VERSION_FILE?ref=$BRANCH_TO_UPDATE" | jq -r .sha)" || true
 
 echo gh api -X PUT "/repos/elastic/elasticsearch/contents/$SNAPSHOT_VERSION_FILE" \
   -f branch="$BRANCH_TO_UPDATE" \

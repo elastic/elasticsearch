@@ -233,7 +233,46 @@ class DatafeedJob {
 
             // Keep track of the last bucket time for which we did a missing data check
             this.lastDataCheckTimeMs = this.currentTimeSupplier.get();
-            List<BucketWithMissingData> missingDataBuckets = delayedDataDetector.detectMissingData(latestFinalBucketEndTimeMs);
+            
+            // Implement retry logic for detecting missing data
+            List<BucketWithMissingData> missingDataBuckets = null;
+            Exception lastException = null;
+            int maxRetries = 3;
+            int retryCount = 0;
+            
+            while (retryCount <= maxRetries && missingDataBuckets == null) {
+                try {
+                    missingDataBuckets = delayedDataDetector.detectMissingData(latestFinalBucketEndTimeMs);
+                } catch (Exception e) {
+                    lastException = e;
+                    retryCount++;
+                    
+                    if (retryCount <= maxRetries) {
+                        // Log the retry attempt
+                        LOGGER.warn("Failed to check for missing data on attempt {} of {}, will retry: {}", 
+                            retryCount, maxRetries + 1, e.getMessage());
+                        
+                        // Calculate backoff delay: 100ms, 200ms, 400ms
+                        long backoffDelay = 100L * (1L << (retryCount - 1));
+                        try {
+                            Thread.sleep(backoffDelay);
+                        } catch (InterruptedException ie) {
+                            Thread.currentThread().interrupt();
+                            LOGGER.warn("Interrupted while waiting to retry missing data check");
+                            break;
+                        }
+                    }
+                }
+            }
+            
+            // If all retries failed, log error and return without checking
+            if (missingDataBuckets == null) {
+                LOGGER.error("Failed to check for missing data after {} attempts", maxRetries + 1, lastException);
+                auditor.warning(jobId, 
+                    "Failed to check for missing data after " + (maxRetries + 1) + 
+                    " attempts. The datafeed will continue but delayed data detection is temporarily unavailable.");
+                return;
+            }
             if (missingDataBuckets.isEmpty() == false) {
                 long totalRecordsMissing = missingDataBuckets.stream().mapToLong(BucketWithMissingData::getMissingDocumentCount).sum();
                 Bucket lastBucket = missingDataBuckets.get(missingDataBuckets.size() - 1).getBucket();

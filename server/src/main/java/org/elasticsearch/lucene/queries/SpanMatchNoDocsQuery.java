@@ -25,7 +25,7 @@ import java.util.Map;
 /**
  * A {@link SpanQuery} that matches no documents.
  */
-//TODO is this still needed?
+// TODO is this still needed?
 public class SpanMatchNoDocsQuery extends SpanQuery {
     private final String field;
     private final String reason;

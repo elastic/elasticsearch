@@ -21,6 +21,7 @@ import org.apache.lucene.analysis.tokenattributes.PositionIncrementAttribute;
 import org.apache.lucene.analysis.tokenattributes.TermToBytesRefAttribute;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
+import org.apache.lucene.document.StoredField;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.queries.intervals.Intervals;
@@ -1434,7 +1435,8 @@ public final class TextFieldMapper extends TextFamilyFieldMapper {
             }
 
             // otherwise, store this field in Lucene so that synthetic source can load it
-            context.storeFieldForSyntheticSource(fullPath(), leafName(), context.encodeFlattenedToken(), context.doc());
+            final String fieldName = fieldType().syntheticSourceFallbackFieldName();
+            context.doc().add(new StoredField(fieldName, value));
         }
     }
 
@@ -1612,15 +1614,32 @@ public final class TextFieldMapper extends TextFamilyFieldMapper {
             });
         }
 
-        // otherwise, use the delegate
-        // note, the delegate itself might not be stored in Lucene due to various reasons (ex. it tripped ignore_above), in such cases, we
-        // should've added this field to ignored_source
+        return new SyntheticSourceSupport.Native(() -> syntheticFieldLoader(fullPath(), leafName()));
+    }
+
+    private SourceLoader.SyntheticFieldLoader syntheticFieldLoader(String fullFieldName, String leafFieldName) {
+        // since we don't know whether the delegate field loader can be used for synthetic source until parsing, we
+        // need to check both this field and the delegate
+
+        // first field loader, representing this field
+        final String fieldName = fieldType().syntheticSourceFallbackFieldName();
+        final var thisFieldLayer = new CompositeSyntheticFieldLoader.StoredFieldLayer(fieldName) {
+            @Override
+            protected void writeValue(Object value, XContentBuilder b) throws IOException {
+                b.value(value.toString());
+            }
+        };
+
+        final CompositeSyntheticFieldLoader fieldLoader = new CompositeSyntheticFieldLoader(leafFieldName, fullFieldName, thisFieldLayer);
+
+        // second loader, representing a delegate field, if one exists
         var kwd = TextFieldMapper.SyntheticSourceHelper.getKeywordFieldMapperForSyntheticSource(this);
         if (kwd != null) {
-            return new SyntheticSourceSupport.Native(() -> kwd.syntheticFieldLoader(fullPath(), leafName()));
+            // merge the two field loaders into one
+            return fieldLoader.mergedWith(kwd.syntheticFieldLoader(fullPath(), leafName()));
         }
 
-        return super.syntheticSourceSupport();
+        return fieldLoader;
     }
 
     public static class SyntheticSourceHelper {

@@ -335,20 +335,6 @@ public abstract class DocumentParserContext {
         }
     }
 
-    /**
-     * This function acts as a more "readable" wrapper around adding ignored fields.
-     *
-     * This is useful when we want to reuse the existing logic that {@link IgnoredSourceFieldMapper} provides for synthetic source, without
-     * explicitly calling addIgnoredField(). Without this, it's a bit confusing why fields that are not meant to be ignored, are being
-     * added to ignored source.
-     */
-    public final void storeFieldForSyntheticSource(String fullPath, String leafName, BytesRef valueBytes, LuceneDocument doc) {
-        if (canAddIgnoredField()) {
-            var fieldData = new IgnoredSourceFieldMapper.NameValue(fullPath, fullPath.lastIndexOf(leafName), valueBytes, doc);
-            ignoredFieldValues.add(fieldData);
-        }
-    }
-
     final void removeLastIgnoredField(String name) {
         if (ignoredFieldValues.isEmpty() == false && ignoredFieldValues.getLast().name().equals(name)) {
             ignoredFieldValues.removeLast();
@@ -391,7 +377,7 @@ public abstract class DocumentParserContext {
      * For instance: { "a.b": "b", "a.c": "c" } => { "a": { "b": "b" }, "a": { "c": "c" } }
      * This can happen when storing parts of document source that are not indexed (e.g. disabled objects).
      */
-    public BytesRef encodeFlattenedToken() throws IOException {
+    BytesRef encodeFlattenedToken() throws IOException {
         boolean old = path().isWithinLeafObject();
         path().setWithinLeafObject(true);
         BytesRef encoded = XContentDataHelper.encodeToken(parser());

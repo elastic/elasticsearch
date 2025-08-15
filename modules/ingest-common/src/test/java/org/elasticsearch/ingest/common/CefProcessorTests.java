@@ -66,11 +66,9 @@ public class CefProcessorTests extends ESTestCase {
         }
     }
 
-    public void testExecute() {
+    public void testExecute() throws IOException, URISyntaxException {
         Map<String, Object> source = new HashMap<>();
-        String message = "CEF:0|Elastic|Vaporware|1.0.0-alpha|18|Web request|low|eventId=3457 requestMethod=POST "
-            + "slat=38.915 slong=-77.511 proto=TCP sourceServiceName=httpd requestContext=https://www.google.com "
-            + "src=89.160.20.156 spt=33876 dst=192.168.10.1 dpt=443 request=https://www.example.com/cart";
+        String message = readCefMessageFile("message_execute.cef.txt");
         source.put("message", message);
         document = new IngestDocument("index", "id", 1L, null, null, source);
         CefProcessor processor = new CefProcessor("tag", "description", "message", "cef", false, true, null);
@@ -118,9 +116,8 @@ public class CefProcessorTests extends ESTestCase {
         expectThrows(IllegalArgumentException.class, () -> processor.execute(invalidIngestDocument));
     }
 
-    public void testStandardMessage() {
-        String message = "CEF:26|security|threatmanager|1.0|100|trojan successfully stopped|10|"
-            + "src=10.0.0.192 dst=12.121.122.82 spt=1232 eventId=1 in=4294 out=4294";
+    public void testStandardMessage() throws IOException, URISyntaxException{
+        String message = readCefMessageFile("standard_message.cef.txt");
         Map<String, Object> source = new HashMap<>();
         source.put("message", message);
         document = new IngestDocument("index", "id", 1L, null, null, source);
@@ -150,8 +147,8 @@ public class CefProcessorTests extends ESTestCase {
         );
     }
 
-    public void testHeaderOnly() {
-        String message = "CEF:26|security|threatmanager|1.0|100|trojan successfully stopped|10|";
+    public void testHeaderOnly() throws IOException, URISyntaxException{
+        String message = readCefMessageFile("header_only.cef.txt");
         Map<String, Object> source = new HashMap<>();
         source.put("message", message);
         document = new IngestDocument("index", "id", 1L, null, null, source);
@@ -179,8 +176,8 @@ public class CefProcessorTests extends ESTestCase {
         );
     }
 
-    public void testEmptyDeviceFields() {
-        String message = "CEF:0|||1.0|100|trojan successfully stopped|10|src=10.0.0.192 dst=12.121.122.82 spt=1232";
+    public void testEmptyDeviceFields() throws IOException, URISyntaxException{
+        String message = readCefMessageFile("empty_device_fields.cef.txt");
         Map<String, Object> source = new HashMap<>();
         source.put("message", message);
         document = new IngestDocument("index", "id", 1L, null, null, source);
@@ -207,9 +204,8 @@ public class CefProcessorTests extends ESTestCase {
         );
     }
 
-    public void testEscapedPipeInHeader() {
-        String message = "CEF:26|security|threat\\|->manager|1.0|100|"
-            + "trojan successfully stopped|10|src=10.0.0.192 dst=12.121.122.82 spt=1232";
+    public void testEscapedPipeInHeader() throws IOException, URISyntaxException{
+        String message = readCefMessageFile("escaped_pipe_in_header.cef.txt");
         Map<String, Object> source = new HashMap<>();
         source.put("message", message);
         document = new IngestDocument("index", "id", 1L, null, null, source);

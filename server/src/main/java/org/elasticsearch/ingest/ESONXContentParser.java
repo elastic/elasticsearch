@@ -48,7 +48,6 @@ public class ESONXContentParser extends AbstractXContentParser {
     // Current token state
     private Token currentToken = null;
     private Token nextToken = null;
-    private String currentFieldName = null;
     private ESONEntry currentEntry = null;
     private Object currentValue = null;
 
@@ -79,61 +78,6 @@ public class ESONXContentParser extends AbstractXContentParser {
         // ESON already handles this during parsing
     }
 
-    // @Override
-    // public Token nextToken() throws IOException {
-    // if (currentToken != null && containerStack.isEmpty() == false) {
-    // int remainingFields = containerStack.currentContainerFieldsRemaining();
-    //
-    // if (remainingFields > 0) {
-    // boolean isObject = containerStack.isCurrentContainerObject();
-    //
-    // if (isObject && currentToken != Token.FIELD_NAME) {
-    // currentEntry = keyArray.get(currentIndex);
-    // currentValue = null;
-    // currentFieldName = currentEntry.key();
-    // return currentToken = Token.FIELD_NAME;
-    // } else {
-    // if (currentToken != Token.FIELD_NAME) {
-    // // In array - need to fetch entry
-    // currentEntry = keyArray.get(currentIndex);
-    // currentValue = null;
-    // }
-    //
-    // containerStack.decrementCurrentContainerFields();
-    // ++currentIndex;
-    //
-    // byte type = currentEntry.type();
-    // if (type < ESONEntry.TYPE_OBJECT) {
-    // return currentToken = TOKEN_LOOKUP[type];
-    // } else {
-    // newContainer(type);
-    // return currentToken = TOKEN_LOOKUP[type];
-    // }
-    // }
-    // } else {
-    // // End of container
-    // boolean isObject = containerStack.isCurrentContainerObject();
-    // containerStack.popContainer();
-    // return currentToken = isObject ? Token.END_OBJECT : Token.END_ARRAY;
-    // }
-    // }
-    //
-    // if (closed) {
-    // return null;
-    // }
-    //
-    // if (currentToken == null) {
-    // // First token logic
-    // currentEntry = keyArray.get(currentIndex);
-    // currentValue = null;
-    // containerStack.pushObject(currentEntry.offsetOrCount());
-    // currentIndex++;
-    // return currentToken = Token.START_OBJECT;
-    // }
-    //
-    // return null;
-    // }
-
     @Override
     public Token nextToken() throws IOException {
         if (currentToken == Token.FIELD_NAME) {
@@ -157,7 +101,6 @@ public class ESONXContentParser extends AbstractXContentParser {
                 token = TOKEN_LOOKUP[type];
 
                 if (isObject) {
-                    currentFieldName = currentEntry.key();
                     nextToken = token;
                     return currentToken = Token.FIELD_NAME;
                 } else {
@@ -193,65 +136,6 @@ public class ESONXContentParser extends AbstractXContentParser {
             containerStack.pushArray(currentEntry.offsetOrCount());
         }
     }
-    // public Token nextToken() throws IOException {
-    // if (closed) {
-    // return null;
-    // }
-    //
-    // // Clear value state from previous token
-    // currentValue = null;
-    // valueComputed = false;
-    //
-    // int size = keyArray.size();
-    //
-    // // First token - start root object
-    // if (currentToken == null) {
-    // assert size >= currentIndex;
-    // ESONEntry.ObjectEntry rootEntry = (ESONEntry.ObjectEntry) keyArray.get(currentIndex);
-    // containerStack.pushObject(rootEntry.offsetOrCount());
-    // currentIndex++;
-    // currentToken = Token.START_OBJECT;
-    // return currentToken;
-    // }
-    //
-    // // Check if we've finished parsing
-    // if (containerStack.isEmpty()) {
-    // return null;
-    // }
-    //
-    // if (containerStack.currentContainerFieldsRemaining() == 0) {
-    // currentToken = containerStack.isCurrentContainerArray() ? Token.END_ARRAY : Token.END_OBJECT;
-    // containerStack.popContainer();
-    // return currentToken;
-    // }
-    //
-    // assert size > currentIndex;
-    //
-    // // Process next entry
-    // currentEntry = keyArray.get(currentIndex);
-    //
-    // // Handle based on container type
-    // if (containerStack.isCurrentContainerArray() == false && currentToken != Token.FIELD_NAME) {
-    // currentFieldName = currentEntry.key();
-    // currentToken = Token.FIELD_NAME;
-    // return currentToken;
-    // } else {
-    // containerStack.decrementCurrentContainerFields();
-    // ++currentIndex;
-    // // In array or object value
-    // byte type = currentEntry.type();
-    // if (type >= ESONEntry.TYPE_OBJECT) {
-    // if (type == ESONEntry.TYPE_OBJECT) {
-    // containerStack.pushObject(currentEntry.offsetOrCount());
-    // } else if (type == ESONEntry.TYPE_ARRAY) {
-    // containerStack.pushArray(currentEntry.offsetOrCount());
-    // }
-    // }
-    //
-    // currentToken = TOKEN_LOOKUP[type];
-    // return currentToken;
-    // }
-    // }
 
     private static final Token[] TOKEN_LOOKUP = new Token[32];
 
@@ -321,11 +205,12 @@ public class ESONXContentParser extends AbstractXContentParser {
     @Override
     public String currentName() throws IOException {
         if (currentToken == Token.FIELD_NAME) {
-            return currentFieldName;
+            // TODO: Hack due to 0 length strings being considered null right now
+            return currentEntry.key() == null ? "" : currentEntry.key();
         }
         // When on a value token, return the field name if in an object
-        if (containerStack.isEmpty() == false && containerStack.isCurrentContainerObject() && currentFieldName != null) {
-            return currentFieldName;
+        if (containerStack.isEmpty() == false) {
+            return currentEntry.key();
         }
         return null;
     }

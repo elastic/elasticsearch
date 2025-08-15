@@ -22,6 +22,7 @@ import org.apache.lucene.util.BitUtil;
 import org.apache.lucene.util.Constants;
 
 import static jdk.incubator.vector.VectorOperators.ADD;
+import static jdk.incubator.vector.VectorOperators.ASHR;
 import static jdk.incubator.vector.VectorOperators.LSHL;
 import static jdk.incubator.vector.VectorOperators.MAX;
 import static jdk.incubator.vector.VectorOperators.MIN;
@@ -1020,5 +1021,105 @@ public final class PanamaESVectorUtilSupport implements ESVectorUtilSupport {
             result |= (byte) ((vector[i] & 1) << j);
         }
         packed[index] = result;
+    }
+
+    @Override
+    public void transposeHalfByte(int[] q, byte[] quantQueryByte) {
+        // 128 / 32 == 4
+        if (q.length >= 8 && HAS_FAST_INTEGER_VECTORS) {
+            if (VECTOR_BITSIZE >= 256) {
+                transposeHalfByte256(q, quantQueryByte);
+                return;
+            } else if (VECTOR_BITSIZE == 128) {
+                transposeHalfByte128(q, quantQueryByte);
+                return;
+            }
+        }
+        DefaultESVectorUtilSupport.transposeHalfByteImpl(q, quantQueryByte);
+    }
+
+    private void transposeHalfByte256(int[] q, byte[] quantQueryByte) {
+        final int limit = INT_SPECIES_256.loopBound(q.length);
+        int i = 0;
+        int index = 0;
+        for (; i < limit; i += INT_SPECIES_256.length(), index++) {
+            IntVector v = IntVector.fromArray(INT_SPECIES_256, q, i);
+
+            int lowerByte = v.and(1).lanewise(LSHL, SHIFTS_256).reduceLanes(VectorOperators.OR);
+            int lowerMiddleByte = v.lanewise(ASHR, 1).and(1).lanewise(LSHL, SHIFTS_256).reduceLanes(VectorOperators.OR);
+            int upperMiddleByte = v.lanewise(ASHR, 2).and(1).lanewise(LSHL, SHIFTS_256).reduceLanes(VectorOperators.OR);
+            int upperByte = v.lanewise(ASHR, 3).and(1).lanewise(LSHL, SHIFTS_256).reduceLanes(VectorOperators.OR);
+
+            quantQueryByte[index] = (byte) lowerByte;
+            quantQueryByte[index + quantQueryByte.length / 4] = (byte) lowerMiddleByte;
+            quantQueryByte[index + quantQueryByte.length / 2] = (byte) upperMiddleByte;
+            quantQueryByte[index + 3 * quantQueryByte.length / 4] = (byte) upperByte;
+
+        }
+        if (i == q.length) {
+            return; // all done
+        }
+        int lowerByte = 0;
+        int lowerMiddleByte = 0;
+        int upperMiddleByte = 0;
+        int upperByte = 0;
+        for (int j = 7; i < q.length; j--, i++) {
+            lowerByte |= (q[i] & 1) << j;
+            lowerMiddleByte |= ((q[i] >> 1) & 1) << j;
+            upperMiddleByte |= ((q[i] >> 2) & 1) << j;
+            upperByte |= ((q[i] >> 3) & 1) << j;
+        }
+        quantQueryByte[index] = (byte) lowerByte;
+        quantQueryByte[index + quantQueryByte.length / 4] = (byte) lowerMiddleByte;
+        quantQueryByte[index + quantQueryByte.length / 2] = (byte) upperMiddleByte;
+        quantQueryByte[index + 3 * quantQueryByte.length / 4] = (byte) upperByte;
+    }
+
+    private void transposeHalfByte128(int[] q, byte[] quantQueryByte) {
+        final int limit = INT_SPECIES_128.loopBound(q.length) - INT_SPECIES_128.length();
+        int i = 0;
+        int index = 0;
+        for (; i < limit; i += 2 * INT_SPECIES_128.length(), index++) {
+            IntVector v = IntVector.fromArray(INT_SPECIES_128, q, i);
+
+            var lowerByteHigh = v.and(1).lanewise(LSHL, HIGH_SHIFTS_128);
+            var lowerMiddleByteHigh = v.lanewise(ASHR, 1).and(1).lanewise(LSHL, HIGH_SHIFTS_128);
+            var upperMiddleByteHigh = v.lanewise(ASHR, 2).and(1).lanewise(LSHL, HIGH_SHIFTS_128);
+            var upperByteHigh = v.lanewise(ASHR, 3).and(1).lanewise(LSHL, HIGH_SHIFTS_128);
+
+            v = IntVector.fromArray(INT_SPECIES_128, q, i + INT_SPECIES_128.length());
+            var lowerByteLow = v.and(1).lanewise(LSHL, LOW_SHIFTS_128);
+            var lowerMiddleByteLow = v.lanewise(ASHR, 1).and(1).lanewise(LSHL, LOW_SHIFTS_128);
+            var upperMiddleByteLow = v.lanewise(ASHR, 2).and(1).lanewise(LSHL, LOW_SHIFTS_128);
+            var upperByteLow = v.lanewise(ASHR, 3).and(1).lanewise(LSHL, LOW_SHIFTS_128);
+
+            int lowerByte = lowerByteHigh.lanewise(OR, lowerByteLow).reduceLanes(OR);
+            int lowerMiddleByte = lowerMiddleByteHigh.lanewise(OR, lowerMiddleByteLow).reduceLanes(OR);
+            int upperMiddleByte = upperMiddleByteHigh.lanewise(OR, upperMiddleByteLow).reduceLanes(OR);
+            int upperByte = upperByteHigh.lanewise(OR, upperByteLow).reduceLanes(OR);
+
+            quantQueryByte[index] = (byte) lowerByte;
+            quantQueryByte[index + quantQueryByte.length / 4] = (byte) lowerMiddleByte;
+            quantQueryByte[index + quantQueryByte.length / 2] = (byte) upperMiddleByte;
+            quantQueryByte[index + 3 * quantQueryByte.length / 4] = (byte) upperByte;
+
+        }
+        if (i == q.length) {
+            return; // all done
+        }
+        int lowerByte = 0;
+        int lowerMiddleByte = 0;
+        int upperMiddleByte = 0;
+        int upperByte = 0;
+        for (int j = 7; i < q.length; j--, i++) {
+            lowerByte |= (q[i] & 1) << j;
+            lowerMiddleByte |= ((q[i] >> 1) & 1) << j;
+            upperMiddleByte |= ((q[i] >> 2) & 1) << j;
+            upperByte |= ((q[i] >> 3) & 1) << j;
+        }
+        quantQueryByte[index] = (byte) lowerByte;
+        quantQueryByte[index + quantQueryByte.length / 4] = (byte) lowerMiddleByte;
+        quantQueryByte[index + quantQueryByte.length / 2] = (byte) upperMiddleByte;
+        quantQueryByte[index + 3 * quantQueryByte.length / 4] = (byte) upperByte;
     }
 }

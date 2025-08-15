@@ -20,8 +20,6 @@ import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.VectorUtil;
 import org.apache.lucene.util.hnsw.NeighborQueue;
 import org.elasticsearch.index.codec.vectors.reflect.OffHeapStats;
-import org.elasticsearch.logging.LogManager;
-import org.elasticsearch.logging.Logger;
 import org.elasticsearch.simdvec.ES91OSQVectorsScorer;
 import org.elasticsearch.simdvec.ES92Int7VectorsScorer;
 import org.elasticsearch.simdvec.ESVectorUtil;
@@ -41,8 +39,6 @@ import static org.elasticsearch.simdvec.ES91OSQVectorsScorer.BULK_SIZE;
  * brute force and then scores the top ones using the posting list.
  */
 public class DefaultIVFVectorsReader extends IVFVectorsReader implements OffHeapStats {
-
-    static Logger logger = LogManager.getLogger(DefaultIVFVectorsReader.class);
 
     // The percentage of centroids that are scored to keep recall
     public static final double CENTROID_SAMPLING_PERCENTAGE = 0.2;

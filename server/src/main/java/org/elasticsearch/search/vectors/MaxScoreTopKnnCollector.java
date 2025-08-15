@@ -15,13 +15,13 @@ import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.search.knn.KnnSearchStrategy;
 import org.elasticsearch.index.codec.vectors.cluster.NeighborQueue;
 
-public class MaxScoreTopKnnCollector extends AbstractMaxScoreKnnCollector {
+class MaxScoreTopKnnCollector extends AbstractMaxScoreKnnCollector {
 
     private long minCompetitiveDocScore;
     private float minCompetitiveSimilarity;
     protected final NeighborQueue queue;
 
-    public MaxScoreTopKnnCollector(int k, long visitLimit, KnnSearchStrategy searchStrategy) {
+    MaxScoreTopKnnCollector(int k, long visitLimit, KnnSearchStrategy searchStrategy) {
         super(k, visitLimit, searchStrategy);
         this.minCompetitiveDocScore = LEAST_COMPETITIVE;
         this.minCompetitiveSimilarity = Float.NEGATIVE_INFINITY;

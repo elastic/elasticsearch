@@ -11,9 +11,7 @@ package org.elasticsearch.search.vectors;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.search.KnnCollector;
 import org.apache.lucene.search.join.BitSetProducer;
-import org.apache.lucene.search.knn.KnnCollectorManager;
 import org.apache.lucene.search.knn.KnnSearchStrategy;
 import org.apache.lucene.util.BitSet;
 
@@ -30,7 +28,8 @@ public class DiversifiedIVFKnnCollectorManager extends AbstractIVFKnnVectorQuery
     }
 
     @Override
-    public AbstractMaxScoreKnnCollector newCollector(int visitedLimit, KnnSearchStrategy searchStrategy, LeafReaderContext context) throws IOException {
+    public AbstractMaxScoreKnnCollector newCollector(int visitedLimit, KnnSearchStrategy searchStrategy, LeafReaderContext context)
+        throws IOException {
         BitSet parentBitSet = parentsFilter.getBitSet(context);
         if (parentBitSet == null) {
             return null;

@@ -53,7 +53,6 @@ class KMeansLocal {
         Random random = new Random(42L);
         int centroidsSize = Math.min(vectors.size(), centroidCount);
         float[][] centroids = new float[centroidsSize][vectors.dimension()];
-        vectors.prefetch(0, centroidsSize - 1);
         for (int i = 0; i < vectors.size(); i++) {
             float[] vector;
             if (i < centroidCount) {
@@ -81,13 +80,10 @@ class KMeansLocal {
         int dim = vectors.dimension();
         centroidChanged.clear();
         final float[] distances = new float[4];
-        // prefetch the first 4 and then we prefetch in batches of 4
-        // prefetching everything seems like overkill
-        vectors.prefetch(0, 3);
+        vectors.prefetch(0);
         for (int idx = 0; idx < vectors.size(); idx++) {
-            if (idx % 3 == 0 && idx < vectors.size() - 1) {
-                // prefetch the next 4 vectors
-                vectors.prefetch(idx + 1, Math.min(idx + 4, vectors.size() - 1));
+            if (idx < vectors.size() - 1) {
+                vectors.prefetch(idx + 1);
             }
             float[] vector = vectors.vectorValue(idx);
             int vectorOrd = translateOrd.apply(idx);
@@ -288,13 +284,10 @@ class KMeansLocal {
 
         float[] diffs = new float[vectors.dimension()];
         final float[] distances = new float[4];
-        // prefetch the first 4 and then we prefetch in batches of 4
-        // prefetching everything seems like overkill
-        vectors.prefetch(0, 3);
+        vectors.prefetch(0);
         for (int i = 0; i < vectors.size(); i++) {
-            if (i % 3 == 0 && i < vectors.size() - 1) {
-                // prefetch the next 4 vectors
-                vectors.prefetch(i + 1, Math.min(i + 4, vectors.size() - 1));
+            if (i < vectors.size() - 1) {
+                vectors.prefetch(i + 1);
             }
             float[] vector = vectors.vectorValue(i);
             int currAssignment = assignments[i];

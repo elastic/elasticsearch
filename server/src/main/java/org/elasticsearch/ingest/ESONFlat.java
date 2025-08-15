@@ -73,7 +73,7 @@ public record ESONFlat(List<ESONEntry> keys, ESONSource.Values values, AtomicRef
             try (RecyclerBytesStreamOutput streamOutput = new RecyclerBytesStreamOutput(new Recycler<>() {
 
                 // TODO: Better estimate
-                final int estimate = Math.max((int) (values.data().length() * 0.7), 512);
+                final int estimate = 512;
 
                 @Override
                 public V<BytesRef> obtain() {

@@ -153,11 +153,11 @@ public class MatchOnlyTextFieldMapper extends TextFamilyFieldMapper {
         }
 
         /**
-         * This is more of a helper function that's useful in TextFieldMapper.SyntheticSourceHelper.syntheticSourceDelegate()
+         * This is a helper function that's useful in TextFieldMapper.SyntheticSourceHelper.syntheticSourceDelegate()
          */
         private FieldType getFieldType() {
             FieldType fieldType = new FieldType();
-            // by definition, match_only_text are not stored
+            // by definition, match_only_text fields are not stored
             fieldType.setStored(false);
             return fieldType;
         }

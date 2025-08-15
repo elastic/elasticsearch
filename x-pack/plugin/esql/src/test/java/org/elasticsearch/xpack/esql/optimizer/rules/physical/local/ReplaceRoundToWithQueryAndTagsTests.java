@@ -239,12 +239,7 @@ public class ReplaceRoundToWithQueryAndTagsTests extends LocalPhysicalPlanOptimi
                     """, predicate, dateHistogram);
                 QueryBuilder mainQueryBuilder = qb instanceof MatchQueryBuilder
                     ? qb
-                    : wrapWithSingleQuery(
-                        query,
-                        qb,
-                        "keyword",
-                        new Source(2, 8, predicate.substring(6))
-                    );
+                    : wrapWithSingleQuery(query, qb, "keyword", new Source(2, 8, predicate.substring(6)));
 
                 PhysicalPlan plan = plannerOptimizer.plan(query, searchStats, makeAnalyzer("mapping-all-types.json"));
 

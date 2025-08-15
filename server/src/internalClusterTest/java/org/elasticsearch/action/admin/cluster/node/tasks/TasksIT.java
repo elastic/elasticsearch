@@ -379,6 +379,8 @@ public class TasksIT extends ESIntegTestCase {
         // check that if we have any shard-level requests they all have non-zero length description
         List<TaskInfo> shardTasks = findEvents(TransportSearchAction.TYPE.name() + "[*]", Tuple::v1);
         for (TaskInfo taskInfo : shardTasks) {
+            // During batched query execution, if a partial reduction was done on the data node, a task will be created to free the reader.
+            // These tasks don't have descriptions or parent tasks, so they're ignored for this test.
             if (taskInfo.action().equals(FREE_CONTEXT_SCROLL_ACTION_NAME)) {
                 continue;
             }

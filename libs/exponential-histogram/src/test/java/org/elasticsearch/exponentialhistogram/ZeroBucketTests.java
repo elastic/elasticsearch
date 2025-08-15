@@ -21,11 +21,9 @@
 
 package org.elasticsearch.exponentialhistogram;
 
-import org.elasticsearch.test.ESTestCase;
-
 import static org.hamcrest.Matchers.equalTo;
 
-public class ZeroBucketTests extends ESTestCase {
+public class ZeroBucketTests extends ExponentialHistogramTestCase {
 
     public void testMinimalBucketHasZeroThreshold() {
         assertThat(ZeroBucket.minimalWithCount(42).zeroThreshold(), equalTo(0.0));
@@ -45,7 +43,7 @@ public class ZeroBucketTests extends ESTestCase {
     }
 
     public void testBucketCollapsingPreservesExactThreshold() {
-        FixedCapacityExponentialHistogram histo = new FixedCapacityExponentialHistogram(2);
+        FixedCapacityExponentialHistogram histo = createAutoReleasedHistogram(2);
         histo.resetBuckets(0);
         histo.tryAddBucket(0, 42, true); // bucket [1,2]
 

@@ -27,10 +27,51 @@ import org.elasticsearch.core.Releasables;
  * A time-series aggregation function that collects the Last occurrence value of a time series in a specified interval.
  * This class is generated. Edit `X-ValueByTimestampAggregator.java.st` instead.
  */
+@Aggregator(
+    {
+        @IntermediateState(name = "timestamps", type = "LONG"),
+        @IntermediateState(name = "values", type = "DOUBLE"),
+        @IntermediateState(name = "seen", type = "BOOLEAN") }
+)
 @GroupingAggregator(
     { @IntermediateState(name = "timestamps", type = "LONG_BLOCK"), @IntermediateState(name = "values", type = "DOUBLE_BLOCK") }
 )
 public class LastDoubleByTimestampAggregator {
+    public static String describe() {
+        return "last_double_by_timestamp";
+    }
+
+    public static LongDoubleState initSingle(DriverContext driverContext) {
+        return new LongDoubleState(0, 0);
+    }
+
+    public static void first(LongDoubleState current, double value, long timestamp) {
+        current.v1(timestamp);
+        current.v2(value);
+    }
+
+    public static void combine(LongDoubleState current, double value, long timestamp) {
+        if (timestamp > current.v1()) {
+            current.v1(timestamp);
+            current.v2(value);
+        }
+    }
+
+    public static void combineIntermediate(LongDoubleState current, long timestamp, double value, boolean seen) {
+        if (seen) {
+            if (current.seen()) {
+                combine(current, value, timestamp);
+            } else {
+                first(current, value, timestamp);
+                current.seen(true);
+            }
+        }
+    }
+
+    public static Block evaluateFinal(LongDoubleState current, DriverContext ctx) {
+        return ctx.blockFactory().newConstantDoubleBlockWith(current.v2(), 1);
+    }
+
     public static GroupingState initGrouping(DriverContext driverContext) {
         return new GroupingState(driverContext.bigArrays());
     }
@@ -76,6 +117,11 @@ public class LastDoubleByTimestampAggregator {
                 timestamps = bigArrays.newLongArray(1, false);
                 this.timestamps = timestamps;
                 this.values = bigArrays.newDoubleArray(1, false);
+                /*
+                 * Enable group id tracking because we use has hasValue in the
+                 * collection itself to detect the when a value first arrives.
+                 */
+                enableGroupIdTracking(new SeenGroupIds.Empty());
                 success = true;
             } finally {
                 if (success == false) {

@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.exponentialhistogram;
 
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.ByteArrayStreamInput;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -52,6 +53,8 @@ final class EncodedHistogramData {
     // For sparse histograms it corresponds to an interleaved encoding of the bucket indices with delta compression and the bucket counts.
     // Even partially dense histograms profit from this encoding.
 
+    static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(EncodedHistogramData.class);
+
     private static final int SCALE_OFFSET = 11;
     private static final int HAS_NEGATIVE_BUCKETS_FLAG = 1 << 6; // = 64
     private static final int SCALE_MASK = 0x3F; // = 63
@@ -87,14 +90,6 @@ final class EncodedHistogramData {
         positiveBucketsLength = input.available();
     }
 
-    /**
-     * Serializes the given histogram, so that exactly the same data can be reconstructed via {@link #load(BytesRef)}.
-     *
-     * @param output the output to write the serialized bytes to
-     * @param scale the scale of the histogram
-     * @param negativeBuckets the negative buckets of the histogram, sorted by the bucket indices
-     * @param positiveBuckets the positive buckets of the histogram, sorted by the bucket indices
-     */
     static void write(StreamOutput output, int scale, List<IndexWithCount> negativeBuckets, List<IndexWithCount> positiveBuckets)
         throws IOException {
         assert scale >= MIN_SCALE && scale <= MAX_SCALE : "scale must be in range [" + MIN_SCALE + ", " + MAX_SCALE + "]";

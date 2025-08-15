@@ -337,7 +337,7 @@ public class ExponentialHistogramFieldMapper extends FieldMapper {
             }
 
             BytesStreamOutput histogramBytesOutput = new BytesStreamOutput();
-            EncodedHistogramData.write(histogramBytesOutput, scale, negativeBuckets, positiveBuckets);
+            CompressedExponentialHistogram.writeHistogramBytes(histogramBytesOutput, scale, negativeBuckets, positiveBuckets);
             BytesRef histoBytes = histogramBytesOutput.bytes().toBytesRef();
 
             Field histoField = new BinaryDocValuesField(fullPath(), histoBytes);

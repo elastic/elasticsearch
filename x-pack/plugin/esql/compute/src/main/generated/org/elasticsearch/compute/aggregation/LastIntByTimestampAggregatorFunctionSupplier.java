@@ -20,7 +20,7 @@ public final class LastIntByTimestampAggregatorFunctionSupplier implements Aggre
 
   @Override
   public List<IntermediateStateDesc> nonGroupingIntermediateStateDesc() {
-    throw new UnsupportedOperationException("non-grouping aggregator is not supported");
+    return LastIntByTimestampAggregatorFunction.intermediateStateDesc();
   }
 
   @Override
@@ -29,8 +29,9 @@ public final class LastIntByTimestampAggregatorFunctionSupplier implements Aggre
   }
 
   @Override
-  public AggregatorFunction aggregator(DriverContext driverContext, List<Integer> channels) {
-    throw new UnsupportedOperationException("non-grouping aggregator is not supported");
+  public LastIntByTimestampAggregatorFunction aggregator(DriverContext driverContext,
+      List<Integer> channels) {
+    return LastIntByTimestampAggregatorFunction.create(driverContext, channels);
   }
 
   @Override
@@ -41,6 +42,6 @@ public final class LastIntByTimestampAggregatorFunctionSupplier implements Aggre
 
   @Override
   public String describe() {
-    return "last_int_by of timestamps";
+    return LastIntByTimestampAggregator.describe();
   }
 }

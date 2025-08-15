@@ -21,7 +21,8 @@
 
 package org.elasticsearch.exponentialhistogram;
 
-import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.unit.ByteSizeValue;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -35,14 +36,16 @@ import static org.elasticsearch.exponentialhistogram.ExponentialHistogram.MIN_IN
 import static org.elasticsearch.exponentialhistogram.ExponentialScaleUtils.adjustScale;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 
-public class ExponentialHistogramMergerTests extends ESTestCase {
+public class ExponentialHistogramMergerTests extends ExponentialHistogramTestCase {
 
     public void testZeroThresholdCollapsesOverlappingBuckets() {
-        FixedCapacityExponentialHistogram first = new FixedCapacityExponentialHistogram(100);
+
+        FixedCapacityExponentialHistogram first = createAutoReleasedHistogram(100);
         first.setZeroBucket(new ZeroBucket(2.0001, 10));
 
-        FixedCapacityExponentialHistogram second = new FixedCapacityExponentialHistogram(100);
+        FixedCapacityExponentialHistogram second = createAutoReleasedHistogram(100);
         first.resetBuckets(0); // scale 0 means base 2
         first.tryAddBucket(0, 1, false); // bucket (-2, 1]
         first.tryAddBucket(1, 1, false); // bucket (-4, 2]
@@ -72,7 +75,7 @@ public class ExponentialHistogramMergerTests extends ESTestCase {
         assertThat(posBuckets.hasNext(), equalTo(false));
 
         // ensure buckets of the accumulated histogram are collapsed too if needed
-        FixedCapacityExponentialHistogram third = new FixedCapacityExponentialHistogram(100);
+        FixedCapacityExponentialHistogram third = createAutoReleasedHistogram(100);
         third.setZeroBucket(new ZeroBucket(45.0, 1));
 
         mergeResult = mergeWithMinimumScale(100, 0, mergeResult, third);
@@ -83,12 +86,12 @@ public class ExponentialHistogramMergerTests extends ESTestCase {
     }
 
     public void testEmptyZeroBucketIgnored() {
-        FixedCapacityExponentialHistogram first = new FixedCapacityExponentialHistogram(100);
+        FixedCapacityExponentialHistogram first = createAutoReleasedHistogram(100);
         first.setZeroBucket(new ZeroBucket(2.0, 10));
         first.resetBuckets(0); // scale 0 means base 2
         first.tryAddBucket(2, 42L, true); // bucket (4, 8]
 
-        FixedCapacityExponentialHistogram second = new FixedCapacityExponentialHistogram(100);
+        FixedCapacityExponentialHistogram second = createAutoReleasedHistogram(100);
         second.setZeroBucket(new ZeroBucket(100.0, 0));
 
         ExponentialHistogram mergeResult = mergeWithMinimumScale(100, 0, first, second);
@@ -109,22 +112,20 @@ public class ExponentialHistogramMergerTests extends ESTestCase {
             boolean isPositive = i % 2 == 0;
             boolean useMinIndex = i > 1;
 
-            FixedCapacityExponentialHistogram histo = new FixedCapacityExponentialHistogram(2);
+            FixedCapacityExponentialHistogram histo = createAutoReleasedHistogram(2);
             histo.resetBuckets(20);
 
             long index = useMinIndex ? MIN_INDEX / 2 : MAX_INDEX / 2;
 
             histo.tryAddBucket(index, 1, isPositive);
 
-            ExponentialHistogramMerger merger = new ExponentialHistogramMerger(100);
-            merger.add(histo);
-            ExponentialHistogram result = merger.get();
-
-            assertThat(result.scale(), equalTo(21));
-            if (isPositive) {
-                assertThat(result.positiveBuckets().iterator().peekIndex(), equalTo(adjustScale(index, 20, 1)));
-            } else {
-                assertThat(result.negativeBuckets().iterator().peekIndex(), equalTo(adjustScale(index, 20, 1)));
+            try (ReleasableExponentialHistogram result = ExponentialHistogram.merge(100, breaker(), histo)) {
+                assertThat(result.scale(), equalTo(21));
+                if (isPositive) {
+                    assertThat(result.positiveBuckets().iterator().peekIndex(), equalTo(adjustScale(index, 20, 1)));
+                } else {
+                    assertThat(result.negativeBuckets().iterator().peekIndex(), equalTo(adjustScale(index, 20, 1)));
+                }
             }
         }
     }
@@ -138,22 +139,59 @@ public class ExponentialHistogramMergerTests extends ESTestCase {
             .boxed()
             .collect(Collectors.toCollection(ArrayList::new));
 
-        ExponentialHistogram reference = ExponentialHistogram.create(20, values.stream().mapToDouble(Double::doubleValue).toArray());
+        ReleasableExponentialHistogram reference = ExponentialHistogram.create(
+            20,
+            breaker(),
+            values.stream().mapToDouble(Double::doubleValue).toArray()
+        );
+        autoReleaseOnTestEnd(reference);
 
         for (int i = 0; i < 100; i++) {
             Collections.shuffle(values, random());
-            ExponentialHistogram shuffled = ExponentialHistogram.create(20, values.stream().mapToDouble(Double::doubleValue).toArray());
-
-            assertThat("Expected same scale", shuffled.scale(), equalTo(reference.scale()));
-            assertThat(
-                "Expected same threshold for zero-bucket",
-                shuffled.zeroBucket().zeroThreshold(),
-                equalTo(reference.zeroBucket().zeroThreshold())
-            );
-            assertThat("Expected same count for zero-bucket", shuffled.zeroBucket().count(), equalTo(reference.zeroBucket().count()));
-            assertBucketsEqual(shuffled.negativeBuckets(), reference.negativeBuckets());
-            assertBucketsEqual(shuffled.positiveBuckets(), reference.positiveBuckets());
+            double[] vals = values.stream().mapToDouble(Double::doubleValue).toArray();
+            try (ReleasableExponentialHistogram shuffled = ExponentialHistogram.create(20, breaker(), vals)) {
+                assertThat("Expected same scale", shuffled.scale(), equalTo(reference.scale()));
+                assertThat(
+                    "Expected same threshold for zero-bucket",
+                    shuffled.zeroBucket().zeroThreshold(),
+                    equalTo(reference.zeroBucket().zeroThreshold())
+                );
+                assertThat("Expected same count for zero-bucket", shuffled.zeroBucket().count(), equalTo(reference.zeroBucket().count()));
+                assertBucketsEqual(shuffled.negativeBuckets(), reference.negativeBuckets());
+                assertBucketsEqual(shuffled.positiveBuckets(), reference.positiveBuckets());
+            }
         }
+    }
+
+    public void testMemoryAccounting() {
+        CircuitBreaker esBreaker = newLimitedBreaker(ByteSizeValue.ofMb(100));
+        try (ExponentialHistogramMerger merger = ExponentialHistogramMerger.create(100, breaker(esBreaker))) {
+
+            long emptyMergerSize = merger.ramBytesUsed();
+            assertThat(emptyMergerSize, greaterThan(0L));
+            assertThat(esBreaker.getUsed(), equalTo(emptyMergerSize));
+
+            merger.add(createAutoReleasedHistogram(10, 1.0, 2.0, 3.0));
+
+            long singleBufferSize = merger.ramBytesUsed();
+            assertThat(singleBufferSize, greaterThan(emptyMergerSize));
+            assertThat(esBreaker.getUsed(), equalTo(singleBufferSize));
+
+            merger.add(createAutoReleasedHistogram(10, 1.0, 2.0, 3.0));
+
+            long doubleBufferSize = merger.ramBytesUsed();
+            assertThat(doubleBufferSize, greaterThan(singleBufferSize));
+            assertThat(esBreaker.getUsed(), equalTo(doubleBufferSize));
+
+            ReleasableExponentialHistogram result = merger.getAndClear();
+
+            assertThat(merger.ramBytesUsed(), equalTo(singleBufferSize));
+            assertThat(esBreaker.getUsed(), equalTo(doubleBufferSize));
+
+            result.close();
+            assertThat(esBreaker.getUsed(), equalTo(singleBufferSize));
+        }
+        assertThat(esBreaker.getUsed(), equalTo(0L));
     }
 
     private void assertBucketsEqual(ExponentialHistogram.Buckets bucketsA, ExponentialHistogram.Buckets bucketsB) {
@@ -169,10 +207,13 @@ public class ExponentialHistogramMergerTests extends ESTestCase {
         }
     }
 
-    private static ExponentialHistogram mergeWithMinimumScale(int bucketCount, int scale, ExponentialHistogram... histograms) {
-        ExponentialHistogramMerger merger = ExponentialHistogramMerger.createForTesting(bucketCount, scale);
-        Arrays.stream(histograms).forEach(merger::add);
-        return merger.get();
+    private ExponentialHistogram mergeWithMinimumScale(int bucketCount, int scale, ExponentialHistogram... histograms) {
+        try (ExponentialHistogramMerger merger = ExponentialHistogramMerger.createForTesting(bucketCount, scale, breaker())) {
+            Arrays.stream(histograms).forEach(merger::add);
+            ReleasableExponentialHistogram result = merger.getAndClear();
+            autoReleaseOnTestEnd(result);
+            return result;
+        }
     }
 
 }

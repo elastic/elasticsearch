@@ -4,9 +4,6 @@ setup:
 
 ---
 "Test single data stream":
-  - requires:
-      cluster_features: [ "logs_stream" ]
-      reason: requires setting 'logs_stream' to get or set data stream settings
   - do:
       allowed_warnings:
         - "index template [my-template] has index patterns [my-data-stream-*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [my-template] will take precedence during new index creation"

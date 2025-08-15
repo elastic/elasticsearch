@@ -21,6 +21,8 @@
 
 package org.elasticsearch.exponentialhistogram;
 
+import org.apache.lucene.util.RamUsageEstimator;
+
 import static org.elasticsearch.exponentialhistogram.ExponentialHistogram.MAX_INDEX;
 import static org.elasticsearch.exponentialhistogram.ExponentialHistogram.MAX_SCALE;
 import static org.elasticsearch.exponentialhistogram.ExponentialHistogram.MIN_INDEX;
@@ -37,6 +39,8 @@ import static org.elasticsearch.exponentialhistogram.ExponentialScaleUtils.expon
  * computed via {@link ExponentialScaleUtils#computeIndex(double, int)}.
  */
 public final class ZeroBucket {
+
+    public static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(ZeroBucket.class);
 
     /**
      * The exponential histogram scale used for {@link #index}

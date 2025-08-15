@@ -64,9 +64,7 @@ public final class SampleIntGroupingAggregatorFunction implements GroupingAggreg
     IntBlock valueBlock = page.getBlock(channels.get(0));
     IntVector valueVector = valueBlock.asVector();
     if (valueVector == null) {
-      if (valueBlock.mayHaveNulls()) {
-        state.enableGroupIdTracking(seenGroupIds);
-      }
+      maybeEnableGroupIdTracking(seenGroupIds, valueBlock);
       return new GroupingAggregatorFunction.AddInput() {
         @Override
         public void add(int positionOffset, IntArrayBlock groupIds) {
@@ -275,6 +273,12 @@ public final class SampleIntGroupingAggregatorFunction implements GroupingAggreg
       int groupId = groups.getInt(groupPosition);
       int valuesPosition = groupPosition + positionOffset;
       SampleIntAggregator.combineIntermediate(state, groupId, sample, valuesPosition);
+    }
+  }
+
+  private void maybeEnableGroupIdTracking(SeenGroupIds seenGroupIds, IntBlock valueBlock) {
+    if (valueBlock.mayHaveNulls()) {
+      state.enableGroupIdTracking(seenGroupIds);
     }
   }
 

@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.exponentialhistogram;
 
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.exponentialhistogram.BucketIterator;
 import org.elasticsearch.exponentialhistogram.CopyableBucketIterator;
@@ -27,6 +28,8 @@ import java.util.OptionalLong;
  * and can therefore be directly consumed for merging / quantile estimation without requiring any prior copying or decoding.
  */
 public class CompressedExponentialHistogram implements ExponentialHistogram {
+
+    private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(CompressedExponentialHistogram.class);
 
     private double zeroThreshold;
     private long valueCount;
@@ -66,7 +69,7 @@ public class CompressedExponentialHistogram implements ExponentialHistogram {
      * @param zeroThreshold the zeroThreshold for the histogram, which needs to be stored externally
      * @param valueCount the total number of values the histogram contains, needs to be stored externally
      * @param encodedHistogramData the encoded histogram bytes which previously where generated via
-     * {@link EncodedHistogramData#write(StreamOutput, int, List, List)}.
+     * {@link #writeHistogramBytes(StreamOutput, int, List, List)}.
      */
     public void reset(double zeroThreshold, long valueCount, BytesRef encodedHistogramData) throws IOException {
         lazyZeroBucket = null;
@@ -77,7 +80,31 @@ public class CompressedExponentialHistogram implements ExponentialHistogram {
         positiveBuckets.resetCachedData();
     }
 
+    /**
+     * Serializes the given histogram, so that exactly the same data can be reconstructed via {@link #reset(double, long, BytesRef)}.
+     *
+     * @param output the output to write the serialized bytes to
+     * @param scale the scale of the histogram
+     * @param negativeBuckets the negative buckets of the histogram, sorted by the bucket indices
+     * @param positiveBuckets the positive buckets of the histogram, sorted by the bucket indices
+     */
+    public static void writeHistogramBytes(
+        StreamOutput output,
+        int scale,
+        List<IndexWithCount> negativeBuckets,
+        List<IndexWithCount> positiveBuckets
+    ) throws IOException {
+        EncodedHistogramData.write(output, scale, negativeBuckets, positiveBuckets);
+    }
+
+    @Override
+    public long ramBytesUsed() {
+        return SHALLOW_SIZE + ZeroBucket.SHALLOW_SIZE + 2 * Buckets.SHALLOW_SIZE + EncodedHistogramData.SHALLOW_SIZE;
+    }
+
     private final class Buckets implements ExponentialHistogram.Buckets {
+
+        private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOf(Buckets.class);
 
         private final boolean isForPositiveBuckets; // false if for negative buckets
         private long cachedValueCount;

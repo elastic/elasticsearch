@@ -422,7 +422,9 @@ public class PercolatorFieldMapper extends FieldMapper {
         IndexVersion indexVersion = context.indexSettings().getIndexVersionCreated();
         createQueryBuilderField(indexVersion, clusterTransportVersion.get(), queryBuilderField, queryBuilder, context);
 
-        QueryBuilder queryBuilderForProcessing = queryBuilder.rewrite(new SearchExecutionContext(executionContext));
+        SearchExecutionContext copy = new SearchExecutionContext(executionContext);
+        configureContext(copy, isMapUnmappedFieldAsText());
+        QueryBuilder queryBuilderForProcessing = queryBuilder.rewrite(copy);
         Query query = queryBuilderForProcessing.toQuery(executionContext);
         processQuery(query, context);
     }

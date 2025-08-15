@@ -601,13 +601,15 @@ public class CsvTests extends ESTestCase {
             new EsqlExecutionInfo(randomBoolean()),
             planRunner(bigArrays, foldCtx, physicalOperationProviders),
             analyzed,
-            listener.safeMap(
-                result -> new ActualResults(
-                    result.schema().stream().map(Attribute::name).toList(),
-                    result.schema().stream().map(a -> Type.asType(a.dataType().nameUpper())).toList(),
-                    result.schema().stream().map(Attribute::dataType).toList(),
-                    result.pages(),
-                    threadPool.getThreadContext().getResponseHeaders()
+            listener.delegateFailureAndWrap(
+                (l, result) -> l.onResponse(
+                    new ActualResults(
+                        result.schema().stream().map(Attribute::name).toList(),
+                        result.schema().stream().map(a -> Type.asType(a.dataType().nameUpper())).toList(),
+                        result.schema().stream().map(Attribute::dataType).toList(),
+                        result.pages(),
+                        threadPool.getThreadContext().getResponseHeaders()
+                    )
                 )
             )
         );

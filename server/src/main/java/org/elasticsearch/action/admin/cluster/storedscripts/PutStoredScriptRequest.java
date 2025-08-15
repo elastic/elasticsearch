@@ -9,6 +9,7 @@
 
 package org.elasticsearch.action.admin.cluster.storedscripts;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
@@ -32,6 +33,8 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 
 public class PutStoredScriptRequest extends AcknowledgedRequest<PutStoredScriptRequest> implements ToXContentFragment {
 
+    private static final TransportVersion V_9_0_0 = TransportVersion.fromName("v_9_0_0");
+
     @Nullable
     private final String id;
 
@@ -45,7 +48,7 @@ public class PutStoredScriptRequest extends AcknowledgedRequest<PutStoredScriptR
     public PutStoredScriptRequest(StreamInput in) throws IOException {
         super(in);
         id = in.readOptionalString();
-        if (in.getTransportVersion().isPatchFrom(TransportVersions.V_9_0_0)
+        if (in.getTransportVersion().isPatchFrom(V_9_0_0)
             || in.getTransportVersion().onOrAfter(TransportVersions.STORED_SCRIPT_CONTENT_LENGTH)) {
             contentLength = in.readVInt();
         } else {
@@ -106,7 +109,7 @@ public class PutStoredScriptRequest extends AcknowledgedRequest<PutStoredScriptR
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeOptionalString(id);
-        if (out.getTransportVersion().isPatchFrom(TransportVersions.V_9_0_0)
+        if (out.getTransportVersion().isPatchFrom(V_9_0_0)
             || out.getTransportVersion().onOrAfter(TransportVersions.STORED_SCRIPT_CONTENT_LENGTH)) {
             out.writeVInt(contentLength);
         } else {

@@ -9,6 +9,7 @@
 
 package org.elasticsearch.transport;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -28,6 +29,8 @@ import java.util.Iterator;
 import java.util.Map;
 
 public class TransportStats implements Writeable, ChunkedToXContent {
+
+    private static final TransportVersion V_9_0_0 = TransportVersion.fromName("v_9_0_0");
 
     private final long serverOpen;
     private final long totalOutboundConnections;
@@ -70,7 +73,7 @@ public class TransportStats implements Writeable, ChunkedToXContent {
         txCount = in.readVLong();
         txSize = in.readVLong();
         if (in.getTransportVersion().before(TransportVersions.TRANSPORT_STATS_HANDLING_TIME_REQUIRED)
-            && in.getTransportVersion().isPatchFrom(TransportVersions.V_9_0_0) == false) {
+            && in.getTransportVersion().isPatchFrom(V_9_0_0) == false) {
             in.readBoolean();
         }
         inboundHandlingTimeBucketFrequencies = new long[HandlingTimeTracker.BUCKET_COUNT];
@@ -100,7 +103,7 @@ public class TransportStats implements Writeable, ChunkedToXContent {
         assert inboundHandlingTimeBucketFrequencies.length == HandlingTimeTracker.BUCKET_COUNT;
         assert outboundHandlingTimeBucketFrequencies.length == HandlingTimeTracker.BUCKET_COUNT;
         if (out.getTransportVersion().before(TransportVersions.TRANSPORT_STATS_HANDLING_TIME_REQUIRED)
-            && out.getTransportVersion().isPatchFrom(TransportVersions.V_9_0_0) == false) {
+            && out.getTransportVersion().isPatchFrom(V_9_0_0) == false) {
             out.writeBoolean(true);
         }
         for (long handlingTimeBucketFrequency : inboundHandlingTimeBucketFrequencies) {

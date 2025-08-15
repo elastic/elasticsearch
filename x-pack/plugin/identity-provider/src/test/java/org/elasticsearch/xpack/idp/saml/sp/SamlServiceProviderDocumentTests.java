@@ -96,7 +96,7 @@ public class SamlServiceProviderDocumentTests extends IdpSamlTestCase {
         final TransportVersion version = randomBoolean()
             ? TransportVersionUtils.randomVersionBetween(
                 random(),
-                TransportVersions.V_9_0_0,
+                TransportVersion.fromName("v_9_0_0"),
                 TransportVersionUtils.getPreviousVersion(TransportVersions.IDP_CUSTOM_SAML_ATTRIBUTES_ALLOW_LIST)
             )
             : TransportVersionUtils.randomVersionBetween(

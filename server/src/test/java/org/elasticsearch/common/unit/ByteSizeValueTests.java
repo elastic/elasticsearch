@@ -11,7 +11,6 @@ package org.elasticsearch.common.unit;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
@@ -538,7 +537,7 @@ public class ByteSizeValueTests extends AbstractWireSerializingTestCase<ByteSize
     }
 
     public void testTransportRoundTripsWithTwoDigitFractions() throws IOException {
-        for (var tv : List.of(TransportVersion.current(), BYTE_SIZE_VALUE_ALWAYS_USES_BYTES, TransportVersions.V_9_0_0)) {
+        for (var tv : List.of(TransportVersion.current(), BYTE_SIZE_VALUE_ALWAYS_USES_BYTES, TransportVersion.fromName("v_9_0_0"))) {
             for (var desiredUnit : ByteSizeUnit.values()) {
                 if (desiredUnit == ByteSizeUnit.BYTES) {
                     // Can't have a fraction of a byte!

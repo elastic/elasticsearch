@@ -28,7 +28,6 @@ import java.util.Objects;
 import static org.elasticsearch.TransportVersions.BYTE_SIZE_VALUE_ALWAYS_USES_BYTES;
 import static org.elasticsearch.TransportVersions.BYTE_SIZE_VALUE_ALWAYS_USES_BYTES_1;
 import static org.elasticsearch.TransportVersions.REVERT_BYTE_SIZE_VALUE_ALWAYS_USES_BYTES_1;
-import static org.elasticsearch.TransportVersions.V_9_0_0;
 import static org.elasticsearch.common.unit.ByteSizeUnit.BYTES;
 import static org.elasticsearch.common.unit.ByteSizeUnit.GB;
 import static org.elasticsearch.common.unit.ByteSizeUnit.KB;
@@ -46,6 +45,8 @@ public class ByteSizeValue implements Writeable, Comparable<ByteSizeValue>, ToXC
     static class DeprecationLoggerHolder {
         static DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(ByteSizeValue.class);
     }
+
+    private static final TransportVersion V_9_0_0 = TransportVersion.fromName("v_9_0_0");
 
     public static final ByteSizeValue ZERO = new ByteSizeValue(0, BYTES);
     public static final ByteSizeValue ONE = new ByteSizeValue(1, BYTES);

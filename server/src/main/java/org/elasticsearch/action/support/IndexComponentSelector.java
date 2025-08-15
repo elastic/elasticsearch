@@ -9,7 +9,7 @@
 
 package org.elasticsearch.action.support;
 
-import org.elasticsearch.TransportVersions;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -45,6 +45,9 @@ public enum IndexComponentSelector implements Writeable {
     public byte getId() {
         return id;
     }
+
+    private static final TransportVersion REMOVE_ALL_APPLICABLE_SELECTOR = TransportVersion.fromName("remove_all_applicable_selector");
+    private static final TransportVersion V_9_0_0 = TransportVersion.fromName("v_9_0_0");
 
     private static final Map<String, IndexComponentSelector> KEY_REGISTRY;
     private static final Map<Byte, IndexComponentSelector> ID_REGISTRY;
@@ -92,10 +95,7 @@ public enum IndexComponentSelector implements Writeable {
 
     public static IndexComponentSelector read(StreamInput in) throws IOException {
         byte id = in.readByte();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.REMOVE_ALL_APPLICABLE_SELECTOR)
-            || in.getTransportVersion().isPatchFrom(TransportVersions.V_9_0_0)
-            || in.getTransportVersion().isPatchFrom(TransportVersions.REMOVE_ALL_APPLICABLE_SELECTOR_BACKPORT_8_18)
-            || in.getTransportVersion().isPatchFrom(TransportVersions.REMOVE_ALL_APPLICABLE_SELECTOR_BACKPORT_8_19)) {
+        if (in.getTransportVersion().supports(REMOVE_ALL_APPLICABLE_SELECTOR) || in.getTransportVersion().isPatchFrom(V_9_0_0)) {
             return getById(id);
         } else {
             // Legacy value ::*, converted to ::data

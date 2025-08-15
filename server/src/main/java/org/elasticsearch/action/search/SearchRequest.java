@@ -9,6 +9,7 @@
 
 package org.elasticsearch.action.search;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
@@ -54,6 +55,8 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
  * @see SearchResponse
  */
 public class SearchRequest extends LegacyActionRequest implements IndicesRequest.Replaceable, Rewriteable<SearchRequest> {
+
+    private static final TransportVersion V_9_0_0 = TransportVersion.fromName("v_9_0_0");
 
     public static final ToXContent.Params FORMAT_PARAMS = new ToXContent.MapParams(Collections.singletonMap("pretty", "false"));
 
@@ -254,7 +257,7 @@ public class SearchRequest extends LegacyActionRequest implements IndicesRequest
             finalReduce = true;
         }
         ccsMinimizeRoundtrips = in.readBoolean();
-        if ((in.getTransportVersion().isPatchFrom(TransportVersions.V_9_0_0) == false
+        if ((in.getTransportVersion().isPatchFrom(V_9_0_0) == false
             && in.getTransportVersion().before(TransportVersions.RE_REMOVE_MIN_COMPATIBLE_SHARD_NODE)) && in.readBoolean()) {
             Version.readVersion(in); // and drop on the floor
         }
@@ -299,7 +302,7 @@ public class SearchRequest extends LegacyActionRequest implements IndicesRequest
             out.writeBoolean(finalReduce);
         }
         out.writeBoolean(ccsMinimizeRoundtrips);
-        if ((out.getTransportVersion().isPatchFrom(TransportVersions.V_9_0_0) == false
+        if ((out.getTransportVersion().isPatchFrom(V_9_0_0) == false
             && out.getTransportVersion().before(TransportVersions.RE_REMOVE_MIN_COMPATIBLE_SHARD_NODE))) {
             out.writeBoolean(false);
         }

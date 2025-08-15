@@ -42,6 +42,7 @@ import static org.elasticsearch.node.NodeRoleSettings.NODE_ROLES_SETTING;
 public final class DesiredNode implements Writeable, ToXContentObject, Comparable<DesiredNode> {
 
     public static final TransportVersion RANGE_FLOAT_PROCESSORS_SUPPORT_TRANSPORT_VERSION = TransportVersions.V_8_3_0;
+    private static final TransportVersion V_9_0_0 = TransportVersion.fromName("v_9_0_0");
 
     private static final ParseField SETTINGS_FIELD = new ParseField("settings");
     private static final ParseField PROCESSORS_FIELD = new ParseField("processors");
@@ -162,7 +163,7 @@ public final class DesiredNode implements Writeable, ToXContentObject, Comparabl
         final var memory = ByteSizeValue.readFrom(in);
         final var storage = ByteSizeValue.readFrom(in);
         if (in.getTransportVersion().before(TransportVersions.REMOVE_DESIRED_NODE_VERSION)
-            && in.getTransportVersion().isPatchFrom(TransportVersions.V_9_0_0) == false) {
+            && in.getTransportVersion().isPatchFrom(V_9_0_0) == false) {
             in.readOptionalString();
         }
         return new DesiredNode(settings, processors, processorsRange, memory, storage);
@@ -182,7 +183,7 @@ public final class DesiredNode implements Writeable, ToXContentObject, Comparabl
         memory.writeTo(out);
         storage.writeTo(out);
         if (out.getTransportVersion().before(TransportVersions.REMOVE_DESIRED_NODE_VERSION)
-            && out.getTransportVersion().isPatchFrom(TransportVersions.V_9_0_0) == false) {
+            && out.getTransportVersion().isPatchFrom(V_9_0_0) == false) {
             out.writeOptionalString(null);
         }
     }

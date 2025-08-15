@@ -7,6 +7,7 @@
 
 package org.elasticsearch.compute.operator;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -53,6 +54,8 @@ public record DriverStatus(
     DriverSleeps sleeps
 ) implements Task.Status {
 
+    private static final TransportVersion V_9_0_0 = TransportVersion.fromName("v_9_0_0");
+
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Task.Status.class,
         "driver",
@@ -63,7 +66,7 @@ public record DriverStatus(
         return new DriverStatus(
             in.readString(),
             in.getTransportVersion().onOrAfter(TransportVersions.ESQL_DRIVER_TASK_DESCRIPTION)
-                || in.getTransportVersion().isPatchFrom(TransportVersions.V_9_0_0)
+                || in.getTransportVersion().isPatchFrom(V_9_0_0)
                 || in.getTransportVersion().isPatchFrom(TransportVersions.ESQL_DRIVER_TASK_DESCRIPTION_8_19) ? in.readString() : "",
             in.getTransportVersion().onOrAfter(TransportVersions.ESQL_DRIVER_NODE_DESCRIPTION) ? in.readString() : "",
             in.getTransportVersion().onOrAfter(TransportVersions.ESQL_DRIVER_NODE_DESCRIPTION) ? in.readString() : "",
@@ -84,7 +87,7 @@ public record DriverStatus(
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(sessionId);
         if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_DRIVER_TASK_DESCRIPTION)
-            || out.getTransportVersion().isPatchFrom(TransportVersions.V_9_0_0)
+            || out.getTransportVersion().isPatchFrom(V_9_0_0)
             || out.getTransportVersion().isPatchFrom(TransportVersions.ESQL_DRIVER_TASK_DESCRIPTION_8_19)) {
             out.writeString(description);
         }

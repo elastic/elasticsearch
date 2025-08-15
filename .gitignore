@@ -73,3 +73,12 @@ server/src/main/resources/transport/defined/manifest.txt
 
 # JEnv
 .java-version
+
+# Claude Flow and Swarm directories
+.claude-flow/
+.swarm/
+
+# Temporary test files
+test-*.java
+bug-*.json
+*-bug-analysis.md

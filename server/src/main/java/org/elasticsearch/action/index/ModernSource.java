@@ -91,8 +91,7 @@ public class ModernSource implements Writeable {
     }
 
     public BytesReference originalSourceBytes() {
-        if (originalSource == null) {
-            assert structuredSource != null;
+        if (originalSource == null && structuredSource != null) {
             try (XContentBuilder builder = XContentFactory.contentBuilder(contentType)) {
                 ESONXContentSerializer.flattenToXContent(structuredSource, builder, ToXContent.EMPTY_PARAMS);
                 originalSource = BytesReference.bytes(builder);

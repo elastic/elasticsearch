@@ -9,10 +9,12 @@
 
 package org.elasticsearch.ingest;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.recycler.Recycler;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -64,12 +66,38 @@ public record ESONFlat(List<ESONEntry> keys, ESONSource.Values values, AtomicRef
     public BytesReference getSerializedKeyBytes() {
         if (serializedKeyBytes.get() == null) {
             // TODO: Better estimate
-            int estimate = (int) (values.data().length() * 0.7);
             // for (ESONEntry entry : keys) {
             // String key = entry.key();
             // estimate += key == null ? 0 : key.length() + 5;
             // }
-            try (BytesStreamOutput streamOutput = new BytesStreamOutput(estimate)) {
+            try (RecyclerBytesStreamOutput streamOutput = new RecyclerBytesStreamOutput(new Recycler<>() {
+
+                // TODO: Better estimate
+                final int estimate = Math.max((int) (values.data().length() * 0.7), 512);
+
+                @Override
+                public V<BytesRef> obtain() {
+                    return new V<>() {
+                        @Override
+                        public BytesRef v() {
+                            return new BytesRef(new byte[estimate]);
+                        }
+
+                        @Override
+                        public boolean isRecycled() {
+                            return false;
+                        }
+
+                        @Override
+                        public void close() {}
+                    };
+                }
+
+                @Override
+                public int pageSize() {
+                    return estimate;
+                }
+            })) {
                 streamOutput.writeVInt(keys.size());
                 for (ESONEntry entry : keys) {
                     String key = entry.key();

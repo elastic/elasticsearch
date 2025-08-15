@@ -11,13 +11,20 @@ package org.elasticsearch.ingest.common;
 
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.test.ESTestCase;
+import org.junit.runners.model.TestClass;
 
+import java.io.IOException;
+import java.net.URISyntaxException;
+import java.net.URL;
+import java.nio.file.Files;
+import java.nio.file.Paths;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 import static java.util.Map.entry;
 import static org.hamcrest.Matchers.aMapWithSize;
@@ -25,29 +32,32 @@ import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 
 public class CefProcessorTests extends ESTestCase {
-
+    private static String readCefMessageFile(String fileName) throws IOException, URISyntaxException {
+        URL resource = TestClass.class.getResource("/" + fileName);
+        return Files.readString(Paths.get(Objects.requireNonNull(resource).toURI()));
+    }
     private IngestDocument document;
 
-    public void testParse() {
+    public void testParse() throws IOException, URISyntaxException {
         String message;
         List<String> headers;
         Map<String, String> extensions;
         {
-            message = "CEF:0|vendor|product|version|class|name|severity|";
+            message = readCefMessageFile("basic_cef_message.txt");
             headers = CefParser.parseHeaders(message);
             extensions = CefParser.parseExtensions(headers.removeLast());
             assertThat(headers, equalTo(List.of("CEF:0", "vendor", "product", "version", "class", "name", "severity")));
             assertThat(extensions, aMapWithSize(0));
         }
         {
-            message = "CEF:1|vendor|product|version|class|name|severity|someExtension=someValue";
+            message = readCefMessageFile("cef_message_with_extension.txt");
             headers = CefParser.parseHeaders(message);
             extensions = CefParser.parseExtensions(headers.removeLast());
             assertThat(headers, equalTo(List.of("CEF:1", "vendor", "product", "version", "class", "name", "severity")));
             assertThat(extensions, equalTo(Map.of("someExtension", "someValue")));
         }
         {
-            message = "CEF:1|vendor|product\\|pipe|version space|class\\\\slash|name|severity|ext1=some value   ext2=pipe|value  ";
+            message = readCefMessageFile("cef_message_with_escaped_pipe.txt");
             headers = CefParser.parseHeaders(message);
             extensions = CefParser.parseExtensions(headers.removeLast());
             assertThat(headers, equalTo(List.of("CEF:1", "vendor", "product|pipe", "version space", "class\\slash", "name", "severity")));

@@ -124,7 +124,7 @@ public abstract class InferenceOperatorTestCase<InferenceResultsType extends Inf
     protected void assertEmptyStatus(Map<String, Object> map) {
         assertMap(
             map,
-            matchesMap().entry("received_pages", 0L).entry("completed_pages", 0L).entry("process_nanos", greaterThanOrEqualTo(0L))
+            matchesMap().entry("received_pages", 0).entry("completed_pages", 0).entry("process_nanos", greaterThanOrEqualTo(0))
         );
     }
 

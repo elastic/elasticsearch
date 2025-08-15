@@ -2,5 +2,5 @@
 
 **Description**
 
-Returns the name of the month for provided date based on the configured Locale.
+Returns the month name for the provided date based on the configured Locale.
 

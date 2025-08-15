@@ -18,4 +18,16 @@ class TransportVersionGenerationFuncTest extends AbstractTransportVersionFuncTes
         then:
         result.task(":myserver:generateTransportVersionDefinition").outcome == TaskOutcome.SUCCESS
     }
+
+    /*
+    TODO: Add tests that check that:
+        - TVs added ontop of main in git, but are no longer referenced, are deleted
+        - name without branches param should fail
+        - branches without name param should fail (+ other invalid combos)
+        - multiple branches should create patch versions
+        - a single branch value should create only a primary id
+        - a latest file without a corresponding definition file should be reverted to main
+        - a merge conflict should be resolved, resulting in regeneration of the latest file.
+        -
+     */
 }

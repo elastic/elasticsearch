@@ -44,21 +44,21 @@ public class CefProcessorTests extends ESTestCase {
         List<String> headers;
         Map<String, String> extensions;
         {
-            message = readCefMessageFile("basic_cef_message.txt");
+            message = readCefMessageFile("basic_message.cef.txt");
             headers = CefParser.parseHeaders(message);
             extensions = CefParser.parseExtensions(headers.removeLast());
             assertThat(headers, equalTo(List.of("CEF:0", "vendor", "product", "version", "class", "name", "severity")));
             assertThat(extensions, aMapWithSize(0));
         }
         {
-            message = readCefMessageFile("cef_message_with_extension.txt");
+            message = readCefMessageFile("message_with_extension.cef.txt");
             headers = CefParser.parseHeaders(message);
             extensions = CefParser.parseExtensions(headers.removeLast());
             assertThat(headers, equalTo(List.of("CEF:1", "vendor", "product", "version", "class", "name", "severity")));
             assertThat(extensions, equalTo(Map.of("someExtension", "someValue")));
         }
         {
-            message = readCefMessageFile("cef_message_with_escaped_pipe.txt");
+            message = readCefMessageFile("message_with_escaped_pipe.cef.txt");
             headers = CefParser.parseHeaders(message);
             extensions = CefParser.parseExtensions(headers.removeLast());
             assertThat(headers, equalTo(List.of("CEF:1", "vendor", "product|pipe", "version space", "class\\slash", "name", "severity")));

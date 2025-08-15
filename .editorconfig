@@ -232,5 +232,5 @@ indent_size = 3
 [*.{csv,sql}-spec]
 trim_trailing_whitespace = false
 
-[*.txt]
+[*.cef.txt]
 insert_final_newline = false

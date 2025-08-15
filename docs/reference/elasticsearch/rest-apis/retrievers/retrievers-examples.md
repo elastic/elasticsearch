@@ -247,7 +247,7 @@ GET /retrievers_example/_search
                         }
                     },
                     "weight": 1.5,
-                    "normalizer": "minmax"
+                    "normalizer": "l2_norm"
                 }
             ],
             "rank_window_size": 10

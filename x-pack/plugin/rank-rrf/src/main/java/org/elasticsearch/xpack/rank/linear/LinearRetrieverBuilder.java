@@ -178,8 +178,6 @@ public final class LinearRetrieverBuilder extends CompoundRetrieverBuilder<Linea
         this.query = query;
         this.normalizer = normalizer;
         this.weights = weights;
-
-        // Initialize normalizers array
         this.normalizers = new ScoreNormalizer[normalizers.length];
         for (int i = 0; i < normalizers.length; i++) {
             this.normalizers[i] = resolveNormalizer(normalizers[i], normalizer);

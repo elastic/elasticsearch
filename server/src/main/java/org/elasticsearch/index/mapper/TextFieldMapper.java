@@ -1450,10 +1450,9 @@ public final class TextFieldMapper extends TextFamilyFieldMapper {
             if (phraseFieldInfo != null) {
                 context.doc().add(new Field(phraseFieldInfo.field, value, phraseFieldInfo.fieldType));
             }
-        }
+        } else if (needsToSupportSyntheticSource() && fieldType.stored() == false) {
+            // if synthetic source needs to be supported, yet the field isn't stored, then we need to rely on something else
 
-        // if synthetic source needs to be supported, yet the field isn't stored, then we need to rely on something else
-        if (needsToSupportSyntheticSource() && fieldType.stored() == false) {
             // if we can rely on the synthetic source delegate for synthetic source, then exit as there is nothing to do
             if (fieldType().canUseSyntheticSourceDelegateForSyntheticSource(value)) {
                 return;
@@ -1637,6 +1636,10 @@ public final class TextFieldMapper extends TextFamilyFieldMapper {
                     b.value((String) value);
                 }
             });
+        }
+
+        if (isIndexed()) {
+            return super.syntheticSourceSupport();
         }
 
         return new SyntheticSourceSupport.Native(() -> syntheticFieldLoader(fullPath(), leafName()));

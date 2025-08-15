@@ -10,17 +10,13 @@ package org.elasticsearch.search.vectors;
 
 import org.apache.lucene.search.knn.KnnSearchStrategy;
 import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.index.codec.vectors.cluster.NeighborQueue;
-import org.elasticsearch.logging.LogManager;
-import org.elasticsearch.logging.Logger;
 
 import java.util.Objects;
 import java.util.concurrent.atomic.LongAccumulator;
 
 public class IVFKnnSearchStrategy extends KnnSearchStrategy {
-    private static final Logger logger = LogManager.getLogger(IVFKnnSearchStrategy.class);
     private final float visitRatio;
-    private SetOnce<AbstractMaxScoreKnnCollector> collector = new SetOnce<>();
+    private final SetOnce<AbstractMaxScoreKnnCollector> collector = new SetOnce<>();
     private final LongAccumulator accumulator;
 
     IVFKnnSearchStrategy(float visitRatio, LongAccumulator accumulator) {

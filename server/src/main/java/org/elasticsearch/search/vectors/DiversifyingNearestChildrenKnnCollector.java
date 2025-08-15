@@ -26,7 +26,7 @@ import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.search.knn.KnnSearchStrategy;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BitSet;
-import org.apache.lucene.util.NumericUtils;
+import org.elasticsearch.index.codec.vectors.cluster.NeighborQueue;
 
 /**
  * This collects the nearest children vectors. Diversifying the results over the provided parent
@@ -36,7 +36,7 @@ class DiversifyingNearestChildrenKnnCollector extends AbstractMaxScoreKnnCollect
 
     private final BitSet parentBitSet;
     private final NodeIdCachingHeap heap;
-    private long minCompetitiveDocScore = Long.MIN_VALUE;
+    private long minCompetitiveDocScore = LEAST_COMPETITIVE;
     private float minCompetitiveScore = Float.NEGATIVE_INFINITY;
 
     /**
@@ -74,10 +74,7 @@ class DiversifyingNearestChildrenKnnCollector extends AbstractMaxScoreKnnCollect
 
     @Override
     public float minCompetitiveSimilarity() {
-        if (heap.size >= k() || minCompetitiveDocScore > Long.MIN_VALUE) {
-            return Math.max(minCompetitiveScore, heap.topScore());
-        }
-        return Float.NEGATIVE_INFINITY;
+        return heap.size < k() ? Float.NEGATIVE_INFINITY : Math.max(minCompetitiveScore, heap.topScore());
     }
 
     @Override
@@ -108,17 +105,14 @@ class DiversifyingNearestChildrenKnnCollector extends AbstractMaxScoreKnnCollect
 
     @Override
     public long getMinCompetitiveDocScore() {
-        return  (((long) NumericUtils.floatToSortableInt(heap.topScore())) << 32) | (0xFFFFFFFFL & ~heap.topNode());
+        return heap.size() > 0 ? Math.max(NeighborQueue.encodeRaw(heap.topNode(), heap.topScore()), minCompetitiveDocScore) : minCompetitiveDocScore;
     }
 
     @Override
     void updateMinCompetitiveDocScore(long minCompetitiveDocScore) {
-        if (minCompetitiveDocScore == Long.MIN_VALUE) {
-            // no update
-            return;
-        }
-        this.minCompetitiveDocScore = minCompetitiveDocScore;
-        this.minCompetitiveScore = NumericUtils.sortableIntToFloat((int) (minCompetitiveDocScore >> 32));
+        long queueMinCompetitiveDocScore = heap.size() > 0 ? NeighborQueue.encodeRaw(heap.topNode(), heap.topScore()) : LEAST_COMPETITIVE;
+        this.minCompetitiveDocScore = Math.max(this.minCompetitiveDocScore, Math.max(queueMinCompetitiveDocScore, minCompetitiveDocScore));
+        this.minCompetitiveScore = NeighborQueue.decodeScoreRaw(this.minCompetitiveDocScore);
     }
 
     /**
@@ -154,10 +148,16 @@ class DiversifyingNearestChildrenKnnCollector extends AbstractMaxScoreKnnCollect
         }
 
         public final int topNode() {
+            if (size == 0) {
+                return Integer.MAX_VALUE;
+            }
             return heapNodes[1].child;
         }
 
         public final float topScore() {
+            if (size == 0) {
+                return Float.NEGATIVE_INFINITY;
+            }
             return heapNodes[1].score;
         }
 

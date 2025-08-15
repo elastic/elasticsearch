@@ -13,7 +13,6 @@ import org.elasticsearch.Build;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.collect.Iterators;
@@ -593,22 +592,7 @@ public class CsvTests extends ESTestCase {
             new PlanTelemetry(functionRegistry),
             null,
             EsqlTestUtils.MOCK_TRANSPORT_ACTION_SERVICES
-        ) {
-            @Override
-            public void optimizeAndExecute(
-                EsqlQueryRequest request,
-                EsqlExecutionInfo executionInfo,
-                PlanRunner planRunner,
-                LogicalPlan analyzedPlan,
-                ActionListener<Result> listener
-            ) {
-                SubscribableListener.<LogicalPlan>newForked(l -> logicalPlanPreOptimizer.preOptimize(analyzedPlan, l))
-                    .andThenApply(this::optimizedPlan)
-                    // .<LogicalPlan>andThen((l, p) -> preMapper.preMapper(p, l))
-                    .<Result>andThen((l, p) -> executeOptimizedPlan(request, executionInfo, planRunner, p, l))
-                    .addListener(listener);
-            }
-        };
+        );
         TestPhysicalOperationProviders physicalOperationProviders = testOperationProviders(foldCtx, testDatasets);
 
         PlainActionFuture<ActualResults> listener = new PlainActionFuture<>();

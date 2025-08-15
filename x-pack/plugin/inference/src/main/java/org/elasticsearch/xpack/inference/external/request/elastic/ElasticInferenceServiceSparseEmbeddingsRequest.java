@@ -105,10 +105,10 @@ public class ElasticInferenceServiceSparseEmbeddingsRequest implements ElasticIn
     // visible for testing
     static ElasticInferenceServiceUsageContext inputTypeToUsageContext(InputType inputType) {
         switch (inputType) {
-            case SEARCH -> {
+            case SEARCH, INTERNAL_SEARCH -> {
                 return ElasticInferenceServiceUsageContext.SEARCH;
             }
-            case INGEST -> {
+            case INGEST, INTERNAL_INGEST -> {
                 return ElasticInferenceServiceUsageContext.INGEST;
             }
             default -> {

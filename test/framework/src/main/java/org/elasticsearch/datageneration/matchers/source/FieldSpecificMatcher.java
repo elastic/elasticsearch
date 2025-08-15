@@ -63,6 +63,7 @@ interface FieldSpecificMatcher {
                 put("shape", new ExactMatcher("shape", actualMappings, actualSettings, expectedMappings, expectedSettings));
                 put("geo_point", new GeoPointMatcher(actualMappings, actualSettings, expectedMappings, expectedSettings));
                 put("text", new TextMatcher(actualMappings, actualSettings, expectedMappings, expectedSettings));
+                put("match_only_text", new MatchOnlyTextMatcher(actualMappings, actualSettings, expectedMappings, expectedSettings));
                 put("ip", new IpMatcher(actualMappings, actualSettings, expectedMappings, expectedSettings));
                 put("constant_keyword", new ConstantKeywordMatcher(actualMappings, actualSettings, expectedMappings, expectedSettings));
                 put("wildcard", new WildcardMatcher(actualMappings, actualSettings, expectedMappings, expectedSettings));
@@ -621,6 +622,10 @@ interface FieldSpecificMatcher {
             this.expectedSettings = expectedSettings;
         }
 
+        public String type() {
+            return "text";
+        }
+
         @Override
         @SuppressWarnings("unchecked")
         public MatchResult match(
@@ -643,7 +648,7 @@ interface FieldSpecificMatcher {
             if (multiFields != null) {
                 var keywordMatcher = new KeywordMatcher(actualMappings, actualSettings, expectedMappings, expectedSettings);
 
-                var keywordFieldMapping = (Map<String, Object>) multiFields.get("kwd");
+                var keywordFieldMapping = (Map<String, Object>) multiFields.get("subfield_keyword");
                 var keywordMatchResult = keywordMatcher.match(actual, expected, keywordFieldMapping, keywordFieldMapping);
                 if (keywordMatchResult.isMatch()) {
                     return MatchResult.match();
@@ -656,7 +661,7 @@ interface FieldSpecificMatcher {
                     actualSettings,
                     expectedMappings,
                     expectedSettings,
-                    "Values of type [text] don't match, " + prettyPrintCollections(actual, expected)
+                    "Values of type [" + type() + "] don't match, " + prettyPrintCollections(actual, expected)
                 )
             );
         }
@@ -667,6 +672,22 @@ interface FieldSpecificMatcher {
             }
 
             return values.stream().filter(Objects::nonNull).collect(Collectors.toSet());
+        }
+    }
+
+    class MatchOnlyTextMatcher extends TextMatcher {
+        MatchOnlyTextMatcher(
+            XContentBuilder actualMappings,
+            Settings.Builder actualSettings,
+            XContentBuilder expectedMappings,
+            Settings.Builder expectedSettings
+        ) {
+            super(actualMappings, actualSettings, expectedMappings, expectedSettings);
+        }
+
+        @Override
+        public String type() {
+            return "match_only_text";
         }
     }
 

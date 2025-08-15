@@ -26,7 +26,6 @@ import org.gradle.api.tasks.options.Option;
 import org.gradle.process.ExecOperations;
 import org.gradle.process.ExecResult;
 
-import javax.inject.Inject;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.IOException;
@@ -43,8 +42,9 @@ import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+import javax.inject.Inject;
+
 import static org.elasticsearch.gradle.internal.transport.TransportVersionReference.listFromFile;
-import static org.elasticsearch.gradle.internal.transport.TransportVersionUtils.latestFilePath;
 import static org.elasticsearch.gradle.internal.transport.TransportVersionUtils.writeDefinitionFile;
 import static org.elasticsearch.gradle.internal.transport.TransportVersionUtils.writeLatestFile;
 

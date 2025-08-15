@@ -42,6 +42,7 @@ import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.node.NodeClosedException;
+import org.elasticsearch.rest.action.document.RestBulkAction;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -412,14 +413,43 @@ public abstract class TransportAbstractBulkAction extends HandledTransportAction
         while (bulkRequestModifier.hasNext()) {
             req = bulkRequestModifier.next();
             i++;
+            doStreamsChecks(bulkRequest, projectMetadata, req, bulkRequestModifier, i);
+        }
 
-            for (StreamType streamType : StreamType.getEnabledStreamTypesForProject(projectMetadata)) {
-                if (req instanceof IndexRequest ir && streamType.matchesStreamPrefix(req.index()) && ir.isPipelineResolved() == false) {
-                    IllegalArgumentException e = new IllegalArgumentException(
+        var wrappedListener = bulkRequestModifier.wrapActionListenerIfNeeded(listener);
+
+        if (applyPipelines(task, bulkRequestModifier.getBulkRequest(), executor, wrappedListener) == false) {
+            doInternalExecute(task, bulkRequestModifier.getBulkRequest(), executor, wrappedListener, relativeStartTimeNanos);
+        }
+    }
+
+    private void doStreamsChecks(
+        BulkRequest bulkRequest,
+        ProjectMetadata projectMetadata,
+        DocWriteRequest<?> req,
+        BulkRequestModifier bulkRequestModifier,
+        int i
+    ) {
+        for (StreamType streamType : StreamType.getEnabledStreamTypesForProject(projectMetadata)) {
+            if (req instanceof IndexRequest ir && ir.isPipelineResolved() == false) {
+                IllegalArgumentException e = null;
+                if (streamType.matchesStreamPrefix(req.index())) {
+                    e = new IllegalArgumentException(
                         "Direct writes to child streams are prohibited. Index directly into the ["
                             + streamType.getStreamName()
                             + "] stream instead"
                     );
+                }
+
+                if (e == null && bulkRequest.streamsRestrictedParamsUsed() && req.index().equals(streamType.getStreamName())) {
+                    e = new IllegalArgumentException(
+                        "When writing to a stream, only the following parameters are allowed: ["
+                            + String.join(",", RestBulkAction.STREAMS_ALLOWED_PARAMS)
+                            + "]"
+                    );
+                }
+
+                if (e != null) {
                     Boolean failureStoreEnabled = resolveFailureStore(req.index(), projectMetadata, threadPool.absoluteTimeInMillis());
 
                     if (featureService.clusterHasFeature(clusterService.state(), DataStream.DATA_STREAM_FAILURE_STORE_FEATURE)) {
@@ -437,12 +467,6 @@ public abstract class TransportAbstractBulkAction extends HandledTransportAction
                     break;
                 }
             }
-        }
-
-        var wrappedListener = bulkRequestModifier.wrapActionListenerIfNeeded(listener);
-
-        if (applyPipelines(task, bulkRequestModifier.getBulkRequest(), executor, wrappedListener) == false) {
-            doInternalExecute(task, bulkRequestModifier.getBulkRequest(), executor, wrappedListener, relativeStartTimeNanos);
         }
     }
 

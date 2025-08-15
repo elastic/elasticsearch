@@ -121,7 +121,7 @@ public class EsqlSession {
     private final IndicesExpressionGrouper indicesExpressionGrouper;
     private final InferenceService inferenceService;
     private final RemoteClusterService remoteClusterService;
-    private final ExecutorService optimizerExecutor;
+    private final ExecutorService planExecutor;
 
     private boolean explainMode;
     private String parsedPlanString;
@@ -158,7 +158,7 @@ public class EsqlSession {
         this.inferenceService = services.inferenceService();
         this.preMapper = new PreMapper(services);
         this.remoteClusterService = services.transportService().getRemoteClusterService();
-        this.optimizerExecutor = services.transportService().getThreadPool().executor(ThreadPool.Names.SEARCH);
+        this.planExecutor = services.transportService().getThreadPool().executor(ThreadPool.Names.SEARCH);
     }
 
     public String sessionId() {
@@ -183,7 +183,7 @@ public class EsqlSession {
             public void onResponse(LogicalPlan analyzedPlan) {
                 SubscribableListener.<LogicalPlan>newForked(l -> preOptimizedPlan(analyzedPlan, l))
                     .andThenApply(p -> optimizedPlan(p))
-                    .<LogicalPlan>andThen((l, p) -> preMapper.preMapper(p, new ThreadedActionListener<>(optimizerExecutor, l)))
+                    .<LogicalPlan>andThen((l, p) -> preMapper.preMapper(p, new ThreadedActionListener<>(planExecutor, l)))
                     .<Result>andThen((l, p) -> executeOptimizedPlan(request, executionInfo, planRunner, p, l))
                     .addListener(listener);
             }

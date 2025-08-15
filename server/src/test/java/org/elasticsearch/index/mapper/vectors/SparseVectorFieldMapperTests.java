@@ -292,7 +292,7 @@ public class SparseVectorFieldMapperTests extends MapperTestCase {
         IndexVersion indexVersion = IndexVersionUtils.randomVersionBetween(
             random(),
             UPGRADE_TO_LUCENE_10_0_0,
-            IndexVersionUtils.getPreviousVersion(SPARSE_VECTOR_PRUNING_INDEX_OPTIONS_SUPPORT_BACKPORT_8_X)
+            IndexVersionUtils.getPreviousVersion(SPARSE_VECTOR_PRUNING_INDEX_OPTIONS_SUPPORT)
         );
 
         XContentBuilder orig = JsonXContent.contentBuilder().startObject();

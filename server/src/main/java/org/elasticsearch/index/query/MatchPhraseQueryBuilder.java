@@ -165,6 +165,10 @@ public class MatchPhraseQueryBuilder extends AbstractQueryBuilder<MatchPhraseQue
 
     @Override
     protected QueryBuilder doIndexMetadataRewrite(QueryRewriteContext context) throws IOException {
+        MappedFieldType fieldType = context.getFieldType(fieldName);
+        if (fieldType == null) {
+            return new MatchNoneQueryBuilder("The \"" + getName() + "\" query is against a field that does not exist");
+        }
         // If we're using the default keyword analyzer then we can rewrite this to a TermQueryBuilder
         // and possibly shortcut
         // If we're using a keyword analyzer then we can rewrite this to a TermQueryBuilder

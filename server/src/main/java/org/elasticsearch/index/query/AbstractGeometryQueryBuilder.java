@@ -460,6 +460,15 @@ public abstract class AbstractGeometryQueryBuilder<QB extends AbstractGeometryQu
             });
             return newShapeQueryBuilder(this.fieldName, supplier::get, this.indexedShapeId).relation(relation);
         }
+        return super.doRewrite(queryRewriteContext);
+    }
+
+    @Override
+    protected QueryBuilder doIndexMetadataRewrite(QueryRewriteContext context) throws IOException {
+        MappedFieldType fieldType = context.getFieldType(fieldName);
+        if (fieldType == null) {
+            return new MatchNoneQueryBuilder("The \"" + getName() + "\" query was rewritten to a \"match_none\" query.");
+        }
         return this;
     }
 

@@ -267,6 +267,15 @@ public final class TermsSetQueryBuilder extends AbstractQueryBuilder<TermsSetQue
     }
 
     @Override
+    protected QueryBuilder doIndexMetadataRewrite(QueryRewriteContext context) throws IOException {
+        MappedFieldType fieldType = context.getFieldType(fieldName);
+        if (fieldType == null) {
+            return new MatchNoneQueryBuilder("The \"" + getName() + "\" query was rewritten to a \"match_none\" query.");
+        }
+        return this;
+    }
+
+    @Override
     protected Query doToQuery(SearchExecutionContext context) {
         if (values.isEmpty()) {
             return Queries.newMatchNoDocsQuery("No terms supplied for \"" + getName() + "\" query.");

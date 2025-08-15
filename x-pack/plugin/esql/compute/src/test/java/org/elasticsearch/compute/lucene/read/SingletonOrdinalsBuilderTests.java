@@ -141,7 +141,12 @@ public class SingletonOrdinalsBuilderTests extends ComputeTestCase {
     public void testAllNull() throws IOException {
         BlockFactory factory = blockFactory();
         int count = 1000;
-        try (Directory directory = newDirectory(); RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory)) {
+        var iwc = newIndexWriterConfig();
+        boolean maybeSoftDeletes = randomBoolean();
+        try (
+            Directory directory = newDirectory();
+            RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory, iwc, maybeSoftDeletes)
+        ) {
             for (int i = 0; i < count; i++) {
                 for (BytesRef v : new BytesRef[] { new BytesRef("a"), new BytesRef("b"), new BytesRef("c"), new BytesRef("d") }) {
                     indexWriter.addDocument(List.of(new SortedDocValuesField("f", v)));
@@ -150,7 +155,14 @@ public class SingletonOrdinalsBuilderTests extends ComputeTestCase {
             try (IndexReader reader = indexWriter.getReader()) {
                 for (LeafReaderContext ctx : reader.leaves()) {
                     SortedDocValues docValues = ctx.reader().getSortedDocValues("f");
-                    try (SingletonOrdinalsBuilder builder = new SingletonOrdinalsBuilder(factory, docValues, ctx.reader().numDocs())) {
+                    try (
+                        SingletonOrdinalsBuilder builder = new SingletonOrdinalsBuilder(
+                            factory,
+                            docValues,
+                            ctx.reader().numDocs(),
+                            maybeSoftDeletes == false
+                        );
+                    ) {
                         for (int i = 0; i < ctx.reader().maxDoc(); i++) {
                             if (ctx.reader().getLiveDocs() == null || ctx.reader().getLiveDocs().get(i)) {
                                 assertThat(docValues.advanceExact(i), equalTo(true));
@@ -185,8 +197,8 @@ public class SingletonOrdinalsBuilderTests extends ComputeTestCase {
                     int batchSize = between(40, 100);
                     int ord = random().nextInt(numOrds);
                     try (
-                        var b1 = new SingletonOrdinalsBuilder(factory, ctx.reader().getSortedDocValues("f"), batchSize);
-                        var b2 = new SingletonOrdinalsBuilder(factory, ctx.reader().getSortedDocValues("f"), batchSize)
+                        var b1 = new SingletonOrdinalsBuilder(factory, ctx.reader().getSortedDocValues("f"), batchSize, randomBoolean());
+                        var b2 = new SingletonOrdinalsBuilder(factory, ctx.reader().getSortedDocValues("f"), batchSize, randomBoolean())
                     ) {
                         for (int i = 0; i < batchSize; i++) {
                             b1.appendOrd(ord);

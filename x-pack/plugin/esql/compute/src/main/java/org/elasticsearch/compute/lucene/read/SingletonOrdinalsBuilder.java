@@ -35,10 +35,6 @@ public class SingletonOrdinalsBuilder implements BlockLoader.SingletonOrdinalsBu
     private int count;
     private final boolean isDense;
 
-    public SingletonOrdinalsBuilder(BlockFactory blockFactory, SortedDocValues docValues, int count) {
-        this(blockFactory, docValues, count, false);
-    }
-
     public SingletonOrdinalsBuilder(BlockFactory blockFactory, SortedDocValues docValues, int count, boolean isDense) {
         this.blockFactory = blockFactory;
         this.docValues = docValues;

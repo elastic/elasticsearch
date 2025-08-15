@@ -14,7 +14,6 @@ import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
-import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
@@ -79,7 +78,7 @@ public final class PruneColumns extends Rule<LogicalPlan, LogicalPlan> {
                 recheck.set(false);
                 p = switch (p) {
                     case Aggregate agg -> pruneColumnsInAggregate(agg, used, inlineJoin);
-                    case InlineJoin inj -> pruneColumnsInInlineJoin(inj, used, recheck);
+                    case InlineJoin inj -> pruneColumnsInInlineJoinRight(inj, used, recheck);
                     case Eval eval -> pruneColumnsInEval(eval, used, recheck);
                     case Project project -> inlineJoin ? pruneColumnsInProject(project, used) : p;
                     case EsRelation esr -> pruneColumnsInEsRelation(esr, used);
@@ -148,12 +147,12 @@ public final class PruneColumns extends Rule<LogicalPlan, LogicalPlan> {
         return p;
     }
 
-    private static LogicalPlan pruneColumnsInInlineJoin(InlineJoin ij, AttributeSet.Builder used, Holder<Boolean> recheck) {
+    private static LogicalPlan pruneColumnsInInlineJoinRight(InlineJoin ij, AttributeSet.Builder used, Holder<Boolean> recheck) {
         LogicalPlan p = ij;
 
         used.addAll(ij.references());
         var right = pruneColumns(ij.right(), used, true);
-        if (right.output().isEmpty()) {
+        if (right.output().isEmpty() || isLocalEmptyRelation(right)) {
             p = ij.left();
             recheck.set(true);
         } else if (right != ij.right()) {
@@ -181,18 +180,19 @@ public final class PruneColumns extends Rule<LogicalPlan, LogicalPlan> {
         return p;
     }
 
+    // Note: only run when the Project is a descendent of an InlineJoin.
     private static LogicalPlan pruneColumnsInProject(Project project, AttributeSet.Builder used) {
         LogicalPlan p = project;
 
+        // A project atop a stub relation will only output attributes which are already part of the INLINEJOIN left-hand side output.
+        if (project.child() instanceof StubRelation) {
+            // Use an empty relation as a marker for a subsequent pass over the InlineJoin.
+            return emptyLocalRelation(project);
+        }
+
         var remaining = pruneUnusedAndAddReferences(project.projections(), used);
         if (remaining != null) {
-            p = remaining.isEmpty() || remaining.stream().allMatch(FieldAttribute.class::isInstance)
-                ? emptyLocalRelation(project)
-                : new Project(project.source(), project.child(), remaining);
-        } else if (project.output().stream().allMatch(FieldAttribute.class::isInstance)) {
-            // Use empty relation as a marker for a subsequent pass, in case the project is only outputting field attributes (which are
-            // already part of the INLINEJOIN left-hand side output).
-            p = emptyLocalRelation(project);
+            p = remaining.isEmpty() ? emptyLocalRelation(project) : new Project(project.source(), project.child(), remaining);
         }
 
         return p;
@@ -216,7 +216,11 @@ public final class PruneColumns extends Rule<LogicalPlan, LogicalPlan> {
 
     private static LogicalPlan emptyLocalRelation(LogicalPlan plan) {
         // create an empty local relation with no attributes
-        return new LocalRelation(plan.source(), List.of(), EmptyLocalSupplier.EMPTY);
+        return new LocalRelation(plan.source(), plan.output(), EmptyLocalSupplier.EMPTY);
+    }
+
+    private static boolean isLocalEmptyRelation(LogicalPlan plan) {
+        return plan instanceof LocalRelation local && local.hasEmptySupplier();
     }
 
     /**

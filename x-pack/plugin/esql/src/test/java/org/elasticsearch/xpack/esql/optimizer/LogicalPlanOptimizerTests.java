@@ -6106,12 +6106,10 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         return false;
     }
 
-    /**
-     * <pre>{@code
+    /*
      * Project[[emp_no{f}#12 AS x#8, emp_no{f}#12]]
      * \_TopN[[Order[emp_no{f}#12,ASC,LAST]],1[INTEGER]]
      *   \_EsRelation[test][_meta_field{f}#18, emp_no{f}#12, first_name{f}#13, ..]
-     * }</pre>
      */
     public void testInlinestatsGetsPrunedEntirely() {
         var query = """
@@ -6134,7 +6132,60 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         var relation = as(topN.child(), EsRelation.class);
     }
 
-    // same as above
+    /*
+     * EsqlProject[[emp_no{f}#16, count{r}#7]]
+     * \_TopN[[Order[emp_no{f}#16,ASC,LAST]],5[INTEGER]]
+     *   \_InlineJoin[LEFT,[salaryK{r}#5],[salaryK{r}#5],[salaryK{r}#5]]
+     *     |_Eval[[salary{f}#21 / 1000[INTEGER] AS salaryK#5]]
+     *     | \_EsRelation[test][_meta_field{f}#22, emp_no{f}#16, first_name{f}#17, ..]
+     *     \_Aggregate[[salaryK{r}#5],[COUNT(*[KEYWORD],true[BOOLEAN]) AS count#7, salaryK{r}#5]]
+     *       \_StubRelation[[_meta_field{f}#22, emp_no{f}#16, first_name{f}#17, gender{f}#18, hire_date{f}#23, job{f}#24, job.raw{f}#25,
+     *              languages{f}#19, last_name{f}#20, long_noidx{f}#26, salary{f}#21, salaryK{r}#5]]
+     */
+    public void testDoubleInlinestatsWithEvalGetsPrunedEntirely() {
+        var query = """
+            FROM employees
+            | SORT languages DESC
+            | EVAL salaryK = salary/1000
+            | INLINESTATS count = COUNT(*) BY salaryK
+            | INLINESTATS min = MIN(MV_COUNT(languages)) BY salaryK
+            | KEEP emp_no, count
+            | SORT emp_no
+            | LIMIT 5
+            """;
+        if (releaseBuildForInlinestats(query)) {
+            return;
+        }
+        var plan = optimizedPlan(query);
+        System.err.println("XXX\n" + plan);
+
+        var project = as(plan, EsqlProject.class);
+        assertThat(Expressions.names(project.projections()), is(List.of("emp_no", "count")));
+        var topN = as(project.child(), TopN.class);
+        assertThat(topN.order().size(), is(1));
+        var order = as(topN.order().get(0), Order.class);
+        assertThat(order.direction(), equalTo(Order.OrderDirection.ASC));
+        assertThat(order.nullsPosition(), equalTo(Order.NullsPosition.LAST));
+        var ref = as(order.child(), FieldAttribute.class);
+        assertThat(ref.name(), is("emp_no"));
+        var inlineJoin = as(topN.child(), InlineJoin.class);
+        assertThat(Expressions.names(inlineJoin.config().matchFields()), is(List.of("salaryK")));
+        // Left
+        var eval = as(inlineJoin.left(), Eval.class);
+        assertThat(Expressions.names(eval.fields()), is(List.of("salaryK")));
+        var relation = as(eval.child(), EsRelation.class);
+        // Right
+        var agg = as(inlineJoin.right(), Aggregate.class);
+        assertThat(Expressions.names(agg.groupings()), is(List.of("salaryK")));
+        assertThat(Expressions.names(agg.aggregates()), is(List.of("count", "salaryK")));
+        var stub = as(agg.child(), StubRelation.class);
+    }
+
+    /*
+     * Project[[emp_no{f}#19 AS x#15, emp_no{f}#19]]
+     * \_TopN[[Order[emp_no{f}#19,ASC,LAST]],1[INTEGER]]
+     *   \_EsRelation[test][_meta_field{f}#25, emp_no{f}#19, first_name{f}#20, ..]
+     */
     public void testDoubleInlinestatsGetsPrunedEntirely() {
         var query = """
             FROM employees
@@ -6158,8 +6209,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         var relation = as(topN.child(), EsRelation.class);
     }
 
-    /**
-     * <pre>{@code
+    /*
      * Project[[emp_no{f}#15 AS x#11, a{r}#7, emp_no{f}#15]]
      * \_Limit[1[INTEGER],true]
      *   \_InlineJoin[LEFT,[emp_no{f}#15],[emp_no{f}#15],[emp_no{r}#15]]
@@ -6168,7 +6218,6 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      *     \_Aggregate[[emp_no{f}#15],[COUNTDISTINCT(languages{f}#18,true[BOOLEAN]) AS a#7, emp_no{f}#15]]
      *       \_StubRelation[[_meta_field{f}#21, emp_no{f}#15, first_name{f}#16, gender{f}#17, hire_date{f}#22, job{f}#23, job.raw{f}#24, l
      *          anguages{f}#18, last_name{f}#19, long_noidx{f}#25, salary{f}#20]]
-     * }</pre>
      */
     public void testInlinestatsGetsPrunedPartially() {
         var query = """
@@ -6199,7 +6248,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     }
 
     // same as above
-    public void testTrippleInlinestatsGetsPrunedPartially() {
+    public void testTripleInlinestatsGetsPrunedPartially() {
         var query = """
             FROM employees
             | INLINESTATS x = AVG(salary), a = COUNT_DISTINCT(languages) BY emp_no
@@ -6229,14 +6278,175 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         var stub = as(agg.child(), StubRelation.class);
     }
 
-    /**
-     * <pre>{@code
+    /*
+     * EsqlProject[[emp_no{f}#864, salaryK{r}#836, count{r}#838, min{r}#852]]
+     * \_TopN[[Order[emp_no{f}#864,ASC,LAST]],5[INTEGER]]
+     *   \_InlineJoin[LEFT,[salaryK{r}#836],[salaryK{r}#836],[salaryK{r}#836]]
+     *     |_Dissect[hire_date_string{r}#842,Parser[pattern=%{date}, appendSeparator=,
+     *          parser=org.elasticsearch.dissect.DissectParser@27d57d5e],[date{r}#847]] <-- TODO: Dissect & Eval could/should be dropped
+     *     | \_Eval[[TOSTRING(hire_date{f}#865) AS hire_date_string#842]]
+     *     |   \_InlineJoin[LEFT,[salaryK{r}#836],[salaryK{r}#836],[salaryK{r}#836]]
+     *     |     |_Eval[[salary{f}#866 / 10000[INTEGER] AS salaryK#836]]
+     *     |     | \_EsRelation[employees][emp_no{f}#864, hire_date{f}#865, languages{f}#860, ..]
+     *     |     \_Aggregate[[salaryK{r}#836],[COUNT(*[KEYWORD],true[BOOLEAN]) AS count#838, salaryK{r}#836]]
+     *     |       \_StubRelation[[emp_no{f}#864, hire_date{f}#865, languages{f}#860, languages.byte{f}#861, languages.long{f}#863,
+     *                  languages.short{f}#862, salary{f}#866, salaryK{r}#836]]
+     *     \_Aggregate[[salaryK{r}#836],[MIN($$MV_COUNT(langua>$MIN$0{r$}#867,true[BOOLEAN]) AS min#852, salaryK{r}#836]]
+     *       \_Eval[[MVCOUNT(languages{f}#860) AS $$MV_COUNT(langua>$MIN$0#867]]
+     *         \_StubRelation[[emp_no{f}#864, hire_date{f}#865, languages{f}#860, languages.byte{f}#861, languages.long{f}#863,
+     *              languages.short{f}#862, salary{f}#866, count{r}#838, salaryK{r}#836, sum{r}#845, hire_date_string{r}#842, date{r}#847]]
+     */
+    public void testTripleInlinestatsMultipleAssignmentsGetsPrunedPartially() {
+        // TODO: reenable 1st sort, pull the 2nd further up when #132417 is in
+        var query = """
+            FROM employees
+            // | SORT languages DESC
+            | EVAL salaryK = salary / 10000
+            | INLINESTATS count = COUNT(*) BY salaryK
+            | EVAL hire_date_string = hire_date::keyword
+            | INLINESTATS sum = SUM(languages) BY hire_date_string
+            | DISSECT hire_date_string "%{date}"
+            | INLINESTATS min = MIN(MV_COUNT(languages)) BY salaryK
+            | SORT emp_no
+            | KEEP emp_no, salaryK, count, min
+            | LIMIT 5
+            """;
+        if (releaseBuildForInlinestats(query)) {
+            return;
+        }
+        var plan = optimizedPlan(query);
+
+        var employeesFields = List.of(
+            "_meta_field",
+            "emp_no",
+            "first_name",
+            "gender",
+            "hire_date",
+            "job",
+            "job.raw",
+            "languages",
+            "last_name",
+            "long_noidx",
+            "salary"
+        );
+
+        var project = as(plan, EsqlProject.class);
+        assertThat(Expressions.names(project.projections()), is(List.of("emp_no", "salaryK", "count", "min")));
+        var topN = as(project.child(), TopN.class);
+        var outerinline = as(topN.child(), InlineJoin.class);
+        //
+        var expectedOutterOutput = new ArrayList<>(employeesFields);
+        expectedOutterOutput.addAll(List.of("count", "hire_date_string", "date", "min", "salaryK"));
+        assertThat(Expressions.names(outerinline.output()), is(expectedOutterOutput));
+        // outer left
+        var dissect = as(outerinline.left(), Dissect.class);
+        var eval = as(dissect.child(), Eval.class);
+        var innerinline = as(eval.child(), InlineJoin.class);
+        var expectedInnerOutput = new ArrayList<>(employeesFields);
+        expectedInnerOutput.addAll(List.of("count", "salaryK"));
+        assertThat(Expressions.names(innerinline.output()), is(expectedInnerOutput));
+        // inner left
+        eval = as(innerinline.left(), Eval.class);
+        var relation = as(eval.child(), EsRelation.class);
+        // inner right
+        var agg = as(innerinline.right(), Aggregate.class);
+        var stub = as(agg.child(), StubRelation.class);
+        // outer right
+        agg = as(outerinline.right(), Aggregate.class);
+        eval = as(agg.child(), Eval.class);
+        stub = as(eval.child(), StubRelation.class);
+    }
+
+    /*
+     * EsqlProject[[emp_no{f}#917]]
+     * \_TopN[[Order[emp_no{f}#917,ASC,LAST]],5[INTEGER]]
+     *   \_Dissect[hire_date_string{r}#898,Parser[pattern=%{date}, appendSeparator=,
+     *          parser=org.elasticsearch.dissect.DissectParser@46132aa7],[date{r}#903]] <-- TODO: Dissect & Eval could/should be dropped
+     *     \_Eval[[TOSTRING(hire_date{f}#918) AS hire_date_string#898]]
+     *       \_EsRelation[employees][emp_no{f}#917, hire_date{f}#918, languages{f}#913, ..]
+     */
+    public void testTripleInlinestatsMultipleAssignmentsGetsPrunedEntirely() {
+        // same as the above query, but only keep emp_no
+        var query = """
+            FROM employees
+            // | SORT languages DESC
+            | EVAL salaryK = salary / 10000
+            | INLINESTATS count = COUNT(*) BY salaryK
+            | EVAL hire_date_string = hire_date::keyword
+            | INLINESTATS sum = SUM(languages) BY hire_date_string
+            | DISSECT hire_date_string "%{date}"
+            | INLINESTATS min = MIN(MV_COUNT(languages)) BY salaryK
+            | SORT emp_no
+            | KEEP emp_no
+            | LIMIT 5
+            """;
+        if (releaseBuildForInlinestats(query)) {
+            return;
+        }
+        var plan = optimizedPlan(query);
+
+        var project = as(plan, EsqlProject.class);
+        assertThat(Expressions.names(project.projections()), is(List.of("emp_no")));
+        var topN = as(project.child(), TopN.class);
+        var dissect = as(topN.child(), Dissect.class);
+        var eval = as(dissect.child(), Eval.class);
+        var relation = as(eval.child(), EsRelation.class);
+    }
+
+    /*
+     * Project[[emp_no{f}#1556]]
+     * \_TopN[[Order[emp_no{f}#1556,ASC,LAST]],5[INTEGER]]
+     *   \_Join[LEFT,[languages{f}#1552],[languages{f}#1552],[language_code{f}#1561]]
+     *     |_Join[LEFT,[languages{f}#1552],[languages{f}#1552],[language_code{f}#1560]]
+     *     | |_Join[LEFT,[languages{f}#1552],[languages{f}#1552],[language_code{f}#1559]]
+     *     | | |_EsRelation[employees][emp_no{f}#1556, hire_date{f}#1557, languages{f}#155..]
+     *     | | \_EsRelation[languages_lookup][LOOKUP][language_code{f}#1559]
+     *     | \_EsRelation[languages_lookup][LOOKUP][language_code{f}#1560]
+     *     \_EsRelation[languages_lookup][LOOKUP][language_code{f}#1561]
+     */
+    public void testTripleInlinestatsWithLookupJoinGetsPrunedEntirely() {
+        var query = """
+            FROM employees
+            // | SORT languages DESC
+            | EVAL salaryK = salary / 10000
+            | EVAL language_code = languages
+            | LOOKUP JOIN languages_lookup ON language_code
+            | INLINESTATS count = COUNT(*) BY salaryK
+            | EVAL hire_date_string = hire_date::keyword
+            | LOOKUP JOIN languages_lookup ON language_code
+            | INLINESTATS sum = SUM(languages) BY hire_date_string
+            | LOOKUP JOIN languages_lookup ON language_code
+            | INLINESTATS min = MIN(MV_COUNT(languages)) BY salaryK
+            | SORT emp_no
+            | KEEP emp_no
+            | LIMIT 5
+            """;
+        if (releaseBuildForInlinestats(query)) {
+            return;
+        }
+        var plan = optimizedPlan(query);
+
+        var project = as(plan, Project.class);
+        assertThat(Expressions.names(project.projections()), is(List.of("emp_no")));
+        var topN = as(project.child(), TopN.class);
+
+        var outterjoin = as(topN.child(), Join.class);
+        var middlejoin = as(outterjoin.left(), Join.class);
+        var innerjoin = as(middlejoin.left(), Join.class);
+
+        var innerJoinLeftRelation = as(innerjoin.left(), EsRelation.class);
+        var innerJoinRightRelation = as(innerjoin.right(), EsRelation.class);
+
+        var middleJoinRightRelation = as(middlejoin.right(), EsRelation.class);
+        var outerJoinRightRelation = as(outterjoin.right(), EsRelation.class);
+    }
+
+    /*
      * Project[[abbrev{f}#19, scalerank{f}#21 AS backup_scalerank#4, language_name{f}#28 AS scalerank#11]]
      * \_TopN[[Order[abbrev{f}#19,DESC,FIRST]],5[INTEGER]]
      *   \_Join[LEFT,[scalerank{f}#21],[scalerank{f}#21],[language_code{f}#27]]
      *     |_EsRelation[airports][abbrev{f}#19, city{f}#25, city_location{f}#26, coun..]
      *     \_EsRelation[languages_lookup][LOOKUP][language_code{f}#27, language_name{f}#28]
-     * }</pre>
      */
     public void testInlinestatsWithLookupJoin() {
         var query = """
@@ -6273,8 +6483,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         assertThat(right.concreteIndices(), is(Set.of("languages_lookup")));
     }
 
-    /**
-     * <pre>{@code
+    /*
      * EsqlProject[[avg{r}#4, emp_no{f}#9, first_name{f}#10]]
      * \_Limit[10[INTEGER],true]
      *   \_InlineJoin[LEFT,[emp_no{f}#9],[emp_no{f}#9],[emp_no{r}#9]]
@@ -6286,7 +6495,6 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      *              avg$1#21, emp_no{f}#9]]
      *           \_StubRelation[[_meta_field{f}#15, emp_no{f}#9, first_name{f}#10, gender{f}#11, hire_date{f}#16, job{f}#17, job.raw{f}#18,
      *              languages{f}#12, last_name{f}#13, long_noidx{f}#19, salary{f}#14]]
-     * }</pre>
      */
     public void testInlinestatsWithAvg() {
         var query = """
@@ -6318,13 +6526,11 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         var stub = as(agg.child(), StubRelation.class);
     }
 
-    /**
-     * <pre>{@code
+    /*
      * EsqlProject[[emp_no{r}#5]]
      * \_Limit[1000[INTEGER],false]
      *   \_LocalRelation[[salary{r}#3, emp_no{r}#5, gender{r}#7],
      *      org.elasticsearch.xpack.esql.plan.logical.local.CopyingLocalSupplier@9d5b596d]
-     * }</pre>
      */
     public void testInlinestatsWithRow() {
         var query = """

@@ -336,6 +336,20 @@ public abstract class DocumentParserContext {
     }
 
     /**
+     * This function acts as a more "readable" wrapper around adding ignored fields.
+     *
+     * This is useful when we want to reuse the existing logic that {@link IgnoredSourceFieldMapper} provides for synthetic source, without
+     * explicitly calling addIgnoredField(). Without this, it's a bit confusing why fields that are not meant to be ignored, are being
+     * added to ignored source.
+     */
+    public final void storeFieldForSyntheticSource(String fullPath, String leafName, BytesRef valueBytes, LuceneDocument doc) {
+        if (canAddIgnoredField()) {
+            var fieldData = new IgnoredSourceFieldMapper.NameValue(fullPath, fullPath.lastIndexOf(leafName), valueBytes, doc);
+            ignoredFieldValues.add(fieldData);
+        }
+    }
+
+    /**
      * Return the collection of values for fields that have been ignored so far.
      */
     public final Collection<IgnoredSourceFieldMapper.NameValue> getIgnoredFieldValues() {

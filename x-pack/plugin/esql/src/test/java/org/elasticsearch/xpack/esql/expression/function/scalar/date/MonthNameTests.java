@@ -113,10 +113,7 @@ public class MonthNameTests extends AbstractConfigurationFunctionTestCase {
     public void testRandomLocale() {
         long randomMillis = randomMillisUpToYear9999();
         Configuration cfg = configWithZoneAndLocale(randomZone(), randomLocale(random()));
-        String expected = Instant.ofEpochMilli(randomMillis)
-            .atZone(cfg.zoneId())
-            .getMonth()
-            .getDisplayName(TextStyle.FULL, cfg.locale());
+        String expected = Instant.ofEpochMilli(randomMillis).atZone(cfg.zoneId()).getMonth().getDisplayName(TextStyle.FULL, cfg.locale());
 
         MonthName func = new MonthName(Source.EMPTY, new Literal(Source.EMPTY, randomMillis, DataType.DATETIME), cfg);
         assertThat(BytesRefs.toBytesRef(expected), equalTo(func.fold(FoldContext.small())));

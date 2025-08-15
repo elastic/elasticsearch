@@ -39,7 +39,11 @@ import java.util.Locale;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
 
 public class MonthName extends EsqlConfigurationFunction {
-    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "MonthName", MonthName::new);
+    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
+        Expression.class,
+        "MonthName",
+        MonthName::new
+    );
 
     private final Expression field;
 

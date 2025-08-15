@@ -1,0 +1,5 @@
+pr: 132959
+summary: Implement `v_hamming`
+area: ES|QL
+type: feature
+issues: []

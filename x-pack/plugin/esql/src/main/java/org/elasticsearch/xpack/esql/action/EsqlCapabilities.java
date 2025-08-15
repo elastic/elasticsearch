@@ -1356,10 +1356,20 @@ public class EsqlCapabilities {
          */
         CORRECT_SKIPPED_SHARDS_COUNT,
 
+        /*
+         * Support for calculating the scalar vector magnitude.
+         */
+        MAGNITUDE_SCALAR_VECTOR_FUNCTION(Build.current().isSnapshot()),
+
         /**
          * Byte elements dense vector field type support.
          */
-        DENSE_VECTOR_FIELD_TYPE_BYTE_ELEMENTS(EsqlCorePlugin.DENSE_VECTOR_FEATURE_FLAG);
+        DENSE_VECTOR_FIELD_TYPE_BYTE_ELEMENTS(EsqlCorePlugin.DENSE_VECTOR_FEATURE_FLAG),
+
+        /**
+         * Support null elements on vector similarity functions
+         */
+        VECTOR_SIMILARITY_FUNCTIONS_SUPPORT_NULL;
 
         private final boolean enabled;
 

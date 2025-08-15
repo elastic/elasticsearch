@@ -56,17 +56,16 @@ import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.NavigableSet;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static org.elasticsearch.index.IndexVersions.NEW_SPARSE_VECTOR;
 import static org.elasticsearch.index.IndexVersions.SPARSE_VECTOR_PRUNING_INDEX_OPTIONS_SUPPORT;
 import static org.elasticsearch.index.IndexVersions.SPARSE_VECTOR_PRUNING_INDEX_OPTIONS_SUPPORT_BACKPORT_8_X;
 import static org.elasticsearch.index.IndexVersions.UPGRADE_TO_LUCENE_10_0_0;
-import static org.elasticsearch.index.mapper.vectors.SparseVectorFieldMapper.NEW_SPARSE_VECTOR_INDEX_VERSION;
-import static org.elasticsearch.index.mapper.vectors.SparseVectorFieldMapper.PREVIOUS_SPARSE_VECTOR_INDEX_VERSION;
-import static org.elasticsearch.index.mapper.vectors.SparseVectorFieldMapper.SPARSE_VECTOR_PRUNING_INDEX_OPTIONS_VERSION;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.containsString;
@@ -288,7 +287,7 @@ public class SparseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase
         IndexVersion indexVersion = IndexVersionUtils.randomVersionBetween(
             random(),
             UPGRADE_TO_LUCENE_10_0_0,
-            IndexVersionUtils.getPreviousVersion(SPARSE_VECTOR_PRUNING_INDEX_OPTIONS_VERSION)
+            IndexVersionUtils.getPreviousVersion(SPARSE_VECTOR_PRUNING_INDEX_OPTIONS_SUPPORT)
         );
 
         XContentBuilder orig = JsonXContent.contentBuilder().startObject();
@@ -510,7 +509,7 @@ public class SparseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase
     @Override
     protected String[] getParseMinimalWarnings(IndexVersion indexVersion) {
         String[] additionalWarnings = null;
-        if (indexVersion.before(PREVIOUS_SPARSE_VECTOR_INDEX_VERSION)) {
+        if (indexVersion.before(IndexVersions.V_8_0_0)) {
             additionalWarnings = new String[] { SparseVectorFieldMapper.ERROR_MESSAGE_7X };
         }
         return Strings.concatStringArrays(super.getParseMinimalWarnings(indexVersion), additionalWarnings);
@@ -518,13 +517,13 @@ public class SparseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase
 
     @Override
     protected IndexVersion boostNotAllowedIndexVersion() {
-        return NEW_SPARSE_VECTOR_INDEX_VERSION;
+        return NEW_SPARSE_VECTOR;
     }
 
     public void testSparseVectorUnsupportedIndex() {
         IndexVersion version = IndexVersionUtils.randomVersionBetween(
             random(),
-            PREVIOUS_SPARSE_VECTOR_INDEX_VERSION,
+            IndexVersions.V_8_0_0,
             IndexVersions.FIRST_DETACHED_INDEX_VERSION
         );
         Exception e = expectThrows(MapperParsingException.class, () -> createMapperService(version, fieldMapping(b -> {
@@ -802,7 +801,7 @@ public class SparseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase
         }
 
         if (shouldPrune == null) {
-            shouldPrune = indexVersion.between(SPARSE_VECTOR_PRUNING_INDEX_OPTIONS_SUPPORT_BACKPORT_8_X, IndexVersions.UPGRADE_TO_LUCENE_10_0_0) || indexVersion.onOrAfter(SPARSE_VECTOR_PRUNING_INDEX_OPTIONS_SUPPORT);
+            shouldPrune = indexVersion.between(SPARSE_VECTOR_PRUNING_INDEX_OPTIONS_SUPPORT_BACKPORT_8_X, UPGRADE_TO_LUCENE_10_0_0) || indexVersion.onOrAfter(SPARSE_VECTOR_PRUNING_INDEX_OPTIONS_SUPPORT);
         }
 
         PruningScenario pruningScenario = PruningScenario.NO_PRUNING;
@@ -840,10 +839,7 @@ public class SparseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase
     }
 
     private void assertPruningScenario(PruningOptions indexPruningOptions, PruningOptions queryPruningOptions) throws IOException {
-        IndexVersion indexVersion = ESTestCase.randomFrom(IndexVersionUtils.allReleasedVersions().subSet(
-            SPARSE_VECTOR_PRUNING_INDEX_OPTIONS_SUPPORT_BACKPORT_8_X,
-            IndexVersion.current()
-        ));
+        IndexVersion indexVersion = getIndexVersion();
         MapperService mapperService = createMapperService(indexVersion, getIndexMapping(indexPruningOptions));
         PruningScenario effectivePruningScenario = getEffectivePruningScenario(indexPruningOptions, queryPruningOptions, indexVersion);
         withSearchExecutionContext(mapperService, (context) -> {
@@ -860,6 +856,46 @@ public class SparseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase
             );
             assertQueryContains(expectedQueryClauses, finalizedQuery);
         });
+    }
+
+    private static IndexVersion getIndexVersion() {
+        VersionRange versionRange = randomFrom(VersionRange.values());
+        return versionRange.getRandomVersion();
+    }
+
+    private enum VersionRange {
+        ES_V8X_WITHOUT_SUPPORT(
+            NEW_SPARSE_VECTOR,
+            IndexVersionUtils.getPreviousVersion(SPARSE_VECTOR_PRUNING_INDEX_OPTIONS_SUPPORT_BACKPORT_8_X)
+        ),
+        ES_V8X_WITH_SUPPORT(
+            SPARSE_VECTOR_PRUNING_INDEX_OPTIONS_SUPPORT_BACKPORT_8_X,
+            IndexVersionUtils.getPreviousVersion(UPGRADE_TO_LUCENE_10_0_0)
+        ),
+        ES_V9X_WITHOUT_SUPPORT(
+            UPGRADE_TO_LUCENE_10_0_0,
+            IndexVersionUtils.getPreviousVersion(SPARSE_VECTOR_PRUNING_INDEX_OPTIONS_SUPPORT)
+        ),
+        ES_V9X_WITH_SUPPORT(
+            SPARSE_VECTOR_PRUNING_INDEX_OPTIONS_SUPPORT,
+            IndexVersion.current()
+        );
+
+        private final IndexVersion fromVersion;
+        private final IndexVersion toVersion;
+
+        VersionRange(IndexVersion fromVersion, IndexVersion toVersion) {
+            this.fromVersion = fromVersion;
+            this.toVersion = toVersion;
+        }
+
+        IndexVersion getRandomVersion() {
+            // TODO: replace implementation with `IndexVersionUtils::randomVersionBetween` once support is added
+            //  for handling unbalanced version distributions.
+            NavigableSet<IndexVersion> allReleaseVersions = IndexVersionUtils.allReleasedVersions();
+            Set<IndexVersion> candidateVersions = allReleaseVersions.subSet(fromVersion, toVersion);
+            return ESTestCase.randomFrom(candidateVersions);
+        }
     }
 
     private static final List<WeightedToken> QUERY_VECTORS = Stream.of(RARE_TOKENS, MEDIUM_TOKENS, COMMON_TOKENS)

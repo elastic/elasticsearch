@@ -1,5 +1,5 @@
 pr: 132950
 summary: Speed up loading keyword fields with index sorts
-area: "ES|QL, TSDB"
+area: "ES|QL"
 type: enhancement
 issues: []

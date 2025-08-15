@@ -405,7 +405,6 @@ public class TasksIT extends ESIntegTestCase {
             // assert that all task descriptions have non-zero length
             assertThat(taskInfo.description().length(), greaterThan(0));
         }
-        updateClusterSettings(Settings.builder().putNull(SearchService.BATCHED_QUERY_PHASE.getKey()));
     }
 
     public void testSearchTaskHeaderLimit() {

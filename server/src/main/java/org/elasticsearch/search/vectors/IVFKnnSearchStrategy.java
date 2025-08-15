@@ -9,14 +9,32 @@
 package org.elasticsearch.search.vectors;
 
 import org.apache.lucene.search.knn.KnnSearchStrategy;
+import org.apache.lucene.util.SetOnce;
 
 import java.util.Objects;
+import java.util.concurrent.atomic.LongAccumulator;
 
 public class IVFKnnSearchStrategy extends KnnSearchStrategy {
     private final float visitRatio;
+    private SetOnce<AbstractMaxScoreKnnCollector> collector = new SetOnce<>();
+    private final LongAccumulator accumulator;
 
-    IVFKnnSearchStrategy(float visitRatio) {
+    IVFKnnSearchStrategy(float visitRatio, LongAccumulator accumulator) {
         this.visitRatio = visitRatio;
+        this.accumulator = accumulator;
+    }
+
+    void setCollector(AbstractMaxScoreKnnCollector collector) {
+        this.collector.set(collector);
+        if (accumulator != null) {
+            collector.updateMinCompetitiveDocScore(accumulator.get());
+        }
+    }
+
+    void setMinCompetitiveScore(long competitive) {
+        if (accumulator != null) {
+            accumulator.accumulate(competitive);
+        }
     }
 
     public float getVisitRatio() {
@@ -38,6 +56,12 @@ public class IVFKnnSearchStrategy extends KnnSearchStrategy {
 
     @Override
     public void nextVectorsBlock() {
-        // do nothing
+        if (accumulator == null) {
+            return;
+        }
+        assert this.collector.get() != null : "Collector must be set before nextVectorsBlock is called";
+        AbstractMaxScoreKnnCollector knnCollector = this.collector.get();
+        accumulator.accumulate(knnCollector.getMinCompetitiveDocScore());
+        knnCollector.updateMinCompetitiveDocScore(accumulator.get());
     }
 }

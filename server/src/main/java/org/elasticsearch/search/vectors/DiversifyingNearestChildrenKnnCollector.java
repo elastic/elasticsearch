@@ -20,7 +20,6 @@
 package org.elasticsearch.search.vectors;
 
 import org.apache.lucene.internal.hppc.IntIntHashMap;
-import org.apache.lucene.search.AbstractKnnCollector;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TotalHits;
@@ -32,7 +31,7 @@ import org.apache.lucene.util.BitSet;
  * This collects the nearest children vectors. Diversifying the results over the provided parent
  * filter. This means the nearest children vectors are returned, but only one per parent
  */
-class DiversifyingNearestChildrenKnnCollector extends AbstractKnnCollector {
+class DiversifyingNearestChildrenKnnCollector extends AbstractMaxScoreKnnCollector {
 
     private final BitSet parentBitSet;
     private final NodeIdCachingHeap heap;
@@ -99,6 +98,17 @@ class DiversifyingNearestChildrenKnnCollector extends AbstractKnnCollector {
     @Override
     public int numCollected() {
         return heap.size();
+    }
+
+    @Override
+    public long getMinCompetitiveDocScore() {
+        // (((long) NumericUtils.floatToSortableInt(heap.topScore())) << 32) | (0xFFFFFFFFL & ~heap.topNode());
+        return Long.MIN_VALUE;
+    }
+
+    @Override
+    void updateMinCompetitiveDocScore(long minCompetitiveDocScore) {
+        // pass
     }
 
     /**

@@ -543,6 +543,9 @@ tests:
 - class: org.elasticsearch.index.mapper.LongFieldMapperTests
   method: testSyntheticSourceWithTranslogSnapshot
   issue: https://github.com/elastic/elasticsearch/issues/132964
+- class: org.elasticsearch.test.rest.yaml.CcsCommonYamlTestSuiteIT
+  method: test {p0=search/160_exists_query/Test exists query on unmapped float field}
+  issue: https://github.com/elastic/elasticsearch/issues/132984
 
 # Examples:
 #

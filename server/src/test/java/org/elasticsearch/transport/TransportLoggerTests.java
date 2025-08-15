@@ -67,11 +67,7 @@ public class TransportLoggerTests extends ESTestCase {
     }
 
     public void testLoggingHandlerWithExceptionMessage() {
-        final String readPattern = ".*\\[length: \\d+"
-            + ", request id: \\d+"
-            + ", type: request"
-            + ", version: .*"
-            + " READ: \\d+B";
+        final String readPattern = ".*\\[length: \\d+" + ", request id: \\d+" + ", type: request" + ", version: .*" + " READ: \\d+B";
 
         final MockLog.LoggingExpectation readExpectation = new MockLog.PatternSeenEventExpectation(
             "spatial stats request",
@@ -80,12 +76,10 @@ public class TransportLoggerTests extends ESTestCase {
             readPattern
         );
 
-        InboundMessage inboundMessage = new InboundMessage(new Header(
-            0,
-            0,
-            TransportStatus.setRequest((byte) 0),
-            TransportVersion.current()
-        ), new ActionNotFoundTransportException("cluster:monitor/xpack/spatial/stats"));
+        InboundMessage inboundMessage = new InboundMessage(
+            new Header(0, 0, TransportStatus.setRequest((byte) 0), TransportVersion.current()),
+            new ActionNotFoundTransportException("cluster:monitor/xpack/spatial/stats")
+        );
 
         try (var mockLog = MockLog.capture(TransportLogger.class)) {
             mockLog.addExpectation(readExpectation);

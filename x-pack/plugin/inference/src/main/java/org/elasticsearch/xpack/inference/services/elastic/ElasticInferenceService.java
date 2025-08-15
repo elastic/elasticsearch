@@ -80,7 +80,11 @@ public class ElasticInferenceService extends SenderService {
     private static final EnumSet<TaskType> IMPLEMENTED_TASK_TYPES = EnumSet.of(TaskType.SPARSE_EMBEDDING, TaskType.CHAT_COMPLETION);
     private static final String SERVICE_NAME = "Elastic";
     static final String DEFAULT_CHAT_COMPLETION_MODEL_ID_V1 = "rainbow-sprinkles";
-    static final String DEFAULT_CHAT_COMPLETION_ENDPOINT_ID_V1 = Strings.format(".%s-elastic", DEFAULT_CHAT_COMPLETION_MODEL_ID_V1);
+    static final String DEFAULT_CHAT_COMPLETION_ENDPOINT_ID_V1 = defaultEndpointId(DEFAULT_CHAT_COMPLETION_MODEL_ID_V1);
+
+    // elser-2
+    static final String DEFAULT_ELSER_2_MODEL_ID = "elser_model_2";
+    static final String DEFAULT_ELSER_ENDPOINT_ID_V2 = defaultEndpointId("elser-2");
 
     /**
      * The task types that the {@link InferenceAction.Request} can accept.
@@ -133,6 +137,19 @@ public class ElasticInferenceService extends SenderService {
                     elasticInferenceServiceComponents
                 ),
                 MinimalServiceSettings.chatCompletion()
+            ),
+            DEFAULT_ELSER_2_MODEL_ID,
+            new DefaultModelConfig(
+                new ElasticInferenceServiceSparseEmbeddingsModel(
+                    DEFAULT_ELSER_ENDPOINT_ID_V2,
+                    TaskType.SPARSE_EMBEDDING,
+                    NAME,
+                    new ElasticInferenceServiceSparseEmbeddingsServiceSettings(DEFAULT_ELSER_2_MODEL_ID, null, null),
+                    EmptyTaskSettings.INSTANCE,
+                    EmptySecretSettings.INSTANCE,
+                    elasticInferenceServiceComponents
+                ),
+                MinimalServiceSettings.sparseEmbedding()
             )
         );
     }

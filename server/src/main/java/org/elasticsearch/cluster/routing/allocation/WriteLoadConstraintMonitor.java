@@ -67,7 +67,7 @@ public class WriteLoadConstraintMonitor {
             return;
         }
 
-        if (writeLoadConstraintSettings.getWriteLoadConstraintEnabled() == WriteLoadConstraintSettings.WriteLoadDeciderStatus.ENABLED) {
+        if (writeLoadConstraintSettings.getWriteLoadConstraintEnabled() != WriteLoadConstraintSettings.WriteLoadDeciderStatus.ENABLED) {
             logger.trace("skipping monitor because the write load decider is disabled");
             return;
         }

@@ -1,0 +1,5 @@
+pr: 132981
+summary: For ES|QL execution after `preMapper`
+area: ES|QL
+type: enhancement
+issues: []

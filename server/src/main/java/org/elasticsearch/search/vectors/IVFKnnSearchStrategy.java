@@ -48,6 +48,13 @@ public class IVFKnnSearchStrategy extends KnnSearchStrategy {
         return Objects.hashCode(visitRatio);
     }
 
+    /**
+     * This method is called when the next block of vectors is processed.
+     * It accumulates the minimum competitive document score from the collector
+     * and updates the accumulator with the most competitive score.
+     * If the current score in the accumulator is greater than the minimum competitive
+     * document score in the collector, it updates the collector's minimum competitive document score.
+     */
     @Override
     public void nextVectorsBlock() {
         if (accumulator == null) {

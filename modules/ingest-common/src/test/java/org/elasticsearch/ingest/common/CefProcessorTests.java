@@ -116,7 +116,7 @@ public class CefProcessorTests extends ESTestCase {
         expectThrows(IllegalArgumentException.class, () -> processor.execute(invalidIngestDocument));
     }
 
-    public void testStandardMessage() throws IOException, URISyntaxException{
+    public void testStandardMessage() throws IOException, URISyntaxException {
         String message = readCefMessageFile("standard_message.cef.txt");
         Map<String, Object> source = new HashMap<>();
         source.put("message", message);
@@ -147,7 +147,7 @@ public class CefProcessorTests extends ESTestCase {
         );
     }
 
-    public void testHeaderOnly() throws IOException, URISyntaxException{
+    public void testHeaderOnly() throws IOException, URISyntaxException {
         String message = readCefMessageFile("header_only.cef.txt");
         Map<String, Object> source = new HashMap<>();
         source.put("message", message);
@@ -176,7 +176,7 @@ public class CefProcessorTests extends ESTestCase {
         );
     }
 
-    public void testEmptyDeviceFields() throws IOException, URISyntaxException{
+    public void testEmptyDeviceFields() throws IOException, URISyntaxException {
         String message = readCefMessageFile("empty_device_fields.cef.txt");
         Map<String, Object> source = new HashMap<>();
         source.put("message", message);
@@ -204,7 +204,7 @@ public class CefProcessorTests extends ESTestCase {
         );
     }
 
-    public void testEscapedPipeInHeader() throws IOException, URISyntaxException{
+    public void testEscapedPipeInHeader() throws IOException, URISyntaxException {
         String message = readCefMessageFile("escaped_pipe_in_header.cef.txt");
         Map<String, Object> source = new HashMap<>();
         source.put("message", message);

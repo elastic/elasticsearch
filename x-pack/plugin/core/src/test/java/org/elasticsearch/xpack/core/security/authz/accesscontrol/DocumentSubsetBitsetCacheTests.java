@@ -563,17 +563,15 @@ public class DocumentSubsetBitsetCacheTests extends ESTestCase {
             final Query query2 = QueryBuilders.termQuery("field-2", "value-2").toQuery(searchExecutionContext);
             final BitSet bitSet2 = cache.getBitSet(query2, leafContext);
             assertThat(bitSet2, notNullValue());
-            // eviction callback calls `get` on the cache, asynchronously, which updates the stats.
-            // so assertion is current state of the code, rather than the expected state.
-            // issue: https://github.com/elastic/elasticsearch/issues/132842
+            // surprisingly, the eviction callback can call `get` on the cache (asynchronously) which causes another miss (or hit)
+            // so this assertion is about the current state of the code, rather than the expected or desired state.
+            // see https://github.com/elastic/elasticsearch/issues/132842
             expectedStats.put("misses", 3L);
             expectedStats.put("evictions", 1L);
             assertBusy(() -> { assertThat(cache.usageStats(), equalTo(expectedStats)); }, 200, TimeUnit.MILLISECONDS);
         });
 
         final Map<String, Object> finalStats = emptyStatsSupplier.get();
-        // related to comment above: surprisingly last eviction doesn't increment hits nor misses, because it goes through onClose(),
-        // and short-circuits in the eviction callback before doing a `get`.
         finalStats.put("hits", 1L);
         finalStats.put("misses", 3L);
         finalStats.put("evictions", 2L);

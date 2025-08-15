@@ -59,7 +59,7 @@ public class MaxScoreTopKnnCollector extends AbstractMaxScoreKnnCollector {
 
     @Override
     public float minCompetitiveSimilarity() {
-        if (queue.size() >= k()) {
+        if (queue.size() >= k() || minCompetitiveDocScore > Long.MIN_VALUE) {
             return Math.max(minCompetitiveSimilarity, queue.decodeScore(queue.peek()));
         }
         return Float.NEGATIVE_INFINITY;

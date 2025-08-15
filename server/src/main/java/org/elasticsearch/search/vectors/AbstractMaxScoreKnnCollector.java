@@ -11,7 +11,6 @@ package org.elasticsearch.search.vectors;
 
 import org.apache.lucene.search.AbstractKnnCollector;
 import org.apache.lucene.search.knn.KnnSearchStrategy;
-import org.apache.lucene.util.NumericUtils;
 
 public abstract class AbstractMaxScoreKnnCollector extends AbstractKnnCollector {
     protected AbstractMaxScoreKnnCollector(int k, long visitLimit, KnnSearchStrategy searchStrategy) {
@@ -21,16 +20,4 @@ public abstract class AbstractMaxScoreKnnCollector extends AbstractKnnCollector 
     public abstract long getMinCompetitiveDocScore();
 
     abstract void updateMinCompetitiveDocScore(long minCompetitiveDocScore);
-
-    public static long encode(int docId, float score) {
-        return (((long) NumericUtils.floatToSortableInt(score)) << 32) | (Integer.MAX_VALUE - docId);
-    }
-
-    public static float toScore(long value) {
-        return NumericUtils.sortableIntToFloat((int) (value >>> 32));
-    }
-
-    public static int docId(long value) {
-        return Integer.MAX_VALUE - ((int) value);
-    }
 }

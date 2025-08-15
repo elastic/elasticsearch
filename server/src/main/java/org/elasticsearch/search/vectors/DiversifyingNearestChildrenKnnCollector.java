@@ -26,6 +26,7 @@ import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.search.knn.KnnSearchStrategy;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BitSet;
+import org.apache.lucene.util.NumericUtils;
 
 /**
  * This collects the nearest children vectors. Diversifying the results over the provided parent
@@ -35,6 +36,8 @@ class DiversifyingNearestChildrenKnnCollector extends AbstractMaxScoreKnnCollect
 
     private final BitSet parentBitSet;
     private final NodeIdCachingHeap heap;
+    private long minCompetitiveDocScore = Long.MIN_VALUE;
+    private float minCompetitiveScore = Float.NEGATIVE_INFINITY;
 
     /**
      * Create a new object for joining nearest child kNN documents with a parent bitset
@@ -71,7 +74,10 @@ class DiversifyingNearestChildrenKnnCollector extends AbstractMaxScoreKnnCollect
 
     @Override
     public float minCompetitiveSimilarity() {
-        return heap.size >= k() ? heap.topScore() : Float.NEGATIVE_INFINITY;
+        if (heap.size >= k() || minCompetitiveDocScore > Long.MIN_VALUE) {
+            return Math.max(minCompetitiveScore, heap.topScore());
+        }
+        return Float.NEGATIVE_INFINITY;
     }
 
     @Override
@@ -102,13 +108,17 @@ class DiversifyingNearestChildrenKnnCollector extends AbstractMaxScoreKnnCollect
 
     @Override
     public long getMinCompetitiveDocScore() {
-        // (((long) NumericUtils.floatToSortableInt(heap.topScore())) << 32) | (0xFFFFFFFFL & ~heap.topNode());
-        return Long.MIN_VALUE;
+        return  (((long) NumericUtils.floatToSortableInt(heap.topScore())) << 32) | (0xFFFFFFFFL & ~heap.topNode());
     }
 
     @Override
     void updateMinCompetitiveDocScore(long minCompetitiveDocScore) {
-        // pass
+        if (minCompetitiveDocScore == Long.MIN_VALUE) {
+            // no update
+            return;
+        }
+        this.minCompetitiveDocScore = minCompetitiveDocScore;
+        this.minCompetitiveScore = NumericUtils.sortableIntToFloat((int) (minCompetitiveDocScore >> 32));
     }
 
     /**

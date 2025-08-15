@@ -1086,49 +1086,59 @@ public class ES819TSDBDocValuesFormatTests extends ES87TSDBDocValuesFormatTests 
                         assertNotNull(idBlock);
 
                         {
-                            var reader2 = ESTestCase.asInstanceOf(
+                            var reader2 = (BaseSortedDocValues) ESTestCase.asInstanceOf(
                                 OptionalColumnAtATimeReader.class,
                                 leaf.reader().getSortedDocValues(secondField)
                             );
-                            int randomOffset = 0;
-                            ESTestCase.between(0, docs.count() - 1);
-                            var block = (TestBlock) reader2.tryRead(factory, docs, randomOffset);
+                            int randomOffset = ESTestCase.between(0, docs.count() - 1);
+                            TestBlock block;
+                            if (reader2.getValueCount() == 1) {
+                                block = (TestBlock) reader2.tryReadAHead(factory, docs, randomOffset);
+                            } else {
+                                assertNull(reader2.tryReadAHead(factory, docs, randomOffset));
+                                block = (TestBlock) reader2.tryRead(factory, docs, randomOffset);
+                            }
                             assertNotNull(block);
                             assertThat(block.size(), equalTo(docs.count() - randomOffset));
-                            for (int i = randomOffset; i < block.size(); i++) {
+                            for (int i = 0; i < block.size(); i++) {
                                 String actualHostName = BytesRefs.toString(block.get(i));
-                                int id = ((Number) idBlock.get(i)).intValue();
+                                int id = ((Number) idBlock.get(i + randomOffset)).intValue();
                                 String expectedHostName = hostnames.get(id);
                                 assertEquals(expectedHostName, actualHostName);
                             }
                         }
                         {
-                            var reader3 = ESTestCase.asInstanceOf(
+                            var reader3 = (BaseSortedDocValues) ESTestCase.asInstanceOf(
                                 OptionalColumnAtATimeReader.class,
                                 leaf.reader().getSortedDocValues(unsortedField)
                             );
+                            int randomOffset = ESTestCase.between(0, docs.count() - 1);
+                            TestBlock block;
+                            if (reader3.getValueCount() == 1) {
+                                block = (TestBlock) reader3.tryReadAHead(factory, docs, randomOffset);
+                            } else {
+                                assertNull(reader3.tryReadAHead(factory, docs, randomOffset));
+                                block = (TestBlock) reader3.tryRead(factory, docs, randomOffset);
+                            }
                             assertNotNull(reader3);
-                            int randomOffset = 0;
-                            ESTestCase.between(0, docs.count() - 1);
-                            var block = (TestBlock) reader3.tryRead(factory, docs, randomOffset);
                             assertNotNull(block);
                             assertThat(block.size(), equalTo(docs.count() - randomOffset));
-                            for (int i = randomOffset; i < block.size(); i++) {
+                            for (int i = 0; i < block.size(); i++) {
                                 String actualHostName = BytesRefs.toString(block.get(i));
-                                int id = ((Number) idBlock.get(i)).intValue();
+                                int id = ((Number) idBlock.get(i + randomOffset)).intValue();
                                 String expectedHostName = hostnames.get(id);
                                 assertEquals(expectedHostName, actualHostName);
                             }
                         }
                         for (int offset = 0; offset < idBlock.size(); offset += ESTestCase.between(1, numDocs)) {
                             int start = offset;
-                            var reader1 = ESTestCase.asInstanceOf(
+                            var reader1 = (BaseSortedDocValues) ESTestCase.asInstanceOf(
                                 OptionalColumnAtATimeReader.class,
                                 leaf.reader().getSortedDocValues(primaryField)
                             );
                             while (start < idBlock.size()) {
                                 int end = start + random().nextInt(idBlock.size() - start);
-                                TestBlock hostBlock = (TestBlock) reader1.tryRead(factory, new BlockLoader.Docs() {
+                                TestBlock hostBlock = (TestBlock) reader1.tryReadAHead(factory, new BlockLoader.Docs() {
                                     @Override
                                     public int count() {
                                         return end + 1;
@@ -1139,11 +1149,20 @@ public class ES819TSDBDocValuesFormatTests extends ES87TSDBDocValuesFormatTests 
                                         return docId;
                                     }
                                 }, start);
-                                assertNotNull(hostBlock);
-                                assertThat(hostBlock.size(), equalTo(end - start + 1));
-                                for (int i = 0; i < hostBlock.size(); i++) {
-                                    String actualHostName = BytesRefs.toString(hostBlock.get(i));
-                                    assertThat(actualHostName, equalTo(hostnames.get(((Number) idBlock.get(i + start)).intValue())));
+                                Set<String> seenValues = new HashSet<>();
+                                for (int p = start; p <= end; p++) {
+                                    String hostName = hostnames.get(((Number) idBlock.get(p)).intValue());
+                                    seenValues.add(hostName);
+                                }
+                                if (seenValues.size() == 1) {
+                                    assertNotNull(hostBlock);
+                                    assertThat(hostBlock.size(), equalTo(end - start + 1));
+                                    for (int i = 0; i < hostBlock.size(); i++) {
+                                        String actualHostName = BytesRefs.toString(hostBlock.get(i));
+                                        assertThat(actualHostName, equalTo(hostnames.get(((Number) idBlock.get(i + start)).intValue())));
+                                    }
+                                } else {
+                                    assertNull(hostBlock);
                                 }
                                 if (start == idBlock.size() - 1) {
                                     break;

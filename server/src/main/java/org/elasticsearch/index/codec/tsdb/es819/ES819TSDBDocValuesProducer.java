@@ -385,21 +385,11 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
             @Override
             public BlockLoader.Block tryRead(BlockLoader.BlockFactory factory, BlockLoader.Docs docs, int offset) throws IOException {
                 if (ords instanceof BaseDenseNumericValues denseOrds) {
-                    if (valuesSorted || entry.termsDictEntry.termsDictSize == 1) {
-                        int firstDoc = docs.get(offset);
-                        denseOrds.advanceExact(firstDoc);
-                        long startValue = denseOrds.longValue();
-                        final int docCount = docs.count();
-                        int lastDoc = docs.get(docCount - 1);
-                        long lastValue = denseOrds.lookAheadValueAt(lastDoc);
-                        if (lastValue == startValue) {
-                            BytesRef b = lookupOrd(Math.toIntExact(startValue));
-                            return factory.constantBytes(BytesRef.deepCopyOf(b), docCount - offset);
-                        }
-                        // TODO: Since ordinals are sorted, start at 0 (offset by startValue), scan until lastValue,
-                        // then fill remaining positions with lastValue.
-                        // Falling back to tryRead(...) is safe here, given that current block index wasn't altered by looking ahead.
+                    var block = tryReadAHead(factory, docs, offset);
+                    if (block != null) {
+                        return block;
                     }
+                    // Falling back to tryRead(...) is safe here, given that current block index wasn't altered by looking ahead.
                     try (var builder = factory.singletonOrdinalsBuilder(this, docs.count() - offset, true)) {
                         BlockLoader.SingletonLongBuilder delegate = new SingletonLongToSingletonOrdinalDelegate(builder);
                         var result = denseOrds.tryRead(delegate, docs, offset);
@@ -407,6 +397,24 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
                             return result;
                         }
                     }
+                }
+                return null;
+            }
+
+            BlockLoader.Block tryReadAHead(BlockLoader.BlockFactory factory, BlockLoader.Docs docs, int offset) throws IOException {
+                if (ords instanceof BaseDenseNumericValues denseOrds && (valuesSorted || entry.termsDictEntry.termsDictSize == 1)) {
+                    int firstDoc = docs.get(offset);
+                    denseOrds.advanceExact(firstDoc);
+                    long startValue = denseOrds.longValue();
+                    final int docCount = docs.count();
+                    int lastDoc = docs.get(docCount - 1);
+                    long lastValue = denseOrds.lookAheadValueAt(lastDoc);
+                    if (lastValue == startValue) {
+                        BytesRef b = lookupOrd(Math.toIntExact(startValue));
+                        return factory.constantBytes(BytesRef.deepCopyOf(b), docCount - offset);
+                    }
+                    // TODO: Since ordinals are sorted, start at 0 (offset by startValue), scan until lastValue,
+                    // then fill remaining positions with lastValue.
                 }
                 return null;
             }
@@ -450,6 +458,10 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
 
         @Override
         public BlockLoader.Block tryRead(BlockLoader.BlockFactory factory, BlockLoader.Docs docs, int offset) throws IOException {
+            return null;
+        }
+
+        BlockLoader.Block tryReadAHead(BlockLoader.BlockFactory factory, BlockLoader.Docs docs, int offset) throws IOException {
             return null;
         }
     }

@@ -51,7 +51,20 @@ public class RRFRetrieverBuilderParsingTests extends AbstractXContentTestCase<RR
         List<String> fields = null;
         String query = null;
         if (randomBoolean()) {
-            fields = randomList(1, 10, () -> randomAlphaOfLengthBetween(1, 10));
+            if (randomBoolean()) {
+                // Generate fields with weights
+                fields = randomList(1, 5, () -> {
+                    String field = randomAlphaOfLengthBetween(1, 10);
+                    if (randomBoolean()) {
+                        float weight = randomFloat() * 10 + 0.1f; // Ensure positive
+                        return field + "^" + weight;
+                    }
+                    return field;
+                });
+            } else {
+                // Generate fields without weights
+                fields = randomList(1, 10, () -> randomAlphaOfLengthBetween(1, 10));
+            }
             query = randomAlphaOfLengthBetween(1, 10);
         }
 

@@ -47,6 +47,7 @@ import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
+import static org.elasticsearch.search.rank.RankBuilder.DEFAULT_RANK_WINDOW_SIZE;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.Matchers.containsString;
@@ -837,5 +838,91 @@ public class RRFRetrieverBuilderIT extends ESIntegTestCase {
             searchResponse -> assertThat(searchResponse.getHits().getTotalHits().value(), is(4L))
         );
         assertThat(numAsyncCalls.get(), equalTo(4));
+    }
+
+    public void testRRFWithWeightedFields() {
+        // Test that weighted fields affect ranking as expected
+        client().prepareIndex(INDEX).setId("1").setSource("title", "elasticsearch guide", "content", "comprehensive tutorial").get();
+        client().prepareIndex(INDEX).setId("2").setSource("title", "advanced elasticsearch", "content", "expert guide").get();
+        client().prepareIndex(INDEX).setId("3").setSource("title", "tutorial", "content", "elasticsearch basics").get();
+        refresh();
+
+        // First search without weights - baseline
+        var retrieverNoWeights = new RRFRetrieverBuilder(
+            null,
+            List.of("title", "content"),
+            "elasticsearch",
+            DEFAULT_RANK_WINDOW_SIZE,
+            RRFRetrieverBuilder.DEFAULT_RANK_CONSTANT,
+            new float[0]
+        );
+
+        var responseNoWeights = client().prepareSearch(INDEX).setSource(new SearchSourceBuilder().retriever(retrieverNoWeights)).get();
+
+        // Second search with title field heavily weighted
+        var retrieverWithWeights = new RRFRetrieverBuilder(
+            null,
+            List.of("title^5.0", "content^1.0"),
+            "elasticsearch",
+            DEFAULT_RANK_WINDOW_SIZE,
+            RRFRetrieverBuilder.DEFAULT_RANK_CONSTANT,
+            new float[0]
+        );
+
+        var responseWithWeights = client().prepareSearch(INDEX).setSource(new SearchSourceBuilder().retriever(retrieverWithWeights)).get();
+
+        // Both searches should return the same documents
+        assertEquals(responseNoWeights.getHits().getTotalHits().value(), responseWithWeights.getHits().getTotalHits().value());
+        assertEquals(3L, responseWithWeights.getHits().getTotalHits().value());
+
+        // Verify that weighting title field more heavily affects the ranking
+        // Document 2 has "elasticsearch" in title, so should rank higher with title weighted
+        var hitsWithWeights = responseWithWeights.getHits().getHits();
+        assertTrue("Should have results", hitsWithWeights.length > 0);
+
+        // The exact ranking may vary, but we should get consistent results
+        for (var hit : hitsWithWeights) {
+            assertTrue("All results should have positive scores", hit.getScore() > 0);
+        }
+    }
+
+    public void testRRFWeightValidation() {
+        // Test that negative weights are properly rejected
+        var retrieverWithNegativeWeight = new RRFRetrieverBuilder(
+            null,
+            List.of("title^-1.0", "content"),
+            "test",
+            DEFAULT_RANK_WINDOW_SIZE,
+            RRFRetrieverBuilder.DEFAULT_RANK_CONSTANT,
+            new float[0]
+        );
+
+        var exception = expectThrows(
+            ElasticsearchStatusException.class,
+            () -> client().prepareSearch(INDEX).setSource(new SearchSourceBuilder().retriever(retrieverWithNegativeWeight)).get()
+        );
+
+        assertEquals(RestStatus.BAD_REQUEST, exception.status());
+        assertThat(exception.getMessage(), containsString("per-field weights must be non-negative"));
+    }
+
+    public void testRRFZeroWeights() {
+        // Test that zero weights are accepted but effectively disable the field
+        client().prepareIndex(INDEX).setId("1").setSource("title", "test document", "content", "content text").get();
+        refresh();
+
+        var retrieverWithZeroWeight = new RRFRetrieverBuilder(
+            null,
+            List.of("title^0.0", "content^1.0"),
+            "test",
+            DEFAULT_RANK_WINDOW_SIZE,
+            RRFRetrieverBuilder.DEFAULT_RANK_CONSTANT,
+            new float[0]
+        );
+
+        var response = client().prepareSearch(INDEX).setSource(new SearchSourceBuilder().retriever(retrieverWithZeroWeight)).get();
+
+        assertEquals(1L, response.getHits().getTotalHits().value());
+        assertTrue("Should find the document via content field", response.getHits().getHits()[0].getScore() > 0);
     }
 }

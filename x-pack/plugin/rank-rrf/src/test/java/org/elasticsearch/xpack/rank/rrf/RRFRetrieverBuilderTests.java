@@ -625,14 +625,19 @@ public class RRFRetrieverBuilderTests extends ESTestCase {
                 )
             )
         );
-        
-        if (!expectedInferenceFields.isEmpty()) {
+
+        if (expectedInferenceFields.isEmpty() == false) {
             expectedInnerRetrievers.add(
-                Set.of(expectedInferenceFields.entrySet().stream().map(e -> 
-                    CompoundRetrieverBuilder.RetrieverSource.from(
-                        new StandardRetrieverBuilder(new MatchQueryBuilder(e.getKey(), expectedQuery))
-                    )
-                ).toArray())
+                Set.of(
+                    expectedInferenceFields.entrySet()
+                        .stream()
+                        .map(
+                            e -> CompoundRetrieverBuilder.RetrieverSource.from(
+                                new StandardRetrieverBuilder(new MatchQueryBuilder(e.getKey(), expectedQuery))
+                            )
+                        )
+                        .toArray()
+                )
             );
         }
 

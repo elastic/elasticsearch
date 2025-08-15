@@ -24,11 +24,13 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.index.IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING;
 import static org.elasticsearch.index.mapper.SourceFieldMapper.Mode.SYNTHETIC;
@@ -36,17 +38,16 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 
 public class DenseVectorFieldTypeIT extends AbstractEsqlIntegTestCase {
 
-    public static final Set<String> ALL_DENSE_VECTOR_INDEX_TYPES = Set.of(
-        "int8_hnsw",
-        "hnsw",
-        "int4_hnsw",
-        "bbq_hnsw",
-        "int8_flat",
-        "int4_flat",
-        "bbq_flat",
-        "flat"
-    );
-    public static final Set<String> NON_QUANTIZED_DENSE_VECTOR_INDEX_TYPES = Set.of("hnsw", "flat");
+    public static final Set<String> ALL_DENSE_VECTOR_INDEX_TYPES = Arrays.stream(DenseVectorFieldMapper.VectorIndexType.values())
+        .filter(DenseVectorFieldMapper.VectorIndexType::isEnabled)
+        .map(v -> v.getName().toLowerCase(Locale.ROOT))
+        .collect(Collectors.toSet());
+
+    public static final Set<String> NON_QUANTIZED_DENSE_VECTOR_INDEX_TYPES = Arrays.stream(DenseVectorFieldMapper.VectorIndexType.values())
+        .filter(t -> t.isEnabled() && t.isQuantized() == false)
+        .map(v -> v.getName().toLowerCase(Locale.ROOT))
+        .collect(Collectors.toSet());
+
     public static final float DELTA = 1e-7F;
 
     private final ElementType elementType;
@@ -57,15 +58,10 @@ public class DenseVectorFieldTypeIT extends AbstractEsqlIntegTestCase {
     @ParametersFactory
     public static Iterable<Object[]> parameters() throws Exception {
         List<Object[]> params = new ArrayList<>();
-        List<DenseVectorFieldMapper.VectorSimilarity> similarities = List.of(
-            DenseVectorFieldMapper.VectorSimilarity.DOT_PRODUCT,
-            DenseVectorFieldMapper.VectorSimilarity.L2_NORM,
-            DenseVectorFieldMapper.VectorSimilarity.MAX_INNER_PRODUCT
-        );
 
         for (ElementType elementType : List.of(ElementType.BYTE, ElementType.FLOAT)) {
-            // Test all similarities for element types
-            for (DenseVectorFieldMapper.VectorSimilarity similarity : similarities) {
+            // Test all similarities
+            for (DenseVectorFieldMapper.VectorSimilarity similarity : DenseVectorFieldMapper.VectorSimilarity.values()) {
                 params.add(new Object[] { elementType, similarity, true, false });
             }
 
@@ -74,6 +70,7 @@ public class DenseVectorFieldTypeIT extends AbstractEsqlIntegTestCase {
             // No indexing, synthetic source
             params.add(new Object[] { elementType, null, false, true });
         }
+
         return params;
     }
 

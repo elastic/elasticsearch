@@ -123,14 +123,24 @@ public class ExponentialHistogramFieldMapperTests extends MapperTestCase {
     private static void fillBucketsRandomly(List<Long> indices, List<Long> counts, int maxBucketCount) {
         int bucketCount = randomIntBetween(0, maxBucketCount);
         long maxCounts = Long.MAX_VALUE / (maxBucketCount * 2L + 1);
-        Set<Long> usedIndices = new HashSet<>();
-        for (int i = 0; i < bucketCount; i++) {
-            long index;
-            do {
-                index = randomLongBetween(MIN_INDEX, MAX_INDEX);
-            } while (usedIndices.add(index) == false);
-            indices.add(index);
-            counts.add(randomLongBetween(1, maxCounts));
+        boolean useDense = randomBoolean();
+        if (useDense) {
+            // Use dense indices, i.e., indices are sequential and start at MIN_INDEX
+            long startIndex = randomLongBetween(MIN_INDEX, MAX_INDEX - bucketCount);
+            for (int i = 0; i < bucketCount; i++) {
+                indices.add(startIndex + i);
+                counts.add(randomLongBetween(1, maxCounts));
+            }
+        } else {
+            Set<Long> usedIndices = new HashSet<>();
+            for (int i = 0; i < bucketCount; i++) {
+                long index;
+                do {
+                    index = randomLongBetween(MIN_INDEX, MAX_INDEX);
+                } while (usedIndices.add(index) == false);
+                indices.add(index);
+                counts.add(randomLongBetween(1, maxCounts));
+            }
         }
     }
 

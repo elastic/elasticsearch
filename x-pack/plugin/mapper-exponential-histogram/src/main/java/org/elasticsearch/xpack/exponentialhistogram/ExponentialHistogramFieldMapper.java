@@ -53,7 +53,38 @@ import static org.elasticsearch.exponentialhistogram.ExponentialHistogram.MAX_IN
 import static org.elasticsearch.exponentialhistogram.ExponentialHistogram.MIN_INDEX;
 
 /**
- * {@link FieldMapper} for the exponential_histogram field type.
+ * {@link FieldMapper} for the exponential_histogram field type. The mapped data represents {@link ExponentialHistogram}s.
+ *
+ * <p>Example index mapping with an exponential_histogram field:</p>
+ * <pre><code>{
+ *   "mappings": {
+ *     "properties": {
+ *       "my_histo": {
+ *         "type": "exponential_histogram"
+ *       }
+ *     }
+ *   }
+ * }
+ * </code></pre>
+ *
+ * <p>Example histogram data for a full histogram value:</p>
+ * <pre><code>{
+ *   "my_histo": {
+ *     "scale": 12,
+ *     "zero": {
+ *       "threshold": 0.123456,
+ *       "count": 42
+ *     },
+ *     "positive": {
+ *       "indices": [-1000000, -10, 25, 26, 99999999],
+ *       "counts": [1, 2, 3, 4, 5]
+ *     },
+ *     "negative": {
+ *       "indices": [-123, 0, 12345],
+ *       "counts": [20, 30, 40]
+ *     }
+ *    }
+ * </code></pre>
  */
 public class ExponentialHistogramFieldMapper extends FieldMapper {
 
@@ -306,7 +337,7 @@ public class ExponentialHistogramFieldMapper extends FieldMapper {
             }
 
             BytesStreamOutput histogramBytesOutput = new BytesStreamOutput();
-            CompressedExponentialHistogram.writeHistogramBytes(histogramBytesOutput, scale, negativeBuckets, positiveBuckets);
+            EncodedHistogramData.write(histogramBytesOutput, scale, negativeBuckets, positiveBuckets);
             BytesRef histoBytes = histogramBytesOutput.bytes().toBytesRef();
 
             Field histoField = new BinaryDocValuesField(fullPath(), histoBytes);

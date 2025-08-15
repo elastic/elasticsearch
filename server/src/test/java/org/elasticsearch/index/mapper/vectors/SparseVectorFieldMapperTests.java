@@ -895,6 +895,7 @@ public class SparseVectorFieldMapperTests extends MapperTestCase {
             Set<IndexVersion> candidateVersions = allReleaseVersions.subSet(fromVersion, toVersion);
             return ESTestCase.randomFrom(candidateVersions);
         }
+    }
 
     private static final List<WeightedToken> QUERY_VECTORS = Stream.of(RARE_TOKENS, MEDIUM_TOKENS, COMMON_TOKENS)
         .flatMap(map -> map.entrySet().stream())

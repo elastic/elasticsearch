@@ -31,12 +31,6 @@ public class IVFKnnSearchStrategy extends KnnSearchStrategy {
         }
     }
 
-    void setMinCompetitiveScore(long competitive) {
-        if (accumulator != null) {
-            accumulator.accumulate(competitive);
-        }
-    }
-
     public float getVisitRatio() {
         return visitRatio;
     }
@@ -61,7 +55,11 @@ public class IVFKnnSearchStrategy extends KnnSearchStrategy {
         }
         assert this.collector.get() != null : "Collector must be set before nextVectorsBlock is called";
         AbstractMaxScoreKnnCollector knnCollector = this.collector.get();
-        accumulator.accumulate(knnCollector.getMinCompetitiveDocScore());
-        knnCollector.updateMinCompetitiveDocScore(accumulator.get());
+        long collectorScore = knnCollector.getMinCompetitiveDocScore();
+        accumulator.accumulate(collectorScore);
+        long currentScore = accumulator.get();
+        if (currentScore > collectorScore) {
+            knnCollector.updateMinCompetitiveDocScore(currentScore);
+        }
     }
 }

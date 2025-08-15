@@ -100,12 +100,20 @@ public class NeighborQueue {
      * @return the encoded score, node ID
      */
     public long encode(int node, float score) {
-        return order.apply((((long) NumericUtils.floatToSortableInt(score)) << 32) | (0xFFFFFFFFL & ~node));
+        return order.apply(encodeRaw(node, score));
     }
 
     /** Returns the top element's node id. */
     public int topNode() {
         return decodeNodeId(heap.top());
+    }
+
+    public static long encodeRaw(int node, float score) {
+        return (((long) NumericUtils.floatToSortableInt(score)) << 32) | (0xFFFFFFFFL & ~node);
+    }
+
+    public static float decodeScoreRaw(long heapValue) {
+        return NumericUtils.sortableIntToFloat((int) (heapValue >> 32));
     }
 
     /**

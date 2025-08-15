@@ -17,39 +17,32 @@ import org.elasticsearch.index.codec.vectors.cluster.NeighborQueue;
 
 public class MaxScoreTopKnnCollector extends AbstractMaxScoreKnnCollector {
 
-    private long minCompetitiveDocScore = Long.MIN_VALUE;
-    private float minCompetitiveSimilarity = Float.NEGATIVE_INFINITY;
+    private long minCompetitiveDocScore;
+    private float minCompetitiveSimilarity;
     protected final NeighborQueue queue;
 
     public MaxScoreTopKnnCollector(int k, long visitLimit, KnnSearchStrategy searchStrategy) {
         super(k, visitLimit, searchStrategy);
-        this.minCompetitiveDocScore = Long.MAX_VALUE;
+        this.minCompetitiveDocScore = Long.MIN_VALUE;
+        this.minCompetitiveSimilarity = Float.NEGATIVE_INFINITY;
         this.queue = new NeighborQueue(k, false);
     }
 
     @Override
     public long getMinCompetitiveDocScore() {
-        return Math.max(queue.peek(), minCompetitiveDocScore);
+        return queue.size() > 0 ? Math.max(minCompetitiveDocScore, queue.peek()) : minCompetitiveDocScore;
     }
 
     @Override
     void updateMinCompetitiveDocScore(long minCompetitiveDocScore) {
-        if (this.minCompetitiveDocScore < minCompetitiveDocScore) {
-            this.minCompetitiveDocScore = minCompetitiveDocScore;
-            this.minCompetitiveSimilarity = queue.decodeScore(minCompetitiveDocScore);
-        }
+        long queueMinCompetitiveDocScore = queue.size() > 0 ? queue.peek() : Long.MIN_VALUE;
+        this.minCompetitiveDocScore = Math.max(this.minCompetitiveDocScore, Math.max(queueMinCompetitiveDocScore, minCompetitiveDocScore));
+        this.minCompetitiveSimilarity = NeighborQueue.decodeScoreRaw(this.minCompetitiveDocScore);
     }
 
     @Override
     public boolean collect(int docId, float similarity) {
-        if (queue.size() >= k()) {
-            if (similarity < minCompetitiveSimilarity) {
-                return false;
-            }
-            return queue.insertWithOverflow(docId, similarity);
-        } else {
-            return queue.insertWithOverflow(docId, similarity);
-        }
+        return queue.insertWithOverflow(docId, similarity);
     }
 
     @Override
@@ -59,10 +52,7 @@ public class MaxScoreTopKnnCollector extends AbstractMaxScoreKnnCollector {
 
     @Override
     public float minCompetitiveSimilarity() {
-        if (queue.size() >= k() || minCompetitiveDocScore > Long.MIN_VALUE) {
-            return Math.max(minCompetitiveSimilarity, queue.decodeScore(queue.peek()));
-        }
-        return Float.NEGATIVE_INFINITY;
+        return queue.size() < k() ? Float.NEGATIVE_INFINITY : Math.max(minCompetitiveSimilarity, queue.topScore());
     }
 
     @Override

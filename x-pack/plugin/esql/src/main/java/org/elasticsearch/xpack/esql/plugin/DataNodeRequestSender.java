@@ -34,12 +34,10 @@ import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.esql.action.EsqlSearchShardsAction;
-import org.elasticsearch.xpack.ml.MachineLearning;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -131,14 +129,7 @@ abstract class DataNodeRequestSender {
     }
 
     final void startComputeOnDataNodes(Set<String> concreteIndices, Runnable runOnTaskFailure, ActionListener<ComputeResponse> listener) {
-        assert ThreadPool.assertCurrentThreadPool(
-            EsqlPlugin.ESQL_WORKER_THREAD_POOL_NAME,
-            TcpTransport.TRANSPORT_WORKER_THREAD_NAME_PREFIX,
-            ThreadPool.Names.SYSTEM_READ,
-            ThreadPool.Names.SEARCH,
-            ThreadPool.Names.SEARCH_COORDINATION,
-            MachineLearning.NATIVE_INFERENCE_COMMS_THREAD_POOL_NAME
-        );
+        assert ThreadPool.assertCurrentThreadPool(EsqlPlugin.ESQL_WORKER_THREAD_POOL_NAME, ThreadPool.Names.SEARCH);
         final long startTimeInNanos = System.nanoTime();
         searchShards(concreteIndices, ActionListener.wrap(targetShards -> {
             try (

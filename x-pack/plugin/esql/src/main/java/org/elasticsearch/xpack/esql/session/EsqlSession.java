@@ -14,6 +14,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesFailure;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.support.SubscribableListener;
+import org.elasticsearch.action.support.ThreadedActionListener;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockUtils;
@@ -34,7 +35,6 @@ import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.transport.RemoteClusterService;
-import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.elasticsearch.xpack.esql.action.EsqlQueryRequest;
@@ -75,7 +75,6 @@ import org.elasticsearch.xpack.esql.planner.mapper.Mapper;
 import org.elasticsearch.xpack.esql.planner.premapper.PreMapper;
 import org.elasticsearch.xpack.esql.plugin.TransportActionServices;
 import org.elasticsearch.xpack.esql.telemetry.PlanTelemetry;
-import org.elasticsearch.xpack.ml.MachineLearning;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -83,6 +82,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ExecutorService;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -114,13 +114,14 @@ public class EsqlSession {
     private final LogicalPlanPreOptimizer logicalPlanPreOptimizer;
     private final LogicalPlanOptimizer logicalPlanOptimizer;
     private final PreMapper preMapper;
-
     private final Mapper mapper;
     private final PhysicalPlanOptimizer physicalPlanOptimizer;
+
     private final PlanTelemetry planTelemetry;
     private final IndicesExpressionGrouper indicesExpressionGrouper;
     private final InferenceService inferenceService;
     private final RemoteClusterService remoteClusterService;
+    private final ExecutorService optimizerExecutor;
 
     private boolean explainMode;
     private String parsedPlanString;
@@ -157,6 +158,7 @@ public class EsqlSession {
         this.inferenceService = services.inferenceService();
         this.preMapper = new PreMapper(services);
         this.remoteClusterService = services.transportService().getRemoteClusterService();
+        this.optimizerExecutor = services.transportService().getThreadPool().executor(ThreadPool.Names.SEARCH);
     }
 
     public String sessionId() {
@@ -180,7 +182,8 @@ public class EsqlSession {
             @Override
             public void onResponse(LogicalPlan analyzedPlan) {
                 SubscribableListener.<LogicalPlan>newForked(l -> preOptimizedPlan(analyzedPlan, l))
-                    .<LogicalPlan>andThen((l, p) -> preMapper.preMapper(optimizedPlan(p), l))
+                    .andThenApply(p -> optimizedPlan(p))
+                    .<LogicalPlan>andThen((l, p) -> preMapper.preMapper(p, new ThreadedActionListener<>(optimizerExecutor, l)))
                     .<Result>andThen((l, p) -> executeOptimizedPlan(request, executionInfo, planRunner, p, l))
                     .addListener(listener);
             }
@@ -198,13 +201,7 @@ public class EsqlSession {
         LogicalPlan optimizedPlan,
         ActionListener<Result> listener
     ) {
-        assert ThreadPool.assertCurrentThreadPool(
-            TcpTransport.TRANSPORT_WORKER_THREAD_NAME_PREFIX,
-            ThreadPool.Names.SYSTEM_READ,
-            ThreadPool.Names.SEARCH,
-            ThreadPool.Names.SEARCH_COORDINATION,
-            MachineLearning.NATIVE_INFERENCE_COMMS_THREAD_POOL_NAME
-        );
+        assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.SEARCH);
         if (explainMode) {// TODO: INLINESTATS come back to the explain mode branch and reevaluate
             PhysicalPlan physicalPlan = logicalPlanToPhysicalPlan(optimizedPlan, request);
             String physicalPlanString = physicalPlan.toString();
@@ -760,7 +757,7 @@ public class EsqlSession {
         logicalPlanPreOptimizer.preOptimize(logicalPlan, listener);
     }
 
-    public PhysicalPlan physicalPlan(LogicalPlan optimizedPlan) {
+    private PhysicalPlan physicalPlan(LogicalPlan optimizedPlan) {
         if (optimizedPlan.optimized() == false) {
             throw new IllegalStateException("Expected optimized plan");
         }

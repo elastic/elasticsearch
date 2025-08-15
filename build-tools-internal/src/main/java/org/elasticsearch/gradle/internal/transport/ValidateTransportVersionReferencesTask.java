@@ -45,7 +45,7 @@ public abstract class ValidateTransportVersionReferencesTask extends DefaultTask
         final Predicate<String> referenceChecker;
         if (getDefinitionsDirectory().isPresent()) {
             Path definitionsDir = getDefinitionsDirectory().getAsFile().get().toPath();
-            referenceChecker = (name) -> Files.exists(definitionsDir.resolve(name + ".csv"));
+            referenceChecker = (name) -> Files.exists(definitionsDir.resolve("named/" + name + ".csv"));
         } else {
             referenceChecker = (name) -> false;
         }

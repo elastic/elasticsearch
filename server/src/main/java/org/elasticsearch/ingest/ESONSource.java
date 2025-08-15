@@ -10,14 +10,15 @@
 package org.elasticsearch.ingest;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
 import org.elasticsearch.common.recycler.Recycler;
-import org.elasticsearch.transport.BytesRefRecycler;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentString;
 
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.math.BigDecimal;
 import java.math.BigInteger;
@@ -28,7 +29,7 @@ import java.util.List;
 public class ESONSource {
 
     public static class Builder {
-        private final BytesStreamOutput bytes;
+        private final Recycler<BytesRef> refRecycler;
         private final List<ESONEntry> keyArray;
 
         public Builder() {
@@ -36,11 +37,11 @@ public class ESONSource {
         }
 
         public Builder(int expectedSize) {
-            this(BytesRefRecycler.NON_RECYCLING_INSTANCE, expectedSize);
+            this(ESONFlat.getBytesRefRecycler(), expectedSize);
         }
 
         public Builder(Recycler<BytesRef> refRecycler, int expectedSize) {
-            this.bytes = new BytesStreamOutput(expectedSize);
+            this.refRecycler = refRecycler;
             this.keyArray = new ArrayList<>();
         }
 
@@ -50,13 +51,21 @@ public class ESONSource {
                 throw new IllegalArgumentException("Expected START_OBJECT but got " + token);
             }
 
-            parseObject(parser, bytes, keyArray, null);
+            try (RecyclerBytesStreamOutput bytes = new RecyclerBytesStreamOutput(refRecycler)) {
+                parseObject(parser, bytes, keyArray, null);
+                ByteArrayOutputStream bao = new ByteArrayOutputStream(bytes.size());
+                bytes.bytes().writeTo(bao);
+                return new ESONIndexed.ESONObject(0, new ESONFlat(keyArray, new Values(new BytesArray(bao.toByteArray()))));
+            }
 
-            return new ESONIndexed.ESONObject(0, new ESONFlat(keyArray, new Values(bytes.bytes())));
         }
 
-        private static void parseObject(XContentParser parser, BytesStreamOutput bytes, List<ESONEntry> keyArray, String objectFieldName)
-            throws IOException {
+        private static void parseObject(
+            XContentParser parser,
+            RecyclerBytesStreamOutput bytes,
+            List<ESONEntry> keyArray,
+            String objectFieldName
+        ) throws IOException {
             ESONEntry.ObjectEntry objEntry = new ESONEntry.ObjectEntry(objectFieldName);
             keyArray.add(objEntry);
 
@@ -70,8 +79,12 @@ public class ESONSource {
             objEntry.offsetOrCount(count);
         }
 
-        private static void parseArray(XContentParser parser, BytesStreamOutput bytes, List<ESONEntry> keyArray, String arrayFieldName)
-            throws IOException {
+        private static void parseArray(
+            XContentParser parser,
+            RecyclerBytesStreamOutput bytes,
+            List<ESONEntry> keyArray,
+            String arrayFieldName
+        ) throws IOException {
             ESONEntry.ArrayEntry arrEntry = new ESONEntry.ArrayEntry(arrayFieldName);
             keyArray.add(arrEntry);
 
@@ -92,7 +105,7 @@ public class ESONSource {
             arrEntry.offsetOrCount(count);
         }
 
-        private static void parseValue(XContentParser parser, String fieldName, BytesStreamOutput bytes, List<ESONEntry> keyArray)
+        private static void parseValue(XContentParser parser, String fieldName, RecyclerBytesStreamOutput bytes, List<ESONEntry> keyArray)
             throws IOException {
             XContentParser.Token token = parser.nextToken();
 
@@ -106,7 +119,7 @@ public class ESONSource {
             }
         }
 
-        private static Value parseSimpleValue(XContentParser parser, BytesStreamOutput bytes, XContentParser.Token token)
+        private static Value parseSimpleValue(XContentParser parser, RecyclerBytesStreamOutput bytes, XContentParser.Token token)
             throws IOException {
             long position = bytes.position();
 

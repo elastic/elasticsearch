@@ -10,9 +10,7 @@
 package org.elasticsearch.ingest;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -73,7 +71,6 @@ public record ESONFlat(List<ESONEntry> keys, ESONSource.Values values, AtomicRef
             // String key = entry.key();
             // estimate += key == null ? 0 : key.length() + 5;
             // }
-            // try (BytesStreamOutput streamOutput = new BytesStreamOutput()) {
             try (RecyclerBytesStreamOutput streamOutput = new RecyclerBytesStreamOutput(getBytesRefRecycler())) {
                 streamOutput.writeVInt(keys.size());
                 for (ESONEntry entry : keys) {
@@ -102,7 +99,7 @@ public record ESONFlat(List<ESONEntry> keys, ESONSource.Values values, AtomicRef
 
     private static final ThreadLocal<BytesRef> BYTES_REF = ThreadLocal.withInitial(() -> new BytesRef(new byte[16384]));
 
-    private static Recycler<BytesRef> getBytesRefRecycler() {
+    public static Recycler<BytesRef> getBytesRefRecycler() {
         return new Recycler<>() {
 
             private boolean first = true;

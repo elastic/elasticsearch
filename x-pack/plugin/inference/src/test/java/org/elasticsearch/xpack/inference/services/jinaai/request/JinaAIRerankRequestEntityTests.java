@@ -18,7 +18,6 @@ import java.io.IOException;
 import java.util.List;
 
 import static org.elasticsearch.xpack.inference.MatchersUtils.equalToIgnoringWhitespaceInJsonString;
-import static org.hamcrest.MatcherAssert.assertThat;
 
 public class JinaAIRerankRequestEntityTests extends ESTestCase {
     public void testXContent_SingleRequest_WritesAllFieldsIfDefined() throws IOException {

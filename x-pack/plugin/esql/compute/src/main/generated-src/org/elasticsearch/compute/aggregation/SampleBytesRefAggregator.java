@@ -18,7 +18,6 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.IntVector;
-import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.sort.BytesRefBucketedSort;
 import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
 import org.elasticsearch.compute.operator.DriverContext;
@@ -27,7 +26,6 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.search.sort.SortOrder;
 
 import org.elasticsearch.common.Randomness;
-import java.util.random.RandomGenerator;
 // end generated imports
 
 /**

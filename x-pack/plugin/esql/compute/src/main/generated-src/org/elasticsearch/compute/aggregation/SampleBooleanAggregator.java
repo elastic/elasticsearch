@@ -27,7 +27,6 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.search.sort.SortOrder;
 
 import org.elasticsearch.common.Randomness;
-import java.util.random.RandomGenerator;
 // end generated imports
 
 /**

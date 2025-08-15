@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.evaluator;
 
-import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockUtils;

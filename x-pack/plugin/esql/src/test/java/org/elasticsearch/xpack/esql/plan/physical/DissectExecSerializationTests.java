@@ -17,8 +17,6 @@ import org.elasticsearch.xpack.esql.plan.logical.DissectSerializationTests;
 import java.io.IOException;
 import java.util.List;
 
-import static org.elasticsearch.xpack.esql.plan.logical.AbstractLogicalPlanSerializationTests.randomFieldAttributes;
-
 public class DissectExecSerializationTests extends AbstractPhysicalPlanSerializationTests<DissectExec> {
     public static DissectExec randomDissectExec(int depth) {
         Source source = randomSource();

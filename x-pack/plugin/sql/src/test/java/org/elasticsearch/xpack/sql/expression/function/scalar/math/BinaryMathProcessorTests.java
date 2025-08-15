@@ -17,7 +17,6 @@ import org.elasticsearch.xpack.sql.SqlTestUtils;
 import org.elasticsearch.xpack.sql.expression.function.scalar.Processors;
 
 import static org.elasticsearch.xpack.ql.tree.Source.EMPTY;
-import static org.elasticsearch.xpack.ql.util.NumericUtils.UNSIGNED_LONG_MAX;
 import static org.elasticsearch.xpack.ql.util.NumericUtils.asLongUnsigned;
 
 public class BinaryMathProcessorTests extends AbstractWireSerializingTestCase<BinaryMathProcessor> {

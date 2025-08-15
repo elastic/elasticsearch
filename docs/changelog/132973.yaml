@@ -1,0 +1,5 @@
+pr: 132973
+summary: Preserve lost thread context in node inference action
+area: Machine Learning
+type: bug
+issues: []

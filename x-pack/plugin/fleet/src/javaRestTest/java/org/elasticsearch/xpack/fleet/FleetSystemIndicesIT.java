@@ -11,7 +11,6 @@ import org.apache.http.util.EntityUtils;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
-import org.elasticsearch.client.WarningsHandler;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -302,13 +301,11 @@ public class FleetSystemIndicesIT extends AbstractFleetIT {
         assertEquals(200, response.getStatusLine().getStatusCode());
 
         request = new Request("GET", ".integration_knowledge/_mapping");
-        request.setOptions(RequestOptions.DEFAULT.toBuilder().setWarningsHandler(WarningsHandler.PERMISSIVE));
         response = client().performRequest(request);
         String responseBody = EntityUtils.toString(response.getEntity());
         assertThat(responseBody, containsString("content"));
 
         request = new Request("GET", ".integration_knowledge-7/_mapping");
-        request.setOptions(RequestOptions.DEFAULT.toBuilder().setWarningsHandler(WarningsHandler.PERMISSIVE));
         response = client().performRequest(request);
         responseBody = EntityUtils.toString(response.getEntity());
         assertThat(responseBody, containsString("content"));

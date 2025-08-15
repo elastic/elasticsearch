@@ -277,7 +277,8 @@ public class Fleet extends Plugin implements SystemIndexPlugin {
         );
 
         return SystemIndexDescriptor.builder()
-            .setType(Type.INTERNAL_MANAGED)
+            .setType(Type.EXTERNAL_MANAGED)
+            .setAllowedElasticProductOrigins(ALLOWED_PRODUCTS)
             .setOrigin(FLEET_ORIGIN)
             .setMappings(request.mappings())
             .setSettings(request.settings())

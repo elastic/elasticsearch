@@ -20,15 +20,15 @@ import java.util.Set;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class DayNameErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
+public class MonthNameErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
     @Override
     protected List<TestCaseSupplier> cases() {
-        return paramsToSuppliers(DayNameTests.parameters());
+        return paramsToSuppliers(MonthNameTests.parameters());
     }
 
     @Override
     protected Expression build(Source source, List<Expression> args) {
-        return new DayName(source, args.get(0), EsqlTestUtils.TEST_CFG);
+        return new MonthName(source, args.get(0), EsqlTestUtils.TEST_CFG);
     }
 
     @Override

@@ -801,7 +801,10 @@ public class SparseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase
         }
 
         if (shouldPrune == null) {
-            shouldPrune = indexVersion.between(SPARSE_VECTOR_PRUNING_INDEX_OPTIONS_SUPPORT_BACKPORT_8_X, UPGRADE_TO_LUCENE_10_0_0) || indexVersion.onOrAfter(SPARSE_VECTOR_PRUNING_INDEX_OPTIONS_SUPPORT);
+            shouldPrune = indexVersion.between(
+                SPARSE_VECTOR_PRUNING_INDEX_OPTIONS_SUPPORT_BACKPORT_8_X,
+                UPGRADE_TO_LUCENE_10_0_0
+            ) || indexVersion.onOrAfter(SPARSE_VECTOR_PRUNING_INDEX_OPTIONS_SUPPORT);
         }
 
         PruningScenario pruningScenario = PruningScenario.NO_PRUNING;

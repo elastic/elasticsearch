@@ -1493,33 +1493,6 @@ setup:
   - close_to: { hits.hits.0._score: { value: 1.0, error: 0.001} }
 
 ---
-"linear retriever with top-level normalizer - validation test":
-  - do:
-      catch: /Unknown normalizer \[invalid\]/
-      search:
-        index: test
-        body:
-          retriever:
-            linear:
-              normalizer: invalid
-              retrievers: [
-                {
-                  retriever: {
-                    standard: {
-                      query: {
-                        term: {
-                          keyword: {
-                            value: "one"
-                          }
-                        }
-                      }
-                    }
-                  },
-                  weight: 1.0
-                }
-              ]
-
----
 "linear retriever with top-level normalizer - empty results":
   - do:
       search:
@@ -1901,13 +1874,13 @@ setup:
 ---
 "Linear retriever error handling - invalid normalizer":
   - do:
-      catch: bad_request
+      catch: /Unknown normalizer \[invalid\]/
       search:
         index: test
         body:
           retriever:
             linear:
-              normalizer: invalid_normalizer
+              normalizer: invalid
               retrievers: [
                 {
                   retriever: {

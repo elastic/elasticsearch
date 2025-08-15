@@ -153,7 +153,7 @@ public class LinearRetrieverBuilderParsingTests extends AbstractXContentTestCase
         try (XContentParser parser = createParser(XContentType.JSON.xContent(), json)) {
             LinearRetrieverBuilder builder = doParseInstance(parser);
             // Test that the top-level normalizer is properly applied - the individual
-            // retrievers specified "none" but should be overridden by top-level "minmax"
+            // Per-retriever 'none' should override top-level 'minmax'
             ScoreNormalizer[] normalizers = builder.getNormalizers();
             assertEquals(2, normalizers.length);
             for (ScoreNormalizer normalizer : normalizers) {

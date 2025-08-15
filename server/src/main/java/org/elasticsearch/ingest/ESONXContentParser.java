@@ -47,6 +47,7 @@ public class ESONXContentParser extends AbstractXContentParser {
 
     // Current token state
     private Token currentToken = null;
+    private Token nextToken = null;
     private String currentFieldName = null;
     private ESONEntry currentEntry = null;
     private Object currentValue = null;
@@ -78,40 +79,92 @@ public class ESONXContentParser extends AbstractXContentParser {
         // ESON already handles this during parsing
     }
 
+    // @Override
+    // public Token nextToken() throws IOException {
+    // if (currentToken != null && containerStack.isEmpty() == false) {
+    // int remainingFields = containerStack.currentContainerFieldsRemaining();
+    //
+    // if (remainingFields > 0) {
+    // boolean isObject = containerStack.isCurrentContainerObject();
+    //
+    // if (isObject && currentToken != Token.FIELD_NAME) {
+    // currentEntry = keyArray.get(currentIndex);
+    // currentValue = null;
+    // currentFieldName = currentEntry.key();
+    // return currentToken = Token.FIELD_NAME;
+    // } else {
+    // if (currentToken != Token.FIELD_NAME) {
+    // // In array - need to fetch entry
+    // currentEntry = keyArray.get(currentIndex);
+    // currentValue = null;
+    // }
+    //
+    // containerStack.decrementCurrentContainerFields();
+    // ++currentIndex;
+    //
+    // byte type = currentEntry.type();
+    // if (type < ESONEntry.TYPE_OBJECT) {
+    // return currentToken = TOKEN_LOOKUP[type];
+    // } else {
+    // newContainer(type);
+    // return currentToken = TOKEN_LOOKUP[type];
+    // }
+    // }
+    // } else {
+    // // End of container
+    // boolean isObject = containerStack.isCurrentContainerObject();
+    // containerStack.popContainer();
+    // return currentToken = isObject ? Token.END_OBJECT : Token.END_ARRAY;
+    // }
+    // }
+    //
+    // if (closed) {
+    // return null;
+    // }
+    //
+    // if (currentToken == null) {
+    // // First token logic
+    // currentEntry = keyArray.get(currentIndex);
+    // currentValue = null;
+    // containerStack.pushObject(currentEntry.offsetOrCount());
+    // currentIndex++;
+    // return currentToken = Token.START_OBJECT;
+    // }
+    //
+    // return null;
+    // }
+
     @Override
     public Token nextToken() throws IOException {
-        if (currentToken != null && containerStack.isEmpty() == false) {
+        if (currentToken == Token.FIELD_NAME) {
+            currentToken = nextToken;
+            nextToken = null;
+            return currentToken;
+        } else if (currentToken != null && containerStack.isEmpty() == false) {
             int remainingFields = containerStack.currentContainerFieldsRemaining();
-
+            boolean isObject = containerStack.isCurrentContainerObject();
             if (remainingFields > 0) {
-                boolean isObject = containerStack.isCurrentContainerObject();
+                currentEntry = keyArray.get(currentIndex);
+                currentValue = null;
+                containerStack.decrementCurrentContainerFields();
+                ++currentIndex;
 
-                if (isObject && currentToken != Token.FIELD_NAME) {
-                    currentEntry = keyArray.get(currentIndex);
-                    currentValue = null;
+                final Token token;
+                byte type = currentEntry.type();
+                if (type >= ESONEntry.TYPE_OBJECT) {
+                    newContainer(type);
+                }
+                token = TOKEN_LOOKUP[type];
+
+                if (isObject) {
                     currentFieldName = currentEntry.key();
+                    nextToken = token;
                     return currentToken = Token.FIELD_NAME;
                 } else {
-                    if (currentToken != Token.FIELD_NAME) {
-                        // In array - need to fetch entry
-                        currentEntry = keyArray.get(currentIndex);
-                        currentValue = null;
-                    }
-
-                    containerStack.decrementCurrentContainerFields();
-                    ++currentIndex;
-
-                    byte type = currentEntry.type();
-                    if (type < ESONEntry.TYPE_OBJECT) {
-                        return currentToken = TOKEN_LOOKUP[type];
-                    } else {
-                        newContainer(type);
-                        return currentToken = TOKEN_LOOKUP[type];
-                    }
+                    return currentToken = token;
                 }
             } else {
                 // End of container
-                boolean isObject = containerStack.isCurrentContainerObject();
                 containerStack.popContainer();
                 return currentToken = isObject ? Token.END_OBJECT : Token.END_ARRAY;
             }

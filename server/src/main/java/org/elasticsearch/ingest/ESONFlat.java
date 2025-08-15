@@ -77,7 +77,7 @@ public record ESONFlat(List<ESONEntry> keys, ESONSource.Values values, AtomicRef
                     String key = entry.key();
                     byte[] bytes = key == null ? EMPTY_KEY : key.getBytes(StandardCharsets.UTF_8);
                     streamOutput.writeVInt(bytes.length);
-                    streamOutput.writeBytes(bytes);
+                    streamOutput.writeBytes(bytes, 0, bytes.length);
                     streamOutput.writeByte(entry.type());
                     // TODO: Combine
                     if (entry instanceof ESONEntry.FieldEntry fieldEntry) {

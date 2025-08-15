@@ -127,7 +127,7 @@ public class ESONSource {
                 case VALUE_STRING -> {
                     XContentString.UTF8Bytes stringBytes = parser.optimizedText().bytes();
                     bytes.writeVInt(stringBytes.length());
-                    bytes.write(stringBytes.bytes(), stringBytes.offset(), stringBytes.length());
+                    bytes.writeBytes(stringBytes.bytes(), stringBytes.offset(), stringBytes.length());
                     yield new VariableValue((int) position, ESONEntry.STRING);
                 }
                 case VALUE_NUMBER -> {
@@ -153,7 +153,7 @@ public class ESONSource {
                             byte type = numberType == XContentParser.NumberType.BIG_INTEGER ? ESONEntry.BIG_INTEGER : ESONEntry.BIG_DECIMAL;
                             byte[] numberBytes = parser.text().getBytes(StandardCharsets.UTF_8);
                             bytes.writeVInt(numberBytes.length);
-                            bytes.write(numberBytes);
+                            bytes.writeBytes(numberBytes, 0, numberBytes.length);
                             yield new VariableValue((int) position, type);
                         }
                     };

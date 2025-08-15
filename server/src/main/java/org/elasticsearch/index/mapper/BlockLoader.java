@@ -13,6 +13,7 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.search.fetch.StoredFieldsSpec;
 import org.elasticsearch.search.lookup.Source;
@@ -44,6 +45,22 @@ public interface BlockLoader {
          * Reads the values of all documents in {@code docs}.
          */
         BlockLoader.Block read(BlockFactory factory, Docs docs, int offset) throws IOException;
+    }
+
+    /**
+     * An interface for readers that attempt to load all document values in a column-at-a-time fashion.
+     * <p>
+     * Unlike {@link ColumnAtATimeReader}, implementations may return {@code null} if they are unable
+     * to load the requested values, for example due to unsupported underlying data.
+     * This allows callers to optimistically try optimized loading strategies first, and fall back if necessary.
+     */
+    interface OptionalColumnAtATimeReader {
+        /**
+         * Attempts to read the values of all documents in {@code docs}
+         * Returns {@code null} if unable to load the values.
+         */
+        @Nullable
+        BlockLoader.Block tryRead(BlockFactory factory, Docs docs, int offset) throws IOException;
     }
 
     interface RowStrideReader extends Reader {
@@ -549,6 +566,5 @@ public interface BlockLoader {
         DoubleBuilder sum();
 
         IntBuilder count();
-
     }
 }

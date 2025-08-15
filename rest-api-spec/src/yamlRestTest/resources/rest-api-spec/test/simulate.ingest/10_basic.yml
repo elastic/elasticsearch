@@ -600,9 +600,6 @@ setup:
 
 ---
 "Test bad pipeline substitution":
-  - requires:
-      cluster_features: ["simulate.ingest.400_on_failure"]
-      reason: "simulate.ingest returned 500 on failure before"
   - skip:
       features: [headers, allowed_warnings]
 

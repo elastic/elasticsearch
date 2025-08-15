@@ -104,10 +104,8 @@ public class SnapshotMetricsIT extends AbstractSnapshotIntegTestCase {
             assertBusy(() -> {
                 collectMetrics();
                 assertThat(getTotalClusterLongCounterValue(SnapshotMetrics.SNAPSHOTS_STARTED), equalTo(1L));
+                assertShardsInProgressMetricIs(hasItem(greaterThan(0L)));
             });
-
-            waitForBlockOnAnyDataNode(repositoryName);
-            assertShardsInProgressMetricIs(hasItem(greaterThan(0L)));
             assertThat(getTotalClusterLongCounterValue(SnapshotMetrics.SNAPSHOTS_COMPLETED), equalTo(0L));
             assertThat(getTotalClusterLongCounterValue(SnapshotMetrics.SNAPSHOT_SHARDS_STARTED), greaterThan(0L));
             assertThat(getTotalClusterLongCounterValue(SnapshotMetrics.SNAPSHOT_SHARDS_COMPLETED), equalTo(0L));

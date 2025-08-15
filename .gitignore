@@ -70,4 +70,3 @@ testfixtures_shared/
 checkstyle_ide.xml
 x-pack/plugin/esql/src/main/generated-src/generated/
 server/src/main/resources/transport/definitions/manifest.txt
-

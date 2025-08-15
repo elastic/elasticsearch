@@ -45,6 +45,8 @@ import java.util.Objects;
 import java.util.concurrent.Callable;
 import java.util.concurrent.atomic.LongAccumulator;
 
+import static org.elasticsearch.search.vectors.AbstractMaxScoreKnnCollector.LEAST_COMPETITIVE;
+
 abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerProvider {
 
     static final TopDocs NO_RESULTS = TopDocsCollector.EMPTY_TOPDOCS;
@@ -239,7 +241,7 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
 
         IVFCollectorManager(int k, IndexSearcher searcher) {
             this.k = k;
-            longAccumulator = searcher.getIndexReader().leaves().size() > 1 ? new LongAccumulator(Long::max, Long.MIN_VALUE) : null;
+            longAccumulator = searcher.getIndexReader().leaves().size() > 1 ? new LongAccumulator(Long::max, LEAST_COMPETITIVE) : null;
         }
 
         @Override

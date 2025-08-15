@@ -23,7 +23,7 @@ public class MaxScoreTopKnnCollector extends AbstractMaxScoreKnnCollector {
 
     public MaxScoreTopKnnCollector(int k, long visitLimit, KnnSearchStrategy searchStrategy) {
         super(k, visitLimit, searchStrategy);
-        this.minCompetitiveDocScore = Long.MIN_VALUE;
+        this.minCompetitiveDocScore = LEAST_COMPETITIVE;
         this.minCompetitiveSimilarity = Float.NEGATIVE_INFINITY;
         this.queue = new NeighborQueue(k, false);
     }
@@ -35,7 +35,7 @@ public class MaxScoreTopKnnCollector extends AbstractMaxScoreKnnCollector {
 
     @Override
     void updateMinCompetitiveDocScore(long minCompetitiveDocScore) {
-        long queueMinCompetitiveDocScore = queue.size() > 0 ? queue.peek() : Long.MIN_VALUE;
+        long queueMinCompetitiveDocScore = queue.size() > 0 ? queue.peek() : LEAST_COMPETITIVE;
         this.minCompetitiveDocScore = Math.max(this.minCompetitiveDocScore, Math.max(queueMinCompetitiveDocScore, minCompetitiveDocScore));
         this.minCompetitiveSimilarity = NeighborQueue.decodeScoreRaw(this.minCompetitiveDocScore);
     }

@@ -90,6 +90,10 @@ public class ReplaceRoundToWithQueryAndTagsTests extends LocalPhysicalPlanOptimi
     private static final Map<String, QueryBuilder> otherPushDownFunctions = new HashMap<>(
         Map.ofEntries(
             Map.entry("keyword == \"keyword\"", termQuery("keyword", "keyword").boost(0)),
+            Map.entry(
+                "keyword >= \"2023-10-19\" and keyword <= \"2023-10-24\"",
+                rangeQuery("keyword").gte("2023-10-19").lte("2023-10-24").timeZone("Z").boost(0)
+            ),
             Map.entry("keyword : \"keyword\"", matchQuery("keyword", "keyword").lenient(true))
         )
     );
@@ -231,7 +235,12 @@ public class ReplaceRoundToWithQueryAndTagsTests extends LocalPhysicalPlanOptimi
                     """, predicate, dateHistogram);
                 QueryBuilder mainQueryBuilder = qb instanceof MatchQueryBuilder
                     ? qb
-                    : wrapWithSingleQuery(query, qb, "keyword", new Source(2, 8, predicate));
+                    : wrapWithSingleQuery(
+                        query,
+                        qb,
+                        "keyword",
+                        new Source(2, 8, predicate.contains("and") ? predicate.substring(0, 23) : predicate)
+                    );
 
                 PhysicalPlan plan = plannerOptimizer.plan(query, searchStats, makeAnalyzer("mapping-all-types.json"));
 

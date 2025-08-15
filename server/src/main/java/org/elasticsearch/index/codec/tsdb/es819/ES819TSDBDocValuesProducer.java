@@ -1085,7 +1085,7 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
             // Special case for maxOrd 1, no need to read blocks and use ordinal 0 as only value
             if (entry.docsWithFieldOffset == -1) {
                 // Special case when all docs have a value
-                return new NumericDocValues() {
+                return new BaseDenseNumericValues() {
 
                     private final int maxDoc = ES819TSDBDocValuesProducer.this.maxDoc;
                     private int doc = -1;
@@ -1123,6 +1123,17 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
                     @Override
                     public long cost() {
                         return maxDoc;
+                    }
+
+                    @Override
+                    long lookAheadValueAt(int targetDoc) throws IOException {
+                        return 0L;  // Only one ordinal!
+                    }
+
+                    @Override
+                    public BlockLoader.Block tryRead(BlockLoader.BlockFactory factory, BlockLoader.Docs docs, int offset)
+                        throws IOException {
+                        return null;
                     }
                 };
             } else {

@@ -1071,14 +1071,14 @@ public final class TextFieldMapper extends FieldMapper {
             // The parent might, but we don't have enough context here to figure this out.
             // So we bail.
             if (isSyntheticSource && syntheticSourceDelegate == null && parentField == null) {
-                return fallbackSyntheticSourceBlockLoader();
+                return fallbackSyntheticSourceBlockLoader(blContext);
             }
 
             SourceValueFetcher fetcher = SourceValueFetcher.toString(blContext.sourcePaths(name()));
             return new BlockSourceReader.BytesRefsBlockLoader(fetcher, blockReaderDisiLookup(blContext));
         }
 
-        FallbackSyntheticSourceBlockLoader fallbackSyntheticSourceBlockLoader() {
+        FallbackSyntheticSourceBlockLoader fallbackSyntheticSourceBlockLoader(BlockLoaderContext blContext) {
             var reader = new FallbackSyntheticSourceBlockLoader.SingleValueReader<BytesRef>(null) {
                 @Override
                 public void convertValue(Object value, List<BytesRef> accumulator) {
@@ -1106,7 +1106,11 @@ public final class TextFieldMapper extends FieldMapper {
                 }
             };
 
-            return new FallbackSyntheticSourceBlockLoader(reader, name()) {
+            return new FallbackSyntheticSourceBlockLoader(
+                reader,
+                name(),
+                IgnoredSourceFieldMapper.ignoredSourceFormat(blContext.indexSettings().getIndexVersionCreated())
+            ) {
                 @Override
                 public Builder builder(BlockFactory factory, int expectedCount) {
                     return factory.bytesRefs(expectedCount);

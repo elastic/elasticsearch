@@ -101,6 +101,8 @@ public class CpsDoesNotUseSkipUnavailableIT extends AbstractMultiClustersTestCas
                 linkedClusterFailures.getFirst().getCause(),
                 Matchers.anyOf(Matchers.instanceOf(RemoteTransportException.class), Matchers.instanceOf(ConnectTransportException.class))
             );
+
+            result.decRef();
         }
 
         /*

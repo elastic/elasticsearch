@@ -852,7 +852,8 @@ public final class IndexSettings {
         "index.mapping.exclude_source_vectors",
         settings -> String.valueOf(SETTING_INDEX_VERSION_CREATED.get(settings).onOrAfter(IndexVersions.EXCLUDE_SOURCE_VECTORS_DEFAULT)),
         Property.IndexScope,
-        Property.Final
+        Property.Final,
+        Property.ServerlessPublic
     );
 
     private final Index index;

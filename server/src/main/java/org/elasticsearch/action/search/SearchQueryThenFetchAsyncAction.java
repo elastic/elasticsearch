@@ -212,7 +212,7 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
         private final SearchPhaseController.TopDocsStats topDocsStats;
         private final QueryPhaseResultConsumer.MergeResult mergeResult;
 
-        NodeQueryResponse(StreamInput in) throws IOException {
+        public NodeQueryResponse(StreamInput in) throws IOException {
             this.results = in.readArray(i -> i.readBoolean() ? new QuerySearchResult(i) : i.readException(), Object[]::new);
             this.mergeResult = QueryPhaseResultConsumer.MergeResult.readFrom(in);
             this.topDocsStats = SearchPhaseController.TopDocsStats.readFrom(in);
@@ -552,7 +552,7 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
         }
     }
 
-    private static final String NODE_SEARCH_ACTION_NAME = "indices:data/read/search[query][n]";
+    public static final String NODE_SEARCH_ACTION_NAME = "indices:data/read/search[query][n]";
 
     static void registerNodeSearchAction(
         SearchTransportService searchTransportService,

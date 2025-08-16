@@ -7,7 +7,10 @@
 
 package org.elasticsearch.xpack.logsdb.patternedtext;
 
+import org.elasticsearch.common.time.DateFormatter;
+import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.core.ml.job.config.DataDescription;
 import org.hamcrest.Matchers;
 
 import java.util.HashSet;
@@ -103,6 +106,70 @@ public class PatternedTextValueProcessorTests extends ESTestCase {
         assertEquals(text, PatternedTextValueProcessor.merge(parts));
     }
 
+    public void testWithTimestampRandomParseSuccess() {
+        var timeStrings = List.of(
+            "2020-09-06T08:29:04.123456",
+            "2020-09-06T08:29:04.123Z",
+            "2020-09-06T08:29:04,123",
+            "2020-09-06T08:29:04.123+00:00",
+            "2020-09-06T08:29:04Z",
+            "2020-09-06T08:29:04+0000",
+            "2020-09-06T08:29:04.123+0000",
+            "2020-09-06 08:29:04,123",
+            "2020-09-06 08:29:04.123",
+//            "2020-09-06 08:29:04 UTC",
+            "2020-09-06 08:29:04",
+//            "2020-09-06 08:29:04 +0000",
+            "2020/09/06 08:29:04",
+//            "06/Sep/2020:08:29:04 +0000",
+            "06 Sep 2020 08:29:04.123"
+        );
+
+        String template = "%";
+        if (randomBoolean()) {
+            template = "[" + template + "]";
+        }
+        template = randomFrom(" ", "") + template + randomFrom(" ", "");
+
+        var ts = randomFrom(timeStrings);
+        String text = template.replace("%", ts);
+        String normalized = ts.contains("123") ? "2020-09-06T08:29:04.123Z" :  "2020-09-06T08:29:04.000Z";
+        String expected = template.replace("%", normalized);
+
+        PatternedTextValueProcessor.Parts parts = PatternedTextValueProcessor.split(text);
+        assertEquals(expected, PatternedTextValueProcessor.merge(parts));
+    }
+
+    public void testWithTimestampRandomNoParseSuccess() {
+        var timeStrings = List.of(
+            "2020-09-06T08:29:04.123456",
+            "2020-09-06T08:29:04.123Z",
+            "2020-09-06T08:29:04,123",
+            "2020-09-06T08:29:04.123+00:00",
+            "2020-09-06T08:29:04Z",
+            "2020-09-06T08:29:04+0000",
+            "2020-09-06T08:29:04.123+0000",
+            "2020-09-06 08:29:04,123",
+            "2020-09-06 08:29:04.123",
+            "2020-09-06 08:29:04 UTC",
+            "2020-09-06 08:29:04",
+            "2020-09-06 08:29:04 +0000",
+            "2020/09/06 08:29:04",
+            "06/Sep/2020:08:29:04 +0000",
+            "06 Sep 2020 08:29:04.123"
+        );
+
+        String template = "%";
+        template = randomFrom("cat", "123") + template + randomFrom("cat", "123");
+
+        var ts = randomFrom(timeStrings);
+        String text = template.replace("%", ts);
+
+        PatternedTextValueProcessor.Parts parts = PatternedTextValueProcessor.split(text);
+        assertEquals(text, PatternedTextValueProcessor.merge(parts));
+    }
+
+
     public void testTemplateIdIsExpectedShape() {
         String text = "[2020-08-18T00:58:56] Found 123 errors for service [cheddar1]";
         PatternedTextValueProcessor.Parts parts = PatternedTextValueProcessor.split(text);
@@ -115,7 +182,7 @@ public class PatternedTextValueProcessorTests extends ESTestCase {
 
         for (int i = 0; i < 1000; i++) {
             var template = randomTemplate();
-            var parts = new PatternedTextValueProcessor.Parts(template, List.of());
+            var parts = new PatternedTextValueProcessor.Parts(template, null, List.of());
             templates.add(template);
             ids.add(parts.templateId());
         }
@@ -132,6 +199,35 @@ public class PatternedTextValueProcessorTests extends ESTestCase {
             sb.append(randomDelimiter());
         }
         return sb.toString();
+    }
+
+    public void testParseTimestamps() {
+        var timeStrings = List.of(
+            "2020-09-06T08:29:04.123456",
+            "2020-09-06T08:29:04.123Z",
+            "2020-09-06T08:29:04,123",
+            "2020-09-06T08:29:04.123+00:00",
+            "2020-09-06T08:29:04Z",
+            "2020-09-06T08:29:04+0000",
+            "2020-09-06T08:29:04.123+0000",
+            "2020-09-06 08:29:04,123",
+            "2020-09-06 08:29:04.123",
+            "2020-09-06 08:29:04 UTC",
+            "2020-09-06 08:29:04",
+            "2020-09-06 08:29:04 +0000",
+            "2020/09/06 08:29:04",
+            "06/Sep/2020:08:29:04 +0000",
+            "06 Sep 2020 08:29:04.123"
+        );
+
+        for (var ts : timeStrings) {
+            String[] split = ts.split(" ");
+            var res = PatternedTextValueProcessor.parse(split, 0);
+            var millis = res.v1();
+            String str = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.formatMillis(millis);
+            logger.info("parsed: " + ts + " as " + str);
+            assertTrue("2020-09-06T08:29:04.123Z".equals(str) || "2020-09-06T08:29:04.000Z".equals(str));
+        }
     }
 
     private static String randomPlaceholder() {

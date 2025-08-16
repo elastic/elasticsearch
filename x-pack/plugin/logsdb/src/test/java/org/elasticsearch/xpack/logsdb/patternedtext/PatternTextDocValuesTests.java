@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.logsdb.patternedtext;
 
+import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.test.ESTestCase;
@@ -24,19 +25,22 @@ public class PatternTextDocValuesTests extends ESTestCase {
     private static PatternedTextDocValues makeDocValueSparseArgs() {
         var template = new SimpleSortedSetDocValues("%W dog", "cat", "%W mouse %W", "hat %W");
         var args = new SimpleSortedSetDocValues("1", null, "2 3", "4");
-        return new PatternedTextDocValues(template, args);
+        var ts = new SimpleSortedNumericDocValues();
+        return new PatternedTextDocValues(template, args, ts);
     }
 
     private static PatternedTextDocValues makeDocValuesDenseArgs() {
         var template = new SimpleSortedSetDocValues("%W moose", "%W goose %W", "%W mouse %W", "%W house");
         var args = new SimpleSortedSetDocValues("1", "4 5", "2 3", "7");
-        return new PatternedTextDocValues(template, args);
+        var ts = new SimpleSortedNumericDocValues();
+        return new PatternedTextDocValues(template, args, ts);
     }
 
     private static PatternedTextDocValues makeDocValueMissingValues() {
         var template = new SimpleSortedSetDocValues("%W cheddar", "cat", null, "%W cheese");
         var args = new SimpleSortedSetDocValues("1", null, null, "4");
-        return new PatternedTextDocValues(template, args);
+        var ts = new SimpleSortedNumericDocValues();
+        return new PatternedTextDocValues(template, args, ts);
     }
 
     public void testNextDoc() throws IOException {
@@ -107,6 +111,57 @@ public class PatternTextDocValuesTests extends ESTestCase {
         assertEquals("cat", docValues.binaryValue().utf8ToString());
         assertEquals(3, docValues.nextDoc());
         assertEquals("4 cheese", docValues.binaryValue().utf8ToString());
+    }
+
+static class SimpleSortedNumericDocValues extends SortedNumericDocValues {
+
+        private final Long[] docIdToValues;
+        private int currDoc = -1;
+
+        // Single value for each docId, null if no value for a docId
+        SimpleSortedNumericDocValues(Long... docIdToValues) {
+            this.docIdToValues = docIdToValues;
+        }
+
+        @Override
+        public long nextValue() throws IOException {
+            return docIdToValues[currDoc];
+        }
+
+        @Override
+        public int docValueCount() {
+            return 1;
+        }
+
+        @Override
+        public boolean advanceExact(int target) {
+            return advance(target) == target;
+        }
+
+        @Override
+        public int docID() {
+            return currDoc >= docIdToValues.length ? NO_MORE_DOCS : currDoc;
+        }
+
+        @Override
+        public int nextDoc() throws IOException {
+            return advance(currDoc + 1);
+        }
+
+        @Override
+        public int advance(int target) {
+            for (currDoc = target; currDoc < docIdToValues.length; currDoc++) {
+                if (docIdToValues[currDoc] != null) {
+                    return currDoc;
+                }
+            }
+            return NO_MORE_DOCS;
+        }
+
+        @Override
+        public long cost() {
+            return 1;
+        }
     }
 
     static class SimpleSortedSetDocValues extends SortedSetDocValues {

@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.logsdb.patternedtext;
 import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.LeafReader;
+import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.util.BytesRef;
 
@@ -18,31 +19,39 @@ import java.io.IOException;
 public class PatternedTextDocValues extends BinaryDocValues {
     private final SortedSetDocValues templateDocValues;
     private final SortedSetDocValues argsDocValues;
+    private final SortedNumericDocValues timestampDocValues;
 
-    PatternedTextDocValues(SortedSetDocValues templateDocValues, SortedSetDocValues argsDocValues) {
+    PatternedTextDocValues(SortedSetDocValues templateDocValues,
+                           SortedSetDocValues argsDocValues,
+                           SortedNumericDocValues timestampDocValues
+    ) {
         this.templateDocValues = templateDocValues;
         this.argsDocValues = argsDocValues;
+        this.timestampDocValues = timestampDocValues;
     }
 
-    static PatternedTextDocValues from(LeafReader leafReader, String templateFieldName, String argsFieldName) throws IOException {
+    static PatternedTextDocValues from(LeafReader leafReader, String templateFieldName, String argsFieldName, String timestampFieldName) throws IOException {
         SortedSetDocValues templateDocValues = DocValues.getSortedSet(leafReader, templateFieldName);
         if (templateDocValues.getValueCount() == 0) {
             return null;
         }
 
         SortedSetDocValues argsDocValues = DocValues.getSortedSet(leafReader, argsFieldName);
-        return new PatternedTextDocValues(templateDocValues, argsDocValues);
+        SortedNumericDocValues timestampDocValues = DocValues.getSortedNumeric(leafReader, timestampFieldName);
+        return new PatternedTextDocValues(templateDocValues, argsDocValues, timestampDocValues);
     }
 
     private String getNextStringValue() throws IOException {
         assert templateDocValues.docValueCount() == 1;
         String template = templateDocValues.lookupOrd(templateDocValues.nextOrd()).utf8ToString();
+        Long timestamp = PatternedTextValueProcessor.hasTimestamp(template) ? timestampDocValues.nextValue() : null;
+
         int argsCount = PatternedTextValueProcessor.countArgs(template);
         if (argsCount > 0) {
             assert argsDocValues.docValueCount() == 1;
             var mergedArgs = argsDocValues.lookupOrd(argsDocValues.nextOrd());
             var args = PatternedTextValueProcessor.decodeRemainingArgs(mergedArgs.utf8ToString());
-            return PatternedTextValueProcessor.merge(new PatternedTextValueProcessor.Parts(template, args));
+            return PatternedTextValueProcessor.merge(new PatternedTextValueProcessor.Parts(template, timestamp, args));
         } else {
             return template;
         }
@@ -83,6 +92,6 @@ public class PatternedTextDocValues extends BinaryDocValues {
 
     @Override
     public long cost() {
-        return templateDocValues.cost() + argsDocValues.cost();
+        return templateDocValues.cost() + argsDocValues.cost() + timestampDocValues.cost();
     }
 }

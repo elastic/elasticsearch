@@ -285,6 +285,7 @@ public class ValuesSourceReaderBenchmark {
             false,
             null,
             null,
+            null,
             false
         ).blockLoader(new MappedFieldType.BlockLoaderContext() {
             @Override

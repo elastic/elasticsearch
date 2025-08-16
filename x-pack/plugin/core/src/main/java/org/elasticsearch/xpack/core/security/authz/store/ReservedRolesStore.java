@@ -328,23 +328,13 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                     null,
                     new RoleDescriptor.ApplicationResourcePrivileges[] {
                         RoleDescriptor.ApplicationResourcePrivileges.builder()
-                            .application("kibana-.kibana")
+                            .application("kibana-*")
                             .resources("*")
-                            .privileges(
-                                "feature_discover.minimal_read",
-                                "feature_discover.generate_report",
-                                "feature_dashboard.minimal_read",
-                                "feature_dashboard.generate_report",
-                                "feature_dashboard.download_csv_report",
-                                "feature_canvas.minimal_read",
-                                "feature_canvas.generate_report",
-                                "feature_visualize.minimal_read",
-                                "feature_visualize.generate_report"
-                            )
+                            .privileges("reserved_reporting_user")
                             .build() },
                     null,
                     null,
-                    MetadataUtils.DEFAULT_RESERVED_METADATA,
+                    MetadataUtils.getDeprecatedReservedMetadata("Please grant access via Kibana privileges instead."),
                     null,
                     null,
                     null,
@@ -353,7 +343,7 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                         + "including generating and downloading reports. "
                         + "This role implicitly grants access to all Kibana reporting features, "
                         + "with each user having access only to their own reports. Note that reporting users should also be assigned "
-                        + "additional roles that grant read access to the indices that will be used to generate reports."
+                        + "additional roles that grant read access to Kibana, and the indices that will be used to generate reports."
                 )
             ),
             entry(KibanaSystemUser.ROLE_NAME, kibanaSystemRoleDescriptor(KibanaSystemUser.ROLE_NAME)),

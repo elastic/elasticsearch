@@ -2769,20 +2769,11 @@ public class ReservedRolesStoreTests extends ESTestCase {
         RoleDescriptor roleDescriptor = ReservedRolesStore.roleDescriptor("reporting_user");
         assertNotNull(roleDescriptor);
         assertThat(roleDescriptor.getMetadata(), hasEntry("_reserved", true));
+        assertThat(roleDescriptor.getMetadata(), hasEntry("_deprecated", true));
 
         final String applicationName = "kibana-.kibana";
 
-        final Set<String> applicationPrivilegeNames = Set.of(
-            "feature_discover.minimal_read",
-            "feature_discover.generate_report",
-            "feature_dashboard.minimal_read",
-            "feature_dashboard.generate_report",
-            "feature_dashboard.download_csv_report",
-            "feature_canvas.minimal_read",
-            "feature_canvas.generate_report",
-            "feature_visualize.minimal_read",
-            "feature_visualize.generate_report"
-        );
+        final Set<String> applicationPrivilegeNames = Set.of("reserved_reporting_user");
 
         final Set<String> allowedApplicationActionPatterns = Set.of(
             "login:",

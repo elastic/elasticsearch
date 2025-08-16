@@ -152,7 +152,7 @@ public class ReadOnlyEngine extends Engine {
      * as the search id because the commit id changes whenever IndexWriter#commit is called although the segment files stay unchanged.
      * Any recovery except the local recovery performs IndexWriter#commit to generate a new translog uuid or history_uuid.
      */
-    static String generateSearcherId(SegmentInfos sis) {
+    public static String generateSearcherId(SegmentInfos sis) {
         final MessageDigest md = MessageDigests.sha256();
         for (SegmentCommitInfo si : sis) {
             final byte[] segmentId = si.getId();

@@ -8,20 +8,27 @@
  */
 package org.elasticsearch.action.search;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.RefCountingRunnable;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.project.ProjectResolver;
+import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
+import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.concurrent.ListenableFuture;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportResponse;
 
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -38,6 +45,7 @@ public final class ClearScrollController implements Runnable {
     private final AtomicBoolean hasFailed = new AtomicBoolean(false);
     private final AtomicInteger freedSearchContexts = new AtomicInteger(0);
     private final Logger logger;
+    private static final Logger staticLogger = LogManager.getLogger(ClearScrollController.class);
     private final Runnable runner;
 
     ClearScrollController(
@@ -148,12 +156,15 @@ public final class ClearScrollController implements Runnable {
      * Closes the given context id and reports the number of freed contexts via the listener
      */
     public static void closeContexts(
-        DiscoveryNodes nodes,
+        ClusterService clusterService,
+        ProjectResolver projectResolver,
         SearchTransportService searchTransportService,
-        Collection<SearchContextIdForNode> contextIds,
+        Map<ShardId, SearchContextIdForNode> shards,
         ActionListener<Integer> listener
     ) {
-        final Set<String> clusters = contextIds.stream()
+        DiscoveryNodes nodes = clusterService.state().nodes();
+        final Set<String> clusters = shards.values()
+            .stream()
             .map(SearchContextIdForNode::getClusterAlias)
             .filter(clusterAlias -> Strings.isEmpty(clusterAlias) == false)
             .collect(Collectors.toSet());
@@ -166,16 +177,34 @@ public final class ClearScrollController implements Runnable {
         lookupListener.addListener(listener.delegateFailure((l, nodeLookup) -> {
             final var successes = new AtomicInteger();
             try (RefCountingRunnable refs = new RefCountingRunnable(() -> l.onResponse(successes.get()))) {
-                for (SearchContextIdForNode contextId : contextIds) {
+                for (Entry<ShardId, SearchContextIdForNode> entry : shards.entrySet()) {
+                    var contextId = entry.getValue();
                     if (contextId.getNode() == null) {
                         // the shard was missing when creating the PIT, ignore.
                         continue;
                     }
                     final DiscoveryNode node = nodeLookup.apply(contextId.getClusterAlias(), contextId.getNode());
+
+                    Set<DiscoveryNode> targetNodes;
                     if (node != null) {
+                        targetNodes = Collections.singleton(node);
+                    } else {
+                        staticLogger.info("---> missing node when closing context: " + contextId.getNode());
+                        // TODO we won't be able to use this with remote clusters
+                        IndexShardRoutingTable indexShardRoutingTable = clusterService.state()
+                            .routingTable(projectResolver.getProjectId())
+                            .shardRoutingTable(entry.getKey());
+                        targetNodes = indexShardRoutingTable.assignedUnpromotableShards()
+                            .stream()
+                            .map(ShardRouting::currentNodeId)
+                            .map(nodeId -> nodeLookup.apply(contextId.getClusterAlias(), nodeId))
+                            .collect(Collectors.toSet());
+                        staticLogger.info("---> trying alternative nodes to close context: " + targetNodes);
+                    }
+                    for (DiscoveryNode targetNode : targetNodes) {
                         try {
                             searchTransportService.sendFreeContext(
-                                searchTransportService.getConnection(contextId.getClusterAlias(), node),
+                                searchTransportService.getConnection(contextId.getClusterAlias(), targetNode),
                                 contextId.getSearchContextId(),
                                 refs.acquireListener().map(r -> {
                                     if (r.isFreed()) {

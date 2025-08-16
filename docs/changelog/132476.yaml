@@ -1,0 +1,5 @@
+pr: 132476
+summary: Add `_data_stream` metadata to `SearchHit` for `_search` response
+area: Data streams
+type: feature
+issues: []

@@ -12,6 +12,7 @@ package org.elasticsearch.search;
 import org.apache.lucene.search.Explanation;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.TransportVersions;
+import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -98,11 +99,13 @@ public final class SearchHit implements Writeable, ToXContentObject, RefCounted 
     @Nullable
     private SearchShardTarget shard;
 
-    // These two fields normally get set when setting the shard target, so they hold the same values as the target thus don't get
+    // These three fields normally get set when setting the shard target, so they hold the same values as the target thus don't get
     // serialized over the wire. When parsing hits back from xcontent though, in most of the cases (whenever explanation is disabled)
     // we can't rebuild the shard target object so we need to set these manually for users retrieval.
     private transient String index;
     private transient String clusterAlias;
+    @Nullable
+    private transient String dataStream;
 
     // For asserting that the method #getSourceAsMap is called just once on the lifetime of this object
     private boolean sourceAsMapCalled = false;
@@ -170,6 +173,54 @@ public final class SearchHit implements Writeable, ToXContentObject, RefCounted 
         Map<String, DocumentField> metaFields,
         @Nullable RefCounted refCounted
     ) {
+        this(
+            docId,
+            score,
+            rank,
+            id,
+            nestedIdentity,
+            version,
+            seqNo,
+            primaryTerm,
+            source,
+            highlightFields,
+            sortValues,
+            matchedQueries,
+            explanation,
+            shard,
+            index,
+            clusterAlias,
+            innerHits,
+            documentFields,
+            metaFields,
+            refCounted,
+            null
+        );
+    }
+
+    public SearchHit(
+        int docId,
+        float score,
+        int rank,
+        Text id,
+        NestedIdentity nestedIdentity,
+        long version,
+        long seqNo,
+        long primaryTerm,
+        BytesReference source,
+        Map<String, HighlightField> highlightFields,
+        SearchSortValues sortValues,
+        Map<String, Float> matchedQueries,
+        Explanation explanation,
+        SearchShardTarget shard,
+        String index,
+        String clusterAlias,
+        Map<String, SearchHits> innerHits,
+        Map<String, DocumentField> documentFields,
+        Map<String, DocumentField> metaFields,
+        @Nullable RefCounted refCounted,
+        @Nullable String dataStream
+    ) {
         this.docId = docId;
         this.score = score;
         this.rank = rank;
@@ -190,6 +241,7 @@ public final class SearchHit implements Writeable, ToXContentObject, RefCounted 
         this.documentFields = documentFields;
         this.metaFields = metaFields;
         this.refCounted = refCounted == null ? LeakTracker.wrap(new SimpleRefCounted()) : refCounted;
+        this.dataStream = dataStream;
     }
 
     public static SearchHit readFrom(StreamInput in, boolean pooled) throws IOException {
@@ -252,6 +304,8 @@ public final class SearchHit implements Writeable, ToXContentObject, RefCounted 
             clusterAlias = shardTarget.getClusterAlias();
         }
 
+        final String dataStream = DataStream.getDataStreamNameFromIndex(index);
+
         boolean isPooled = pooled && source != null;
         final Map<String, SearchHits> innerHits;
         int size = in.readVInt();
@@ -286,7 +340,8 @@ public final class SearchHit implements Writeable, ToXContentObject, RefCounted 
             innerHits,
             documentFields,
             metaFields,
-            isPooled ? null : ALWAYS_REFERENCED
+            isPooled ? null : ALWAYS_REFERENCED,
+            dataStream
         );
     }
 
@@ -418,6 +473,13 @@ public final class SearchHit implements Writeable, ToXContentObject, RefCounted 
      */
     public String getIndex() {
         return this.index;
+    }
+
+    /**
+     * The index of the hit.
+     */
+    public String getDataStream() {
+        return this.dataStream;
     }
 
     /**
@@ -662,6 +724,7 @@ public final class SearchHit implements Writeable, ToXContentObject, RefCounted 
         if (target != null) {
             this.index = target.getIndex();
             this.clusterAlias = target.getClusterAlias();
+            this.dataStream = DataStream.getDataStreamNameFromIndex(target.getIndex());
         }
     }
 
@@ -786,7 +849,8 @@ public final class SearchHit implements Writeable, ToXContentObject, RefCounted 
                 : innerHits.entrySet().stream().collect(Collectors.toMap(Map.Entry::getKey, e -> e.getValue().asUnpooled())),
             cloneIfHashMap(documentFields),
             cloneIfHashMap(metaFields),
-            ALWAYS_REFERENCED
+            ALWAYS_REFERENCED,
+            dataStream
         );
     }
 
@@ -818,6 +882,7 @@ public final class SearchHit implements Writeable, ToXContentObject, RefCounted 
         static final String INNER_HITS = "inner_hits";
         static final String _SHARD = "_shard";
         static final String _NODE = "_node";
+        static final String DATA_STREAM = "_data_stream";
     }
 
     // Following are the keys for storing the metadata fields and regular fields in the aggregation map.
@@ -845,6 +910,9 @@ public final class SearchHit implements Writeable, ToXContentObject, RefCounted 
         }
         if (index != null) {
             builder.field(Fields._INDEX, RemoteClusterAware.buildRemoteIndexName(clusterAlias, index));
+        }
+        if (dataStream != null) {
+            builder.field(Fields.DATA_STREAM, dataStream);
         }
         if (id != null) {
             builder.field(Fields._ID, id);

@@ -52,6 +52,8 @@ public class RecyclerBytesStreamOutput extends BytesStream implements Releasable
         this.recycler = recycler;
         this.pageSize = recycler.pageSize();
         this.currentPageOffset = pageSize;
+        // Always start with a page
+        ensureCapacityFromPosition(1);
     }
 
     @Override

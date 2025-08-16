@@ -26,11 +26,13 @@ public class TransportVersionResourcesPlugin implements Plugin<Project> {
     public void apply(Project project) {
         project.getPluginManager().apply(LifecycleBasePlugin.class);
 
-        project.getGradle().getSharedServices().registerIfAbsent("transportVersionResources", TransportVersionResourcesService.class, spec -> {
-            Directory transportResources = project.getLayout().getProjectDirectory().dir("src/main/resources/transport");
-            spec.getParameters().getResourcesDirectory().set(transportResources);
-            spec.getParameters().getRootDirectory().set(project.getRootProject().getRootDir());
-        });
+        project.getGradle()
+            .getSharedServices()
+            .registerIfAbsent("transportVersionResources", TransportVersionResourcesService.class, spec -> {
+                Directory transportResources = project.getLayout().getProjectDirectory().dir("src/main/resources/transport");
+                spec.getParameters().getResourcesDirectory().set(transportResources);
+                spec.getParameters().getRootDirectory().set(project.getRootProject().getRootDir());
+            });
 
         DependencyHandler depsHandler = project.getDependencies();
         Configuration tvReferencesConfig = project.getConfigurations().create("globalTvReferences");

@@ -18,7 +18,6 @@ import org.gradle.language.base.plugins.LifecycleBasePlugin;
 
 public class TransportVersionReferencesPlugin implements Plugin<Project> {
 
-
     @Override
     public void apply(Project project) {
         project.getPluginManager().apply(LifecycleBasePlugin.class);

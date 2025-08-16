@@ -65,7 +65,6 @@ public abstract class ValidateTransportVersionResourcesTask extends DefaultTask 
         Map<Integer, List<IdAndDefinition>> idsByBase = collectIdsByBase(definitions.values());
         Map<String, TransportVersionLatest> latestByReleaseBranch = getResources().get().getLatestByReleaseBranch();
 
-
         // now load all definitions, do some validation and record them by various keys for later quick lookup
         // NOTE: this must run after loading referenced names and existing definitions
         // NOTE: this is sorted so that the order of cross validation is deterministic
@@ -157,17 +156,18 @@ public abstract class ValidateTransportVersionResourcesTask extends DefaultTask 
         }
     }
 
-    private void validateLatest(TransportVersionLatest latest, Map<String, TransportVersionDefinition> definitions, Map<Integer, List<IdAndDefinition>> idsByBase) {
+    private void validateLatest(
+        TransportVersionLatest latest,
+        Map<String, TransportVersionDefinition> definitions,
+        Map<Integer, List<IdAndDefinition>> idsByBase
+    ) {
         TransportVersionDefinition latestDefinition = definitions.get(latest.name());
         if (latestDefinition == null) {
             throwLatestFailure(latest, "contains transport version name [" + latest.name() + "] which is not defined");
         }
         if (latestDefinition.ids().contains(latest.id()) == false) {
             Path relativePath = getResources().get().getRepositoryPath(latestDefinition);
-            throwLatestFailure(
-                latest,
-                "has id " + latest.id() + " which is not in definition [" + relativePath + "]"
-            );
+            throwLatestFailure(latest, "has id " + latest.id() + " which is not in definition [" + relativePath + "]");
         }
 
         List<IdAndDefinition> baseIds = idsByBase.get(latest.id().base());

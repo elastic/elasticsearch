@@ -15,8 +15,6 @@ import org.gradle.api.services.BuildServiceParameters;
 import org.gradle.process.ExecOperations;
 import org.gradle.process.ExecResult;
 
-import javax.inject.Inject;
-
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -32,10 +30,13 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiFunction;
 
+import javax.inject.Inject;
+
 public abstract class TransportVersionResourcesService implements BuildService<TransportVersionResourcesService.Parameters> {
 
     public interface Parameters extends BuildServiceParameters {
         DirectoryProperty getResourcesDirectory();
+
         DirectoryProperty getRootDirectory();
     }
 

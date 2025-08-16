@@ -25,13 +25,9 @@ import static org.hamcrest.CoreMatchers.not;
 public class HttpCompressionIT extends AbstractHttpSmokeTestIT {
 
     private static final String GZIP_ENCODING = "gzip";
+    // TODO: Lost whitespace due to binary
     private static final String SAMPLE_DOCUMENT = """
-        {
-           "name": {
-              "first name": "Steve",
-              "last name": "Jobs"
-           }
-        }""";
+        {"name":{"first name":"Steve","last name":"Jobs"}}""";
 
     public void testCompressesResponseIfRequested() throws IOException {
         Request request = new Request("POST", "/company/_doc/2");

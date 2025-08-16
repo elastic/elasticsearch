@@ -12,6 +12,7 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Query;
+import org.elasticsearch.action.index.ModernSource;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -25,6 +26,7 @@ import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
+import org.elasticsearch.ingest.ESONXContentParser;
 import org.elasticsearch.plugins.internal.XContentMeteringParserDecorator;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.lookup.Source;
@@ -77,22 +79,15 @@ public final class DocumentParser {
      * @throws DocumentParsingException whenever there's a problem parsing the document
      */
     public ParsedDocument parseDocument(SourceToParse source, MappingLookup mappingLookup) throws DocumentParsingException {
-        if (source.source() != null && source.source().length() == 0) {
+        ModernSource modernSource = source.source();
+        if (modernSource.isSourceEmpty()) {
             throw new DocumentParsingException(new XContentLocation(0, 0), "failed to parse, document is empty");
         }
         final RootDocumentParserContext context;
         final XContentType xContentType = source.getXContentType();
 
         XContentMeteringParserDecorator meteringParserDecorator = source.getMeteringParserDecorator();
-        try (
-            XContentParser parser = meteringParserDecorator.decorate(
-                XContentHelper.createParser(
-                    parserConfiguration.withIncludeSourceOnError(source.getIncludeSourceOnError()),
-                    source.source(),
-                    xContentType
-                )
-            )
-        ) {
+        try (XContentParser parser = meteringParserDecorator.decorate(getParser(source, xContentType))) {
             context = new RootDocumentParserContext(mappingLookup, mappingParserContext, source, parser);
             validateStart(context.parser());
             MetadataFieldMapper[] metadataFieldsMappers = mappingLookup.getMapping().getSortedMetadataMappers();
@@ -125,6 +120,16 @@ public final class DocumentParser {
                 return idMapper.documentDescription(this);
             }
         };
+    }
+
+    private XContentParser getParser(SourceToParse source, XContentType xContentType) throws IOException {
+        XContentParserConfiguration config = parserConfiguration.withIncludeSourceOnError(source.getIncludeSourceOnError());
+        ModernSource modernSource = source.source();
+        if (modernSource.isStructured()) {
+            return new ESONXContentParser(modernSource.structuredSource(), config.registry(), config.deprecationHandler(), xContentType);
+        } else {
+            return XContentHelper.createParser(config, modernSource.originalSourceBytes(), xContentType);
+        }
     }
 
     private void internalParseDocument(MetadataFieldMapper[] metadataFieldsMappers, DocumentParserContext context) {
@@ -180,7 +185,7 @@ public final class DocumentParser {
                     fto
                 )
             ).build(new IndexFieldDataCache.None(), new NoneCircuitBreakerService()),
-            (ctx, doc) -> Source.fromBytes(context.sourceToParse().source())
+            (ctx, doc) -> Source.fromBytes(context.sourceToParse().source().originalSourceBytes())
         );
         // field scripts can be called both by the loop at the end of this method and via
         // the document reader, so to ensure that we don't run them multiple times we

@@ -410,7 +410,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
             XContentMeteringParserDecorator meteringParserDecorator = documentParsingProvider.newMeteringParserDecorator(request);
             final SourceToParse sourceToParse = new SourceToParse(
                 request.id(),
-                request.source(),
+                request.modernSource(),
                 request.getContentType(),
                 request.routing(),
                 request.getDynamicTemplates(),

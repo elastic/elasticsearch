@@ -201,7 +201,7 @@ public class TransportSimulateBulkAction extends TransportAbstractBulkAction {
     ) {
         final SourceToParse sourceToParse = new SourceToParse(
             request.id(),
-            request.source(),
+            request.modernSource(),
             request.getContentType(),
             request.routing(),
             request.getDynamicTemplates(),

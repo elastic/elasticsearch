@@ -137,8 +137,8 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
                 List.of(),
                 null,
                 null,
-                null,
-                estimatedRowSize
+                estimatedRowSize,
+                List.of(new EsQueryExec.QueryBuilderAndTags(null, List.of()))
             )
         );
         assertThat(plan.driverFactories.size(), lessThanOrEqualTo(pragmas.taskConcurrency()));
@@ -162,10 +162,10 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
                 IndexMode.STANDARD,
                 index().indexNameWithModes(),
                 List.of(),
-                null,
                 limit,
                 List.of(sort),
-                estimatedRowSize
+                estimatedRowSize,
+                List.of(new EsQueryExec.QueryBuilderAndTags(null, List.of()))
             )
         );
         assertThat(plan.driverFactories.size(), lessThanOrEqualTo(pragmas.taskConcurrency()));
@@ -189,10 +189,10 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
                 IndexMode.STANDARD,
                 index().indexNameWithModes(),
                 List.of(),
-                null,
                 limit,
                 List.of(sort),
-                estimatedRowSize
+                estimatedRowSize,
+                List.of(new EsQueryExec.QueryBuilderAndTags(null, List.of()))
             )
         );
         assertThat(plan.driverFactories.size(), lessThanOrEqualTo(pragmas.taskConcurrency()));
@@ -215,8 +215,8 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
                 List.of(),
                 null,
                 null,
-                null,
-                estimatedRowSize
+                estimatedRowSize,
+                List.of(new EsQueryExec.QueryBuilderAndTags(null, List.of()))
             )
         );
         assertThat(plan.driverFactories.size(), lessThanOrEqualTo(pragmas.taskConcurrency()));
@@ -234,8 +234,8 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
             List.of(),
             null,
             null,
-            null,
-            between(1, 1000)
+            between(1, 1000),
+            List.of(new EsQueryExec.QueryBuilderAndTags(null, List.of()))
         );
         var limitExec = new LimitExec(
             Source.EMPTY,
@@ -271,8 +271,8 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
             List.of(new FieldAttribute(Source.EMPTY, EsQueryExec.DOC_ID_FIELD.getName(), EsQueryExec.DOC_ID_FIELD)),
             null,
             null,
-            null,
-            between(1, 1000)
+            between(1, 1000),
+            List.of(new EsQueryExec.QueryBuilderAndTags(null, List.of()))
         );
         FieldExtractExec fieldExtractExec = new FieldExtractExec(
             Source.EMPTY,

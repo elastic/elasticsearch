@@ -27,10 +27,10 @@ public class SemanticSparseVectorQueryRewriteInterceptor extends SemanticQueryRe
     public SemanticSparseVectorQueryRewriteInterceptor() {}
 
     @Override
-    protected String getFieldName(QueryBuilder queryBuilder) {
+    protected Map<String, Float> getFieldNamesWithBoosts(QueryBuilder queryBuilder) {
         assert (queryBuilder instanceof SparseVectorQueryBuilder);
         SparseVectorQueryBuilder sparseVectorQueryBuilder = (SparseVectorQueryBuilder) queryBuilder;
-        return sparseVectorQueryBuilder.getFieldName();
+        return Map.of(sparseVectorQueryBuilder.getFieldName(), 1.0f);
     }
 
     @Override
@@ -41,7 +41,11 @@ public class SemanticSparseVectorQueryRewriteInterceptor extends SemanticQueryRe
     }
 
     @Override
-    protected QueryBuilder buildInferenceQuery(QueryBuilder queryBuilder, InferenceIndexInformationForField indexInformation) {
+    protected QueryBuilder buildInferenceQuery(
+        QueryBuilder queryBuilder,
+        InferenceIndexInformationForField indexInformation,
+        Float fieldBoost
+    ) {
         Map<String, List<String>> inferenceIdsIndices = indexInformation.getInferenceIdsIndices();
         QueryBuilder finalQueryBuilder;
         if (inferenceIdsIndices.size() == 1) {
@@ -53,7 +57,7 @@ public class SemanticSparseVectorQueryRewriteInterceptor extends SemanticQueryRe
             finalQueryBuilder = buildInferenceQueryWithMultipleInferenceIds(queryBuilder, inferenceIdsIndices);
         }
         finalQueryBuilder.queryName(queryBuilder.queryName());
-        finalQueryBuilder.boost(queryBuilder.boost());
+        finalQueryBuilder.boost(queryBuilder.boost() * fieldBoost);
         return finalQueryBuilder;
     }
 
@@ -73,10 +77,10 @@ public class SemanticSparseVectorQueryRewriteInterceptor extends SemanticQueryRe
         return boolQueryBuilder;
     }
 
-    @Override
     protected QueryBuilder buildCombinedInferenceAndNonInferenceQuery(
         QueryBuilder queryBuilder,
-        InferenceIndexInformationForField indexInformation
+        InferenceIndexInformationForField indexInformation,
+        Float fieldBoost
     ) {
         assert (queryBuilder instanceof SparseVectorQueryBuilder);
         SparseVectorQueryBuilder sparseVectorQueryBuilder = (SparseVectorQueryBuilder) queryBuilder;
@@ -106,7 +110,7 @@ public class SemanticSparseVectorQueryRewriteInterceptor extends SemanticQueryRe
                 )
             );
         }
-        boolQueryBuilder.boost(queryBuilder.boost());
+        boolQueryBuilder.boost(queryBuilder.boost() * fieldBoost);
         boolQueryBuilder.queryName(queryBuilder.queryName());
         return boolQueryBuilder;
     }

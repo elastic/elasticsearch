@@ -13,6 +13,7 @@ import org.elasticsearch.cluster.RestoreInProgress;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 
 /**
@@ -49,15 +50,26 @@ public class RestoreInProgressAllocationDecider extends AllocationDecider {
                 return allocation.decision(Decision.YES, NAME, "shard is currently being restored");
             }
         }
-        return allocation.decision(
-            Decision.NO,
-            NAME,
-            "shard has failed to be restored from the snapshot [%s] - manually close or delete the index [%s] in order to retry "
-                + "to restore the snapshot again or use the reroute API to force the allocation of an empty primary shard. Details: [%s]",
-            source.snapshot(),
-            shardRouting.getIndexName(),
-            shardRouting.unassignedInfo().details()
-        );
+
+        UnassignedInfo unassignedInfo = shardRouting.unassignedInfo();
+        if (unassignedInfo.failedAllocations() > 0) {
+            return allocation.decision(
+                Decision.NO,
+                NAME,
+                "shard has failed to be restored from the snapshot [%s] - manually close or delete the index [%s] in order to retry "
+                    + "to restore the snapshot again or use the reroute API to force the allocation of an empty primary shard. Check the "
+                    + "logs for more information about the failure. Details: [%s]",
+                source.snapshot(),
+                shardRouting.getIndexName(),
+                shardRouting.unassignedInfo().details()
+            );
+        } else {
+            return allocation.decision(
+                Decision.NO,
+                NAME,
+                "shard was prevented from being allocated on all nodes because of other allocation deciders"
+            );
+        }
     }
 
     @Override

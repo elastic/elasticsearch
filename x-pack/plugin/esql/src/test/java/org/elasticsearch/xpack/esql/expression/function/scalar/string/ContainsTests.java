@@ -101,9 +101,6 @@ public class ContainsTests extends AbstractScalarFunctionTestCase {
         suppliers.add(supplier("a ti𠜎er", "aa ti𠜎er", false));
         suppliers.add(supplier("abc𠜎𠜎", "𠜎𠜎𠜎", false));
 
-        assert "🐱".length() == 2 && "🐶".length() == 2;
-        assert "🐱".codePointCount(0, 2) == 1 && "🐶".codePointCount(0, 2) == 1;
-        assert "🐱".getBytes(StandardCharsets.UTF_8).length == 4 && "🐶".getBytes(StandardCharsets.UTF_8).length == 4;
         suppliers.add(supplier("🐱Meow!🐶Woof!", "🐱Meow!🐶Woof!", true));
         suppliers.add(supplier("🐱Meow!🐶Woof!", "Meow!🐶Woof!", true));
         suppliers.add(supplier("🐱Meow!🐶Woof!", "eow!🐶Woof!", true));

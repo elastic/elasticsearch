@@ -346,6 +346,35 @@ public abstract class AbstractThirdPartyRepositoryTestCase extends ESSingleNodeT
         }
     }
 
+    public void testFailIfAlreadyExists() throws IOException {
+        final var blobName = randomIdentifier();
+        final int blobLength = randomIntBetween(100, 2_000);
+        final var initialBlobBytes = randomBytesReference(blobLength);
+        final var overwriteBlobBytes = randomBytesReference(blobLength);
+
+        final var repository = getRepository();
+
+        // initial write blob
+        executeOnBlobStore(repository, blobStore -> {
+            blobStore.writeBlob(randomPurpose(), blobName, initialBlobBytes, true);
+            return null;
+        });
+
+        // override if failIfAlreadyExists is set to false
+        executeOnBlobStore(repository, blobStore -> {
+            blobStore.writeBlob(randomPurpose(), blobName, overwriteBlobBytes, false);
+            return null;
+        });
+
+        assertEquals(overwriteBlobBytes, readBlob(repository, blobName, 0, overwriteBlobBytes.length()));
+
+        // throw exception if failIfAlreadyExists is set to true
+        executeOnBlobStore(repository, blobStore -> {
+            expectThrows(Exception.class, () -> blobStore.writeBlob(randomPurpose(), blobName, initialBlobBytes, true));
+            return null;
+        });
+    }
+
     protected void testReadFromPositionLargerThanBlobLength(Predicate<RequestedRangeNotSatisfiedException> responseCodeChecker) {
         final var blobName = randomIdentifier();
         final var blobBytes = randomBytesReference(randomIntBetween(100, 2_000));

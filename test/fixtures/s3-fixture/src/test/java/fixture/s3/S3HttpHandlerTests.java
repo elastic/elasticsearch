@@ -383,6 +383,37 @@ public class S3HttpHandlerTests extends ESTestCase {
 
     }
 
+    public void testPreventObjectOverwrite() {
+        final var handler = new S3HttpHandler("bucket", "path");
+
+        final var body = randomBytesReference(50);
+        assertEquals(RestStatus.OK, handleRequest(handler, "PUT", "/bucket/path/blob", body, ifNoneMatchHeader()).status());
+        assertEquals(
+            RestStatus.PRECONDITION_FAILED,
+            handleRequest(handler, "PUT", "/bucket/path/blob", body, ifNoneMatchHeader()).status()
+        );
+
+        // multipart upload
+        final var createUploadResponse = handleRequest(handler, "POST", "/bucket/path/blob?uploads");
+        final var uploadId = getUploadId(createUploadResponse.body());
+
+        final var part1 = randomAlphaOfLength(50);
+        final var uploadPart1Response = handleRequest(handler, "PUT", "/bucket/path/blob?uploadId=" + uploadId + "&partNumber=1", part1);
+        final var part1Etag = Objects.requireNonNull(uploadPart1Response.etag());
+
+        assertEquals(
+            RestStatus.PRECONDITION_FAILED,
+            handleRequest(handler, "POST", "/bucket/path/blob?uploadId=" + uploadId, new BytesArray(Strings.format("""
+                <?xml version="1.0" encoding="UTF-8"?>
+                <CompleteMultipartUpload xmlns="http://s3.amazonaws.com/doc/2006-03-01/">
+                   <Part>
+                      <ETag>%s</ETag>
+                      <PartNumber>1</PartNumber>
+                   </Part>
+                </CompleteMultipartUpload>""", part1Etag)), ifNoneMatchHeader()).status()
+        );
+    }
+
     private void runExtractPartETagsTest(String body, String... expectedTags) {
         assertEquals(List.of(expectedTags), S3HttpHandler.extractPartEtags(new BytesArray(body.getBytes(StandardCharsets.UTF_8))));
     }
@@ -464,6 +495,12 @@ public class S3HttpHandlerTests extends ESTestCase {
     private static Headers contentRangeHeader(long start, long end, long length) {
         var headers = new Headers();
         headers.put("Content-Range", List.of(Strings.format("bytes %d-%d/%d", start, end, length)));
+        return headers;
+    }
+
+    private static Headers ifNoneMatchHeader() {
+        var headers = new Headers();
+        headers.put("If-None-Match", List.of("*"));
         return headers;
     }
 

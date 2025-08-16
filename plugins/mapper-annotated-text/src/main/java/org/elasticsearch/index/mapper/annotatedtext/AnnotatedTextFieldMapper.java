@@ -20,18 +20,21 @@ import org.apache.lucene.analysis.tokenattributes.PositionLengthAttribute;
 import org.apache.lucene.analysis.tokenattributes.TypeAttribute;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
+import org.apache.lucene.document.StoredField;
 import org.apache.lucene.index.IndexOptions;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
+import org.elasticsearch.index.mapper.CompositeSyntheticFieldLoader;
 import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
-import org.elasticsearch.index.mapper.SourceFieldMapper;
+import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.mapper.StringStoredFieldFieldLoader;
+import org.elasticsearch.index.mapper.TextFamilyFieldMapper;
 import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.mapper.TextParams;
 import org.elasticsearch.index.mapper.TextSearchInfo;
@@ -61,7 +64,7 @@ import java.util.regex.Pattern;
  * This code is largely a copy of TextFieldMapper which is less than ideal -
  * my attempts to subclass TextFieldMapper failed but we can revisit this.
  **/
-public class AnnotatedTextFieldMapper extends FieldMapper {
+public class AnnotatedTextFieldMapper extends TextFamilyFieldMapper {
 
     public static final String CONTENT_TYPE = "annotated_text";
 
@@ -84,27 +87,25 @@ public class AnnotatedTextFieldMapper extends FieldMapper {
         final Parameter<String> indexOptions = TextParams.textIndexOptions(m -> builder(m).indexOptions.getValue());
         final Parameter<Boolean> norms = TextParams.norms(true, m -> builder(m).norms.getValue());
         final Parameter<String> termVectors = TextParams.termVectors(m -> builder(m).termVectors.getValue());
+        private final Parameter<Boolean> store = Parameter.storeParam(m -> builder(m).store.getValue(), false);
 
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
 
         private final IndexVersion indexCreatedVersion;
         private final TextParams.Analyzers analyzers;
-        private final boolean isSyntheticSourceEnabled;
-        private final Parameter<Boolean> store;
+        private final boolean isWithinMultiField;
 
-        public Builder(String name, IndexVersion indexCreatedVersion, IndexAnalyzers indexAnalyzers, boolean isSyntheticSourceEnabled) {
+        private boolean isSyntheticSourceEnabled;
+
+        public Builder(String name, IndexVersion indexCreatedVersion, IndexAnalyzers indexAnalyzers, boolean isWithinMultiField) {
             super(name);
             this.indexCreatedVersion = indexCreatedVersion;
+            this.isWithinMultiField = isWithinMultiField;
             this.analyzers = new TextParams.Analyzers(
                 indexAnalyzers,
                 m -> builder(m).analyzers.getIndexAnalyzer(),
                 m -> builder(m).analyzers.positionIncrementGap.getValue(),
                 indexCreatedVersion
-            );
-            this.isSyntheticSourceEnabled = isSyntheticSourceEnabled;
-            this.store = Parameter.storeParam(
-                m -> builder(m).store.getValue(),
-                () -> isSyntheticSourceEnabled && multiFieldsBuilder.hasSyntheticSourceCompatibleKeywordField() == false
             );
         }
 
@@ -135,6 +136,7 @@ public class AnnotatedTextFieldMapper extends FieldMapper {
                 store.getValue(),
                 tsi,
                 context.isSourceSynthetic(),
+                isWithinMultiField,
                 TextFieldMapper.SyntheticSourceHelper.syntheticSourceDelegate(fieldType, multiFields),
                 meta.getValue()
             );
@@ -154,6 +156,7 @@ public class AnnotatedTextFieldMapper extends FieldMapper {
                 }
             }
             BuilderParams builderParams = builderParams(this, context);
+            this.isSyntheticSourceEnabled = context.isSourceSynthetic();
             return new AnnotatedTextFieldMapper(
                 leafName(),
                 fieldType,
@@ -165,7 +168,7 @@ public class AnnotatedTextFieldMapper extends FieldMapper {
     }
 
     public static final TypeParser PARSER = new TypeParser(
-        (n, c) -> new Builder(n, c.indexVersionCreated(), c.getIndexAnalyzers(), SourceFieldMapper.isSynthetic(c.getIndexSettings()))
+        (n, c) -> new Builder(n, c.indexVersionCreated(), c.getIndexAnalyzers(), c.isWithinMultiField())
     );
 
     /**
@@ -484,15 +487,17 @@ public class AnnotatedTextFieldMapper extends FieldMapper {
     }
 
     public static final class AnnotatedTextFieldType extends TextFieldMapper.TextFieldType {
+
         private AnnotatedTextFieldType(
             String name,
             boolean store,
             TextSearchInfo tsi,
             boolean isSyntheticSource,
+            boolean isWithinMultiField,
             KeywordFieldMapper.KeywordFieldType syntheticSourceDelegate,
             Map<String, String> meta
         ) {
-            super(name, true, store, tsi, isSyntheticSource, syntheticSourceDelegate, meta, false, false);
+            super(name, true, store, tsi, isSyntheticSource, isWithinMultiField, syntheticSourceDelegate, meta, false, false);
         }
 
         public AnnotatedTextFieldType(String name, Map<String, String> meta) {
@@ -505,9 +510,9 @@ public class AnnotatedTextFieldMapper extends FieldMapper {
         }
     }
 
+    private final IndexVersion indexCreatedVersion;
     private final FieldType fieldType;
     private final Builder builder;
-
     private final NamedAnalyzer indexAnalyzer;
 
     protected AnnotatedTextFieldMapper(
@@ -517,11 +522,26 @@ public class AnnotatedTextFieldMapper extends FieldMapper {
         BuilderParams builderParams,
         Builder builder
     ) {
-        super(simpleName, mappedFieldType, builderParams);
+        super(
+            simpleName,
+            builder.indexCreatedVersion,
+            builder.isSyntheticSourceEnabled,
+            builder.isWithinMultiField,
+            mappedFieldType,
+            builderParams
+        );
+
         assert fieldType.tokenized();
+
         this.fieldType = freezeAndDeduplicateFieldType(fieldType);
         this.builder = builder;
         this.indexAnalyzer = wrapAnalyzer(builder.analyzers.getIndexAnalyzer());
+        this.indexCreatedVersion = builder.indexCreatedVersion;
+    }
+
+    @Override
+    public AnnotatedTextFieldType fieldType() {
+        return (AnnotatedTextFieldType) super.fieldType();
     }
 
     @Override
@@ -543,6 +563,18 @@ public class AnnotatedTextFieldMapper extends FieldMapper {
             if (fieldType.omitNorms()) {
                 context.addToFieldNames(fieldType().name());
             }
+        } else if (needsToSupportSyntheticSource() && fieldType.stored() == false) {
+            // if synthetic source needs to be supported, yet the field isn't stored, then we need to rely on something
+            // else to support synthetic source
+
+            // if we can rely on the synthetic source delegate for synthetic source, then return
+            if (fieldType().canUseSyntheticSourceDelegateForSyntheticSource(value)) {
+                return;
+            }
+
+            // otherwise, we need to store a copy of this value so that synthetic source can load it
+            final String fieldName = fieldType().syntheticSourceFallbackFieldName();
+            context.doc().add(new StoredField(fieldName, value));
         }
     }
 
@@ -553,8 +585,7 @@ public class AnnotatedTextFieldMapper extends FieldMapper {
 
     @Override
     public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(leafName(), builder.indexCreatedVersion, builder.analyzers.indexAnalyzers, builder.isSyntheticSourceEnabled)
-            .init(this);
+        return new Builder(leafName(), builder.indexCreatedVersion, builder.analyzers.indexAnalyzers, isWithinMultiField).init(this);
     }
 
     @Override
@@ -568,11 +599,31 @@ public class AnnotatedTextFieldMapper extends FieldMapper {
             });
         }
 
+        return new SyntheticSourceSupport.Native(() -> syntheticFieldLoader(fullPath(), leafName()));
+    }
+
+    private SourceLoader.SyntheticFieldLoader syntheticFieldLoader(String fullFieldName, String leafFieldName) {
+        // since we don't know whether the delegate field loader can be used for synthetic source until parsing, we
+        // need to check both this field and the delegate
+
+        // first field loader, representing this field
+        final String fieldName = fieldType().syntheticSourceFallbackFieldName();
+        final var thisFieldLayer = new CompositeSyntheticFieldLoader.StoredFieldLayer(fieldName) {
+            @Override
+            protected void writeValue(Object value, XContentBuilder b) throws IOException {
+                b.value(value.toString());
+            }
+        };
+
+        final CompositeSyntheticFieldLoader fieldLoader = new CompositeSyntheticFieldLoader(leafFieldName, fullFieldName, thisFieldLayer);
+
+        // second loader, representing a delegate field, if one exists
         var kwd = TextFieldMapper.SyntheticSourceHelper.getKeywordFieldMapperForSyntheticSource(this);
         if (kwd != null) {
-            return new SyntheticSourceSupport.Native(() -> kwd.syntheticFieldLoader(fullPath(), leafName()));
+            // merge the two field loaders into one
+            return fieldLoader.mergedWith(kwd.syntheticFieldLoader(fullPath(), leafName()));
         }
 
-        return super.syntheticSourceSupport();
+        return fieldLoader;
     }
 }

@@ -117,10 +117,8 @@ public class HttpClientManager implements Closeable {
         TimeValue connectionTtl
     ) {
         // Set the sslStrategy to ensure an encrypted connection, as Elastic Inference Service requires it.
-        SSLIOSessionStrategy sslioSessionStrategy = sslService.sslIOSessionStrategy(
-            sslService.getSSLConfiguration(ELASTIC_INFERENCE_SERVICE_SSL_CONFIGURATION_PREFIX)
-        );
-
+        final SSLIOSessionStrategy sslioSessionStrategy = sslService.profile(ELASTIC_INFERENCE_SERVICE_SSL_CONFIGURATION_PREFIX)
+            .ioSessionStrategy4();
         PoolingNHttpClientConnectionManager connectionManager = createConnectionManager(sslioSessionStrategy, connectionTtl);
         return new HttpClientManager(settings, connectionManager, threadPool, clusterService, throttlerManager);
     }

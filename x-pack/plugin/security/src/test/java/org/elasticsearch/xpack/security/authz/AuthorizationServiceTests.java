@@ -336,7 +336,8 @@ public class AuthorizationServiceTests extends ESTestCase {
             operatorPrivilegesService,
             RESTRICTED_INDICES,
             new AuthorizationDenialMessages.Default(),
-            projectResolver
+            projectResolver,
+            null
         );
     }
 
@@ -1769,7 +1770,8 @@ public class AuthorizationServiceTests extends ESTestCase {
             operatorPrivilegesService,
             RESTRICTED_INDICES,
             new AuthorizationDenialMessages.Default(),
-            projectResolver
+            projectResolver,
+            null
         );
 
         RoleDescriptor role = new RoleDescriptor(
@@ -1819,7 +1821,8 @@ public class AuthorizationServiceTests extends ESTestCase {
             operatorPrivilegesService,
             RESTRICTED_INDICES,
             new AuthorizationDenialMessages.Default(),
-            projectResolver
+            projectResolver,
+            null
         );
 
         RoleDescriptor role = new RoleDescriptor(
@@ -3357,7 +3360,8 @@ public class AuthorizationServiceTests extends ESTestCase {
             operatorPrivilegesService,
             RESTRICTED_INDICES,
             new AuthorizationDenialMessages.Default(),
-            projectResolver
+            projectResolver,
+            null
         );
 
         Subject subject = new Subject(new User("test", "a role"), mock(RealmRef.class));
@@ -3513,7 +3517,8 @@ public class AuthorizationServiceTests extends ESTestCase {
             operatorPrivilegesService,
             RESTRICTED_INDICES,
             new AuthorizationDenialMessages.Default(),
-            projectResolver
+            projectResolver,
+            null
         );
         Authentication authentication;
         try (StoredContext ignore = threadContext.stashContext()) {

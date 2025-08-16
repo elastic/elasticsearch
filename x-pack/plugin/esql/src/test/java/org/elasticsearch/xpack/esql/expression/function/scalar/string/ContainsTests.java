@@ -73,9 +73,9 @@ public class ContainsTests extends AbstractScalarFunctionTestCase {
         suppliers.add(supplier("a tiger", "ti", true));
         suppliers.add(supplier("a tiger", "ige", true));
         suppliers.add(supplier("世界世", "界", true));
-        suppliers.add(supplier("a tiger", "tigers", true));
-        suppliers.add(supplier("a tiger", "ipa", true));
-        suppliers.add(supplier("世界世", "\uD83C\uDF0D", true));
+        suppliers.add(supplier("a tiger", "tigers", false));
+        suppliers.add(supplier("a tiger", "ipa", false));
+        suppliers.add(supplier("世界世", "\uD83C\uDF0D", false));
 
         suppliers.add(supplier("a ti𠜎er", "𠜎er", true));
         suppliers.add(supplier("a ti𠜎er", "i𠜎e", true));

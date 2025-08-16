@@ -60,6 +60,19 @@ public class BlockSerializationTests extends SerializationTestCase {
         assertConstantBlockImpl(block);
     }
 
+    public void testConstantAggregateMetricDoubleBlock() throws IOException {
+        // ....wait it doesn't really make sense to test this does it
+        // since the Literal shouldn't be getting used outside of tests............
+        Block block = blockFactory.newConstantAggregateMetricDoubleBlock(
+            new AggregateMetricDoubleBlockBuilder.AggregateMetricDoubleLiteral(randomDouble(), randomDouble(), randomDouble(), randomInt()),
+            randomIntBetween(1, 8192)
+        );
+        // can't do .asVector().isConstant()
+        try (block; Block deserBlock = serializeDeserializeBlock(block)) {
+            EqualsHashCodeTestUtils.checkEqualsAndHashCode(block, unused -> deserBlock);
+        }
+    }
+
     private void assertConstantBlockImpl(Block origBlock) throws IOException {
         assertThat(origBlock.asVector().isConstant(), is(true));
         try (origBlock; Block deserBlock = serializeDeserializeBlock(origBlock)) {
@@ -120,6 +133,13 @@ public class BlockSerializationTests extends SerializationTestCase {
         assertEmptyBlock(blockFactory.newBytesRefVectorBuilder(0).build().asBlock());
         try (BytesRefVector toFilter = blockFactory.newBytesRefVectorBuilder(0).appendBytesRef(randomBytesRef()).build()) {
             assertEmptyBlock(toFilter.filter().asBlock());
+        }
+    }
+
+    public void testEmptyAggregateMetricDoubleBlock() throws IOException {
+        assertEmptyBlock(blockFactory.newAggregateMetricDoubleBlockBuilder(0).build());
+        try (AggregateMetricDoubleBlock toFilter = blockFactory.newAggregateMetricDoubleBlockBuilder(0).appendNull().build()) {
+            assertEmptyBlock(toFilter.filter());
         }
     }
 

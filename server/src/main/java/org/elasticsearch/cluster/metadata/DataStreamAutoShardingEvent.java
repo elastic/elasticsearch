@@ -21,6 +21,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.lang.invoke.MethodHandles;
 import java.util.function.LongSupplier;
 
 /**
@@ -36,10 +37,11 @@ public record DataStreamAutoShardingEvent(String triggerIndexName, int targetNum
     public static final ParseField EVENT_TIME = new ParseField("event_time");
     public static final ParseField EVENT_TIME_MILLIS = new ParseField("event_time_millis");
 
-    public static final ConstructingObjectParser<DataStreamAutoShardingEvent, Void> PARSER = new ConstructingObjectParser<>(
+    public static final ConstructingObjectParser<DataStreamAutoShardingEvent, Void> PARSER = ConstructingObjectParser.forRecord(
         "auto_sharding",
         false,
-        (args, unused) -> new DataStreamAutoShardingEvent((String) args[0], (int) args[1], (long) args[2])
+        DataStreamAutoShardingEvent.class,
+        MethodHandles.lookup()
     );
 
     static {

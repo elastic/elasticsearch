@@ -561,6 +561,9 @@ tests:
 - class: org.elasticsearch.test.rest.yaml.CcsCommonYamlTestSuiteIT
   method: test {p0=field_caps/10_basic/Field caps for boolean field with only doc values}
   issue: https://github.com/elastic/elasticsearch/issues/133019
+- class: org.elasticsearch.test.rest.yaml.CcsCommonYamlTestSuiteIT
+  method: test {p0=search/160_exists_query/Test exists query on unmapped boolean field}
+  issue: https://github.com/elastic/elasticsearch/issues/133029
 
 # Examples:
 #

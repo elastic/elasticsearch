@@ -29,8 +29,8 @@ dependencies {
   implementation 'org.ow2.asm:asm:9.7.1'
   implementation 'org.ow2.asm:asm-tree:9.7.1'
 
-  api "org.bouncycastle:bcpg-fips:1.0.7.1"
-  api "org.bouncycastle:bc-fips:1.0.2.5"
+  api "org.bouncycastle:bcpg-fips:2.1.11"
+  api "org.bouncycastle:bc-fips:2.1.1"
   testImplementation project(":test:framework")
   testImplementation "com.google.jimfs:jimfs:${versions.jimfs}"
   testRuntimeOnly "com.google.guava:guava:${versions.jimfs_guava}"
@@ -49,33 +49,4 @@ tasks.named("test").configure {
   if (OS.current() == OS.LINUX) {
     systemProperty 'java.security.egd', 'file:/dev/urandom'
   }
-}
-
-/*
- * these two classes intentionally use the following JDK internal APIs in order to offer the necessary
- * functionality
- *
- * sun.security.internal.spec.TlsKeyMaterialParameterSpec
- * sun.security.internal.spec.TlsKeyMaterialSpec
- * sun.security.internal.spec.TlsMasterSecretParameterSpec
- * sun.security.internal.spec.TlsPrfParameterSpec
- * sun.security.internal.spec.TlsRsaPremasterSecretParameterSpec
- * sun.security.provider.SecureRandom
- *
- */
-tasks.named("thirdPartyAudit").configure {
-  ignoreViolations(
-          'org.bouncycastle.jcajce.provider.BouncyCastleFipsProvider$CoreSecureRandom',
-          'org.bouncycastle.jcajce.provider.ProvSunTLSKDF',
-          'org.bouncycastle.jcajce.provider.ProvSunTLSKDF$BaseTLSKeyGeneratorSpi',
-          'org.bouncycastle.jcajce.provider.ProvSunTLSKDF$TLSKeyMaterialGenerator',
-          'org.bouncycastle.jcajce.provider.ProvSunTLSKDF$TLSKeyMaterialGenerator$2',
-          'org.bouncycastle.jcajce.provider.ProvSunTLSKDF$TLSMasterSecretGenerator',
-          'org.bouncycastle.jcajce.provider.ProvSunTLSKDF$TLSMasterSecretGenerator$2',
-          'org.bouncycastle.jcajce.provider.ProvSunTLSKDF$TLSPRFKeyGenerator',
-          'org.bouncycastle.jcajce.provider.ProvSunTLSKDF$TLSRsaPreMasterSecretGenerator',
-          'org.bouncycastle.jcajce.provider.ProvSunTLSKDF$TLSRsaPreMasterSecretGenerator$2',
-          'org.bouncycastle.jcajce.provider.ProvSunTLSKDF$TLSExtendedMasterSecretGenerator',
-          'org.bouncycastle.jcajce.provider.ProvSunTLSKDF$TLSExtendedMasterSecretGenerator$2'
-  )
 }

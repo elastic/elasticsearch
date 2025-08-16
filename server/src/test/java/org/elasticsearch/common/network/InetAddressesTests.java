@@ -19,11 +19,13 @@ package org.elasticsearch.common.network;
 
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.Text;
 import org.hamcrest.Matchers;
 
 import java.net.InetAddress;
 import java.net.NetworkInterface;
 import java.net.UnknownHostException;
+import java.nio.charset.StandardCharsets;
 import java.util.Enumeration;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -171,12 +173,16 @@ public class InetAddressesTests extends ESTestCase {
     }
 
     public void testConvertDottedQuadToHex() throws UnknownHostException {
-        String[] ipStrings = { "7::0.128.0.127", "7::0.128.0.128", "7::128.128.0.127", "7::0.128.128.127" };
+        String[] ipStrings = { "7::0.128.0.127", "7::0.128.0.128", "7::128.128.0.127", "7::0.128.128.127", "::ffff:10.10.1.1" };
 
         for (String ipString : ipStrings) {
             // Shouldn't hit DNS, because it's an IP string literal.
             InetAddress ipv6Addr = InetAddress.getByName(ipString);
             assertEquals(ipv6Addr, InetAddresses.forString(ipString));
+            byte[] asBytes = ipString.getBytes(StandardCharsets.UTF_8);
+            byte[] bytes = new byte[32];
+            System.arraycopy(asBytes, 0, bytes, 8, asBytes.length);
+            assertEquals(ipv6Addr, InetAddresses.forString(bytes, 8, asBytes.length));
             assertTrue(InetAddresses.isInetAddress(ipString));
         }
     }
@@ -243,5 +249,14 @@ public class InetAddressesTests extends ESTestCase {
         cidr = InetAddresses.parseCidr("::fffe:0:0/128");
         assertEquals(InetAddresses.forString("::fffe:0:0"), cidr.v1());
         assertEquals(Integer.valueOf(128), cidr.v2());
+    }
+
+    public void testEncodeAsIpv6() throws Exception {
+        assertEquals(16, InetAddresses.encodeAsIpv6(new Text("::1")).length);
+        assertEquals(16, InetAddresses.encodeAsIpv6(new Text("192.168.0.0")).length);
+        assertEquals(
+            "192.168.0.0",
+            InetAddresses.toAddrString(InetAddress.getByAddress(InetAddresses.encodeAsIpv6(new Text("192.168.0.0"))))
+        );
     }
 }

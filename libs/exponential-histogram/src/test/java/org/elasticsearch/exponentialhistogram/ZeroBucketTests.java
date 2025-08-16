@@ -28,4 +28,33 @@ public class ZeroBucketTests extends ExponentialHistogramTestCase {
     public void testMinimalBucketHasZeroThreshold() {
         assertThat(ZeroBucket.minimalWithCount(42).zeroThreshold(), equalTo(0.0));
     }
+
+    public void testExactThresholdPreserved() {
+        ZeroBucket bucket = new ZeroBucket(3.0, 10);
+        assertThat(bucket.zeroThreshold(), equalTo(3.0));
+    }
+
+    public void testMergingPreservesExactThreshold() {
+        ZeroBucket bucketA = new ZeroBucket(3.0, 10);
+        ZeroBucket bucketB = new ZeroBucket(3.5, 20);
+        ZeroBucket merged = bucketA.merge(bucketB);
+        assertThat(merged.zeroThreshold(), equalTo(3.5));
+        assertThat(merged.count(), equalTo(30L));
+    }
+
+    public void testBucketCollapsingPreservesExactThreshold() {
+        FixedCapacityExponentialHistogram histo = createAutoReleasedHistogram(2);
+        histo.resetBuckets(0);
+        histo.tryAddBucket(0, 42, true); // bucket [1,2]
+
+        ZeroBucket bucketA = new ZeroBucket(3.0, 10);
+
+        CopyableBucketIterator iterator = histo.positiveBuckets().iterator();
+        ZeroBucket merged = bucketA.collapseOverlappingBuckets(iterator);
+
+        assertThat(iterator.hasNext(), equalTo(false));
+        assertThat(merged.zeroThreshold(), equalTo(3.0));
+        assertThat(merged.count(), equalTo(52L));
+    }
+
 }

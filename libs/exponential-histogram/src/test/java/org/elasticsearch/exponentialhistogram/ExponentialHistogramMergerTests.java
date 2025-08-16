@@ -151,7 +151,12 @@ public class ExponentialHistogramMergerTests extends ExponentialHistogramTestCas
             double[] vals = values.stream().mapToDouble(Double::doubleValue).toArray();
             try (ReleasableExponentialHistogram shuffled = ExponentialHistogram.create(20, breaker(), vals)) {
                 assertThat("Expected same scale", shuffled.scale(), equalTo(reference.scale()));
-                assertThat("Expected same zero-bucket", shuffled.zeroBucket(), equalTo(reference.zeroBucket()));
+                assertThat(
+                    "Expected same threshold for zero-bucket",
+                    shuffled.zeroBucket().zeroThreshold(),
+                    equalTo(reference.zeroBucket().zeroThreshold())
+                );
+                assertThat("Expected same count for zero-bucket", shuffled.zeroBucket().count(), equalTo(reference.zeroBucket().count()));
                 assertBucketsEqual(shuffled.negativeBuckets(), reference.negativeBuckets());
                 assertBucketsEqual(shuffled.positiveBuckets(), reference.positiveBuckets());
             }

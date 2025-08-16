@@ -1,0 +1,210 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
+ */
+
+package org.elasticsearch.gradle.internal.transport;
+
+import org.gradle.api.file.DirectoryProperty;
+import org.gradle.api.services.BuildService;
+import org.gradle.api.services.BuildServiceParameters;
+import org.gradle.process.ExecOperations;
+import org.gradle.process.ExecResult;
+
+import javax.inject.Inject;
+
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BiFunction;
+
+public abstract class TransportVersionResourcesService implements BuildService<TransportVersionResourcesService.Parameters> {
+
+    public interface Parameters extends BuildServiceParameters {
+        DirectoryProperty getResourcesDirectory();
+        DirectoryProperty getRootDirectory();
+    }
+
+    @Inject
+    public abstract ExecOperations getExecOperations();
+
+    private static final Path DEFINITIONS_DIR = Path.of("definitions");
+    private static final Path NAMED_DIR = DEFINITIONS_DIR.resolve("named");
+    private static final Path INITIAL_DIR = DEFINITIONS_DIR.resolve("initial");
+    private static final Path LATEST_DIR = Path.of("latest");
+
+    private final Path resourcesDir;
+    private final Path rootDir;
+    private final AtomicReference<Set<String>> mainResources = new AtomicReference<>(null);
+    private final AtomicReference<Set<String>> changedResources = new AtomicReference<>(null);
+
+    @Inject
+    public TransportVersionResourcesService(Parameters params) {
+        this.resourcesDir = params.getResourcesDirectory().get().getAsFile().toPath();
+        this.rootDir = params.getRootDirectory().get().getAsFile().toPath();
+    }
+
+    /**
+     * Return the transport version resources directory for this repository.
+     * This should be an input to any tasks reading resources from this service.
+     */
+    Path getResourcesDir() {
+        return resourcesDir;
+    }
+
+    /**
+     * Return the transport version definitions directory for this repository.
+     * This should be an input to any tasks that only read definitions from this service.
+     */
+    Path getDefinitionsDir() {
+        return resourcesDir.resolve(DEFINITIONS_DIR);
+    }
+
+    // return the path, relative to the resources dir, of a named definition
+    private Path getNamedDefinitionRelativePath(String name) {
+        return NAMED_DIR.resolve(name + ".csv");
+    }
+
+    /** Return all named definitions, mapped by their name. */
+    Map<String, TransportVersionDefinition> getNamedDefinitions() throws IOException {
+        Map<String, TransportVersionDefinition> definitions = new HashMap<>();
+        // temporarily include initial in named until validation understands the distinction
+        for (var dir : List.of(NAMED_DIR, INITIAL_DIR)) {
+            try (var definitionsStream = Files.list(resourcesDir.resolve(dir))) {
+                for (var definitionFile : definitionsStream.toList()) {
+                    String contents = Files.readString(definitionFile, StandardCharsets.UTF_8).strip();
+                    var definition = TransportVersionDefinition.fromString(definitionFile.getFileName().toString(), contents);
+                    definitions.put(definition.name(), definition);
+                }
+            }
+        }
+        return definitions;
+    }
+
+    /** Test whether the given named definition exists */
+    TransportVersionDefinition getNamedDefinitionFromMain(String name) {
+        String resourcePath = getNamedDefinitionRelativePath(name).toString();
+        return getMainFile(resourcePath, TransportVersionDefinition::fromString);
+    }
+
+    /** Test whether the given named definition exists */
+    boolean namedDefinitionExists(String name) {
+        return Files.exists(resourcesDir.resolve(getNamedDefinitionRelativePath(name)));
+    }
+
+    /** Return the path within the repository of the given named definition */
+    Path getRepositoryPath(TransportVersionDefinition definition) {
+        return rootDir.relativize(resourcesDir.resolve(getNamedDefinitionRelativePath(definition.name())));
+    }
+
+    /** Read all latest files and return them mapped by their release branch */
+    Map<String, TransportVersionLatest> getLatestByReleaseBranch() throws IOException {
+        Map<String, TransportVersionLatest> latests = new HashMap<>();
+        try (var stream = Files.list(resourcesDir.resolve(LATEST_DIR))) {
+            for (var latestFile : stream.toList()) {
+                String contents = Files.readString(latestFile, StandardCharsets.UTF_8).strip();
+                var latest = TransportVersionLatest.fromString(latestFile.getFileName().toString(), contents);
+                latests.put(latest.name(), latest);
+            }
+        }
+        return latests;
+    }
+
+    /** Retrieve the latest transport version for the given release branch on main */
+    TransportVersionLatest getLatestFromMain(String releaseBranch) {
+        String resourcePath = getLatestRelativePath(releaseBranch).toString();
+        return getMainFile(resourcePath, TransportVersionLatest::fromString);
+    }
+
+    /** Return the path within the repository of the given latest */
+    Path getRepositoryPath(TransportVersionLatest latest) {
+        return rootDir.relativize(resourcesDir.resolve(getLatestRelativePath(latest.branch())));
+    }
+
+    private Path getLatestRelativePath(String releaseBranch) {
+        return LATEST_DIR.resolve(releaseBranch + ".csv");
+    }
+
+    // Return the transport version resources paths that exist in main
+    private Set<String> getMainResources() {
+        if (mainResources.get() == null) {
+            synchronized (mainResources) {
+                String output = gitCommand("ls-tree", "--name-only", "-r", "main", ".");
+
+                HashSet<String> resources = new HashSet<>();
+                Collections.addAll(resources, output.split(System.lineSeparator()));
+                mainResources.set(resources);
+            }
+        }
+        return mainResources.get();
+    }
+
+    // Return the transport version resources paths that have been changed relative to main
+    private Set<String> getChangedResources() {
+        if (changedResources.get() == null) {
+            synchronized (changedResources) {
+                String output = gitCommand("diff", "--name-only", "main", ".");
+
+                HashSet<String> resources = new HashSet<>();
+                Collections.addAll(resources, output.split(System.lineSeparator()));
+                changedResources.set(resources);
+            }
+        }
+        return changedResources.get();
+    }
+
+    // Read a trasnport version resource from the main branch, or return null if it doesn't exist on main
+    private <T> T getMainFile(String resourcePath, BiFunction<String, String, T> parser) {
+        if (getMainResources().contains(resourcePath) == false) {
+            return null;
+        }
+        String content = gitCommand("show", "main:./" + resourcePath).strip();
+        return parser.apply(resourcePath, content);
+    }
+
+    // run a git command, relative to the transport version resources directory
+    private String gitCommand(String... args) {
+        ByteArrayOutputStream stdout = new ByteArrayOutputStream();
+
+        List<String> command = new ArrayList<>();
+        Collections.addAll(command, "git", "-C", getResourcesDir().toString());
+        Collections.addAll(command, args);
+
+        ExecResult result = getExecOperations().exec(spec -> {
+            spec.setCommandLine(command);
+            spec.setStandardOutput(stdout);
+            spec.setErrorOutput(stdout);
+            spec.setIgnoreExitValue(true);
+        });
+
+        if (result.getExitValue() != 0) {
+            throw new RuntimeException(
+                "git command failed with exit code "
+                    + result.getExitValue()
+                    + System.lineSeparator()
+                    + "command: "
+                    + String.join(" ", command)
+                    + System.lineSeparator()
+                    + "output:"
+                    + System.lineSeparator()
+                    + stdout.toString(StandardCharsets.UTF_8)
+            );
+        }
+
+        return stdout.toString(StandardCharsets.UTF_8);
+    }
+}

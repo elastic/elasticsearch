@@ -241,7 +241,8 @@ public class EnrichPolicyResolver {
                     DataType.fromTypeName(field.getDataType().typeName()),
                     field.getProperties(),
                     field.isAggregatable(),
-                    field.isAlias()
+                    field.isAlias(),
+                    field.getTimeSeriesFieldType()
                 );
                 EsField old = mappings.putIfAbsent(m.getKey(), field);
                 if (old != null && old.getDataType().equals(field.getDataType()) == false) {

@@ -55,6 +55,7 @@ import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.ReferenceDocs;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.TriConsumer;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
@@ -149,6 +150,8 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
 
     public static final String NO_FEATURE_STATES_VALUE = "none";
 
+    private final boolean isStateless;
+
     private final ClusterService clusterService;
 
     private final RerouteService rerouteService;
@@ -202,7 +205,19 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
         Setting.Property.Dynamic
     );
 
+    /**
+     * Setting that specifies the max number of shard snapshots that can run on a data node. Default is 0 which means no limit.
+     */
+    public static final Setting<Integer> SHARD_SNAPSHOT_PER_NODE_LIMIT_SETTING = Setting.intSetting(
+        "snapshot.shard_snapshot_per_node_limit",
+        0,
+        0,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
     private volatile int maxConcurrentOperations;
+    private volatile int shardSnapshotPerNodeLimit;
 
     public SnapshotsService(
         Settings settings,
@@ -215,6 +230,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
         boolean serializeProjectMetadata,
         SnapshotMetrics snapshotMetrics
     ) {
+        this.isStateless = DiscoveryNode.isStateless(settings);
         this.clusterService = clusterService;
         this.rerouteService = rerouteService;
         this.indexNameExpressionResolver = indexNameExpressionResolver;
@@ -230,6 +246,9 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
             maxConcurrentOperations = MAX_CONCURRENT_SNAPSHOT_OPERATIONS_SETTING.get(settings);
             clusterService.getClusterSettings()
                 .addSettingsUpdateConsumer(MAX_CONCURRENT_SNAPSHOT_OPERATIONS_SETTING, i -> maxConcurrentOperations = i);
+            clusterService.getClusterSettings()
+                .initializeAndWatch(SHARD_SNAPSHOT_PER_NODE_LIMIT_SETTING, i -> shardSnapshotPerNodeLimit = i);
+
         }
         this.systemIndices = systemIndices;
         this.serializeProjectMetadata = serializeProjectMetadata;
@@ -798,6 +817,12 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                 final SnapshotsInProgress snapshotsInProgress = SnapshotsInProgress.get(currentState);
                 final SnapshotDeletionsInProgress deletesInProgress = SnapshotDeletionsInProgress.get(currentState);
                 DiscoveryNodes nodes = currentState.nodes();
+                final var perNodeShardSnapshotCounter = new PerNodeShardSnapshotCounter(
+                    shardSnapshotPerNodeLimit,
+                    snapshotsInProgress,
+                    nodes,
+                    isStateless
+                );
                 final EnumSet<SnapshotsInProgress.State> statesToUpdate;
                 if (changedNodes) {
                     // If we are reacting to a change in the cluster node configuration we have to update the shard states of both started
@@ -891,6 +916,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                                         currentState.routingTable(projectId),
                                         nodes,
                                         snapshotsInProgress::isNodeIdForRemoval,
+                                        perNodeShardSnapshotCounter,
                                         knownFailures
                                     );
                                 if (shards != null) {
@@ -1581,6 +1607,8 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                 }
                 // Snapshot ids that will have to be physically deleted from the repository
                 final Set<SnapshotId> snapshotIdsRequiringCleanup = new HashSet<>(snapshotIds);
+
+                final List<Runnable> completeAbortedAssignedQueuedRunnables = new ArrayList<>();
                 final SnapshotsInProgress updatedSnapshots = snapshotsInProgress.createCopyWithUpdatedEntriesForRepo(
                     projectId,
                     repositoryName,
@@ -1588,7 +1616,12 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                         if (existing.state() == SnapshotsInProgress.State.STARTED
                             && snapshotIdsRequiringCleanup.contains(existing.snapshot().getSnapshotId())) {
                             // snapshot is started - mark every non completed shard as aborted
-                            final SnapshotsInProgress.Entry abortedEntry = existing.abort();
+                            final SnapshotsInProgress.Entry abortedEntry = existing.abort(
+                                currentState.nodes().getLocalNodeId(),
+                                ((shardId, shardSnapshotStatus) -> completeAbortedAssignedQueuedRunnables.add(
+                                    () -> createAndSubmitRequestToUpdateSnapshotState(existing.snapshot(), shardId, shardSnapshotStatus)
+                                ))
+                            );
                             if (abortedEntry == null) {
                                 // No work has been done for this snapshot yet so we remove it from the cluster state directly
                                 final Snapshot existingNotYetStartedSnapshot = existing.snapshot();
@@ -1606,6 +1639,9 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                         return existing;
                     }).filter(Objects::nonNull).toList()
                 );
+                for (var runnable : completeAbortedAssignedQueuedRunnables) {
+                    runnable.run();
+                }
                 if (snapshotIdsRequiringCleanup.isEmpty()) {
                     // We only saw snapshots that could be removed from the cluster state right away, no need to update the deletions
                     return SnapshotsServiceUtils.updateWithSnapshots(currentState, updatedSnapshots, null);
@@ -1638,7 +1674,9 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                         List.copyOf(snapshotIdsRequiringCleanup),
                         threadPool.absoluteTimeInMillis(),
                         repositoryData.getGenId(),
-                        updatedSnapshots.forRepo(projectId, repositoryName).stream().noneMatch(SnapshotsServiceUtils::isWritingToRepository)
+                        updatedSnapshots.forRepo(projectId, repositoryName)
+                            .stream()
+                            .noneMatch(SnapshotsServiceUtils::isWritingToRepositoryOrAssignedQueued)
                             && deletionsInProgress.hasExecutingDeletion(projectId, repositoryName) == false
                                 ? SnapshotDeletionsInProgress.State.STARTED
                                 : SnapshotDeletionsInProgress.State.WAITING
@@ -2028,6 +2066,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                 deleteEntry.projectId()
             );
             readyDeletions = res.v2();
+
             return res.v1();
         }
 
@@ -2191,7 +2230,13 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                                 entry.indices().values(),
                                 entry.version().onOrAfter(SHARD_GEN_IN_REPO_DATA_VERSION),
                                 repositoryData,
-                                repoName
+                                repoName,
+                                new PerNodeShardSnapshotCounter(
+                                    shardSnapshotPerNodeLimit,
+                                    snapshotsInProgress,
+                                    currentState.nodes(),
+                                    isStateless
+                                )
                             );
                             final ImmutableOpenMap.Builder<ShardId, ShardSnapshotStatus> updatedAssignmentsBuilder = ImmutableOpenMap
                                 .builder(entry.shards());
@@ -2204,7 +2249,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                                         : "Missing assignment for [" + sid + "]";
                                     updatedAssignmentsBuilder.put(sid, ShardSnapshotStatus.MISSING);
                                 } else {
-                                    if (updated.isActive()) {
+                                    if (updated.isActiveOrAssignedQueued()) {
                                         markShardReassigned(shardId, reassignedShardIds);
                                     }
                                     updatedAssignmentsBuilder.put(sid, updated);
@@ -2333,18 +2378,26 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
         // handles the completion of some shard-snapshot updates, performing the next possible actions
         private final ShardSnapshotUpdateCompletionHandler completionHandler;
 
+        private final TriConsumer<Snapshot, ShardId, ShardSnapshotStatus> shardStatusUpdateConsumer;
+
         // entries that became complete due to this batch of updates
         private final List<SnapshotsInProgress.Entry> newlyCompletedEntries = new ArrayList<>();
+
+        private final PerNodeShardSnapshotCounter perNodeShardSnapshotCounter;
 
         /**
          * Sets up {@link #updatesByRepo} to organize the {@link ShardSnapshotUpdate} tasks by repository name.
          */
         SnapshotShardsUpdateContext(
             ClusterStateTaskExecutor.BatchExecutionContext<SnapshotTask> batchExecutionContext,
-            ShardSnapshotUpdateCompletionHandler completionHandler
+            ShardSnapshotUpdateCompletionHandler completionHandler,
+            TriConsumer<Snapshot, ShardId, ShardSnapshotStatus> shardStatusUpdateConsumer,
+            int shardSnapshotPerNodeLimit,
+            boolean isStateless
         ) {
             this.batchExecutionContext = batchExecutionContext;
             this.initialState = batchExecutionContext.initialState();
+            this.shardStatusUpdateConsumer = shardStatusUpdateConsumer;
             this.nodeIdRemovalPredicate = SnapshotsInProgress.get(initialState)::isNodeIdForRemoval;
             this.completionHandler = completionHandler;
 
@@ -2358,6 +2411,12 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                     ).add(task);
                 }
             }
+            this.perNodeShardSnapshotCounter = new PerNodeShardSnapshotCounter(
+                shardSnapshotPerNodeLimit,
+                SnapshotsInProgress.get(initialState),
+                initialState.nodes(),
+                isStateless
+            );
         }
 
         /**
@@ -2387,6 +2446,24 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                 updated = updated.createCopyWithUpdatedEntriesForRepo(projectRepo.projectId(), projectRepo.name(), newEntries);
             }
 
+            // Also check snapshots in all repositories to start any assigned queued shard snapshots. This is needed for both
+            // (1) Repos that have not seen updates in this batch because their snapshots may have been limited earlier
+            // due to snapshots running for a repository that is update to completion in this batch.
+            // (2) Repos that have seen updates in this batch because updates releasing capacity may all belong to later snapshots
+            // than the one has assigned-queued shards. These updates could be either for the same repo or a different repo.
+            for (var repo : updated.repos()) {
+                if (perNodeShardSnapshotCounter.hasCapacityOnAnyNode() == false) {
+                    break;
+                }
+                updated = maybeStartAssignedQueuedShardSnapshotsForRepo(
+                    repo,
+                    initialState,
+                    updated,
+                    perNodeShardSnapshotCounter,
+                    shardStatusUpdateConsumer
+                );
+            }
+
             if (changedCount > 0) {
                 logger.trace(
                     "changed cluster state triggered by [{}] snapshot state updates and resulted in starting " + "[{}] shard snapshots",
@@ -2398,6 +2475,96 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                     : updated;
             }
             return existing;
+        }
+
+        private SnapshotsInProgress maybeStartAssignedQueuedShardSnapshotsForRepo(
+            ProjectRepo projectRepo,
+            ClusterState clusterState,
+            SnapshotsInProgress snapshotsInProgress,
+            PerNodeShardSnapshotCounter perNodeShardSnapshotCounter,
+            TriConsumer<Snapshot, ShardId, ShardSnapshotStatus> shardStatusUpdateConsumer
+        ) {
+            assert perNodeShardSnapshotCounter.hasCapacityOnAnyNode() : "no capacity left on any node " + perNodeShardSnapshotCounter;
+            final List<SnapshotsInProgress.Entry> oldEntries = snapshotsInProgress.forRepo(projectRepo);
+            if (oldEntries.isEmpty() || oldEntries.stream().allMatch(entry -> entry.hasAssignedQueuedShards() == false)) {
+                return snapshotsInProgress;
+            }
+            final List<SnapshotsInProgress.Entry> newEntries = new ArrayList<>(oldEntries.size());
+            for (SnapshotsInProgress.Entry entry : oldEntries) {
+                if (entry.hasAssignedQueuedShards() && perNodeShardSnapshotCounter.hasCapacityOnAnyNode()) {
+                    final var shardsBuilder = ImmutableOpenMap.builder(entry.shards());
+                    final var changed = maybeStartAssignedQueuedShardSnapshots(
+                        clusterState,
+                        entry,
+                        snapshotsInProgress::isNodeIdForRemoval,
+                        shardsBuilder,
+                        perNodeShardSnapshotCounter,
+                        shardStatusUpdateConsumer
+                    );
+                    if (changed) {
+                        final var newEntry = entry.withShardStates(shardsBuilder.build());
+                        newEntries.add(newEntry);
+                        if (newEntry.state().completed()) {
+                            newlyCompletedEntries.add(newEntry);
+                        }
+                    } else {
+                        newEntries.add(entry);
+                    }
+                } else {
+                    newEntries.add(entry);
+                }
+            }
+            return snapshotsInProgress.createCopyWithUpdatedEntriesForRepo(projectRepo.projectId(), projectRepo.name(), newEntries);
+        }
+
+        private boolean maybeStartAssignedQueuedShardSnapshots(
+            ClusterState clusterState,
+            SnapshotsInProgress.Entry entry,
+            Predicate<String> nodeIdRemovalPredicate,
+            ImmutableOpenMap.Builder<ShardId, ShardSnapshotStatus> shardsBuilder,
+            PerNodeShardSnapshotCounter perNodeShardSnapshotCounter,
+            TriConsumer<Snapshot, ShardId, ShardSnapshotStatus> shardStatusUpdateConsumer
+        ) {
+            assert entry.hasAssignedQueuedShards() : "entry has no assigned queued shards: " + entry;
+            assert perNodeShardSnapshotCounter.hasCapacityOnAnyNode() : "no capacity left on any node " + perNodeShardSnapshotCounter;
+            boolean changed = false;
+            for (var shardId : shardsBuilder.keys()) {
+                if (perNodeShardSnapshotCounter.hasCapacityOnAnyNode() == false) {
+                    return changed;
+                }
+                final var existingShardSnapshotStatus = shardsBuilder.get(shardId);
+                if (existingShardSnapshotStatus.isAssignedQueued() == false) {
+                    continue;
+                }
+                final IndexRoutingTable indexRouting = clusterState.routingTable(entry.projectId()).index(shardId.getIndex());
+                final ShardRouting shardRouting;
+                if (indexRouting == null) {
+                    shardRouting = null;
+                } else {
+                    shardRouting = indexRouting.shard(shardId.id()).primaryShard();
+                }
+                final var newShardSnapshotStatus = SnapshotsServiceUtils.initShardSnapshotStatus(
+                    existingShardSnapshotStatus.generation(),
+                    shardRouting,
+                    nodeIdRemovalPredicate,
+                    perNodeShardSnapshotCounter
+                );
+                if (newShardSnapshotStatus.state().completed()) {
+                    // It can become complete if the shard is unassigned or deleted, i.e. state == MISSING.
+                    // We cannot directly update its status here because there maybe another snapshot for
+                    // the same shard that is QUEUED which must be updated as well, i.e. vertical update.
+                    // So we submit the status update to let it be processed in a future cluster state update.
+                    shardStatusUpdateConsumer.apply(entry.snapshot(), shardId, newShardSnapshotStatus);
+                } else if (newShardSnapshotStatus.equals(existingShardSnapshotStatus) == false) {
+                    changedCount++;
+                    if (newShardSnapshotStatus.state() == ShardState.INIT) {
+                        startedCount++;
+                    }
+                    shardsBuilder.put(shardId, newShardSnapshotStatus);
+                    changed = true;
+                }
+            }
+            return changed;
         }
 
         /**
@@ -2503,6 +2670,21 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                             + clonesBuilder
                             + " as well as "
                             + shardsBuilder;
+
+                    if (entry.hasAssignedQueuedShards() && perNodeShardSnapshotCounter.hasCapacityOnAnyNode()) {
+                        // Shard snapshots changed status for this entry, check within the snapshot to see whether any previously limited
+                        // shard snapshots can now start due to newly completed ones. This is only necessary if the entry has any
+                        // assigned-queued shards before the update. If the entry gets any new assigned-queued shards from processing the
+                        // update, they cannot be started anyway because they already reflect the latest node capacities.
+                        maybeStartAssignedQueuedShardSnapshots(
+                            initialState,
+                            entry,
+                            nodeIdRemovalPredicate,
+                            shardsBuilder,
+                            perNodeShardSnapshotCounter,
+                            shardStatusUpdateConsumer
+                        );
+                    }
                     return entry.withShardStates(shardsBuilder.build());
                 } else if (clonesBuilder != null) {
                     return entry.withClones(clonesBuilder.build());
@@ -2518,13 +2700,12 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
              * @param nodeId      node id to execute started operation on
              * @param generation  shard generation to base started operation on
              * @param shardId     shard identifier of shard to start operation for
-             * @param <T>         either {@link ShardId} for snapshots or {@link RepositoryShardId} for clones
              */
-            private <T> void startShardOperation(
-                ImmutableOpenMap.Builder<T, ShardSnapshotStatus> newStates,
+            private void startShardOperation(
+                ImmutableOpenMap.Builder<RepositoryShardId, ShardSnapshotStatus> newStates,
                 String nodeId,
                 ShardGeneration generation,
-                T shardId
+                RepositoryShardId shardId
             ) {
                 startShardOperation(newStates, shardId, new ShardSnapshotStatus(nodeId, generation));
             }
@@ -2623,6 +2804,9 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                     assert updatedShardSnapshotStatus.isActive() == false : updatedShardSnapshotStatus;
                 }
 
+                if (shardSnapshotStatusUpdate.isClone() == false && changeReleasesDataNode(existing, updatedShardSnapshotStatus)) {
+                    perNodeShardSnapshotCounter.completeShardSnapshotOnNode(updatedShardSnapshotStatus.nodeId());
+                }
                 logger.trace(
                     "[{}] Updating shard [{}] with status [{}]",
                     shardSnapshotStatusUpdate.snapshot,
@@ -2632,6 +2816,17 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                 changedCount++;
                 newShardSnapshotStatusesBuilder.put(shardSnapshotId, updatedShardSnapshotStatus);
                 executedUpdates.add(shardSnapshotStatusUpdate);
+            }
+
+            private boolean changeReleasesDataNode(ShardSnapshotStatus previous, ShardSnapshotStatus current) {
+                if (previous.state() == ShardState.INIT) {
+                    return current.state().completed() || current.state() == ShardState.PAUSED_FOR_NODE_REMOVAL;
+                }
+                // Aborted shard snapshot releases data node capacity unless it was assigned-queued, i.e. never actually started
+                if (previous.state() == ShardState.ABORTED && previous.isAbortedAssignedQueued() == false) {
+                    return current.state().completed();
+                }
+                return false;
             }
 
             private void tryStartNextTaskAfterCloneUpdated(RepositoryShardId repoShardId, ShardSnapshotStatus updatedState) {
@@ -2697,12 +2892,16 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                 final ShardSnapshotStatus shardSnapshotStatus = SnapshotsServiceUtils.initShardSnapshotStatus(
                     generation,
                     shardRouting,
-                    nodeIdRemovalPredicate
+                    nodeIdRemovalPredicate,
+                    perNodeShardSnapshotCounter
                 );
                 final ShardId routingShardId = shardRouting != null ? shardRouting.shardId() : new ShardId(index, repoShardId.shardId());
                 if (shardSnapshotStatus.isActive()) {
                     startShardOperation(shardsBuilder(), routingShardId, shardSnapshotStatus);
                 } else {
+                    if (shardSnapshotStatus.isAssignedQueued()) {
+                        updatesIterator.remove();
+                    }
                     // update to queued snapshot did not result in an actual update execution so we just record it but keep applying
                     // the update to e.g. fail all snapshots for a given shard if the primary for the shard went away
                     shardsBuilder().put(routingShardId, shardSnapshotStatus);
@@ -2852,6 +3051,10 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
         );
         logger.trace("received updated snapshot restore state [{}]", update);
         masterServiceTaskQueue.submitTask("update snapshot state", update, null);
+    }
+
+    private void createAndSubmitRequestToUpdateSnapshotState(Snapshot snapshot, ShardId shardId, ShardSnapshotStatus updatedState) {
+        createAndSubmitRequestToUpdateSnapshotState(snapshot, shardId, null, updatedState, ActionListener.noop());
     }
 
     /**
@@ -3110,7 +3313,10 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
             final ClusterState state = batchExecutionContext.initialState();
             final SnapshotShardsUpdateContext shardsUpdateContext = new SnapshotShardsUpdateContext(
                 batchExecutionContext,
-                shardSnapshotUpdateCompletionHandler
+                shardSnapshotUpdateCompletionHandler,
+                SnapshotsService.this::createAndSubmitRequestToUpdateSnapshotState,
+                shardSnapshotPerNodeLimit,
+                isStateless
             );
             final SnapshotsInProgress initialSnapshots = SnapshotsInProgress.get(state);
 
@@ -3307,7 +3513,8 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                 indexIds.values(),
                 SnapshotsServiceUtils.useShardGenerations(version),
                 repositoryData,
-                repositoryName
+                repositoryName,
+                new PerNodeShardSnapshotCounter(shardSnapshotPerNodeLimit, snapshotsInProgress, projectState.cluster().nodes(), isStateless)
             );
             if (request.partial() == false) {
                 Set<String> missing = new TreeSet<>(); // sorted for more usable message

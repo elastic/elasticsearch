@@ -140,16 +140,16 @@ public class SnapshotsInProgressSerializationTests extends SimpleDiffableWireSer
         );
     }
 
-    private Entry randomSnapshot() {
-        return randomSnapshot(randomProjectIdOrDefault());
+    public static Entry randomSnapshot() {
+        return randomSnapshot(randomProjectIdOrDefault(), "repo-" + randomInt(5), () -> randomAlphaOfLength(10));
     }
 
-    private Entry randomSnapshot(ProjectId projectId) {
-        Snapshot snapshot = new Snapshot(
-            projectId,
-            "repo-" + randomInt(5),
-            new SnapshotId(randomAlphaOfLength(10), randomAlphaOfLength(10))
-        );
+    public static Entry randomSnapshot(ProjectId projectId) {
+        return randomSnapshot(projectId, "repo-" + randomInt(5), () -> randomAlphaOfLength(10));
+    }
+
+    public static Entry randomSnapshot(ProjectId projectId, String repoName, Supplier<String> nodeIdSupplier) {
+        Snapshot snapshot = new Snapshot(projectId, repoName, new SnapshotId(randomAlphaOfLength(10), randomAlphaOfLength(10)));
         boolean includeGlobalState = randomBoolean();
         boolean partial = randomBoolean();
         int numberOfIndices = randomIntBetween(0, 10);
@@ -166,7 +166,7 @@ public class SnapshotsInProgressSerializationTests extends SimpleDiffableWireSer
         for (Index idx : esIndices) {
             int shardsCount = randomIntBetween(1, 10);
             for (int j = 0; j < shardsCount; j++) {
-                shards.put(new ShardId(idx, j), randomShardSnapshotStatus(randomAlphaOfLength(10)));
+                shards.put(new ShardId(idx, j), randomShardSnapshotStatus(nodeIdSupplier.get()));
             }
         }
         List<SnapshotFeatureInfo> featureStates = randomList(5, SnapshotFeatureInfoTests::randomSnapshotFeatureInfo);
@@ -187,10 +187,14 @@ public class SnapshotsInProgressSerializationTests extends SimpleDiffableWireSer
         );
     }
 
-    private SnapshotsInProgress.ShardSnapshotStatus randomShardSnapshotStatus(String nodeId) {
+    public static SnapshotsInProgress.ShardSnapshotStatus randomShardSnapshotStatus(String nodeId) {
         ShardState shardState = randomFrom(ShardState.values());
         if (shardState == ShardState.QUEUED) {
-            return SnapshotsInProgress.ShardSnapshotStatus.UNASSIGNED_QUEUED;
+            if (randomBoolean()) {
+                return SnapshotsInProgress.ShardSnapshotStatus.UNASSIGNED_QUEUED;
+            } else {
+                return SnapshotsInProgress.ShardSnapshotStatus.assignedQueued(nodeId, randomBoolean() ? new ShardGeneration(1L) : null);
+            }
         } else if (shardState == ShardState.SUCCESS) {
             final ShardSnapshotResult shardSnapshotResult = new ShardSnapshotResult(new ShardGeneration(1L), ByteSizeValue.ofBytes(1L), 1);
             return SnapshotsInProgress.ShardSnapshotStatus.success(nodeId, shardSnapshotResult);

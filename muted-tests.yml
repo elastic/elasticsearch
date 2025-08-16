@@ -543,6 +543,21 @@ tests:
 - class: org.elasticsearch.index.mapper.LongFieldMapperTests
   method: testSyntheticSourceWithTranslogSnapshot
   issue: https://github.com/elastic/elasticsearch/issues/132964
+- class: org.elasticsearch.test.rest.yaml.CcsCommonYamlTestSuiteIT
+  method: test {p0=search/160_exists_query/Test exists query on unmapped float field}
+  issue: https://github.com/elastic/elasticsearch/issues/132984
+- class: org.elasticsearch.xpack.esql.analysis.AnalyzerTests
+  method: testMagnitudePlanWithDenseVectorImplicitCasting
+  issue: https://github.com/elastic/elasticsearch/issues/132985
+- class: org.elasticsearch.xpack.search.AsyncSearchErrorTraceIT
+  method: testAsyncSearchFailingQueryErrorTraceDefault
+  issue: https://github.com/elastic/elasticsearch/issues/133010
+- class: org.elasticsearch.xpack.esql.plugin.IndexResolutionIT
+  method: testDoesNotResolveClosedIndex
+  issue: https://github.com/elastic/elasticsearch/issues/133011
+- class: org.elasticsearch.test.rest.yaml.CcsCommonYamlTestSuiteIT
+  method: test {p0=search/510_range_query_out_of_bounds/Test range query for float field with out of bounds lower limit}
+  issue: https://github.com/elastic/elasticsearch/issues/133012
 
 # Examples:
 #

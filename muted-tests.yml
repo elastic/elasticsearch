@@ -567,6 +567,9 @@ tests:
 - class: org.elasticsearch.xpack.remotecluster.RemoteClusterSecurityEsqlIT
   method: testCrossClusterEnrichWithOnlyRemotePrivs
   issue: https://github.com/elastic/elasticsearch/issues/133031
+- class: org.elasticsearch.test.rest.yaml.CcsCommonYamlTestSuiteIT
+  method: test {p0=search.vectors/45_knn_search_bit/Vector similarity with filter only}
+  issue: https://github.com/elastic/elasticsearch/issues/133037
 
 # Examples:
 #

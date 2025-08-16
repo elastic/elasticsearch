@@ -96,43 +96,49 @@ public record ESONFlat(List<ESONEntry> keys, ESONSource.Values values, AtomicRef
         return serializedKeyBytes.get();
     }
 
-    private static final ThreadLocal<byte[]> BYTES_REF = ThreadLocal.withInitial(() -> new byte[16384]);
+    private static final ThreadLocal<BytesRef> BYTES_REF = ThreadLocal.withInitial(() -> new BytesRef(new byte[16384]));
 
     public static Recycler<BytesRef> getBytesRefRecycler() {
-        return new Recycler<>() {
+        return new ThreadLocalRecycler();
+    }
 
-            private boolean first = false;
+    private static class ThreadLocalRecycler implements Recycler<BytesRef> {
+
+        private boolean first = true;
+
+        @Override
+        public V<BytesRef> obtain() {
+            final BytesRef bytesRef;
+            if (first) {
+                first = false;
+                bytesRef = BYTES_REF.get();
+                bytesRef.offset = 0;
+                bytesRef.length = bytesRef.bytes.length;
+            } else {
+                bytesRef = new BytesRef(new byte[16384]);
+            }
+            return new VImpl(bytesRef);
+        }
+
+        private record VImpl(BytesRef bytesRef) implements V<BytesRef> {
 
             @Override
-            public V<BytesRef> obtain() {
-                final BytesRef bytesRef;
-                if (first) {
-                    first = false;
-                    bytesRef = new BytesRef(BYTES_REF.get());
-                } else {
-                    bytesRef = new BytesRef(new byte[16384]);
-                }
-                return new V<>() {
-
-                    @Override
-                    public BytesRef v() {
-                        return bytesRef;
-                    }
-
-                    @Override
-                    public boolean isRecycled() {
-                        return false;
-                    }
-
-                    @Override
-                    public void close() {}
-                };
+            public BytesRef v() {
+                return bytesRef;
             }
 
             @Override
-            public int pageSize() {
-                return 16384;
+            public boolean isRecycled() {
+                return false;
             }
-        };
+
+            @Override
+            public void close() {}
+        }
+
+        @Override
+        public int pageSize() {
+            return 16384;
+        }
     }
 }

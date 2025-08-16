@@ -17,7 +17,7 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.DiskIoBufferPool;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
+import org.elasticsearch.common.io.stream.ReleasableBytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -608,7 +608,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
      * @throws IOException if adding the operation to the translog resulted in an I/O exception
      */
     public Location add(final Operation operation) throws IOException {
-        try (RecyclerBytesStreamOutput out = bigArrays.newRecyclerStreamOutput()) {
+        try (ReleasableBytesStreamOutput out = new ReleasableBytesStreamOutput(bigArrays)) {
             writeOperationWithSize(out, operation);
             final BytesReference bytes = out.bytes();
             readLock.lock();
@@ -1640,7 +1640,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         out.writeInt((int) checksum);
     }
 
-    public static void writeOperationWithSize(RecyclerBytesStreamOutput out, Translog.Operation op) throws IOException {
+    public static void writeOperationWithSize(BytesStreamOutput out, Translog.Operation op) throws IOException {
         final long start = out.position();
         out.skip(Integer.BYTES);
         writeOperationNoSize(new BufferedChecksumStreamOutput(out), op);

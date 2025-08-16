@@ -55,7 +55,7 @@ public class LocalRelation extends LeafPlan {
         if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_LOCAL_RELATION_WITH_NEW_BLOCKS)) {
             out.writeNamedWriteable(supplier);
         } else {
-            if (supplier == EmptyLocalSupplier.EMPTY) {
+            if (hasEmptySupplier()) {
                 out.writeVInt(0);
             } else {// here we can only have an ImmediateLocalSupplier as this was the only implementation apart from EMPTY
                 ((ImmediateLocalSupplier) supplier).writeTo(out);
@@ -75,6 +75,10 @@ public class LocalRelation extends LeafPlan {
 
     public LocalSupplier supplier() {
         return supplier;
+    }
+
+    public boolean hasEmptySupplier() {
+        return supplier == EmptyLocalSupplier.EMPTY;
     }
 
     @Override

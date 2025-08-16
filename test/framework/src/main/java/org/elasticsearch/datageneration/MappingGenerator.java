@@ -64,10 +64,8 @@ public class MappingGenerator {
 
         rawMapping.put("_doc", topLevelMappingParameters);
 
-        if (specification.fullyDynamicMapping()) {
-            // Has to be "true" for fully dynamic mapping
+        if (specification.fullyDynamicMapping() == false) {
             topLevelMappingParameters.remove("dynamic");
-
             return new Mapping(rawMapping, lookup);
         }
 

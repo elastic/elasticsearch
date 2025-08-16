@@ -59,6 +59,7 @@ public class FormattingPrecommitPlugin implements Plugin<Project> {
 
                 java.target("src/**/*.java");
                 java.removeUnusedImports();
+                java.removeWildcardImports();
 
                 // We enforce a standard order for imports
                 java.importOrderFile(new File(elasticsearchWorkspace, importOrderPath));

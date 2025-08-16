@@ -206,17 +206,27 @@ class FieldCapabilitiesFetcher {
                     if (context.getFieldType(parentField) == null) {
                         // no field type, it must be an object field
                         String type = context.nestedLookup().getNestedMappers().get(parentField) != null ? "nested" : "object";
-                        IndexFieldCapabilities fieldCap = new IndexFieldCapabilities(
-                            parentField,
-                            type,
-                            false,
-                            false,
-                            false,
-                            false,
-                            null,
-                            Map.of()
-                        );
-                        responseMap.put(parentField, fieldCap);
+                        
+                        // Apply types filter to parent object fields
+                        boolean shouldInclude = true;
+                        if (types != null && types.length > 0) {
+                            Set<String> acceptedTypes = Set.of(types);
+                            shouldInclude = acceptedTypes.contains(type);
+                        }
+                        
+                        if (shouldInclude) {
+                            IndexFieldCapabilities fieldCap = new IndexFieldCapabilities(
+                                parentField,
+                                type,
+                                false,
+                                false,
+                                false,
+                                false,
+                                null,
+                                Map.of()
+                            );
+                            responseMap.put(parentField, fieldCap);
+                        }
                     }
                     dotIndex = parentField.lastIndexOf('.');
                 }

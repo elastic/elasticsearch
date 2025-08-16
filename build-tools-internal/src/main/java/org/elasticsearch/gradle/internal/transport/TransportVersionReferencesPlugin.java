@@ -20,7 +20,7 @@ import org.gradle.language.base.plugins.LifecycleBasePlugin;
 import static org.elasticsearch.gradle.internal.transport.TransportVersionUtils.getDefinitionsDirectory;
 import static org.elasticsearch.gradle.internal.transport.TransportVersionUtils.getResourcesDirectory;
 
-public class TransportVersionManagementPlugin implements Plugin<Project> {
+public class TransportVersionReferencesPlugin implements Plugin<Project> {
 
     @Override
     public void apply(Project project) {

@@ -552,7 +552,7 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
         }
     }
 
-    private static final String NODE_SEARCH_ACTION_NAME = "indices:data/read/search[query][n]";
+    public static final String NODE_SEARCH_ACTION_NAME = "indices:data/read/search[query][n]";
 
     static void registerNodeSearchAction(
         SearchTransportService searchTransportService,

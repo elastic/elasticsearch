@@ -170,7 +170,8 @@ public class LookupFromIndexOperatorTests extends OperatorTestCase {
             lookupIndex,
             lookupIndex,
             loadFields,
-            Source.EMPTY
+            Source.EMPTY,
+            null
         );
     }
 
@@ -186,7 +187,7 @@ public class LookupFromIndexOperatorTests extends OperatorTestCase {
         for (int i = 0; i < numberOfJoinColumns; i++) {
             sb.append(" input_type=LONG match_field=match").append(i).append(" inputChannel=").append(i);
         }
-        sb.append("]");
+        sb.append(" right_pre_join_plan=null]");
         return matchesPattern(sb.toString());
     }
 

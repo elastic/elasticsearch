@@ -13,7 +13,10 @@ import org.elasticsearch.xpack.esql.core.expression.AttributeMap;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
+import org.elasticsearch.xpack.esql.core.expression.FoldContext;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.CollectionUtils;
 import org.elasticsearch.xpack.esql.expression.predicate.Predicates;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
@@ -140,20 +143,83 @@ public final class PushDownAndCombineFilters extends OptimizerRules.OptimizerRul
             // 2. filter scoped to the right
             // 3. filter that requires both sides to be evaluated
             ScopedFilter scoped = scopeFilter(Predicates.splitAnd(filter.condition()), left, right);
-            // push the left scoped filter down to the left child, keep the rest intact
+            boolean optimizationApplied = false;
+            // push the left scoped filter down to the left child
             if (scoped.leftFilters.size() > 0) {
                 // push the filter down to the left child
                 left = new Filter(left.source(), left, Predicates.combineAnd(scoped.leftFilters));
                 // update the join with the new left child
                 join = (Join) join.replaceLeft(left);
+                // we completely applied the left filters, so we can remove them from the scoped filters
+                scoped = new ScopedFilter(scoped.commonFilters(), List.of(), scoped.rightFilters);
+                optimizationApplied = true;
+            }
+            // push the right scoped filter down to the right child
+            if (scoped.rightFilters().isEmpty() == false && (join.right() instanceof Filter == false)) {
+                // push the filter down to the right child
+                List<Expression> rightPushableFilters = buildRightPushableFilters(scoped.rightFilters());
+                if (rightPushableFilters.isEmpty() == false) {
+                    // right = new Filter(right.source(), right, Predicates.combineAnd(rightPushableFilters));
+                    // update the join with the new right child
+                    // join = (Join) join.replaceRight(right);
+                    Expression optionalRightHandSideFilters = Predicates.combineAnd(rightPushableFilters);
+                    join = join.withOptionalRightHandFilters(optionalRightHandSideFilters);
+                    optimizationApplied = true;
+                }
+                // We still want to reapply the filters that we just applied to the right child,
+                // so we do NOT update scoped, and we do NOT mark optimizationApplied as true.
+                // This is because by pushing them on the right side, we filter what rows we get from the right side
+                // But we do not limit the output rows of the join as the rows are kept as not matched on the left side
+                // So we end up applying the right filters twice, once on the right side and once on top of the join
+                // This will result in major performance optimization when the lookup join is expanding
+                // and applying the right filters reduces the expansion significantly.
+                // For example, consider a lookup join where the right side is a 1Bln rows index with the value join value of 1.
+                // We have 10 rows on the left side with the value join value of 1.
+                // and there is a filter on the right side that filters out all rows on another column
+                // If we push the filter down to the right side, we will have 10 rows after the join (there were no matches)
+                // If we do not push the filter down to the right side, we will have 10 * 1Bln rows after the join (all rows matched)
+                // as the join is expanding.
+                // They would be filtered out in the next operator, but it is too late, as we already expanded the join
+                // In other cases, we might not get any performance benefit of this optimization,
+                // especially when the selectivity of the filter pushed down is very high or the join is not expanding.
 
-                // keep the remaining filters in place, otherwise return the new join;
+                // In the future, once we have inner join support, it is usually possible to convert the lookup join into an inner join
+                // and then we don't need to reapply the filters on top of the join.
+            }
+            if (optimizationApplied) {
+                // if we pushed down some filters, we need to update the filters to reapply above the join
                 Expression remainingFilter = Predicates.combineAnd(CollectionUtils.combine(scoped.commonFilters, scoped.rightFilters));
                 plan = remainingFilter != null ? filter.with(join, remainingFilter) : join;
             }
         }
         // ignore the rest of the join
         return plan;
+    }
+
+    /**
+     * Builds the right pushable filters for the given expressions.
+     */
+    private static List<Expression> buildRightPushableFilters(List<Expression> expressions) {
+        return expressions.stream().filter(x -> isRightPushableFilter(x)).toList();
+    }
+
+    /**
+     * Determines if the given expression can be pushed down to the right side of a join.
+     * A filter is right pushable if the filter's predicate evaluates to false or null when all fields are set to null
+     */
+    private static boolean isRightPushableFilter(Expression filter) {
+        // traverse the filter tree
+        // replace any reference to an attribute with a null literal
+        Expression nullifiedFilter = filter.transformUp(Attribute.class, r -> new Literal(r.source(), null, DataType.NULL));
+        // try to fold the filter
+        // check if the folded filter evaluates to false or null, if yes return true
+        // pushable WHERE field > 1 (evaluates to null), WHERE field is NOT NULL (evaluates to false)
+        // not pushable WHERE field is NULL (evaluates to true), WHERE coalesce(field, 10) = 10 (evaluates to true)
+        if (nullifiedFilter.foldable()) {
+            Object folded = nullifiedFilter.fold(FoldContext.small());
+            return folded == null || Boolean.FALSE.equals(folded);
+        }
+        return false;
     }
 
     private static Function<Expression, Expression> NO_OP = expression -> expression;

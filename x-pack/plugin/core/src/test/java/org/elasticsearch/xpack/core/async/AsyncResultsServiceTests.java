@@ -264,6 +264,8 @@ public class AsyncResultsServiceTests extends ESSingleNodeTestCase {
         }
     }
 
+    // TODO: add test
+
     public void testRetrieveFromDisk() throws Exception {
         boolean updateInitialResultsInStore = randomBoolean();
         AsyncResultsService<TestTask, TestAsyncResponse> service = createResultsService(updateInitialResultsInStore);

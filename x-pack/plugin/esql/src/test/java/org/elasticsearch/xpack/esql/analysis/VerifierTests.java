@@ -2318,6 +2318,10 @@ public class VerifierTests extends ESTestCase {
         if (EsqlCapabilities.Cap.MAGNITUDE_SCALAR_VECTOR_FUNCTION.isEnabled()) {
             checkVectorFunctionsNullArgs("v_magnitude(null)");
         }
+        if (EsqlCapabilities.Cap.HAMMING_VECTOR_SIMILARITY_FUNCTION.isEnabled()) {
+            checkVectorFunctionsNullArgs("v_hamming(null, vector)");
+            checkVectorFunctionsNullArgs("v_hamming(vector, null)");
+        }
     }
 
     private void checkVectorFunctionsNullArgs(String functionInvocation) throws Exception {

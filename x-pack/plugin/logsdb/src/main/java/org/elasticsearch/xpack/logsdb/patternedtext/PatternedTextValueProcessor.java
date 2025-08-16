@@ -64,18 +64,24 @@ public class PatternedTextValueProcessor {
                 continue;
             }
 
-            Tuple<Long, Integer> ts = null;
+            Tuple<Long, Integer> ts;
             if (timestamp == null && (ts = parse(tokens, i)) != null) {
                 timestamp = ts.v1();
-                if (ts.v2() == 2) {
+
+                int iInc = 0;
+                if (ts.v2() >= 2) {
                     textIndex += tokens[i + 1].length() + 1;
-                    i++;
-                } else if (ts.v2() == 4) {
-                    textIndex += tokens[i + 1].length() + 1;
-                    textIndex += tokens[i + 2].length() + 1;
-                    textIndex += tokens[i + 3].length() + 1;
-                    i+=3;
+                    iInc++;
                 }
+                if (ts.v2() >= 3) {
+                    textIndex += tokens[i + 2].length() + 1;
+                    iInc++;
+                }
+                if (ts.v2() >= 4) {
+                    textIndex += tokens[i + 3].length() + 1;
+                    iInc++;
+                }
+                i += iInc;
                 template.append(TIMESTAMP_PLACEHOLDER);
             } else if (isArg(token)) {
                 args.add(token);
@@ -178,53 +184,72 @@ public class PatternedTextValueProcessor {
     }
 
 
-    static DateFormatter letterDateFormat = DateFormatter.forPattern("dd/MMM/yyyy:HH:mm:ss");
     public static Tuple<Long, Integer> parse(String[] tokens, int i) {
 
-        if (isSingleTokenTimestamp(tokens[i])) {
-            try {
-                return Tuple.tuple(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis(tokens[i]), 1);
-            } catch (Exception ignored) {
-
-            }
-        }
-
-        try {
-            return Tuple.tuple(letterDateFormat.parseMillis(tokens[i]), 1);
-        } catch (Exception ignored) {
-
-        }
-
-        try {
-            final DateFormatter dateFormatter = DateFormatter.forPattern("yyyy-MM-dd'T'HH:mm:ss'Z'");
-            return Tuple.tuple(dateFormatter.parseMillis(tokens[i]), 1);
-        } catch (Exception ignored) {
-
-        }
-
-        if (isTwoTokenTimestamp(tokens, i)) {
-            try {
-                String combined = tokens[i].replace("/", "-") + 'T' + tokens[i + 1];
-                return Tuple.tuple(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis(combined), 2);
-            } catch (Exception ignored) {
-
-            }
-        }
-
-        String token = tokens[i];
-        if (i < tokens.length - 3
-                && token.length() == 2
-                && tokens[i + 1].length() == 3
-                && tokens[i + 2].length() == 4
-                && tokens[i + 3].length() == 12) {
-            String combined = String.join(" ", Arrays.copyOfRange(tokens, i, i + 4));
+        // 4 tokens left
+        if (i < tokens.length - 3) {
+            // "06 Sep 2020 08:29:04.123"
+            String combined = String.join(" ", tokens[i], tokens[i + 1], tokens[i + 2], tokens[i + 3]);
             try {
                 final DateFormatter dateFormatter = DateFormatter.forPattern("dd MMM yyyy HH:mm:ss.SSS");
                 return Tuple.tuple(dateFormatter.parseMillis(combined), 4);
             } catch (Exception ignored) {
+
             }
         }
 
+        // 3 token
+        if (i < tokens.length - 2) {
+            String combined = String.join(" ", tokens[i], tokens[i + 1], tokens[i + 2]);
+            try {
+                // "2020-09-06 08:29:04 +0000"
+                final DateFormatter dateFormatter = DateFormatter.forPattern("yyyy-MM-dd HH:mm:ss XX");
+                return Tuple.tuple(dateFormatter.parseMillis(combined), 3);
+            } catch (Exception ignored) {
+            }
+
+            try {
+                // "2020-09-06 08:29:04 UTC"
+                final DateFormatter dateFormatter = DateFormatter.forPattern("yyy-MM-dd HH:mm:ss z");
+                return Tuple.tuple(dateFormatter.parseMillis(combined), 3);
+            } catch (Exception ignored) {
+            }
+        }
+
+        // 2 token
+        if (i < tokens.length - 1) {
+            String combined = String.join(" ", tokens[i], tokens[i + 1]);
+            try {
+                // "2020-09-06 08:29:04,123"
+                // "2020-09-06 08:29:04.123"
+                // "2020-09-06 08:29:04"
+                // "2020/09/06 08:29:04"
+                String attempt = combined.replace(" ", "T").replace("/", "-");
+                return Tuple.tuple(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis(attempt), 2);
+            } catch (Exception ignored) {
+            }
+
+            try {
+                // "06/Sep/2020:08:29:04 +0000"
+                final DateFormatter dateFormatter = DateFormatter.forPattern("dd/MMM/yyyy:HH:mm:ss XX");
+                return Tuple.tuple(dateFormatter.parseMillis(combined), 2);
+            } catch (Exception ignored) {
+            }
+        }
+
+        // 1 token
+        try {
+            // "2020-09-06T08:29:04.123456"
+            // "2020-09-06T08:29:04.123Z"
+            // "2020-09-06T08:29:04,123"
+            // "2020-09-06T08:29:04.123+00:00"
+            // "2020-09-06T08:29:04Z"
+            // "2020-09-06T08:29:04+0000"
+            // "2020-09-06T08:29:04.123+0000"
+            return Tuple.tuple(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis(tokens[i]), 1);
+        } catch (Exception ignored) {
+
+        }
 
         return null;
     }

@@ -108,6 +108,7 @@ public class PatternedTextValueProcessorTests extends ESTestCase {
 
     public void testWithTimestampRandomParseSuccess() {
         var timeStrings = List.of(
+            // 1 token
             "2020-09-06T08:29:04.123456",
             "2020-09-06T08:29:04.123Z",
             "2020-09-06T08:29:04,123",
@@ -115,13 +116,19 @@ public class PatternedTextValueProcessorTests extends ESTestCase {
             "2020-09-06T08:29:04Z",
             "2020-09-06T08:29:04+0000",
             "2020-09-06T08:29:04.123+0000",
+
+            // 2 token
             "2020-09-06 08:29:04,123",
             "2020-09-06 08:29:04.123",
-//            "2020-09-06 08:29:04 UTC",
             "2020-09-06 08:29:04",
-//            "2020-09-06 08:29:04 +0000",
             "2020/09/06 08:29:04",
-//            "06/Sep/2020:08:29:04 +0000",
+            "06/Sep/2020:08:29:04 +0000",
+
+            // 3 token
+            "2020-09-06 08:29:04 +0000",
+            "2020-09-06 08:29:04 UTC",
+
+            // 4 token
             "06 Sep 2020 08:29:04.123"
         );
 
@@ -203,6 +210,7 @@ public class PatternedTextValueProcessorTests extends ESTestCase {
 
     public void testParseTimestamps() {
         var timeStrings = List.of(
+            // 1 token
             "2020-09-06T08:29:04.123456",
             "2020-09-06T08:29:04.123Z",
             "2020-09-06T08:29:04,123",
@@ -210,13 +218,19 @@ public class PatternedTextValueProcessorTests extends ESTestCase {
             "2020-09-06T08:29:04Z",
             "2020-09-06T08:29:04+0000",
             "2020-09-06T08:29:04.123+0000",
+
+            // 2 token
             "2020-09-06 08:29:04,123",
             "2020-09-06 08:29:04.123",
-            "2020-09-06 08:29:04 UTC",
             "2020-09-06 08:29:04",
-            "2020-09-06 08:29:04 +0000",
             "2020/09/06 08:29:04",
             "06/Sep/2020:08:29:04 +0000",
+
+            // 3 token
+            "2020-09-06 08:29:04 +0000",
+            "2020-09-06 08:29:04 UTC",
+
+            // 4 token
             "06 Sep 2020 08:29:04.123"
         );
 

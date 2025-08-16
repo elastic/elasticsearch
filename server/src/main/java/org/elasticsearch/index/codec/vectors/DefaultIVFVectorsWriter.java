@@ -25,6 +25,7 @@ import org.apache.lucene.util.packed.PackedInts;
 import org.apache.lucene.util.packed.PackedLongValues;
 import org.elasticsearch.index.codec.vectors.cluster.HierarchicalKMeans;
 import org.elasticsearch.index.codec.vectors.cluster.KMeansResult;
+import org.elasticsearch.index.codec.vectors.cluster.PrefetchingFloatVectorValues;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.simdvec.ES91OSQVectorsScorer;
@@ -63,7 +64,7 @@ public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
     LongValues buildAndWritePostingsLists(
         FieldInfo fieldInfo,
         CentroidSupplier centroidSupplier,
-        FloatVectorValues floatVectorValues,
+        PrefetchingFloatVectorValues floatVectorValues,
         IndexOutput postingsOutput,
         long fileOffset,
         int[] assignments,
@@ -155,7 +156,7 @@ public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
     LongValues buildAndWritePostingsLists(
         FieldInfo fieldInfo,
         CentroidSupplier centroidSupplier,
-        FloatVectorValues floatVectorValues,
+        PrefetchingFloatVectorValues floatVectorValues,
         IndexOutput postingsOutput,
         long fileOffset,
         MergeState mergeState,
@@ -426,7 +427,7 @@ public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
     private record CentroidGroups(float[][] centroids, int[][] vectors, int maxVectorsPerCentroidLength) {}
 
     private CentroidGroups buildCentroidGroups(FieldInfo fieldInfo, CentroidSupplier centroidSupplier) throws IOException {
-        final FloatVectorValues floatVectorValues = FloatVectorValues.fromFloats(new AbstractList<>() {
+        final PrefetchingFloatVectorValues floatVectorValues = PrefetchingFloatVectorValues.floats(new AbstractList<>() {
             @Override
             public float[] get(int index) {
                 try {
@@ -479,7 +480,7 @@ public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
      * @throws IOException if an I/O error occurs
      */
     @Override
-    CentroidAssignments calculateCentroids(FieldInfo fieldInfo, FloatVectorValues floatVectorValues, float[] globalCentroid)
+    CentroidAssignments calculateCentroids(FieldInfo fieldInfo, PrefetchingFloatVectorValues floatVectorValues, float[] globalCentroid)
         throws IOException {
 
         long nanoTime = System.nanoTime();
@@ -506,7 +507,8 @@ public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
         return centroidAssignments;
     }
 
-    static CentroidAssignments buildCentroidAssignments(FloatVectorValues floatVectorValues, int vectorPerCluster) throws IOException {
+    static CentroidAssignments buildCentroidAssignments(PrefetchingFloatVectorValues floatVectorValues, int vectorPerCluster)
+        throws IOException {
         KMeansResult kMeansResult = new HierarchicalKMeans(floatVectorValues.dimension()).cluster(floatVectorValues, vectorPerCluster);
         float[][] centroids = kMeansResult.centroids();
         int[] assignments = kMeansResult.assignments();

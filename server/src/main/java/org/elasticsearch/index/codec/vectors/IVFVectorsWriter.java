@@ -32,6 +32,7 @@ import org.apache.lucene.util.LongValues;
 import org.apache.lucene.util.VectorUtil;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.index.codec.vectors.cluster.PrefetchingFloatVectorValues;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -120,8 +121,11 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
         return rawVectorDelegate;
     }
 
-    abstract CentroidAssignments calculateCentroids(FieldInfo fieldInfo, FloatVectorValues floatVectorValues, float[] globalCentroid)
-        throws IOException;
+    abstract CentroidAssignments calculateCentroids(
+        FieldInfo fieldInfo,
+        PrefetchingFloatVectorValues floatVectorValues,
+        float[] globalCentroid
+    ) throws IOException;
 
     abstract void writeCentroids(
         FieldInfo fieldInfo,
@@ -134,7 +138,7 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
     abstract LongValues buildAndWritePostingsLists(
         FieldInfo fieldInfo,
         CentroidSupplier centroidSupplier,
-        FloatVectorValues floatVectorValues,
+        PrefetchingFloatVectorValues floatVectorValues,
         IndexOutput postingsOutput,
         long fileOffset,
         int[] assignments,
@@ -144,7 +148,7 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
     abstract LongValues buildAndWritePostingsLists(
         FieldInfo fieldInfo,
         CentroidSupplier centroidSupplier,
-        FloatVectorValues floatVectorValues,
+        PrefetchingFloatVectorValues floatVectorValues,
         IndexOutput postingsOutput,
         long fileOffset,
         MergeState mergeState,
@@ -165,7 +169,11 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
         for (FieldWriter fieldWriter : fieldWriters) {
             final float[] globalCentroid = new float[fieldWriter.fieldInfo.getVectorDimension()];
             // build a float vector values with random access
-            final FloatVectorValues floatVectorValues = getFloatVectorValues(fieldWriter.fieldInfo, fieldWriter.delegate, maxDoc);
+            final PrefetchingFloatVectorValues floatVectorValues = getFloatVectorValues(
+                fieldWriter.fieldInfo,
+                fieldWriter.delegate,
+                maxDoc
+            );
             // build centroids
             final CentroidAssignments centroidAssignments = calculateCentroids(fieldWriter.fieldInfo, floatVectorValues, globalCentroid);
             // wrap centroids with a supplier
@@ -199,14 +207,14 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
         }
     }
 
-    private static FloatVectorValues getFloatVectorValues(
+    private static PrefetchingFloatVectorValues getFloatVectorValues(
         FieldInfo fieldInfo,
         FlatFieldVectorsWriter<float[]> fieldVectorsWriter,
         int maxDoc
     ) throws IOException {
         List<float[]> vectors = fieldVectorsWriter.getVectors();
         if (vectors.size() == maxDoc) {
-            return FloatVectorValues.fromFloats(vectors, fieldInfo.getVectorDimension());
+            return PrefetchingFloatVectorValues.floats(vectors, fieldInfo.getVectorDimension());
         }
         final DocIdSetIterator iterator = fieldVectorsWriter.getDocsWithFieldSet().iterator();
         final int[] docIds = new int[vectors.size()];
@@ -214,32 +222,7 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
             docIds[i] = iterator.nextDoc();
         }
         assert iterator.nextDoc() == NO_MORE_DOCS;
-        return new FloatVectorValues() {
-            @Override
-            public float[] vectorValue(int ord) {
-                return vectors.get(ord);
-            }
-
-            @Override
-            public FloatVectorValues copy() {
-                return this;
-            }
-
-            @Override
-            public int dimension() {
-                return fieldInfo.getVectorDimension();
-            }
-
-            @Override
-            public int size() {
-                return vectors.size();
-            }
-
-            @Override
-            public int ordToDoc(int ord) {
-                return docIds[ord];
-            }
-        };
+        return PrefetchingFloatVectorValues.floats(vectors, fieldInfo.getVectorDimension(), docIds);
     }
 
     @Override
@@ -297,7 +280,7 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
             IndexInput vectors = mergeState.segmentInfo.dir.openInput(tempRawVectorsFileName, IOContext.DEFAULT);
             IndexInput docs = docsFileName == null ? null : mergeState.segmentInfo.dir.openInput(docsFileName, IOContext.DEFAULT)
         ) {
-            final FloatVectorValues floatVectorValues = getFloatVectorValues(fieldInfo, docs, vectors, numVectors);
+            final PrefetchingFloatVectorValues floatVectorValues = getFloatVectorValues(fieldInfo, docs, vectors, numVectors);
 
             final long centroidOffset;
             final long centroidLength;
@@ -396,15 +379,26 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
         }
     }
 
-    private static FloatVectorValues getFloatVectorValues(FieldInfo fieldInfo, IndexInput docs, IndexInput vectors, int numVectors)
-        throws IOException {
+    private static PrefetchingFloatVectorValues getFloatVectorValues(
+        FieldInfo fieldInfo,
+        IndexInput docs,
+        IndexInput vectors,
+        int numVectors
+    ) throws IOException {
         if (numVectors == 0) {
-            return FloatVectorValues.fromFloats(List.of(), fieldInfo.getVectorDimension());
+            return PrefetchingFloatVectorValues.floats(List.of(), fieldInfo.getVectorDimension());
         }
         final long vectorLength = (long) Float.BYTES * fieldInfo.getVectorDimension();
         final float[] vector = new float[fieldInfo.getVectorDimension()];
         final RandomAccessInput randomDocs = docs == null ? null : docs.randomAccessSlice(0, docs.length());
-        return new FloatVectorValues() {
+        return new PrefetchingFloatVectorValues() {
+            @Override
+            public void prefetch(int... ord) throws IOException {
+                for (int o : ord) {
+                    vectors.prefetch(o * vectorLength, vectorLength);
+                }
+            }
+
             @Override
             public float[] vectorValue(int ord) throws IOException {
                 vectors.seek(ord * vectorLength);
@@ -413,7 +407,8 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
             }
 
             @Override
-            public FloatVectorValues copy() {
+            public PrefetchingFloatVectorValues copy() {
+                assert false;
                 return this;
             }
 

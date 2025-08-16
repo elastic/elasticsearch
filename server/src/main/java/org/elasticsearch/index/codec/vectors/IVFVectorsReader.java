@@ -88,6 +88,9 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
     abstract CentroidIterator getCentroidIterator(FieldInfo fieldInfo, int numCentroids, IndexInput centroids, float[] target)
         throws IOException;
 
+    public abstract float[] getCentroidsScores(FieldInfo fieldInfo, int numCentroids, IndexInput centroids, float[] target, boolean parents)
+        throws IOException;
+
     private static IndexInput openDataInput(
         SegmentReadState state,
         int versionMeta,
@@ -258,6 +261,9 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
             // is enough?
             expectedDocs += scorer.resetPostingsScorer(offset);
             actualDocs += scorer.visit(knnCollector);
+            if (knnCollector.earlyTerminated()) {
+                break;
+            }
         }
         if (acceptDocs != null) {
             float unfilteredRatioVisited = (float) expectedDocs / numVectors;
@@ -267,6 +273,9 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
                 long offset = centroidIterator.nextPostingListOffset();
                 scorer.resetPostingsScorer(offset);
                 actualDocs += scorer.visit(knnCollector);
+                if (knnCollector.earlyTerminated()) {
+                    break;
+                }
             }
         }
     }
@@ -318,6 +327,17 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
         long nextPostingListOffset() throws IOException;
     }
 
+    // TODO : change this to allow (batched) centroid search (with current top)
+    public interface ScoredCentroidIterator {
+        boolean hasNext();
+
+        void scorePostingList(long offset) throws IOException;
+
+        long next();
+
+        long nextPostingListOffset() throws IOException;
+    }
+
     interface PostingVisitor {
         // TODO maybe we can not specifically pass the centroid...
 
@@ -326,5 +346,17 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
 
         /** returns the number of scored documents */
         int visit(KnnCollector collector) throws IOException;
+    }
+
+    public IndexInput getIvfCentroids(FieldInfo fieldInfo) throws IOException {
+        return fields.get(fieldInfo.number).centroidSlice(ivfCentroids);
+    }
+
+    public int getNumCentroids(FieldInfo fieldInfo) {
+        return fields.get(fieldInfo.number).numCentroids;
+    }
+
+    public float[] getGlobalCentroid(FieldInfo fieldInfo) {
+        return fields.get(fieldInfo.number).globalCentroid;
     }
 }

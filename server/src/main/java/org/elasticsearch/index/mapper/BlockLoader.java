@@ -447,7 +447,7 @@ public interface BlockLoader {
         /**
          * Build a reader for reading {@link SortedDocValues}
          */
-        SingletonOrdinalsBuilder singletonOrdinalsBuilder(SortedDocValues ordinals, int count);
+        SingletonOrdinalsBuilder singletonOrdinalsBuilder(SortedDocValues ordinals, int count, boolean isDense);
 
         /**
          * Build a reader for reading {@link SortedSetDocValues}
@@ -548,6 +548,8 @@ public interface BlockLoader {
          * Appends an ordinal to the builder.
          */
         SingletonOrdinalsBuilder appendOrd(int value);
+
+        SingletonOrdinalsBuilder appendOrds(int[] values, int from, int length, int minOrd, int maxOrd);
     }
 
     interface SortedSetOrdinalsBuilder extends Builder {

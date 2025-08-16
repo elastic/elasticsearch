@@ -489,9 +489,6 @@ tests:
 - class: org.elasticsearch.reservedstate.service.FileSettingsServiceIT
   method: testSettingsAppliedOnStart
   issue: https://github.com/elastic/elasticsearch/issues/131210
-- class: org.elasticsearch.index.mapper.vectors.SparseVectorFieldMapperTests
-  method: testPruningScenarios
-  issue: https://github.com/elastic/elasticsearch/issues/132810
 - class: org.elasticsearch.test.rest.yaml.CcsCommonYamlTestSuiteIT
   method: test {p0=search/160_exists_query/Test exists query on mapped date field with no doc values}
   issue: https://github.com/elastic/elasticsearch/issues/132828

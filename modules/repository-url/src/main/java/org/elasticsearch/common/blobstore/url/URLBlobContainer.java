@@ -169,4 +169,8 @@ public class URLBlobContainer extends AbstractBlobContainer {
         listener.onFailure(new UnsupportedOperationException("URL repositories do not support this operation"));
     }
 
+    @Override
+    public void getRegister(OperationPurpose purpose, String key, ActionListener<OptionalBytesReference> listener) {
+        listener.onFailure(new UnsupportedOperationException("URL repositories do not support this operation"));
+    }
 }

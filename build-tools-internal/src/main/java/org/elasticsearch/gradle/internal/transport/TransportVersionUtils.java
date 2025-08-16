@@ -16,6 +16,7 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.stream.Collectors;
 
 class TransportVersionUtils {
 
@@ -32,9 +33,27 @@ class TransportVersionUtils {
         return TransportVersionDefinition.fromString(file.getFileName().toString(), contents);
     }
 
+    static void writeDefinitionFile(Path resourcesDir, TransportVersionDefinition definition) throws IOException {
+        Files.writeString(
+            resourcesDir.resolve("definitions/named").resolve(definition.name() + ".csv"),
+            definition.ids().stream().map(id -> String.valueOf(id.complete())).collect(Collectors.joining(",")) + "\n",
+            StandardCharsets.UTF_8
+        );
+    }
+
     static TransportVersionLatest readLatestFile(Path file) throws IOException {
         String contents = Files.readString(file, StandardCharsets.UTF_8).strip();
         return TransportVersionLatest.fromString(file.getFileName().toString(), contents);
+    }
+
+    static TransportVersionLatest readLatestFile(Path resourcesDir, String latestName) throws IOException {
+        Path latestFilePath = resourcesDir.resolve("latest").resolve(latestName + ".csv");
+        return readLatestFile(latestFilePath);
+    }
+
+    static void writeLatestFile(Path resourcesDir, TransportVersionLatest latest) throws IOException {
+        var path = resourcesDir.resolve("latest").resolve(latest.releaseBranch() + ".csv");
+        Files.writeString(path, latest.name() + "," + latest.id().complete() + "\n", StandardCharsets.UTF_8);
     }
 
     static Directory getDefinitionsDirectory(Directory resourcesDirectory) {
@@ -43,6 +62,10 @@ class TransportVersionUtils {
 
     static Directory getLatestDirectory(Directory resourcesDirectory) {
         return resourcesDirectory.dir("latest");
+    }
+
+    static String getResourcePath(String resourcesProjectPath, String subPath) {
+        return resourcesProjectPath + "/src/main/resources/transport/" + subPath;
     }
 
     static Directory getResourcesDirectory(Project project) {

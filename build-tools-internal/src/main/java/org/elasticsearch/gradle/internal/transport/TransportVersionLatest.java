@@ -9,10 +9,12 @@
 
 package org.elasticsearch.gradle.internal.transport;
 
-record TransportVersionLatest(String branch, String name, TransportVersionId id) {
+record TransportVersionLatest(String releaseBranch, String name, TransportVersionId id) {
+
     public static TransportVersionLatest fromString(String filename, String contents) {
         assert filename.endsWith(".csv");
-        String branch = filename.substring(0, filename.length() - 4);
+        int slashIndex = filename.lastIndexOf('/');
+        String branch = filename.substring(slashIndex == -1 ? 0 : (slashIndex + 1), filename.length() - 4);
 
         String[] parts = contents.split(",");
         if (parts.length != 2) {

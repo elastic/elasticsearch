@@ -26,6 +26,7 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
@@ -74,6 +75,11 @@ public class RestCountAction extends BaseRestHandler {
         }
 
         countRequest.preference(request.param("preference"));
+
+        String sStats = request.param("stats");
+        if (sStats != null) {
+            searchSourceBuilder.stats(Arrays.asList(Strings.splitStringByCommaToArray(sStats)));
+        }
 
         final int terminateAfter = request.paramAsInt("terminate_after", DEFAULT_TERMINATE_AFTER);
         searchSourceBuilder.terminateAfter(terminateAfter);

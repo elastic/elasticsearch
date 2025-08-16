@@ -169,13 +169,15 @@ public class AggregateMetricDoubleFieldMapper extends FieldMapper {
         private final IndexVersion indexCreatedVersion;
         private final IndexMode indexMode;
         private final SourceKeepMode indexSourceKeepMode;
+        private final boolean indexDisabledByDefault;
 
         public Builder(
             String name,
             Boolean ignoreMalformedByDefault,
             IndexVersion indexCreatedVersion,
             IndexMode mode,
-            SourceKeepMode indexSourceKeepMode
+            SourceKeepMode indexSourceKeepMode,
+            boolean indexDisabledByDefault
         ) {
             super(name);
             this.ignoreMalformed = Parameter.boolParam(
@@ -189,6 +191,7 @@ public class AggregateMetricDoubleFieldMapper extends FieldMapper {
             this.indexCreatedVersion = Objects.requireNonNull(indexCreatedVersion);
             this.indexMode = mode;
             this.indexSourceKeepMode = indexSourceKeepMode;
+            this.indexDisabledByDefault = indexDisabledByDefault;
         }
 
         @Override
@@ -247,7 +250,8 @@ public class AggregateMetricDoubleFieldMapper extends FieldMapper {
                         false,
                         indexCreatedVersion,
                         indexMode,
-                        indexSourceKeepMode
+                        indexSourceKeepMode,
+                        indexDisabledByDefault
                     ).allowMultipleValues(false);
                 } else {
                     builder = new NumberFieldMapper.Builder(
@@ -258,7 +262,8 @@ public class AggregateMetricDoubleFieldMapper extends FieldMapper {
                         true,
                         indexCreatedVersion,
                         indexMode,
-                        indexSourceKeepMode
+                        indexSourceKeepMode,
+                        indexDisabledByDefault
                     ).allowMultipleValues(false);
                 }
                 NumberFieldMapper fieldMapper = builder.build(context);
@@ -289,7 +294,8 @@ public class AggregateMetricDoubleFieldMapper extends FieldMapper {
             IGNORE_MALFORMED_SETTING.get(c.getSettings()),
             c.indexVersionCreated(),
             c.getIndexSettings().getMode(),
-            c.getIndexSettings().sourceKeepMode()
+            c.getIndexSettings().sourceKeepMode(),
+            c.getIndexSettings().isIndexDisabledByDefault()
         ),
         notInMultiFields(CONTENT_TYPE)
     );
@@ -694,6 +700,7 @@ public class AggregateMetricDoubleFieldMapper extends FieldMapper {
 
     private final IndexMode indexMode;
     private final SourceKeepMode indexSourceKeepMode;
+    private final boolean indexDisabledByDefault;
 
     private AggregateMetricDoubleFieldMapper(
         String simpleName,
@@ -712,6 +719,7 @@ public class AggregateMetricDoubleFieldMapper extends FieldMapper {
         this.indexCreatedVersion = builder.indexCreatedVersion;
         this.indexMode = builder.indexMode;
         this.indexSourceKeepMode = builder.indexSourceKeepMode;
+        this.indexDisabledByDefault = builder.indexDisabledByDefault;
     }
 
     @Override
@@ -865,8 +873,14 @@ public class AggregateMetricDoubleFieldMapper extends FieldMapper {
 
     @Override
     public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(leafName(), ignoreMalformedByDefault, indexCreatedVersion, indexMode, indexSourceKeepMode).metric(metricType)
-            .init(this);
+        return new Builder(
+            leafName(),
+            ignoreMalformedByDefault,
+            indexCreatedVersion,
+            indexMode,
+            indexSourceKeepMode,
+            indexDisabledByDefault
+        ).metric(metricType).init(this);
     }
 
     @Override

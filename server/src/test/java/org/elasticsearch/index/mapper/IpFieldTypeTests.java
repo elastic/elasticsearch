@@ -356,7 +356,8 @@ public class IpFieldTypeTests extends FieldTypeTestCase {
             ScriptCompiler.NONE,
             true,
             IndexVersion.current(),
-            Mapper.SourceKeepMode.NONE
+            Mapper.SourceKeepMode.NONE,
+            false
         ).build(MapperBuilderContext.root(false, false)).fieldType();
         assertEquals(List.of("2001:db8::2:1"), fetchSourceValue(mapper, "2001:db8::2:1"));
         assertEquals(List.of("2001:db8::2:1"), fetchSourceValue(mapper, "2001:db8:0:0:0:0:2:1"));
@@ -367,7 +368,8 @@ public class IpFieldTypeTests extends FieldTypeTestCase {
             ScriptCompiler.NONE,
             true,
             IndexVersion.current(),
-            Mapper.SourceKeepMode.NONE
+            Mapper.SourceKeepMode.NONE,
+            false
         ).nullValue("2001:db8:0:0:0:0:2:7").build(MapperBuilderContext.root(false, false)).fieldType();
         assertEquals(List.of("2001:db8::2:7"), fetchSourceValue(nullValueMapper, null));
     }

@@ -108,13 +108,15 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
         private final Parameter<TimeSeriesParams.MetricType> metric;  // either null, or POSITION if this is a time series metric
         private final Parameter<Boolean> dimension; // can only support time_series_dimension: false
         private final IndexMode indexMode;  // either STANDARD or TIME_SERIES
+        private final boolean indexDisabledByDefault;
 
         public Builder(
             String name,
             ScriptCompiler scriptCompiler,
             boolean ignoreMalformedByDefault,
             IndexVersion indexCreatedVersion,
-            IndexMode mode
+            IndexMode mode,
+            boolean indexDisabledByDefault
         ) {
             super(name);
             this.ignoreMalformed = ignoreMalformedParam(m -> builder(m).ignoreMalformed.get(), ignoreMalformedByDefault);
@@ -128,10 +130,13 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
             this.indexCreatedVersion = Objects.requireNonNull(indexCreatedVersion);
             this.script.precludesParameters(nullValue, ignoreMalformed, ignoreZValue);
             this.indexMode = mode;
-            this.indexed = Parameter.indexParam(
-                m -> toType(m).indexed,
-                () -> indexMode != IndexMode.TIME_SERIES || getMetric().getValue() != TimeSeriesParams.MetricType.POSITION
-            );
+            this.indexed = Parameter.indexParam(m -> toType(m).indexed, () -> {
+                if (indexDisabledByDefault) {
+                    return false;
+                }
+
+                return indexMode != IndexMode.TIME_SERIES || getMetric().getValue() != TimeSeriesParams.MetricType.POSITION;
+            });
             addScriptValidation(script, indexed, hasDocValues);
 
             this.metric = TimeSeriesParams.metricParam(m -> toType(m).metricType, TimeSeriesParams.MetricType.POSITION).addValidator(v -> {
@@ -149,6 +154,7 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
                     );
                 }
             });
+            this.indexDisabledByDefault = indexDisabledByDefault;
         }
 
         private Parameter<TimeSeriesParams.MetricType> getMetric() {
@@ -244,7 +250,8 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
             c.scriptCompiler(),
             IGNORE_MALFORMED_SETTING.get(c.getSettings()),
             c.indexVersionCreated(),
-            c.getIndexSettings().getMode()
+            c.getIndexSettings().getMode(),
+            c.getIndexSettings().isIndexDisabledByDefault()
         )
     );
 
@@ -254,6 +261,7 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
     private final TimeSeriesParams.MetricType metricType;
     private final IndexMode indexMode;
     private final boolean indexed;
+    private final boolean indexDisabledByDefault;
 
     public GeoPointFieldMapper(
         String simpleName,
@@ -277,6 +285,7 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
         this.metricType = builder.metric.get();
         this.indexMode = builder.indexMode;
         this.indexed = builder.indexed.get();
+        this.indexDisabledByDefault = builder.indexDisabledByDefault;
     }
 
     @Override
@@ -286,7 +295,8 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
             builder.scriptCompiler,
             builder.ignoreMalformed.getDefaultValue().value(),
             indexCreatedVersion,
-            indexMode
+            indexMode,
+            indexDisabledByDefault
         ).init(this);
     }
 

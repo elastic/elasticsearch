@@ -244,6 +244,20 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
         assertEquals(DocValuesType.SORTED_SET, keyedFields.get(0).fieldType().docValuesType());
     }
 
+    public void testDisableDefaultIndex() throws IOException {
+        var settings = Settings.builder().put(IndexSettings.INDEX_DISABLED_BY_DEFAULT.getKey(), true).build();
+        var mapperService = createMapperService(settings, fieldMapping(b -> b.field("type", "flattened")));
+        var documentMapper = mapperService.documentMapper();
+        ParsedDocument doc = documentMapper.parse(source(b -> b.startObject("field").field("key", "value").endObject()));
+        List<IndexableField> fields = doc.rootDoc().getFields("field");
+        assertEquals(1, fields.size());
+        assertEquals(DocValuesType.SORTED_SET, fields.get(0).fieldType().docValuesType());
+
+        List<IndexableField> keyedFields = doc.rootDoc().getFields("field._keyed");
+        assertEquals(1, keyedFields.size());
+        assertEquals(DocValuesType.SORTED_SET, keyedFields.get(0).fieldType().docValuesType());
+    }
+
     public void testDisableDocValues() throws Exception {
 
         DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> {

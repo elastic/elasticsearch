@@ -31,7 +31,8 @@ import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.TimeSeriesRoutingHashFieldMapper;
 import org.elasticsearch.ingest.ESONIndexed;
-import org.elasticsearch.ingest.ESONXContentParser;
+import org.elasticsearch.search.lookup.Source;
+import org.elasticsearch.search.lookup.SourceFilter;
 import org.elasticsearch.transport.Transports;
 import org.elasticsearch.xcontent.DeprecationHandler;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -40,6 +41,7 @@ import org.elasticsearch.xcontent.XContentParser.Token;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentString;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xcontent.support.MapXContentParser;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -312,6 +314,7 @@ public abstract class IndexRouting {
         private final IndexMode indexMode;
         private final boolean trackTimeSeriesRoutingHash;
         private final boolean addIdWithRoutingHash;
+        private final SourceFilter sourceFilter;
         private int hash = Integer.MAX_VALUE;
 
         ExtractFromSource(IndexMetadata metadata) {
@@ -326,6 +329,7 @@ public abstract class IndexRouting {
             List<String> routingPaths = metadata.getRoutingPaths();
             isRoutingPath = Regex.simpleMatcher(routingPaths.toArray(String[]::new));
             this.parserConfig = XContentParserConfiguration.EMPTY.withFiltering(null, Set.copyOf(routingPaths), null, true);
+            sourceFilter = new SourceFilter(routingPaths.toArray(new String[0]), Strings.EMPTY_ARRAY);
         }
 
         public boolean matchesField(String fieldName) {
@@ -357,12 +361,12 @@ public abstract class IndexRouting {
         public int indexShard(String id, @Nullable String routing, XContentType sourceType, ESONIndexed.ESONObject structuredSource) {
             assert Transports.assertNotTransportThread("parsing the _source can get slow");
             checkNoRouting(routing);
-            // TODO: ESONFlat will return an unmutated version whereas Indexed can be mutated right now.
+            Source source = Source.fromMap(structuredSource, sourceType).filter(sourceFilter);
             try (
-                XContentParser parser = new ESONXContentParser(
-                    structuredSource.esonFlat(),
+                XContentParser parser = new MapXContentParser(
                     NamedXContentRegistry.EMPTY,
                     DeprecationHandler.IGNORE_DEPRECATIONS,
+                    source.source(),
                     sourceType
                 )
             ) {

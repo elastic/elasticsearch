@@ -67,7 +67,7 @@ public class ContainsTests extends AbstractScalarFunctionTestCase {
         suppliers.add(supplier("a tiger", "a t", true));
         suppliers.add(supplier("a tiger", "a", true));
         suppliers.add(supplier("界世", "界", true));
-        suppliers.add(supplier("a tiger", "er",true));
+        suppliers.add(supplier("a tiger", "er", true));
         suppliers.add(supplier("a tiger", "r", true));
         suppliers.add(supplier("界世", "世", true));
         suppliers.add(supplier("a tiger", "ti", true));
@@ -121,7 +121,7 @@ public class ContainsTests extends AbstractScalarFunctionTestCase {
         return new TestCaseSupplier(
             name,
             types(DataType.KEYWORD, DataType.KEYWORD),
-            () -> testCase(DataType.KEYWORD, DataType.KEYWORD, str, substr,  expectedValue)
+            () -> testCase(DataType.KEYWORD, DataType.KEYWORD, str, substr, expectedValue)
         );
     }
 

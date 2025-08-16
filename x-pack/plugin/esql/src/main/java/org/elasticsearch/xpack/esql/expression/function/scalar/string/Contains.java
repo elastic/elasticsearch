@@ -48,11 +48,7 @@ public class Contains extends EsqlScalarFunction implements OptionalArgument {
     public Contains(
         Source source,
         @Param(name = "string", type = { "keyword", "text" }, description = "An input string") Expression str,
-        @Param(
-            name = "substring",
-            type = { "keyword", "text" },
-            description = "A substring to find in the input string"
-        ) Expression substr
+        @Param(name = "substring", type = { "keyword", "text" }, description = "A substring to find in the input string") Expression substr
     ) {
         super(source, Arrays.asList(str, substr));
         this.str = str;
@@ -60,11 +56,7 @@ public class Contains extends EsqlScalarFunction implements OptionalArgument {
     }
 
     private Contains(StreamInput in) throws IOException {
-        this(
-            Source.readFrom((PlanStreamInput) in),
-            in.readNamedWriteable(Expression.class),
-            in.readNamedWriteable(Expression.class)
-        );
+        this(Source.readFrom((PlanStreamInput) in), in.readNamedWriteable(Expression.class), in.readNamedWriteable(Expression.class));
     }
 
     @Override

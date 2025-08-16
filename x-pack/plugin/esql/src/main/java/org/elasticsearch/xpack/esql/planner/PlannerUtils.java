@@ -41,6 +41,7 @@ import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdow
 import org.elasticsearch.xpack.esql.plan.QueryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
+import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.PipelineBreaker;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsSourceExec;
@@ -51,6 +52,7 @@ import org.elasticsearch.xpack.esql.plan.physical.ExchangeSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
 import org.elasticsearch.xpack.esql.plan.physical.MergeExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
+import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
 import org.elasticsearch.xpack.esql.planner.mapper.LocalMapper;
 import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 import org.elasticsearch.xpack.esql.session.Configuration;
@@ -112,11 +114,20 @@ public class PlannerUtils {
         return new Tuple<>(coordinatorPlan, dataNodePlan.get());
     }
 
-    public static PhysicalPlan reductionPlan(PhysicalPlan plan) {
+    public sealed interface PlanReduction {}
+
+    public enum SimplePlanReduction implements PlanReduction {
+        NO_REDUCTION,
+        TOP_N;
+    }
+
+    public record ReducedPlan(PhysicalPlan plan) implements PlanReduction {}
+
+    public static PlanReduction reductionPlan(PhysicalPlan plan) {
         // find the logical fragment
         var fragments = plan.collectFirstChildren(p -> p instanceof FragmentExec);
         if (fragments.isEmpty()) {
-            return null;
+            return SimplePlanReduction.NO_REDUCTION;
         }
         final FragmentExec fragment = (FragmentExec) fragments.getFirst();
 
@@ -124,15 +135,20 @@ public class PlannerUtils {
         // See also: https://github.com/elastic/elasticsearch/pull/131945/files#r2235572935
         final var pipelineBreakers = fragment.fragment().collectFirstChildren(p -> p instanceof PipelineBreaker);
         if (pipelineBreakers.isEmpty()) {
-            return null;
+            return SimplePlanReduction.NO_REDUCTION;
         }
-        final var pipelineBreaker = pipelineBreakers.getFirst();
+        final LogicalPlan pipelineBreaker = pipelineBreakers.getFirst();
         final LocalMapper mapper = new LocalMapper();
-        PhysicalPlan reducePlan = mapper.map(pipelineBreaker);
-        if (reducePlan instanceof AggregateExec agg) {
-            reducePlan = agg.withMode(AggregatorMode.INTERMEDIATE);
-        }
-        return EstimatesRowSize.estimateRowSize(fragment.estimatedRowSize(), reducePlan);
+        int estimatedRowSize = fragment.estimatedRowSize();
+        return switch (mapper.map(pipelineBreaker)) {
+            case TopNExec unused -> SimplePlanReduction.TOP_N;
+            case AggregateExec aggExec -> getPhysicalPlanReduction(estimatedRowSize, aggExec.withMode(AggregatorMode.INTERMEDIATE));
+            case PhysicalPlan p -> getPhysicalPlanReduction(estimatedRowSize, p);
+        };
+    }
+
+    private static ReducedPlan getPhysicalPlanReduction(int estimatedRowSize, PhysicalPlan plan) {
+        return new ReducedPlan(EstimatesRowSize.estimateRowSize(estimatedRowSize, plan));
     }
 
     /**
@@ -172,9 +188,10 @@ public class PlannerUtils {
         List<SearchExecutionContext> searchContexts,
         Configuration configuration,
         FoldContext foldCtx,
+        LocalPhysicalOptimizerContext.ProjectAfterTopN projectAfterTopN,
         PhysicalPlan plan
     ) {
-        return localPlan(flags, configuration, foldCtx, plan, SearchContextStats.from(searchContexts));
+        return localPlan(flags, configuration, foldCtx, plan, SearchContextStats.from(searchContexts), projectAfterTopN);
     }
 
     public static PhysicalPlan localPlan(
@@ -182,11 +199,12 @@ public class PlannerUtils {
         Configuration configuration,
         FoldContext foldCtx,
         PhysicalPlan plan,
-        SearchStats searchStats
+        SearchStats searchStats,
+        LocalPhysicalOptimizerContext.ProjectAfterTopN projectAfterTopN
     ) {
         final var logicalOptimizer = new LocalLogicalPlanOptimizer(new LocalLogicalOptimizerContext(configuration, foldCtx, searchStats));
         var physicalOptimizer = new LocalPhysicalPlanOptimizer(
-            new LocalPhysicalOptimizerContext(flags, configuration, foldCtx, searchStats)
+            new LocalPhysicalOptimizerContext(flags, configuration, foldCtx, searchStats, projectAfterTopN)
         );
 
         return localPlan(plan, logicalOptimizer, physicalOptimizer);

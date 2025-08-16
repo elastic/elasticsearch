@@ -726,7 +726,13 @@ public class CsvTests extends ESTestCase {
             var searchStats = new DisabledSearchStats();
             var logicalTestOptimizer = new LocalLogicalPlanOptimizer(new LocalLogicalOptimizerContext(configuration, foldCtx, searchStats));
             var physicalTestOptimizer = new TestLocalPhysicalPlanOptimizer(
-                new LocalPhysicalOptimizerContext(new EsqlFlags(true), configuration, foldCtx, searchStats)
+                new LocalPhysicalOptimizerContext(
+                    new EsqlFlags(true),
+                    configuration,
+                    foldCtx,
+                    searchStats,
+                    LocalPhysicalOptimizerContext.ProjectAfterTopN.KEEP
+                )
             );
 
             var csvDataNodePhysicalPlan = PlannerUtils.localPlan(dataNodePlan, logicalTestOptimizer, physicalTestOptimizer);

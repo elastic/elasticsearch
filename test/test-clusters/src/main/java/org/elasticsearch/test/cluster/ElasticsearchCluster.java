@@ -35,7 +35,10 @@ public interface ElasticsearchCluster extends TestRule, LocalClusterHandle {
      * @return a builder for a local cluster
      */
     static LocalClusterSpecBuilder<ElasticsearchCluster> local() {
-        return locateBuilderImpl();
+        LocalClusterSpecBuilder<ElasticsearchCluster> elasticsearchClusterSpecBuilder = locateBuilderImpl();
+        // reduce the size of direct buffers so we don't OOM when reserving direct memory on small machines with many CPUs in tests
+        elasticsearchClusterSpecBuilder.systemProperty("es.searchable.snapshot.shared_cache.write_buffer.size", "256k");
+        return elasticsearchClusterSpecBuilder;
     }
 
     @SuppressWarnings({ "unchecked", "rawtypes" })

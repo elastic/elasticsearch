@@ -20,10 +20,9 @@ import org.elasticsearch.action.support.ActionFilter;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
-import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexVersion;
@@ -57,7 +56,7 @@ import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -151,7 +150,11 @@ public abstract class AbstractFeatureMigrationIntegTest extends ESIntegTestCase 
     protected String masterName;
 
     protected static ProjectMetadata assertMetadataAfterMigration(String featureName) {
-        ProjectMetadata finalMetadata = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState().metadata().getProject();
+        ProjectMetadata finalMetadata = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT)
+            .get()
+            .getState()
+            .metadata()
+            .getProject(ProjectId.DEFAULT);
         // Check that the results metadata is what we expect.
         FeatureMigrationResults currentResults = finalMetadata.custom(FeatureMigrationResults.TYPE);
         assertThat(currentResults, notNullValue());
@@ -169,8 +172,8 @@ public abstract class AbstractFeatureMigrationIntegTest extends ESIntegTestCase 
         masterAndDataNode = internalCluster().startNode();
 
         TestPlugin testPlugin = getPlugin(TestPlugin.class);
-        testPlugin.preMigrationHook.set((state) -> Collections.emptyMap());
-        testPlugin.postMigrationHook.set((state, metadata) -> {});
+        testPlugin.preMigrationHook.set((project) -> Collections.emptyMap());
+        testPlugin.postMigrationHook.set((metadata) -> {});
     }
 
     protected <T extends Plugin> T getPlugin(Class<T> type) {
@@ -340,8 +343,8 @@ public abstract class AbstractFeatureMigrationIntegTest extends ESIntegTestCase 
     }
 
     public static class TestPlugin extends Plugin implements SystemIndexPlugin, ActionPlugin {
-        public final AtomicReference<Function<ClusterState, Map<String, Object>>> preMigrationHook = new AtomicReference<>();
-        public final AtomicReference<BiConsumer<ClusterState, Map<String, Object>>> postMigrationHook = new AtomicReference<>();
+        public final AtomicReference<Function<ProjectMetadata, Map<String, Object>>> preMigrationHook = new AtomicReference<>();
+        public final AtomicReference<Consumer<Map<String, Object>>> postMigrationHook = new AtomicReference<>();
         private final BlockingActionFilter blockingActionFilter;
 
         public TestPlugin() {
@@ -375,18 +378,13 @@ public abstract class AbstractFeatureMigrationIntegTest extends ESIntegTestCase 
         }
 
         @Override
-        public void prepareForIndicesMigration(ClusterService clusterService, Client client, ActionListener<Map<String, Object>> listener) {
-            listener.onResponse(preMigrationHook.get().apply(clusterService.state()));
+        public void prepareForIndicesMigration(ProjectMetadata project, Client client, ActionListener<Map<String, Object>> listener) {
+            listener.onResponse(preMigrationHook.get().apply(project));
         }
 
         @Override
-        public void indicesMigrationComplete(
-            Map<String, Object> preUpgradeMetadata,
-            ClusterService clusterService,
-            Client client,
-            ActionListener<Boolean> listener
-        ) {
-            postMigrationHook.get().accept(clusterService.state(), preUpgradeMetadata);
+        public void indicesMigrationComplete(Map<String, Object> preUpgradeMetadata, Client client, ActionListener<Boolean> listener) {
+            postMigrationHook.get().accept(preUpgradeMetadata);
             listener.onResponse(true);
         }
 

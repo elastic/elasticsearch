@@ -1252,6 +1252,8 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
             case DATE_NANOS -> EsqlDataTypeConverter.nanoTimeToString(randomMillisUpToYear9999());
             case DATETIME -> EsqlDataTypeConverter.dateTimeToString(randomMillisUpToYear9999());
             case DOUBLE -> randomDouble();
+            // TODO NATIVE FLOATS
+            // case FLOAT -> randomFloat();
             case KEYWORD -> randomAlphaOfLength(5);
             case IP -> NetworkAddress.format(randomIp(randomBoolean()));
             case TEXT -> randomAlphaOfLength(50);

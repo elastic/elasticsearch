@@ -39,6 +39,7 @@ import static org.elasticsearch.compute.gen.Types.DOUBLE_VECTOR;
 import static org.elasticsearch.compute.gen.Types.DOUBLE_VECTOR_BUILDER;
 import static org.elasticsearch.compute.gen.Types.DOUBLE_VECTOR_FIXED_BUILDER;
 import static org.elasticsearch.compute.gen.Types.FLOAT_BLOCK_BUILDER;
+import static org.elasticsearch.compute.gen.Types.FLOAT_VECTOR;
 import static org.elasticsearch.compute.gen.Types.FLOAT_VECTOR_BUILDER;
 import static org.elasticsearch.compute.gen.Types.FLOAT_VECTOR_FIXED_BUILDER;
 import static org.elasticsearch.compute.gen.Types.INT_BLOCK;
@@ -226,7 +227,7 @@ public class Methods {
         if (t.equals(TypeName.DOUBLE) || t.equals(DOUBLE_BLOCK) || t.equals(DOUBLE_VECTOR)) {
             return "appendDouble";
         }
-        if (t.equals(TypeName.FLOAT) || t.equals(FLOAT_BLOCK_BUILDER)) {
+        if (t.equals(TypeName.FLOAT) || t.equals(FLOAT_BLOCK_BUILDER) || t.equals(FLOAT_VECTOR)) {
             return "appendFloat";
         }
         throw new IllegalArgumentException("unknown append method for [" + t + "]");

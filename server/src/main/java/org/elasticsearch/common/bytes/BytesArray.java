@@ -11,7 +11,9 @@ package org.elasticsearch.common.bytes;
 
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefIterator;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.ByteUtils;
 
 import java.io.IOException;
@@ -222,7 +224,11 @@ public final class BytesArray extends AbstractBytesReference {
 
     @Override
     public void writeTo(OutputStream os) throws IOException {
-        os.write(bytes, offset, length);
+        if (os instanceof StreamOutput output) {
+            output.writeBytes(bytes, offset, length);
+        } else {
+            os.write(bytes, offset, length);
+        }
     }
 
     @Override

@@ -323,21 +323,24 @@ public class RecyclerBytesStreamOutput extends BytesStream implements Releasable
             throw new IllegalArgumentException(getClass().getSimpleName() + " cannot hold more than 2GB of data");
         }
 
-        if (newPosition > currentCapacity) {
-            // Calculate number of additional pages needed
-            long additionalCapacityNeeded = newPosition - currentCapacity;
-            int additionalPagesNeeded = (int) ((additionalCapacityNeeded + pageSize - 1) / pageSize); // Ceiling division
-
-            pages.ensureCapacity(pages.size() + additionalPagesNeeded);
-
-            // Allocate all needed pages at once
-            for (int i = 0; i < additionalPagesNeeded; i++) {
+        long additionalCapacityNeeded = newPosition - currentCapacity;
+        if (additionalCapacityNeeded > 0) {
+            if (additionalCapacityNeeded <= pageSize) {
                 Recycler.V<BytesRef> newPage = recycler.obtain();
                 assert pageSize == newPage.v().length;
                 pages.add(newPage);
+                currentCapacity += pageSize;
+            } else {
+                // Calculate number of additional pages needed
+                int additionalPagesNeeded = (int) ((additionalCapacityNeeded + pageSize - 1) / pageSize);
+                pages.ensureCapacity(pages.size() + additionalPagesNeeded);
+                for (int i = 0; i < additionalPagesNeeded; i++) {
+                    Recycler.V<BytesRef> newPage = recycler.obtain();
+                    assert pageSize == newPage.v().length;
+                    pages.add(newPage);
+                }
+                currentCapacity += additionalPagesNeeded * pageSize;
             }
-
-            currentCapacity += additionalPagesNeeded * pageSize;
         }
 
         // We are at the end of the current page, increment page index

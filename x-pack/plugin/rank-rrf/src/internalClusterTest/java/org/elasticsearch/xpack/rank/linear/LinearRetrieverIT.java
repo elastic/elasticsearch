@@ -835,4 +835,43 @@ public class LinearRetrieverIT extends ESIntegTestCase {
         );
         assertThat(numAsyncCalls.get(), equalTo(4));
     }
+
+    public void testMixedNormalizerInheritance() throws IOException {
+        client().prepareIndex(INDEX)
+            .setId("1")
+            .setSource("field1", "elasticsearch search", "field2", "database technology", "score", 10)
+            .get();
+        client().prepareIndex(INDEX).setId("2").setSource("field1", "lucene engine", "field2", "search technology", "score", 5).get();
+        client().prepareIndex(INDEX)
+            .setId("3")
+            .setSource("field1", "information retrieval", "field2", "database search", "score", 15)
+            .get();
+        refresh(INDEX);
+
+        LinearRetrieverBuilder linearRetriever = new LinearRetrieverBuilder(
+            List.of(
+                CompoundRetrieverBuilder.RetrieverSource.from(
+                    new StandardRetrieverBuilder(QueryBuilders.matchQuery("field1", "elasticsearch"))
+                ),
+                CompoundRetrieverBuilder.RetrieverSource.from(
+                    new StandardRetrieverBuilder(QueryBuilders.matchQuery("field2", "technology"))
+                ),
+                CompoundRetrieverBuilder.RetrieverSource.from(new StandardRetrieverBuilder(QueryBuilders.matchQuery("field1", "search")))
+            ),
+            null,
+            null,
+            MinMaxScoreNormalizer.INSTANCE,
+            10,
+            new float[] { 1.0f, 1.0f, 1.0f },
+            new ScoreNormalizer[] { null, L2ScoreNormalizer.INSTANCE, null }
+        );
+
+        assertThat(linearRetriever.getNormalizers()[0], equalTo(MinMaxScoreNormalizer.INSTANCE));
+        assertThat(linearRetriever.getNormalizers()[1], equalTo(L2ScoreNormalizer.INSTANCE));
+        assertThat(linearRetriever.getNormalizers()[2], equalTo(MinMaxScoreNormalizer.INSTANCE));
+
+        assertResponse(client().prepareSearch(INDEX).setSource(new SearchSourceBuilder().retriever(linearRetriever)), searchResponse -> {
+            assertThat(searchResponse.getHits().getTotalHits().value() > 0L, is(true));
+        });
+    }
 }

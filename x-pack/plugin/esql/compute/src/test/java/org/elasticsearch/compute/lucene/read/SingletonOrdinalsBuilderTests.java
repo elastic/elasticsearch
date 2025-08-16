@@ -141,12 +141,7 @@ public class SingletonOrdinalsBuilderTests extends ComputeTestCase {
     public void testAllNull() throws IOException {
         BlockFactory factory = blockFactory();
         int count = 1000;
-        var iwc = newIndexWriterConfig();
-        boolean maybeSoftDeletes = randomBoolean();
-        try (
-            Directory directory = newDirectory();
-            RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory, iwc, maybeSoftDeletes)
-        ) {
+        try (Directory directory = newDirectory(); RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory)) {
             for (int i = 0; i < count; i++) {
                 for (BytesRef v : new BytesRef[] { new BytesRef("a"), new BytesRef("b"), new BytesRef("c"), new BytesRef("d") }) {
                     indexWriter.addDocument(List.of(new SortedDocValuesField("f", v)));
@@ -156,12 +151,7 @@ public class SingletonOrdinalsBuilderTests extends ComputeTestCase {
                 for (LeafReaderContext ctx : reader.leaves()) {
                     SortedDocValues docValues = ctx.reader().getSortedDocValues("f");
                     try (
-                        SingletonOrdinalsBuilder builder = new SingletonOrdinalsBuilder(
-                            factory,
-                            docValues,
-                            ctx.reader().numDocs(),
-                            maybeSoftDeletes == false
-                        );
+                        SingletonOrdinalsBuilder builder = new SingletonOrdinalsBuilder(factory, docValues, ctx.reader().numDocs(), false);
                     ) {
                         for (int i = 0; i < ctx.reader().maxDoc(); i++) {
                             if (ctx.reader().getLiveDocs() == null || ctx.reader().getLiveDocs().get(i)) {

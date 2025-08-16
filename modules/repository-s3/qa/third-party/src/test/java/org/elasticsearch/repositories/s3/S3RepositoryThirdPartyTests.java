@@ -264,6 +264,7 @@ public class S3RepositoryThirdPartyTests extends AbstractThirdPartyRepositoryTes
         // executeMultipart requires a minimum part size of 5 MiB
         final var blobBytes = randomBytesReference(randomIntBetween(5 * 1024 * 1024, 10 * 1024 * 1024));
         final var destinationBlobName = randomIdentifier();
+        final var failIfAlreadyExists = randomBoolean();
 
         final var repository = getRepository();
 
@@ -277,7 +278,8 @@ public class S3RepositoryThirdPartyTests extends AbstractThirdPartyRepositoryTes
                 (S3BlobContainer) sourceBlobContainer,
                 sourceBlobName,
                 destinationBlobName,
-                blobBytes.length()
+                blobBytes.length(),
+                failIfAlreadyExists
             );
 
             return destinationBlobContainer.readBlob(randomPurpose(), destinationBlobName).readAllBytes();

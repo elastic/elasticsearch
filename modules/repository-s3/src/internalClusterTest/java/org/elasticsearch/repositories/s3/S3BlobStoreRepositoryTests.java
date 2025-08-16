@@ -105,6 +105,7 @@ import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.startsWith;
 
 @SuppressForbidden(reason = "this test uses a HttpServer to emulate an S3 endpoint")
 // Need to set up a new cluster for each test because cluster settings use randomized authentication settings
@@ -425,7 +426,7 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
         if (randomBoolean()) {
             repository.blobStore()
                 .blobContainer(repository.basePath())
-                .writeBlobAtomic(randomNonDataPurpose(), getRepositoryDataBlobName(modifiedRepositoryData.getGenId()), serialized, true);
+                .writeBlobAtomic(randomNonDataPurpose(), getRepositoryDataBlobName(modifiedRepositoryData.getGenId()), serialized, false);
         } else {
             repository.blobStore()
                 .blobContainer(repository.basePath())
@@ -434,7 +435,7 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
                     getRepositoryDataBlobName(modifiedRepositoryData.getGenId()),
                     serialized.streamInput(),
                     serialized.length(),
-                    true
+                    false
                 );
         }
 
@@ -565,6 +566,27 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
                     .toList(),
                 empty()
             );
+        }
+    }
+
+    public void testFailIfAlreadyExists() throws IOException {
+        try (BlobStore store = newBlobStore()) {
+            final BlobContainer container = store.blobContainer(BlobPath.EMPTY);
+            final String blobName = randomAlphaOfLengthBetween(8, 12);
+            byte[] data = randomBytes(randomIntBetween(10, scaledRandomIntBetween(1024, 1 << 16)));
+
+            // initial write blob
+            writeBlob(container, blobName, new BytesArray(data), true);
+
+            // override if failIfAlreadyExists is set to false
+            writeBlob(container, blobName, new BytesArray(data), false);
+
+            // throw exception if failIfAlreadyExists is set to true
+            var exception = expectThrows(IOException.class, () -> writeBlob(container, blobName, new BytesArray(data), true));
+
+            assertThat(exception.getMessage(), startsWith("Unable to upload object"));
+
+            container.delete(randomPurpose());
         }
     }
 

@@ -189,6 +189,7 @@ public class S3HttpHandler implements HttpHandler {
 
             } else if (request.isCompleteMultipartUploadRequest()) {
                 final byte[] responseBody;
+                boolean preconditionFailed = false;
                 synchronized (uploads) {
                     final var upload = removeUpload(request.getQueryParamOnce("uploadId"));
                     if (upload == null) {
@@ -206,19 +207,27 @@ public class S3HttpHandler implements HttpHandler {
                         }
                     } else {
                         final var blobContents = upload.complete(extractPartEtags(Streams.readFully(exchange.getRequestBody())));
-                        blobs.put(request.path(), blobContents);
-                        responseBody = ("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
-                            + "<CompleteMultipartUploadResult>\n"
-                            + "<Bucket>"
-                            + bucket
-                            + "</Bucket>\n"
-                            + "<Key>"
-                            + request.path()
-                            + "</Key>\n"
-                            + "</CompleteMultipartUploadResult>").getBytes(StandardCharsets.UTF_8);
+
+                        if (isProtectOverwrite(exchange) && blobs.containsKey(request.path())) {
+                            preconditionFailed = true;
+                            responseBody = null;
+                        } else {
+                            blobs.put(request.path(), blobContents);
+                            responseBody = ("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
+                                + "<CompleteMultipartUploadResult>\n"
+                                + "<Bucket>"
+                                + bucket
+                                + "</Bucket>\n"
+                                + "<Key>"
+                                + request.path()
+                                + "</Key>\n"
+                                + "</CompleteMultipartUploadResult>").getBytes(StandardCharsets.UTF_8);
+                        }
                     }
                 }
-                if (responseBody == null) {
+                if (preconditionFailed) {
+                    exchange.sendResponseHeaders(RestStatus.PRECONDITION_FAILED.getStatus(), -1);
+                } else if (responseBody == null) {
                     exchange.sendResponseHeaders(RestStatus.NOT_FOUND.getStatus(), -1);
                 } else {
                     exchange.getResponseHeaders().add("Content-Type", "application/xml");
@@ -232,7 +241,9 @@ public class S3HttpHandler implements HttpHandler {
             } else if (request.isPutObjectRequest()) {
                 // a copy request is a put request with an X-amz-copy-source header
                 final var copySource = copySourceName(exchange);
-                if (copySource != null) {
+                if (isProtectOverwrite(exchange) && blobs.containsKey(request.path())) {
+                    exchange.sendResponseHeaders(RestStatus.PRECONDITION_FAILED.getStatus(), -1);
+                } else if (copySource != null) {
                     var sourceBlob = blobs.get(copySource);
                     if (sourceBlob == null) {
                         exchange.sendResponseHeaders(RestStatus.NOT_FOUND.getStatus(), -1);
@@ -538,6 +549,18 @@ public class S3HttpHandler implements HttpHandler {
             throw new IllegalStateException("expected 1 x-amz-copy-source-range header, found " + sourceRangeHeaders.size());
         }
         return parseRangeHeader(sourceRangeHeaders.getFirst());
+    }
+
+    private static boolean isProtectOverwrite(final HttpExchange exchange) {
+        final var ifNoneMatch = exchange.getRequestHeaders().getFirst("If-None-Match");
+
+        if (ifNoneMatch == null) {
+            return false;
+        } else if (ifNoneMatch.equals("*")) {
+            return true;
+        }
+
+        throw new AssertionError("invalid If-None-Match header: " + ifNoneMatch);
     }
 
     MultipartUpload putUpload(String path) {

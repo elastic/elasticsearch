@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.inference.external.http.retry;
 
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
 
-public interface UnifiedChatCompletionErrorParser {
+public interface UnifiedChatCompletionErrorParserContract {
     UnifiedChatCompletionErrorResponse parse(HttpResult result);
 
     UnifiedChatCompletionErrorResponse parse(String result);

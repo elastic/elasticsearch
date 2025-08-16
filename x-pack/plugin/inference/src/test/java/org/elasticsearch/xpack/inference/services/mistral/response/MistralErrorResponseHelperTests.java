@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.inference.services.llama.response;
+package org.elasticsearch.xpack.inference.services.mistral.response;
 
 import org.apache.http.HttpResponse;
 import org.elasticsearch.test.ESTestCase;
@@ -15,7 +15,7 @@ import java.nio.charset.StandardCharsets;
 
 import static org.mockito.Mockito.mock;
 
-public class LlamaErrorResponseTests extends ESTestCase {
+public class MistralErrorResponseHelperTests extends ESTestCase {
 
     public static final String ERROR_RESPONSE_JSON = """
         {
@@ -24,11 +24,10 @@ public class LlamaErrorResponseTests extends ESTestCase {
         """;
 
     public void testFromResponse() {
-        var errorResponse = LlamaErrorResponse.fromResponse(
+        var errorResponse = MistralErrorResponseHelper.fromResponse(
             new HttpResult(mock(HttpResponse.class), ERROR_RESPONSE_JSON.getBytes(StandardCharsets.UTF_8))
         );
         assertNotNull(errorResponse);
         assertEquals(ERROR_RESPONSE_JSON, errorResponse.getErrorMessage());
     }
-
 }

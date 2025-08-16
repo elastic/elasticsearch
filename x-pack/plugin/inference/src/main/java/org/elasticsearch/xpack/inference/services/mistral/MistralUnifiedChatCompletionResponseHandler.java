@@ -7,14 +7,9 @@
 
 package org.elasticsearch.xpack.inference.services.mistral;
 
-import org.elasticsearch.xpack.core.inference.results.UnifiedChatCompletionException;
-import org.elasticsearch.xpack.inference.external.http.HttpResult;
-import org.elasticsearch.xpack.inference.external.http.retry.ErrorResponse;
 import org.elasticsearch.xpack.inference.external.http.retry.ResponseParser;
-import org.elasticsearch.xpack.inference.external.request.Request;
+import org.elasticsearch.xpack.inference.services.mistral.response.MistralErrorResponseHelper;
 import org.elasticsearch.xpack.inference.services.openai.OpenAiUnifiedChatCompletionResponseHandler;
-
-import java.util.Locale;
 
 /**
  * Handles streaming chat completion responses and error parsing for Mistral inference endpoints.
@@ -22,18 +17,13 @@ import java.util.Locale;
  */
 public class MistralUnifiedChatCompletionResponseHandler extends OpenAiUnifiedChatCompletionResponseHandler {
 
-    private static final String MISTRAL_ERROR = "mistral_error";
-
+    /**
+     * Constructs a MistralUnifiedChatCompletionResponseHandler with the specified request type and response parser.
+     *
+     * @param requestType The type of request being handled (e.g., "mistral completions").
+     * @param parseFunction The function to parse the response.
+     */
     public MistralUnifiedChatCompletionResponseHandler(String requestType, ResponseParser parseFunction) {
-        super(requestType, parseFunction, ErrorResponse::fromResponse);
-    }
-
-    @Override
-    protected Exception buildError(String message, Request request, HttpResult result, ErrorResponse errorResponse) {
-        assert request.isStreaming() : "Only streaming requests support this format";
-        var responseStatusCode = result.response().getStatusLine().getStatusCode();
-        var errorMessage = constructErrorMessage(message, request, errorResponse, responseStatusCode);
-        var restStatus = toRestStatus(responseStatusCode);
-        return new UnifiedChatCompletionException(restStatus, errorMessage, MISTRAL_ERROR, restStatus.name().toLowerCase(Locale.ROOT));
+        super(requestType, parseFunction, MistralErrorResponseHelper::fromResponse, MistralErrorResponseHelper.ERROR_PARSER);
     }
 }

@@ -12,7 +12,9 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.InferenceFieldMetadata;
 import org.elasticsearch.index.mapper.IndexFieldMapper;
 import org.elasticsearch.index.query.BoolQueryBuilder;
+import org.elasticsearch.index.query.MultiMatchQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.TermsQueryBuilder;
 import org.elasticsearch.plugins.internal.rewriter.QueryRewriteInterceptor;
@@ -33,13 +35,20 @@ public abstract class SemanticQueryRewriteInterceptor implements QueryRewriteInt
 
     @Override
     public QueryBuilder interceptAndRewrite(QueryRewriteContext context, QueryBuilder queryBuilder) {
-        String fieldName = getFieldName(queryBuilder);
+        Map<String, Float> fieldsWithBoosts = getFieldNamesWithBoosts(queryBuilder);
         ResolvedIndices resolvedIndices = context.getResolvedIndices();
 
         if (resolvedIndices == null) {
             // No resolved indices, so return the original query.
             return queryBuilder;
         }
+
+        if (queryBuilder instanceof MultiMatchQueryBuilder) {
+            return handleMultiFieldQuery(queryBuilder, fieldsWithBoosts, resolvedIndices);
+        }
+
+        String fieldName = fieldsWithBoosts.keySet().iterator().next();
+        Float fieldBoost = fieldsWithBoosts.get(fieldName);
 
         InferenceIndexInformationForField indexInformation = resolveIndicesForField(fieldName, resolvedIndices);
         if (indexInformation.getInferenceIndices().isEmpty()) {
@@ -49,19 +58,103 @@ public abstract class SemanticQueryRewriteInterceptor implements QueryRewriteInt
             // Combined case where the field name requested by this query contains both
             // semantic_text and non-inference fields, so we have to combine queries per index
             // containing each field type.
-            return buildCombinedInferenceAndNonInferenceQuery(queryBuilder, indexInformation);
+            return buildCombinedInferenceAndNonInferenceQuery(queryBuilder, indexInformation, fieldBoost);
         } else {
             // The only fields we've identified are inference fields (e.g. semantic_text),
             // so rewrite the entire query to work on a semantic_text field.
-            return buildInferenceQuery(queryBuilder, indexInformation);
+            return buildInferenceQuery(queryBuilder, indexInformation, fieldBoost);
         }
     }
 
     /**
-     * @param queryBuilder {@link QueryBuilder}
-     * @return The singular field name requested by the provided query builder.
+     * Handle multi-field queries by analyzing each field for semantic_text fields
+     * and creating appropriate queries
      */
-    protected abstract String getFieldName(QueryBuilder queryBuilder);
+    private QueryBuilder handleMultiFieldQuery(
+        QueryBuilder queryBuilder,
+        Map<String, Float> fieldsWithBoosts,
+        ResolvedIndices resolvedIndices
+    ) {
+        assert (queryBuilder instanceof MultiMatchQueryBuilder);
+        MultiMatchQueryBuilder multiMatchQueryBuilder = (MultiMatchQueryBuilder) queryBuilder;
+        String queryText = getQuery(queryBuilder);
+
+        boolean hasSemanticField = false;
+        Map<String, InferenceIndexInformationForField> fieldInfoMap = new HashMap<>();
+
+        // Analyze each field to determine if it's semantic or not
+        for (Map.Entry<String, Float> fieldEntry : fieldsWithBoosts.entrySet()) {
+            String fieldName = fieldEntry.getKey();
+            InferenceIndexInformationForField indexInfo = resolveIndicesForField(fieldName, resolvedIndices);
+            fieldInfoMap.put(fieldName, indexInfo);
+
+            if (indexInfo.getInferenceIndices().isEmpty() == false) {
+                hasSemanticField = true;
+            }
+        }
+
+        // If no semantic fields were found, return the original query
+        if (hasSemanticField == false) {
+            return queryBuilder;
+        }
+
+        // Create a combined query
+        BoolQueryBuilder combinedQuery = new BoolQueryBuilder();
+
+        // Apply the MultiMatch type and tie-breaker
+        MultiMatchQueryBuilder.Type type = multiMatchQueryBuilder.type();
+        Float tieBreaker = multiMatchQueryBuilder.tieBreaker();
+        boolean shouldUseTieBreaker = (tieBreaker != null);
+
+        Map<String, Float> nonSemanticFields = new HashMap<>();
+        for (Map.Entry<String, Float> fieldEntry : fieldsWithBoosts.entrySet()) {
+            String fieldName = fieldEntry.getKey();
+            Float fieldBoost = fieldEntry.getValue();
+            InferenceIndexInformationForField indexInfo = fieldInfoMap.get(fieldName);
+
+            if (indexInfo.getInferenceIndices().isEmpty()) {
+                nonSemanticFields.put(fieldName, fieldBoost);
+            } else if (indexInfo.nonInferenceIndices().isEmpty()) {
+                QueryBuilder semanticQuery = buildInferenceQuery(queryBuilder, indexInfo, fieldBoost);
+                if (shouldUseTieBreaker) {
+                    semanticQuery.boost(semanticQuery.boost() * (type == MultiMatchQueryBuilder.Type.MOST_FIELDS ? 1.0f : tieBreaker));
+                }
+                combinedQuery.should(semanticQuery);
+            } else {
+                QueryBuilder mixedQuery = buildCombinedInferenceAndNonInferenceQuery(queryBuilder, indexInfo, fieldBoost);
+                if (shouldUseTieBreaker) {
+                    mixedQuery.boost(mixedQuery.boost() * (type == MultiMatchQueryBuilder.Type.MOST_FIELDS ? 1.0f : tieBreaker));
+                }
+                combinedQuery.should(mixedQuery);
+            }
+        }
+
+        if (nonSemanticFields.isEmpty() == false) {
+            MultiMatchQueryBuilder nonSemanticQuery = QueryBuilders.multiMatchQuery(queryText);
+            nonSemanticQuery.fields(nonSemanticFields);
+
+            SemanticMultiMatchQueryRewriteInterceptor.copyMultiMatchConfiguration(multiMatchQueryBuilder, nonSemanticQuery);
+
+            if (shouldUseTieBreaker) {
+                nonSemanticQuery.boost(nonSemanticQuery.boost() * (type == MultiMatchQueryBuilder.Type.MOST_FIELDS ? 1.0f : tieBreaker));
+            }
+
+            combinedQuery.should(nonSemanticQuery);
+        }
+
+        combinedQuery.boost(queryBuilder.boost());
+        combinedQuery.queryName(queryBuilder.queryName());
+
+        return combinedQuery;
+    }
+
+    /**
+     * Extracts field names and their associated boost values from the query builder.
+     *
+     * @param queryBuilder the query builder to extract field information from
+     * @return a map where keys are field names and values are their boost multipliers
+     */
+    protected abstract Map<String, Float> getFieldNamesWithBoosts(QueryBuilder queryBuilder);
 
     /**
      * @param queryBuilder {@link QueryBuilder}
@@ -74,20 +167,27 @@ public abstract class SemanticQueryRewriteInterceptor implements QueryRewriteInt
      *
      * @param queryBuilder {@link QueryBuilder}
      * @param indexInformation {@link InferenceIndexInformationForField}
+     * @param fieldBoost per field boost value
      * @return {@link QueryBuilder}
      */
-    protected abstract QueryBuilder buildInferenceQuery(QueryBuilder queryBuilder, InferenceIndexInformationForField indexInformation);
+    protected abstract QueryBuilder buildInferenceQuery(
+        QueryBuilder queryBuilder,
+        InferenceIndexInformationForField indexInformation,
+        Float fieldBoost
+    );
 
     /**
      * Builds a combined inference and non-inference query,
      * which separates the different queries into appropriate indices based on field type.
      * @param queryBuilder {@link QueryBuilder}
      * @param indexInformation {@link InferenceIndexInformationForField}
+     * @param fieldBoost per field boost value
      * @return {@link QueryBuilder}
      */
     protected abstract QueryBuilder buildCombinedInferenceAndNonInferenceQuery(
         QueryBuilder queryBuilder,
-        InferenceIndexInformationForField indexInformation
+        InferenceIndexInformationForField indexInformation,
+        Float fieldBoost
     );
 
     private InferenceIndexInformationForField resolveIndicesForField(String fieldName, ResolvedIndices resolvedIndices) {

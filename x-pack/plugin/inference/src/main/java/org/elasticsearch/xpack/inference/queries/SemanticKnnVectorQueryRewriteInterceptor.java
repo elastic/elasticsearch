@@ -33,10 +33,10 @@ public class SemanticKnnVectorQueryRewriteInterceptor extends SemanticQueryRewri
     public SemanticKnnVectorQueryRewriteInterceptor() {}
 
     @Override
-    protected String getFieldName(QueryBuilder queryBuilder) {
+    protected Map<String, Float> getFieldNamesWithBoosts(QueryBuilder queryBuilder) {
         assert (queryBuilder instanceof KnnVectorQueryBuilder);
         KnnVectorQueryBuilder knnVectorQueryBuilder = (KnnVectorQueryBuilder) queryBuilder;
-        return knnVectorQueryBuilder.getFieldName();
+        return Map.of(knnVectorQueryBuilder.getFieldName(), 1.0f);
     }
 
     @Override
@@ -48,7 +48,11 @@ public class SemanticKnnVectorQueryRewriteInterceptor extends SemanticQueryRewri
     }
 
     @Override
-    protected QueryBuilder buildInferenceQuery(QueryBuilder queryBuilder, InferenceIndexInformationForField indexInformation) {
+    protected QueryBuilder buildInferenceQuery(
+        QueryBuilder queryBuilder,
+        InferenceIndexInformationForField indexInformation,
+        Float fieldBoost
+    ) {
         assert (queryBuilder instanceof KnnVectorQueryBuilder);
         KnnVectorQueryBuilder knnVectorQueryBuilder = (KnnVectorQueryBuilder) queryBuilder;
         Map<String, List<String>> inferenceIdsIndices = indexInformation.getInferenceIdsIndices();
@@ -63,7 +67,7 @@ public class SemanticKnnVectorQueryRewriteInterceptor extends SemanticQueryRewri
             // Multiple inference IDs, construct a boolean query
             finalQueryBuilder = buildInferenceQueryWithMultipleInferenceIds(knnVectorQueryBuilder, inferenceIdsIndices);
         }
-        finalQueryBuilder.boost(queryBuilder.boost());
+        finalQueryBuilder.boost(queryBuilder.boost() * fieldBoost);
         finalQueryBuilder.queryName(queryBuilder.queryName());
         return finalQueryBuilder;
     }
@@ -87,7 +91,8 @@ public class SemanticKnnVectorQueryRewriteInterceptor extends SemanticQueryRewri
     @Override
     protected QueryBuilder buildCombinedInferenceAndNonInferenceQuery(
         QueryBuilder queryBuilder,
-        InferenceIndexInformationForField indexInformation
+        InferenceIndexInformationForField indexInformation,
+        Float fieldBoost
     ) {
         assert (queryBuilder instanceof KnnVectorQueryBuilder);
         KnnVectorQueryBuilder knnVectorQueryBuilder = (KnnVectorQueryBuilder) queryBuilder;
@@ -106,7 +111,7 @@ public class SemanticKnnVectorQueryRewriteInterceptor extends SemanticQueryRewri
                 )
             );
         }
-        boolQueryBuilder.boost(queryBuilder.boost());
+        boolQueryBuilder.boost(queryBuilder.boost() * fieldBoost);
         boolQueryBuilder.queryName(queryBuilder.queryName());
         return boolQueryBuilder;
     }

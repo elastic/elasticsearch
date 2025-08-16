@@ -6,5 +6,5 @@ Returns false if the substring cannot be found.
 
 ```esql
 ROW a = "hello"
-| EVAL a_ll = CONTAINS(a, "ll")
+| EVAL has_ll = CONTAINS(a, "ll")
 ```

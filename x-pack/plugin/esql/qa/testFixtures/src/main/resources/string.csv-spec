@@ -392,12 +392,12 @@ emp_no:integer | name:keyword
 contains#[skip:-9.2.99,reason:new string function added in 9.3]
 // tag::contains[]
 ROW a = "hello"
-| EVAL a_ll = CONTAINS(a, "ll")
+| EVAL has_ll = CONTAINS(a, "ll")
 // end::contains[]
 ;
 
 // tag::contains-result[]
-a:keyword | a_ll:boolean
+a:keyword | has_ll:boolean
 hello     | true
 // end::contains-result[]
 ;

@@ -4,10 +4,10 @@
 
 ```esql
 ROW a = "hello"
-| EVAL a_ll = CONTAINS(a, "ll")
+| EVAL has_ll = CONTAINS(a, "ll")
 ```
 
-| a:keyword | a_ll:boolean |
+| a:keyword | has_ll:boolean |
 | --- | --- |
 | hello | true |
 

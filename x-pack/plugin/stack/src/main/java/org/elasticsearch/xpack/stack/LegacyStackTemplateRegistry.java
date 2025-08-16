@@ -34,7 +34,6 @@ import java.util.Map;
 
 import static org.elasticsearch.xpack.stack.StackTemplateRegistry.STACK_TEMPLATES_ENABLED;
 
-@Deprecated(since = "8.12.0", forRemoval = true)
 public class LegacyStackTemplateRegistry extends IndexTemplateRegistry {
     private static final Logger logger = LogManager.getLogger(LegacyStackTemplateRegistry.class);
 
@@ -69,7 +68,6 @@ public class LegacyStackTemplateRegistry extends IndexTemplateRegistry {
     //////////////////////////////////////////////////////////
     public static final String LOGS_MAPPINGS_COMPONENT_TEMPLATE_NAME = "logs-mappings";
     public static final String LOGS_SETTINGS_COMPONENT_TEMPLATE_NAME = "logs-settings";
-    public static final String LOGS_ILM_POLICY_NAME = "logs";
 
     //////////////////////////////////////////////////////////
     // Metrics components (for matching metric-*-* indices)
@@ -77,14 +75,12 @@ public class LegacyStackTemplateRegistry extends IndexTemplateRegistry {
     public static final String METRICS_MAPPINGS_COMPONENT_TEMPLATE_NAME = "metrics-mappings";
     public static final String METRICS_SETTINGS_COMPONENT_TEMPLATE_NAME = "metrics-settings";
     public static final String METRICS_TSDB_SETTINGS_COMPONENT_TEMPLATE_NAME = "metrics-tsdb-settings";
-    public static final String METRICS_ILM_POLICY_NAME = "metrics";
 
     //////////////////////////////////////////////////////////
     // Synthetics components (for matching synthetics-*-* indices)
     //////////////////////////////////////////////////////////
     public static final String SYNTHETICS_MAPPINGS_COMPONENT_TEMPLATE_NAME = "synthetics-mappings";
     public static final String SYNTHETICS_SETTINGS_COMPONENT_TEMPLATE_NAME = "synthetics-settings";
-    public static final String SYNTHETICS_ILM_POLICY_NAME = "synthetics";
 
     public LegacyStackTemplateRegistry(
         Settings nodeSettings,
@@ -118,9 +114,6 @@ public class LegacyStackTemplateRegistry extends IndexTemplateRegistry {
     }
 
     private static final List<LifecyclePolicyConfig> LIFECYCLE_POLICY_CONFIGS = List.of(
-        new LifecyclePolicyConfig(LOGS_ILM_POLICY_NAME, "/logs@lifecycle.json", ADDITIONAL_TEMPLATE_VARIABLES),
-        new LifecyclePolicyConfig(METRICS_ILM_POLICY_NAME, "/metrics@lifecycle.json", ADDITIONAL_TEMPLATE_VARIABLES),
-        new LifecyclePolicyConfig(SYNTHETICS_ILM_POLICY_NAME, "/synthetics@lifecycle.json", ADDITIONAL_TEMPLATE_VARIABLES),
         new LifecyclePolicyConfig(ILM_7_DAYS_POLICY_NAME, "/7-days@lifecycle.json", ADDITIONAL_TEMPLATE_VARIABLES),
         new LifecyclePolicyConfig(ILM_30_DAYS_POLICY_NAME, "/30-days@lifecycle.json", ADDITIONAL_TEMPLATE_VARIABLES),
         new LifecyclePolicyConfig(ILM_90_DAYS_POLICY_NAME, "/90-days@lifecycle.json", ADDITIONAL_TEMPLATE_VARIABLES),

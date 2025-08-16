@@ -9,6 +9,8 @@ package org.elasticsearch.compute.lucene;
 
 import org.elasticsearch.compute.operator.Driver;
 
+import java.util.List;
+
 /**
  * How we partition the data across {@link Driver}s. Each request forks into
  * {@code min(1.5 * cpus, partition_count)} threads on the data node. More partitions
@@ -37,9 +39,20 @@ public enum DataPartitioning {
      */
     SEGMENT,
     /**
-     * Partition each shard into {@code task_concurrency} partitions, splitting
-     * larger segments into slices. This allows bringing the most CPUs to bear on
-     * the problem but adds extra overhead, especially in query preparation.
+     * Partitions into dynamic-sized slices to improve CPU utilization while keeping overhead low.
+     * This approach is more flexible than {@link #SEGMENT} and works as follows:
+     *
+     * <ol>
+     *   <li>The slice size starts from a desired size based on {@code task_concurrency} but is capped
+     *       at around {@link LuceneSliceQueue#MAX_DOCS_PER_SLICE}. This prevents poor CPU usage when
+     *       matching documents are clustered together.</li>
+     *   <li>For small and medium segments (less than five times the desired slice size), it uses a
+     *       slightly different {@link #SEGMENT} strategy, which also splits segments that are larger
+     *       than the desired size. See {@link org.apache.lucene.search.IndexSearcher#slices(List, int, int, boolean)}.</li>
+     *   <li>For very large segments, multiple segments are not combined into a single slice. This allows
+     *       one driver to process an entire large segment until other drivers steal the work after finishing
+     *       their own tasks. See {@link LuceneSliceQueue#nextSlice(LuceneSlice)}.</li>
+     * </ol>
      */
-    DOC,
+    DOC
 }

@@ -1,0 +1,12 @@
+config:
+  allow-labels: ">test-mute"
+  skip-labels: []
+steps:
+  - label: owasp:dependencyCheckAnalyze
+    command: .ci/scripts/run-gradle.sh dependencyCheckAnalyze
+    timeout_in_minutes: 300
+    agents:
+      provider: gcp
+      image: family/elasticsearch-ubuntu-2404
+      machineType: custom-32-98304
+      buildDirectory: /dev/shm/bk

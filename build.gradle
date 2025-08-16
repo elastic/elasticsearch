@@ -30,6 +30,9 @@ buildscript {
   repositories {
     mavenCentral()
   }
+  dependencies {
+    classpath 'org.owasp:dependency-check-gradle:12.1.3'
+  }
 }
 
 plugins {
@@ -53,6 +56,8 @@ plugins {
   id 'elasticsearch.versions'
   id 'com.gradleup.nmcp.aggregation'
 }
+
+apply plugin: 'org.owasp.dependencycheck'
 
 version = VersionProperties.elasticsearch
 

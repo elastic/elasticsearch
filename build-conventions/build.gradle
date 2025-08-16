@@ -14,9 +14,13 @@ buildscript {
   repositories {
     mavenCentral()
   }
+  dependencies {
+    classpath "org.owasp:dependency-check-gradle:12.1.3"
+  }
 }
 
 plugins {
+  id 'org.owasp.dependencycheck' version "12.1.3"
   id 'java-gradle-plugin'
   id 'java-test-fixtures'
   id 'eclipse'

@@ -24,7 +24,6 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
-import org.elasticsearch.cluster.project.DefaultProjectResolver;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -161,15 +160,14 @@ public final class RemoteClusterService extends RemoteClusterAware
     private final RemoteClusterCredentialsManager remoteClusterCredentialsManager;
     private final ProjectResolver projectResolver;
 
-    @FixForMultiProject(description = "Inject the ProjectResolver instance.")
-    RemoteClusterService(Settings settings, TransportService transportService) {
+    RemoteClusterService(Settings settings, TransportService transportService, ProjectResolver projectResolver) {
         super(settings);
         this.isRemoteClusterClient = DiscoveryNode.isRemoteClusterClient(settings);
         this.isSearchNode = DiscoveryNode.hasRole(settings, DiscoveryNodeRole.SEARCH_ROLE);
         this.isStateless = DiscoveryNode.isStateless(settings);
         this.remoteClusterServerEnabled = REMOTE_CLUSTER_SERVER_ENABLED.get(settings);
         this.transportService = transportService;
-        this.projectResolver = DefaultProjectResolver.INSTANCE;
+        this.projectResolver = projectResolver;
         this.remoteClusters = projectResolver.supportsMultipleProjects()
             ? ConcurrentCollections.newConcurrentMap()
             : Map.of(ProjectId.DEFAULT, ConcurrentCollections.newConcurrentMap());

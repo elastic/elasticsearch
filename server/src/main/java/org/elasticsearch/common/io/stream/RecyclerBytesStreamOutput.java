@@ -77,17 +77,19 @@ public class RecyclerBytesStreamOutput extends BytesStream implements Releasable
 
         Objects.checkFromIndexSize(offset, length, b.length);
 
-        int remainingInPage = pageSize - currentPageOffset;
-        if (length <= remainingInPage) {
-            System.arraycopy(b, offset, bytesRefBytes, bytesRefOffset + currentPageOffset, length);
-            currentPageOffset += length;
-            return;
+        int toCopy = Math.min(length, pageSize - currentPageOffset);
+        if (toCopy != 0) {
+            System.arraycopy(b, offset, bytesRefBytes, bytesRefOffset + currentPageOffset, toCopy);
+            currentPageOffset += toCopy;
+            if (toCopy == length) {
+                return;
+            }
         }
 
-        writeMultiplePages(b, offset, length);
+        writeAdditionalPages(b, offset + toCopy, length - toCopy);
     }
 
-    private void writeMultiplePages(byte[] b, int offset, int length) {
+    private void writeAdditionalPages(byte[] b, int offset, int length) {
         ensureCapacity(length);
 
         int bytesToCopy = length;
@@ -320,12 +322,24 @@ public class RecyclerBytesStreamOutput extends BytesStream implements Releasable
         if (newPosition > Integer.MAX_VALUE - (Integer.MAX_VALUE % pageSize)) {
             throw new IllegalArgumentException(getClass().getSimpleName() + " cannot hold more than 2GB of data");
         }
-        while (newPosition > currentCapacity) {
-            Recycler.V<BytesRef> newPage = recycler.obtain();
-            assert pageSize == newPage.v().length;
-            pages.add(newPage);
-            currentCapacity += pageSize;
+
+        if (newPosition > currentCapacity) {
+            // Calculate number of additional pages needed
+            long additionalCapacityNeeded = newPosition - currentCapacity;
+            int additionalPagesNeeded = (int) ((additionalCapacityNeeded + pageSize - 1) / pageSize); // Ceiling division
+
+            pages.ensureCapacity(pages.size() + additionalPagesNeeded);
+
+            // Allocate all needed pages at once
+            for (int i = 0; i < additionalPagesNeeded; i++) {
+                Recycler.V<BytesRef> newPage = recycler.obtain();
+                assert pageSize == newPage.v().length;
+                pages.add(newPage);
+            }
+
+            currentCapacity += additionalPagesNeeded * pageSize;
         }
+
         // We are at the end of the current page, increment page index
         if (currentPageOffset == pageSize) {
             nextPage();

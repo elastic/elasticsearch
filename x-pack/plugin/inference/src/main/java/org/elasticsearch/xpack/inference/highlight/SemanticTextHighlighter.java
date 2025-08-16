@@ -62,6 +62,8 @@ import static org.elasticsearch.lucene.search.uhighlight.CustomUnifiedHighlighte
 public class SemanticTextHighlighter implements Highlighter {
     public static final String NAME = "semantic";
 
+    private static final String CHUNK_DELIMITER = " ";
+
     private record OffsetAndScore(int index, OffsetSourceFieldMapper.OffsetSource offset, float score) {}
 
     @Override
@@ -102,6 +104,8 @@ public class SemanticTextHighlighter implements Highlighter {
             ? 1 // we return the best fragment by default
             : fieldContext.field.fieldOptions().numberOfFragments();
 
+        int fragmentCharSize = fieldContext.field.fieldOptions().fragmentCharSize();
+
         List<OffsetAndScore> chunks = extractOffsetAndScores(
             fieldContext.context.getSearchExecutionContext(),
             fieldContext.hitContext.reader(),
@@ -114,12 +118,12 @@ public class SemanticTextHighlighter implements Highlighter {
         }
 
         chunks.sort(Comparator.comparingDouble(OffsetAndScore::score).reversed());
-        int size = Math.min(chunks.size(), numberOfFragments);
+        int maxSnippets = Math.min(chunks.size(), numberOfFragments);
         if (fieldContext.field.fieldOptions().scoreOrdered() == false) {
-            chunks = chunks.subList(0, size);
+            chunks = chunks.subList(0, maxSnippets);
             chunks.sort(Comparator.comparingInt(c -> c.index));
         }
-        Text[] snippets = new Text[size];
+        List<Text> snippetsList = new ArrayList<>();
         final Function<OffsetAndScore, String> offsetToContent;
         if (fieldType.useLegacyFormat()) {
             List<Map<?, ?>> nestedSources = XContentMapValues.extractNestedSources(
@@ -144,7 +148,13 @@ public class SemanticTextHighlighter implements Highlighter {
                 return content.substring(entry.offset().start(), entry.offset().end());
             };
         }
-        for (int i = 0; i < size; i++) {
+        // Track which chunks have already been consumed to avoid duplication
+        boolean[] consumedChunks = new boolean[chunks.size()];
+        for (int i = 0; i < chunks.size() && snippetsList.size() < maxSnippets; i++) {
+            if (consumedChunks[i]) {
+                continue;
+            }
+
             var chunk = chunks.get(i);
             String content = offsetToContent.apply(chunk);
             if (content == null) {
@@ -152,14 +162,51 @@ public class SemanticTextHighlighter implements Highlighter {
                     String.format(
                         Locale.ROOT,
 
-                        "Invalid content detected for field [%s]: missing text for the chunk at offset [%d].",
+                        "Invalid content detected for field [%s]: missing text for the chunk at offset [%s].",
                         fieldType.name(),
                         chunk.offset
                     )
                 );
             }
-            snippets[i] = new Text(content);
+            consumedChunks[i] = true;
+
+            // Chunks smaller than the requested fragmentCharSize will be concatenated with neighboring chunks
+            if (fragmentCharSize > 0 && content.length() < fragmentCharSize) {
+                StringBuilder concatenated = new StringBuilder(content);
+
+                // Look ahead to find more chunks to concatenate
+                // TODO: Lookback to get the preceding chunk if we're at the end of the document
+                for (int nextIndex = i + 1; nextIndex < chunks.size() && concatenated.length() < fragmentCharSize; nextIndex++) {
+                    if (consumedChunks[nextIndex]) {
+                        continue;
+                    }
+
+                    var nextChunk = chunks.get(nextIndex);
+                    if (nextChunk.offset().start() > chunk.offset().end()) {
+                        String nextContent = offsetToContent.apply(nextChunk);
+                        if (nextContent == null) {
+                            continue;
+                        }
+
+                        concatenated.append(CHUNK_DELIMITER).append(nextContent);
+                        consumedChunks[nextIndex] = true;
+                    }
+                }
+
+                content = concatenated.toString();
+            }
+
+            // Truncate content if it exceeds fragmentCharSize
+            // TODO: This could potentially truncate the most relevant part of the snippet.
+            if (fragmentCharSize > 0 && content.length() > fragmentCharSize) {
+                content = content.substring(0, fragmentCharSize);
+            }
+
+            snippetsList.add(new Text(content));
         }
+
+        // Convert list to array with the actual number of snippets produced
+        Text[] snippets = snippetsList.toArray(new Text[0]);
         return new HighlightField(fieldContext.fieldName, snippets);
     }
 

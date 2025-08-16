@@ -118,7 +118,7 @@ public class SparseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase
 
     protected void minimalMappingWithExplicitDefaults(XContentBuilder b) throws IOException {
         b.field("type", "sparse_vector");
-        b.field("store", false);
+        b.field("store", true);
 
         b.startObject("meta");
         b.endObject();
@@ -421,7 +421,7 @@ public class SparseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase
             .startObject("properties")
             .startObject("field")
             .field("type", "sparse_vector")
-            .field("store", true)
+            .field("store", false)
             .endObject()
             .endObject()
             .endObject()
@@ -474,23 +474,16 @@ public class SparseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase
 
     @Override
     protected SyntheticSourceSupport syntheticSourceSupport(boolean syntheticSource) {
-        boolean withStore = randomBoolean();
         return new SyntheticSourceSupport() {
             @Override
             public boolean preservesExactSource() {
-                return withStore == false;
+                return false;
             }
 
             @Override
             public SyntheticSourceExample example(int maxValues) {
                 var sample = getSampleValueForDocument();
-                return new SyntheticSourceExample(sample, sample, b -> {
-                    if (withStore) {
-                        minimalStoreMapping(b);
-                    } else {
-                        minimalMapping(b);
-                    }
-                });
+                return new SyntheticSourceExample(sample, sample, b -> { minimalMapping(b); });
             }
 
             @Override

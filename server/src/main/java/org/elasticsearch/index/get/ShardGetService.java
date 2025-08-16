@@ -60,7 +60,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.index.IndexSettings.INDEX_MAPPING_SOURCE_SYNTHETIC_VECTORS_SETTING;
+import static org.elasticsearch.index.IndexSettings.INDEX_MAPPING_EXCLUDE_SOURCE_VECTORS_SETTING;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_PRIMARY_TERM;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 
@@ -418,7 +418,7 @@ public final class ShardGetService extends AbstractIndexShardComponent {
      */
     public static boolean shouldExcludeVectorsFromSource(IndexSettings indexSettings, FetchSourceContext fetchSourceContext) {
         if (fetchSourceContext == null || fetchSourceContext.excludeVectors() == null) {
-            return INDEX_MAPPING_SOURCE_SYNTHETIC_VECTORS_SETTING.get(indexSettings.getSettings());
+            return INDEX_MAPPING_EXCLUDE_SOURCE_VECTORS_SETTING.get(indexSettings.getSettings());
         }
         return fetchSourceContext.excludeVectors();
     }

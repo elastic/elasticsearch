@@ -86,7 +86,6 @@ import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.mapper.TsidExtractingIdFieldMapper;
 import org.elasticsearch.search.DocValueFormat;
-import org.elasticsearch.search.fetch.StoredFieldsSpec;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -1715,8 +1714,8 @@ public class ValueSourceReaderTypeConversionTests extends AnyOperatorTestCase {
         }
 
         @Override
-        public StoredFieldsSpec rowStrideStoredFieldSpec() {
-            return delegate.rowStrideStoredFieldSpec();
+        public FieldsSpec rowStrideFieldSpec() {
+            return delegate.rowStrideFieldSpec();
         }
 
         @Override

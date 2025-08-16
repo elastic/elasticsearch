@@ -98,7 +98,26 @@ public interface BlockLoader {
 
     RowStrideReader rowStrideReader(LeafReaderContext context) throws IOException;
 
-    StoredFieldsSpec rowStrideStoredFieldSpec();
+    record FieldsSpec(StoredFieldsSpec storedFieldsSpec, IgnoredFieldsSpec ignoredFieldsSpec) {
+        public static FieldsSpec NO_REQUIREMENTS = new FieldsSpec(StoredFieldsSpec.NO_REQUIREMENTS, IgnoredFieldsSpec.NONE);
+
+        public FieldsSpec merge(FieldsSpec other) {
+            return new FieldsSpec(
+                this.storedFieldsSpec.merge(other.storedFieldsSpec),
+                this.ignoredFieldsSpec.merge(other.ignoredFieldsSpec)
+            );
+        }
+
+        public FieldsSpec merge(StoredFieldsSpec other) {
+            return new FieldsSpec(this.storedFieldsSpec.merge(other), this.ignoredFieldsSpec);
+        }
+
+        public boolean noRequirements() {
+            return storedFieldsSpec.noRequirements() && ignoredFieldsSpec.requiredIgnoredFields().isEmpty();
+        }
+    }
+
+    FieldsSpec rowStrideFieldSpec();
 
     /**
      * Does this loader support loading bytes via calling {@link #ordinals}.
@@ -140,8 +159,8 @@ public interface BlockLoader {
         }
 
         @Override
-        public StoredFieldsSpec rowStrideStoredFieldSpec() {
-            return StoredFieldsSpec.NO_REQUIREMENTS;
+        public FieldsSpec rowStrideFieldSpec() {
+            return FieldsSpec.NO_REQUIREMENTS;
         }
 
         @Override
@@ -237,8 +256,8 @@ public interface BlockLoader {
             }
 
             @Override
-            public StoredFieldsSpec rowStrideStoredFieldSpec() {
-                return StoredFieldsSpec.NO_REQUIREMENTS;
+            public FieldsSpec rowStrideFieldSpec() {
+                return FieldsSpec.NO_REQUIREMENTS;
             }
 
             @Override
@@ -319,8 +338,8 @@ public interface BlockLoader {
         }
 
         @Override
-        public StoredFieldsSpec rowStrideStoredFieldSpec() {
-            return delegate.rowStrideStoredFieldSpec();
+        public FieldsSpec rowStrideFieldSpec() {
+            return delegate.rowStrideFieldSpec();
         }
 
         @Override

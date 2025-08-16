@@ -14,7 +14,7 @@ import org.elasticsearch.compute.data.BlockUtils;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.SourceOperator;
-import org.elasticsearch.compute.operator.TupleLongLongBlockSourceOperator;
+import org.elasticsearch.compute.test.TupleLongLongBlockSourceOperator;
 import org.elasticsearch.core.Tuple;
 
 import java.util.List;
@@ -23,9 +23,12 @@ import java.util.stream.IntStream;
 public class LastLongByTimestampAggregatorFunctionTests extends AggregatorFunctionTestCase {
     @Override
     protected SourceOperator simpleInput(BlockFactory blockFactory, int size) {
+        FirstLongByTimestampGroupingAggregatorFunctionTests.TimestampGen tsgen = randomFrom(
+            FirstLongByTimestampGroupingAggregatorFunctionTests.TimestampGen.values()
+        );
         return new TupleLongLongBlockSourceOperator(
             blockFactory,
-            IntStream.range(0, size).mapToObj(l -> Tuple.tuple(randomLong(), randomLong()))
+            IntStream.range(0, size).mapToObj(l -> Tuple.tuple(randomLong(), tsgen.gen()))
         );
     }
 

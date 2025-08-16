@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.expression.function;
 
 import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.time.DateUtils;
@@ -29,6 +30,7 @@ import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.versionfield.Version;
 import org.hamcrest.Matcher;
 
+import java.lang.annotation.Annotation;
 import java.math.BigInteger;
 import java.time.Duration;
 import java.time.Instant;
@@ -1755,18 +1757,31 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
      * exists because we can't generate random values from the test parameter generation functions, and instead need to return
      * suppliers which generate the random values at test execution time.
      */
-    public record TypedDataSupplier(String name, Supplier<Object> supplier, DataType type, boolean forceLiteral, boolean multiRow) {
-
+    public record TypedDataSupplier(
+        String name,
+        Supplier<Object> supplier,
+        DataType type,
+        boolean forceLiteral,
+        boolean multiRow,
+        List<FunctionAppliesTo> appliesTo
+    ) {
         public TypedDataSupplier(String name, Supplier<Object> supplier, DataType type, boolean forceLiteral) {
-            this(name, supplier, type, forceLiteral, false);
+            this(name, supplier, type, forceLiteral, false, List.of());
         }
 
         public TypedDataSupplier(String name, Supplier<Object> supplier, DataType type) {
-            this(name, supplier, type, false, false);
+            this(name, supplier, type, false, false, List.of());
+        }
+
+        /**
+         * Marks the version of Elasticsearch in which this signature was first supported.
+         */
+        public TypedDataSupplier withAppliesTo(FunctionAppliesTo appliesTo) {
+            return new TypedDataSupplier(name, supplier, type, forceLiteral, multiRow, appendAppliesTo(this.appliesTo, appliesTo));
         }
 
         public TypedData get() {
-            return new TypedData(supplier.get(), type, name, forceLiteral, multiRow);
+            return new TypedData(supplier.get(), type, name, forceLiteral, multiRow, appliesTo);
         }
     }
 
@@ -1783,6 +1798,7 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         private final boolean forceLiteral;
         private final boolean multiRow;
         private final boolean mapExpression;
+        private final List<FunctionAppliesTo> appliesTo;
 
         /**
          * @param data         value to test against
@@ -1791,7 +1807,14 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
          * @param forceLiteral should this data always be converted to a literal and <strong>never</strong> to a field reference?
          * @param multiRow     if true, data is expected to be a List of values, one per row
          */
-        private TypedData(Object data, DataType type, String name, boolean forceLiteral, boolean multiRow) {
+        private TypedData(
+            Object data,
+            DataType type,
+            String name,
+            boolean forceLiteral,
+            boolean multiRow,
+            List<FunctionAppliesTo> appliesTo
+        ) {
             assert multiRow == false || data instanceof List : "multiRow data must be a List";
             assert multiRow == false || forceLiteral == false : "multiRow data can't be converted to a literal";
 
@@ -1805,6 +1828,7 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
             this.forceLiteral = forceLiteral;
             this.multiRow = multiRow;
             this.mapExpression = data instanceof MapExpression;
+            this.appliesTo = appliesTo;
         }
 
         /**
@@ -1813,7 +1837,7 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
          * @param name a name for the value, used for generating test case names
          */
         public TypedData(Object data, DataType type, String name) {
-            this(data, type, name, false, false);
+            this(data, type, name, false, false, List.of());
         }
 
         /**
@@ -1834,7 +1858,7 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
          * @param name a name for the value, used for generating test case names
          */
         public static TypedData multiRow(List<?> data, DataType type, String name) {
-            return new TypedData(data, type, name, false, true);
+            return new TypedData(data, type, name, false, true, List.of());
         }
 
         /**
@@ -1843,7 +1867,7 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
          * must be constants.
          */
         public TypedData forceLiteral() {
-            return new TypedData(data, type, name, true, multiRow);
+            return new TypedData(data, type, name, true, multiRow, appliesTo);
         }
 
         /**
@@ -1860,13 +1884,24 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
             return multiRow;
         }
 
+        public List<FunctionAppliesTo> appliesTo() {
+            return appliesTo;
+        }
+
         /**
          * Return a {@link TypedData} with the new data.
          *
          * @param data The new data for the {@link TypedData}.
          */
         public TypedData withData(Object data) {
-            return new TypedData(data, type, name, forceLiteral, multiRow);
+            return new TypedData(data, type, name, forceLiteral, multiRow, appliesTo);
+        }
+
+        /**
+         * Marks the version of Elasticsearch in which this signature was first supported.
+         */
+        public TypedData withAppliesTo(FunctionAppliesTo appliesTo) {
+            return new TypedData(data, type, name, forceLiteral, multiRow, appendAppliesTo(this.appliesTo, appliesTo));
         }
 
         @Override
@@ -1976,5 +2011,30 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         public String name() {
             return name;
         }
+    }
+
+    /**
+     * Builds a version of Elasticsearch for use with {@link TypedDataSupplier#withAppliesTo(FunctionAppliesTo)}.
+     */
+    public static FunctionAppliesTo appliesTo(
+        FunctionAppliesToLifecycle lifeCycle,
+        String version,
+        String description,
+        boolean serverless
+    ) {
+        return new AppliesTo(lifeCycle, version, description, serverless);
+    }
+
+    private record AppliesTo(FunctionAppliesToLifecycle lifeCycle, String version, String description, boolean serverless)
+        implements
+            FunctionAppliesTo {
+        @Override
+        public Class<? extends Annotation> annotationType() {
+            return FunctionAppliesTo.class;
+        }
+    }
+
+    static List<FunctionAppliesTo> appendAppliesTo(List<FunctionAppliesTo> current, FunctionAppliesTo next) {
+        return Iterators.toList(Iterators.concat(current.iterator(), Iterators.single(next)));
     }
 }

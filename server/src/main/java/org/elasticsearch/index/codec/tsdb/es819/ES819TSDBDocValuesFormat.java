@@ -105,20 +105,22 @@ public class ES819TSDBDocValuesFormat extends org.apache.lucene.codecs.DocValues
     }
 
     final int skipIndexIntervalSize;
+    final int minDocsPerOrdinalForOrdinalRangeEncoding;
     private final boolean enableOptimizedMerge;
 
     /** Default constructor. */
     public ES819TSDBDocValuesFormat() {
-        this(DEFAULT_SKIP_INDEX_INTERVAL_SIZE, OPTIMIZED_MERGE_ENABLE_DEFAULT);
+        this(DEFAULT_SKIP_INDEX_INTERVAL_SIZE, NUMERIC_BLOCK_SIZE, OPTIMIZED_MERGE_ENABLE_DEFAULT);
     }
 
     /** Doc values fields format with specified skipIndexIntervalSize. */
-    public ES819TSDBDocValuesFormat(int skipIndexIntervalSize, boolean enableOptimizedMerge) {
+    public ES819TSDBDocValuesFormat(int skipIndexIntervalSize, int minDocsPerOrdinalForOrdinalRangeEncoding, boolean enableOptimizedMerge) {
         super(CODEC_NAME);
         if (skipIndexIntervalSize < 2) {
             throw new IllegalArgumentException("skipIndexIntervalSize must be > 1, got [" + skipIndexIntervalSize + "]");
         }
         this.skipIndexIntervalSize = skipIndexIntervalSize;
+        this.minDocsPerOrdinalForOrdinalRangeEncoding = minDocsPerOrdinalForOrdinalRangeEncoding;
         this.enableOptimizedMerge = enableOptimizedMerge;
     }
 
@@ -127,6 +129,7 @@ public class ES819TSDBDocValuesFormat extends org.apache.lucene.codecs.DocValues
         return new ES819TSDBDocValuesConsumer(
             state,
             skipIndexIntervalSize,
+            minDocsPerOrdinalForOrdinalRangeEncoding,
             enableOptimizedMerge,
             DATA_CODEC,
             DATA_EXTENSION,

@@ -1,0 +1,5 @@
+pr: 132417
+summary: Add optimisation rule to allow unbounded sort before INLINESTATS
+area: ES|QL
+type: enhancement
+issues: []

@@ -510,9 +510,6 @@ tests:
 - class: org.elasticsearch.packaging.test.ArchiveGenerateInitialCredentialsTests
   method: test50CredentialAutogenerationOnlyOnce
   issue: https://github.com/elastic/elasticsearch/issues/132878
-- class: org.elasticsearch.upgrades.TransformSurvivesUpgradeIT
-  method: testTransformRollingUpgrade
-  issue: https://github.com/elastic/elasticsearch/issues/132892
 - class: org.elasticsearch.index.mapper.LongFieldMapperTests
   method: testFetchCoerced
   issue: https://github.com/elastic/elasticsearch/issues/132893

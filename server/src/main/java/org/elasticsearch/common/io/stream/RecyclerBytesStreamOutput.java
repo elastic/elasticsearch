@@ -88,12 +88,14 @@ public class RecyclerBytesStreamOutput extends BytesStream implements Releasable
     }
 
     private void writeMultiplePages(byte[] b, int offset, int length) {
+        ensureCapacity(length);
+
         int bytesToCopy = length;
         int srcOffset = offset;
 
         while (bytesToCopy > 0) {
             if (currentPageOffset == pageSize) {
-                ensureCapacity(1);
+                nextPage();
             }
 
             int toCopyThisLoop = Math.min(pageSize - currentPageOffset, bytesToCopy);
@@ -326,12 +328,16 @@ public class RecyclerBytesStreamOutput extends BytesStream implements Releasable
         }
         // We are at the end of the current page, increment page index
         if (currentPageOffset == pageSize) {
-            pageIndex++;
-            currentPageOffset = 0;
-
-            BytesRef page = pages.get(pageIndex).v();
-            bytesRefBytes = page.bytes;
-            bytesRefOffset = page.offset;
+            nextPage();
         }
+    }
+
+    private void nextPage() {
+        pageIndex++;
+        currentPageOffset = 0;
+
+        BytesRef page = pages.get(pageIndex).v();
+        bytesRefBytes = page.bytes;
+        bytesRefOffset = page.offset;
     }
 }

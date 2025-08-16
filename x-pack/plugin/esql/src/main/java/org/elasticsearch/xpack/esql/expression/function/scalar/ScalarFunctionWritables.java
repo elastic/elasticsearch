@@ -35,6 +35,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.math.Tau;
 import org.elasticsearch.xpack.esql.expression.function.scalar.nulls.Coalesce;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.BitLength;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Concat;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.Contains;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.EndsWith;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Hash;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Left;
@@ -69,6 +70,7 @@ public class ScalarFunctionWritables {
         entries.add(CIDRMatch.ENTRY);
         entries.add(Coalesce.ENTRY);
         entries.add(Concat.ENTRY);
+        entries.add(Contains.ENTRY);
         entries.add(E.ENTRY);
         entries.add(EndsWith.ENTRY);
         entries.add(FromAggregateMetricDouble.ENTRY);

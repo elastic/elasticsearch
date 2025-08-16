@@ -540,4 +540,21 @@ public class RootObjectMapper extends ObjectMapper {
     public int getTotalFieldsCount() {
         return super.getTotalFieldsCount() - 1 + runtimeFields.size();
     }
+
+    // MP TODO: - this needs to move to a serverless class, right?
+    private static final String RESERVED_NAMESPACE = "_project";
+
+    @Override
+    protected void validateSubField(Mapper mapper, MappingLookup mappers) {
+        if (subobjects() == Subobjects.ENABLED) {
+            if (mapper.leafName().equals(RESERVED_NAMESPACE)) {
+                throw new IllegalArgumentException("Reserved Namespace. Fields may not start with " + RESERVED_NAMESPACE);
+            }
+        } else {
+            if (mapper.leafName().startsWith(RESERVED_NAMESPACE)) {
+                throw new IllegalArgumentException("Reserved Namespace. Fields may not start with " + RESERVED_NAMESPACE);
+            }
+        }
+        super.validateSubField(mapper, mappers);
+    }
 }

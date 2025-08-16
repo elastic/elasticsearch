@@ -651,6 +651,13 @@ public final class RemoteClusterService extends RemoteClusterAware
         DisconnectedStrategy disconnectedStrategy
     ) {
         ensureClientIsEnabled();
+        if (isStateless && disconnectedStrategy == DisconnectedStrategy.RECONNECT_UNLESS_SKIP_UNAVAILABLE) {
+            final var message = "DisconnectedStrategy ["
+                + DisconnectedStrategy.RECONNECT_UNLESS_SKIP_UNAVAILABLE
+                + "] is not supported in stateless environments";
+            assert false : message;
+            throw new IllegalArgumentException(message);
+        }
         if (transportService.getRemoteClusterService().getRegisteredRemoteClusterNames().contains(clusterAlias) == false) {
             throw new NoSuchRemoteClusterException(clusterAlias);
         }

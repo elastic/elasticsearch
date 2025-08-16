@@ -77,7 +77,6 @@ public class RecyclerBytesStreamOutput extends BytesStream implements Releasable
 
         Objects.checkFromIndexSize(offset, length, b.length);
 
-        // Fast path: if the data fits in the current page, do a single copy
         int remainingInPage = pageSize - currentPageOffset;
         if (length <= remainingInPage) {
             System.arraycopy(b, offset, bytesRefBytes, bytesRefOffset + currentPageOffset, length);

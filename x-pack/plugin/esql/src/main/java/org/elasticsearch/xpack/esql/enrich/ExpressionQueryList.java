@@ -64,7 +64,8 @@ public class ExpressionQueryList implements LookupEnrichQueryGenerator, PostJoin
                 );
                 // If the pre-join filter is a FilterExec, we can convert it to a QueryBuilder
                 // try to convert it to a QueryBuilder, if not possible apply it after the join
-                if (filterExec instanceof TranslationAware translationAware) {
+                if (filterExec.condition() instanceof TranslationAware translationAware
+                    && TranslationAware.Translatable.YES.equals(translationAware.translatable(lucenePushdownPredicates))) {
                     preJoinFilters.add(
                         translationAware.asQuery(lucenePushdownPredicates, TRANSLATOR_HANDLER).toQueryBuilder().toQuery(context)
                     );

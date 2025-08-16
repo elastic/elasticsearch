@@ -5331,9 +5331,6 @@ lookupJoinWithExpressionOfOtherFields
   | KEEP id_int, name_str, extra1, other1, other2
   | SORT id_int, name_str, extra1, other1, other2
   | LIMIT 20
-  /*
-      NEED TO DEBUG WHY THE FILTER IS NOT PUSHED TO THE RIGHT SIDE OF THE LOOKUP JOIN
-   */
   ;
 
 warning:Line 2:3: evaluation of [LOOKUP JOIN multi_column_joinable_lookup ON id_int, is_active_bool] failed, treating result as null. Only first 20 failures recorded.

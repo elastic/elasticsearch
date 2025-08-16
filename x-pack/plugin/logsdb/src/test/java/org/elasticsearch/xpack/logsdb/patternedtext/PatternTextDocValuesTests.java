@@ -12,6 +12,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
@@ -21,22 +22,25 @@ import static org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS;
 
 public class PatternTextDocValuesTests extends ESTestCase {
 
-    private static PatternedTextDocValues makeDocValueSparseArgs() {
-        var template = new SimpleSortedSetDocValues("%W dog", "cat", "%W mouse %W", "hat %W");
+    private static PatternedTextDocValues makeDocValueSparseArgs() throws IOException {
+        var template = new SimpleSortedSetDocValues(removePlaceholders("% dog", "cat", "% mouse %", "hat %"));
         var args = new SimpleSortedSetDocValues("1", null, "2 3", "4");
-        return new PatternedTextDocValues(template, args);
+        var schema = new SimpleSortedSetDocValues(argSchema(0), argSchema(), argSchema(0, 7), argSchema(4));
+        return new PatternedTextDocValues(template, args, schema);
     }
 
-    private static PatternedTextDocValues makeDocValuesDenseArgs() {
-        var template = new SimpleSortedSetDocValues("%W moose", "%W goose %W", "%W mouse %W", "%W house");
+    private static PatternedTextDocValues makeDocValuesDenseArgs() throws IOException {
+        var template = new SimpleSortedSetDocValues(removePlaceholders("% moose", "% goose %", "% mouse %", "% house"));
         var args = new SimpleSortedSetDocValues("1", "4 5", "2 3", "7");
-        return new PatternedTextDocValues(template, args);
+        var schema = new SimpleSortedSetDocValues(argSchema(0), argSchema(0, 7), argSchema(0, 7), argSchema(0));
+        return new PatternedTextDocValues(template, args, schema);
     }
 
-    private static PatternedTextDocValues makeDocValueMissingValues() {
-        var template = new SimpleSortedSetDocValues("%W cheddar", "cat", null, "%W cheese");
+    private static PatternedTextDocValues makeDocValueMissingValues() throws IOException {
+        var template = new SimpleSortedSetDocValues(removePlaceholders("% cheddar", "cat", null, "% cheese"));
         var args = new SimpleSortedSetDocValues("1", null, null, "4");
-        return new PatternedTextDocValues(template, args);
+        var schema = new SimpleSortedSetDocValues(argSchema(0), argSchema(), argSchema(), argSchema(0));
+        return new PatternedTextDocValues(template, args, schema);
     }
 
     public void testNextDoc() throws IOException {
@@ -170,5 +174,18 @@ public class PatternTextDocValuesTests extends ESTestCase {
         public long cost() {
             return 1;
         }
+    }
+
+    private static String argSchema(int... offsets) throws IOException {
+        List<Arg.Schema> argSchemas = new ArrayList<>();
+        for (var offset : offsets) {
+            argSchemas.add(new Arg.Schema(Arg.Type.GENERAL, offset));
+        }
+        return Arg.encodeSchema(argSchemas);
+    }
+
+    private static String[] removePlaceholders(String... values) {
+        var d = Arrays.stream(values).map(s -> s == null ? null : s.replace("%", "")).toList().toArray(String[]::new);
+        return d;
     }
 }

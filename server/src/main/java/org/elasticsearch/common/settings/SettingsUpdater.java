@@ -21,7 +21,7 @@ import static org.elasticsearch.cluster.ClusterState.builder;
  * Updates transient and persistent cluster state settings if there are any changes
  * due to the update.
  */
-public final class SettingsUpdater extends BaseSettingsUpdater {
+public final class SettingsUpdater extends BaseSettingsUpdater<Void, AbstractContextlessScopedSettings> {
     final Settings.Builder transientUpdates = Settings.builder();
     final Settings.Builder persistentUpdates = Settings.builder();
 

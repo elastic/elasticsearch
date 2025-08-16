@@ -43,8 +43,7 @@ public class Contains extends EsqlScalarFunction implements OptionalArgument {
 
     @FunctionInfo(returnType = "boolean", description = """
         Returns true if a keyword substring is within another string.
-        Returns false if the substring cannot be found.
-        """, examples = @Example(file = "string", tag = "contains"))
+        Returns false if the substring cannot be found.""", examples = @Example(file = "string", tag = "contains"))
     public Contains(
         Source source,
         @Param(name = "string", type = { "keyword", "text" }, description = "An input string") Expression str,
@@ -73,7 +72,7 @@ public class Contains extends EsqlScalarFunction implements OptionalArgument {
 
     @Override
     public DataType dataType() {
-        return DataType.INTEGER;
+        return DataType.BOOLEAN;
     }
 
     @Override

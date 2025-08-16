@@ -1,0 +1,5 @@
+pr: 133004
+summary: Limit the frequency of licensed feature last-used time updates
+area: License
+type: enhancement
+issues: []

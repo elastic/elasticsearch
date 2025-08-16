@@ -239,11 +239,18 @@ public class XPackLicenseStateTests extends ESTestCase {
         assertThat(usage.contextName(), nullValue());
         assertThat(lastUsed.get(usage), equalTo(100L));
 
-        currentTime.set(200);
+        // updates to the last used timestamp only happen if at least ten seconds have passed since the last update (*for this feature*)
+        currentTime.set(10099);
         goldFeature.check(licenseState);
         lastUsed = licenseState.getLastUsed();
         assertThat("feature.check updates usage", lastUsed.keySet(), containsInAnyOrder(usage));
-        assertThat(lastUsed.get(usage), equalTo(200L));
+        assertThat(lastUsed.get(usage), equalTo(100L));
+
+        currentTime.set(10100);
+        goldFeature.check(licenseState);
+        lastUsed = licenseState.getLastUsed();
+        assertThat("feature.check updates usage", lastUsed.keySet(), containsInAnyOrder(usage));
+        assertThat(lastUsed.get(usage), equalTo(10100L));
     }
 
     public void testLastUsedMomentaryFeatureWithSameNameDifferentFamily() {
@@ -270,7 +277,7 @@ public class XPackLicenseStateTests extends ESTestCase {
             )
         );
 
-        currentTime.set(200);
+        currentTime.set(10200);
         featureFamilyB.check(licenseState);
 
         lastUsed = licenseState.getLastUsed();
@@ -283,7 +290,7 @@ public class XPackLicenseStateTests extends ESTestCase {
             actualFeatures,
             containsInAnyOrder(
                 new FeatureInfoWithTimestamp("familyA", "goldFeature", 100L),
-                new FeatureInfoWithTimestamp("familyB", "goldFeature", 200L)
+                new FeatureInfoWithTimestamp("familyB", "goldFeature", 10200L)
             )
         );
     }

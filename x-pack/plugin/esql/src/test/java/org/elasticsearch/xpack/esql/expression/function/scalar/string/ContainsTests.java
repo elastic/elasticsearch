@@ -162,6 +162,6 @@ public class ContainsTests extends AbstractScalarFunctionTestCase {
         List<TestCaseSupplier.TypedData> values = new ArrayList<>();
         values.add(new TestCaseSupplier.TypedData(str == null ? null : new BytesRef(str), strType, "str"));
         values.add(new TestCaseSupplier.TypedData(substr == null ? null : new BytesRef(substr), substrType, "substr"));
-        return new TestCaseSupplier.TestCase(values, expectedToString(), DataType.INTEGER, equalTo(expectedValue));
+        return new TestCaseSupplier.TestCase(values, expectedToString(), DataType.BOOLEAN, equalTo(expectedValue));
     }
 }

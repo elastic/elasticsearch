@@ -157,7 +157,7 @@ public class EsqlSession {
         this.inferenceService = services.inferenceService();
         this.preMapper = new PreMapper(services);
         this.remoteClusterService = services.transportService().getRemoteClusterService();
-        this.planExecutor = services.transportService().getThreadPool().executor(ThreadPool.Names.SEARCH);
+        this.planExecutor = services.transportService().getThreadPool().executor(ThreadPool.Names.SEARCH_COORDINATION);
     }
 
     public String sessionId() {
@@ -168,7 +168,7 @@ public class EsqlSession {
      * Execute an ESQL request.
      */
     public void execute(EsqlQueryRequest request, EsqlExecutionInfo executionInfo, PlanRunner planRunner, ActionListener<Result> listener) {
-        assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.SEARCH);
+        assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.SEARCH_COORDINATION);
         assert executionInfo != null : "Null EsqlExecutionInfo";
         LOGGER.debug("ESQL query:\n{}", request.query());
         LogicalPlan parsed = parse(request.query(), request.params());
@@ -180,7 +180,7 @@ public class EsqlSession {
         analyzedPlan(parsed, executionInfo, request.filter(), new EsqlCCSUtils.CssPartialErrorsActionListener(executionInfo, listener) {
             @Override
             public void onResponse(LogicalPlan analyzedPlan) {
-                assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.SEARCH);
+                assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.SEARCH_COORDINATION);
                 SubscribableListener.<LogicalPlan>newForked(l -> preOptimizedPlan(analyzedPlan, l))
                     .andThenApply(p -> optimizedPlan(p))
                     .<LogicalPlan>andThen(planExecutor, null, (l, p) -> preMapper.preMapper(p, l))
@@ -201,7 +201,7 @@ public class EsqlSession {
         LogicalPlan optimizedPlan,
         ActionListener<Result> listener
     ) {
-        assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.SEARCH);
+        assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.SEARCH_COORDINATION);
         if (explainMode) {// TODO: INLINESTATS come back to the explain mode branch and reevaluate
             PhysicalPlan physicalPlan = logicalPlanToPhysicalPlan(optimizedPlan, request);
             String physicalPlanString = physicalPlan.toString();
@@ -362,7 +362,7 @@ public class EsqlSession {
         QueryBuilder requestFilter,
         ActionListener<LogicalPlan> logicalPlanListener
     ) {
-        assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.SEARCH);
+        assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.SEARCH_COORDINATION);
         if (parsed.analyzed()) {
             logicalPlanListener.onResponse(parsed);
             return;
@@ -392,14 +392,11 @@ public class EsqlSession {
         EsqlExecutionInfo executionInfo,
         ActionListener<PreAnalysisResult> listener
     ) {
+        assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.SEARCH_COORDINATION);
+
         String localPattern = lookupIndexPattern.indexPattern();
         assert RemoteClusterAware.isRemoteIndexName(localPattern) == false
             : "Lookup index name should not include remote, but got: " + localPattern;
-        assert ThreadPool.assertCurrentThreadPool(
-            ThreadPool.Names.SEARCH,
-            ThreadPool.Names.SEARCH_COORDINATION,
-            ThreadPool.Names.SYSTEM_READ
-        );
         Set<String> fieldNames = result.wildcardJoinIndices().contains(localPattern) ? IndexResolver.ALL_FIELDS : result.fieldNames;
 
         String patternWithRemotes;
@@ -600,11 +597,7 @@ public class EsqlSession {
         QueryBuilder requestFilter,
         ActionListener<PreAnalysisResult> listener
     ) {
-        assert ThreadPool.assertCurrentThreadPool(
-            ThreadPool.Names.SEARCH,
-            ThreadPool.Names.SEARCH_COORDINATION,
-            ThreadPool.Names.SYSTEM_READ
-        );
+        assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.SEARCH_COORDINATION);
         // TODO we plan to support joins in the future when possible, but for now we'll just fail early if we see one
         List<IndexPattern> indices = preAnalysis.indices;
         if (indices.size() > 1) {

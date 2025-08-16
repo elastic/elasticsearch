@@ -27,6 +27,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.project.DefaultProjectResolver;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.SecureSetting;
 import org.elasticsearch.common.settings.SecureString;
@@ -98,7 +99,13 @@ public final class RemoteClusterService extends RemoteClusterAware
     public static final Setting.AffixSetting<Boolean> REMOTE_CLUSTER_SKIP_UNAVAILABLE = Setting.affixKeySetting(
         "cluster.remote.",
         "skip_unavailable",
-        (ns, key) -> boolSetting(key, true, new RemoteConnectionEnabled<>(ns, key), Setting.Property.Dynamic, Setting.Property.NodeScope)
+        (ns, key) -> boolSetting(
+            key,
+            true,
+            new UnsupportedInStatelessValidator<>(ns, key),
+            Setting.Property.Dynamic,
+            Setting.Property.NodeScope
+        )
     );
 
     public static final Setting.AffixSetting<TimeValue> REMOTE_CLUSTER_PING_SCHEDULE = Setting.affixKeySetting(
@@ -343,10 +350,14 @@ public final class RemoteClusterService extends RemoteClusterAware
     @Override
     public void listenForUpdates(ClusterSettings clusterSettings) {
         super.listenForUpdates(clusterSettings);
-        clusterSettings.addAffixUpdateConsumer(REMOTE_CLUSTER_SKIP_UNAVAILABLE, this::updateSkipUnavailable, (alias, value) -> {});
+        if (isStateless == false) {
+            clusterSettings.addAffixUpdateConsumer(REMOTE_CLUSTER_SKIP_UNAVAILABLE, this::updateSkipUnavailable, (alias, value) -> {});
+        }
     }
 
     private synchronized void updateSkipUnavailable(String clusterAlias, Boolean skipUnavailable) {
+        assert isStateless == false
+            : "Cannot configure setting [" + REMOTE_CLUSTER_SKIP_UNAVAILABLE.getKey() + "] in stateless environments.";
         RemoteClusterConnection remote = getConnectionsMapForCurrentProject().get(clusterAlias);
         if (remote != null) {
             remote.setSkipUnavailable(skipUnavailable);
@@ -748,6 +759,10 @@ public final class RemoteClusterService extends RemoteClusterAware
             this.key = key;
         }
 
+        protected String getKey() {
+            return key;
+        }
+
         @Override
         public void validate(T value) {}
 
@@ -772,4 +787,25 @@ public final class RemoteClusterService extends RemoteClusterAware
                 .map(as -> as.getConcreteSettingForNamespace(clusterAlias));
         }
     };
+
+    private static class UnsupportedInStatelessValidator<T> extends RemoteConnectionEnabled<T> {
+        private final Setting<Boolean> statelessSetting = Setting.boolSetting(DiscoveryNode.STATELESS_ENABLED_SETTING_NAME, false);
+
+        private UnsupportedInStatelessValidator(String clusterAlias, String key) {
+            super(clusterAlias, key);
+        }
+
+        @Override
+        public void validate(T value, Map<Setting<?>, Object> settings, boolean isPresent) {
+            if (isPresent && (Boolean) settings.get(statelessSetting)) {
+                throw new IllegalArgumentException("setting [" + getKey() + "] is unavailable when stateless is enabled");
+            }
+            super.validate(value, settings, isPresent);
+        }
+
+        @Override
+        public Iterator<Setting<?>> settings() {
+            return Iterators.concat(super.settings(), Iterators.single(statelessSetting));
+        }
+    }
 }

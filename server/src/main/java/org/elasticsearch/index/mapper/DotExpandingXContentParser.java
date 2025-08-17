@@ -58,7 +58,7 @@ class DotExpandingXContentParser extends FilterXContentParserWrapper {
             Token token;
             // cache object field (even when final this is a valid optimization, see https://openjdk.org/jeps/8132243)
             var parsers = this.parsers;
-            while ((token = currentParser.nextToken()) == null) {
+            while ((token = getNextToken(currentParser)) == null) {
                 currentParser = parsers.pollFirst();
                 if (currentParser == null) {
                     return null;
@@ -70,6 +70,14 @@ class DotExpandingXContentParser extends FilterXContentParserWrapper {
             }
             expandDots(currentParser);
             return Token.FIELD_NAME;
+        }
+
+        private static Token getNextToken(XContentParser parser) throws IOException {
+            if (parser instanceof DotExpandingXContentParser dot) {
+                return dot.nextToken();
+            } else {
+                return parser.nextToken();
+            }
         }
 
         private void expandDots(XContentParser delegate) throws IOException {

@@ -65,6 +65,7 @@ public class PatternedTextDocValues extends BinaryDocValues {
     @Override
     public boolean advanceExact(int i) throws IOException {
         argsDocValues.advanceExact(i);
+        timestampDocValues.advanceExact(i);
         // If template has a value, then message has a value. We don't have to check args here, since there may not be args for the doc
         return templateDocValues.advanceExact(i);
     }
@@ -78,7 +79,9 @@ public class PatternedTextDocValues extends BinaryDocValues {
     public int nextDoc() throws IOException {
         int templateNext = templateDocValues.nextDoc();
         var argsAdvance = argsDocValues.advance(templateNext);
+        var timestampAdvance = timestampDocValues.advance(templateNext);
         assert argsAdvance >= templateNext;
+        assert timestampAdvance >= templateNext;
         return templateNext;
     }
 
@@ -86,7 +89,9 @@ public class PatternedTextDocValues extends BinaryDocValues {
     public int advance(int i) throws IOException {
         int templateAdvance = templateDocValues.advance(i);
         var argsAdvance = argsDocValues.advance(templateAdvance);
+        var timestampAdvance = timestampDocValues.advance(templateAdvance);
         assert argsAdvance >= templateAdvance;
+        assert timestampAdvance >= templateAdvance;
         return templateAdvance;
     }
 

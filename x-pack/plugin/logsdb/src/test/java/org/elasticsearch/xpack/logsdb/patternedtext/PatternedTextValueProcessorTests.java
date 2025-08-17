@@ -246,10 +246,14 @@ public class PatternedTextValueProcessorTests extends ESTestCase {
     }
 
     public void testNotTimestamp() {
-        String text = "333";
-        String[] split = text.split(" ");
-        var res = PatternedTextValueProcessor.parse(split, 0);
-        assertNull(res);
+        List<String> notTimestamp = List.of(
+            "5374-10", "333"
+        );
+        for (var ts : notTimestamp) {
+            String[] split = ts.split(" ");
+            var res = PatternedTextValueProcessor.parse(split, 0);
+            assertNull(res);
+        }
     }
 
     private static String randomPlaceholder() {

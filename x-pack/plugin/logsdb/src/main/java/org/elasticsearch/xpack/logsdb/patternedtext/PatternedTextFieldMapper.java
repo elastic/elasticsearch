@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.logsdb.patternedtext;
 
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
+import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.util.BytesRef;
@@ -183,6 +184,11 @@ public class PatternedTextFieldMapper extends FieldMapper {
 
         // Add template_id doc_values
         context.doc().add(templateIdMapper.buildKeywordField(new BytesRef(parts.templateId())));
+
+        // Timestamp
+        if (parts.timestamp() != null) {
+            context.doc().add(new SortedNumericDocValuesField(fieldType().timestampFieldName(), parts.timestamp()));
+        }
 
         // Add args doc_values
         if (parts.args().isEmpty() == false) {

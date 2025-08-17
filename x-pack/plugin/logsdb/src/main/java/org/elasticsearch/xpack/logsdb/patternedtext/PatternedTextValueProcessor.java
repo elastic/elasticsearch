@@ -15,6 +15,15 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 
 import java.nio.charset.StandardCharsets;
+import java.time.Instant;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
+import java.time.ZonedDateTime;
+import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeFormatterBuilder;
+import java.time.temporal.ChronoField;
+import java.time.temporal.TemporalAccessor;
+import java.time.temporal.TemporalQueries;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -207,19 +216,34 @@ public class PatternedTextValueProcessor {
             }
         }
 
-        DateFormatter DEFAULT_NO_EPOCH = DateFormatter.forPattern("strict_date_optional_time");
+        DateTimeFormatter formatter = new DateTimeFormatterBuilder()
+            .append(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss"))
+            .appendFraction(ChronoField.NANO_OF_SECOND, 0, 9, true)
+            .optionalStart()
+                .appendPattern("XX")
+            .optionalEnd()
+            .optionalStart()
+                .appendOffsetId()
+            .optionalEnd()
+            .toFormatter();
 
         // 2 token
         if (i < tokens.length - 1) {
             String combined = String.join(" ", tokens[i], tokens[i + 1]);
+            String attempt = combined
+                .replace(" ", "T")
+                .replace("/", "-")
+                .replace(",", ".");
             try {
                 // "2020-09-06 08:29:04,123"
                 // "2020-09-06 08:29:04.123"
                 // "2020-09-06 08:29:04"
                 // "2020/09/06 08:29:04"
-                String attempt = combined.replace(" ", "T").replace("/", "-");
-                return Tuple.tuple(DEFAULT_NO_EPOCH.parseMillis(attempt), 2);
+
+                long millis = parseMillis(attempt, formatter);
+                return Tuple.tuple(millis, 2);
             } catch (Exception ignored) {
+                int x = 5;
             }
 
             try {
@@ -240,12 +264,29 @@ public class PatternedTextValueProcessor {
             // "2020-09-06T08:29:04+0000"
             // "2020-09-06T08:29:04.123+0000"
 
-            return Tuple.tuple(DEFAULT_NO_EPOCH.parseMillis(tokens[i]), 1);
-        } catch (Exception ignored) {
+            String attempt = tokens[i]
+                .replace(",", ".");
 
+            long millis = parseMillis(attempt, formatter);
+            return Tuple.tuple(millis, 1);
+        } catch (Exception ignored) {
         }
 
         return null;
     }
 
+    public static long parseMillis(String input, DateTimeFormatter formatter) {
+        TemporalAccessor temporalAccessor = formatter.parseBest(
+            input,
+            ZonedDateTime::from,
+            LocalDateTime::from
+        );
+
+        if (temporalAccessor.query(TemporalQueries.zoneId()) != null ||
+            temporalAccessor.query(TemporalQueries.offset()) != null) {
+            return Instant.from(temporalAccessor).toEpochMilli();
+        } else {
+            return LocalDateTime.from(temporalAccessor).atZone(ZoneId.of("UTC")).toInstant().toEpochMilli();
+        }
+    }
 }

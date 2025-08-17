@@ -30,9 +30,6 @@ public class PatternedTextValueProcessor {
     private static final Pattern timestampPattern = Pattern.compile(
             "^(\\d{4})[-/](\\d{2})[-/](\\d{2})[T ](\\d{2}):(\\d{2}):(\\d{2})([.,](\\d{3}|\\d{6})Z?)?[ ]?([+\\-]\\d{2}([:]?\\d{2})?)?$"
     );
-    private static final Pattern letterTimestamp = Pattern.compile(
-            "^(\\d{2})[ /](Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[ /](\\d{4})[ :](\\d{2}):(\\d{2}):(\\d{2})$"
-    );
 
     record Parts(String template, Long timestamp, String templateId, List<String> args) {
         Parts(String template, Long timestamp, List<String> args) {
@@ -69,21 +66,14 @@ public class PatternedTextValueProcessor {
                 timestamp = ts.v1();
 
                 int iInc = 0;
-                if (ts.v2() >= 2) {
-                    textIndex += tokens[i + 1].length() + 1;
-                    iInc++;
-                }
-                if (ts.v2() >= 3) {
-                    textIndex += tokens[i + 2].length() + 1;
-                    iInc++;
-                }
-                if (ts.v2() >= 4) {
-                    textIndex += tokens[i + 3].length() + 1;
+                int numTokensInTimestamp = ts.v2();
+                for (int tokenLen = 2; tokenLen <= numTokensInTimestamp; tokenLen++) {
+                    textIndex += tokens[i + tokenLen - 1].length() + 1;
                     iInc++;
                 }
                 i += iInc;
                 template.append(TIMESTAMP_PLACEHOLDER);
-            } else if (isArg(token)) {
+            } else if (containsDigit(token)) {
                 args.add(token);
                 template.append(TEXT_ARG_PLACEHOLDER);
             } else {
@@ -101,7 +91,7 @@ public class PatternedTextValueProcessor {
         return new Parts(template.toString(), timestamp, args);
     }
 
-    private static boolean isArg(String text) {
+    public static boolean containsDigit(String text) {
         for (int i = 0; i < text.length(); i++) {
             if (Character.isDigit(text.charAt(i))) {
                 return true;
@@ -165,26 +155,27 @@ public class PatternedTextValueProcessor {
         return template.contains(TIMESTAMP_PLACEHOLDER);
     }
 
-    public static boolean isSingleTokenTimestamp(String text) {
-        return timestampPattern.matcher(text).matches();
-    }
-
-    public static boolean isTwoTokenTimestamp(String[] tokens, int i) {
-        String token = tokens[i];
-        return i < tokens.length - 1
-                && token.length() == 10
-                && tokens[i + 1].length() >= 8
-                && tokens[i + 1].length() < 16
-                && isSingleTokenTimestamp(tokens[i] + SPACE + tokens[i + 1]);
-    }
-
-    public static long parseTwoToken(String[] tokens, int i) {
-        String combined = tokens[i].replace("/", "-") + 'T' + tokens[i + 1];
-        return DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis(combined);
-    }
-
-
     public static Tuple<Long, Integer> parse(String[] tokens, int i) {
+
+
+        // 5 tokens left
+        if (i < tokens.length - 4) {
+            // "Sep 6, 2020 08:29:04 AM"
+            String combined = String.join(" ", tokens[i], tokens[i + 1], tokens[i + 2], tokens[i + 3], tokens[i + 4]);
+            try {
+                // I'm not sure if the dates in the dataset having a leading 0 if they are a single digit
+                final DateFormatter dateFormatter = DateFormatter.forPattern("MMM d, yyyy hh:mm:ss a");
+                return Tuple.tuple(dateFormatter.parseMillis(combined), 5);
+            } catch (Exception ignored) {
+            }
+
+            try {
+                final DateFormatter dateFormatter = DateFormatter.forPattern("MMM dd, yyyy hh:mm:ss a");
+                return Tuple.tuple(dateFormatter.parseMillis(combined), 5);
+            } catch (Exception ignored) {
+            }
+        }
+
 
         // 4 tokens left
         if (i < tokens.length - 3) {
@@ -216,6 +207,8 @@ public class PatternedTextValueProcessor {
             }
         }
 
+        DateFormatter DEFAULT_NO_EPOCH = DateFormatter.forPattern("strict_date_optional_time");
+
         // 2 token
         if (i < tokens.length - 1) {
             String combined = String.join(" ", tokens[i], tokens[i + 1]);
@@ -225,7 +218,7 @@ public class PatternedTextValueProcessor {
                 // "2020-09-06 08:29:04"
                 // "2020/09/06 08:29:04"
                 String attempt = combined.replace(" ", "T").replace("/", "-");
-                return Tuple.tuple(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis(attempt), 2);
+                return Tuple.tuple(DEFAULT_NO_EPOCH.parseMillis(attempt), 2);
             } catch (Exception ignored) {
             }
 
@@ -246,7 +239,8 @@ public class PatternedTextValueProcessor {
             // "2020-09-06T08:29:04Z"
             // "2020-09-06T08:29:04+0000"
             // "2020-09-06T08:29:04.123+0000"
-            return Tuple.tuple(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis(tokens[i]), 1);
+
+            return Tuple.tuple(DEFAULT_NO_EPOCH.parseMillis(tokens[i]), 1);
         } catch (Exception ignored) {
 
         }

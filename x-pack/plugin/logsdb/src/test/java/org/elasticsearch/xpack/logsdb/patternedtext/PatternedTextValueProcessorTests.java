@@ -13,11 +13,62 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ml.job.config.DataDescription;
 import org.hamcrest.Matchers;
 
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.stream.Collectors;
+
+import static org.hamcrest.core.IsEqual.equalTo;
 
 public class PatternedTextValueProcessorTests extends ESTestCase {
+
+    private static final List<String> MILLI_RES_DATES = List.of(
+        // 1 token
+        "2020-09-06T08:29:04.123456",
+        "2020-09-06T08:29:04.123Z",
+        "2020-09-06T08:29:04,123",
+        "2020-09-06T08:29:04.123+00:00",
+        "2020-09-06T08:29:04.123+0000",
+
+        // 2 token
+        "2020-09-06 08:29:04,123",
+        "2020-09-06 08:29:04.123",
+
+        // 4 token
+        "06 Sep 2020 08:29:04.123"
+    );
+
+
+    private static final List<String> SEC_RES_DATES = List.of(
+        // 1 token
+        "2020-09-06T08:29:04Z",
+        "2020-09-06T08:29:04+0000",
+
+        // 2 token
+        "2020-09-06 08:29:04",
+        "2020/09/06 08:29:04",
+        "06/Sep/2020:08:29:04 +0000",
+
+        // 3 token
+        "2020-09-06 08:29:04 +0000",
+        "2020-09-06 08:29:04 UTC",
+
+        // 5 token
+        "Sep 6, 2020 08:29:04 AM"
+    );
+
+
+    private static final List<String> ALL_DATES = new ArrayList<>();
+    static {
+        ALL_DATES.addAll(MILLI_RES_DATES);
+        ALL_DATES.addAll(SEC_RES_DATES);
+    }
+
+    private static final String NORMALIZED_MILLI_RES = "2020-09-06T08:29:04.123Z";
+    private static final String NORMALIZED_SEC_RES = "2020-09-06T08:29:04.000Z";
+
 
     public void testEmpty() {
         String text = "";
@@ -43,144 +94,119 @@ public class PatternedTextValueProcessorTests extends ESTestCase {
         assertEquals(text, PatternedTextValueProcessor.merge(parts));
     }
 
-    public void testWithTimestamp() {
-        String text = " 2021-04-13T13:51:38.000Z some text with arg1 and arg2 and arg3";
-        PatternedTextValueProcessor.Parts parts = PatternedTextValueProcessor.split(text);
-        assertEquals(" %W some text with %W and %W and %W", parts.template());
-        assertThat(parts.args(), Matchers.contains("2021-04-13T13:51:38.000Z", "arg1", "arg2", "arg3"));
-        assertEquals(text, PatternedTextValueProcessor.merge(parts));
+    public void testTimestampBeginning() {
+        String testTemplate = "% some text with arg1 and arg2 and arg3";
+        for (String ts : ALL_DATES) {
+            String text = testTemplate.replace("%", ts);
+            String expectedText = testTemplate.replace("%", normalized(ts));
+            PatternedTextValueProcessor.Parts parts = PatternedTextValueProcessor.split(text);
+            assertEquals("%T some text with %W and %W and %W", parts.template());
+            assertThat(parts.args(), Matchers.contains("arg1", "arg2", "arg3"));
+            assertThat(parts.timestamp(), equalTo(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis(normalized(ts))));
+            assertEquals(expectedText, PatternedTextValueProcessor.merge(parts));
+        }
     }
 
-    public void testWithDateSpaceTime() {
-        String text = " 2021-04-13 13:51:38 some text with arg1 and arg2 and arg3";
-        PatternedTextValueProcessor.Parts parts = PatternedTextValueProcessor.split(text);
-        assertEquals(" %W %W some text with %W and %W and %W", parts.template());
-        assertThat(parts.args(), Matchers.contains("2021-04-13", "13:51:38", "arg1", "arg2", "arg3"));
-        assertEquals(text, PatternedTextValueProcessor.merge(parts));
+    public void testTimestampMiddle() {
+        String testTemplate = "Using namespace: kubernetes-dashboard' % | HTTP status: 400, message: [1:395]";
+        for (var ts : ALL_DATES) {
+            String text = testTemplate.replace("%", ts);
+            String expectedText = testTemplate.replace("%", normalized(ts));
+            PatternedTextValueProcessor.Parts parts = PatternedTextValueProcessor.split(text);
+            assertEquals("Using namespace: kubernetes-dashboard' %T | HTTP status: %W message: [%W]", parts.template());
+            assertThat(parts.args(), Matchers.contains("400,", "1:395"));
+            assertThat(parts.timestamp(), equalTo(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis(normalized(ts))));
+            assertEquals(expectedText, PatternedTextValueProcessor.merge(parts));
+        }
     }
 
-    public void testMalformedDate() {
-        String text = "2020/09/06 10:11:38 Using namespace: kubernetes-dashboard' | HTTP status: 400, message: [1:395]";
-        PatternedTextValueProcessor.Parts parts = PatternedTextValueProcessor.split(text);
-        assertEquals("%W %W Using namespace: kubernetes-dashboard' | HTTP status: %W message: [%W]", parts.template());
-        assertThat(parts.args(), Matchers.contains("2020/09/06", "10:11:38", "400,", "1:395"));
-        assertEquals(text, PatternedTextValueProcessor.merge(parts));
+    public void testTimestampEnd() {
+        String testTemplate = "Using namespace: kubernetes-dashboard' | HTTP status: 400, message: [1:395] %";
+        for (var ts : ALL_DATES) {
+            String text = testTemplate.replace("%", ts);
+            String expectedText = testTemplate.replace("%", normalized(ts));
+            PatternedTextValueProcessor.Parts parts = PatternedTextValueProcessor.split(text);
+            assertEquals("Using namespace: kubernetes-dashboard' | HTTP status: %W message: [%W] %T", parts.template());
+            assertThat(parts.args(), Matchers.contains("400,", "1:395"));
+            assertThat(parts.timestamp(), equalTo(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis(normalized(ts))));
+            assertEquals(expectedText, PatternedTextValueProcessor.merge(parts));
+        }
     }
 
     public void testUUID() {
-        String text = "[2020-08-18T00:58:56.751+00:00][15][2354][action_controller][INFO]: [18be2355-6306-4a00-9db9-f0696aa1a225] "
+        String testTemplate = "[%][15][2354][action_controller][INFO]: [18be2355-6306-4a00-9db9-f0696aa1a225] "
             + "some text with arg1 and arg2";
+        String ts = randomFrom(ALL_DATES);
+        String text = testTemplate.replace("%", ts);
+        String expectedText = testTemplate.replace("%", normalized(ts));
         PatternedTextValueProcessor.Parts parts = PatternedTextValueProcessor.split(text);
-        assertEquals("[%W][%W][%W][action_controller][INFO]: [%W] some text with %W and %W", parts.template());
+        assertEquals("[%T][%W][%W][action_controller][INFO]: [%W] some text with %W and %W", parts.template());
         assertThat(
             parts.args(),
-            Matchers.contains("2020-08-18T00:58:56.751+00:00", "15", "2354", "18be2355-6306-4a00-9db9-f0696aa1a225", "arg1", "arg2")
+            Matchers.contains("15", "2354", "18be2355-6306-4a00-9db9-f0696aa1a225", "arg1", "arg2")
         );
-        assertEquals(text, PatternedTextValueProcessor.merge(parts));
+        assertThat(parts.timestamp(), equalTo(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis(normalized(ts))));
+        assertEquals(expectedText, PatternedTextValueProcessor.merge(parts));
     }
 
     public void testIP() {
-        String text = "[2020-08-18T00:58:56.751+00:00][15][2354][action_controller][INFO]: from 94.168.152.150 and arg1";
+        String testTemplate = "[%][15][2354][action_controller][INFO]: from 94.168.152.150 and arg1";
+        String ts = randomFrom(ALL_DATES);
+        String text = testTemplate.replace("%", ts);
+        String expectedText = testTemplate.replace("%", normalized(ts));
         PatternedTextValueProcessor.Parts parts = PatternedTextValueProcessor.split(text);
-        assertEquals("[%W][%W][%W][action_controller][INFO]: from %W and %W", parts.template());
-        assertThat(parts.args(), Matchers.contains("2020-08-18T00:58:56.751+00:00", "15", "2354", "94.168.152.150", "arg1"));
-        assertEquals(text, PatternedTextValueProcessor.merge(parts));
+        assertEquals("[%T][%W][%W][action_controller][INFO]: from %W and %W", parts.template());
+        assertThat(parts.args(), Matchers.contains("15", "2354", "94.168.152.150", "arg1"));
+        assertThat(parts.timestamp(), equalTo(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis(normalized(ts))));
+        assertEquals(expectedText, PatternedTextValueProcessor.merge(parts));
     }
 
     public void testSecondDate() {
-        String text = "[2020-08-18T00:58:56.751+00:00][15][2354][action_controller][INFO]: at 2020-08-18 00:58:56 +0000 and arg1";
-        PatternedTextValueProcessor.Parts parts = PatternedTextValueProcessor.split(text);
-        assertEquals("[%W][%W][%W][action_controller][INFO]: at %W %W %W and %W", parts.template());
-        assertThat(
-            parts.args(),
-            Matchers.contains("2020-08-18T00:58:56.751+00:00", "15", "2354", "2020-08-18", "00:58:56", "+0000", "arg1")
-        );
-        assertEquals(text, PatternedTextValueProcessor.merge(parts));
-    }
+        String ts1 = randomFrom(ALL_DATES);
+        String ts2 = randomFrom(ALL_DATES);
+        String testTemplate = "[%1][15][2354][action_controller][INFO]: at %2 and arg1";
+        String text = testTemplate.replace("%1", ts1).replace("%2", ts2);
+        String expectedText = testTemplate.replace("%1", normalized(ts1)).replace("%2", ts2);
 
-    public void testWithTimestamp1() {
-        String text = "[2020-08-18T00:58:56] Found 123 errors for service [cheddar1]";
         PatternedTextValueProcessor.Parts parts = PatternedTextValueProcessor.split(text);
-        assertEquals("[%W] Found %W errors for service [%W]", parts.template());
-        assertThat(parts.args(), Matchers.contains("2020-08-18T00:58:56", "123", "cheddar1"));
-        assertEquals(text, PatternedTextValueProcessor.merge(parts));
+
+        var secondDateExpectedPlaceholders =
+            Arrays.stream(ts2.split(" ")).map(t -> PatternedTextValueProcessor.containsDigit(t) ? "%W" : t).collect(Collectors.joining(" "));
+        assertEquals("[%T][%W][%W][action_controller][INFO]: at " + secondDateExpectedPlaceholders + " and %W", parts.template());
+        assertThat(parts.timestamp(), equalTo(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis(normalized(ts1))));
+        assertEquals(expectedText, PatternedTextValueProcessor.merge(parts));
     }
 
     public void testWithTimestampRandomParseSuccess() {
-        var timeStrings = List.of(
-            // 1 token
-            "2020-09-06T08:29:04.123456",
-            "2020-09-06T08:29:04.123Z",
-            "2020-09-06T08:29:04,123",
-            "2020-09-06T08:29:04.123+00:00",
-            "2020-09-06T08:29:04Z",
-            "2020-09-06T08:29:04+0000",
-            "2020-09-06T08:29:04.123+0000",
-
-            // 2 token
-            "2020-09-06 08:29:04,123",
-            "2020-09-06 08:29:04.123",
-            "2020-09-06 08:29:04",
-            "2020/09/06 08:29:04",
-            "06/Sep/2020:08:29:04 +0000",
-
-            // 3 token
-            "2020-09-06 08:29:04 +0000",
-            "2020-09-06 08:29:04 UTC",
-
-            // 4 token
-            "06 Sep 2020 08:29:04.123"
-        );
-
         String template = "%";
         if (randomBoolean()) {
             template = "[" + template + "]";
         }
         template = randomFrom(" ", "") + template + randomFrom(" ", "");
 
-        var ts = randomFrom(timeStrings);
+        var ts = randomFrom(ALL_DATES);
         String text = template.replace("%", ts);
-        String normalized = ts.contains("123") ? "2020-09-06T08:29:04.123Z" :  "2020-09-06T08:29:04.000Z";
-        String expected = template.replace("%", normalized);
+        String expected = template.replace("%", normalized(ts));
 
         PatternedTextValueProcessor.Parts parts = PatternedTextValueProcessor.split(text);
         assertEquals(expected, PatternedTextValueProcessor.merge(parts));
     }
 
     public void testWithTimestampRandomNoParseSuccess() {
-        var timeStrings = List.of(
-            "2020-09-06T08:29:04.123456",
-            "2020-09-06T08:29:04.123Z",
-            "2020-09-06T08:29:04,123",
-            "2020-09-06T08:29:04.123+00:00",
-            "2020-09-06T08:29:04Z",
-            "2020-09-06T08:29:04+0000",
-            "2020-09-06T08:29:04.123+0000",
-            "2020-09-06 08:29:04,123",
-            "2020-09-06 08:29:04.123",
-            "2020-09-06 08:29:04 UTC",
-            "2020-09-06 08:29:04",
-            "2020-09-06 08:29:04 +0000",
-            "2020/09/06 08:29:04",
-            "06/Sep/2020:08:29:04 +0000",
-            "06 Sep 2020 08:29:04.123"
-        );
-
         String template = "%";
         template = randomFrom("cat", "123") + template + randomFrom("cat", "123");
 
-        var ts = randomFrom(timeStrings);
+        var ts = randomFrom(ALL_DATES);
         String text = template.replace("%", ts);
 
         PatternedTextValueProcessor.Parts parts = PatternedTextValueProcessor.split(text);
         assertEquals(text, PatternedTextValueProcessor.merge(parts));
     }
 
-
     public void testTemplateIdIsExpectedShape() {
         String text = "[2020-08-18T00:58:56] Found 123 errors for service [cheddar1]";
         PatternedTextValueProcessor.Parts parts = PatternedTextValueProcessor.split(text);
-        assertEquals("vSr1YMYPups", parts.templateId());
+        assertEquals("TZwL6Ju2bIg", parts.templateId());
     }
 
     public void testTemplateIdHasVeryFewCollisions() {
@@ -209,39 +235,21 @@ public class PatternedTextValueProcessorTests extends ESTestCase {
     }
 
     public void testParseTimestamps() {
-        var timeStrings = List.of(
-            // 1 token
-            "2020-09-06T08:29:04.123456",
-            "2020-09-06T08:29:04.123Z",
-            "2020-09-06T08:29:04,123",
-            "2020-09-06T08:29:04.123+00:00",
-            "2020-09-06T08:29:04Z",
-            "2020-09-06T08:29:04+0000",
-            "2020-09-06T08:29:04.123+0000",
-
-            // 2 token
-            "2020-09-06 08:29:04,123",
-            "2020-09-06 08:29:04.123",
-            "2020-09-06 08:29:04",
-            "2020/09/06 08:29:04",
-            "06/Sep/2020:08:29:04 +0000",
-
-            // 3 token
-            "2020-09-06 08:29:04 +0000",
-            "2020-09-06 08:29:04 UTC",
-
-            // 4 token
-            "06 Sep 2020 08:29:04.123"
-        );
-
-        for (var ts : timeStrings) {
+        for (var ts : ALL_DATES) {
             String[] split = ts.split(" ");
             var res = PatternedTextValueProcessor.parse(split, 0);
             var millis = res.v1();
-            String str = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.formatMillis(millis);
-            logger.info("parsed: " + ts + " as " + str);
-            assertTrue("2020-09-06T08:29:04.123Z".equals(str) || "2020-09-06T08:29:04.000Z".equals(str));
+            String parsed = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.formatMillis(millis);
+            logger.info("parsed: " + ts + " as " + parsed);
+            assertEquals(normalized(ts), parsed);
         }
+    }
+
+    public void testNotTimestamp() {
+        String text = "333";
+        String[] split = text.split(" ");
+        var res = PatternedTextValueProcessor.parse(split, 0);
+        assertNull(res);
     }
 
     private static String randomPlaceholder() {
@@ -250,5 +258,9 @@ public class PatternedTextValueProcessorTests extends ESTestCase {
 
     private static String randomDelimiter() {
         return randomFrom(List.of(" ", "\n", "\t", "[", "]"));
+    }
+
+    private static String normalized(String date) {
+        return SEC_RES_DATES.contains(date) ? NORMALIZED_SEC_RES : NORMALIZED_MILLI_RES;
     }
 }

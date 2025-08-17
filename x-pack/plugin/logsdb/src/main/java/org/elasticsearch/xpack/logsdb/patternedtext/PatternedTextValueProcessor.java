@@ -166,7 +166,6 @@ public class PatternedTextValueProcessor {
 
     public static Tuple<Long, Integer> parse(String[] tokens, int i) {
 
-
         // 5 tokens left
         if (i < tokens.length - 4) {
             // "Sep 6, 2020 08:29:04 AM"
@@ -177,14 +176,7 @@ public class PatternedTextValueProcessor {
                 return Tuple.tuple(dateFormatter.parseMillis(combined), 5);
             } catch (Exception ignored) {
             }
-
-            try {
-                final DateFormatter dateFormatter = DateFormatter.forPattern("MMM dd, yyyy hh:mm:ss a");
-                return Tuple.tuple(dateFormatter.parseMillis(combined), 5);
-            } catch (Exception ignored) {
-            }
         }
-
 
         // 4 tokens left
         if (i < tokens.length - 3) {
@@ -198,40 +190,31 @@ public class PatternedTextValueProcessor {
             }
         }
 
+        DateTimeFormatter spaceBase = DateTimeFormatter.ofPattern("yyyy-MM-dd' 'HH:mm:ss");
+        DateTimeFormatter spaceFormatter = new DateTimeFormatterBuilder()
+            .append(spaceBase)
+            .appendFraction(ChronoField.NANO_OF_SECOND, 0, 9, true)
+            .optionalStart().appendPattern("XX").optionalEnd()
+            .optionalStart().appendLiteral(" ").appendPattern("XX").optionalEnd()
+            .optionalStart().appendOffsetId().optionalEnd()
+            .optionalStart().appendLiteral(" ").appendPattern("z").optionalEnd()
+            .toFormatter();
+
         // 3 token
         if (i < tokens.length - 2) {
             String combined = String.join(" ", tokens[i], tokens[i + 1], tokens[i + 2]);
             try {
                 // "2020-09-06 08:29:04 +0000"
-                final DateFormatter dateFormatter = DateFormatter.forPattern("yyyy-MM-dd HH:mm:ss XX");
-                return Tuple.tuple(dateFormatter.parseMillis(combined), 3);
-            } catch (Exception ignored) {
-            }
-
-            try {
                 // "2020-09-06 08:29:04 UTC"
-                final DateFormatter dateFormatter = DateFormatter.forPattern("yyy-MM-dd HH:mm:ss z");
-                return Tuple.tuple(dateFormatter.parseMillis(combined), 3);
+                return Tuple.tuple(parseMillis(combined, spaceFormatter), 3);
             } catch (Exception ignored) {
             }
         }
-
-        DateTimeFormatter formatter = new DateTimeFormatterBuilder()
-            .append(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss"))
-            .appendFraction(ChronoField.NANO_OF_SECOND, 0, 9, true)
-            .optionalStart()
-                .appendPattern("XX")
-            .optionalEnd()
-            .optionalStart()
-                .appendOffsetId()
-            .optionalEnd()
-            .toFormatter();
 
         // 2 token
         if (i < tokens.length - 1) {
             String combined = String.join(" ", tokens[i], tokens[i + 1]);
             String attempt = combined
-                .replace(" ", "T")
                 .replace("/", "-")
                 .replace(",", ".");
             try {
@@ -240,10 +223,9 @@ public class PatternedTextValueProcessor {
                 // "2020-09-06 08:29:04"
                 // "2020/09/06 08:29:04"
 
-                long millis = parseMillis(attempt, formatter);
+                long millis = parseMillis(attempt, spaceFormatter);
                 return Tuple.tuple(millis, 2);
             } catch (Exception ignored) {
-                int x = 5;
             }
 
             try {
@@ -265,9 +247,10 @@ public class PatternedTextValueProcessor {
             // "2020-09-06T08:29:04.123+0000"
 
             String attempt = tokens[i]
-                .replace(",", ".");
+                .replace(",", ".")
+                .replace("T", " ");
 
-            long millis = parseMillis(attempt, formatter);
+            long millis = parseMillis(attempt, spaceFormatter);
             return Tuple.tuple(millis, 1);
         } catch (Exception ignored) {
         }

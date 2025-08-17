@@ -247,13 +247,24 @@ public class PatternedTextValueProcessorTests extends ESTestCase {
 
     public void testNotTimestamp() {
         List<String> notTimestamp = List.of(
-            "5374-10", "333"
+            "2020-12-01",
+            "2020-12",
+            "2020"
         );
         for (var ts : notTimestamp) {
             String[] split = ts.split(" ");
             var res = PatternedTextValueProcessor.parse(split, 0);
             assertNull(res);
         }
+    }
+
+    public void testDontParseMultipleOffsetParts() {
+        String ts = "2020-09-06T08:29:04+0000" + " UTC";
+        String[] split = ts.split(" ");
+        var res = PatternedTextValueProcessor.parse(split, 0);
+
+        String result = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.formatMillis(res.v1());
+        assertEquals("2020-09-06T08:29:04.000Z", result);
     }
 
     private static String randomPlaceholder() {

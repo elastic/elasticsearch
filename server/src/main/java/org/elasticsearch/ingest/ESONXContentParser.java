@@ -97,7 +97,7 @@ public class ESONXContentParser extends AbstractXContentParser {
                 final Token token = switch (type) {
                     case ESONEntry.STRING -> Token.VALUE_STRING;
                     case ESONEntry.TYPE_INT, ESONEntry.TYPE_LONG, ESONEntry.TYPE_FLOAT, ESONEntry.TYPE_DOUBLE, ESONEntry.BIG_INTEGER,
-                         ESONEntry.BIG_DECIMAL -> Token.VALUE_NUMBER;
+                        ESONEntry.BIG_DECIMAL -> Token.VALUE_NUMBER;
                     case ESONEntry.TYPE_NULL -> Token.VALUE_NULL;
                     case ESONEntry.TYPE_TRUE, ESONEntry.TYPE_FALSE -> Token.VALUE_BOOLEAN;
                     case ESONEntry.TYPE_OBJECT -> Token.START_OBJECT;
@@ -108,7 +108,7 @@ public class ESONXContentParser extends AbstractXContentParser {
                 if (token == Token.START_OBJECT || token == Token.START_ARRAY) {
                     newContainer(type);
                 }
-//                token = TOKEN_LOOKUP[type];
+                // token = TOKEN_LOOKUP[type];
 
                 if (IntStack.isObject(stackValue)) {
                     nextToken = token;

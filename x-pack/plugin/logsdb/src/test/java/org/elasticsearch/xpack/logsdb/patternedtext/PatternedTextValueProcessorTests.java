@@ -266,7 +266,7 @@ public class PatternedTextValueProcessorTests extends ESTestCase {
             assertEquals("2020-09-06T13:29:04.000Z", DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.formatMillis(res.v1()));
         }
         {
-            String ts = "2020-09-06T08:29:04 CDT";
+            String ts = "2020-09-06 08:29:04 CDT";
             String[] split = ts.split(" ");
             var res = PatternedTextValueProcessor.parse(split, 0);
             assertEquals("2020-09-06T13:29:04.000Z", DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.formatMillis(res.v1()));

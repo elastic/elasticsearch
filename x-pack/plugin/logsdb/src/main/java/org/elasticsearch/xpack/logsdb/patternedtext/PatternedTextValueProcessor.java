@@ -221,10 +221,6 @@ public class PatternedTextValueProcessor {
                 return Tuple.tuple(parseMillis(combined, spaceFormatter), 3);
             } catch (Exception ignored) {
             }
-            try {
-                return Tuple.tuple(parseMillis(combined, standardFormatter), 3);
-            } catch (Exception ignored) {
-            }
         }
 
         // 2 token
@@ -240,12 +236,6 @@ public class PatternedTextValueProcessor {
                 // "2020/09/06 08:29:04"
 
                 long millis = parseMillis(attempt, spaceFormatter);
-                return Tuple.tuple(millis, 2);
-            } catch (Exception ignored) {
-            }
-
-            try {
-                long millis = parseMillis(attempt, standardFormatter);
                 return Tuple.tuple(millis, 2);
             } catch (Exception ignored) {
             }
@@ -271,11 +261,6 @@ public class PatternedTextValueProcessor {
             // "2020-09-06T08:29:04.123+0000"
 
 
-            long millis = parseMillis(attempt, spaceFormatter);
-            return Tuple.tuple(millis, 1);
-        } catch (Exception ignored) {
-        }
-        try {
             long millis = parseMillis(attempt, standardFormatter);
             return Tuple.tuple(millis, 1);
         } catch (Exception ignored) {

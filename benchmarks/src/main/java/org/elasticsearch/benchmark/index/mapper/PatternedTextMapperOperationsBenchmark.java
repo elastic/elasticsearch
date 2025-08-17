@@ -28,8 +28,8 @@ import java.util.concurrent.TimeUnit;
 @BenchmarkMode(Mode.AverageTime)
 @OutputTimeUnit(TimeUnit.NANOSECONDS)
 @Fork(value = 1)
-@Warmup(iterations = 1)
-@Measurement(iterations = 1)
+@Warmup(iterations = 2)
+@Measurement(iterations = 2)
 @State(Scope.Benchmark)
 public class PatternedTextMapperOperationsBenchmark {
 

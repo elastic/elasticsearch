@@ -140,7 +140,7 @@ public final class FlattenedFieldMapper extends FieldMapper {
             }
         });
 
-        private final Parameter<Boolean> indexed = Parameter.indexParam(m -> builder(m).indexed.get(), true);
+        private final Parameter<Boolean> indexed;
         private final Parameter<Boolean> hasDocValues = Parameter.docValuesParam(m -> builder(m).hasDocValues.get(), true);
 
         private final Parameter<String> nullValue = Parameter.stringParam("null_value", false, m -> builder(m).nullValue.get(), null)
@@ -154,6 +154,7 @@ public final class FlattenedFieldMapper extends FieldMapper {
         );
         private final int ignoreAboveDefault;
         private final Parameter<Integer> ignoreAbove;
+        private final boolean indexDisabledByDefault;
 
         private final Parameter<String> indexOptions = TextParams.keywordIndexOptions(m -> builder(m).indexOptions.get());
         private final Parameter<SimilarityProvider> similarity = TextParams.similarity(m -> builder(m).similarity.get());
@@ -164,20 +165,7 @@ public final class FlattenedFieldMapper extends FieldMapper {
             m -> builder(m).splitQueriesOnWhitespace.get(),
             false
         );
-        private final Parameter<List<String>> dimensions = dimensionsParam(m -> builder(m).dimensions.get()).addValidator(v -> {
-            if (v.isEmpty() == false && (indexed.getValue() == false || hasDocValues.getValue() == false)) {
-                throw new IllegalArgumentException(
-                    "Field ["
-                        + TIME_SERIES_DIMENSIONS_ARRAY_PARAM
-                        + "] requires that ["
-                        + indexed.name
-                        + "] and ["
-                        + hasDocValues.name
-                        + "] are true"
-                );
-            }
-        });
-
+        private final Parameter<List<String>> dimensions;
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
 
         public static FieldMapper.Parameter<List<String>> dimensionsParam(Function<FieldMapper, List<String>> initializer) {
@@ -185,11 +173,25 @@ public final class FlattenedFieldMapper extends FieldMapper {
         }
 
         public Builder(final String name) {
-            this(name, Integer.MAX_VALUE);
+            this(name, Integer.MAX_VALUE, false);
         }
 
-        private Builder(String name, int ignoreAboveDefault) {
+        private Builder(String name, int ignoreAboveDefault, boolean indexDisabledByDefault) {
             super(name);
+            this.indexed = Parameter.indexParam(m -> builder(m).indexed.get(), indexDisabledByDefault == false);
+            this.dimensions = dimensionsParam(m -> builder(m).dimensions.get()).addValidator(v -> {
+                if (v.isEmpty() == false && (indexed.getValue() == false || hasDocValues.getValue() == false)) {
+                    throw new IllegalArgumentException(
+                        "Field ["
+                            + TIME_SERIES_DIMENSIONS_ARRAY_PARAM
+                            + "] requires that ["
+                            + indexed.name
+                            + "] and ["
+                            + hasDocValues.name
+                            + "] are true"
+                    );
+                }
+            });
             this.ignoreAboveDefault = ignoreAboveDefault;
             this.ignoreAbove = Parameter.intParam("ignore_above", true, m -> builder(m).ignoreAbove.get(), ignoreAboveDefault)
                 .addValidator(v -> {
@@ -198,6 +200,7 @@ public final class FlattenedFieldMapper extends FieldMapper {
                     }
                 });
             this.dimensions.precludesParameters(ignoreAbove);
+            this.indexDisabledByDefault = indexDisabledByDefault;
         }
 
         @Override
@@ -239,7 +242,9 @@ public final class FlattenedFieldMapper extends FieldMapper {
         }
     }
 
-    public static final TypeParser PARSER = new TypeParser((n, c) -> new Builder(n, IGNORE_ABOVE_SETTING.get(c.getSettings())));
+    public static final TypeParser PARSER = new TypeParser(
+        (n, c) -> new Builder(n, IGNORE_ABOVE_SETTING.get(c.getSettings()), c.getIndexSettings().isIndexDisabledByDefault())
+    );
 
     /**
      * A field type that represents the values under a particular JSON key, used
@@ -827,6 +832,7 @@ public final class FlattenedFieldMapper extends FieldMapper {
 
     private final FlattenedFieldParser fieldParser;
     private final Builder builder;
+    private final boolean indexDisabledByDefault;
 
     private FlattenedFieldMapper(
         String leafName,
@@ -848,6 +854,7 @@ public final class FlattenedFieldMapper extends FieldMapper {
             builder.ignoreAbove.get(),
             builder.nullValue.get()
         );
+        this.indexDisabledByDefault = builder.indexDisabledByDefault;
     }
 
     @Override
@@ -905,7 +912,7 @@ public final class FlattenedFieldMapper extends FieldMapper {
 
     @Override
     public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(leafName(), ignoreAboveDefault).init(this);
+        return new Builder(leafName(), ignoreAboveDefault, indexDisabledByDefault).init(this);
     }
 
     @Override

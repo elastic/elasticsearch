@@ -87,21 +87,36 @@ public class ESONXContentParser extends AbstractXContentParser {
         } else if (currentToken != null && containerStack.isEmpty() == false) {
             int stackValue = containerStack.currentStackValue();
             int remainingFields = IntStack.fieldsRemaining(stackValue);
-            boolean isObject = IntStack.isObject(stackValue);
             if (remainingFields > 0) {
                 currentEntry = keyArray.get(currentIndex);
                 currentValue = null;
                 containerStack.updateRemainingFields(stackValue - 1);
                 ++currentIndex;
 
-                final Token token;
                 byte type = currentEntry.type();
-                if (type >= ESONEntry.TYPE_OBJECT) {
+                // Optimize for common JSON value types first
+                Token token;
+                if (type < ESONEntry.TYPE_OBJECT) {
+                    // Primitive values (most common in JSON data)
+                    // Order by frequency: strings, numbers, booleans, nulls
+                    if (type == ESONEntry.STRING) {
+                        token = Token.VALUE_STRING;
+                    } else if (type >= ESONEntry.TYPE_INT && type <= ESONEntry.TYPE_DOUBLE) {
+                        token = Token.VALUE_NUMBER;
+                    } else if (type == ESONEntry.TYPE_TRUE || type == ESONEntry.TYPE_FALSE) {
+                        token = Token.VALUE_BOOLEAN;
+                    } else if (type == ESONEntry.TYPE_NULL) {
+                        token = Token.VALUE_NULL;
+                    } else {
+                        token = TOKEN_LOOKUP[type];  // Rare types
+                    }
+                } else {
+                    // Container types (less common)
                     newContainer(type);
+                    token = (type == ESONEntry.TYPE_OBJECT) ? Token.START_OBJECT : Token.START_ARRAY;
                 }
-                token = TOKEN_LOOKUP[type];
 
-                if (isObject) {
+                if (IntStack.isObject(stackValue)) {
                     nextToken = token;
                     return currentToken = Token.FIELD_NAME;
                 } else {
@@ -110,7 +125,7 @@ public class ESONXContentParser extends AbstractXContentParser {
             } else {
                 // End of container
                 containerStack.popContainer();
-                return currentToken = isObject ? Token.END_OBJECT : Token.END_ARRAY;
+                return currentToken = IntStack.isObject(stackValue) ? Token.END_OBJECT : Token.END_ARRAY;
             }
         }
 
@@ -138,7 +153,7 @@ public class ESONXContentParser extends AbstractXContentParser {
         }
     }
 
-    private static final Token[] TOKEN_LOOKUP = new Token[32];
+    private static final Token[] TOKEN_LOOKUP = new Token[16];
 
     static {
         TOKEN_LOOKUP[ESONEntry.TYPE_OBJECT] = Token.START_OBJECT;

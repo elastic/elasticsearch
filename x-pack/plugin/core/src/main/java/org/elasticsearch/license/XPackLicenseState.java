@@ -33,12 +33,6 @@ import java.util.stream.Collectors;
  */
 public class XPackLicenseState {
 
-    /**
-     * For features that are used at high frequency (e.g. per-search or per-document, etc.), we don't want to bother updating
-     * the 'last used' timestamp more often than some minimum frequency.
-     */
-    private static final long FEATURE_USAGE_MINIMUM_ELAPSED_TIME_MILLIS = TimeValue.timeValueSeconds(10).getMillis();
-
     /** Messages for each feature which are printed when the license expires. */
     static final Map<String, String[]> EXPIRATION_MESSAGES;
     static {
@@ -453,11 +447,11 @@ public class XPackLicenseState {
 
     void featureUsed(LicensedFeature feature) {
         checkExpiry();
-        // if at least the minimum elapsed time has passed, then update the most recently used time for this feature
+        // update the most recent usage time, but only if isn't already present or has increased
         final FeatureUsage feat = new FeatureUsage(feature, null);
-        final long now = epochMillisProvider.getAsLong();
         final Long mostRecent = usage.get(feat);
-        if (mostRecent == null || now - mostRecent >= FEATURE_USAGE_MINIMUM_ELAPSED_TIME_MILLIS) {
+        final long now = epochMillisProvider.getAsLong();
+        if (mostRecent == null || now > mostRecent) {
             usage.put(feat, now);
         }
     }

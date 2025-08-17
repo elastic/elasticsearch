@@ -149,7 +149,7 @@ public class MapXContentParser extends AbstractXContentParser {
                 return new Text(value.toString());
             }
         } else {
-            throw new IllegalStateException("Cannot get text for the current token " + currentToken());
+            return new Text(text());
         }
     }
 

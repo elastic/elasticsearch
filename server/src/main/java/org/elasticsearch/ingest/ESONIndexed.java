@@ -9,11 +9,14 @@
 
 package org.elasticsearch.ingest;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.CompositeBytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.xcontent.Text;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentString;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -274,7 +277,7 @@ public class ESONIndexed {
             return ESONEntry.TYPE_OBJECT;
         }
 
-        private class LazyEntry implements Entry<String, Object> {
+        public class LazyEntry implements Entry<String, Object> {
             private final String key;
             private final ESONSource.Value type;
             private final boolean nullForRawValues;
@@ -294,6 +297,19 @@ public class ESONIndexed {
 
             public boolean isRawValue() {
                 return type instanceof ESONSource.FixedValue || type instanceof ESONSource.VariableValue;
+            }
+
+            public boolean isUTF8Bytes() {
+                return type.type() == ESONEntry.STRING;
+            }
+
+            public XContentString utf8Bytes() {
+                if (type instanceof ESONSource.VariableValue varValue && varValue.type() == ESONEntry.STRING) {
+                    BytesRef bytesRef = ESONSource.Values.readByteSlice(esonFlat.values().data(), varValue.position());
+                    return new Text(new XContentString.UTF8Bytes(bytesRef.bytes, bytesRef.offset, bytesRef.length), bytesRef.length);
+                }
+                throw new IllegalArgumentException();
+
             }
 
             @Override

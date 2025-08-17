@@ -57,7 +57,6 @@ public class FormattingPrecommitPlugin implements Plugin<Project> {
                 String importOrderPath = "build-conventions/elastic.importorder";
                 String formatterConfigPath = "build-conventions/formatterConfig.xml";
 
-                java.target("src/**/*.java");
                 java.removeUnusedImports();
 
                 // We enforce a standard order for imports

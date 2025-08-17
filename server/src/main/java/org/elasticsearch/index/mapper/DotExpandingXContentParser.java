@@ -43,10 +43,11 @@ class DotExpandingXContentParser extends FilterXContentParserWrapper {
 
         private final ContentPath contentPath;
         final Deque<XContentParser> parsers = new ArrayDeque<>();
+        private XContentParser currentParser;
 
         WrappingParser(XContentParser in, ContentPath contentPath) throws IOException {
             this.contentPath = contentPath;
-            parsers.push(in);
+            currentParser = in;
             if (in.currentToken() == Token.FIELD_NAME) {
                 expandDots(in);
             }
@@ -55,22 +56,19 @@ class DotExpandingXContentParser extends FilterXContentParserWrapper {
         @Override
         public Token nextToken() throws IOException {
             Token token;
-            XContentParser delegate;
             // cache object field (even when final this is a valid optimization, see https://openjdk.org/jeps/8132243)
             var parsers = this.parsers;
-            delegate = parsers.peek(); // Store in local variable
-            while ((token = delegate.nextToken()) == null) {
-                parsers.pop();
-                if (parsers.isEmpty()) {
+            while ((token = currentParser.nextToken()) == null) {
+                currentParser = parsers.pollFirst();
+                if (currentParser == null) {
                     return null;
                 }
-                delegate = parsers.peek();
             }
 
             if (token != Token.FIELD_NAME) {
                 return token;
             }
-            expandDots(delegate);
+            expandDots(currentParser);
             return Token.FIELD_NAME;
         }
 
@@ -149,7 +147,8 @@ class DotExpandingXContentParser extends FilterXContentParserWrapper {
                 }
                 subParser = new SingletonValueXContentParser(delegate);
             }
-            parsers.push(new DotExpandingXContentParser(subParser, subpaths, location, contentPath));
+            parsers.push(currentParser);
+            currentParser = new DotExpandingXContentParser(subParser, subpaths, location, contentPath);
         }
 
         private static void throwExpectedOpen(Token token) {
@@ -180,7 +179,7 @@ class DotExpandingXContentParser extends FilterXContentParserWrapper {
 
         @Override
         protected XContentParser delegate() {
-            return parsers.peek();
+            return currentParser;
         }
 
         /*

@@ -81,48 +81,61 @@ public class ESONXContentParser extends AbstractXContentParser {
     @Override
     public Token nextToken() throws IOException {
         if (currentToken == Token.FIELD_NAME) {
-            currentToken = nextToken;
-            nextToken = null;
-            return currentToken;
+            return returnFieldValue();
         } else if (currentToken != null && containerStack.isEmpty() == false) {
-            int stackValue = containerStack.currentStackValue();
-            int remainingFields = IntStack.fieldsRemaining(stackValue);
-            if (remainingFields > 0) {
-                currentEntry = keyArray.get(currentIndex);
-                currentValue = null;
-                containerStack.updateRemainingFields(stackValue - 1);
-                ++currentIndex;
-
-                byte type = currentEntry.type();
-                final Token token = switch (type) {
-                    case ESONEntry.STRING -> Token.VALUE_STRING;
-                    case ESONEntry.TYPE_INT, ESONEntry.TYPE_LONG, ESONEntry.TYPE_FLOAT, ESONEntry.TYPE_DOUBLE, ESONEntry.BIG_INTEGER,
-                        ESONEntry.BIG_DECIMAL -> Token.VALUE_NUMBER;
-                    case ESONEntry.TYPE_NULL -> Token.VALUE_NULL;
-                    case ESONEntry.TYPE_TRUE, ESONEntry.TYPE_FALSE -> Token.VALUE_BOOLEAN;
-                    case ESONEntry.TYPE_OBJECT -> Token.START_OBJECT;
-                    case ESONEntry.TYPE_ARRAY -> Token.START_ARRAY;
-                    case ESONEntry.BINARY -> Token.VALUE_EMBEDDED_OBJECT;
-                    default -> throw new IllegalArgumentException("Unknown type: " + type);
-                };
-                if (token == Token.START_OBJECT || token == Token.START_ARRAY) {
-                    newContainer(type);
-                }
-                // token = TOKEN_LOOKUP[type];
-
-                if (IntStack.isObject(stackValue)) {
-                    nextToken = token;
-                    return currentToken = Token.FIELD_NAME;
-                } else {
-                    return currentToken = token;
-                }
-            } else {
-                // End of container
-                containerStack.popContainer();
-                return currentToken = IntStack.isObject(stackValue) ? Token.END_OBJECT : Token.END_ARRAY;
-            }
+            return advanceInContainer();
+        } else {
+            return handleInitial();
         }
 
+    }
+
+    private Token returnFieldValue() {
+        currentToken = nextToken;
+        nextToken = null;
+        return currentToken;
+    }
+
+    private Token advanceInContainer() {
+        int stackValue = containerStack.currentStackValue();
+        int remainingFields = IntStack.fieldsRemaining(stackValue);
+        if (remainingFields > 0) {
+            currentEntry = keyArray.get(currentIndex);
+            currentValue = null;
+            containerStack.updateRemainingFields(stackValue - 1);
+            ++currentIndex;
+
+            byte type = currentEntry.type();
+            final Token token = switch (type) {
+                case ESONEntry.STRING -> Token.VALUE_STRING;
+                case ESONEntry.TYPE_INT, ESONEntry.TYPE_LONG, ESONEntry.TYPE_FLOAT, ESONEntry.TYPE_DOUBLE, ESONEntry.BIG_INTEGER,
+                    ESONEntry.BIG_DECIMAL -> Token.VALUE_NUMBER;
+                case ESONEntry.TYPE_NULL -> Token.VALUE_NULL;
+                case ESONEntry.TYPE_TRUE, ESONEntry.TYPE_FALSE -> Token.VALUE_BOOLEAN;
+                case ESONEntry.TYPE_OBJECT -> Token.START_OBJECT;
+                case ESONEntry.TYPE_ARRAY -> Token.START_ARRAY;
+                case ESONEntry.BINARY -> Token.VALUE_EMBEDDED_OBJECT;
+                default -> throw new IllegalArgumentException("Unknown type: " + type);
+            };
+            if (token == Token.START_OBJECT || token == Token.START_ARRAY) {
+                newContainer(type);
+            }
+            // token = TOKEN_LOOKUP[type];
+
+            if (IntStack.isObject(stackValue)) {
+                nextToken = token;
+                return currentToken = Token.FIELD_NAME;
+            } else {
+                return currentToken = token;
+            }
+        } else {
+            // End of container
+            containerStack.popContainer();
+            return currentToken = IntStack.isObject(stackValue) ? Token.END_OBJECT : Token.END_ARRAY;
+        }
+    }
+
+    private Token handleInitial() {
         if (closed) {
             return null;
         }
@@ -135,7 +148,6 @@ public class ESONXContentParser extends AbstractXContentParser {
             currentIndex++;
             return currentToken = Token.START_OBJECT;
         }
-
         return null;
     }
 

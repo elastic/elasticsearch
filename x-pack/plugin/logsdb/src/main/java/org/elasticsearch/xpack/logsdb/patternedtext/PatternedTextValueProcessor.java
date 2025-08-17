@@ -190,6 +190,18 @@ public class PatternedTextValueProcessor {
             }
         }
 
+
+        DateTimeFormatter standardBase = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss");
+        DateTimeFormatter standardFormatter = new DateTimeFormatterBuilder()
+            .append(standardBase)
+            .appendFraction(ChronoField.NANO_OF_SECOND, 0, 9, true)
+            .optionalStart().appendPattern("XX").optionalEnd()
+            .optionalStart().appendLiteral(" ").appendPattern("XX").optionalEnd()
+            .optionalStart().appendOffsetId().optionalEnd()
+            .optionalStart().appendLiteral(" ").appendPattern("z").optionalEnd()
+            .toFormatter();
+
+
         DateTimeFormatter spaceBase = DateTimeFormatter.ofPattern("yyyy-MM-dd' 'HH:mm:ss");
         DateTimeFormatter spaceFormatter = new DateTimeFormatterBuilder()
             .append(spaceBase)
@@ -207,6 +219,10 @@ public class PatternedTextValueProcessor {
                 // "2020-09-06 08:29:04 +0000"
                 // "2020-09-06 08:29:04 UTC"
                 return Tuple.tuple(parseMillis(combined, spaceFormatter), 3);
+            } catch (Exception ignored) {
+            }
+            try {
+                return Tuple.tuple(parseMillis(combined, standardFormatter), 3);
             } catch (Exception ignored) {
             }
         }
@@ -229,6 +245,12 @@ public class PatternedTextValueProcessor {
             }
 
             try {
+                long millis = parseMillis(attempt, standardFormatter);
+                return Tuple.tuple(millis, 2);
+            } catch (Exception ignored) {
+            }
+
+            try {
                 // "06/Sep/2020:08:29:04 +0000"
                 final DateFormatter dateFormatter = DateFormatter.forPattern("dd/MMM/yyyy:HH:mm:ss XX");
                 return Tuple.tuple(dateFormatter.parseMillis(combined), 2);
@@ -237,6 +259,8 @@ public class PatternedTextValueProcessor {
         }
 
         // 1 token
+        String attempt = tokens[i]
+            .replace(",", ".");
         try {
             // "2020-09-06T08:29:04.123456"
             // "2020-09-06T08:29:04.123Z"
@@ -246,11 +270,13 @@ public class PatternedTextValueProcessor {
             // "2020-09-06T08:29:04+0000"
             // "2020-09-06T08:29:04.123+0000"
 
-            String attempt = tokens[i]
-                .replace(",", ".")
-                .replace("T", " ");
 
             long millis = parseMillis(attempt, spaceFormatter);
+            return Tuple.tuple(millis, 1);
+        } catch (Exception ignored) {
+        }
+        try {
+            long millis = parseMillis(attempt, standardFormatter);
             return Tuple.tuple(millis, 1);
         } catch (Exception ignored) {
         }

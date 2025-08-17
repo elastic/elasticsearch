@@ -258,6 +258,21 @@ public class PatternedTextValueProcessorTests extends ESTestCase {
         }
     }
 
+    public void testOtherTimezones() {
+        {
+            String ts = "2020-09-06T08:29:04-05:00";
+            String[] split = ts.split(" ");
+            var res = PatternedTextValueProcessor.parse(split, 0);
+            assertEquals("2020-09-06T13:29:04.000Z", DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.formatMillis(res.v1()));
+        }
+        {
+            String ts = "2020-09-06T08:29:04 CDT";
+            String[] split = ts.split(" ");
+            var res = PatternedTextValueProcessor.parse(split, 0);
+            assertEquals("2020-09-06T13:29:04.000Z", DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.formatMillis(res.v1()));
+        }
+    }
+
     public void testDontParseMultipleOffsetParts() {
         String ts = "2020-09-06T08:29:04+0000" + " UTC";
         String[] split = ts.split(" ");

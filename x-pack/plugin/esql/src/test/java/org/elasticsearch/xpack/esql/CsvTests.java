@@ -28,6 +28,7 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.DriverCompletionInfo;
+import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.DriverRunner;
 import org.elasticsearch.compute.operator.exchange.ExchangeSinkHandler;
 import org.elasticsearch.compute.operator.exchange.ExchangeSourceHandler;
@@ -719,7 +720,8 @@ public class CsvTests extends ESTestCase {
         LocalExecutionPlan coordinatorNodeExecutionPlan = executionPlanner.plan(
             "final",
             foldCtx,
-            new OutputExec(coordinatorPlan, collectedPages::add)
+            new OutputExec(coordinatorPlan, collectedPages::add),
+            DriverContext.Phase.OTHER
         );
         drivers.addAll(coordinatorNodeExecutionPlan.createDrivers(getTestName()));
         if (dataNodePlan != null) {
@@ -745,7 +747,12 @@ public class CsvTests extends ESTestCase {
                     throw new AssertionError("expected no failure", e);
                 })
             );
-            LocalExecutionPlan dataNodeExecutionPlan = executionPlanner.plan("data", foldCtx, csvDataNodePhysicalPlan);
+            LocalExecutionPlan dataNodeExecutionPlan = executionPlanner.plan(
+                "data",
+                foldCtx,
+                csvDataNodePhysicalPlan,
+                DriverContext.Phase.OTHER
+            );
 
             drivers.addAll(dataNodeExecutionPlan.createDrivers(getTestName()));
             Randomness.shuffle(drivers);

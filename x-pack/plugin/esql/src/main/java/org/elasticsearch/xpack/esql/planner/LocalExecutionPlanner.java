@@ -199,7 +199,7 @@ public class LocalExecutionPlanner {
     /**
      * turn the given plan into a list of drivers to execute
      */
-    public LocalExecutionPlan plan(String description, FoldContext foldCtx, PhysicalPlan localPhysicalPlan) {
+    public LocalExecutionPlan plan(String description, FoldContext foldCtx, PhysicalPlan localPhysicalPlan, DriverContext.Phase phase) {
         var context = new LocalExecutionPlannerContext(
             description,
             new ArrayList<>(),
@@ -208,6 +208,7 @@ public class LocalExecutionPlanner {
             bigArrays,
             blockFactory,
             foldCtx,
+            phase,
             settings,
             shardContexts
         );
@@ -230,6 +231,7 @@ public class LocalExecutionPlanner {
                     context.blockFactory,
                     physicalOperation,
                     statusInterval,
+                    phase,
                     settings
                 ),
                 context.driverParallelism().get()
@@ -463,6 +465,7 @@ public class LocalExecutionPlanner {
                         context.blockFactory,
                         sinkOperator,
                         statusInterval,
+                        context.phase,
                         settings
                     ),
                     DriverParallelism.SINGLE
@@ -1025,6 +1028,7 @@ public class LocalExecutionPlanner {
         BigArrays bigArrays,
         BlockFactory blockFactory,
         FoldContext foldCtx,
+        DriverContext.Phase phase,
         Settings settings,
         List<EsPhysicalOperationProviders.ShardContext> shardContexts
     ) {
@@ -1058,6 +1062,7 @@ public class LocalExecutionPlanner {
         BlockFactory blockFactory,
         PhysicalOperation physicalOperation,
         TimeValue statusInterval,
+        DriverContext.Phase phase,
         Settings settings
     ) implements Function<String, Driver>, Describable {
         @Override
@@ -1072,7 +1077,7 @@ public class LocalExecutionPlanner {
                 localBreakerSettings.overReservedBytes(),
                 localBreakerSettings.maxOverReservedBytes()
             );
-            var driverContext = new DriverContext(bigArrays, blockFactory.newChildFactory(localBreaker));
+            var driverContext = new DriverContext(bigArrays, blockFactory.newChildFactory(localBreaker), phase);
             try {
                 source = physicalOperation.source(driverContext);
                 physicalOperation.operators(operators, driverContext);

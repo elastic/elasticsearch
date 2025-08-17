@@ -62,11 +62,14 @@ public class DriverContext {
 
     private Runnable earlyTerminationChecker = () -> {};
 
-    public DriverContext(BigArrays bigArrays, BlockFactory blockFactory) {
-        this(bigArrays, blockFactory, WarningsMode.COLLECT);
+    private final Phase phase;
+
+    public DriverContext(BigArrays bigArrays, BlockFactory blockFactory, Phase phase) {
+        this(bigArrays, blockFactory, WarningsMode.COLLECT, phase);
     }
 
-    private DriverContext(BigArrays bigArrays, BlockFactory blockFactory, WarningsMode warningsMode) {
+    private DriverContext(BigArrays bigArrays, BlockFactory blockFactory, WarningsMode warningsMode, Phase phase) {
+        this.phase = phase;
         Objects.requireNonNull(bigArrays);
         Objects.requireNonNull(blockFactory);
         this.bigArrays = bigArrays;
@@ -198,6 +201,16 @@ public class DriverContext {
     public enum WarningsMode {
         COLLECT,
         IGNORE
+    }
+
+    public Phase phase() {
+        return phase;
+    }
+
+    // FIXME(gal, NOCOMMIT) document
+    public enum Phase {
+        REDUCE,
+        OTHER;
     }
 
     /**

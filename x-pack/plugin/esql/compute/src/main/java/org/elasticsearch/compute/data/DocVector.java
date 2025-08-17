@@ -24,6 +24,7 @@ import java.util.function.Consumer;
 public final class DocVector extends AbstractVector implements Vector {
 
     static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(DocVector.class);
+    public static int NO_GLOBAL_SHARD = -1;
 
     /**
      * Per position memory cost to build the shard segment doc map required
@@ -31,7 +32,6 @@ public final class DocVector extends AbstractVector implements Vector {
      */
     public static final int SHARD_SEGMENT_DOC_MAP_PER_ROW_OVERHEAD = Integer.BYTES * 2;
 
-    public static final int NO_GLOBAL_SHARD = -1;
     private final IntVector shards;
     private final int globalShard;
     private final IntVector segments;
@@ -62,6 +62,7 @@ public final class DocVector extends AbstractVector implements Vector {
     public DocVector(
         ShardRefCounted shardRefCounters,
         IntVector shards,
+        // FIXME(gal, NOCOMMIT) document
         int globalShard,
         IntVector segments,
         IntVector docs,

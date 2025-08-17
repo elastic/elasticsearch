@@ -13,6 +13,7 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.DocVector;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.lucene.ShardRefCounted;
+import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.Releasables;
@@ -23,18 +24,21 @@ import java.util.Map;
 class ResultBuilderForDoc implements ResultBuilder {
     private final BlockFactory blockFactory;
     private final int[] shards;
+    private int globalShard = DocVector.NO_GLOBAL_SHARD;
     private final int[] segments;
     private final int[] docs;
+    private final DriverContext.Phase phase;
     private int position;
     private @Nullable RefCounted nextRefCounted;
     private final Map<Integer, RefCounted> refCounted = new HashMap<>();
 
-    ResultBuilderForDoc(BlockFactory blockFactory, int positions) {
+    ResultBuilderForDoc(BlockFactory blockFactory, int positions, DriverContext.Phase phase) {
         // TODO use fixed length builders
         this.blockFactory = blockFactory;
         this.shards = new int[positions];
         this.segments = new int[positions];
         this.docs = new int[positions];
+        this.phase = phase;
     }
 
     @Override
@@ -57,8 +61,16 @@ class ResultBuilderForDoc implements ResultBuilder {
         // FIXME(gal, NOCOMMIT) document global shard stuff
         shards[position] = TopNEncoder.DEFAULT_UNSORTABLE.decodeInt(values); // Skipping over the original local shard.
         int globalShard = TopNEncoder.DEFAULT_UNSORTABLE.decodeInt(values);
-        if (globalShard != DocVector.NO_GLOBAL_SHARD) {
-            shards[position] = globalShard;
+        switch (phase) {
+            case REDUCE -> shards[position] = globalShard;
+            case OTHER -> {
+                if (globalShard == DocVector.NO_GLOBAL_SHARD) {
+                    assert globalShard == this.globalShard : "global shard must be the same for all rows";
+                } else {
+                    this.globalShard = globalShard;
+                }
+            }
+
         }
         // Since the doc (might) next be used by a more global worker, we set the global shard as the local shard.
         segments[position] = TopNEncoder.DEFAULT_UNSORTABLE.decodeInt(values);
@@ -75,17 +87,18 @@ class ResultBuilderForDoc implements ResultBuilder {
         IntVector segmentsVector = null;
         try {
             shardsVector = blockFactory.newIntArrayVector(shards, position);
+            // FIXME(gal, NOCOMMIT) document
             segmentsVector = blockFactory.newIntArrayVector(segments, position);
             var docsVector = blockFactory.newIntArrayVector(docs, position);
-            var docsBlock = new DocVector(
+            DocVector docVector = new DocVector(
                 new ShardRefCountedMap(refCounted),
                 shardsVector,
-                // FIXME(gal, NOCOMMIT) document this too
-                DocVector.NO_GLOBAL_SHARD,
+                globalShard,
                 segmentsVector,
                 docsVector,
                 null
-            ).asBlock();
+            );
+            var docsBlock = docVector.asBlock();
             success = true;
             return docsBlock;
         } finally {

@@ -474,7 +474,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                     task,
                     new ComputeContext(
                         request.sessionId(),
-                        "node_reduce",
+                        ComputeService.REDUCE_DESCRIPTION,
                         request.clusterAlias(),
                         flags,
                         FunctionList.fromMutableList(reduceNodeSearchContexts),

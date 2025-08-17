@@ -19,6 +19,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.compute.aggregation.AggregatorMode;
 import org.elasticsearch.compute.lucene.DataPartitioning;
+import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.exchange.ExchangeSinkHandler;
 import org.elasticsearch.compute.operator.exchange.ExchangeSourceHandler;
 import org.elasticsearch.compute.test.TestBlockFactory;
@@ -7910,7 +7911,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             List.of()
         );
 
-        return planner.plan("test", FoldContext.small(), plan);
+        return planner.plan("test", FoldContext.small(), plan, DriverContext.Phase.OTHER);
     }
 
     private List<Set<String>> findFieldNamesInLookupJoinDescription(LocalExecutionPlanner.LocalExecutionPlan physicalOperations) {

@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.optimizer.rules.physical.local;
 
 import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.PhysicalOptimizerRules;
+import org.elasticsearch.xpack.esql.plan.physical.EnrichExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
@@ -24,7 +25,7 @@ import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
 public class RemoveProjectAfterTopN extends PhysicalOptimizerRules.ParameterizedOptimizerRule<ProjectExec, LocalPhysicalOptimizerContext> {
     @Override
     protected PhysicalPlan rule(ProjectExec project, LocalPhysicalOptimizerContext context) {
-        if (project.child() instanceof TopNExec topN && hasMultiIndex(topN) == false) {
+        if (project.child() instanceof TopNExec topN && isTopNCompatible(topN)) {
             // TODO This isn't necessarily optimal, but it's a very simple way to ensure that the data node's output is equivalent to
             // what the coordinator expects. There are cases where this creates redundancy though, e.g., if a filter is pushed down to
             // source, this project will still cause it to be fetched. We should fix this in the future.
@@ -38,7 +39,9 @@ public class RemoveProjectAfterTopN extends PhysicalOptimizerRules.Parameterized
      * to each individual table's schema, and thus cannot determine the correct output of the data node's physical plan. A similar check
      * is performed in {@link org.elasticsearch.xpack.esql.plugin.ComputeService}.
      */
-    private static boolean hasMultiIndex(TopNExec topN) {
-        return topN.anyMatch(plan -> plan instanceof EsQueryExec eqe && eqe.indexNameWithModes().size() > 1);
+    // FIXME(gal, NOCOMMIT) Document enrich as well
+    private static boolean isTopNCompatible(TopNExec topN) {
+        return topN.anyMatch(plan -> plan instanceof EsQueryExec eqe && eqe.indexNameWithModes().size() > 1) == false
+            && topN.anyMatch(plan -> plan instanceof EnrichExec) == false;
     }
 }

@@ -141,11 +141,11 @@ public abstract class AnyOperatorTestCase extends ComputeTestCase {
      */
     protected DriverContext driverContext() { // TODO make this final once all operators support memory tracking
         BlockFactory blockFactory = blockFactory();
-        return new DriverContext(blockFactory.bigArrays(), blockFactory);
+        return new DriverContext(blockFactory.bigArrays(), blockFactory, DriverContext.Phase.OTHER);
     }
 
     protected final DriverContext crankyDriverContext() {
         BlockFactory blockFactory = crankyBlockFactory();
-        return new DriverContext(blockFactory.bigArrays(), blockFactory);
+        return new DriverContext(blockFactory.bigArrays(), blockFactory, DriverContext.Phase.OTHER);
     }
 }

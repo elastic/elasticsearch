@@ -25,6 +25,7 @@ import org.elasticsearch.compute.lucene.DataPartitioning;
 import org.elasticsearch.compute.lucene.LuceneSourceOperator;
 import org.elasticsearch.compute.lucene.LuceneTopNSourceOperator;
 import org.elasticsearch.compute.lucene.read.ValuesSourceReaderOperator;
+import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.compute.test.NoOpReleasable;
 import org.elasticsearch.compute.test.TestBlockFactory;
@@ -140,7 +141,8 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
                 null,
                 null,
                 estimatedRowSize
-            )
+            ),
+            DriverContext.Phase.OTHER
         );
         assertThat(plan.driverFactories.size(), lessThanOrEqualTo(pragmas.taskConcurrency()));
         LocalExecutionPlanner.DriverSupplier supplier = plan.driverFactories.get(0).driverSupplier();
@@ -167,7 +169,8 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
                 limit,
                 List.of(sort),
                 estimatedRowSize
-            )
+            ),
+            DriverContext.Phase.OTHER
         );
         assertThat(plan.driverFactories.size(), lessThanOrEqualTo(pragmas.taskConcurrency()));
         LocalExecutionPlanner.DriverSupplier supplier = plan.driverFactories.get(0).driverSupplier();
@@ -194,7 +197,8 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
                 limit,
                 List.of(sort),
                 estimatedRowSize
-            )
+            ),
+            DriverContext.Phase.OTHER
         );
         assertThat(plan.driverFactories.size(), lessThanOrEqualTo(pragmas.taskConcurrency()));
         LocalExecutionPlanner.DriverSupplier supplier = plan.driverFactories.get(0).driverSupplier();
@@ -218,7 +222,8 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
                 null,
                 null,
                 estimatedRowSize
-            )
+            ),
+            DriverContext.Phase.OTHER
         );
         assertThat(plan.driverFactories.size(), lessThanOrEqualTo(pragmas.taskConcurrency()));
         LocalExecutionPlanner.DriverSupplier supplier = plan.driverFactories.get(0).driverSupplier();
@@ -244,7 +249,7 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
             new Literal(Source.EMPTY, between(1, 100), DataType.INTEGER),
             randomEstimatedRowSize(estimatedRowSizeIsHuge)
         );
-        LocalExecutionPlanner.LocalExecutionPlan plan = planner().plan("test", FoldContext.small(), limitExec);
+        LocalExecutionPlanner.LocalExecutionPlan plan = planner().plan("test", FoldContext.small(), limitExec, DriverContext.Phase.OTHER);
         assertThat(plan.driverFactories, hasSize(2));
     }
 
@@ -283,7 +288,12 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
             ),
             MappedFieldType.FieldExtractPreference.NONE
         );
-        LocalExecutionPlanner.LocalExecutionPlan plan = planner().plan("test", FoldContext.small(), fieldExtractExec);
+        LocalExecutionPlanner.LocalExecutionPlan plan = planner().plan(
+            "test",
+            FoldContext.small(),
+            fieldExtractExec,
+            DriverContext.Phase.OTHER
+        );
         var p = plan.driverFactories.get(0).driverSupplier().physicalOperation();
         var fieldInfo = ((ValuesSourceReaderOperator.Factory) p.intermediateOperatorFactories.get(0)).fields().get(0);
         return fieldInfo.blockLoader().apply(0);

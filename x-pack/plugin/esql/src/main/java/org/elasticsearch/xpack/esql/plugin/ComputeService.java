@@ -21,6 +21,7 @@ import org.elasticsearch.common.util.concurrent.RunOnce;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverCompletionInfo;
+import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.DriverTaskRunner;
 import org.elasticsearch.compute.operator.FailureCollector;
 import org.elasticsearch.compute.operator.exchange.ExchangeService;
@@ -59,7 +60,9 @@ import org.elasticsearch.xpack.esql.optimizer.LocalLogicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalOptimizerContext.ProjectAfterTopN;
 import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalPlanOptimizer;
+import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
+import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSinkExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
@@ -132,6 +135,7 @@ import static org.elasticsearch.xpack.esql.plugin.EsqlPlugin.ESQL_WORKER_THREAD_
  */
 public class ComputeService {
     public static final String DATA_DESCRIPTION = "data";
+    public static final String REDUCE_DESCRIPTION = "node_reduce";
     public static final String DATA_ACTION_NAME = EsqlQueryAction.NAME + "/data";
     public static final String CLUSTER_ACTION_NAME = EsqlQueryAction.NAME + "/cluster";
     private static final String LOCAL_CLUSTER = RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY;
@@ -669,7 +673,12 @@ public class ComputeService {
             // the planner will also set the driver parallelism in LocalExecutionPlanner.LocalExecutionPlan (used down below)
             // it's doing this in the planning of EsQueryExec (the source of the data)
             // see also EsPhysicalOperationProviders.sourcePhysicalOperation
-            LocalExecutionPlanner.LocalExecutionPlan localExecutionPlan = planner.plan(context.description(), context.foldCtx(), localPlan);
+            LocalExecutionPlanner.LocalExecutionPlan localExecutionPlan = planner.plan(
+                context.description(),
+                context.foldCtx(),
+                localPlan,
+                context.description().equals(REDUCE_DESCRIPTION) ? DriverContext.Phase.REDUCE : DriverContext.Phase.OTHER
+            );
             if (LOGGER.isDebugEnabled()) {
                 LOGGER.debug("Local execution plan for {}:\n{}", context.description(), localExecutionPlan.describe());
             }
@@ -764,7 +773,7 @@ public class ComputeService {
         if (fragment == null) {
             return Optional.empty();
         }
-        if (referencesMultipleIndices(fragment)) {
+        if (isTopNCompatible(fragment) == false) {
             // If the fragment references multiple indices, we don't need to do anything special.
             return Optional.empty();
         }
@@ -794,8 +803,11 @@ public class ComputeService {
      * phase, we choose (for now) to take the easy route of just turning off this optimization for multi-index queries. A similar check
      * is done during the planning in {@link org.elasticsearch.xpack.esql.optimizer.rules.physical.local.RemoveProjectAfterTopN}.
      */
-    private static boolean referencesMultipleIndices(FragmentExec fragment) {
-        return fragment.fragment().anyMatch(plan1 -> plan1 instanceof EsRelation relation && relation.indexNameWithModes().size() > 1);
+    private static boolean isTopNCompatible(FragmentExec fragmentExec) {
+        LogicalPlan fragment = fragmentExec.fragment();
+        // FIXME(gal, NOCOMMIT) Document enrich as well
+        return fragment.anyMatch(p -> p instanceof EsRelation relation && relation.indexNameWithModes().size() > 1) == false
+            && fragment.anyMatch(p -> p instanceof Enrich) == false;
     }
 
     // A hack to avoid the ReplaceFieldWithConstantOrNull optimization, since we don't have search stats during the reduce planning phase.

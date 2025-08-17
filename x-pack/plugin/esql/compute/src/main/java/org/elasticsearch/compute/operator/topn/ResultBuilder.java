@@ -11,6 +11,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.ElementType;
+import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.Releasable;
@@ -51,7 +52,8 @@ interface ResultBuilder extends Releasable {
         ElementType elementType,
         TopNEncoder encoder,
         boolean inKey,
-        int positions
+        int positions,
+        DriverContext.Phase phase
     ) {
         return switch (elementType) {
             case BOOLEAN -> new ResultBuilderForBoolean(blockFactory, encoder, inKey, positions);
@@ -61,7 +63,7 @@ interface ResultBuilder extends Releasable {
             case FLOAT -> new ResultBuilderForFloat(blockFactory, encoder, inKey, positions);
             case DOUBLE -> new ResultBuilderForDouble(blockFactory, encoder, inKey, positions);
             case NULL -> new ResultBuilderForNull(blockFactory);
-            case DOC -> new ResultBuilderForDoc(blockFactory, positions);
+            case DOC -> new ResultBuilderForDoc(blockFactory, positions, phase);
             case AGGREGATE_METRIC_DOUBLE -> new ResultBuilderForAggregateMetricDouble(blockFactory, positions);
             default -> {
                 assert false : "Result builder for [" + elementType + "]";

@@ -82,14 +82,14 @@ public class EsqlTopNShardManagementIT extends AbstractPausableIntegTestCase {
         scriptPermits.drainPermits();
         return EsqlQueryRequestBuilder.newAsyncEsqlQueryRequestBuilder(client())
             // Ensures there is no TopN pushdown to lucene, and that the pause happens after the TopN operator has been applied.
-            .query("from test | sort foo + 1 asc | limit 1 | where pause_me + 1 < 42 | stats sum(pause_me)")
+            .query("from test | sort foo + 1 | limit 1 | where pause_me + 1 < 42 | stats sum(pause_me)")
             .pragmas(
                 new QueryPragmas(
                     Settings.builder()
                         // Configured to ensure that there is only one worker handling all the shards, so that we can assert the correct
                         // expected behavior.
                         .put(QueryPragmas.MAX_CONCURRENT_NODES_PER_CLUSTER.getKey(), 1)
-                        .put(QueryPragmas.MAX_CONCURRENT_SHARDS_PER_NODE.getKey(), 1)
+                        .put(QueryPragmas.MAX_CONCURRENT_SHARDS_PER_NODE.getKey(), SHARD_COUNT)
                         .put(QueryPragmas.TASK_CONCURRENCY.getKey(), 1)
                         .build()
                 )

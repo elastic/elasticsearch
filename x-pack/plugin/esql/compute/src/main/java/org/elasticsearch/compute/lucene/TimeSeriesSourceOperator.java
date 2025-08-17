@@ -415,6 +415,7 @@ public final class TimeSeriesSourceOperator extends LuceneOperator {
 
         DocVector build() {
             IntVector shards = null;
+            IntVector globalShards = null;
             IntVector segments = null;
             IntVector docs = null;
             DocVector docVector = null;

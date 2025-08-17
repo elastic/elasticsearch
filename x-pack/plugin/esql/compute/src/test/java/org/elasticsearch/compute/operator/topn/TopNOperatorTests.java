@@ -564,7 +564,8 @@ public class TopNOperatorTests extends OperatorTestCase {
                         elementTypes,
                         encoders,
                         List.of(new TopNOperator.SortOrder(0, false, false)),
-                        randomPageSize()
+                        randomPageSize(),
+                        driverContext.phase()
                     )
                 ),
                 new PageConsumerOperator(page -> readInto(actualTop, page))
@@ -653,7 +654,8 @@ public class TopNOperatorTests extends OperatorTestCase {
                         elementTypes,
                         encoders,
                         List.of(new TopNOperator.SortOrder(0, false, false)),
-                        randomPageSize()
+                        randomPageSize(),
+                        driverContext.phase()
                     )
                 ),
                 new PageConsumerOperator(page -> readInto(actualTop, page))
@@ -709,7 +711,8 @@ public class TopNOperatorTests extends OperatorTestCase {
                         sourceOperator.elementTypes(),
                         encoder,
                         sortOrders,
-                        randomPageSize()
+                        randomPageSize(),
+                        driverContext.phase()
                     )
                 ),
                 new PageConsumerOperator(pages::add)
@@ -993,7 +996,8 @@ public class TopNOperatorTests extends OperatorTestCase {
                         List.of(blockType),
                         List.of(encoder),
                         List.of(sortOrders),
-                        randomPageSize()
+                        randomPageSize(),
+                        driverContext.phase()
                     )
                 ),
                 new PageConsumerOperator(p -> readInto(actualValues, p))
@@ -1123,7 +1127,8 @@ public class TopNOperatorTests extends OperatorTestCase {
                 elementTypes,
                 encoders,
                 uniqueOrders.stream().toList(),
-                rows
+                rows,
+                driverContext.phase()
             ),
             List.of(new Page(blocks.toArray(Block[]::new))).iterator(),
             driverContext
@@ -1166,7 +1171,8 @@ public class TopNOperatorTests extends OperatorTestCase {
                             List.of(BYTES_REF),
                             List.of(TopNEncoder.IP),
                             List.of(new TopNOperator.SortOrder(0, asc, randomBoolean())),
-                            randomPageSize()
+                            randomPageSize(),
+                            driverContext.phase()
                         )
                     ),
                     new PageConsumerOperator(p -> readInto(actual, p))
@@ -1292,7 +1298,8 @@ public class TopNOperatorTests extends OperatorTestCase {
                             List.of(BYTES_REF),
                             List.of(TopNEncoder.IP),
                             List.of(new TopNOperator.SortOrder(0, asc, nullsFirst)),
-                            randomPageSize()
+                            randomPageSize(),
+                            driverContext.phase()
                         )
                     ),
                     new PageConsumerOperator(p -> readInto(actual, p))
@@ -1382,7 +1389,8 @@ public class TopNOperatorTests extends OperatorTestCase {
                             new TopNOperator.SortOrder(0, true, randomBoolean()),
                             new TopNOperator.SortOrder(1, randomBoolean(), randomBoolean())
                         ),
-                        randomPageSize()
+                        randomPageSize(),
+                        driverContext.phase()
                     )
                 ),
                 new PageConsumerOperator(p -> readInto(actual, p))
@@ -1418,7 +1426,8 @@ public class TopNOperatorTests extends OperatorTestCase {
                         List.of(LONG),
                         List.of(DEFAULT_UNSORTABLE),
                         List.of(new TopNOperator.SortOrder(0, true, randomBoolean())),
-                        maxPageSize
+                        maxPageSize,
+                        driverContext.phase()
                     )
                 ),
                 new PageConsumerOperator(p -> {
@@ -1453,7 +1462,8 @@ public class TopNOperatorTests extends OperatorTestCase {
                 List.of(INT),
                 List.of(DEFAULT_UNSORTABLE),
                 List.of(new TopNOperator.SortOrder(0, randomBoolean(), randomBoolean())),
-                randomPageSize()
+                randomPageSize(),
+                driverContext.phase()
             )
         ) {
             op.addInput(new Page(blockFactory().newIntArrayVector(new int[] { 1 }, 1).asBlock()));
@@ -1476,7 +1486,8 @@ public class TopNOperatorTests extends OperatorTestCase {
                 types,
                 encoders,
                 List.of(new TopNOperator.SortOrder(0, randomBoolean(), randomBoolean())),
-                randomPageSize()
+                randomPageSize(),
+                driverContext.phase()
             )
         ) {
             int[] blockValues = IntStream.range(0, rows).toArray();

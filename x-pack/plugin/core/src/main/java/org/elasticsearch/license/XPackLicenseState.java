@@ -447,7 +447,7 @@ public class XPackLicenseState {
 
     void featureUsed(LicensedFeature feature) {
         checkExpiry();
-        // update the most recent usage time, but only if isn't already present or has increased
+        // update the most recent usage time, but only if it isn't already present or if it has increased
         final FeatureUsage feat = new FeatureUsage(feature, null);
         final Long mostRecent = usage.get(feat);
         final long now = epochMillisProvider.getAsLong();

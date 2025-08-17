@@ -5,13 +5,16 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.logsdb.patternedtext.charparser.patterned;
+package org.elasticsearch.xpack.logsdb.patternedtext.charparser.api;
 
 import org.elasticsearch.common.util.ByteUtils;
 import org.elasticsearch.xpack.logsdb.patternedtext.charparser.common.EncodingType;
 
 import java.util.Base64;
 
+/**
+ * Represents an integer argument extracted from a text message.
+ */
 public final class IntegerArgument implements Argument<Integer> {
     private final int value;
 

@@ -5,13 +5,18 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.logsdb.patternedtext.charparser.patterned;
+package org.elasticsearch.xpack.logsdb.patternedtext.charparser.api;
 
 import org.elasticsearch.common.util.ByteUtils;
 import org.elasticsearch.xpack.logsdb.patternedtext.charparser.common.EncodingType;
 
 import java.util.UUID;
 
+/**
+ * Represents a UUID argument extracted from a text message.
+ * <p>
+ * The value is a byte array of the 16 bytes of the UUID.
+ */
 public final class UUIDArgument extends ByteEncodedArgument {
 
     public UUIDArgument(String s, int start, int end) {

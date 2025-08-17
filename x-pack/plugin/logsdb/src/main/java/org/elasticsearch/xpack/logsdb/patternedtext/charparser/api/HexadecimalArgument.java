@@ -5,10 +5,15 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.logsdb.patternedtext.charparser.patterned;
+package org.elasticsearch.xpack.logsdb.patternedtext.charparser.api;
 
 import org.elasticsearch.xpack.logsdb.patternedtext.charparser.common.EncodingType;
 
+/**
+ * Represents a hexadecimal argument extracted from a text message.
+ * <p>
+ * The value is a byte array decoded from a hexadecimal string.
+ */
 public final class HexadecimalArgument extends ByteEncodedArgument {
 
     public HexadecimalArgument(String s, int start, int length) {

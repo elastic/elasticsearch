@@ -9,15 +9,13 @@
 
 package org.elasticsearch.benchmark.index.mapper;
 
-import org.elasticsearch.xpack.logsdb.patternedtext.charparser.compiler.SchemaCompiler;
-import org.elasticsearch.xpack.logsdb.patternedtext.charparser.parser.Parser;
-import org.elasticsearch.xpack.logsdb.patternedtext.charparser.parser.TimestampFormat;
-import org.elasticsearch.xpack.logsdb.patternedtext.charparser.patterned.Argument;
-import org.elasticsearch.xpack.logsdb.patternedtext.charparser.patterned.IPv4Argument;
-import org.elasticsearch.xpack.logsdb.patternedtext.charparser.patterned.IntegerArgument;
-import org.elasticsearch.xpack.logsdb.patternedtext.charparser.patterned.PatternedMessage;
-import org.elasticsearch.xpack.logsdb.patternedtext.charparser.patterned.Timestamp;
-import org.elasticsearch.xpack.logsdb.patternedtext.charparser.schema.Schema;
+import org.elasticsearch.xpack.logsdb.patternedtext.charparser.api.Parser;
+import org.elasticsearch.xpack.logsdb.patternedtext.charparser.api.ParserFactory;
+import org.elasticsearch.xpack.logsdb.patternedtext.charparser.api.Argument;
+import org.elasticsearch.xpack.logsdb.patternedtext.charparser.api.IPv4Argument;
+import org.elasticsearch.xpack.logsdb.patternedtext.charparser.api.IntegerArgument;
+import org.elasticsearch.xpack.logsdb.patternedtext.charparser.api.PatternedMessage;
+import org.elasticsearch.xpack.logsdb.patternedtext.charparser.api.Timestamp;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Fork;
@@ -51,7 +49,7 @@ import java.util.regex.Pattern;
 @Fork(1)
 public class PatternedTextParserBenchmark {
 
-    private Parser charParser;
+    private Parser parser;
     private RegexParser regexParser;
     private String testMessageWithComma;
     private String testMessageNoComma;
@@ -60,7 +58,7 @@ public class PatternedTextParserBenchmark {
 
     @Setup
     public void setup() {
-        charParser = new Parser(SchemaCompiler.compile(Schema.getInstance()));
+        parser = ParserFactory.createParser();
         regexParser = new RegexParser();
         testMessageWithComma = "Oct 05, 2023 02:48:00 PM INFO Response from 127.0.0.1 took 2000 ms";
         testMessageNoComma = "Oct 05 2023 02:48:00 PM INFO Response from 127.0.0.1 took 2000 ms";
@@ -69,7 +67,7 @@ public class PatternedTextParserBenchmark {
 
     @Benchmark
     public void parseWithCharParser(Blackhole blackhole) {
-        PatternedMessage result = charParser.parse(testMessageNoComma);
+        PatternedMessage result = parser.parse(testMessageNoComma);
         blackhole.consume(result);
         // long timestamp = TimestampFormat.parseTimestamp(dateTimeFormatter, "Oct 05 2023 02:48:00 PM");
         // blackhole.consume(timestamp);

@@ -9,7 +9,27 @@
  * This package contains the core classes and interfaces for an efficient text parser that extracts patterns from text lines, typically
  * from log files. Each line is parsed into a sequence of tokens and subTokens, which are then processed based on a predefined schema.
  * The eventual output contains the extracted timestamp (if exists), a template and template-parameters (if exist).
- * The parsing schema is compiled into data structures that facilitate efficient parsing, according to the following principles:
+ *
+ * <p><strong>Key Concepts</strong>
+ * <ul>
+ *     <li><strong>Tokens</strong> - Space/tab delimited elements in a line of text</li>
+ *     <li><strong>SubTokens</strong> - Smaller components within tokens, separated by characters like periods, colons, etc.</li>
+ *     <li><strong>Schema</strong> - A hierarchical definition of patterns to extract, defined in schema.yaml</li>
+ *     <li><strong>Template</strong> - The pattern extracted from a line, with parameter placeholders</li>
+ *     <li><strong>Template parameters</strong> - Extracted values that match defined token types</li>
+ * </ul>
+ *
+ * The parsing workflow involves:
+ * <ol>
+ *     <li>Loading and compiling the schema into efficient data structures</li>
+ *     <li>Analyzing input text character-by-character in a single pass</li>
+ *     <li>Identifying tokens and their potential matches against defined patterns</li>
+ *     <li>Extracting relevant information based on successful pattern matches</li>
+ *     <li>Generating templates and extracting parameters for matched patterns</li>
+ * </ol>
+ *
+ * <p><strong>Performance Principles</strong>
+ * <p>The parsing schema is compiled into data structures that facilitate efficient parsing, according to the following principles:
  * <ul>
  *     <li>Ensure linear complexity by enforcing a single character-by-character pass. We may maintain as many parsing states as required
  *     for detecting template parameters, as long as we avoid backtracking and similar complexity-increasing operations that are used by
@@ -29,5 +49,28 @@
  *     <li>Reduce method calls to a minimum. For example, direct use of a char array is ~20X faster than using
  *     {@link java.lang.StringBuilder}, although the latter has its obvious benefits.</li>
  * </ul>
+ *
+ * <p><strong>Usage</strong>
+ * <p>The main entry point for using the parser is the
+ * {@link org.elasticsearch.xpack.logsdb.patternedtext.charparser.api.ParserFactory ParserFactory} class.
+ * The factory provides a static method to create a new parser instance.
+ * The parser can then be used to parse text lines into a
+ * {@link org.elasticsearch.xpack.logsdb.patternedtext.charparser.api.PatternedMessage PatternedMessage}.
+ *
+ * <pre>{@code
+ * import org.elasticsearch.xpack.logsdb.patternedtext.charparser.api.Parser;
+ * import org.elasticsearch.xpack.logsdb.patternedtext.charparser.api.ParserFactory;
+ * import org.elasticsearch.xpack.logsdb.patternedtext.charparser.api.PatternedMessage;
+ *
+ * public class ParserExample {
+ *     public static void main(String[] args) {
+ *         Parser parser = ParserFactory.createParser();
+ *         String logLine = "2023-10-05 14:30:25 INFO received 305 packets from 135.122.123.222";
+ *         PatternedMessage message = parser.parse(logLine);
+ *         System.out.println(message);
+ *     }
+ * }
+ * }</pre>
+ *
  */
 package org.elasticsearch.xpack.logsdb.patternedtext.charparser;

@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.logsdb.patternedtext.charparser.patterned;
+package org.elasticsearch.xpack.logsdb.patternedtext.charparser.api;
 
 import org.elasticsearch.test.ESTestCase;
 

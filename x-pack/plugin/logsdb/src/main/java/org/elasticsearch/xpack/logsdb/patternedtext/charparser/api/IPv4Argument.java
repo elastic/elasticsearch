@@ -5,10 +5,15 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.logsdb.patternedtext.charparser.patterned;
+package org.elasticsearch.xpack.logsdb.patternedtext.charparser.api;
 
 import org.elasticsearch.xpack.logsdb.patternedtext.charparser.common.EncodingType;
 
+/**
+ * Represents an IPv4 address argument extracted from a text message.
+ * <p>
+ * The value is a byte array of the four octets of the IPv4 address.
+ */
 public final class IPv4Argument extends ByteEncodedArgument {
 
     public IPv4Argument(int[] octets) {

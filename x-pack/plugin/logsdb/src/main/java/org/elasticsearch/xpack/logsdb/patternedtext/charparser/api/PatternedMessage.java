@@ -5,8 +5,18 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.logsdb.patternedtext.charparser.patterned;
+package org.elasticsearch.xpack.logsdb.patternedtext.charparser.api;
 
+/**
+ * Represents a structured message parsed from raw text.
+ * <p>
+ * A patterned message contains the original text's structure as a pattern,
+ * an extracted timestamp, and an array of typed arguments.
+ *
+ * @param pattern   the pattern of the message, with placeholders for arguments
+ * @param timestamp the timestamp extracted from the message
+ * @param arguments an array of typed arguments extracted from the message
+ */
 public record PatternedMessage(String pattern, Timestamp timestamp, Argument<?>[] arguments) {
 
     @Override

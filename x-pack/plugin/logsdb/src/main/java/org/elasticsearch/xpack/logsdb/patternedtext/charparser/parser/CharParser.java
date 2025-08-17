@@ -7,16 +7,17 @@
 
 package org.elasticsearch.xpack.logsdb.patternedtext.charparser.parser;
 
+import org.elasticsearch.xpack.logsdb.patternedtext.charparser.api.Parser;
 import org.elasticsearch.xpack.logsdb.patternedtext.charparser.common.EncodingType;
 import org.elasticsearch.xpack.logsdb.patternedtext.charparser.compiler.CompiledSchema;
-import org.elasticsearch.xpack.logsdb.patternedtext.charparser.patterned.Argument;
-import org.elasticsearch.xpack.logsdb.patternedtext.charparser.patterned.HexadecimalArgument;
-import org.elasticsearch.xpack.logsdb.patternedtext.charparser.patterned.IPv4Argument;
-import org.elasticsearch.xpack.logsdb.patternedtext.charparser.patterned.IntegerArgument;
-import org.elasticsearch.xpack.logsdb.patternedtext.charparser.patterned.KeywordArgument;
-import org.elasticsearch.xpack.logsdb.patternedtext.charparser.patterned.PatternedMessage;
-import org.elasticsearch.xpack.logsdb.patternedtext.charparser.patterned.Timestamp;
-import org.elasticsearch.xpack.logsdb.patternedtext.charparser.patterned.UUIDArgument;
+import org.elasticsearch.xpack.logsdb.patternedtext.charparser.api.Argument;
+import org.elasticsearch.xpack.logsdb.patternedtext.charparser.api.HexadecimalArgument;
+import org.elasticsearch.xpack.logsdb.patternedtext.charparser.api.IPv4Argument;
+import org.elasticsearch.xpack.logsdb.patternedtext.charparser.api.IntegerArgument;
+import org.elasticsearch.xpack.logsdb.patternedtext.charparser.api.KeywordArgument;
+import org.elasticsearch.xpack.logsdb.patternedtext.charparser.api.PatternedMessage;
+import org.elasticsearch.xpack.logsdb.patternedtext.charparser.api.Timestamp;
+import org.elasticsearch.xpack.logsdb.patternedtext.charparser.api.UUIDArgument;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -35,7 +36,7 @@ import static org.elasticsearch.xpack.logsdb.patternedtext.charparser.common.Cha
  * each entity parsing, and then are updated through AND operations.
  */
 @SuppressWarnings("ExtractMethodRecommender")
-public final class Parser {
+public final class CharParser implements Parser {
 
     private static final char ARGUMENT_PLACEHOLDER_PREFIX = '%';
 
@@ -67,12 +68,12 @@ public final class Parser {
     // only if we encounter a non-ASCII character. For this, we can keep both a final char[] and a StringBuilder, and convert to
     // using the StringBuilder only when we encounter a non-ASCII character or we reach the maximum length of the char array and
     // recall the index of the last character written to the char array.
-    //
+
     // todo: another option is to not create a template during parsing, only keep references to start and end indexes of the static parts
     // and the arguments, and then create the template only at the end of parsing. This also provides a way to maintain a state
     // that remember the length of the template as well as whether a non-ASCII character was encountered, so that only when
     // required we decide whether to use a char array or a StringBuilder.
-    //
+
     // ongoing updated parsing results
     private final StringBuilder patternedMessage = new StringBuilder();
     private final List<Argument<?>> arguments = new ArrayList<>();
@@ -104,7 +105,7 @@ public final class Parser {
     private final int[] currentMultiTokenSubTokenValues;
     private int currentMultiTokenSubTokenIndex;
 
-    public Parser(CompiledSchema compiledSchema) {
+    public CharParser(CompiledSchema compiledSchema) {
         this.compiledSchema = compiledSchema;
         this.subTokenBitmaskRegistry = compiledSchema.subTokenBitmaskRegistry;
         this.tokenBitmaskRegistry = compiledSchema.tokenBitmaskRegistry;
@@ -160,9 +161,59 @@ public final class Parser {
     }
 
     /**
-     * todo: explain the algorithm in high level
-     * @param rawMessage the raw message to parse
-     * @return a {@link PatternedMessage} object containing the parsed message and its arguments
+     * Parses a raw message into a structured pattern with typed arguments using a hierarchical approach.
+     *
+     * <p>The algorithm operates on three levels: sub-tokens → tokens → multi-tokens, using bitmasks to track
+     * which entity types remain valid as parsing progresses. Each level eliminates invalid possibilities
+     * through intersection (AND) operations on bitmasks.
+     *
+     * <p><strong>Overall Algorithm:</strong>
+     * <ol>
+     * <li>Initialize all bitmasks to include all possible entity types</li>
+     * <li>Process each character, updating current sub-token state and bitmasks</li>
+     * <li>On delimiter encounters, finalize entities in order: sub-token → token → multi-token</li>
+     * <li>When entities become invalid (bitmask = 0), flush buffered content as pattern text or arguments</li>
+     * <li>Continue until end of message, then create final PatternedMessage</li>
+     * </ol>
+     *
+     * <p><strong>Entity Finalization Process:</strong>
+     *
+     * <p><em>Sub-token Finalization (on any delimiter):</em>
+     * <ul>
+     * <li>Validate sub-token length and content against schema constraints</li>
+     * <li>For integer sub-tokens: lookup bitmask based on numeric value</li>
+     * <li>For string sub-tokens: evaluate against constraint functions</li>
+     * <li>Update token bitmask based on sub-token validity and position</li>
+     * <li>Buffer sub-token data for potential token/multi-token creation</li>
+     * </ul>
+     *
+     * <p><em>Token Finalization (on token/line delimiters):</em>
+     * <ul>
+     * <li>Validate token against sub-token count constraints</li>
+     * <li>If valid: determine token type, buffer for multi-token evaluation</li>
+     * <li>Update multi-token bitmask based on token type and position</li>
+     * <li>Copy sub-token values to multi-token buffer for timestamp creation</li>
+     * </ul>
+     *
+     * <p><em>Multi-token Finalization (when bitmask becomes invalid):</em>
+     * <ul>
+     * <li>Attempt to create multi-token from buffered tokens (e.g., timestamps)</li>
+     * <li>If successful: create typed argument, add to result</li>
+     * <li>If failed: process each buffered token individually as arguments</li>
+     * <li>Process remaining sub-tokens as either typed arguments or literal text</li>
+     * </ul>
+     *
+     * <p><strong>Bitmask Strategy:</strong>
+     * <p>Each entity maintains a bitmask representing valid types. As parsing progresses:
+     * <ul>
+     * <li>Character validation: {@code bitmask &= charToSubTokenBitmask[char]}</li>
+     * <li>Position validation: {@code bitmask &= validTypesForPosition[position]}</li>
+     * <li>Constraint validation: {@code bitmask &= constraintEvaluationResult}</li>
+     * <li>When bitmask becomes 0, the entity is invalid and triggers buffer flushing</li>
+     * </ul>
+     *
+     * @param rawMessage the input message to parse
+     * @return a {@link PatternedMessage} containing the pattern template, timestamp, and typed arguments
      */
     public PatternedMessage parse(String rawMessage) {
         if (rawMessage == null || rawMessage.isEmpty()) {
@@ -214,44 +265,6 @@ public final class Parser {
                     // as arguments in the right order: multi-token, token, subTokens.
                     // breaking from this case without writing the buffered info should happen only when we are still within a token
                     // parsing, or within a multi-token parsing.
-                    //
-                    // the flow is more or less as follows:
-                    // 0. set a flag: flushBufferedInfo = false;
-                    // todo - fix description, it is out of date
-                    // 1. finalize the current subToken:
-                    // a. if we reached the maximum number of subTokens for any known token - this token is invalid, set the current
-                    // token bitmask to 0
-                    // b. update current token bitmask with current subToken bitmask
-                    // c. if the current token bitmask is 0 - set flushBufferedInfo = true and jump to buffers flush (invalid token
-                    // cannot be part of a valid multi-token)
-                    // d. else
-                    // i. update the current token bitmask based on the current subToken type (integer or string) and position
-                    // within the token
-                    // ii. add the current subToken to the current token buffers
-                    // iii. reset the current subToken state, as it is buffered now
-                    // iv. update the current token bitmask based on the current subToken bitmask
-                    // 2. if this is a token delimiter, finalize the current token:
-                    // a. update the current token bitmask to include only the valid tokens for the current number of subTokens
-                    // b. if the current token bitmask is 0 - set flushBufferedInfo = true and current multi-token bitmask = 0
-                    // and jump to buffers flush
-                    // c. else:
-                    // i. try to create an argument from the current token and remember it as currentTokenArgument
-                    // ii. if we reached the maximum number of tokens for any known multi-token, or the created argument is null, set
-                    // the current multi token bitmask=0
-                    // iii. else: update the current multi-token bitmask based on the multi-token bitmask that corresponds to the
-                    // current token
-                    // iii. if current multi-token bitmask ==0, set flushBufferedInfo=true and jump to buffers flush
-                    // iv. else: add the current token to the multi-token buffer and set currentTokenArgument to null
-                    // 3. if flushBufferedInfo == true, write all buffered info in the following order:
-                    // a. if there are buffered tokens
-                    // i. if the buffered tokens represent a valid multi-token (try creating one), write them as such
-                    // ii. else, write each buffered token as a pattern argument
-                    // iii. reset the multi-token buffers
-                    // b. if currentTokenArgument != null, write it as a pattern argument and set it to null
-                    // c. if there are buffered subTokens:
-                    // i. write them either as is or as pattern arguments
-                    // ii. reset the token buffers
-                    // d. if the current subToken index is not 0, buffer it and reset the subToken
                     currentSubTokenIndex++;
                     bufferedSubTokenDelimiters[currentSubTokenIndex] = currentChar;
                     bufferedSubTokenStartIndexes[currentSubTokenIndex] = currentSubTokenStartIndex;

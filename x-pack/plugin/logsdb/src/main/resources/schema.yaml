@@ -1,89 +1,87 @@
 # SCHEMA DEFINITION FILE
 # This file contains definitions for parsing text using predefined constructs
+# It is structured hierarchically, with each component building upon previous components
 #
 
 # --------------------------------------------------  Definitions section  --------------------------------------------------
-# This section is informative and not used in parsing. It is used for schema rules definitions in the schema part thereafter.
-# Changes in it will not affect the parser. To change the pre-defined constructs, the parser code must be modified.
-# Token encoding types must be prefixed with a '%' when being used in the schema section.
+# This section is informative and documents the available constructs that can be used in the schema section.
+# Changes here will not affect the parser directly, but serve as reference for what's available in the schema section below.
 predefined_constructs:
   # Allowed pattern syntax for the definition of subToken base types and token types.
   pattern_syntax:
-    # NOTE: '-' needs to be escaped with '\', and '\' needs to be escaped with '\\', so use '\\-' and '\\' in the pattern respectively.
-    character_groups: "[abcd]"                     # e.g. "[abcd]"
-    character_ranges: "[0-9a-f]"                   # e.g. "[0-9a-f]"
-  # Operators are used in constraints to define the rules for subToken types and token types. See the examples below for more details.
+    # NOTE: Special characters in patterns need proper escaping:
+    # '-' needs to be escaped with '\', and '\' needs to be escaped with '\\', so use '\\-' and '\\' in the pattern respectively.
+    character_groups: "[abcd]"                     # Matches any single character in the group, e.g. "[abcd]" matches 'a', 'b', 'c', or 'd'
+    character_ranges: "[0-9a-f]"                   # Matches any single character in the range, e.g. "[0-9a-f]" matches digits and a-f
+  # Operators are used in constraints to define the rules for subToken types. See the examples below for more details.
   operators:
-    equality: "=="                                 # e.g. "==7"
-    inequalities: ["<", ">", "<=", ">=", "!="]     # e.g. "<0.5"
-    inclusive_range: "-"                           # e.g. "0-255" - 0 to 255, inclusive
-    or: "|"                                        # e.g. "a|b|c"
-    map: "=|"                                      # e.g. "Jan=1|Feb=2|Mar=3|Apr=4|May=5|Jun=6|Jul=7|Aug=8|Sep=9|Oct=10|Nov=11|Dec=12"
-    length: "{n}"                                  # e.g. "{3}"
+    equality: "=="                                 # Exact equality, e.g. "==7" means the value must be exactly 7
+    inequalities: ["<", ">", "<=", ">=", "!="]     # Standard inequality operators, e.g. "<5" means less than 5
+    inclusive_range: "-"                           # Range including both endpoints, e.g. "0-255" means 0 to 255, inclusive
+    or: "|"                                        # Logical OR for alternatives, e.g. "a|b|c" means either a, b, or c
+    map: "=|"                                      # Maps string values to numeric values, e.g. "Jan=1|Feb=2|..." maps month names to numbers
+    length: "{n}"                                  # Constrains length, e.g. "{3}" means exactly 3 characters long
   # Token encoding types are used to define the encoding of tokens. They correspond to the eventual message template argument types.
-  # They are used in the schema section to define the token types.
-  # When used in the schema section, they are referred to by their symbol and must be prefixed with a '%' character.
+  # IMPORTANT: When used in the schema section, they MUST be prefixed with a '%' character.
   token_encoding_types:
-    A: "text"
-    I: "integer"
-    H: "hexadecimal"
-    F: "floating point"
-    4: "IPv4"
-    U: "UUID"
-    T: "timestamp"
-  # The timestamp component types are used to define the components of a timestamp in the schema section. They are used in subtokens
-  # that represent the components of a timestamp, such as year, month, day, etc. See usage below in the sub_token_types section.
+    A: "text"                                      # Text value, retained as a string
+    I: "integer"                                   # Integer numeric value
+    H: "hexadecimal"                               # Hexadecimal value, retained as a string
+    F: "floating point"                            # Floating point numeric value
+    4: "IPv4"                                      # IPv4 address
+    U: "UUID"                                      # UUID value
+    T: "timestamp"                                 # Timestamp value
+  # The timestamp component types are used to define the components of a timestamp in the schema section.
+  # These are used in subtokens that represent components of a timestamp and must be specified in the timestamp_component_type field
+  # for any subtoken that will be used in a timestamp format.
   timestamp_component_types:
-    - Y: "year"
-    - M: "month of the year"
-    - D: "day of the month"
-    - h: "hour"
-    - AP: "AM/PM indicator"                           # AM should be assigned to the value "1" and PM to the value "2"
-    - m: "minute"
-    - s: "second"
-    - ms: "millisecond"
-    - us: "microsecond"
-    - ns: "nanosecond"
-    - TZh: "timezone offset in hours"                 # e.g.: "-05", "+02"
-    - TZm: "timezone offset in minutes"               # e.g.: "-30", "+15"
-    - TZhm: "timezone offset in hours and minutes"    # e.g.: "-0500", "+0230"
-    - NA: "to ignore"             # used for sub-tokens that can be used in a timestamp format, but are not used for the computation
+    - Y: "year"                                    # Year value (e.g., 2023)
+    - M: "month of the year"                       # Month value (1-12)
+    - D: "day of the month"                        # Day value (1-31)
+    - h: "hour"                                    # Hour value (0-23 or 1-12 depending on format)
+    - AP: "AM/PM indicator"                        # AM should be assigned to the value "1" and PM to the value "2"
+    - m: "minute"                                  # Minute value (0-59)
+    - s: "second"                                  # Second value (0-59)
+    - ms: "millisecond"                            # Millisecond value (0-999)
+    - us: "microsecond"                            # Microsecond value (0-999999)
+    - ns: "nanosecond"                             # Nanosecond value
+    - TZh: "timezone offset in hours"              # Timezone hour offset, e.g.: "-05", "+02"
+    - TZm: "timezone offset in minutes"            # Timezone minute offset, e.g.: "-30", "+15"
+    - TZhm: "timezone offset in hours and minutes" # Combined timezone offset, e.g.: "-0500", "+0230"
+    - NA: "to ignore"                              # Used for sub-tokens that appear in a timestamp format but aren't used for computation
 
 # ---------------------------------------------------  Schema section  ---------------------------------------------------
 # This section contains the actual schema rules for text parsing.
-# Changes in this section will affect the parser. However, it is not a free-form text parsing schema, but rather a structured one,
-# so the changes must follow the structure defined in this file.
+# Changes in this section will directly affect how the parser interprets text.
+# The schema is built hierarchically, with each section depending on previous sections.
 
-# The special character types are predefined, but their values are configurable.
-# They are used to define the delimiters and trimmed characters in the text.
-# The schema will be affected by the changes in this section as well - its compilation relies on subToken delimiters and trimmed
-# characters.
+# Special characters define how the parser should split and handle input text.
+# Modifying these will directly affect how tokens and subtokens are extracted from text.
 special_characters:
-  # characters that delimit tokens in the text
+  # characters that delimit tokens in the text (typically spaces and tabs)
   token_delimiters: " \t"
-  # characters that delimit subTokens in the text
+  # characters that delimit subTokens within a token (e.g., periods in IPv4 addresses)
   sub_token_delimiters: |-
     -_:=/.
-  # characters to trim from tokens but keep in the template
+  # characters to trim from tokens but keep in the template (e.g., brackets and quotes)
+  # these characters are not considered part of the token's value but are preserved in templates
   trimmed_characters: |-
     {}[]();,'%"
 
-# The schema rules are built up hierarchically, based on the order of their appearance in the schema, so that latter rules can rely on
-# definitions from the former ones.
-# The rules can use predefined constructs, which are defined in the top section of this file. If using a character type, a subToken
-# base type or a token encoding type, it must be prefixed with a '%' character.
-# The schema section names are predefined and non-modifiable. Only their contents are modifiable.
-# See comments before each section for more details.
+# The schema rules are built hierarchically, with each level building upon previous definitions.
+# Rules defined earlier can be referenced by rules defined later.
+# When referencing token encoding types, use the '%' prefix (e.g., %I for integer).
+# When referencing defined subtokens or tokens, use the '$' prefix (e.g., $octet).
 schema:
-  # Defining the subToken base types. The base subToken types are mostly used to restrict the characters that are valid for a subToken.
-  # They are not used to define encoding. For this purpose, see the token encoding types section above.
-  # Structure for each subToken base type:
-  #   name: the name of the subToken base type
-  #     symbol: a single character that represents the subToken base type. Must be prefixed with a '%' character when used in the schema.
-  #     java_type: the Java type that represents the subToken base type.
-  #     characters: a pattern that represents the characters that are valid for the subToken base type.
-  #                 See the pattern_syntax section above for more details.
-  #     description: a short description of the subToken base type
+  # SubToken base types define the character sets allowed in a subToken and its basic encoding.
+  # These serve as building blocks for more specific subToken types.
+  # Structure for each entry:
+  #   name: descriptive name for this base type
+  #   symbol: single character identifier used with '%' prefix in schema references
+  #   encoding_type: the token encoding type (from token_encoding_types) this will use
+  #   java_type: the Java data type that will represent values of this type
+  #   characters: pattern defining which characters are valid (using pattern_syntax defined above)
+  #   description: human-readable description of this type
   sub_token_base_types:
     - name: "unsigned_integer"
       symbol: "I"
@@ -122,25 +120,20 @@ schema:
       characters: "[0-9a-fA-F]"
       description: "A hexadecimal string"
 
-  # Defining the subToken types. Structure for each subToken type:
-  #   name: the name of the subToken type - must not contain any of the special characters defined in the special_characters section above.
-  #     base_type: one of the predefined subToken base types, e.g. %I, %F, %A, %N, %X
-  #     constraint: a rule that is used to evaluate whether an input qualifies as a subToken of this type.
-  #                 In general, the more restrictive the constraint, the more efficient the parsing will be.
-  #                 Constraints rely on operators from the predefined constructs section.
-  #                 They can be chained using the "&&" (AND) and "||" (OR), or negated using the "!" (NOT) operator.
-  #                 NOTE: chained constraints don't support parentheses, so be careful with combining AND and OR operators.
-  #                 NOTE: negative numbers must be wrapped in parentheses, e.g. (-1)
-  #                 Some examples:
-  #                       %I, 0-255 indicates an integer between 0 and 255, inclusive.
-  #                       %I, (-32)-(-16) indicates an integer between -32 (exclusive) and -16 (exclusive).
-  #                       %I, >=(-128) && =<127 indicates an integer between -128 (inclusive) and 127 (inclusive).
-  #                       %F, >=0 && <60 indicates a floating point number between 0 (inclusive) and 60 (exclusive).
-  #                       %A, Sun|Mon|Tue|Wed|Thu|Fri|Sat indicates a 3-letter abbreviation for the day of the week.
-  #                       %X, {3} indicates a hexadecimal string of length 3.
-  #     description: a short description of the subToken type
-  #     timestamp_component_type: an optional timestamp component type, if the subToken type represents a component of a timestamp.
-  #                               To use a sub-token in a timestamp format definition, it must have a timestamp_component defined.
+  # SubToken types build upon base types by adding specific constraints.
+  # Structure for each entry:
+  #   name: identifier for this subToken type (used with '$' prefix when referenced)
+  #   base_type: reference to a subToken base type (using '%' prefix)
+  #   constraint: rules that determine if a string qualifies as this subToken type
+  #              Constraints can use operators from the operators section and can be combined:
+  #              - Using "&&" for logical AND
+  #              - Using "||" for logical OR
+  #              - Using "!" for logical NOT
+  #              - NOTE: When using negative numbers, wrap them in parentheses, e.g. (-1)
+  #              - NOTE: Chained constraints don't support grouping with parentheses
+  #   description: human-readable description
+  #   timestamp_component_type: [OPTIONAL] specify if this subtoken represents a timestamp component
+  #                             Required only if this subtoken will be used in timestamp formats
   sub_token_types:
     - name: "octet"
       base_type: "%I"
@@ -237,24 +230,17 @@ schema:
       description: "A port number, which is an unsigned integer between 0 and 65535, inclusive"
 
 
-  # Defining the token types. Structure for each token type:
-  #   name: the name of the token type - must not contain any of the special characters defined in the special_characters section above.
-  #     encoding_type: one of the predefined token encoding types, e.g. %4, %U, %T
-  #     special_sub_token_delimiters: an optional config for delimiters that are used to separate subTokens in a specific token type.
-  #     format:  the token template. A format is a string that contains subTokens separated by one of the
-  #              sub_token delimiters_defined in the special characters section above. The subTokens can either indicate a subToken type
-  #              defined in the sub_token_types section above or an ad-hoc subToken.
-  #              SubToken from the sub_token_types section must be prefixed with a '$' character.
-  #              The ad-hoc subTokens are defined using a subToken base type from the sub_token_types section, prefixed with a '%' and
-  #              followed by a constraint (or chained constraints). Ad hoc subToken definitions must be enclosed in parentheses.
-  #              In general, the more accurate and restrictive the format, the more efficient the parsing will be.
-  #              Some examples:
-  #                    (%I0-255) indicates an integer between 0 and 255, inclusive.
-  #                    (%F >=0 && <60) indicates a floating point number between 0 (inclusive) and 60 (exclusive).
-  #                    (%A[abcd]) indicates an alphabetic string containing only the characters a, b, c or d.
-  #                    (%X{3}) indicates a hexadecimal string of length 3.
-  #                    $octet.$octet.$octet.$octet indicates an IPv4 address in dotted-decimal notation.
-  #     description: a short description of the token type
+  # Token types define how to recognize and encode complete tokens (space/tab delimited elements).
+  # Structure for each entry:
+  #   name: identifier for this token type (used with '$' prefix when referenced)
+  #   encoding_type: reference to a token encoding type (using '%' prefix)
+  #   special_sub_token_delimiters: [OPTIONAL] additional delimiters for this specific token type
+  #   format: template for this token type, which can contain:
+  #          - References to defined subToken types (using '$' prefix)
+  #          - Ad-hoc subTokens defined inline using "(%BaseType constraint)" syntax
+  #          - Delimiter characters that must match exactly
+  #          Formats should be as specific as possible for efficient parsing
+  #   description: human-readable description of this token type
   token_types:
     - name: "IPv4"
       encoding_type: "%4"
@@ -314,11 +300,14 @@ schema:
       format: "$DD/$MM/$YYYYT$hh:$mm:$ss"
       description: "Date and time"
 
-  # Defining the multi-token types. Structure for each multi-token type:
-  #   name: the name of the multi-token type - must not contain any of the special characters defined in the special_characters section above.
-  #     encoding_type: one of the predefined token encoding types, e.g. %T
-  #     format: a string template representing the multi-token type - must use only token and subToken types defined above, prefixed
-  #             with a '$' character.
+  # Multi-token types define patterns that span across multiple tokens (space/tab separated).
+  # These are used for complex patterns like timestamps that might include multiple tokens.
+  # Structure for each entry:
+  #   name: identifier for this multi-token type
+  #   encoding_type: reference to a token encoding type (using '%' prefix)
+  #   format: template using token types and/or subToken types (all with '$' prefix)
+  #          Each referenced element must be separated by spaces to indicate token boundaries
+  #   description: human-readable description
   multi_token_types:
     - name: "timestamp1"
       encoding_type: "%T"

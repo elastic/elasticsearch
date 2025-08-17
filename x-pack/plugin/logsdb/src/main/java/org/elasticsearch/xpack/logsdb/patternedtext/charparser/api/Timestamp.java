@@ -5,13 +5,19 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.logsdb.patternedtext.charparser.patterned;
+package org.elasticsearch.xpack.logsdb.patternedtext.charparser.api;
 
 import org.elasticsearch.common.util.ByteUtils;
 import org.elasticsearch.xpack.logsdb.patternedtext.charparser.common.EncodingType;
 
 import java.util.Base64;
 
+/**
+ * Represents a timestamp extracted from a text message.
+ * <p>
+ * The value is a long representing the number of milliseconds since the epoch.
+ * It also holds the format of the timestamp as a string.
+ */
 public final class Timestamp implements Argument<Long> {
 
     private final long timestamp;

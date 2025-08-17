@@ -5,10 +5,20 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.logsdb.patternedtext.charparser.patterned;
+package org.elasticsearch.xpack.logsdb.patternedtext.charparser.api;
 
 import org.elasticsearch.xpack.logsdb.patternedtext.charparser.common.EncodingType;
 
+/**
+ * Represents a keyword argument extracted from a text message.
+ * <p>
+ * A keyword is different from a simple text token in that it describes a token that is encoded as a string,
+ * but it represents a message argument and not a static token.
+ * Ideally, only arguments with low cardinality should be represented by a Keyword.
+ * High cardinality ones (like UUIDs for example) should be represented by a different type, as much as possible.
+ * Since we rely on a generic schema for the identification of arguments, we take into account that it would be used
+ * for high cardinality arguments as well.
+ */
 public final class KeywordArgument implements Argument<String> {
     private final StringBuilder value;
 

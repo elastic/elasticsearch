@@ -94,27 +94,21 @@ public class ESONXContentParser extends AbstractXContentParser {
                 ++currentIndex;
 
                 byte type = currentEntry.type();
-                // Optimize for common JSON value types first
-                Token token;
-                if (type < ESONEntry.TYPE_OBJECT) {
-                    // Primitive values (most common in JSON data)
-                    // Order by frequency: strings, numbers, booleans, nulls
-                    if (type == ESONEntry.STRING) {
-                        token = Token.VALUE_STRING;
-                    } else if (type >= ESONEntry.TYPE_INT && type <= ESONEntry.TYPE_DOUBLE) {
-                        token = Token.VALUE_NUMBER;
-                    } else if (type == ESONEntry.TYPE_TRUE || type == ESONEntry.TYPE_FALSE) {
-                        token = Token.VALUE_BOOLEAN;
-                    } else if (type == ESONEntry.TYPE_NULL) {
-                        token = Token.VALUE_NULL;
-                    } else {
-                        token = TOKEN_LOOKUP[type];  // Rare types
-                    }
-                } else {
-                    // Container types (less common)
+                final Token token = switch (type) {
+                    case ESONEntry.STRING -> Token.VALUE_STRING;
+                    case ESONEntry.TYPE_INT, ESONEntry.TYPE_LONG, ESONEntry.TYPE_FLOAT, ESONEntry.TYPE_DOUBLE, ESONEntry.BIG_INTEGER,
+                         ESONEntry.BIG_DECIMAL -> Token.VALUE_NUMBER;
+                    case ESONEntry.TYPE_NULL -> Token.VALUE_NULL;
+                    case ESONEntry.TYPE_TRUE, ESONEntry.TYPE_FALSE -> Token.VALUE_BOOLEAN;
+                    case ESONEntry.TYPE_OBJECT -> Token.START_OBJECT;
+                    case ESONEntry.TYPE_ARRAY -> Token.START_ARRAY;
+                    case ESONEntry.BINARY -> Token.VALUE_EMBEDDED_OBJECT;
+                    default -> throw new IllegalArgumentException("Unknown type: " + type);
+                };
+                if (token == Token.START_OBJECT || token == Token.START_ARRAY) {
                     newContainer(type);
-                    token = (type == ESONEntry.TYPE_OBJECT) ? Token.START_OBJECT : Token.START_ARRAY;
                 }
+//                token = TOKEN_LOOKUP[type];
 
                 if (IntStack.isObject(stackValue)) {
                     nextToken = token;
@@ -197,20 +191,25 @@ public class ESONXContentParser extends AbstractXContentParser {
 
     @Override
     public void skipChildren() throws IOException {
-        if (currentToken == Token.START_OBJECT || currentToken == Token.START_ARRAY) {
-            int depth = 1;
-            while (depth > 0) {
-                Token token = nextToken();
-                if (token == null) {
-                    break;
-                }
-                if (token == Token.START_OBJECT || token == Token.START_ARRAY) {
-                    depth++;
-                } else if (token == Token.END_OBJECT || token == Token.END_ARRAY) {
-                    depth--;
-                }
+        if (currentToken != Token.START_OBJECT && currentToken != Token.START_ARRAY) {
+            return;
+        }
+
+        // Fast skip - trust the ESON structure
+        int toSkip = currentEntry.offsetOrCount();
+
+        while (toSkip-- > 0) {
+            ESONEntry entry = keyArray.get(currentIndex++);
+
+            // Only check containers - most entries are primitives in typical JSON
+            if (entry.type() >= ESONEntry.TYPE_OBJECT) {
+                toSkip += entry.offsetOrCount();
             }
         }
+
+        // Clean up parser state
+        containerStack.popContainer();  // Also can skip the isEmpty check if we know we're in a container
+        currentToken = (currentToken == Token.START_OBJECT) ? Token.END_OBJECT : Token.END_ARRAY;
     }
 
     @Override

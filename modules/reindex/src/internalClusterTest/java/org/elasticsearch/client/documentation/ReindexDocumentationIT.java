@@ -37,7 +37,6 @@ import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.hamcrest.Matcher;
 import org.junit.Before;
 
 import java.util.Arrays;

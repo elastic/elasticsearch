@@ -33,10 +33,3 @@
  * task sees will be from the initial submission of the snapshot request only.
  */
 package org.elasticsearch.xpack.slm;
-
-import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.cluster.metadata.ProjectMetadata;
-import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.xpack.core.slm.SnapshotLifecyclePolicyMetadata;
-import org.elasticsearch.xpack.slm.SnapshotLifecycleService.SnapshotLifecycleProjectState;
-import org.elasticsearch.xpack.slm.history.SnapshotHistoryStore;

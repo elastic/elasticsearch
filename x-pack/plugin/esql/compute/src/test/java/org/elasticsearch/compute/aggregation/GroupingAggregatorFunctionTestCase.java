@@ -61,7 +61,6 @@ import static java.util.stream.IntStream.range;
 import static org.elasticsearch.compute.test.BlockTestUtils.append;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
-import static org.hamcrest.Matchers.in;
 
 /**
  * Shared tests for testing grouped aggregations.

@@ -17,8 +17,6 @@ import org.elasticsearch.xpack.esql.plan.logical.AggregateSerializationTests;
 import java.io.IOException;
 import java.util.List;
 
-import static org.elasticsearch.xpack.esql.plan.logical.AbstractLogicalPlanSerializationTests.randomFieldAttributes;
-
 public class AggregateExecSerializationTests extends AbstractPhysicalPlanSerializationTests<AggregateExec> {
     public static AggregateExec randomAggregateExec(int depth) {
         Source source = randomSource();

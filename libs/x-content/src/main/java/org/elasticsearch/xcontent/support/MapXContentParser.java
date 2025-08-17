@@ -160,7 +160,7 @@ public class MapXContentParser extends AbstractXContentParser {
 
     @Override
     public Object objectText() throws IOException {
-        throw new UnsupportedOperationException("use text() instead");
+        return iterator.currentValue();
     }
 
     @Override

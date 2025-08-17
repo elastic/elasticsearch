@@ -23,7 +23,9 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.util.ByteUtils;
+import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.common.xcontent.support.XContentParserFilter;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.IndexMode;
@@ -31,8 +33,7 @@ import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.TimeSeriesRoutingHashFieldMapper;
 import org.elasticsearch.ingest.ESONIndexed;
-import org.elasticsearch.search.lookup.Source;
-import org.elasticsearch.search.lookup.SourceFilter;
+import org.elasticsearch.ingest.ESONXContentParser;
 import org.elasticsearch.transport.Transports;
 import org.elasticsearch.xcontent.DeprecationHandler;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -51,6 +52,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.OptionalInt;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.function.IntConsumer;
 import java.util.function.IntSupplier;
 import java.util.function.Predicate;
@@ -314,7 +316,7 @@ public abstract class IndexRouting {
         private final IndexMode indexMode;
         private final boolean trackTimeSeriesRoutingHash;
         private final boolean addIdWithRoutingHash;
-        private final SourceFilter sourceFilter;
+        private final Function<XContentParser, Map<String, Object>> parserFilter;
         private int hash = Integer.MAX_VALUE;
 
         ExtractFromSource(IndexMetadata metadata) {
@@ -329,7 +331,7 @@ public abstract class IndexRouting {
             List<String> routingPaths = metadata.getRoutingPaths();
             isRoutingPath = Regex.simpleMatcher(routingPaths.toArray(String[]::new));
             this.parserConfig = XContentParserConfiguration.EMPTY.withFiltering(null, Set.copyOf(routingPaths), null, true);
-            sourceFilter = new SourceFilter(routingPaths.toArray(new String[0]), Strings.EMPTY_ARRAY);
+            parserFilter = XContentParserFilter.filter(routingPaths.toArray(new String[0]));
         }
 
         public boolean matchesField(String fieldName) {
@@ -361,12 +363,17 @@ public abstract class IndexRouting {
         public int indexShard(String id, @Nullable String routing, XContentType sourceType, ESONIndexed.ESONObject structuredSource) {
             assert Transports.assertNotTransportThread("parsing the _source can get slow");
             checkNoRouting(routing);
-            Source source = Source.fromMap(structuredSource, sourceType).filter(sourceFilter);
             try (
+                ESONXContentParser esonxContentParser = new ESONXContentParser(
+                    structuredSource.esonFlat(),
+                    NamedXContentRegistry.EMPTY,
+                    LoggingDeprecationHandler.IGNORE_DEPRECATIONS,
+                    sourceType
+                );
                 XContentParser parser = new MapXContentParser(
                     NamedXContentRegistry.EMPTY,
                     DeprecationHandler.IGNORE_DEPRECATIONS,
-                    source.source(),
+                    parserFilter.apply(esonxContentParser),
                     sourceType
                 )
             ) {

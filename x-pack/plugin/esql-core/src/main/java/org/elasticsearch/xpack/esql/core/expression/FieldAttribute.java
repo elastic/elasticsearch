@@ -221,6 +221,11 @@ public class FieldAttribute extends TypedAttribute {
         return field.getTimeSeriesFieldType() == EsField.TimeSeriesFieldType.DIMENSION;
     }
 
+    @Override
+    public boolean isMetric() {
+        return field.getTimeSeriesFieldType() == EsField.TimeSeriesFieldType.METRIC;
+    }
+
     public EsField field() {
         return field;
     }

@@ -21,15 +21,13 @@ public class DataPointTsidFunnel implements TsidFunnel<DataPoint> {
     }
 
     public static TsidBuilder forDataPoint(BufferedByteStringAccessor byteStringAccessor, DataPoint dataPoint) {
-        TsidBuilder tsidBuilder = new TsidBuilder(dataPoint.getAttributes().size() + 3);
+        TsidBuilder tsidBuilder = new TsidBuilder(dataPoint.getAttributes().size());
         new DataPointTsidFunnel(byteStringAccessor).add(dataPoint, tsidBuilder);
         return tsidBuilder;
     }
 
     @Override
     public void add(DataPoint dataPoint, TsidBuilder tsidBuilder) {
-        tsidBuilder.addLongDimension("@timestamp", dataPoint.getTimestampUnixNano());
         tsidBuilder.add(dataPoint, DataPointDimensionsTsidFunnel.get(byteStringAccessor));
-        tsidBuilder.addLongDimension("start_timestamp", dataPoint.getStartTimestampUnixNano());
     }
 }

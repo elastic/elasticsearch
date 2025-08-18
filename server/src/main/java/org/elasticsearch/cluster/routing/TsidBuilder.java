@@ -185,6 +185,10 @@ public class TsidBuilder {
      * @throws IllegalArgumentException if no dimensions have been added
      */
     public HashValue128 hash() {
+        return hashStream().get();
+    }
+
+    public HashStream128 hashStream() {
         if (dimensions.isEmpty()) {
             throw new IllegalArgumentException("Error extracting dimensions: no dimension fields found");
         }
@@ -196,7 +200,7 @@ public class TsidBuilder {
             hashStream.putLong(dim.valueHash.getMostSignificantBits());
             hashStream.putLong(dim.valueHash.getLeastSignificantBits());
         }
-        return hashStream.get();
+        return hashStream;
     }
 
     /**

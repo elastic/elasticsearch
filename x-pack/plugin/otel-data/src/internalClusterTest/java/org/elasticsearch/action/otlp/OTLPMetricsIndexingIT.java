@@ -33,9 +33,13 @@ import io.opentelemetry.sdk.metrics.internal.data.ImmutableSummaryData;
 import io.opentelemetry.sdk.metrics.internal.data.ImmutableSummaryPointData;
 import io.opentelemetry.sdk.resources.Resource;
 
+import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.action.admin.indices.template.get.GetComposableIndexTemplateAction;
+import org.elasticsearch.action.bulk.BulkResponse;
+import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
@@ -48,8 +52,10 @@ import org.elasticsearch.ingest.common.IngestCommonPlugin;
 import org.elasticsearch.painless.PainlessPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.field.WriteField;
+import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.aggregatemetric.AggregateMetricMapperPlugin;
 import org.elasticsearch.xpack.analytics.AnalyticsPlugin;
 import org.elasticsearch.xpack.constantkeyword.ConstantKeywordMapperPlugin;
@@ -68,6 +74,7 @@ import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
@@ -85,6 +92,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.emptyArray;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 
@@ -488,6 +496,75 @@ public class OTLPMetricsIndexingIT extends ESSingleNodeTestCase {
             Map<String, Object> sourceMap = resp.getHits().getAt(0).getSourceAsMap();
             assertThat(evaluate(sourceMap, "metrics.summary.sum"), equalTo(2.0));
             assertThat(evaluate(sourceMap, "metrics.summary.value_count"), equalTo(1));
+        });
+    }
+
+    public void testTsidForBulkIsSame() throws IOException {
+        // This test is to ensure that the _tsid is the same when indexing via a bulk request or OTLP.
+        long now = Clock.getDefault().now();
+
+        export(
+            List.of(
+                createDoubleGauge(
+                    TEST_RESOURCE,
+                    Attributes.builder()
+                        .put("string", "foo")
+                        .put("boolean", true)
+                        .put("long", 42L)
+                        .put("double", 42.0)
+                        .put("host.ip", "127.0.0.1")
+                        .build(),
+                    "metric",
+                    42,
+                    "By",
+                    now
+                )
+            )
+        );
+
+        // Index the same metric via a bulk request
+        BulkResponse bulkResp = client().prepareBulk("metrics-generic.otel-default")
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+            .add(new IndexRequest().opType(DocWriteRequest.OpType.CREATE).source("""
+                {
+                    "@timestamp": $time,
+                    "start_timestamp": $time,
+                    "data_stream": {
+                        "type": "metrics",
+                        "dataset": "generic.otel",
+                        "namespace": "default"
+                    },
+                    "_metric_names_hash": "ef2c1a68",
+                    "metrics": {
+                        "metric": 42.0
+                    },
+                    "attributes": {
+                        "string": "foo",
+                        "boolean": true,
+                        "long": 42,
+                        "double": 42.0,
+                        "host.ip": "127.0.0.1"
+                    },
+                    "resource": {
+                        "attributes": {
+                            "service.name": "elasticsearch"
+                        }
+                    },
+                    "scope": {
+                        "name": "io.opentelemetry.example.metrics"
+                    },
+                    "unit": "By"
+                }
+                """.replace("$time", Long.toString(TimeUnit.NANOSECONDS.toMillis(now) + 1)), XContentType.JSON))
+            .get();
+
+        assertThat(bulkResp.hasFailures(), equalTo(false));
+
+        assertResponse(client().prepareSearch("metrics-generic.otel-default").addDocValueField("_tsid"), resp -> {
+            SearchHits hits = resp.getHits();
+            assertThat(hits.getHits(), arrayWithSize(2));
+            List<String> tsids = Arrays.stream(hits.getHits()).map(h -> h.field("_tsid").<String>getValue()).distinct().toList();
+            assertThat(tsids, hasSize(1));
         });
     }
 

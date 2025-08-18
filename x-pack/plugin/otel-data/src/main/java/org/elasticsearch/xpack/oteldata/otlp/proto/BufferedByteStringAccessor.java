@@ -34,6 +34,9 @@ public class BufferedByteStringAccessor {
      * @param value       the value of the dimension as a {@link ByteString}
      */
     public void addStringDimension(TsidBuilder tsidBuilder, String dimension, ByteString value) {
+        if (value.isEmpty()) {
+            return;
+        }
         tsidBuilder.addStringDimension(dimension, toBytes(value), 0, value.size());
     }
 

@@ -7,6 +7,11 @@
 
 package org.elasticsearch.xpack.oteldata.otlp.datapoint;
 
+import com.dynatrace.hash4j.hashing.HashStream32;
+import com.dynatrace.hash4j.hashing.HashValue128;
+import com.dynatrace.hash4j.hashing.Hasher32;
+import com.dynatrace.hash4j.hashing.Hashing;
+import com.google.protobuf.ByteString;
 import io.opentelemetry.proto.collector.metrics.v1.ExportMetricsServiceRequest;
 import io.opentelemetry.proto.common.v1.InstrumentationScope;
 import io.opentelemetry.proto.common.v1.KeyValue;
@@ -14,13 +19,6 @@ import io.opentelemetry.proto.metrics.v1.Metric;
 import io.opentelemetry.proto.metrics.v1.ResourceMetrics;
 import io.opentelemetry.proto.metrics.v1.ScopeMetrics;
 import io.opentelemetry.proto.resource.v1.Resource;
-
-import com.dynatrace.hash4j.hashing.HashStream32;
-import com.dynatrace.hash4j.hashing.HashValue128;
-import com.dynatrace.hash4j.hashing.Hasher32;
-import com.dynatrace.hash4j.hashing.Hashing;
-import com.google.protobuf.ByteString;
-
 import org.elasticsearch.cluster.routing.TsidBuilder;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.xpack.oteldata.otlp.proto.BufferedByteStringAccessor;
@@ -198,7 +196,11 @@ public class DataPointGroupingContext {
 
         private DataPointGroup getOrCreateDataPointGroup(DataPoint dataPoint) {
             TsidBuilder dataPointGroupTsidBuilder = DataPointTsidFunnel.forDataPoint(byteStringAccessor, dataPoint);
-            HashValue128 dataPointGroupHash = dataPointGroupTsidBuilder.hash();
+            // in addition to the fields that go into the _tsid, we also need to group by timestamp and start timestamp
+            HashValue128 dataPointGroupHash = dataPointGroupTsidBuilder.hashStream()
+                .putLong(dataPoint.getTimestampUnixNano())
+                .putLong(dataPoint.getStartTimestampUnixNano())
+                .get();
             TargetIndex targetIndex = TargetIndex.route(
                 "metrics",
                 dataPoint.getAttributes(),

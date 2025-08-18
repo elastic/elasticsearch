@@ -36,14 +36,20 @@ public class Glob {
             return pattern.equals(str);
         }
 
-        // If the pattern is a literal '*' then it matches any input
         if (patternIndex == 0) {
+            // If the pattern is a literal '*' then it matches any input
             if (pattern.length() == 1) {
                 return true;
             }
-        } else if (str.regionMatches(0, pattern, 0, patternIndex) == false) {
-            // If the pattern starts with a literal (i.e. not '*') then the input string must also start with that
-            return false;
+        } else {
+            if (str.regionMatches(0, pattern, 0, patternIndex) == false) {
+                // If the pattern starts with a literal (i.e. not '*') then the input string must also start with that
+                return false;
+            }
+            if (patternIndex == pattern.length() - 1) {
+                // The pattern is "something*", so if the starting region matches, then the whole pattern matches
+                return true;
+            }
         }
 
         int strIndex = patternIndex;

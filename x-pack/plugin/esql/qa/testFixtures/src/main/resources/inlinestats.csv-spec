@@ -1642,6 +1642,7 @@ from employees
 ;
 
 prunedInlinestatsFollowedByInlinestats_GroupByOneFieldOnSecondInlinestats-Ignore
+// values doesn't end up as null
 required_capability: inlinestats_v10
 from employees
 | eval my_length = length(concat(first_name, null))
@@ -1736,16 +1737,16 @@ from employees
 | inlinestats max = max(height.float + 1) where null,
         count = count(height.float) + 2 where false
   by job_positions
-| sort job_positions
+| sort emp_no desc
 | limit 4
 | keep emp_no, job_positions, height.float, max, count
 ;
 
-    emp_no:i   |                           job_positions:s                         |   height.float:d |      max:d    |     count:l     
-10016          |[Accountant, Purchase Manager, Python Developer, Reporting Analyst]|1.5399999618530273|null           |[2, 2, 2, 2]   
-10001          |[Accountant, Senior Python Developer]                              |2.0299999713897705|null           |[2, 2]         
-10023          |[Accountant, Purchase Manager, Support Engineer]                   |1.75              |null           |[2, 2, 2]      
-10012          |[Accountant, Head Human Resources]                                 |1.9700000286102295|null           |[2, 2]
+    emp_no:i   |          job_positions:s                |   height.float:d |      max:d    |     count:l     
+10100          |Purchase Manager                         |1.7699999809265137|null           |2              
+10099          |null                                     |1.809999942779541 |null           |2              
+10098          |[Architect, Internship, Senior Team Lead]|2.0               |null           |[2, 2, 2]      
+10097          |[Reporting Analyst, Tech Lead]           |1.5299999713897705|null           |[2, 2]         
 ;
 
 inlinestatsWithFalseFiltersAndGroups
@@ -1821,6 +1822,7 @@ null             |[0, 0, 0, 0]   |[Berni, Chirstian, Amabile, Berni, Bojan, Chir
 ;
 
 prunedInlinestatsFollowedByinlinestats-Ignore
+// values doesn't end up as null
 required_capability: inlinestats_v10
 from employees
 | eval my_length = length(concat(first_name, null))
@@ -2358,15 +2360,15 @@ required_capability: inlinestats_v10
 FROM employees
 | keep salary, first_name, job_positions, emp_no
 | inlinestats max = max(salary) WHERE first_name IS NULL BY job_positions
-| SORT job_positions
+| SORT emp_no
 | LIMIT 4
 ;
 
- salary:integer|first_name:keyword| emp_no:integer|      max:integer    |                    job_positions:keyword                           
-61358          |Kazuhito          |10016          |[39878, 62233, 39878]|[Accountant, Purchase Manager, Python Developer, Reporting Analyst]
-57305          |Georgi            |10001          |[39878, 62233]       |[Accountant, Senior Python Developer]                              
-47896          |Bojan             |10023          |[39878, 62233, 35222]|[Accountant, Purchase Manager, Support Engineer]                   
-48942          |Patricio          |10012          |39878                |[Accountant, Head Human Resources]                                 
+ salary:i      |first_name:s   | emp_no:i      |  max:i        |                    job_positions:s                           
+57305          |Georgi         |10001          |[39878, 62233] |[Accountant, Senior Python Developer]                                 
+56371          |Bezalel        |10002          |67492          |Senior Team Lead                                                      
+61805          |Parto          |10003          |70011          |null                                                                  
+36174          |Chirstian      |10004          |[35222, 67492] |[Head Human Resources, Reporting Analyst, Support Engineer, Tech Lead]                              
 ;
 
 stdDevFilter

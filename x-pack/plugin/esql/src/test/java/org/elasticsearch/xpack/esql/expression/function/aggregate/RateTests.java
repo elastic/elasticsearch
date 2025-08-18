@@ -61,6 +61,11 @@ public class RateTests extends AbstractAggregationTestCase {
     }
 
     @Override
+    public void testAggregateToString() {
+        assumeTrue("time-series aggregation doesn't support ungrouped", false);
+    }
+
+    @Override
     public void testAggregateIntermediate() {
         assumeTrue("time-series aggregation doesn't support ungrouped", false);
     }

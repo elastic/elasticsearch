@@ -142,10 +142,28 @@ public abstract class AbstractAggregationTestCase extends AbstractFunctionTestCa
         resolveExpression(expression, this::aggregateSingleMode, this::evaluate);
     }
 
+    public void testAggregateToString() {
+        Expression expression = randomBoolean() ? buildDeepCopyOfFieldExpression(testCase) : buildFieldExpression(testCase);
+        resolveExpression(expression, e -> {
+            try (var aggregator = aggregator(e, initialInputChannels(), AggregatorMode.SINGLE)) {
+                assertAggregatorToString(aggregator);
+            }
+        }, this::evaluate);
+    }
+
     public void testGroupingAggregate() {
         Expression expression = randomBoolean() ? buildDeepCopyOfFieldExpression(testCase) : buildFieldExpression(testCase);
 
         resolveExpression(expression, this::aggregateGroupingSingleMode, this::evaluate);
+    }
+
+    public void testGroupingAggregateToString() {
+        Expression expression = randomBoolean() ? buildDeepCopyOfFieldExpression(testCase) : buildFieldExpression(testCase);
+        resolveExpression(expression, e -> {
+            try (var aggregator = groupingAggregator(e, initialInputChannels(), AggregatorMode.SINGLE)) {
+                assertAggregatorToString(aggregator);
+            }
+        }, this::evaluate);
     }
 
     public void testAggregateIntermediate() {

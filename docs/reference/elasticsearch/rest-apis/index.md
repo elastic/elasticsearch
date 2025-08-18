@@ -335,9 +335,6 @@ The ingest APIs enable you to manage tasks and resources related to ingest pipel
 | [Delete pipeline](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-ingest-delete-pipeline) | Deletes an ingest pipeline. |
 | [Simulate pipeline](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-ingest-simulate) | Simulates a document through an ingest pipeline. |
 | [Get built-in grok patterns](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-ingest-processor-grok) | Returns a list of built-in grok patterns. |
-| [Get processor types](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-ingest-processor-types) | Returns a list of available processor types. |
-| [Put pipeline processor](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-ingest-put-processor) | Creates or updates a custom pipeline processor. |
-| [Delete pipeline processor](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-ingest-delete-processor) | Deletes a custom pipeline processor. |
 
 ### [Licensing](https://www.elastic.co/docs/api/doc/elasticsearch/v9/group/endpoint-license)
 
@@ -420,7 +417,7 @@ The machine learning data frame analytics APIs enbale you to perform data frame 
 | API | Description |
 | --- | ----------- |
 | [Create a data frame analytics job](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-ml-put-data-frame-analytics) | Creates a data frame analytics job. |
-| [Get data frame analytics job configuration info](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-ml-get-data-frame-analyticss) | Retrieves configuration and results for analytics jobs. |
+| [Get data frame analytics job configuration info](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-ml-get-data-frame-analytics) | Retrieves configuration and results for analytics jobs. |
 | [Delete a data frame analytics job](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-ml-delete-data-frame-analytics) | Deletes a data frame analytics job. |
 | [Start a data frame analytics job](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-ml-start-data-frame-analytics) | Starts a data frame analytics job. |
 | [Stop data frame analytics jobs](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-ml-stop-data-frame-analytics) | Stops a running data frame analytics job. |
@@ -464,9 +461,9 @@ Query rules enable you to configure per-query rules that are applied at query ti
 
 | API | Description |
 | --- | ----------- |
-| [Create or update query ruleset](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-query-ruleset-put-query-ruleset) | Creates or updates a query ruleset. |
-| [Get query ruleset](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-query-ruleset-get-query-ruleset) | Retrieves one or more query rulesets. |
-| [Delete query ruleset](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-query-ruleset-delete-query-ruleset) | Deletes a query ruleset. |
+| [Create or update query ruleset](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-query-rules-put-ruleset) | Creates or updates a query ruleset. |
+| [Get query ruleset](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-query-rules-get-ruleset) | Retrieves one or more query rulesets. |
+| [Delete query ruleset](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-query-rules-delete-ruleset) | Deletes a query ruleset. |
 
 ### [Rollup](https://www.elastic.co/docs/api/doc/elasticsearch/v9/group/endpoint-rollup)
 
@@ -489,7 +486,7 @@ Use the script support APIs to get a list of supported script contexts and langu
 
 | API | Description |
 | --- | ----------- |
-| [Add or update stored script](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-script-put-script) | Adds or updates a stored script. |
+| [Add or update stored script](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-put-script) | Adds or updates a stored script. |
 | [Get stored script](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-get-script) | Retrieves a stored script. |
 | [Delete stored script](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-delete-script) | Deletes a stored script. |
 | [Execute Painless script]https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-scripts-painless-execute) | Executes a script using the Painless language. |

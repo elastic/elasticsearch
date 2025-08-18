@@ -32,6 +32,22 @@ import java.util.function.BiFunction;
 
 import javax.inject.Inject;
 
+/**
+ * An encapsulation of operations on transport version resources.
+ *
+ * <p>These are resource files to describe transport versions that will be loaded at Elasticsearch runtime. They exist
+ * as jar resource files at runtime, and as a directory of resources at build time.
+ *
+ * <p>The layout of the transport version resources are as follows:
+ * <ul>
+ *     <li><b>/transport/definitions/named/</b>
+ *     - Definitions that can be looked up by name. The name is the filename before the .csv suffix.</li>
+ *     <li><b>/transport/definitions/unreferenced/</b>
+ *     - Definitions which contain ids that are known at runtime, but cannot be looked up by name.</li>
+ *     <li><b>/transport/latest/</b>
+ *     - The latest transport version definition for each release branch.</li>
+ * </ul>
+ */
 public abstract class TransportVersionResourcesService implements BuildService<TransportVersionResourcesService.Parameters> {
 
     public interface Parameters extends BuildServiceParameters {
@@ -168,7 +184,7 @@ public abstract class TransportVersionResourcesService implements BuildService<T
         return changedResources.get();
     }
 
-    // Read a trasnport version resource from the main branch, or return null if it doesn't exist on main
+    // Read a transport version resource from the main branch, or return null if it doesn't exist on main
     private <T> T getMainFile(String resourcePath, BiFunction<String, String, T> parser) {
         if (getMainResources().contains(resourcePath) == false) {
             return null;

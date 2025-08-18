@@ -17,6 +17,7 @@ public class MvFunctionWritables {
             MvAppend.ENTRY,
             MvAvg.ENTRY,
             MvConcat.ENTRY,
+            MvContainsAll.ENTRY,
             MvCount.ENTRY,
             MvDedupe.ENTRY,
             MvFirst.ENTRY,

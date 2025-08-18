@@ -120,6 +120,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.math.Sqrt;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Tan;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Tanh;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Tau;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvContainsAll;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvAppend;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvAvg;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvConcat;
@@ -449,6 +450,7 @@ public class EsqlFunctionRegistry {
                 def(MvAppend.class, MvAppend::new, "mv_append"),
                 def(MvAvg.class, MvAvg::new, "mv_avg"),
                 def(MvConcat.class, MvConcat::new, "mv_concat"),
+                def(MvContainsAll.class, MvContainsAll::new, "mv_contains_all"),
                 def(MvCount.class, MvCount::new, "mv_count"),
                 def(MvDedupe.class, MvDedupe::new, "mv_dedupe"),
                 def(MvFirst.class, MvFirst::new, "mv_first"),

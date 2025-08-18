@@ -1931,6 +1931,47 @@ l1:integer | l2:integer
 null       | 0
 ;
 
+mvAny#[skip:-9.2.99,reason:new base64 function added in 9.3]
+// tag::mv_contains_all[]
+ROW a = "a", b = ["a", "b", "c"]
+| EVAL a_subset_of_b = mv_contains_all(b, a)
+// end::mv_contains_all[]
+;
+
+// tag::mv_contains_all-result[]
+a:keyword | b:keyword | a_subset_of_b:boolean 
+a         | [a, b, c]    | true         
+// end::mv_contains_all-result[]
+;
+
+mvAny_bothsides#[skip:-9.2.99,reason:new base64 function added in 9.3]
+// tag::mv_contains_all_bothsides[]
+ROW a = ["a","c"], b = ["a", "b", "c"]
+| EVAL a_subset_of_b = mv_contains_all(b, a)
+// end::mv_contains_all_bothsides[]
+;
+
+// tag::mv_contains_all_bothsides-result[]
+a:keyword | b:keyword | a_subset_of_b:boolean 
+[a, c]    | [a, b, c] | true   
+// end::mv_contains_all_bothsides-result[]
+;
+
+mvAnyCombinations#[skip:-9.2.99,reason:new base64 function added in 9.3]
+
+ROW a = "a", b = ["a", "b", "c"], n = null
+| EVAL aa = mv_contains_all(a, a), 
+       bb = mv_contains_all(b, b), 
+       ab = mv_contains_all(a, b), 
+       ba = mv_contains_all(b,a), 
+       na = mv_contains_all(n, a), 
+       an = mv_contains_all(a, n), 
+       nn = mv_contains_all(n,n)
+;
+
+a:keyword | b:keyword | n:null | aa:boolean | bb:boolean   | ab:boolean | ba:boolean | na:boolean | an:boolean | nn:boolean
+a         | [a, b, c] | null   | true       | true         | false      | true       | null       | null      | null
+;
 
 mvAppend
 required_capability: fn_mv_append

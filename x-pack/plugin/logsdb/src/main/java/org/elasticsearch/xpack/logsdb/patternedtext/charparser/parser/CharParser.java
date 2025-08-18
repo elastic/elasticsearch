@@ -7,19 +7,19 @@
 
 package org.elasticsearch.xpack.logsdb.patternedtext.charparser.parser;
 
-import org.elasticsearch.xpack.logsdb.patternedtext.charparser.api.DataLossParseException;
-import org.elasticsearch.xpack.logsdb.patternedtext.charparser.api.ParseException;
-import org.elasticsearch.xpack.logsdb.patternedtext.charparser.api.Parser;
-import org.elasticsearch.xpack.logsdb.patternedtext.charparser.common.EncodingType;
-import org.elasticsearch.xpack.logsdb.patternedtext.charparser.compiler.CompiledSchema;
 import org.elasticsearch.xpack.logsdb.patternedtext.charparser.api.Argument;
+import org.elasticsearch.xpack.logsdb.patternedtext.charparser.api.DataLossParseException;
 import org.elasticsearch.xpack.logsdb.patternedtext.charparser.api.HexadecimalArgument;
 import org.elasticsearch.xpack.logsdb.patternedtext.charparser.api.IPv4Argument;
 import org.elasticsearch.xpack.logsdb.patternedtext.charparser.api.IntegerArgument;
 import org.elasticsearch.xpack.logsdb.patternedtext.charparser.api.KeywordArgument;
+import org.elasticsearch.xpack.logsdb.patternedtext.charparser.api.ParseException;
+import org.elasticsearch.xpack.logsdb.patternedtext.charparser.api.Parser;
 import org.elasticsearch.xpack.logsdb.patternedtext.charparser.api.PatternedMessage;
 import org.elasticsearch.xpack.logsdb.patternedtext.charparser.api.Timestamp;
 import org.elasticsearch.xpack.logsdb.patternedtext.charparser.api.UUIDArgument;
+import org.elasticsearch.xpack.logsdb.patternedtext.charparser.common.EncodingType;
+import org.elasticsearch.xpack.logsdb.patternedtext.charparser.compiler.CompiledSchema;
 
 import java.util.ArrayList;
 import java.util.List;

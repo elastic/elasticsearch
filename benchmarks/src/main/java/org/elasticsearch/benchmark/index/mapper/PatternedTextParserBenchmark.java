@@ -9,12 +9,12 @@
 
 package org.elasticsearch.benchmark.index.mapper;
 
-import org.elasticsearch.xpack.logsdb.patternedtext.charparser.api.Parser;
-import org.elasticsearch.xpack.logsdb.patternedtext.charparser.api.ParseException;
-import org.elasticsearch.xpack.logsdb.patternedtext.charparser.api.ParserFactory;
 import org.elasticsearch.xpack.logsdb.patternedtext.charparser.api.Argument;
 import org.elasticsearch.xpack.logsdb.patternedtext.charparser.api.IPv4Argument;
 import org.elasticsearch.xpack.logsdb.patternedtext.charparser.api.IntegerArgument;
+import org.elasticsearch.xpack.logsdb.patternedtext.charparser.api.ParseException;
+import org.elasticsearch.xpack.logsdb.patternedtext.charparser.api.Parser;
+import org.elasticsearch.xpack.logsdb.patternedtext.charparser.api.ParserFactory;
 import org.elasticsearch.xpack.logsdb.patternedtext.charparser.api.PatternedMessage;
 import org.elasticsearch.xpack.logsdb.patternedtext.charparser.api.Timestamp;
 import org.openjdk.jmh.annotations.Benchmark;

@@ -45,7 +45,7 @@ public class Rate$Type$Aggregator {
         return new $Type$RateGroupingState(driverContext.bigArrays(), driverContext.breaker());
     }
 
-    public static void combine($Type$RateGroupingState current, int groupId, long timestamp, $type$ value) {
+    public static void combine($Type$RateGroupingState current, int groupId, $type$ value, long timestamp) {
         current.append(groupId, timestamp, value);
     }
 

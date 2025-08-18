@@ -1,6 +1,0 @@
-pr: 132260
-summary: FIx Driver creating status with a live list of operators
-area: ES|QL
-type: bug
-issues:
- - 131564

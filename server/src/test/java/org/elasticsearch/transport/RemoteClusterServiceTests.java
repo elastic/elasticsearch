@@ -52,6 +52,7 @@ import java.util.function.BiFunction;
 import static org.elasticsearch.test.MockLog.assertThatLogger;
 import static org.elasticsearch.test.NodeRoles.masterOnlyNode;
 import static org.elasticsearch.test.NodeRoles.nonMasterNode;
+import static org.elasticsearch.test.NodeRoles.onlyRole;
 import static org.elasticsearch.test.NodeRoles.onlyRoles;
 import static org.elasticsearch.test.NodeRoles.removeRoles;
 import static org.hamcrest.Matchers.containsString;
@@ -441,7 +442,7 @@ public class RemoteClusterServiceTests extends ESTestCase {
             Sets.newHashSet(DiscoveryNodeRole.DATA_ROLE)
         );
         try (RemoteClusterService service = new RemoteClusterService(settings, null)) {
-            assertFalse(service.isEnabled());
+            expectThrows(IllegalArgumentException.class, service::ensureClientIsEnabled);
             assertFalse(hasRegisteredClusters(service));
             final IllegalArgumentException error = expectThrows(
                 IllegalArgumentException.class,
@@ -1383,7 +1384,10 @@ public class RemoteClusterServiceTests extends ESTestCase {
     }
 
     public void testRemoteClusterServiceNotEnabledGetRemoteClusterConnection() {
-        final Settings settings = removeRoles(Set.of(DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE));
+        final Settings settings = Settings.builder()
+            .put(removeRoles(Set.of(DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE)))
+            .put(Node.NODE_NAME_SETTING.getKey(), "node-1")
+            .build();
         try (
             MockTransportService service = MockTransportService.createNewService(
                 settings,
@@ -1399,12 +1403,81 @@ public class RemoteClusterServiceTests extends ESTestCase {
                 IllegalArgumentException.class,
                 () -> service.getRemoteClusterService().getRemoteClusterConnection("test")
             );
-            assertThat(e.getMessage(), equalTo("this node does not have the remote_cluster_client role"));
+            assertThat(e.getMessage(), equalTo("node [node-1] does not have the [remote_cluster_client] role"));
+        }
+    }
+
+    public void testRemoteClusterServiceEnsureClientIsEnabled() throws IOException {
+        final var nodeNameSettings = Settings.builder().put(Node.NODE_NAME_SETTING.getKey(), "node-1").build();
+
+        // Shouldn't throw when the remote cluster client role is enabled.
+        final var settingsWithRemoteClusterClientRole = Settings.builder()
+            .put(nodeNameSettings)
+            .put(onlyRole(DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE))
+            .build();
+        try (RemoteClusterService service = new RemoteClusterService(settingsWithRemoteClusterClientRole, null)) {
+            service.ensureClientIsEnabled();
+        }
+
+        // Expect throws when missing the remote cluster client role.
+        final var settingsWithoutRemoteClusterClientRole = Settings.builder()
+            .put(nodeNameSettings)
+            .put(removeRoles(Set.of(DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE)))
+            .build();
+        try (RemoteClusterService service = new RemoteClusterService(settingsWithoutRemoteClusterClientRole, null)) {
+            final var exception = expectThrows(IllegalArgumentException.class, service::ensureClientIsEnabled);
+            assertThat(exception.getMessage(), equalTo("node [node-1] does not have the [remote_cluster_client] role"));
+        }
+
+        // Expect throws when missing both the remote cluster client role and search node role when stateless is enabled.
+        final var statelessEnabledSettingsOnNonSearchNode = Settings.builder()
+            .put(nodeNameSettings)
+            .put(onlyRole(DiscoveryNodeRole.INDEX_ROLE))
+            .put(DiscoveryNode.STATELESS_ENABLED_SETTING_NAME, true)
+            .build();
+        try (RemoteClusterService service = new RemoteClusterService(statelessEnabledSettingsOnNonSearchNode, null)) {
+            final var exception = expectThrows(IllegalArgumentException.class, service::ensureClientIsEnabled);
+            assertThat(
+                exception.getMessage(),
+                equalTo(
+                    "node [node-1] must have the [remote_cluster_client] role or the [search] role "
+                        + "in stateless environments to use linked project client features"
+                )
+            );
+        }
+
+        // Shouldn't throw when stateless is enabled on a search node, or a node with remote cluster client role, or both.
+        final var statelessEnabledOnSearchNodeSettings = Settings.builder()
+            .put(nodeNameSettings)
+            .put(onlyRole(DiscoveryNodeRole.SEARCH_ROLE))
+            .put(DiscoveryNode.STATELESS_ENABLED_SETTING_NAME, true)
+            .build();
+        try (RemoteClusterService service = new RemoteClusterService(statelessEnabledOnSearchNodeSettings, null)) {
+            service.ensureClientIsEnabled();
+        }
+        final var statelessEnabledOnRemoteClusterClientSettings = Settings.builder()
+            .put(nodeNameSettings)
+            .put(onlyRole(DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE))
+            .put(DiscoveryNode.STATELESS_ENABLED_SETTING_NAME, true)
+            .build();
+        try (RemoteClusterService service = new RemoteClusterService(statelessEnabledOnRemoteClusterClientSettings, null)) {
+            service.ensureClientIsEnabled();
+        }
+        final var statelessEnabledOnSearchNodeAndRemoteClusterClientSettings = Settings.builder()
+            .put(nodeNameSettings)
+            .put(onlyRoles(Set.of(DiscoveryNodeRole.SEARCH_ROLE, DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE)))
+            .put(DiscoveryNode.STATELESS_ENABLED_SETTING_NAME, true)
+            .build();
+        try (RemoteClusterService service = new RemoteClusterService(statelessEnabledOnSearchNodeAndRemoteClusterClientSettings, null)) {
+            service.ensureClientIsEnabled();
         }
     }
 
     public void testRemoteClusterServiceNotEnabledGetCollectNodes() {
-        final Settings settings = removeRoles(Set.of(DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE));
+        final Settings settings = Settings.builder()
+            .put(removeRoles(Set.of(DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE)))
+            .put(Node.NODE_NAME_SETTING.getKey(), "node-1")
+            .build();
         try (
             MockTransportService service = MockTransportService.createNewService(
                 settings,
@@ -1420,7 +1493,7 @@ public class RemoteClusterServiceTests extends ESTestCase {
                 IllegalArgumentException.class,
                 () -> service.getRemoteClusterService().collectNodes(Set.of(), ActionListener.noop())
             );
-            assertThat(e.getMessage(), equalTo("this node does not have the remote_cluster_client role"));
+            assertThat(e.getMessage(), equalTo("node [node-1] does not have the [remote_cluster_client] role"));
         }
     }
 

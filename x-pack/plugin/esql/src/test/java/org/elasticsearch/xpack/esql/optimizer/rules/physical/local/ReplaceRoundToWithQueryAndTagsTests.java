@@ -76,13 +76,13 @@ public class ReplaceRoundToWithQueryAndTagsTests extends LocalPhysicalPlanOptimi
 
     private static final Map<String, List<Object>> roundToAllTypes = new HashMap<>(
         Map.ofEntries(
-            Map.entry("byte", List.of(1, 2, 3, 4)),
-            Map.entry("short", List.of(1, 2, 3, 4)),
+            Map.entry("byte", List.of(2, 1, 3, 4)),
+            Map.entry("short", List.of(1, 3, 2, 4)),
             Map.entry("integer", List.of(1, 2, 3, 4)),
             Map.entry("long", List.of(1697760000000L, 1697846400000L, 1697932800000L, 1698019200000L)),
-            Map.entry("float", List.of(1.0, 2.0, 3.0, 4.0)),
-            Map.entry("half_float", List.of(1.0, 2.0, 3.0, 4.0)),
-            Map.entry("scaled_float", List.of(1.0, 2.0, 3.0, 4.0)),
+            Map.entry("float", List.of(3.0, 2.0, 1.0, 4.0)),
+            Map.entry("half_float", List.of(4.0, 2.0, 3.0, 1.0)),
+            Map.entry("scaled_float", List.of(4.0, 3.0, 2.0, 1.0)),
             Map.entry("double", List.of(1.0, 2.0, 3.0, 4.0)),
             Map.entry("date", List.of("\"2023-10-20\"::date", "\"2023-10-21\"::date", "\"2023-10-22\"::date", "\"2023-10-23\"::date")),
             Map.entry(
@@ -474,6 +474,8 @@ public class ReplaceRoundToWithQueryAndTagsTests extends LocalPhysicalPlanOptimi
     }
 
     private static List<List<Object>> numericBuckets(List<Object> roundingPoints) {
+        // sort the rounding points in ascending order
+        roundingPoints = roundingPoints.stream().sorted().collect(Collectors.toList());
         Object p1 = roundingPoints.get(0);
         Object p2 = roundingPoints.get(1);
         Object p3 = roundingPoints.get(2);

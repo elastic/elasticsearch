@@ -30,6 +30,7 @@ import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isFoldable;
@@ -39,6 +40,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
 import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
 import static org.elasticsearch.xpack.esql.core.type.DataType.UNSIGNED_LONG;
+import static org.elasticsearch.xpack.esql.core.type.DataTypeConverter.safeToLong;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.commonType;
 
 /**
@@ -181,7 +183,8 @@ public class RoundTo extends EsqlScalarFunction {
         ExpressionEvaluator.Factory field = toEvaluator.apply(field());
         field = Cast.cast(source(), field().dataType(), dataType, field);
         List<Object> points = Iterators.toList(Iterators.map(points().iterator(), p -> Foldables.valueOf(toEvaluator.foldCtx(), p)));
-        return build.build(source(), field, points);
+        List<Object> sortedPoints = sortedRoundingPoints(points, dataType); // provide sorted points to the evaluator
+        return build.build(source(), field, sortedPoints);
     }
 
     interface Build {
@@ -195,4 +198,19 @@ public class RoundTo extends EsqlScalarFunction {
         Map.entry(LONG, RoundToLong.BUILD),
         Map.entry(DOUBLE, RoundToDouble.BUILD)
     );
+
+    public static List<Object> sortedRoundingPoints(List<Object> points, DataType dataType) {
+        return points.stream().filter(Objects::nonNull).map(p -> switch (dataType) { // the types are in sync with SIGNATURES
+            case INTEGER -> ((Number) p).intValue();
+            case DOUBLE -> ((Number) p).doubleValue();
+            case LONG, DATETIME, DATE_NANOS -> safeToLong((Number) p);
+            default -> throw new IllegalArgumentException("Unsupported data type: " + dataType);
+        }).sorted((a, b) -> {
+            if (a instanceof Double || b instanceof Double) {
+                return Double.compare(a.doubleValue(), b.doubleValue());
+            } else {
+                return Long.compare(a.longValue(), b.longValue());
+            }
+        }).collect(java.util.stream.Collectors.toList());
+    }
 }

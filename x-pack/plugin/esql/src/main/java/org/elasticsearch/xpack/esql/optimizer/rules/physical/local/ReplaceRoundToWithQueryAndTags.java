@@ -31,7 +31,6 @@ import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 
 import java.time.ZoneId;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
@@ -339,20 +338,20 @@ public class ReplaceRoundToWithQueryAndTags extends PhysicalOptimizerRules.Param
         int count = roundingPoints.size();
         DataType dataType = roundTo.dataType();
         // sort rounding points
-        List<? extends Number> points = resolveRoundingPoints(dataType, roundingPoints);
+        List<Object> points = resolveRoundingPoints(roundingPoints, dataType);
         if (points.size() != count || points.isEmpty()) {
             return null;
         }
         List<EsQueryExec.QueryBuilderAndTags> queries = new ArrayList<>(count);
 
-        Number tag = points.get(0);
+        Object tag = points.get(0);
         if (points.size() == 1) { // if there is only one rounding point, just tag the main query
             EsQueryExec.QueryBuilderAndTags queryBuilderAndTags = tagOnlyBucket(queryExec, tag);
             queries.add(queryBuilderAndTags);
         } else {
             Source source = roundTo.source();
-            Number lower = null;
-            Number upper = null;
+            Object lower = null;
+            Object upper = null;
             Queries.Clause clause = queryExec.hasScoring() ? Queries.Clause.MUST : Queries.Clause.FILTER;
             ZoneId zoneId = ctx.configuration().zoneId();
             for (int i = 1; i < count; i++) {
@@ -370,46 +369,20 @@ public class ReplaceRoundToWithQueryAndTags extends PhysicalOptimizerRules.Param
         return queries;
     }
 
-    private static List<? extends Number> resolveRoundingPoints(DataType dataType, List<Expression> roundingPoints) {
-        return switch (dataType) {
-            case LONG, DATETIME, DATE_NANOS -> sortedLongRoundingPoints(roundingPoints);
-            case INTEGER -> sortedIntRoundingPoints(roundingPoints);
-            case DOUBLE -> sortedDoubleRoundingPoints(roundingPoints);
-            default -> List.of();
-        };
-    }
-
-    private static List<Long> sortedLongRoundingPoints(List<Expression> roundingPoints) {
-        List<Long> points = new ArrayList<>(roundingPoints.size());
+    private static List<Object> resolveRoundingPoints(List<Expression> roundingPoints, DataType dataType) {
+        List<Object> points = new ArrayList<>(roundingPoints.size());
         for (Expression e : roundingPoints) {
             if (e instanceof Literal l && l.value() instanceof Number n) {
-                points.add(safeToLong(n));
+                switch (dataType) {
+                    case INTEGER -> points.add(n.intValue());
+                    case LONG, DATETIME, DATE_NANOS -> points.add(safeToLong(n));
+                    case DOUBLE -> points.add(n.doubleValue());
+                    // this should not happen, as RoundTo type resolution will fail with the other data types
+                    default -> throw new IllegalArgumentException("Unsupported data type: " + dataType);
+                }
             }
         }
-        Collections.sort(points);
-        return points;
-    }
-
-    private static List<Integer> sortedIntRoundingPoints(List<Expression> roundingPoints) {
-        List<Integer> points = new ArrayList<>(roundingPoints.size());
-        for (Expression e : roundingPoints) {
-            if (e instanceof Literal l) {
-                points.add((Integer) l.value());
-            }
-        }
-        Collections.sort(points);
-        return points;
-    }
-
-    private static List<Double> sortedDoubleRoundingPoints(List<Expression> roundingPoints) {
-        List<Double> points = new ArrayList<>(roundingPoints.size());
-        for (Expression e : roundingPoints) {
-            if (e instanceof Literal l) {
-                points.add((Double) l.value());
-            }
-        }
-        Collections.sort(points);
-        return points;
+        return RoundTo.sortedRoundingPoints(points, dataType);
     }
 
     private static Expression createRangeExpression(

@@ -110,27 +110,6 @@ public class EsQueryExec extends LeafExec implements EstimatesRowSize {
         String indexPattern,
         IndexMode indexMode,
         Map<String, IndexMode> indexNameWithModes,
-        List<Attribute> attributes,
-        QueryBuilder query
-    ) {
-        this(
-            source,
-            indexPattern,
-            indexMode,
-            indexNameWithModes,
-            attributes,
-            null,
-            null,
-            null,
-            List.of(new QueryBuilderAndTags(query, List.of()))
-        );
-    }
-
-    public EsQueryExec(
-        Source source,
-        String indexPattern,
-        IndexMode indexMode,
-        Map<String, IndexMode> indexNameWithModes,
         List<Attribute> attrs,
         Expression limit,
         List<Sort> sorts,
@@ -201,7 +180,7 @@ public class EsQueryExec extends LeafExec implements EstimatesRowSize {
     }
 
     /**
-     * query is merged into queryBuilderAndTags, keep this method as it is called by too many places.
+     * query is merged into queryBuilderAndTags, keep this method as it is called by many many places in both tests and product code.
      * If this method is called, the caller looks for the original queryBuilder, before {@code ReplaceRoundToWithQueryAndTags} converts it
      * to multiple queries with tags.
      */

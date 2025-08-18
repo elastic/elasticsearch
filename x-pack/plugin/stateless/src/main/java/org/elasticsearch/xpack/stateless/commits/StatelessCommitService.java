@@ -1986,8 +1986,11 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             );
 
             var allSearchNodesRetainingCommits = getAllSearchNodesRetainingCommits();
-            // TODO (ES-9638): optCurrentRoutingNodesWithAssignedSearchShards.isEmpty() checks the Optional, not whether the set is empty.
-            if (allSearchNodesRetainingCommits.isEmpty() && optCurrentRoutingNodesWithAssignedSearchShards.isEmpty()) {
+            // If the optional shardRoutingTable is empty, i.e. null, the index is either still being created and just deleted.
+            // In both cases, we can short-circuit the notification and commit-in-use fetching. The short-circuiting updates
+            // uploadedGenerationNotified but otherwise is a noop. Commits of a deleted index will be released when `unregistered()`
+            // is called or when StaleIndicesGCService runs.
+            if (shardRoutingTable.isEmpty()) {
                 // No search nodes hold shard commit references.
                 // Initializing or deleting the index.
 
@@ -1995,6 +1998,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                 trackOutstandingUnpromotableShardCommitRef(Set.of(), blobReference);
                 lastNewCommitNotificationSentTimestamp = threadPool.relativeTimeInMillis();
 
+                // Other than updating uploadedGenerationNotified, this is effectively a noop as well.
                 onNewUploadedCommitNotificationResponse(
                     Set.of(),
                     uploadedBcc.primaryTermAndGeneration().generation(),
@@ -2023,7 +2027,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             assert currentRoutingNodesWithAssignedSearchShards.containsAll(initializingShardNodeIds);
 
             statelessCommitNotificationPublisher.sendNewUploadedCommitNotificationAndFetchInUseCommits(
-                shardRoutingTable.isPresent() ? shardRoutingTable.get() : null,
+                shardRoutingTable.get(),
                 currentRoutingNodesWithAssignedSearchShards,
                 allSearchNodesRetainingCommits,
                 uploadedBcc,

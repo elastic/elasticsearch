@@ -3,8 +3,8 @@
 **Parameters**
 
 `left`
-:   first dense_vector to calculate hamming distance between
+:   First dense_vector to use to calculate the Hamming distance
 
 `right`
-:   second dense_vector to calculate hamming distance between
+:   Second dense_vector to use to calculate the Hamming distance
 

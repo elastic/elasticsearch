@@ -2,5 +2,5 @@
 
 **Description**
 
-Calculates the hamming distance between two dense_vectors.
+Calculates the Hamming distance between two dense vectors.
 

@@ -10,15 +10,15 @@
 
 | color:text | similarity:double |
 | --- | --- |
-| cyan | 1.0 |
-| azure | 0.8333333134651184 |
-| blue | 0.6666666865348816 |
-| honeydew | 0.6666666865348816 |
-| lime | 0.6666666865348816 |
-| mint cream | 0.6666666865348816 |
-| white | 0.6666666865348816 |
-| thistle | 0.625 |
-| lavender | 0.5833333134651184 |
-| aqua marine | 0.5416666865348816 |
+| red | 24.0 |
+| orange | 20.0 |
+| gold | 18.0 |
+| indigo | 18.0 |
+| bisque | 17.0 |
+| maroon | 17.0 |
+| pink | 17.0 |
+| salmon | 17.0 |
+| black | 16.0 |
+| firebrick | 16.0 |
 
 

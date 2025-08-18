@@ -39,12 +39,12 @@ public class Hamming extends VectorSimilarityFunction {
         @Param(
             name = "left",
             type = { "dense_vector" },
-            description = "first dense_vector to calculate hamming distance between"
+            description = "First dense_vector to use to calculate the Hamming distance"
         ) Expression left,
         @Param(
             name = "right",
             type = { "dense_vector" },
-            description = "second dense_vector to calculate hamming distance between"
+            description = "Second dense_vector to use to calculate the Hamming distance"
         ) Expression right
     ) {
         super(source, left, right);
@@ -83,6 +83,6 @@ public class Hamming extends VectorSimilarityFunction {
         for (int i = 0; i < leftScratch.length; i++) {
             b[i] = (byte) rightScratch[i];
         }
-        return ((a.length * Byte.SIZE) - VectorUtil.xorBitCount(a, b)) / (float) (a.length * Byte.SIZE);
+        return VectorUtil.xorBitCount(a, b);
     }
 }

@@ -535,7 +535,7 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
         );
     }
 
-    public void testTargetIncludeIndices() throws Exception {
+    public void testIncludeIndices() throws Exception {
         populateIndices();
         FieldCapabilitiesRequest request = new FieldCapabilitiesRequest();
         request.indices("index-*");
@@ -564,7 +564,7 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
 
     }
 
-    public void testTargetDefaultIndices() throws Exception {
+    public void testDefaultIncludeIndices() throws Exception {
         populateIndices();
         FieldCapabilitiesRequest request = new FieldCapabilitiesRequest();
         request.indices("index-*");

@@ -216,7 +216,7 @@ public abstract class GenerateTransportVersionDefinitionTask extends DefaultTask
         String namedDefinitionsBasePath = TransportVersionUtils.getResourcePath(getResourcesProjectDir().get(), "definitions/named/");
         for (String changedResource : getChangedResources(namedDefinitionsBasePath)) {
             String definitionName = changedResource.substring(
-                changedResource.lastIndexOf(File.pathSeparator) + 1,
+                changedResource.lastIndexOf(File.separator) + 1,
                 changedResource.length() - 4 /* .csv */
             );
             changedDefinitionNames.add(definitionName);

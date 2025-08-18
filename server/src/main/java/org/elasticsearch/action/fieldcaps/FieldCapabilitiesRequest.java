@@ -53,6 +53,7 @@ public final class FieldCapabilitiesRequest extends LegacyActionRequest implemen
     private String[] types = Strings.EMPTY_ARRAY;
     private boolean includeUnmapped = false;
     private boolean includeEmptyFields = true;
+    private boolean includeIndices = false;
     // pkg private API mainly for cross cluster search to signal that we do multiple reductions ie. the results should not be merged
     private boolean mergeResults = true;
     private QueryBuilder indexFilter;
@@ -208,6 +209,11 @@ public final class FieldCapabilitiesRequest extends LegacyActionRequest implemen
         return this;
     }
 
+    public FieldCapabilitiesRequest includeIndices(boolean includeIndices) {
+        this.includeIndices = includeIndices;
+        return this;
+    }
+
     @Override
     public String[] indices() {
         return indices;
@@ -230,6 +236,10 @@ public final class FieldCapabilitiesRequest extends LegacyActionRequest implemen
 
     public boolean includeUnmapped() {
         return includeUnmapped;
+    }
+
+    public boolean includeIndices() {
+        return includeIndices;
     }
 
     public boolean includeEmptyFields() {

@@ -56,9 +56,9 @@ import static org.elasticsearch.xpack.esql.common.Failure.fail;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isNotNull;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isString;
-import static org.elasticsearch.xpack.esql.expression.function.FunctionUtils.TypeResolutionValidator.forPostOptimizationValidation;
-import static org.elasticsearch.xpack.esql.expression.function.FunctionUtils.TypeResolutionValidator.forPreOptimizationValidation;
-import static org.elasticsearch.xpack.esql.expression.function.FunctionUtils.resolveTypeQuery;
+import static org.elasticsearch.xpack.esql.expression.Foldables.TypeResolutionValidator.forPostOptimizationValidation;
+import static org.elasticsearch.xpack.esql.expression.Foldables.TypeResolutionValidator.forPreOptimizationValidation;
+import static org.elasticsearch.xpack.esql.expression.Foldables.resolveTypeQuery;
 
 /**
  * Base class for full-text functions that use ES queries to match documents.

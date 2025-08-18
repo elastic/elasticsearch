@@ -67,8 +67,8 @@ public class DateTrunc extends EsqlScalarFunction {
             @Example(file = "date", tag = "docsDateTrunc"),
             @Example(
                 description = "Combine `DATE_TRUNC` with [`STATS`](/reference/query-languages/esql/commands/stats-by.md) "
-                    + "to create date histograms."
-                    + "/n For example, the number of hires per year:",
+                    + "to create date histograms. "
+                    + "For example, the number of hires per year:",
                 file = "date",
                 tag = "docsDateTruncHistogram"
             ),

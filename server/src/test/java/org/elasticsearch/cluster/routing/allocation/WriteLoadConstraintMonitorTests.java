@@ -407,7 +407,7 @@ public class WriteLoadConstraintMonitorTests extends ESTestCase {
                         tpStats -> new NodeUsageStatsForThreadPools.ThreadPoolUsageStats(
                             tpStats.totalThreadPoolThreads(),
                             tpStats.averageThreadPoolUtilization(),
-                            testState.latencyThresholdMillis + 1000
+                            testState.latencyThresholdMillis + randomLongBetween(1, 100_000)
                         )
                     )
                 );

@@ -197,7 +197,7 @@ public class ExtractSnippets extends EsqlScalarFunction implements OptionalArgum
 
     @Override
     protected NodeInfo<? extends Expression> info() {
-        return NodeInfo.create(this, ExtractSnippets::new, field, str, numSnippets, snippetLength);
+        return NodeInfo.create(this, ExtractSnippets::new, field, str, numSnippets, snippetLength, queryBuilder);
     }
 
     @Override

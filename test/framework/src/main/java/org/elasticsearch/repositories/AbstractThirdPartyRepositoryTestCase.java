@@ -346,7 +346,7 @@ public abstract class AbstractThirdPartyRepositoryTestCase extends ESSingleNodeT
         }
     }
 
-    public void testFailIfAlreadyExists() throws IOException {
+    public void testFailIfAlreadyExists() {
         final var blobName = randomIdentifier();
         final int blobLength = randomIntBetween(100, 2_000);
         final var initialBlobBytes = randomBytesReference(blobLength);
@@ -354,11 +354,31 @@ public abstract class AbstractThirdPartyRepositoryTestCase extends ESSingleNodeT
 
         final var repository = getRepository();
 
-        // initial write blob
-        executeOnBlobStore(repository, blobStore -> {
-            blobStore.writeBlob(randomPurpose(), blobName, initialBlobBytes, true);
+        CheckedFunction<BlobContainer, Void, IOException> initialWrite = blobStore -> {
+            blobStore.writeBlobAtomic(randomPurpose(), blobName, initialBlobBytes, true);
             return null;
-        });
+        };
+
+        // initial write blob
+        var initialWrite1 = submitOnBlobStore(repository, initialWrite);
+        var initialWrite2 = submitOnBlobStore(repository, initialWrite);
+
+        Exception ex1 = null;
+        Exception ex2 = null;
+
+        try {
+            initialWrite1.actionGet();
+        } catch (Exception e) {
+            ex1 = e;
+        }
+
+        try {
+            initialWrite2.actionGet();
+        } catch (Exception e) {
+            ex2 = e;
+        }
+
+        assertTrue("Exactly one of the writes must fail", ex1 != null ^ ex2 != null);
 
         // override if failIfAlreadyExists is set to false
         executeOnBlobStore(repository, blobStore -> {
@@ -410,12 +430,20 @@ public abstract class AbstractThirdPartyRepositoryTestCase extends ESSingleNodeT
         assertThat(responseCodeChecker.test(rangeNotSatisfiedException), is(true));
     }
 
-    protected static <T> T executeOnBlobStore(BlobStoreRepository repository, CheckedFunction<BlobContainer, T, IOException> fn) {
+    protected static <T> PlainActionFuture<T> submitOnBlobStore(
+        BlobStoreRepository repository,
+        CheckedFunction<BlobContainer, T, IOException> fn
+    ) {
         final var future = new PlainActionFuture<T>();
         repository.threadPool().generic().execute(ActionRunnable.supply(future, () -> {
             var blobContainer = repository.blobStore().blobContainer(repository.basePath());
             return fn.apply(blobContainer);
         }));
+        return future;
+    }
+
+    protected static <T> T executeOnBlobStore(BlobStoreRepository repository, CheckedFunction<BlobContainer, T, IOException> fn) {
+        final var future = submitOnBlobStore(repository, fn);
         return future.actionGet();
     }
 

@@ -40,8 +40,7 @@ public final class PullUpOrderByBeforeInlineJoin extends OptimizerRules.Optimize
             });
             OrderBy orderBy = orderByHolder.get();
             if (orderBy != null) {
-                LogicalPlan newInlineJoin = inlineJoin.transformUp(OrderBy.class, ob -> ob == orderBy ? orderBy.child() : ob);
-                return new OrderBy(orderBy.source(), newInlineJoin, orderBy.order());
+                return orderBy.replaceChild(inlineJoin.transformUp(OrderBy.class, ob -> ob == orderBy ? orderBy.child() : ob));
             }
         }
         return plan;

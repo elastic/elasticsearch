@@ -31,6 +31,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.query.RangeQueryBuilder;
@@ -447,6 +448,7 @@ public class TransportSearchIT extends ESIntegTestCase {
         );
     }
 
+    @SuppressForbidden(reason = "testing")
     @Repeat(iterations = 100)
     public void testCircuitBreakerReduceFail() throws Exception {
         int numShards = randomIntBetween(1, 10);

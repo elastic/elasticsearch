@@ -4,7 +4,7 @@ mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/esql-commands.html#esql-completion
 ---
 
-# `COMPLETION` processing command [esql-completion]
+# `COMPLETION` [esql-completion]
 
 :::{include} ../_snippets/commands/layout/completion.md
 :::

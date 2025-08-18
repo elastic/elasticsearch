@@ -4,7 +4,7 @@ mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/esql-commands.html#esql-keep
 ---
 
-# `KEEP` processing command [esql-keep]
+# `KEEP` [esql-keep]
 
 :::{include} ../_snippets/commands/layout/keep.md
 :::

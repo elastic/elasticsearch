@@ -44,7 +44,7 @@ import javax.xml.xpath.XPathFactory;
  * - XPath extraction with namespace support
  * - Configurable options: force_array, force_content, remove_namespaces, to_lower
  * - Strict parsing mode for XML validation
- * - Empty value filtering with ignore_empty_value option
+ * - Empty value filtering with remove_empty_values option
  * - Logstash-compatible error handling and behavior
  */
 public final class XmlProcessor extends AbstractProcessor {
@@ -71,7 +71,7 @@ public final class XmlProcessor extends AbstractProcessor {
     private final boolean ignoreMissing;
     private final boolean ignoreFailure;
     private final boolean toLower;
-    private final boolean ignoreEmptyValue;
+    private final boolean removeEmptyValues;
     private final boolean storeXml;
     private final boolean removeNamespaces;
     private final boolean forceContent;
@@ -89,7 +89,7 @@ public final class XmlProcessor extends AbstractProcessor {
         boolean ignoreMissing,
         boolean ignoreFailure,
         boolean toLower,
-        boolean ignoreEmptyValue,
+        boolean removeEmptyValues,
         boolean storeXml,
         boolean removeNamespaces,
         boolean forceContent,
@@ -104,7 +104,7 @@ public final class XmlProcessor extends AbstractProcessor {
         this.ignoreMissing = ignoreMissing;
         this.ignoreFailure = ignoreFailure;
         this.toLower = toLower;
-        this.ignoreEmptyValue = ignoreEmptyValue;
+        this.removeEmptyValues = removeEmptyValues;
         this.storeXml = storeXml;
         this.removeNamespaces = removeNamespaces;
         this.forceContent = forceContent;
@@ -127,8 +127,8 @@ public final class XmlProcessor extends AbstractProcessor {
         return ignoreMissing;
     }
 
-    public boolean isIgnoreEmptyValue() {
-        return ignoreEmptyValue;
+    public boolean isRemoveEmptyValues() {
+        return removeEmptyValues;
     }
 
     public boolean isStoreXml() {
@@ -206,7 +206,7 @@ public final class XmlProcessor extends AbstractProcessor {
 
     /**
      * Determines if a value should be considered empty for filtering purposes.
-     * Used by the ignore_empty_value feature to filter out empty content.
+     * Used by the remove_empty_values feature to filter out empty content.
      *
      * Considers empty:
      * - null values
@@ -432,7 +432,7 @@ public final class XmlProcessor extends AbstractProcessor {
             boolean ignoreMissing = ConfigurationUtils.readBooleanProperty(TYPE, processorTag, config, "ignore_missing", false);
             boolean ignoreFailure = ConfigurationUtils.readBooleanProperty(TYPE, processorTag, config, "ignore_failure", false);
             boolean toLower = ConfigurationUtils.readBooleanProperty(TYPE, processorTag, config, "to_lower", false);
-            boolean ignoreEmptyValue = ConfigurationUtils.readBooleanProperty(TYPE, processorTag, config, "ignore_empty_value", false);
+            boolean removeEmptyValues = ConfigurationUtils.readBooleanProperty(TYPE, processorTag, config, "remove_empty_values", false);
             boolean storeXml = ConfigurationUtils.readBooleanProperty(TYPE, processorTag, config, "store_xml", true);
             boolean removeNamespaces = ConfigurationUtils.readBooleanProperty(TYPE, processorTag, config, "remove_namespaces", false);
             boolean forceContent = ConfigurationUtils.readBooleanProperty(TYPE, processorTag, config, "force_content", false);
@@ -502,7 +502,7 @@ public final class XmlProcessor extends AbstractProcessor {
                 ignoreMissing,
                 ignoreFailure,
                 toLower,
-                ignoreEmptyValue,
+                removeEmptyValues,
                 storeXml,
                 removeNamespaces,
                 forceContent,
@@ -628,8 +628,8 @@ public final class XmlProcessor extends AbstractProcessor {
                 String attrName = getAttributeName(attributes.getURI(i), attributes.getLocalName(i), attributes.getQName(i));
                 String attrValue = attributes.getValue(i);
 
-                // Apply ignoreEmptyValue filtering to attributes
-                if (ignoreEmptyValue == false || isEmptyValue(attrValue) == false) {
+                // Apply removeEmptyValues filtering to attributes
+                if (removeEmptyValues == false || isEmptyValue(attrValue) == false) {
                     element.put(attrName, attrValue);
                 }
             }
@@ -683,7 +683,7 @@ public final class XmlProcessor extends AbstractProcessor {
             // Add to DOM text node if needed
             if (buildDom && !domElementStack.isEmpty()) {
                 String text = new String(ch, start, length);
-                if (!text.trim().isEmpty() || !ignoreEmptyValue) {
+                if (!text.trim().isEmpty() || !removeEmptyValues) {
                     org.w3c.dom.Text textNode = domDocument.createTextNode(text);
                     domElementStack.peek().appendChild(textNode);
                 }
@@ -705,7 +705,7 @@ public final class XmlProcessor extends AbstractProcessor {
             // Add repeated elements as arrays
             for (Map.Entry<String, List<Object>> entry : repeatedElements.entrySet()) {
                 List<Object> values = entry.getValue();
-                if (ignoreEmptyValue == false || values.isEmpty() == false) {
+                if (removeEmptyValues == false || values.isEmpty() == false) {
                     element.put(entry.getKey(), values);
                 }
             }
@@ -718,7 +718,7 @@ public final class XmlProcessor extends AbstractProcessor {
             Object elementValue;
             if (hasText == false && hasChildren == false) {
                 // Empty element
-                if (ignoreEmptyValue == false) {
+                if (removeEmptyValues == false) {
                     elementValue = applyForceArray(elementName, null);
                 } else {
                     elementValue = null;
@@ -727,12 +727,12 @@ public final class XmlProcessor extends AbstractProcessor {
                 // Only text content
                 if (forceContent) {
                     Map<String, Object> contentMap = new HashMap<>();
-                    if (ignoreEmptyValue == false || isEmptyValue(trimmedText) == false) {
+                    if (removeEmptyValues == false || isEmptyValue(trimmedText) == false) {
                         contentMap.put("#text", trimmedText);
                     }
                     elementValue = contentMap;
                 } else {
-                    if (ignoreEmptyValue && isEmptyValue(trimmedText)) {
+                    if (removeEmptyValues && isEmptyValue(trimmedText)) {
                         elementValue = null;
                     } else {
                         elementValue = trimmedText;
@@ -744,7 +744,7 @@ public final class XmlProcessor extends AbstractProcessor {
                 elementValue = (forceArray && forceContent) ? applyForceArray(elementName, element) : element;
             } else {
                 // Both text and children/attributes
-                if (ignoreEmptyValue == false || isEmptyValue(trimmedText) == false) {
+                if (removeEmptyValues == false || isEmptyValue(trimmedText) == false) {
                     element.put("#text", trimmedText);
                 }
                 elementValue = (forceArray && forceContent) ? applyForceArray(elementName, element) : element;

@@ -140,8 +140,8 @@ public class XmlProcessorFactoryTests extends ESTestCase {
                 case "to_lower":
                     config.put("to_lower", true);
                     break;
-                case "ignore_empty_value":
-                    config.put("ignore_empty_value", true);
+                case "remove_empty_values":
+                    config.put("remove_empty_values", true);
                     break;
                 case "store_xml":
                     config.put("store_xml", false); // Test false case since default is true
@@ -186,14 +186,14 @@ public class XmlProcessorFactoryTests extends ESTestCase {
         config.put("ignore_missing", true);
         config.put("ignore_failure", true);
         config.put("to_lower", true);
-        config.put("ignore_empty_value", true);
+        config.put("remove_empty_values", true);
 
         XmlProcessor processor = createProcessor(config);
 
         assertThat(processor.getField(), equalTo(DEFAULT_FIELD));
         assertThat(processor.getTargetField(), equalTo(DEFAULT_TARGET_FIELD));
         assertThat(processor.isIgnoreMissing(), equalTo(true));
-        assertThat(processor.isIgnoreEmptyValue(), equalTo(true));
+        assertThat(processor.isRemoveEmptyValues(), equalTo(true));
     }
 
     public void testCreateWithDefaults() throws Exception {
@@ -203,7 +203,7 @@ public class XmlProcessorFactoryTests extends ESTestCase {
         assertThat(processor.getField(), equalTo(DEFAULT_FIELD));
         assertThat(processor.getTargetField(), equalTo(DEFAULT_FIELD));
         assertThat(processor.isIgnoreMissing(), equalTo(false));
-        assertThat(processor.isIgnoreEmptyValue(), equalTo(false));
+        assertThat(processor.isRemoveEmptyValues(), equalTo(false));
     }
 
     public void testCreateMissingField() throws Exception {
@@ -211,14 +211,14 @@ public class XmlProcessorFactoryTests extends ESTestCase {
         expectCreationFailure(config, ElasticsearchParseException.class, "[field] required property is missing");
     }
 
-    public void testCreateWithIgnoreEmptyValueOnly() throws Exception {
+    public void testCreateWithRemoveEmptyValuesOnly() throws Exception {
         Map<String, Object> config = createBaseConfig();
-        config.put("ignore_empty_value", true);
+        config.put("remove_empty_values", true);
 
         XmlProcessor processor = createProcessor(config);
 
         assertThat(processor.getField(), equalTo(DEFAULT_FIELD));
-        assertThat(processor.isIgnoreEmptyValue(), equalTo(true));
+        assertThat(processor.isRemoveEmptyValues(), equalTo(true));
         assertThat(processor.isIgnoreMissing(), equalTo(false)); // other flags should remain default
     }
 

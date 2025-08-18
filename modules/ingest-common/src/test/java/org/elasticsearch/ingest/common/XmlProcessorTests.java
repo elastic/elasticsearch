@@ -475,9 +475,9 @@ public class XmlProcessorTests extends ESTestCase {
     }
 
     /**
-     * Test that ignore_empty_value correctly filters out empty values from arrays and mixed content.
+     * Test that remove_empty_values correctly filters out empty values from arrays and mixed content.
      */
-    public void testIgnoreEmptyValue() {
+    public void testRemoveEmptyValues() {
         // XML with mixed empty and non-empty elements, including array elements with mixed empty/non-empty values
         String xml = "<root>"
             + "  <empty></empty>"
@@ -495,7 +495,7 @@ public class XmlProcessorTests extends ESTestCase {
             + "</root>";
 
         Map<String, Object> config = new HashMap<>();
-        config.put("ignore_empty_value", true);
+        config.put("remove_empty_values", true);
         XmlProcessor processor = createTestProcessor(config);
 
         IngestDocument ingestDocument = createTestIngestDocument(xml);

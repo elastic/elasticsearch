@@ -18,7 +18,7 @@ $$$xml-options$$$
 | `ignore_missing` | no | `false` | If `true` and `field` does not exist, the processor quietly exits without modifying the document. |
 | `ignore_failure` | no | `false` | Ignore failures for the processor. When `true` and XML parsing fails, adds `_xmlparsefailure` tag to the document. See [Handling pipeline failures](docs-content://manage-data/ingest/transform-enrich/ingest-pipelines.md#handling-pipeline-failures). |
 | `to_lower` | no | `false` | Convert XML element names and attribute names to lowercase. |
-| `ignore_empty_value` | no | `false` | If `true`, the processor will filter out null and empty values from the parsed XML structure, including empty elements, elements with null values, and elements with whitespace-only content. |
+| `remove_empty_values` | no | `false` | If `true`, the processor will filter out null and empty values from the parsed XML structure, including empty elements, elements with null values, and elements with whitespace-only content. |
 | `remove_namespaces` | no | `false` | If `true`, removes namespace prefixes from element and attribute names. |
 | `force_content` | no | `false` | If `true`, forces text content and attributes to always parse to a hash value with `#text` key for content. |
 | `force_array` | no | `false` | If `true`, forces all parsed values to be arrays. Single elements are wrapped in arrays. |
@@ -37,7 +37,7 @@ $$$xml-options$$$
   "xml": {
     "field": "xml_field",
     "target_field": "parsed_xml",
-    "ignore_empty_value": true
+    "remove_empty_values": true
   }
 }
 ```
@@ -94,7 +94,7 @@ Result:
 
 ### Filtering empty values
 
-When `ignore_empty_value` is set to `true`, the processor will remove empty elements from the parsed XML:
+When `remove_empty_values` is set to `true`, the processor will remove empty elements from the parsed XML:
 
 ```console
 POST _ingest/pipeline/_simulate
@@ -105,7 +105,7 @@ POST _ingest/pipeline/_simulate
         "xml": {
           "field": "xml_content",
           "target_field": "parsed_xml",
-          "ignore_empty_value": true
+          "remove_empty_values": true
         }
       }
     ]
@@ -624,7 +624,7 @@ The XML processor supports:
 
 - **Elements with text content**: Converted to key-value pairs where the element name is the key and text content is the value
 - **Nested elements**: Converted to nested JSON objects
-- **Empty elements**: Converted to `null` values (can be filtered with `ignore_empty_value`)
+- **Empty elements**: Converted to `null` values (can be filtered with `remove_empty_values`)
 - **Repeated elements**: Converted to arrays when multiple elements with the same name exist at the same level
 - **XML attributes**: Included as properties in the JSON object alongside element content. When an element has both attributes and text content, the text is stored under a special `#text` key
 - **Mixed content**: Elements with both text and child elements include text under a special `#text` key while attributes and child elements become object properties

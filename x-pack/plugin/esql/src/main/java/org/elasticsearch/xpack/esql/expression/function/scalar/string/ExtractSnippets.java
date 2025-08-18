@@ -191,7 +191,8 @@ public class ExtractSnippets extends EsqlScalarFunction implements OptionalArgum
             newChildren.get(0), // field
             newChildren.get(1), // str
             numSnippets == null ? null : newChildren.get(2),
-            snippetLength == null ? null : newChildren.get(3)
+            snippetLength == null ? null : newChildren.get(3),
+            queryBuilder
         );
     }
 

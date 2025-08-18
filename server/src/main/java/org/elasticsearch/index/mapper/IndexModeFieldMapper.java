@@ -58,6 +58,11 @@ public class IndexModeFieldMapper extends MetadataFieldMapper {
         }
 
         @Override
+        public String getConstantFieldValue(SearchExecutionContext context) {
+            return context.getIndexSettings().getMode().getName();
+        }
+
+        @Override
         public Query existsQuery(SearchExecutionContext context) {
             return new MatchAllDocsQuery();
         }

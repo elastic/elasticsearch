@@ -86,6 +86,7 @@ import static org.elasticsearch.test.ListMatcher.matchesList;
 import static org.elasticsearch.test.MapMatcher.assertMap;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
+import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.contains;
@@ -1071,8 +1072,6 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
         testCases.put("test_ds_patterns*::data,test_ds_patterns*::failures,-test_ds_patterns_2*::data", 19L);
         testCases.put("test_ds_patterns*::data,test_ds_patterns*::failures,-test_ds_patterns_2*::failures", 21L);
 
-        testCases.put("\"test_ds_patterns_1,test_ds_patterns_2\"::failures", 8L);
-
         runDataStreamTest(testCases, new String[] { "test_ds_patterns_1", "test_ds_patterns_2", "test_ds_patterns_3" }, (key, value) -> {
             try (var results = run("from " + key + " | stats count(@timestamp)")) {
                 assertEquals(key, 1, getValuesList(results).size());
@@ -1097,7 +1096,7 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
         // Only one selector separator is allowed per expression
         testCases.put("::::data", "mismatched input '::' expecting {QUOTED_STRING, UNQUOTED_SOURCE}");
         // Suffix case is not supported because there is no component named with the empty string
-        testCases.put("index::", "missing {QUOTED_STRING, UNQUOTED_SOURCE} at '|'");
+        testCases.put("index::", "missing UNQUOTED_SOURCE at '|'");
 
         runDataStreamTest(testCases, new String[] { "test_ds_patterns_1" }, (key, value) -> {
             logger.info(key);
@@ -1680,6 +1679,40 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
         }
     }
 
+    public void testGroupingStatsOnMissingFields() {
+        assumeTrue("Pragmas are only allowed in snapshots", Build.current().isSnapshot());
+        assertAcked(client().admin().indices().prepareCreate("missing_field_index").setMapping("data", "type=long"));
+        long oneValue = between(1, 1000);
+        indexDoc("missing_field_index", "1", "data", oneValue);
+        refresh("missing_field_index");
+        QueryPragmas pragmas = randomPragmas();
+        pragmas = new QueryPragmas(
+            Settings.builder().put(pragmas.getSettings()).put(QueryPragmas.MAX_CONCURRENT_SHARDS_PER_NODE.getKey(), 1).build()
+        );
+        EsqlQueryRequest request = new EsqlQueryRequest();
+        request.query("FROM missing_field_index,test | STATS s = sum(data) BY color, tag | SORT color");
+        request.pragmas(pragmas);
+        try (var r = run(request)) {
+            var rows = getValuesList(r);
+            assertThat(rows, hasSize(4));
+            for (List<Object> row : rows) {
+                assertThat(row, hasSize(3));
+            }
+            assertThat(rows.get(0).get(0), equalTo(20L));
+            assertThat(rows.get(0).get(1), equalTo("blue"));
+            assertNull(rows.get(0).get(2));
+            assertThat(rows.get(1).get(0), equalTo(10L));
+            assertThat(rows.get(1).get(1), equalTo("green"));
+            assertNull(rows.get(1).get(2));
+            assertThat(rows.get(2).get(0), equalTo(30L));
+            assertThat(rows.get(2).get(1), equalTo("red"));
+            assertNull(rows.get(2).get(2));
+            assertThat(rows.get(3).get(0), equalTo(oneValue));
+            assertNull(rows.get(3).get(1));
+            assertNull(rows.get(3).get(2));
+        }
+    }
+
     private void assertEmptyIndexQueries(String from) {
         try (EsqlQueryResponse resp = run(from + "METADATA _source | KEEP _source | LIMIT 1")) {
             assertFalse(resp.values().hasNext());
@@ -1817,6 +1850,8 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
                     "time",
                     "type=long",
                     "color",
+                    "type=keyword",
+                    "tag",
                     "type=keyword"
                 )
         );
@@ -1916,7 +1951,7 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
             pragmaSettings.put("data_partitioning", "doc");
             pragmas = new QueryPragmas(pragmaSettings.build());
         }
-        try (EsqlQueryResponse resp = run("FROM test-script | SORT k1 | LIMIT " + numDocs, pragmas)) {
+        try (EsqlQueryResponse resp = run(syncEsqlQueryRequest().query("FROM test-script | SORT k1 | LIMIT " + numDocs).pragmas(pragmas))) {
             List<Object> k1Column = Iterators.toList(resp.column(0));
             assertThat(k1Column, equalTo(LongStream.range(0L, numDocs).boxed().toList()));
             List<Object> k2Column = Iterators.toList(resp.column(1));

@@ -10,11 +10,9 @@
 package org.elasticsearch.gradle.internal.conventions;
 
 import groovy.util.Node;
-
-import com.github.jengelman.gradle.plugins.shadow.ShadowExtension;
-import com.github.jengelman.gradle.plugins.shadow.ShadowPlugin;
-
 import nmcp.NmcpPlugin;
+
+import com.github.jengelman.gradle.plugins.shadow.ShadowPlugin;
 
 import org.elasticsearch.gradle.internal.conventions.info.GitInfo;
 import org.elasticsearch.gradle.internal.conventions.precommit.PomValidationPrecommitPlugin;
@@ -41,6 +39,8 @@ import org.gradle.api.tasks.SourceSet;
 import org.gradle.api.tasks.bundling.Jar;
 import org.gradle.initialization.layout.BuildLayout;
 import org.gradle.language.base.plugins.LifecycleBasePlugin;
+import org.gradle.plugins.signing.SigningExtension;
+import org.gradle.plugins.signing.SigningPlugin;
 import org.w3c.dom.Element;
 
 import java.io.File;
@@ -69,6 +69,7 @@ public class PublishPlugin implements Plugin<Project> {
         project.getPluginManager().apply(PomValidationPrecommitPlugin.class);
         project.getPluginManager().apply(LicensingPlugin.class);
         project.getPluginManager().apply(NmcpPlugin.class);
+        project.getPluginManager().apply(SigningPlugin.class);
         configureJavadocJar(project);
         configureSourcesJar(project);
         configurePomGeneration(project);
@@ -79,6 +80,13 @@ public class PublishPlugin implements Plugin<Project> {
     private void configurePublications(Project project) {
         var publishingExtension = project.getExtensions().getByType(PublishingExtension.class);
         var publication = publishingExtension.getPublications().create("elastic", MavenPublication.class);
+        Provider<String> signingKey = project.getProviders().gradleProperty("signingKey");
+        if (signingKey.isPresent()) {
+            SigningExtension signing = project.getExtensions().getByType(SigningExtension.class);
+            signing.useInMemoryPgpKeys(signingKey.get(), project.getProviders().gradleProperty("signingPassword").get());
+            signing.sign(publication);
+        }
+
         project.afterEvaluate(project1 -> {
             if (project1.getPlugins().hasPlugin(ShadowPlugin.class)) {
                 configureWithShadowPlugin(project1, publication);
@@ -164,8 +172,9 @@ public class PublishPlugin implements Plugin<Project> {
     }
 
     private static void configureWithShadowPlugin(Project project, MavenPublication publication) {
-        var shadow = project.getExtensions().getByType(ShadowExtension.class);
-        shadow.component(publication);
+        publication.from(project.getComponents().getByName("shadow"));
+        publication.artifact(project.getTasks().named("javadocJar"));
+        publication.artifact(project.getTasks().named("sourcesJar"));
     }
 
     private static void addScmInfo(XmlProvider xml, GitInfo gitInfo) {

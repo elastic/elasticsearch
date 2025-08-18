@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.ilm;
 
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
-import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
@@ -442,10 +441,9 @@ public class IndexLifecycleInitialisationTests extends ESIntegTestCase {
 
         assertAcked(client().execute(ILMActions.STOP, new StopILMRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)).get());
         assertBusy(() -> {
-            OperationMode mode = client().execute(
-                GetStatusAction.INSTANCE,
-                new AcknowledgedRequest.Plain(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
-            ).get().getMode();
+            OperationMode mode = client().execute(GetStatusAction.INSTANCE, new GetStatusAction.Request(TEST_REQUEST_TIMEOUT))
+                .get()
+                .getMode();
             logger.info("--> waiting for STOPPED, currently: {}", mode);
             assertThat(mode, equalTo(OperationMode.STOPPED));
         });
@@ -473,7 +471,7 @@ public class IndexLifecycleInitialisationTests extends ESIntegTestCase {
         // assert ILM is still stopped
         GetStatusAction.Response statusResponse = client().execute(
             GetStatusAction.INSTANCE,
-            new AcknowledgedRequest.Plain(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
+            new GetStatusAction.Request(TEST_REQUEST_TIMEOUT)
         ).get();
         assertThat(statusResponse.getMode(), equalTo(OperationMode.STOPPED));
     }

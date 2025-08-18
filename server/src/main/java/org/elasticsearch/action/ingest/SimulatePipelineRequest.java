@@ -21,6 +21,7 @@ import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.core.UpdateForV10;
+import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.ingest.ConfigurationUtils;
 import org.elasticsearch.ingest.IngestDocument;
@@ -38,6 +39,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.Predicate;
 
 public class SimulatePipelineRequest extends LegacyActionRequest implements ToXContentObject {
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(SimulatePipelineRequest.class);
@@ -154,7 +156,8 @@ public class SimulatePipelineRequest extends LegacyActionRequest implements ToXC
         Map<String, Object> config,
         boolean verbose,
         IngestService ingestService,
-        RestApiVersion restApiVersion
+        RestApiVersion restApiVersion,
+        Predicate<NodeFeature> hasFeature
     ) throws Exception {
         Map<String, Object> pipelineConfig = ConfigurationUtils.readMap(null, null, config, Fields.PIPELINE);
         Pipeline pipeline = Pipeline.create(
@@ -162,7 +165,8 @@ public class SimulatePipelineRequest extends LegacyActionRequest implements ToXC
             pipelineConfig,
             ingestService.getProcessorFactories(),
             ingestService.getScriptService(),
-            projectId
+            projectId,
+            hasFeature
         );
         List<IngestDocument> ingestDocumentList = parseDocs(config, restApiVersion);
         return new Parsed(pipeline, ingestDocumentList, verbose);

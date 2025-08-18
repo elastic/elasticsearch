@@ -20,12 +20,10 @@ import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.LeafPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
-import org.elasticsearch.xpack.esql.plan.logical.Sample;
+import org.elasticsearch.xpack.esql.plan.logical.PipelineBreaker;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Rerank;
-import org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.Join;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinConfig;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes;
@@ -38,7 +36,6 @@ import org.elasticsearch.xpack.esql.plan.physical.LocalSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.LookupJoinExec;
 import org.elasticsearch.xpack.esql.plan.physical.MergeExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
-import org.elasticsearch.xpack.esql.plan.physical.SampleExec;
 import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
 import org.elasticsearch.xpack.esql.plan.physical.UnaryExec;
 import org.elasticsearch.xpack.esql.plan.physical.inference.RerankExec;
@@ -88,7 +85,7 @@ public class Mapper {
         PhysicalPlan mappedChild = map(unary.child());
 
         //
-        // TODO - this is hard to follow and needs reworking
+        // TODO - this is hard to follow, causes bugs and needs reworking
         // https://github.com/elastic/elasticsearch/issues/115897
         //
         if (unary instanceof Enrich enrich && enrich.mode() == Enrich.Mode.REMOTE) {
@@ -137,7 +134,7 @@ public class Mapper {
                 return MapperUtils.mapUnary(unary, mappedChild);
             }
             // in case of a fragment, push to it any current streaming operator
-            if (isPipelineBreaker(unary) == false) {
+            if (unary instanceof PipelineBreaker == false) {
                 return new FragmentExec(unary);
             }
         }
@@ -188,12 +185,6 @@ public class Mapper {
             );
         }
 
-        // TODO: share code with local LocalMapper?
-        if (unary instanceof Sample sample) {
-            mappedChild = addExchangeForFragment(sample, mappedChild);
-            return new SampleExec(sample.source(), mappedChild, sample.probability());
-        }
-
         //
         // Pipeline operators
         //
@@ -207,14 +198,18 @@ public class Mapper {
                 throw new EsqlIllegalArgumentException("unsupported join type [" + config.type() + "]");
             }
 
-            if (join instanceof InlineJoin) {
+            if (join.isRemote()) {
+                // This is generally wrong in case of pipeline breakers upstream from the join, but we validate against these.
+                // The only potential pipeline breakers upstream should be limits duplicated past the join from PushdownAndCombineLimits,
+                // but they are okay to perform on the data nodes because they only serve to reduce the number of rows processed and
+                // don't affect correctness due to another limit being downstream.
                 return new FragmentExec(bp);
             }
 
             PhysicalPlan left = map(bp.left());
 
             // only broadcast joins supported for now - hence push down as a streaming operator
-            if (left instanceof FragmentExec fragment) {
+            if (left instanceof FragmentExec) {
                 return new FragmentExec(bp);
             }
 
@@ -228,7 +223,7 @@ public class Mapper {
                     config.matchFields(),
                     config.leftFields(),
                     config.rightFields(),
-                    join.output()
+                    join.rightOutputFields()
                 );
             }
             if (right instanceof FragmentExec fragment
@@ -243,10 +238,6 @@ public class Mapper {
 
     private PhysicalPlan mapFork(Fork fork) {
         return new MergeExec(fork.source(), fork.children().stream().map(child -> map(child)).toList(), fork.output());
-    }
-
-    public static boolean isPipelineBreaker(LogicalPlan p) {
-        return p instanceof Aggregate || p instanceof TopN || p instanceof Limit || p instanceof OrderBy;
     }
 
     private PhysicalPlan addExchangeForFragment(LogicalPlan logical, PhysicalPlan child) {

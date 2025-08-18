@@ -119,7 +119,7 @@ public class TransportForceMergeAction extends TransportBroadcastByNodeAction<
 
     @Override
     protected ClusterBlockException checkGlobalBlock(ClusterState state, ForceMergeRequest request) {
-        return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_WRITE);
+        return state.blocks().globalBlockedException(projectResolver.getProjectId(), ClusterBlockLevel.METADATA_WRITE);
     }
 
     @Override

@@ -139,4 +139,22 @@ public interface CommandGenerator {
 
         return VALIDATION_OK;
     }
+
+    /**
+     * The command doesn't have to produce LESS columns than the previous query
+     */
+    static ValidationResult expectAtLeastSameNumberOfColumns(
+        List<EsqlQueryGenerator.Column> previousColumns,
+        List<EsqlQueryGenerator.Column> columns
+    ) {
+        if (previousColumns.stream().anyMatch(x -> x.name().contains("<all-fields-projected>"))) {
+            return VALIDATION_OK; // known bug
+        }
+
+        if (previousColumns.size() > columns.size()) {
+            return new ValidationResult(false, "Expecting at least [" + previousColumns.size() + "] columns, got [" + columns.size() + "]");
+        }
+
+        return VALIDATION_OK;
+    }
 }

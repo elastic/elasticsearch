@@ -22,6 +22,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -62,6 +63,7 @@ public class TransportResetJobAction extends AcknowledgedTransportMasterNodeActi
     private final JobConfigProvider jobConfigProvider;
     private final JobResultsProvider jobResultsProvider;
     private final AnomalyDetectionAuditor auditor;
+    private final ProjectResolver projectResolver;
 
     @Inject
     public TransportResetJobAction(
@@ -73,7 +75,8 @@ public class TransportResetJobAction extends AcknowledgedTransportMasterNodeActi
         Client client,
         JobConfigProvider jobConfigProvider,
         JobResultsProvider jobResultsProvider,
-        AnomalyDetectionAuditor auditor
+        AnomalyDetectionAuditor auditor,
+        ProjectResolver projectResolver
     ) {
         super(
             ResetJobAction.NAME,
@@ -89,6 +92,7 @@ public class TransportResetJobAction extends AcknowledgedTransportMasterNodeActi
         this.jobConfigProvider = Objects.requireNonNull(jobConfigProvider);
         this.jobResultsProvider = Objects.requireNonNull(jobResultsProvider);
         this.auditor = Objects.requireNonNull(auditor);
+        this.projectResolver = Objects.requireNonNull(projectResolver);
     }
 
     @Override
@@ -275,6 +279,6 @@ public class TransportResetJobAction extends AcknowledgedTransportMasterNodeActi
 
     @Override
     protected ClusterBlockException checkBlock(ResetJobAction.Request request, ClusterState state) {
-        return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_WRITE);
+        return state.blocks().globalBlockedException(projectResolver.getProjectId(), ClusterBlockLevel.METADATA_WRITE);
     }
 }

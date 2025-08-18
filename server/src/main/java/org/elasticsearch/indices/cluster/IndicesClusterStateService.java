@@ -26,10 +26,12 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateApplier;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
+import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RecoverySource.Type;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingTable;
@@ -701,6 +703,13 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                     logger.trace("ignoring initializing shard {} - no source node can be found.", shardId);
                     return;
                 }
+            } else if (shardRouting.recoverySource() instanceof RecoverySource.ReshardSplitRecoverySource reshardSplitRecoverySource) {
+                ShardId sourceShardId = reshardSplitRecoverySource.getSourceShardId();
+                sourceNode = findSourceNodeForReshardSplitRecovery(state.routingTable(project.id()), state.nodes(), sourceShardId);
+                if (sourceNode == null) {
+                    logger.trace("ignoring initializing reshard target shard {} - no source node can be found.", shardId);
+                    return;
+                }
             } else {
                 sourceNode = null;
             }
@@ -773,6 +782,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         try {
             logger.debug("{} creating shard with primary term [{}], iteration [{}]", shardRouting.shardId(), primaryTerm, iteration);
             indicesService.createShard(
+                originalState.metadata().projectFor(shardRouting.index()).id(),
                 shardRouting,
                 recoveryTargetService,
                 new RecoveryListener(shardRouting, primaryTerm),
@@ -984,6 +994,31 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
             throw new IllegalStateException(
                 "trying to find source node for peer recovery when routing state means no peer recovery: " + shardRouting
             );
+        }
+        return sourceNode;
+    }
+
+    private static DiscoveryNode findSourceNodeForReshardSplitRecovery(
+        RoutingTable routingTable,
+        DiscoveryNodes nodes,
+        ShardId sourceShardId
+    ) {
+        ShardRouting sourceShardRouting = routingTable.shardRoutingTable(sourceShardId).primaryShard();
+
+        if (sourceShardRouting.active() == false) {
+            // Source shard is unassigned (likely due to failure), we will retry.
+            logger.trace("can't find reshard split source node because source shard {} is not active.", sourceShardRouting.shortSummary());
+            return null;
+        }
+
+        DiscoveryNode sourceNode = nodes.get(sourceShardRouting.currentNodeId());
+        if (sourceNode == null) {
+            assert false : "Source node for reshard does not exist: " + sourceShardRouting.currentNodeId();
+            logger.trace(
+                "can't find reshard split source node because source shard {} is assigned to an unknown node.",
+                sourceShardRouting.shortSummary()
+            );
+            return null;
         }
         return sourceNode;
     }
@@ -1297,6 +1332,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         /**
          * Creates a shard for the specified shard routing and starts recovery.
          *
+         * @param projectId              the project for the shard
          * @param shardRouting           the shard routing
          * @param recoveryTargetService  recovery service for the target
          * @param recoveryListener       a callback when recovery changes state (finishes or fails)
@@ -1310,6 +1346,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
          * @throws IOException if an I/O exception occurs when creating the shard
          */
         void createShard(
+            ProjectId projectId,
             ShardRouting shardRouting,
             PeerRecoveryTargetService recoveryTargetService,
             PeerRecoveryTargetService.RecoveryListener recoveryListener,

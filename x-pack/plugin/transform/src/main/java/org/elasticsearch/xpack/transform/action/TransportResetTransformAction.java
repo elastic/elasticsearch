@@ -22,6 +22,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -63,6 +64,7 @@ public class TransportResetTransformAction extends AcknowledgedTransportMasterNo
     private final SecurityContext securityContext;
     private final Settings settings;
     private final Settings destIndexSettings;
+    private final ProjectResolver projectResolver;
 
     @Inject
     public TransportResetTransformAction(
@@ -74,7 +76,8 @@ public class TransportResetTransformAction extends AcknowledgedTransportMasterNo
         TransformServices transformServices,
         Client client,
         Settings settings,
-        TransformExtensionHolder transformExtensionHolder
+        TransformExtensionHolder transformExtensionHolder,
+        ProjectResolver projectResolver
     ) {
         super(
             ResetTransformAction.NAME,
@@ -94,6 +97,7 @@ public class TransportResetTransformAction extends AcknowledgedTransportMasterNo
             : null;
         this.settings = settings;
         this.destIndexSettings = transformExtensionHolder.getTransformExtension().getTransformDestinationIndexSettings();
+        this.projectResolver = projectResolver;
     }
 
     @Override
@@ -217,6 +221,6 @@ public class TransportResetTransformAction extends AcknowledgedTransportMasterNo
 
     @Override
     protected ClusterBlockException checkBlock(Request request, ClusterState state) {
-        return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_READ);
+        return state.blocks().globalBlockedException(projectResolver.getProjectId(), ClusterBlockLevel.METADATA_READ);
     }
 }

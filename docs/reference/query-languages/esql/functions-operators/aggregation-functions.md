@@ -56,4 +56,3 @@ The [`STATS`](/reference/query-languages/esql/commands/processing-commands.md#es
 
 :::{include} ../_snippets/functions/layout/weighted_avg.md
 :::
-

@@ -15,6 +15,7 @@ import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.SuppressForbidden;
@@ -33,6 +34,7 @@ import java.util.List;
 
 public class TransportRemoveIndexLifecyclePolicyAction extends TransportMasterNodeAction<Request, Response> {
 
+    private final ProjectResolver projectResolver;
     private final IndexNameExpressionResolver indexNameExpressionResolver;
 
     @Inject
@@ -41,6 +43,7 @@ public class TransportRemoveIndexLifecyclePolicyAction extends TransportMasterNo
         ClusterService clusterService,
         ThreadPool threadPool,
         ActionFilters actionFilters,
+        ProjectResolver projectResolver,
         IndexNameExpressionResolver indexNameExpressionResolver
     ) {
         super(
@@ -54,6 +57,7 @@ public class TransportRemoveIndexLifecyclePolicyAction extends TransportMasterNo
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.indexNameExpressionResolver = indexNameExpressionResolver;
+        this.projectResolver = projectResolver;
     }
 
     @Override
@@ -63,15 +67,16 @@ public class TransportRemoveIndexLifecyclePolicyAction extends TransportMasterNo
 
     @Override
     protected void masterOperation(Task task, Request request, ClusterState state, ActionListener<Response> listener) throws Exception {
-        final Index[] indices = indexNameExpressionResolver.concreteIndices(state, request.indicesOptions(), true, request.indices());
+        final var project = projectResolver.getProjectMetadata(state);
+        final Index[] indices = indexNameExpressionResolver.concreteIndices(project, request.indicesOptions(), true, request.indices());
         submitUnbatchedTask("remove-lifecycle-for-index", new ClusterStateUpdateTask(request.masterNodeTimeout()) {
 
             private final List<String> failedIndexes = new ArrayList<>();
 
             @Override
             public ClusterState execute(ClusterState currentState) throws Exception {
-                final var project = currentState.metadata().getProject();
-                final var updatedProject = IndexLifecycleTransition.removePolicyForIndexes(indices, project, failedIndexes);
+                final var currentProjet = currentState.metadata().getProject(project.id());
+                final var updatedProject = IndexLifecycleTransition.removePolicyForIndexes(indices, currentProjet, failedIndexes);
                 return ClusterState.builder(currentState).putProjectMetadata(updatedProject).build();
             }
 

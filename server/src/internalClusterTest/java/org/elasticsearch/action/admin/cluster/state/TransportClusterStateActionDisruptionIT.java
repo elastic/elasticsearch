@@ -9,7 +9,6 @@
 package org.elasticsearch.action.admin.cluster.state;
 
 import org.elasticsearch.action.support.SubscribableListener;
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.coordination.ClusterBootstrapService;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -18,7 +17,6 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.discovery.MasterNotDiscoveredException;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -47,34 +45,15 @@ public class TransportClusterStateActionDisruptionIT extends ESIntegTestCase {
         return Collections.singletonList(MockTransportService.TestPlugin.class);
     }
 
-    public void testNonLocalRequestAlwaysFindsMaster() throws Exception {
-        runRepeatedlyWhileChangingMaster(() -> {
-            final ClusterStateRequestBuilder clusterStateRequestBuilder = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT)
-                .clear()
-                .setNodes(true)
-                .setBlocks(true)
-                .setMasterNodeTimeout(TimeValue.timeValueMillis(100));
-            final ClusterStateResponse clusterStateResponse;
-            try {
-                clusterStateResponse = clusterStateRequestBuilder.get();
-            } catch (MasterNotDiscoveredException e) {
-                return; // ok, we hit the disconnected node
-            }
-            assertNotNull("should always contain a master node", clusterStateResponse.getState().nodes().getMasterNodeId());
-        });
-    }
-
     public void testLocalRequestAlwaysSucceeds() throws Exception {
         runRepeatedlyWhileChangingMaster(() -> {
             final String node = randomFrom(internalCluster().getNodeNames());
             final DiscoveryNodes discoveryNodes = client(node).admin()
                 .cluster()
-                .prepareState(TEST_REQUEST_TIMEOUT)
+                .prepareState(TimeValue.timeValueMillis(100))
                 .clear()
-                .setLocal(true)
                 .setNodes(true)
                 .setBlocks(true)
-                .setMasterNodeTimeout(TimeValue.timeValueMillis(100))
                 .get()
                 .getState()
                 .nodes();
@@ -84,39 +63,6 @@ public class TransportClusterStateActionDisruptionIT extends ESIntegTestCase {
                 }
             }
             fail("nodes did not contain [" + node + "]: " + discoveryNodes);
-        });
-    }
-
-    public void testNonLocalRequestAlwaysFindsMasterAndWaitsForMetadata() throws Exception {
-        runRepeatedlyWhileChangingMaster(() -> {
-            final String node = randomFrom(internalCluster().getNodeNames());
-            final long metadataVersion = internalCluster().getInstance(ClusterService.class, node)
-                .getClusterApplierService()
-                .state()
-                .metadata()
-                .version();
-            final long waitForMetadataVersion = randomLongBetween(Math.max(1, metadataVersion - 3), metadataVersion + 5);
-            final ClusterStateRequestBuilder clusterStateRequestBuilder = client(node).admin()
-                .cluster()
-                .prepareState(TEST_REQUEST_TIMEOUT)
-                .clear()
-                .setNodes(true)
-                .setMetadata(true)
-                .setBlocks(true)
-                .setMasterNodeTimeout(TimeValue.timeValueMillis(100))
-                .setWaitForTimeOut(TimeValue.timeValueMillis(100))
-                .setWaitForMetadataVersion(waitForMetadataVersion);
-            final ClusterStateResponse clusterStateResponse;
-            try {
-                clusterStateResponse = clusterStateRequestBuilder.get();
-            } catch (MasterNotDiscoveredException e) {
-                return; // ok, we hit the disconnected node
-            }
-            if (clusterStateResponse.isWaitForTimedOut() == false) {
-                final ClusterState state = clusterStateResponse.getState();
-                assertNotNull("should always contain a master node", state.nodes().getMasterNodeId());
-                assertThat("waited for metadata version", state.metadata().version(), greaterThanOrEqualTo(waitForMetadataVersion));
-            }
         });
     }
 
@@ -131,13 +77,11 @@ public class TransportClusterStateActionDisruptionIT extends ESIntegTestCase {
             final long waitForMetadataVersion = randomLongBetween(Math.max(1, metadataVersion - 3), metadataVersion + 5);
             final ClusterStateResponse clusterStateResponse = client(node).admin()
                 .cluster()
-                .prepareState(TEST_REQUEST_TIMEOUT)
+                .prepareState(TimeValue.timeValueMillis(100))
                 .clear()
-                .setLocal(true)
                 .setMetadata(true)
                 .setBlocks(true)
                 .setWaitForMetadataVersion(waitForMetadataVersion)
-                .setMasterNodeTimeout(TimeValue.timeValueMillis(100))
                 .setWaitForTimeOut(TimeValue.timeValueMillis(100))
                 .get();
             if (clusterStateResponse.isWaitForTimedOut() == false) {

@@ -921,6 +921,11 @@ public class Netty4IncrementalRequestHandlingIT extends ESNetty4IntegTestCase {
                 }
 
                 @Override
+                public boolean supportsContentStream() {
+                    return true;
+                }
+
+                @Override
                 public List<Route> routes() {
                     return List.of(new Route(RestRequest.Method.POST, ROUTE));
                 }

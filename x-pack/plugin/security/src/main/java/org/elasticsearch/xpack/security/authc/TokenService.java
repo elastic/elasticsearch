@@ -2222,7 +2222,7 @@ public class TokenService {
      */
     private static ElasticsearchSecurityException expiredTokenException() {
         ElasticsearchSecurityException e = new ElasticsearchSecurityException("token expired", RestStatus.UNAUTHORIZED);
-        e.addHeader("WWW-Authenticate", EXPIRED_TOKEN_WWW_AUTH_VALUE);
+        e.addBodyHeader("WWW-Authenticate", EXPIRED_TOKEN_WWW_AUTH_VALUE);
         return e;
     }
 
@@ -2231,7 +2231,7 @@ public class TokenService {
      */
     private static ElasticsearchSecurityException invalidGrantException(String detail) {
         ElasticsearchSecurityException e = new ElasticsearchSecurityException("invalid_grant", RestStatus.BAD_REQUEST);
-        e.addHeader("error_description", detail);
+        e.addBodyHeader("error_description", detail);
         return e;
     }
 
@@ -2245,7 +2245,7 @@ public class TokenService {
     private static <E extends Throwable> E traceLog(String action, String identifier, E exception) {
         if (logger.isTraceEnabled()) {
             if (exception instanceof final ElasticsearchException esEx) {
-                final Object detail = esEx.getHeader("error_description");
+                final Object detail = esEx.getBodyHeader("error_description");
                 if (detail != null) {
                     logger.trace(() -> format("Failure in [%s] for id [%s] - [%s]", action, identifier, detail), esEx);
                 } else {
@@ -2264,7 +2264,7 @@ public class TokenService {
     private static <E extends Throwable> E traceLog(String action, E exception) {
         if (logger.isTraceEnabled()) {
             if (exception instanceof final ElasticsearchException esEx) {
-                final Object detail = esEx.getHeader("error_description");
+                final Object detail = esEx.getBodyHeader("error_description");
                 if (detail != null) {
                     logger.trace(() -> format("Failure in [%s] - [%s]", action, detail), esEx);
                 } else {
@@ -2278,7 +2278,7 @@ public class TokenService {
     }
 
     static boolean isExpiredTokenException(ElasticsearchSecurityException e) {
-        final List<String> headers = e.getHeader("WWW-Authenticate");
+        final List<String> headers = e.getBodyHeader("WWW-Authenticate");
         return headers != null && headers.stream().anyMatch(EXPIRED_TOKEN_WWW_AUTH_VALUE::equals);
     }
 

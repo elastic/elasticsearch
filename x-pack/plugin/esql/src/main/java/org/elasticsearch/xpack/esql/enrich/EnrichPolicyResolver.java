@@ -13,6 +13,7 @@ import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.support.ChannelActionListener;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.action.support.RefCountingListener;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -58,6 +59,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.xpack.esql.expression.Foldables.stringLiteralValueOf;
 import static org.elasticsearch.xpack.esql.session.EsqlCCSUtils.markClusterWithFinalStateAndNoShards;
 
 /**
@@ -77,13 +79,20 @@ public class EnrichPolicyResolver {
     private final TransportService transportService;
     private final ThreadPool threadPool;
     private final RemoteClusterService remoteClusterService;
+    private final ProjectResolver projectResolver;
 
-    public EnrichPolicyResolver(ClusterService clusterService, TransportService transportService, IndexResolver indexResolver) {
+    public EnrichPolicyResolver(
+        ClusterService clusterService,
+        TransportService transportService,
+        IndexResolver indexResolver,
+        ProjectResolver projectResolver
+    ) {
         this.clusterService = clusterService;
         this.transportService = transportService;
         this.indexResolver = indexResolver;
         this.threadPool = transportService.getThreadPool();
         this.remoteClusterService = transportService.getRemoteClusterService();
+        this.projectResolver = projectResolver;
         transportService.registerRequestHandler(
             RESOLVE_ACTION_NAME,
             threadPool.executor(ThreadPool.Names.SEARCH),
@@ -93,7 +102,9 @@ public class EnrichPolicyResolver {
     }
 
     public record UnresolvedPolicy(String name, Enrich.Mode mode) {
-
+        public static UnresolvedPolicy from(Enrich e) {
+            return new UnresolvedPolicy(stringLiteralValueOf(e.policyName(), "Enrich policy must be a constant string"), e.mode());
+        }
     }
 
     /**
@@ -445,7 +456,8 @@ public class EnrichPolicyResolver {
     }
 
     protected Map<String, EnrichPolicy> availablePolicies() {
-        final EnrichMetadata metadata = clusterService.state().metadata().getProject().custom(EnrichMetadata.TYPE, EnrichMetadata.EMPTY);
+        final EnrichMetadata metadata = projectResolver.getProjectMetadata(clusterService.state())
+            .custom(EnrichMetadata.TYPE, EnrichMetadata.EMPTY);
         return metadata.getPolicies();
     }
 

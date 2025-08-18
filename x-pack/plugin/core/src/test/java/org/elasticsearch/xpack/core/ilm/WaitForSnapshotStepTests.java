@@ -11,11 +11,10 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsResponse;
 import org.elasticsearch.client.internal.ClusterAdminClient;
-import org.elasticsearch.cluster.ClusterName;
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
-import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.snapshots.Snapshot;
@@ -83,12 +82,10 @@ public class WaitForSnapshotStepTests extends AbstractStepTestCase<WaitForSnapsh
             .numberOfShards(randomIntBetween(1, 5))
             .numberOfReplicas(randomIntBetween(0, 5))
             .build();
-        Map<String, IndexMetadata> indices = Map.of(indexMetadata.getIndex().getName(), indexMetadata);
-        Metadata.Builder meta = Metadata.builder().indices(indices);
-        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(meta).build();
         WaitForSnapshotStep instance = createRandomInstance();
         SetOnce<Exception> error = new SetOnce<>();
-        instance.evaluateCondition(clusterState.metadata(), indexMetadata.getIndex(), new AsyncWaitStep.Listener() {
+        final var state = projectStateFromProject(ProjectMetadata.builder(randomProjectIdOrDefault()).put(indexMetadata, true));
+        instance.evaluateCondition(state, indexMetadata.getIndex(), new AsyncWaitStep.Listener() {
             @Override
             public void onResponse(boolean conditionMet, ToXContentObject info) {
                 logger.warn("expected an error got unexpected response {}", conditionMet);
@@ -122,12 +119,14 @@ public class WaitForSnapshotStepTests extends AbstractStepTestCase<WaitForSnapsh
             .numberOfShards(randomIntBetween(1, 5))
             .numberOfReplicas(randomIntBetween(0, 5))
             .build();
-        Map<String, IndexMetadata> indices = Map.of(indexMetadata.getIndex().getName(), indexMetadata);
-        Metadata.Builder meta = Metadata.builder().indices(indices).putCustom(SnapshotLifecycleMetadata.TYPE, smlMetadata);
-        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(meta).build();
         SetOnce<Boolean> isConditionMet = new SetOnce<>();
         SetOnce<ToXContentObject> informationContext = new SetOnce<>();
-        instance.evaluateCondition(clusterState.metadata(), indexMetadata.getIndex(), new AsyncWaitStep.Listener() {
+        final var state = projectStateFromProject(
+            ProjectMetadata.builder(randomProjectIdOrDefault())
+                .put(indexMetadata, true)
+                .putCustom(SnapshotLifecycleMetadata.TYPE, smlMetadata)
+        );
+        instance.evaluateCondition(state, indexMetadata.getIndex(), new AsyncWaitStep.Listener() {
             @Override
             public void onResponse(boolean conditionMet, ToXContentObject info) {
                 isConditionMet.set(conditionMet);
@@ -150,6 +149,7 @@ public class WaitForSnapshotStepTests extends AbstractStepTestCase<WaitForSnapsh
     }
 
     public void testSlmPolicyExecutedAfterStep() {
+        final var projectId = randomProjectIdOrDefault();
         String repoName = randomAlphaOfLength(10);
         String snapshotName = randomAlphaOfLength(10);
         String indexName = randomAlphaOfLength(10);
@@ -157,7 +157,7 @@ public class WaitForSnapshotStepTests extends AbstractStepTestCase<WaitForSnapsh
         GetSnapshotsResponse response = new GetSnapshotsResponse(
             List.of(
                 new SnapshotInfo(
-                    new Snapshot(randomAlphaOfLength(10), new SnapshotId(snapshotName, randomAlphaOfLength(10))),
+                    new Snapshot(projectId, randomAlphaOfLength(10), new SnapshotId(snapshotName, randomAlphaOfLength(10))),
                     List.of(indexName),
                     List.of(),
                     List.of(),
@@ -177,7 +177,7 @@ public class WaitForSnapshotStepTests extends AbstractStepTestCase<WaitForSnapsh
             return null;
         }).when(clusterAdminClient).getSnapshots(any(), any());
 
-        assertSlmPolicyExecuted(repoName, snapshotName, indexName, true, true);
+        assertSlmPolicyExecuted(projectId, repoName, snapshotName, indexName, true, true);
     }
 
     public void testSlmPolicyNotExecutedWhenStartIsBeforePhaseTime() throws IOException {
@@ -186,6 +186,7 @@ public class WaitForSnapshotStepTests extends AbstractStepTestCase<WaitForSnapsh
     }
 
     public void testIndexNotBackedUpYet() {
+        final var projectId = randomProjectIdOrDefault();
         String repoName = randomAlphaOfLength(10);
         String snapshotName = randomAlphaOfLength(10);
         String indexName = randomAlphaOfLength(10);
@@ -194,7 +195,7 @@ public class WaitForSnapshotStepTests extends AbstractStepTestCase<WaitForSnapsh
         GetSnapshotsResponse response = new GetSnapshotsResponse(
             List.of(
                 new SnapshotInfo(
-                    new Snapshot(randomAlphaOfLength(10), new SnapshotId(snapshotName, randomAlphaOfLength(10))),
+                    new Snapshot(projectId, randomAlphaOfLength(10), new SnapshotId(snapshotName, randomAlphaOfLength(10))),
                     List.of(),
                     List.of(),
                     List.of(),
@@ -234,11 +235,11 @@ public class WaitForSnapshotStepTests extends AbstractStepTestCase<WaitForSnapsh
             .numberOfShards(randomIntBetween(1, 5))
             .numberOfReplicas(randomIntBetween(0, 5))
             .build();
-        Map<String, IndexMetadata> indices = Map.of(indexMetadata.getIndex().getName(), indexMetadata);
-        Metadata.Builder meta = Metadata.builder().indices(indices).putCustom(SnapshotLifecycleMetadata.TYPE, smlMetadata);
-        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(meta).build();
         SetOnce<Exception> error = new SetOnce<>();
-        instance.evaluateCondition(clusterState.metadata(), indexMetadata.getIndex(), new AsyncWaitStep.Listener() {
+        final var state = projectStateFromProject(
+            ProjectMetadata.builder(projectId).put(indexMetadata, true).putCustom(SnapshotLifecycleMetadata.TYPE, smlMetadata)
+        );
+        instance.evaluateCondition(state, indexMetadata.getIndex(), new AsyncWaitStep.Listener() {
             @Override
             public void onResponse(boolean conditionMet, ToXContentObject info) {
                 logger.warn("expected an error got unexpected response {}", conditionMet);
@@ -256,6 +257,7 @@ public class WaitForSnapshotStepTests extends AbstractStepTestCase<WaitForSnapsh
 
     private void assertSlmPolicyExecuted(boolean startTimeAfterPhaseTime, boolean finishTimeAfterPhaseTime) {
         assertSlmPolicyExecuted(
+            randomProjectIdOrDefault(),
             randomAlphaOfLength(10),
             randomAlphaOfLength(10),
             randomAlphaOfLength(10),
@@ -265,6 +267,7 @@ public class WaitForSnapshotStepTests extends AbstractStepTestCase<WaitForSnapsh
     }
 
     private void assertSlmPolicyExecuted(
+        ProjectId projectId,
         String repoName,
         String snapshotName,
         String indexName,
@@ -298,12 +301,12 @@ public class WaitForSnapshotStepTests extends AbstractStepTestCase<WaitForSnapsh
             .numberOfShards(randomIntBetween(1, 5))
             .numberOfReplicas(randomIntBetween(0, 5))
             .build();
-        Map<String, IndexMetadata> indices = Map.of(indexMetadata.getIndex().getName(), indexMetadata);
-        Metadata.Builder meta = Metadata.builder().indices(indices).putCustom(SnapshotLifecycleMetadata.TYPE, smlMetadata);
-        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(meta).build();
         SetOnce<Boolean> isConditionMet = new SetOnce<>();
         SetOnce<ToXContentObject> informationContext = new SetOnce<>();
-        instance.evaluateCondition(clusterState.metadata(), indexMetadata.getIndex(), new AsyncWaitStep.Listener() {
+        final var state = projectStateFromProject(
+            ProjectMetadata.builder(projectId).put(indexMetadata, true).putCustom(SnapshotLifecycleMetadata.TYPE, smlMetadata)
+        );
+        instance.evaluateCondition(state, indexMetadata.getIndex(), new AsyncWaitStep.Listener() {
             @Override
             public void onResponse(boolean conditionMet, ToXContentObject info) {
                 isConditionMet.set(conditionMet);
@@ -355,11 +358,13 @@ public class WaitForSnapshotStepTests extends AbstractStepTestCase<WaitForSnapsh
             .numberOfShards(randomIntBetween(1, 5))
             .numberOfReplicas(randomIntBetween(0, 5))
             .build();
-        Map<String, IndexMetadata> indices = Map.of(indexMetadata.getIndex().getName(), indexMetadata);
-        Metadata.Builder meta = Metadata.builder().indices(indices).putCustom(SnapshotLifecycleMetadata.TYPE, smlMetadata);
-        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(meta).build();
         SetOnce<Exception> error = new SetOnce<>();
-        instance.evaluateCondition(clusterState.metadata(), indexMetadata.getIndex(), new AsyncWaitStep.Listener() {
+        final var state = projectStateFromProject(
+            ProjectMetadata.builder(randomProjectIdOrDefault())
+                .put(indexMetadata, true)
+                .putCustom(SnapshotLifecycleMetadata.TYPE, smlMetadata)
+        );
+        instance.evaluateCondition(state, indexMetadata.getIndex(), new AsyncWaitStep.Listener() {
             @Override
             public void onResponse(boolean conditionMet, ToXContentObject info) {
                 logger.warn("expected an error got unexpected response {}", conditionMet);

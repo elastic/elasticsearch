@@ -21,6 +21,7 @@ import org.apache.http.conn.ConnectionPoolTimeoutException;
 import org.apache.http.conn.DnsResolver;
 import org.apache.logging.log4j.Level;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.common.BackoffPolicy;
@@ -239,7 +240,7 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
         final RepositoryMetadata repositoryMetadata = new RepositoryMetadata("repository", S3Repository.TYPE, repositorySettings.build());
 
         final S3BlobStore s3BlobStore = new S3BlobStore(
-            randomProjectIdOrDefault(),
+            ProjectId.DEFAULT,
             service,
             "bucket",
             S3Repository.SERVER_SIDE_ENCRYPTION_SETTING.getDefault(Settings.EMPTY),

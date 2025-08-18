@@ -54,7 +54,11 @@ public class TransportUpdateDataStreamSettingsAction extends TransportMasterNode
     UpdateDataStreamSettingsAction.Request,
     UpdateDataStreamSettingsAction.Response> {
     private static final Logger logger = LogManager.getLogger(TransportUpdateDataStreamSettingsAction.class);
-    private static final Set<String> APPLY_TO_BACKING_INDICES = Set.of("index.lifecycle.name", IndexSettings.PREFER_ILM);
+    private static final Set<String> APPLY_TO_BACKING_INDICES = Set.of(
+        "index.lifecycle.name",
+        IndexSettings.PREFER_ILM,
+        "index.refresh_interval"
+    );
     private static final Set<String> APPLY_TO_DATA_STREAM_ONLY = Set.of("index.number_of_shards");
     private final MetadataDataStreamsService metadataDataStreamsService;
     private final MetadataUpdateSettingsService updateSettingsService;
@@ -131,7 +135,7 @@ public class TransportUpdateDataStreamSettingsAction extends TransportMasterNode
                         new UpdateDataStreamSettingsAction.DataStreamSettingsResponse(
                             dataStreamName,
                             false,
-                            e.getMessage(),
+                            Strings.hasText(e.getMessage()) ? e.getMessage() : e.toString(),
                             EMPTY,
                             EMPTY,
                             UpdateDataStreamSettingsAction.DataStreamSettingsResponse.IndicesSettingsResult.EMPTY
@@ -222,9 +226,10 @@ public class TransportUpdateDataStreamSettingsAction extends TransportMasterNode
         Map<String, Object> settingsToApply = new HashMap<>();
         List<String> appliedToDataStreamOnly = new ArrayList<>();
         List<String> appliedToDataStreamAndBackingIndices = new ArrayList<>();
+        Settings effectiveSettings = dataStream.getEffectiveSettings(projectResolver.getProjectMetadata(clusterService.state()));
         for (String settingName : requestSettings.keySet()) {
             if (APPLY_TO_BACKING_INDICES.contains(settingName)) {
-                settingsToApply.put(settingName, requestSettings.get(settingName));
+                settingsToApply.put(settingName, effectiveSettings.get(settingName));
                 appliedToDataStreamAndBackingIndices.add(settingName);
             } else if (APPLY_TO_DATA_STREAM_ONLY.contains(settingName)) {
                 appliedToDataStreamOnly.add(settingName);
@@ -242,9 +247,7 @@ public class TransportUpdateDataStreamSettingsAction extends TransportMasterNode
                         true,
                         null,
                         settingsFilter.filter(dataStream.getSettings()),
-                        settingsFilter.filter(
-                            dataStream.getEffectiveSettings(clusterService.state().projectState(projectResolver.getProjectId()).metadata())
-                        ),
+                        settingsFilter.filter(effectiveSettings),
                         new UpdateDataStreamSettingsAction.DataStreamSettingsResponse.IndicesSettingsResult(
                             appliedToDataStreamOnly,
                             appliedToDataStreamAndBackingIndices,
@@ -339,6 +342,6 @@ public class TransportUpdateDataStreamSettingsAction extends TransportMasterNode
 
     @Override
     protected ClusterBlockException checkBlock(UpdateDataStreamSettingsAction.Request request, ClusterState state) {
-        return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_WRITE);
+        return state.blocks().globalBlockedException(projectResolver.getProjectId(), ClusterBlockLevel.METADATA_WRITE);
     }
 }

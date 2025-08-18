@@ -35,11 +35,11 @@ buildscript {
 plugins {
   id 'lifecycle-base'
   id 'elasticsearch.docker-support'
+  id 'elasticsearch.internal-distribution-download'
+  id 'elasticsearch.jdk-download'
   id 'elasticsearch.global-build-info'
   id 'elasticsearch.build-complete'
   id 'elasticsearch.build-scan'
-  id 'elasticsearch.jdk-download'
-  id 'elasticsearch.internal-distribution-download'
   id 'elasticsearch.runtime-jdk-provision'
   id 'elasticsearch.ide'
   id 'elasticsearch.forbidden-dependencies'
@@ -328,6 +328,8 @@ allprojects {
       dependsOn ":distribution:bwc:bugfix:buildBwcLinuxTar"
       dependsOn ":distribution:bwc:bugfix2:buildBwcLinuxTar"
       dependsOn ":distribution:bwc:bugfix3:buildBwcLinuxTar"
+      dependsOn ":distribution:bwc:bugfix4:buildBwcLinuxTar"
+      dependsOn ":distribution:bwc:bugfix5:buildBwcLinuxTar"
       dependsOn ":distribution:bwc:minor:buildBwcLinuxTar"
       dependsOn ":distribution:bwc:staged:buildBwcLinuxTar"
       dependsOn ":distribution:bwc:staged2:buildBwcLinuxTar"
@@ -351,44 +353,45 @@ allprojects {
     }
   }
 
+  def splitForCI = { proj, partString ->
+    proj.tasks.register("check$partString") {
+      dependsOn 'check'
+      withReleaseBuild {
+        dependsOn 'assemble'
+      }
+    }
+
+    proj.tasks.addRule("Pattern: v<BWC_VERSION>#bwcTest$partString") { name ->
+      if(name.endsWith("#bwcTest$partString")) {
+        proj.project.getTasks().register(name) {
+          task -> task.dependsOn(proj.tasks.named { tskName -> tskName == (name - partString) })
+        }
+      }
+    }
+
+    proj.tasks.register("bcUpgradeTest$partString") {
+      dependsOn tasks.matching { it.name == 'bcUpgradeTest' }
+      withReleaseBuild {
+        dependsOn 'assemble'
+      }
+    }
+  }
+
   plugins.withId('lifecycle-base') {
     if (project.path.startsWith(":x-pack:")) {
       if (project.path.contains("security") || project.path.contains(":ml")) {
-        tasks.register('checkPart4') {
-          dependsOn 'check'
-          withReleaseBuild {
-            dependsOn 'assemble'
-          }
-        }
+        splitForCI(project, "Part4")
       } else if (project.path == ":x-pack:plugin" || project.path.contains("ql") || project.path.contains("smoke-test")) {
-        tasks.register('checkPart3') {
-          dependsOn 'check'
-          withReleaseBuild {
-            dependsOn 'assemble'
-          }
-        }
+        splitForCI(project, "Part3")
       } else if (project.path.contains("multi-node")) {
-        tasks.register('checkPart5') {
-          dependsOn 'check'
-          withReleaseBuild {
-            dependsOn 'assemble'
-          }
-        }
+        splitForCI(project, "Part5")
       } else {
-        tasks.register('checkPart2') {
-          dependsOn 'check'
-          withReleaseBuild {
-            dependsOn 'assemble'
-          }
-        }
+        splitForCI(project, "Part2")
       }
+    } else if(project.path.startsWith(":qa:")) {
+      splitForCI(project, "Part6")
     } else {
-      tasks.register('checkPart1') {
-        dependsOn 'check'
-        withReleaseBuild {
-          dependsOn 'assemble'
-        }
-      }
+      splitForCI(project, "Part1")
     }
     tasks.register('functionalTests') {
       dependsOn 'check'

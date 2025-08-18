@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
+import org.elasticsearch.xpack.esql.plan.logical.local.EmptyLocalSupplier;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
@@ -36,7 +37,7 @@ public class PropagateEmptyRelation extends OptimizerRules.ParameterizedOptimize
     @Override
     protected LogicalPlan rule(UnaryPlan plan, LogicalOptimizerContext ctx) {
         LogicalPlan p = plan;
-        if (plan.child() instanceof LocalRelation local && local.supplier() == LocalSupplier.EMPTY) {
+        if (plan.child() instanceof LocalRelation local && local.supplier() == EmptyLocalSupplier.EMPTY) {
             // only care about non-grouped aggs might return something (count)
             if (plan instanceof Aggregate agg && agg.groupings().isEmpty()) {
                 List<Block> emptyBlocks = aggsFromEmpty(ctx.foldCtx(), agg.aggregates());

@@ -7,6 +7,9 @@
 
 package org.elasticsearch.xpack.esql.planner;
 
+import org.apache.lucene.document.FieldType;
+import org.apache.lucene.index.DocValuesType;
+import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.search.BooleanClause;
@@ -14,24 +17,25 @@ import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.logging.HeaderWarning;
+import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.compute.aggregation.AggregatorMode;
 import org.elasticsearch.compute.aggregation.GroupingAggregator;
 import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
 import org.elasticsearch.compute.data.ElementType;
-import org.elasticsearch.compute.lucene.DataPartitioning;
 import org.elasticsearch.compute.lucene.LuceneCountOperator;
 import org.elasticsearch.compute.lucene.LuceneOperator;
 import org.elasticsearch.compute.lucene.LuceneSliceQueue;
 import org.elasticsearch.compute.lucene.LuceneSourceOperator;
 import org.elasticsearch.compute.lucene.LuceneTopNSourceOperator;
-import org.elasticsearch.compute.lucene.TimeSeriesExtractFieldOperator;
 import org.elasticsearch.compute.lucene.TimeSeriesSourceOperatorFactory;
-import org.elasticsearch.compute.lucene.ValuesSourceReaderOperator;
+import org.elasticsearch.compute.lucene.read.TimeSeriesExtractFieldOperator;
+import org.elasticsearch.compute.lucene.read.ValuesSourceReaderOperator;
 import org.elasticsearch.compute.operator.Operator;
-import org.elasticsearch.compute.operator.OrdinalsGroupingOperator;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.compute.operator.TimeSeriesAggregationOperator;
+import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
@@ -60,8 +64,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.KeywordEsField;
 import org.elasticsearch.xpack.esql.core.type.MultiTypeEsField;
 import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedKeywordEsField;
-import org.elasticsearch.xpack.esql.expression.function.scalar.convert.AbstractConvertFunction;
-import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
+import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec.Sort;
 import org.elasticsearch.xpack.esql.plan.physical.FieldExtractExec;
@@ -76,7 +79,6 @@ import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
@@ -84,20 +86,46 @@ import java.util.function.IntFunction;
 
 import static org.elasticsearch.common.lucene.search.Queries.newNonNestedFilter;
 import static org.elasticsearch.compute.lucene.LuceneSourceOperator.NO_LIMIT;
-import static org.elasticsearch.index.mapper.MappedFieldType.FieldExtractPreference.NONE;
 
 public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProviders {
     private static final Logger logger = LogManager.getLogger(EsPhysicalOperationProviders.class);
 
     /**
-     * Context of each shard we're operating against.
+     * Context of each shard we're operating against. Note these objects are shared across multiple operators as
+     * {@link org.elasticsearch.core.RefCounted}.
      */
-    public interface ShardContext extends org.elasticsearch.compute.lucene.ShardContext {
+    public abstract static class ShardContext implements org.elasticsearch.compute.lucene.ShardContext, Releasable {
+        private final AbstractRefCounted refCounted = new AbstractRefCounted() {
+            @Override
+            protected void closeInternal() {
+                ShardContext.this.close();
+            }
+        };
+
+        @Override
+        public void incRef() {
+            refCounted.incRef();
+        }
+
+        @Override
+        public boolean tryIncRef() {
+            return refCounted.tryIncRef();
+        }
+
+        @Override
+        public boolean decRef() {
+            return refCounted.decRef();
+        }
+
+        @Override
+        public boolean hasReferences() {
+            return refCounted.hasReferences();
+        }
 
         /**
          * Convert a {@link QueryBuilder} into a real {@link Query lucene query}.
          */
-        Query toQuery(QueryBuilder queryBuilder);
+        public abstract Query toQuery(QueryBuilder queryBuilder);
 
         /**
          * Tuning parameter for deciding when to use the "merge" stored field loader.
@@ -107,21 +135,21 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
          * A value of {@code .2} means we'll use the sequential reader even if we only
          * need one in ten documents.
          */
-        double storedFieldsSequentialProportion();
+        public abstract double storedFieldsSequentialProportion();
     }
 
     private final List<ShardContext> shardContexts;
-    private final DataPartitioning defaultDataPartitioning;
+    private final PhysicalSettings physicalSettings;
 
     public EsPhysicalOperationProviders(
         FoldContext foldContext,
         List<ShardContext> shardContexts,
         AnalysisRegistry analysisRegistry,
-        DataPartitioning defaultDataPartitioning
+        PhysicalSettings physicalSettings
     ) {
         super(foldContext, analysisRegistry);
         this.shardContexts = shardContexts;
-        this.defaultDataPartitioning = defaultDataPartitioning;
+        this.physicalSettings = physicalSettings;
     }
 
     @Override
@@ -146,7 +174,10 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
             // TODO: consolidate with ValuesSourceReaderOperator
             return source.with(new TimeSeriesExtractFieldOperator.Factory(fields, shardContexts), layout.build());
         } else {
-            return source.with(new ValuesSourceReaderOperator.Factory(fields, readers, docChannel), layout.build());
+            return source.with(
+                new ValuesSourceReaderOperator.Factory(physicalSettings.valuesLoadingJumboSize(), fields, readers, docChannel),
+                layout.build()
+            );
         }
     }
 
@@ -170,26 +201,46 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
             Expression conversion = unionTypes.getConversionExpressionForIndex(indexName);
             return conversion == null
                 ? BlockLoader.CONSTANT_NULLS
-                : new TypeConvertingBlockLoader(blockLoader, (AbstractConvertFunction) conversion);
+                : new TypeConvertingBlockLoader(blockLoader, (EsqlScalarFunction) conversion);
         }
         return blockLoader;
     }
 
     /** A hack to pretend an unmapped field still exists. */
     private static class DefaultShardContextForUnmappedField extends DefaultShardContext {
+        private static final FieldType UNMAPPED_FIELD_TYPE = new FieldType(KeywordFieldMapper.Defaults.FIELD_TYPE);
+        static {
+            UNMAPPED_FIELD_TYPE.setDocValuesType(DocValuesType.NONE);
+            UNMAPPED_FIELD_TYPE.setIndexOptions(IndexOptions.NONE);
+            UNMAPPED_FIELD_TYPE.setStored(false);
+            UNMAPPED_FIELD_TYPE.freeze();
+        }
         private final KeywordEsField unmappedEsField;
 
         DefaultShardContextForUnmappedField(DefaultShardContext ctx, PotentiallyUnmappedKeywordEsField unmappedEsField) {
-            super(ctx.index, ctx.ctx, ctx.aliasFilter);
+            super(ctx.index, ctx.releasable, ctx.ctx, ctx.aliasFilter);
             this.unmappedEsField = unmappedEsField;
         }
 
         @Override
         public @Nullable MappedFieldType fieldType(String name) {
             var superResult = super.fieldType(name);
-            return superResult == null && name.equals(unmappedEsField.getName())
-                ? new KeywordFieldMapper.KeywordFieldType(name, false /* isIndexed */, false /* hasDocValues */, Map.of() /* meta */)
-                : superResult;
+            return superResult == null && name.equals(unmappedEsField.getName()) ? createUnmappedFieldType(name, this) : superResult;
+        }
+
+        static MappedFieldType createUnmappedFieldType(String name, DefaultShardContext context) {
+            var builder = new KeywordFieldMapper.Builder(name, context.ctx.indexVersionCreated());
+            builder.docValues(false);
+            builder.indexed(false);
+            return new KeywordFieldMapper.KeywordFieldType(
+                name,
+                UNMAPPED_FIELD_TYPE,
+                Lucene.KEYWORD_ANALYZER,
+                Lucene.KEYWORD_ANALYZER,
+                Lucene.KEYWORD_ANALYZER,
+                builder,
+                context.ctx.isSourceSynthetic()
+            );
         }
     }
 
@@ -229,7 +280,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
             luceneFactory = new LuceneTopNSourceOperator.Factory(
                 shardContexts,
                 querySupplier(esQueryExec.query()),
-                context.queryPragmas().dataPartitioning(defaultDataPartitioning),
+                context.queryPragmas().dataPartitioning(physicalSettings.defaultDataPartitioning()),
                 context.queryPragmas().taskConcurrency(),
                 context.pageSize(rowEstimatedSize),
                 limit,
@@ -240,7 +291,8 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
             luceneFactory = new LuceneSourceOperator.Factory(
                 shardContexts,
                 querySupplier(esQueryExec.query()),
-                context.queryPragmas().dataPartitioning(defaultDataPartitioning),
+                context.queryPragmas().dataPartitioning(physicalSettings.defaultDataPartitioning()),
+                context.autoPartitioningStrategy().get(),
                 context.queryPragmas().taskConcurrency(),
                 context.pageSize(rowEstimatedSize),
                 limit,
@@ -292,42 +344,9 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         return new LuceneCountOperator.Factory(
             shardContexts,
             querySupplier(queryBuilder),
-            context.queryPragmas().dataPartitioning(defaultDataPartitioning),
+            context.queryPragmas().dataPartitioning(physicalSettings.defaultDataPartitioning()),
             context.queryPragmas().taskConcurrency(),
             limit == null ? NO_LIMIT : (Integer) limit.fold(context.foldCtx())
-        );
-    }
-
-    @Override
-    public final Operator.OperatorFactory ordinalGroupingOperatorFactory(
-        LocalExecutionPlanner.PhysicalOperation source,
-        AggregateExec aggregateExec,
-        List<GroupingAggregator.Factory> aggregatorFactories,
-        Attribute attrSource,
-        ElementType groupElementType,
-        LocalExecutionPlannerContext context
-    ) {
-        var sourceAttribute = FieldExtractExec.extractSourceAttributesFrom(aggregateExec.child());
-        int docChannel = source.layout.get(sourceAttribute.id()).channel();
-        List<ValuesSourceReaderOperator.ShardContext> vsShardContexts = shardContexts.stream()
-            .map(
-                s -> new ValuesSourceReaderOperator.ShardContext(
-                    s.searcher().getIndexReader(),
-                    s::newSourceLoader,
-                    s.storedFieldsSequentialProportion()
-                )
-            )
-            .toList();
-        // The grouping-by values are ready, let's group on them directly.
-        // Costin: why are they ready and not already exposed in the layout?
-        return new OrdinalsGroupingOperator.OrdinalsGroupingOperatorFactory(
-            shardIdx -> getBlockLoaderFor(shardIdx, attrSource, NONE),
-            vsShardContexts,
-            groupElementType,
-            docChannel,
-            attrSource.name(),
-            aggregatorFactories,
-            context.pageSize(aggregateExec.estimatedRowSize())
         );
     }
 
@@ -349,18 +368,24 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         );
     }
 
-    public static class DefaultShardContext implements ShardContext {
+    public static class DefaultShardContext extends ShardContext {
         private final int index;
+        /**
+         * In production, this will be a {@link org.elasticsearch.search.internal.SearchContext}, but we don't want to drag that huge
+         * dependency here.
+         */
+        private final Releasable releasable;
         private final SearchExecutionContext ctx;
         private final AliasFilter aliasFilter;
         private final String shardIdentifier;
 
-        public DefaultShardContext(int index, SearchExecutionContext ctx, AliasFilter aliasFilter) {
+        public DefaultShardContext(int index, Releasable releasable, SearchExecutionContext ctx, AliasFilter aliasFilter) {
             this.index = index;
+            this.releasable = releasable;
             this.ctx = ctx;
             this.aliasFilter = aliasFilter;
             // Build the shardIdentifier once up front so we can reuse references to it in many places.
-            this.shardIdentifier = ctx.getFullyQualifiedIndex().getName() + ":" + ctx.getShardId();
+            this.shardIdentifier = this.ctx.getFullyQualifiedIndex().getName() + ":" + this.ctx.getShardId();
         }
 
         @Override
@@ -473,15 +498,20 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         public double storedFieldsSequentialProportion() {
             return EsqlPlugin.STORED_FIELDS_SEQUENTIAL_PROPORTION.get(ctx.getIndexSettings().getSettings());
         }
+
+        @Override
+        public void close() {
+            releasable.close();
+        }
     }
 
     private static class TypeConvertingBlockLoader implements BlockLoader {
         private final BlockLoader delegate;
         private final TypeConverter typeConverter;
 
-        protected TypeConvertingBlockLoader(BlockLoader delegate, AbstractConvertFunction convertFunction) {
+        protected TypeConvertingBlockLoader(BlockLoader delegate, EsqlScalarFunction convertFunction) {
             this.delegate = delegate;
-            this.typeConverter = TypeConverter.fromConvertFunction(convertFunction);
+            this.typeConverter = TypeConverter.fromScalarFunction(convertFunction);
         }
 
         @Override
@@ -503,8 +533,8 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
             }
             return new ColumnAtATimeReader() {
                 @Override
-                public Block read(BlockFactory factory, Docs docs) throws IOException {
-                    Block block = reader.read(factory, docs);
+                public Block read(BlockFactory factory, Docs docs, int offset) throws IOException {
+                    Block block = reader.read(factory, docs, offset);
                     return typeConverter.convert((org.elasticsearch.compute.data.Block) block);
                 }
 

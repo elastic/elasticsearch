@@ -11,6 +11,7 @@ import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.util.LazyInitializable;
 import org.elasticsearch.core.Nullable;
@@ -19,6 +20,7 @@ import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.InferenceServiceConfiguration;
+import org.elasticsearch.inference.InferenceServiceExtension;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
@@ -84,8 +86,16 @@ public class CohereService extends SenderService {
     // The reason it needs to be done here is that the batching logic needs to hold state but the *RequestManagers are instantiated
     // on every request
 
-    public CohereService(HttpRequestSender.Factory factory, ServiceComponents serviceComponents) {
-        super(factory, serviceComponents);
+    public CohereService(
+        HttpRequestSender.Factory factory,
+        ServiceComponents serviceComponents,
+        InferenceServiceExtension.InferenceServiceFactoryContext context
+    ) {
+        this(factory, serviceComponents, context.clusterService());
+    }
+
+    public CohereService(HttpRequestSender.Factory factory, ServiceComponents serviceComponents, ClusterService clusterService) {
+        super(factory, serviceComponents, clusterService);
     }
 
     @Override
@@ -166,24 +176,14 @@ public class CohereService extends SenderService {
         return switch (taskType) {
             case TEXT_EMBEDDING -> new CohereEmbeddingsModel(
                 inferenceEntityId,
-                taskType,
-                NAME,
                 serviceSettings,
                 taskSettings,
                 chunkingSettings,
                 secretSettings,
                 context
             );
-            case RERANK -> new CohereRerankModel(inferenceEntityId, taskType, NAME, serviceSettings, taskSettings, secretSettings, context);
-            case COMPLETION -> new CohereCompletionModel(
-                inferenceEntityId,
-                taskType,
-                NAME,
-                serviceSettings,
-                taskSettings,
-                secretSettings,
-                context
-            );
+            case RERANK -> new CohereRerankModel(inferenceEntityId, serviceSettings, taskSettings, secretSettings, context);
+            case COMPLETION -> new CohereCompletionModel(inferenceEntityId, serviceSettings, secretSettings, context);
             default -> throw new ElasticsearchStatusException(failureMessage, RestStatus.BAD_REQUEST);
         };
     }
@@ -324,7 +324,8 @@ public class CohereService extends SenderService {
                     embeddingSize,
                     serviceSettings.getCommonSettings().maxInputTokens(),
                     serviceSettings.getCommonSettings().modelId(),
-                    serviceSettings.getCommonSettings().rateLimitSettings()
+                    serviceSettings.getCommonSettings().rateLimitSettings(),
+                    serviceSettings.getCommonSettings().apiVersion()
                 ),
                 serviceSettings.getEmbeddingType()
             );

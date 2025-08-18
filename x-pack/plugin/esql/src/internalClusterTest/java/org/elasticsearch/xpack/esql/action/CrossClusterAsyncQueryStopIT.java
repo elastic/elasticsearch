@@ -9,11 +9,15 @@ package org.elasticsearch.xpack.esql.action;
 
 import org.elasticsearch.Build;
 import org.elasticsearch.action.ActionFuture;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.tasks.TaskInfo;
+import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.async.AsyncStopRequest;
+import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
+import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 
 import java.util.Iterator;
 import java.util.List;
@@ -125,27 +129,43 @@ public class CrossClusterAsyncQueryStopIT extends AbstractCrossClusterTestCase {
     }
 
     public void testStopQueryLocal() throws Exception {
+        assumeTrue("Pragma does not work in release builds", Build.current().isSnapshot());
         Map<String, Object> testClusterInfo = setupClusters(3);
         int remote1NumShards = (Integer) testClusterInfo.get("remote1.num_shards");
         int remote2NumShards = (Integer) testClusterInfo.get("remote2.num_shards");
         populateRuntimeIndex(LOCAL_CLUSTER, "pause", INDEX_WITH_BLOCKING_MAPPING);
 
+        // Gets random node client but ensure it's the same node for all operations
+        Client client = cluster(LOCAL_CLUSTER).client();
+
         Tuple<Boolean, Boolean> includeCCSMetadata = randomIncludeCCSMetadata();
         boolean responseExpectMeta = includeCCSMetadata.v2();
-
-        final String asyncExecutionId = startAsyncQuery(
-            client(),
+        // By default, ES|QL uses all workers in the esql_worker threadpool to execute drivers on data nodes.
+        // If a node is both data and coordinator, and all drivers are blocked by the allowEmitting latch,
+        // there are no workers left to execute the final driver or fetch pages from remote clusters.
+        // This can prevent remote clusters from being marked as successful on the coordinator, even if they
+        // have completed. To avoid this, we reserve at least one worker for the final driver and page fetching.
+        // A single worker is enough, as these two tasks can be paused and yielded.
+        var threadpool = cluster(LOCAL_CLUSTER).getInstance(TransportService.class).getThreadPool();
+        int maxEsqlWorkers = threadpool.info(EsqlPlugin.ESQL_WORKER_THREAD_POOL_NAME).getMax();
+        LOGGER.info("--> Launching async query");
+        final String asyncExecutionId = startAsyncQueryWithPragmas(
+            client,
             "FROM blocking,*:logs-* | STATS total=sum(coalesce(const,v)) | LIMIT 1",
-            includeCCSMetadata.v1()
+            includeCCSMetadata.v1(),
+            Map.of(QueryPragmas.TASK_CONCURRENCY.getKey(), between(1, maxEsqlWorkers - 1))
         );
-
         try {
             // wait until we know that the local query against 'blocking' has started
+            LOGGER.info("--> Waiting for {} to start", asyncExecutionId);
             assertTrue(SimplePauseFieldPlugin.startEmitting.await(30, TimeUnit.SECONDS));
 
             // wait until the remotes are done
-            waitForCluster(client(), REMOTE_CLUSTER_1, asyncExecutionId);
-            waitForCluster(client(), REMOTE_CLUSTER_2, asyncExecutionId);
+            LOGGER.info("--> Waiting for remotes", asyncExecutionId);
+            waitForCluster(client, REMOTE_CLUSTER_1, asyncExecutionId);
+            LOGGER.info("--> Remote 1 done", asyncExecutionId);
+            waitForCluster(client, REMOTE_CLUSTER_2, asyncExecutionId);
+            LOGGER.info("--> Remote 2 done", asyncExecutionId);
 
             /* at this point:
              *  the query against remotes should be finished
@@ -154,19 +174,19 @@ public class CrossClusterAsyncQueryStopIT extends AbstractCrossClusterTestCase {
             // run the stop query
             AsyncStopRequest stopRequest = new AsyncStopRequest(asyncExecutionId);
             LOGGER.info("Launching stop for {}", asyncExecutionId);
-            ActionFuture<EsqlQueryResponse> stopAction = client().execute(EsqlAsyncStopAction.INSTANCE, stopRequest);
+            ActionFuture<EsqlQueryResponse> stopAction = client.execute(EsqlAsyncStopAction.INSTANCE, stopRequest);
             // ensure stop operation is running
             assertBusy(() -> {
-                try (EsqlQueryResponse asyncResponse = getAsyncResponse(client(), asyncExecutionId)) {
+                try (EsqlQueryResponse asyncResponse = getAsyncResponse(client, asyncExecutionId)) {
                     EsqlExecutionInfo executionInfo = asyncResponse.getExecutionInfo();
-                    LOGGER.info("Waiting for stop operation to start, current status: {}", executionInfo);
+                    LOGGER.info("--> Waiting for stop operation to start, current status: {}", executionInfo);
                     assertNotNull(executionInfo);
                     assertThat(executionInfo.isStopped(), is(true));
                 }
             });
             // allow local query to proceed
             SimplePauseFieldPlugin.allowEmitting.countDown();
-            LOGGER.info("Collecting results for {}", asyncExecutionId);
+            LOGGER.info("--> Collecting results for {}", asyncExecutionId);
 
             // Since part of the query has not been stopped, we expect some result to emerge here
             try (EsqlQueryResponse asyncResponse = stopAction.actionGet(30, TimeUnit.SECONDS)) {
@@ -201,7 +221,7 @@ public class CrossClusterAsyncQueryStopIT extends AbstractCrossClusterTestCase {
             }
         } finally {
             SimplePauseFieldPlugin.allowEmitting.countDown();
-            assertAcked(deleteAsyncId(client(), asyncExecutionId));
+            assertAcked(deleteAsyncId(client, asyncExecutionId));
         }
     }
 

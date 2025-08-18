@@ -25,11 +25,11 @@ public class EsqlBaseParser extends ParserConfig {
   protected static final PredictionContextCache _sharedContextCache =
     new PredictionContextCache();
   public static final int
-    LINE_COMMENT=1, MULTILINE_COMMENT=2, WS=3, CHANGE_POINT=4, ENRICH=5, EXPLAIN=6, 
-    COMPLETION=7, DISSECT=8, EVAL=9, GROK=10, LIMIT=11, ROW=12, SORT=13, STATS=14, 
-    WHERE=15, DEV_INLINESTATS=16, DEV_RERANK=17, DEV_SAMPLE=18, FROM=19, DEV_TIME_SERIES=20, 
-    DEV_FORK=21, JOIN_LOOKUP=22, DEV_JOIN_FULL=23, DEV_JOIN_LEFT=24, DEV_JOIN_RIGHT=25, 
-    DEV_LOOKUP=26, MV_EXPAND=27, DROP=28, KEEP=29, DEV_INSIST=30, DEV_RRF=31, 
+    LINE_COMMENT=1, MULTILINE_COMMENT=2, WS=3, CHANGE_POINT=4, ENRICH=5, DEV_EXPLAIN=6, 
+    COMPLETION=7, DISSECT=8, EVAL=9, GROK=10, LIMIT=11, RERANK=12, ROW=13, 
+    SAMPLE=14, SORT=15, STATS=16, WHERE=17, DEV_INLINESTATS=18, FROM=19, DEV_TIME_SERIES=20, 
+    FORK=21, DEV_FUSE=22, JOIN_LOOKUP=23, DEV_JOIN_FULL=24, DEV_JOIN_LEFT=25, 
+    DEV_JOIN_RIGHT=26, DEV_LOOKUP=27, MV_EXPAND=28, DROP=29, KEEP=30, DEV_INSIST=31, 
     RENAME=32, SHOW=33, UNKNOWN_CMD=34, CHANGE_POINT_LINE_COMMENT=35, CHANGE_POINT_MULTILINE_COMMENT=36, 
     CHANGE_POINT_WS=37, ENRICH_POLICY_NAME=38, ENRICH_LINE_COMMENT=39, ENRICH_MULTILINE_COMMENT=40, 
     ENRICH_WS=41, ENRICH_FIELD_LINE_COMMENT=42, ENRICH_FIELD_MULTILINE_COMMENT=43, 
@@ -59,44 +59,46 @@ public class EsqlBaseParser extends ParserConfig {
     RULE_field = 8, RULE_rerankFields = 9, RULE_rerankField = 10, RULE_fromCommand = 11, 
     RULE_timeSeriesCommand = 12, RULE_indexPatternAndMetadataFields = 13, 
     RULE_indexPattern = 14, RULE_clusterString = 15, RULE_selectorString = 16, 
-    RULE_indexString = 17, RULE_metadata = 18, RULE_evalCommand = 19, RULE_statsCommand = 20, 
-    RULE_aggFields = 21, RULE_aggField = 22, RULE_qualifiedName = 23, RULE_qualifiedNamePattern = 24, 
-    RULE_qualifiedNamePatterns = 25, RULE_identifier = 26, RULE_identifierPattern = 27, 
-    RULE_parameter = 28, RULE_doubleParameter = 29, RULE_identifierOrParameter = 30, 
-    RULE_limitCommand = 31, RULE_sortCommand = 32, RULE_orderExpression = 33, 
-    RULE_keepCommand = 34, RULE_dropCommand = 35, RULE_renameCommand = 36, 
-    RULE_renameClause = 37, RULE_dissectCommand = 38, RULE_grokCommand = 39, 
-    RULE_mvExpandCommand = 40, RULE_commandOptions = 41, RULE_commandOption = 42, 
-    RULE_explainCommand = 43, RULE_subqueryExpression = 44, RULE_showCommand = 45, 
-    RULE_enrichCommand = 46, RULE_enrichWithClause = 47, RULE_lookupCommand = 48, 
-    RULE_inlinestatsCommand = 49, RULE_changePointCommand = 50, RULE_insistCommand = 51, 
-    RULE_forkCommand = 52, RULE_forkSubQueries = 53, RULE_forkSubQuery = 54, 
-    RULE_forkSubQueryCommand = 55, RULE_forkSubQueryProcessingCommand = 56, 
-    RULE_rrfCommand = 57, RULE_rerankCommand = 58, RULE_completionCommand = 59, 
-    RULE_sampleCommand = 60, RULE_booleanExpression = 61, RULE_regexBooleanExpression = 62, 
-    RULE_matchBooleanExpression = 63, RULE_valueExpression = 64, RULE_operatorExpression = 65, 
-    RULE_primaryExpression = 66, RULE_functionExpression = 67, RULE_functionName = 68, 
-    RULE_mapExpression = 69, RULE_entryExpression = 70, RULE_constant = 71, 
-    RULE_booleanValue = 72, RULE_numericValue = 73, RULE_decimalValue = 74, 
-    RULE_integerValue = 75, RULE_string = 76, RULE_comparisonOperator = 77, 
-    RULE_joinCommand = 78, RULE_joinTarget = 79, RULE_joinCondition = 80, 
-    RULE_joinPredicate = 81;
+    RULE_unquotedIndexString = 17, RULE_indexString = 18, RULE_metadata = 19, 
+    RULE_evalCommand = 20, RULE_statsCommand = 21, RULE_aggFields = 22, RULE_aggField = 23, 
+    RULE_qualifiedName = 24, RULE_qualifiedNamePattern = 25, RULE_qualifiedNamePatterns = 26, 
+    RULE_identifier = 27, RULE_identifierPattern = 28, RULE_parameter = 29, 
+    RULE_doubleParameter = 30, RULE_identifierOrParameter = 31, RULE_limitCommand = 32, 
+    RULE_sortCommand = 33, RULE_orderExpression = 34, RULE_keepCommand = 35, 
+    RULE_dropCommand = 36, RULE_renameCommand = 37, RULE_renameClause = 38, 
+    RULE_dissectCommand = 39, RULE_dissectCommandOptions = 40, RULE_dissectCommandOption = 41, 
+    RULE_commandNamedParameters = 42, RULE_grokCommand = 43, RULE_mvExpandCommand = 44, 
+    RULE_explainCommand = 45, RULE_subqueryExpression = 46, RULE_showCommand = 47, 
+    RULE_enrichCommand = 48, RULE_enrichPolicyName = 49, RULE_enrichWithClause = 50, 
+    RULE_sampleCommand = 51, RULE_changePointCommand = 52, RULE_forkCommand = 53, 
+    RULE_forkSubQueries = 54, RULE_forkSubQuery = 55, RULE_forkSubQueryCommand = 56, 
+    RULE_forkSubQueryProcessingCommand = 57, RULE_rerankCommand = 58, RULE_completionCommand = 59, 
+    RULE_lookupCommand = 60, RULE_inlinestatsCommand = 61, RULE_insistCommand = 62, 
+    RULE_fuseCommand = 63, RULE_booleanExpression = 64, RULE_regexBooleanExpression = 65, 
+    RULE_matchBooleanExpression = 66, RULE_valueExpression = 67, RULE_operatorExpression = 68, 
+    RULE_primaryExpression = 69, RULE_functionExpression = 70, RULE_functionName = 71, 
+    RULE_mapExpression = 72, RULE_entryExpression = 73, RULE_constant = 74, 
+    RULE_booleanValue = 75, RULE_numericValue = 76, RULE_decimalValue = 77, 
+    RULE_integerValue = 78, RULE_string = 79, RULE_comparisonOperator = 80, 
+    RULE_joinCommand = 81, RULE_joinTarget = 82, RULE_joinCondition = 83, 
+    RULE_joinPredicate = 84;
   private static String[] makeRuleNames() {
     return new String[] {
       "singleStatement", "query", "sourceCommand", "processingCommand", "whereCommand", 
       "dataType", "rowCommand", "fields", "field", "rerankFields", "rerankField", 
       "fromCommand", "timeSeriesCommand", "indexPatternAndMetadataFields", 
-      "indexPattern", "clusterString", "selectorString", "indexString", "metadata", 
-      "evalCommand", "statsCommand", "aggFields", "aggField", "qualifiedName", 
-      "qualifiedNamePattern", "qualifiedNamePatterns", "identifier", "identifierPattern", 
-      "parameter", "doubleParameter", "identifierOrParameter", "limitCommand", 
-      "sortCommand", "orderExpression", "keepCommand", "dropCommand", "renameCommand", 
-      "renameClause", "dissectCommand", "grokCommand", "mvExpandCommand", "commandOptions", 
-      "commandOption", "explainCommand", "subqueryExpression", "showCommand", 
-      "enrichCommand", "enrichWithClause", "lookupCommand", "inlinestatsCommand", 
-      "changePointCommand", "insistCommand", "forkCommand", "forkSubQueries", 
-      "forkSubQuery", "forkSubQueryCommand", "forkSubQueryProcessingCommand", 
-      "rrfCommand", "rerankCommand", "completionCommand", "sampleCommand", 
+      "indexPattern", "clusterString", "selectorString", "unquotedIndexString", 
+      "indexString", "metadata", "evalCommand", "statsCommand", "aggFields", 
+      "aggField", "qualifiedName", "qualifiedNamePattern", "qualifiedNamePatterns", 
+      "identifier", "identifierPattern", "parameter", "doubleParameter", "identifierOrParameter", 
+      "limitCommand", "sortCommand", "orderExpression", "keepCommand", "dropCommand", 
+      "renameCommand", "renameClause", "dissectCommand", "dissectCommandOptions", 
+      "dissectCommandOption", "commandNamedParameters", "grokCommand", "mvExpandCommand", 
+      "explainCommand", "subqueryExpression", "showCommand", "enrichCommand", 
+      "enrichPolicyName", "enrichWithClause", "sampleCommand", "changePointCommand", 
+      "forkCommand", "forkSubQueries", "forkSubQuery", "forkSubQueryCommand", 
+      "forkSubQueryProcessingCommand", "rerankCommand", "completionCommand", 
+      "lookupCommand", "inlinestatsCommand", "insistCommand", "fuseCommand", 
       "booleanExpression", "regexBooleanExpression", "matchBooleanExpression", 
       "valueExpression", "operatorExpression", "primaryExpression", "functionExpression", 
       "functionName", "mapExpression", "entryExpression", "constant", "booleanValue", 
@@ -108,32 +110,32 @@ public class EsqlBaseParser extends ParserConfig {
 
   private static String[] makeLiteralNames() {
     return new String[] {
-      null, null, null, null, "'change_point'", "'enrich'", "'explain'", "'completion'", 
-      "'dissect'", "'eval'", "'grok'", "'limit'", "'row'", "'sort'", "'stats'", 
-      "'where'", null, null, null, "'from'", null, null, "'lookup'", null, 
-      null, null, null, "'mv_expand'", "'drop'", "'keep'", null, null, "'rename'", 
-      "'show'", null, null, null, null, null, null, null, null, null, null, 
-      null, null, null, null, null, null, null, null, "'|'", null, null, null, 
-      "'and'", "'asc'", "'='", "'by'", "'::'", "':'", "','", "'desc'", "'.'", 
-      "'false'", "'first'", "'in'", "'is'", "'last'", "'like'", "'not'", "'null'", 
-      "'nulls'", "'on'", "'or'", "'?'", "'rlike'", "'true'", "'with'", "'=='", 
-      "'=~'", "'!='", "'<'", "'<='", "'>'", "'>='", "'+'", "'-'", "'*'", "'/'", 
-      "'%'", "'{'", "'}'", "'??'", null, null, null, "']'", null, "')'", null, 
-      null, null, null, null, "'metadata'", null, null, null, null, null, null, 
-      null, "'join'", "'USING'", null, null, null, null, null, null, null, 
-      null, null, null, null, null, null, null, null, null, "'as'", null, null, 
-      null, "'info'"
+      null, null, null, null, "'change_point'", "'enrich'", null, "'completion'", 
+      "'dissect'", "'eval'", "'grok'", "'limit'", "'rerank'", "'row'", "'sample'", 
+      "'sort'", "'stats'", "'where'", null, "'from'", null, "'fork'", null, 
+      "'lookup'", null, null, null, null, "'mv_expand'", "'drop'", "'keep'", 
+      null, "'rename'", "'show'", null, null, null, null, null, null, null, 
+      null, null, null, null, null, null, null, null, null, null, null, "'|'", 
+      null, null, null, "'and'", "'asc'", "'='", "'by'", "'::'", "':'", "','", 
+      "'desc'", "'.'", "'false'", "'first'", "'in'", "'is'", "'last'", "'like'", 
+      "'not'", "'null'", "'nulls'", "'on'", "'or'", "'?'", "'rlike'", "'true'", 
+      "'with'", "'=='", "'=~'", "'!='", "'<'", "'<='", "'>'", "'>='", "'+'", 
+      "'-'", "'*'", "'/'", "'%'", "'{'", "'}'", "'??'", null, null, null, "']'", 
+      null, "')'", null, null, null, null, null, "'metadata'", null, null, 
+      null, null, null, null, null, "'join'", "'USING'", null, null, null, 
+      null, null, null, null, null, null, null, null, null, null, null, null, 
+      null, "'as'", null, null, null, "'info'"
     };
   }
   private static final String[] _LITERAL_NAMES = makeLiteralNames();
   private static String[] makeSymbolicNames() {
     return new String[] {
       null, "LINE_COMMENT", "MULTILINE_COMMENT", "WS", "CHANGE_POINT", "ENRICH", 
-      "EXPLAIN", "COMPLETION", "DISSECT", "EVAL", "GROK", "LIMIT", "ROW", "SORT", 
-      "STATS", "WHERE", "DEV_INLINESTATS", "DEV_RERANK", "DEV_SAMPLE", "FROM", 
-      "DEV_TIME_SERIES", "DEV_FORK", "JOIN_LOOKUP", "DEV_JOIN_FULL", "DEV_JOIN_LEFT", 
-      "DEV_JOIN_RIGHT", "DEV_LOOKUP", "MV_EXPAND", "DROP", "KEEP", "DEV_INSIST", 
-      "DEV_RRF", "RENAME", "SHOW", "UNKNOWN_CMD", "CHANGE_POINT_LINE_COMMENT", 
+      "DEV_EXPLAIN", "COMPLETION", "DISSECT", "EVAL", "GROK", "LIMIT", "RERANK", 
+      "ROW", "SAMPLE", "SORT", "STATS", "WHERE", "DEV_INLINESTATS", "FROM", 
+      "DEV_TIME_SERIES", "FORK", "DEV_FUSE", "JOIN_LOOKUP", "DEV_JOIN_FULL", 
+      "DEV_JOIN_LEFT", "DEV_JOIN_RIGHT", "DEV_LOOKUP", "MV_EXPAND", "DROP", 
+      "KEEP", "DEV_INSIST", "RENAME", "SHOW", "UNKNOWN_CMD", "CHANGE_POINT_LINE_COMMENT", 
       "CHANGE_POINT_MULTILINE_COMMENT", "CHANGE_POINT_WS", "ENRICH_POLICY_NAME", 
       "ENRICH_LINE_COMMENT", "ENRICH_MULTILINE_COMMENT", "ENRICH_WS", "ENRICH_FIELD_LINE_COMMENT", 
       "ENRICH_FIELD_MULTILINE_COMMENT", "ENRICH_FIELD_WS", "SETTING", "SETTING_LINE_COMMENT", 
@@ -241,9 +243,9 @@ public class EsqlBaseParser extends ParserConfig {
     try {
       enterOuterAlt(_localctx, 1);
       {
-      setState(164);
+      setState(170);
       query(0);
-      setState(165);
+      setState(171);
       match(EOF);
       }
     }
@@ -339,11 +341,11 @@ public class EsqlBaseParser extends ParserConfig {
       _ctx = _localctx;
       _prevctx = _localctx;
 
-      setState(168);
+      setState(174);
       sourceCommand();
       }
       _ctx.stop = _input.LT(-1);
-      setState(175);
+      setState(181);
       _errHandler.sync(this);
       _alt = getInterpreter().adaptivePredict(_input,0,_ctx);
       while ( _alt!=2 && _alt!=org.antlr.v4.runtime.atn.ATN.INVALID_ALT_NUMBER ) {
@@ -354,16 +356,16 @@ public class EsqlBaseParser extends ParserConfig {
           {
           _localctx = new CompositeQueryContext(new QueryContext(_parentctx, _parentState));
           pushNewRecursionContext(_localctx, _startState, RULE_query);
-          setState(170);
+          setState(176);
           if (!(precpred(_ctx, 1))) throw new FailedPredicateException(this, "precpred(_ctx, 1)");
-          setState(171);
+          setState(177);
           match(PIPE);
-          setState(172);
+          setState(178);
           processingCommand();
           }
           } 
         }
-        setState(177);
+        setState(183);
         _errHandler.sync(this);
         _alt = getInterpreter().adaptivePredict(_input,0,_ctx);
       }
@@ -382,9 +384,6 @@ public class EsqlBaseParser extends ParserConfig {
 
   @SuppressWarnings("CheckReturnValue")
   public static class SourceCommandContext extends ParserRuleContext {
-    public ExplainCommandContext explainCommand() {
-      return getRuleContext(ExplainCommandContext.class,0);
-    }
     public FromCommandContext fromCommand() {
       return getRuleContext(FromCommandContext.class,0);
     }
@@ -396,6 +395,9 @@ public class EsqlBaseParser extends ParserConfig {
     }
     public TimeSeriesCommandContext timeSeriesCommand() {
       return getRuleContext(TimeSeriesCommandContext.class,0);
+    }
+    public ExplainCommandContext explainCommand() {
+      return getRuleContext(ExplainCommandContext.class,0);
     }
     @SuppressWarnings("this-escape")
     public SourceCommandContext(ParserRuleContext parent, int invokingState) {
@@ -421,44 +423,46 @@ public class EsqlBaseParser extends ParserConfig {
     SourceCommandContext _localctx = new SourceCommandContext(_ctx, getState());
     enterRule(_localctx, 4, RULE_sourceCommand);
     try {
-      setState(184);
+      setState(191);
       _errHandler.sync(this);
       switch ( getInterpreter().adaptivePredict(_input,1,_ctx) ) {
       case 1:
         enterOuterAlt(_localctx, 1);
         {
-        setState(178);
-        explainCommand();
+        setState(184);
+        fromCommand();
         }
         break;
       case 2:
         enterOuterAlt(_localctx, 2);
         {
-        setState(179);
-        fromCommand();
+        setState(185);
+        rowCommand();
         }
         break;
       case 3:
         enterOuterAlt(_localctx, 3);
         {
-        setState(180);
-        rowCommand();
+        setState(186);
+        showCommand();
         }
         break;
       case 4:
         enterOuterAlt(_localctx, 4);
         {
-        setState(181);
-        showCommand();
+        setState(187);
+        if (!(this.isDevVersion())) throw new FailedPredicateException(this, "this.isDevVersion()");
+        setState(188);
+        timeSeriesCommand();
         }
         break;
       case 5:
         enterOuterAlt(_localctx, 5);
         {
-        setState(182);
+        setState(189);
         if (!(this.isDevVersion())) throw new FailedPredicateException(this, "this.isDevVersion()");
-        setState(183);
-        timeSeriesCommand();
+        setState(190);
+        explainCommand();
         }
         break;
       }
@@ -521,6 +525,15 @@ public class EsqlBaseParser extends ParserConfig {
     public CompletionCommandContext completionCommand() {
       return getRuleContext(CompletionCommandContext.class,0);
     }
+    public SampleCommandContext sampleCommand() {
+      return getRuleContext(SampleCommandContext.class,0);
+    }
+    public ForkCommandContext forkCommand() {
+      return getRuleContext(ForkCommandContext.class,0);
+    }
+    public RerankCommandContext rerankCommand() {
+      return getRuleContext(RerankCommandContext.class,0);
+    }
     public InlinestatsCommandContext inlinestatsCommand() {
       return getRuleContext(InlinestatsCommandContext.class,0);
     }
@@ -530,17 +543,8 @@ public class EsqlBaseParser extends ParserConfig {
     public InsistCommandContext insistCommand() {
       return getRuleContext(InsistCommandContext.class,0);
     }
-    public ForkCommandContext forkCommand() {
-      return getRuleContext(ForkCommandContext.class,0);
-    }
-    public RerankCommandContext rerankCommand() {
-      return getRuleContext(RerankCommandContext.class,0);
-    }
-    public RrfCommandContext rrfCommand() {
-      return getRuleContext(RrfCommandContext.class,0);
-    }
-    public SampleCommandContext sampleCommand() {
-      return getRuleContext(SampleCommandContext.class,0);
+    public FuseCommandContext fuseCommand() {
+      return getRuleContext(FuseCommandContext.class,0);
     }
     @SuppressWarnings("this-escape")
     public ProcessingCommandContext(ParserRuleContext parent, int invokingState) {
@@ -566,175 +570,169 @@ public class EsqlBaseParser extends ParserConfig {
     ProcessingCommandContext _localctx = new ProcessingCommandContext(_ctx, getState());
     enterRule(_localctx, 6, RULE_processingCommand);
     try {
-      setState(215);
+      setState(219);
       _errHandler.sync(this);
       switch ( getInterpreter().adaptivePredict(_input,2,_ctx) ) {
       case 1:
         enterOuterAlt(_localctx, 1);
         {
-        setState(186);
+        setState(193);
         evalCommand();
         }
         break;
       case 2:
         enterOuterAlt(_localctx, 2);
         {
-        setState(187);
+        setState(194);
         whereCommand();
         }
         break;
       case 3:
         enterOuterAlt(_localctx, 3);
         {
-        setState(188);
+        setState(195);
         keepCommand();
         }
         break;
       case 4:
         enterOuterAlt(_localctx, 4);
         {
-        setState(189);
+        setState(196);
         limitCommand();
         }
         break;
       case 5:
         enterOuterAlt(_localctx, 5);
         {
-        setState(190);
+        setState(197);
         statsCommand();
         }
         break;
       case 6:
         enterOuterAlt(_localctx, 6);
         {
-        setState(191);
+        setState(198);
         sortCommand();
         }
         break;
       case 7:
         enterOuterAlt(_localctx, 7);
         {
-        setState(192);
+        setState(199);
         dropCommand();
         }
         break;
       case 8:
         enterOuterAlt(_localctx, 8);
         {
-        setState(193);
+        setState(200);
         renameCommand();
         }
         break;
       case 9:
         enterOuterAlt(_localctx, 9);
         {
-        setState(194);
+        setState(201);
         dissectCommand();
         }
         break;
       case 10:
         enterOuterAlt(_localctx, 10);
         {
-        setState(195);
+        setState(202);
         grokCommand();
         }
         break;
       case 11:
         enterOuterAlt(_localctx, 11);
         {
-        setState(196);
+        setState(203);
         enrichCommand();
         }
         break;
       case 12:
         enterOuterAlt(_localctx, 12);
         {
-        setState(197);
+        setState(204);
         mvExpandCommand();
         }
         break;
       case 13:
         enterOuterAlt(_localctx, 13);
         {
-        setState(198);
+        setState(205);
         joinCommand();
         }
         break;
       case 14:
         enterOuterAlt(_localctx, 14);
         {
-        setState(199);
+        setState(206);
         changePointCommand();
         }
         break;
       case 15:
         enterOuterAlt(_localctx, 15);
         {
-        setState(200);
+        setState(207);
         completionCommand();
         }
         break;
       case 16:
         enterOuterAlt(_localctx, 16);
         {
-        setState(201);
-        if (!(this.isDevVersion())) throw new FailedPredicateException(this, "this.isDevVersion()");
-        setState(202);
-        inlinestatsCommand();
+        setState(208);
+        sampleCommand();
         }
         break;
       case 17:
         enterOuterAlt(_localctx, 17);
         {
-        setState(203);
-        if (!(this.isDevVersion())) throw new FailedPredicateException(this, "this.isDevVersion()");
-        setState(204);
-        lookupCommand();
+        setState(209);
+        forkCommand();
         }
         break;
       case 18:
         enterOuterAlt(_localctx, 18);
         {
-        setState(205);
-        if (!(this.isDevVersion())) throw new FailedPredicateException(this, "this.isDevVersion()");
-        setState(206);
-        insistCommand();
+        setState(210);
+        rerankCommand();
         }
         break;
       case 19:
         enterOuterAlt(_localctx, 19);
         {
-        setState(207);
+        setState(211);
         if (!(this.isDevVersion())) throw new FailedPredicateException(this, "this.isDevVersion()");
-        setState(208);
-        forkCommand();
+        setState(212);
+        inlinestatsCommand();
         }
         break;
       case 20:
         enterOuterAlt(_localctx, 20);
         {
-        setState(209);
+        setState(213);
         if (!(this.isDevVersion())) throw new FailedPredicateException(this, "this.isDevVersion()");
-        setState(210);
-        rerankCommand();
+        setState(214);
+        lookupCommand();
         }
         break;
       case 21:
         enterOuterAlt(_localctx, 21);
         {
-        setState(211);
+        setState(215);
         if (!(this.isDevVersion())) throw new FailedPredicateException(this, "this.isDevVersion()");
-        setState(212);
-        rrfCommand();
+        setState(216);
+        insistCommand();
         }
         break;
       case 22:
         enterOuterAlt(_localctx, 22);
         {
-        setState(213);
+        setState(217);
         if (!(this.isDevVersion())) throw new FailedPredicateException(this, "this.isDevVersion()");
-        setState(214);
-        sampleCommand();
+        setState(218);
+        fuseCommand();
         }
         break;
       }
@@ -782,9 +780,9 @@ public class EsqlBaseParser extends ParserConfig {
     try {
       enterOuterAlt(_localctx, 1);
       {
-      setState(217);
+      setState(221);
       match(WHERE);
-      setState(218);
+      setState(222);
       booleanExpression(0);
       }
     }
@@ -842,7 +840,7 @@ public class EsqlBaseParser extends ParserConfig {
       _localctx = new ToDataTypeContext(_localctx);
       enterOuterAlt(_localctx, 1);
       {
-      setState(220);
+      setState(224);
       identifier();
       }
     }
@@ -889,9 +887,9 @@ public class EsqlBaseParser extends ParserConfig {
     try {
       enterOuterAlt(_localctx, 1);
       {
-      setState(222);
+      setState(226);
       match(ROW);
-      setState(223);
+      setState(227);
       fields();
       }
     }
@@ -945,23 +943,23 @@ public class EsqlBaseParser extends ParserConfig {
       int _alt;
       enterOuterAlt(_localctx, 1);
       {
-      setState(225);
+      setState(229);
       field();
-      setState(230);
+      setState(234);
       _errHandler.sync(this);
       _alt = getInterpreter().adaptivePredict(_input,3,_ctx);
       while ( _alt!=2 && _alt!=org.antlr.v4.runtime.atn.ATN.INVALID_ALT_NUMBER ) {
         if ( _alt==1 ) {
           {
           {
-          setState(226);
+          setState(230);
           match(COMMA);
-          setState(227);
+          setState(231);
           field();
           }
           } 
         }
-        setState(232);
+        setState(236);
         _errHandler.sync(this);
         _alt = getInterpreter().adaptivePredict(_input,3,_ctx);
       }
@@ -1013,19 +1011,19 @@ public class EsqlBaseParser extends ParserConfig {
     try {
       enterOuterAlt(_localctx, 1);
       {
-      setState(236);
+      setState(240);
       _errHandler.sync(this);
       switch ( getInterpreter().adaptivePredict(_input,4,_ctx) ) {
       case 1:
         {
-        setState(233);
+        setState(237);
         qualifiedName();
-        setState(234);
+        setState(238);
         match(ASSIGN);
         }
         break;
       }
-      setState(238);
+      setState(242);
       booleanExpression(0);
       }
     }
@@ -1079,23 +1077,23 @@ public class EsqlBaseParser extends ParserConfig {
       int _alt;
       enterOuterAlt(_localctx, 1);
       {
-      setState(240);
+      setState(244);
       rerankField();
-      setState(245);
+      setState(249);
       _errHandler.sync(this);
       _alt = getInterpreter().adaptivePredict(_input,5,_ctx);
       while ( _alt!=2 && _alt!=org.antlr.v4.runtime.atn.ATN.INVALID_ALT_NUMBER ) {
         if ( _alt==1 ) {
           {
           {
-          setState(241);
+          setState(245);
           match(COMMA);
-          setState(242);
+          setState(246);
           rerankField();
           }
           } 
         }
-        setState(247);
+        setState(251);
         _errHandler.sync(this);
         _alt = getInterpreter().adaptivePredict(_input,5,_ctx);
       }
@@ -1147,16 +1145,16 @@ public class EsqlBaseParser extends ParserConfig {
     try {
       enterOuterAlt(_localctx, 1);
       {
-      setState(248);
+      setState(252);
       qualifiedName();
-      setState(251);
+      setState(255);
       _errHandler.sync(this);
       switch ( getInterpreter().adaptivePredict(_input,6,_ctx) ) {
       case 1:
         {
-        setState(249);
+        setState(253);
         match(ASSIGN);
-        setState(250);
+        setState(254);
         booleanExpression(0);
         }
         break;
@@ -1206,9 +1204,9 @@ public class EsqlBaseParser extends ParserConfig {
     try {
       enterOuterAlt(_localctx, 1);
       {
-      setState(253);
+      setState(257);
       match(FROM);
-      setState(254);
+      setState(258);
       indexPatternAndMetadataFields();
       }
     }
@@ -1255,9 +1253,9 @@ public class EsqlBaseParser extends ParserConfig {
     try {
       enterOuterAlt(_localctx, 1);
       {
-      setState(256);
+      setState(260);
       match(DEV_TIME_SERIES);
-      setState(257);
+      setState(261);
       indexPatternAndMetadataFields();
       }
     }
@@ -1314,32 +1312,32 @@ public class EsqlBaseParser extends ParserConfig {
       int _alt;
       enterOuterAlt(_localctx, 1);
       {
-      setState(259);
+      setState(263);
       indexPattern();
-      setState(264);
+      setState(268);
       _errHandler.sync(this);
       _alt = getInterpreter().adaptivePredict(_input,7,_ctx);
       while ( _alt!=2 && _alt!=org.antlr.v4.runtime.atn.ATN.INVALID_ALT_NUMBER ) {
         if ( _alt==1 ) {
           {
           {
-          setState(260);
+          setState(264);
           match(COMMA);
-          setState(261);
+          setState(265);
           indexPattern();
           }
           } 
         }
-        setState(266);
+        setState(270);
         _errHandler.sync(this);
         _alt = getInterpreter().adaptivePredict(_input,7,_ctx);
       }
-      setState(268);
+      setState(272);
       _errHandler.sync(this);
       switch ( getInterpreter().adaptivePredict(_input,8,_ctx) ) {
       case 1:
         {
-        setState(267);
+        setState(271);
         metadata();
         }
         break;
@@ -1359,16 +1357,19 @@ public class EsqlBaseParser extends ParserConfig {
 
   @SuppressWarnings("CheckReturnValue")
   public static class IndexPatternContext extends ParserRuleContext {
-    public IndexStringContext indexString() {
-      return getRuleContext(IndexStringContext.class,0);
-    }
     public ClusterStringContext clusterString() {
       return getRuleContext(ClusterStringContext.class,0);
     }
     public TerminalNode COLON() { return getToken(EsqlBaseParser.COLON, 0); }
+    public UnquotedIndexStringContext unquotedIndexString() {
+      return getRuleContext(UnquotedIndexStringContext.class,0);
+    }
     public TerminalNode CAST_OP() { return getToken(EsqlBaseParser.CAST_OP, 0); }
     public SelectorStringContext selectorString() {
       return getRuleContext(SelectorStringContext.class,0);
+    }
+    public IndexStringContext indexString() {
+      return getRuleContext(IndexStringContext.class,0);
     }
     @SuppressWarnings("this-escape")
     public IndexPatternContext(ParserRuleContext parent, int invokingState) {
@@ -1394,45 +1395,36 @@ public class EsqlBaseParser extends ParserConfig {
     IndexPatternContext _localctx = new IndexPatternContext(_ctx, getState());
     enterRule(_localctx, 28, RULE_indexPattern);
     try {
-      setState(281);
+      setState(283);
       _errHandler.sync(this);
-      switch ( getInterpreter().adaptivePredict(_input,11,_ctx) ) {
+      switch ( getInterpreter().adaptivePredict(_input,9,_ctx) ) {
       case 1:
         enterOuterAlt(_localctx, 1);
         {
-        setState(273);
-        _errHandler.sync(this);
-        switch ( getInterpreter().adaptivePredict(_input,9,_ctx) ) {
-        case 1:
-          {
-          setState(270);
-          clusterString();
-          setState(271);
-          match(COLON);
-          }
-          break;
-        }
+        setState(274);
+        clusterString();
         setState(275);
-        indexString();
+        match(COLON);
+        setState(276);
+        unquotedIndexString();
         }
         break;
       case 2:
         enterOuterAlt(_localctx, 2);
         {
-        setState(276);
-        indexString();
+        setState(278);
+        unquotedIndexString();
         setState(279);
-        _errHandler.sync(this);
-        switch ( getInterpreter().adaptivePredict(_input,10,_ctx) ) {
-        case 1:
-          {
-          setState(277);
-          match(CAST_OP);
-          setState(278);
-          selectorString();
-          }
-          break;
+        match(CAST_OP);
+        setState(280);
+        selectorString();
         }
+        break;
+      case 3:
+        enterOuterAlt(_localctx, 3);
+        {
+        setState(282);
+        indexString();
         }
         break;
       }
@@ -1451,7 +1443,6 @@ public class EsqlBaseParser extends ParserConfig {
   @SuppressWarnings("CheckReturnValue")
   public static class ClusterStringContext extends ParserRuleContext {
     public TerminalNode UNQUOTED_SOURCE() { return getToken(EsqlBaseParser.UNQUOTED_SOURCE, 0); }
-    public TerminalNode QUOTED_STRING() { return getToken(EsqlBaseParser.QUOTED_STRING, 0); }
     @SuppressWarnings("this-escape")
     public ClusterStringContext(ParserRuleContext parent, int invokingState) {
       super(parent, invokingState);
@@ -1475,20 +1466,11 @@ public class EsqlBaseParser extends ParserConfig {
   public final ClusterStringContext clusterString() throws RecognitionException {
     ClusterStringContext _localctx = new ClusterStringContext(_ctx, getState());
     enterRule(_localctx, 30, RULE_clusterString);
-    int _la;
     try {
       enterOuterAlt(_localctx, 1);
       {
-      setState(283);
-      _la = _input.LA(1);
-      if ( !(_la==QUOTED_STRING || _la==UNQUOTED_SOURCE) ) {
-      _errHandler.recoverInline(this);
-      }
-      else {
-        if ( _input.LA(1)==Token.EOF ) matchedEOF = true;
-        _errHandler.reportMatch(this);
-        consume();
-      }
+      setState(285);
+      match(UNQUOTED_SOURCE);
       }
     }
     catch (RecognitionException re) {
@@ -1505,7 +1487,6 @@ public class EsqlBaseParser extends ParserConfig {
   @SuppressWarnings("CheckReturnValue")
   public static class SelectorStringContext extends ParserRuleContext {
     public TerminalNode UNQUOTED_SOURCE() { return getToken(EsqlBaseParser.UNQUOTED_SOURCE, 0); }
-    public TerminalNode QUOTED_STRING() { return getToken(EsqlBaseParser.QUOTED_STRING, 0); }
     @SuppressWarnings("this-escape")
     public SelectorStringContext(ParserRuleContext parent, int invokingState) {
       super(parent, invokingState);
@@ -1529,20 +1510,55 @@ public class EsqlBaseParser extends ParserConfig {
   public final SelectorStringContext selectorString() throws RecognitionException {
     SelectorStringContext _localctx = new SelectorStringContext(_ctx, getState());
     enterRule(_localctx, 32, RULE_selectorString);
-    int _la;
     try {
       enterOuterAlt(_localctx, 1);
       {
-      setState(285);
-      _la = _input.LA(1);
-      if ( !(_la==QUOTED_STRING || _la==UNQUOTED_SOURCE) ) {
-      _errHandler.recoverInline(this);
+      setState(287);
+      match(UNQUOTED_SOURCE);
       }
-      else {
-        if ( _input.LA(1)==Token.EOF ) matchedEOF = true;
-        _errHandler.reportMatch(this);
-        consume();
-      }
+    }
+    catch (RecognitionException re) {
+      _localctx.exception = re;
+      _errHandler.reportError(this, re);
+      _errHandler.recover(this, re);
+    }
+    finally {
+      exitRule();
+    }
+    return _localctx;
+  }
+
+  @SuppressWarnings("CheckReturnValue")
+  public static class UnquotedIndexStringContext extends ParserRuleContext {
+    public TerminalNode UNQUOTED_SOURCE() { return getToken(EsqlBaseParser.UNQUOTED_SOURCE, 0); }
+    @SuppressWarnings("this-escape")
+    public UnquotedIndexStringContext(ParserRuleContext parent, int invokingState) {
+      super(parent, invokingState);
+    }
+    @Override public int getRuleIndex() { return RULE_unquotedIndexString; }
+    @Override
+    public void enterRule(ParseTreeListener listener) {
+      if ( listener instanceof EsqlBaseParserListener ) ((EsqlBaseParserListener)listener).enterUnquotedIndexString(this);
+    }
+    @Override
+    public void exitRule(ParseTreeListener listener) {
+      if ( listener instanceof EsqlBaseParserListener ) ((EsqlBaseParserListener)listener).exitUnquotedIndexString(this);
+    }
+    @Override
+    public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
+      if ( visitor instanceof EsqlBaseParserVisitor ) return ((EsqlBaseParserVisitor<? extends T>)visitor).visitUnquotedIndexString(this);
+      else return visitor.visitChildren(this);
+    }
+  }
+
+  public final UnquotedIndexStringContext unquotedIndexString() throws RecognitionException {
+    UnquotedIndexStringContext _localctx = new UnquotedIndexStringContext(_ctx, getState());
+    enterRule(_localctx, 34, RULE_unquotedIndexString);
+    try {
+      enterOuterAlt(_localctx, 1);
+      {
+      setState(289);
+      match(UNQUOTED_SOURCE);
       }
     }
     catch (RecognitionException re) {
@@ -1582,12 +1598,12 @@ public class EsqlBaseParser extends ParserConfig {
 
   public final IndexStringContext indexString() throws RecognitionException {
     IndexStringContext _localctx = new IndexStringContext(_ctx, getState());
-    enterRule(_localctx, 34, RULE_indexString);
+    enterRule(_localctx, 36, RULE_indexString);
     int _la;
     try {
       enterOuterAlt(_localctx, 1);
       {
-      setState(287);
+      setState(291);
       _la = _input.LA(1);
       if ( !(_la==QUOTED_STRING || _la==UNQUOTED_SOURCE) ) {
       _errHandler.recoverInline(this);
@@ -1643,32 +1659,32 @@ public class EsqlBaseParser extends ParserConfig {
 
   public final MetadataContext metadata() throws RecognitionException {
     MetadataContext _localctx = new MetadataContext(_ctx, getState());
-    enterRule(_localctx, 36, RULE_metadata);
+    enterRule(_localctx, 38, RULE_metadata);
     try {
       int _alt;
       enterOuterAlt(_localctx, 1);
       {
-      setState(289);
+      setState(293);
       match(METADATA);
-      setState(290);
+      setState(294);
       match(UNQUOTED_SOURCE);
-      setState(295);
+      setState(299);
       _errHandler.sync(this);
-      _alt = getInterpreter().adaptivePredict(_input,12,_ctx);
+      _alt = getInterpreter().adaptivePredict(_input,10,_ctx);
       while ( _alt!=2 && _alt!=org.antlr.v4.runtime.atn.ATN.INVALID_ALT_NUMBER ) {
         if ( _alt==1 ) {
           {
           {
-          setState(291);
+          setState(295);
           match(COMMA);
-          setState(292);
+          setState(296);
           match(UNQUOTED_SOURCE);
           }
           } 
         }
-        setState(297);
+        setState(301);
         _errHandler.sync(this);
-        _alt = getInterpreter().adaptivePredict(_input,12,_ctx);
+        _alt = getInterpreter().adaptivePredict(_input,10,_ctx);
       }
       }
     }
@@ -1711,13 +1727,13 @@ public class EsqlBaseParser extends ParserConfig {
 
   public final EvalCommandContext evalCommand() throws RecognitionException {
     EvalCommandContext _localctx = new EvalCommandContext(_ctx, getState());
-    enterRule(_localctx, 38, RULE_evalCommand);
+    enterRule(_localctx, 40, RULE_evalCommand);
     try {
       enterOuterAlt(_localctx, 1);
       {
-      setState(298);
+      setState(302);
       match(EVAL);
-      setState(299);
+      setState(303);
       fields();
       }
     }
@@ -1766,30 +1782,30 @@ public class EsqlBaseParser extends ParserConfig {
 
   public final StatsCommandContext statsCommand() throws RecognitionException {
     StatsCommandContext _localctx = new StatsCommandContext(_ctx, getState());
-    enterRule(_localctx, 40, RULE_statsCommand);
+    enterRule(_localctx, 42, RULE_statsCommand);
     try {
       enterOuterAlt(_localctx, 1);
       {
-      setState(301);
+      setState(305);
       match(STATS);
-      setState(303);
+      setState(307);
       _errHandler.sync(this);
-      switch ( getInterpreter().adaptivePredict(_input,13,_ctx) ) {
+      switch ( getInterpreter().adaptivePredict(_input,11,_ctx) ) {
       case 1:
         {
-        setState(302);
+        setState(306);
         ((StatsCommandContext)_localctx).stats = aggFields();
         }
         break;
       }
-      setState(307);
+      setState(311);
       _errHandler.sync(this);
-      switch ( getInterpreter().adaptivePredict(_input,14,_ctx) ) {
+      switch ( getInterpreter().adaptivePredict(_input,12,_ctx) ) {
       case 1:
         {
-        setState(305);
+        setState(309);
         match(BY);
-        setState(306);
+        setState(310);
         ((StatsCommandContext)_localctx).grouping = fields();
         }
         break;
@@ -1841,30 +1857,30 @@ public class EsqlBaseParser extends ParserConfig {
 
   public final AggFieldsContext aggFields() throws RecognitionException {
     AggFieldsContext _localctx = new AggFieldsContext(_ctx, getState());
-    enterRule(_localctx, 42, RULE_aggFields);
+    enterRule(_localctx, 44, RULE_aggFields);
     try {
       int _alt;
       enterOuterAlt(_localctx, 1);
       {
-      setState(309);
+      setState(313);
       aggField();
-      setState(314);
+      setState(318);
       _errHandler.sync(this);
-      _alt = getInterpreter().adaptivePredict(_input,15,_ctx);
+      _alt = getInterpreter().adaptivePredict(_input,13,_ctx);
       while ( _alt!=2 && _alt!=org.antlr.v4.runtime.atn.ATN.INVALID_ALT_NUMBER ) {
         if ( _alt==1 ) {
           {
           {
-          setState(310);
+          setState(314);
           match(COMMA);
-          setState(311);
+          setState(315);
           aggField();
           }
           } 
         }
-        setState(316);
+        setState(320);
         _errHandler.sync(this);
-        _alt = getInterpreter().adaptivePredict(_input,15,_ctx);
+        _alt = getInterpreter().adaptivePredict(_input,13,_ctx);
       }
       }
     }
@@ -1910,20 +1926,20 @@ public class EsqlBaseParser extends ParserConfig {
 
   public final AggFieldContext aggField() throws RecognitionException {
     AggFieldContext _localctx = new AggFieldContext(_ctx, getState());
-    enterRule(_localctx, 44, RULE_aggField);
+    enterRule(_localctx, 46, RULE_aggField);
     try {
       enterOuterAlt(_localctx, 1);
       {
-      setState(317);
+      setState(321);
       field();
-      setState(320);
+      setState(324);
       _errHandler.sync(this);
-      switch ( getInterpreter().adaptivePredict(_input,16,_ctx) ) {
+      switch ( getInterpreter().adaptivePredict(_input,14,_ctx) ) {
       case 1:
         {
-        setState(318);
+        setState(322);
         match(WHERE);
-        setState(319);
+        setState(323);
         booleanExpression(0);
         }
         break;
@@ -1975,30 +1991,30 @@ public class EsqlBaseParser extends ParserConfig {
 
   public final QualifiedNameContext qualifiedName() throws RecognitionException {
     QualifiedNameContext _localctx = new QualifiedNameContext(_ctx, getState());
-    enterRule(_localctx, 46, RULE_qualifiedName);
+    enterRule(_localctx, 48, RULE_qualifiedName);
     try {
       int _alt;
       enterOuterAlt(_localctx, 1);
       {
-      setState(322);
+      setState(326);
       identifierOrParameter();
-      setState(327);
+      setState(331);
       _errHandler.sync(this);
-      _alt = getInterpreter().adaptivePredict(_input,17,_ctx);
+      _alt = getInterpreter().adaptivePredict(_input,15,_ctx);
       while ( _alt!=2 && _alt!=org.antlr.v4.runtime.atn.ATN.INVALID_ALT_NUMBER ) {
         if ( _alt==1 ) {
           {
           {
-          setState(323);
+          setState(327);
           match(DOT);
-          setState(324);
+          setState(328);
           identifierOrParameter();
           }
           } 
         }
-        setState(329);
+        setState(333);
         _errHandler.sync(this);
-        _alt = getInterpreter().adaptivePredict(_input,17,_ctx);
+        _alt = getInterpreter().adaptivePredict(_input,15,_ctx);
       }
       }
     }
@@ -2047,30 +2063,30 @@ public class EsqlBaseParser extends ParserConfig {
 
   public final QualifiedNamePatternContext qualifiedNamePattern() throws RecognitionException {
     QualifiedNamePatternContext _localctx = new QualifiedNamePatternContext(_ctx, getState());
-    enterRule(_localctx, 48, RULE_qualifiedNamePattern);
+    enterRule(_localctx, 50, RULE_qualifiedNamePattern);
     try {
       int _alt;
       enterOuterAlt(_localctx, 1);
       {
-      setState(330);
+      setState(334);
       identifierPattern();
-      setState(335);
+      setState(339);
       _errHandler.sync(this);
-      _alt = getInterpreter().adaptivePredict(_input,18,_ctx);
+      _alt = getInterpreter().adaptivePredict(_input,16,_ctx);
       while ( _alt!=2 && _alt!=org.antlr.v4.runtime.atn.ATN.INVALID_ALT_NUMBER ) {
         if ( _alt==1 ) {
           {
           {
-          setState(331);
+          setState(335);
           match(DOT);
-          setState(332);
+          setState(336);
           identifierPattern();
           }
           } 
         }
-        setState(337);
+        setState(341);
         _errHandler.sync(this);
-        _alt = getInterpreter().adaptivePredict(_input,18,_ctx);
+        _alt = getInterpreter().adaptivePredict(_input,16,_ctx);
       }
       }
     }
@@ -2119,30 +2135,30 @@ public class EsqlBaseParser extends ParserConfig {
 
   public final QualifiedNamePatternsContext qualifiedNamePatterns() throws RecognitionException {
     QualifiedNamePatternsContext _localctx = new QualifiedNamePatternsContext(_ctx, getState());
-    enterRule(_localctx, 50, RULE_qualifiedNamePatterns);
+    enterRule(_localctx, 52, RULE_qualifiedNamePatterns);
     try {
       int _alt;
       enterOuterAlt(_localctx, 1);
       {
-      setState(338);
+      setState(342);
       qualifiedNamePattern();
-      setState(343);
+      setState(347);
       _errHandler.sync(this);
-      _alt = getInterpreter().adaptivePredict(_input,19,_ctx);
+      _alt = getInterpreter().adaptivePredict(_input,17,_ctx);
       while ( _alt!=2 && _alt!=org.antlr.v4.runtime.atn.ATN.INVALID_ALT_NUMBER ) {
         if ( _alt==1 ) {
           {
           {
-          setState(339);
+          setState(343);
           match(COMMA);
-          setState(340);
+          setState(344);
           qualifiedNamePattern();
           }
           } 
         }
-        setState(345);
+        setState(349);
         _errHandler.sync(this);
-        _alt = getInterpreter().adaptivePredict(_input,19,_ctx);
+        _alt = getInterpreter().adaptivePredict(_input,17,_ctx);
       }
       }
     }
@@ -2183,12 +2199,12 @@ public class EsqlBaseParser extends ParserConfig {
 
   public final IdentifierContext identifier() throws RecognitionException {
     IdentifierContext _localctx = new IdentifierContext(_ctx, getState());
-    enterRule(_localctx, 52, RULE_identifier);
+    enterRule(_localctx, 54, RULE_identifier);
     int _la;
     try {
       enterOuterAlt(_localctx, 1);
       {
-      setState(346);
+      setState(350);
       _la = _input.LA(1);
       if ( !(_la==UNQUOTED_IDENTIFIER || _la==QUOTED_IDENTIFIER) ) {
       _errHandler.recoverInline(this);
@@ -2242,15 +2258,15 @@ public class EsqlBaseParser extends ParserConfig {
 
   public final IdentifierPatternContext identifierPattern() throws RecognitionException {
     IdentifierPatternContext _localctx = new IdentifierPatternContext(_ctx, getState());
-    enterRule(_localctx, 54, RULE_identifierPattern);
+    enterRule(_localctx, 56, RULE_identifierPattern);
     try {
-      setState(351);
+      setState(355);
       _errHandler.sync(this);
       switch (_input.LA(1)) {
       case ID_PATTERN:
         enterOuterAlt(_localctx, 1);
         {
-        setState(348);
+        setState(352);
         match(ID_PATTERN);
         }
         break;
@@ -2258,7 +2274,7 @@ public class EsqlBaseParser extends ParserConfig {
       case NAMED_OR_POSITIONAL_PARAM:
         enterOuterAlt(_localctx, 2);
         {
-        setState(349);
+        setState(353);
         parameter();
         }
         break;
@@ -2266,7 +2282,7 @@ public class EsqlBaseParser extends ParserConfig {
       case NAMED_OR_POSITIONAL_DOUBLE_PARAMS:
         enterOuterAlt(_localctx, 3);
         {
-        setState(350);
+        setState(354);
         doubleParameter();
         }
         break;
@@ -2340,16 +2356,16 @@ public class EsqlBaseParser extends ParserConfig {
 
   public final ParameterContext parameter() throws RecognitionException {
     ParameterContext _localctx = new ParameterContext(_ctx, getState());
-    enterRule(_localctx, 56, RULE_parameter);
+    enterRule(_localctx, 58, RULE_parameter);
     try {
-      setState(355);
+      setState(359);
       _errHandler.sync(this);
       switch (_input.LA(1)) {
       case PARAM:
         _localctx = new InputParamContext(_localctx);
         enterOuterAlt(_localctx, 1);
         {
-        setState(353);
+        setState(357);
         match(PARAM);
         }
         break;
@@ -2357,7 +2373,7 @@ public class EsqlBaseParser extends ParserConfig {
         _localctx = new InputNamedOrPositionalParamContext(_localctx);
         enterOuterAlt(_localctx, 2);
         {
-        setState(354);
+        setState(358);
         match(NAMED_OR_POSITIONAL_PARAM);
         }
         break;
@@ -2431,16 +2447,16 @@ public class EsqlBaseParser extends ParserConfig {
 
   public final DoubleParameterContext doubleParameter() throws RecognitionException {
     DoubleParameterContext _localctx = new DoubleParameterContext(_ctx, getState());
-    enterRule(_localctx, 58, RULE_doubleParameter);
+    enterRule(_localctx, 60, RULE_doubleParameter);
     try {
-      setState(359);
+      setState(363);
       _errHandler.sync(this);
       switch (_input.LA(1)) {
       case DOUBLE_PARAMS:
         _localctx = new InputDoubleParamsContext(_localctx);
         enterOuterAlt(_localctx, 1);
         {
-        setState(357);
+        setState(361);
         match(DOUBLE_PARAMS);
         }
         break;
@@ -2448,7 +2464,7 @@ public class EsqlBaseParser extends ParserConfig {
         _localctx = new InputNamedOrPositionalDoubleParamsContext(_localctx);
         enterOuterAlt(_localctx, 2);
         {
-        setState(358);
+        setState(362);
         match(NAMED_OR_POSITIONAL_DOUBLE_PARAMS);
         }
         break;
@@ -2500,16 +2516,16 @@ public class EsqlBaseParser extends ParserConfig {
 
   public final IdentifierOrParameterContext identifierOrParameter() throws RecognitionException {
     IdentifierOrParameterContext _localctx = new IdentifierOrParameterContext(_ctx, getState());
-    enterRule(_localctx, 60, RULE_identifierOrParameter);
+    enterRule(_localctx, 62, RULE_identifierOrParameter);
     try {
-      setState(364);
+      setState(368);
       _errHandler.sync(this);
       switch (_input.LA(1)) {
       case UNQUOTED_IDENTIFIER:
       case QUOTED_IDENTIFIER:
         enterOuterAlt(_localctx, 1);
         {
-        setState(361);
+        setState(365);
         identifier();
         }
         break;
@@ -2517,7 +2533,7 @@ public class EsqlBaseParser extends ParserConfig {
       case NAMED_OR_POSITIONAL_PARAM:
         enterOuterAlt(_localctx, 2);
         {
-        setState(362);
+        setState(366);
         parameter();
         }
         break;
@@ -2525,7 +2541,7 @@ public class EsqlBaseParser extends ParserConfig {
       case NAMED_OR_POSITIONAL_DOUBLE_PARAMS:
         enterOuterAlt(_localctx, 3);
         {
-        setState(363);
+        setState(367);
         doubleParameter();
         }
         break;
@@ -2572,13 +2588,13 @@ public class EsqlBaseParser extends ParserConfig {
 
   public final LimitCommandContext limitCommand() throws RecognitionException {
     LimitCommandContext _localctx = new LimitCommandContext(_ctx, getState());
-    enterRule(_localctx, 62, RULE_limitCommand);
+    enterRule(_localctx, 64, RULE_limitCommand);
     try {
       enterOuterAlt(_localctx, 1);
       {
-      setState(366);
+      setState(370);
       match(LIMIT);
-      setState(367);
+      setState(371);
       constant();
       }
     }
@@ -2628,32 +2644,32 @@ public class EsqlBaseParser extends ParserConfig {
 
   public final SortCommandContext sortCommand() throws RecognitionException {
     SortCommandContext _localctx = new SortCommandContext(_ctx, getState());
-    enterRule(_localctx, 64, RULE_sortCommand);
+    enterRule(_localctx, 66, RULE_sortCommand);
     try {
       int _alt;
       enterOuterAlt(_localctx, 1);
       {
-      setState(369);
+      setState(373);
       match(SORT);
-      setState(370);
+      setState(374);
       orderExpression();
-      setState(375);
+      setState(379);
       _errHandler.sync(this);
-      _alt = getInterpreter().adaptivePredict(_input,24,_ctx);
+      _alt = getInterpreter().adaptivePredict(_input,22,_ctx);
       while ( _alt!=2 && _alt!=org.antlr.v4.runtime.atn.ATN.INVALID_ALT_NUMBER ) {
         if ( _alt==1 ) {
           {
           {
-          setState(371);
+          setState(375);
           match(COMMA);
-          setState(372);
+          setState(376);
           orderExpression();
           }
           } 
         }
-        setState(377);
+        setState(381);
         _errHandler.sync(this);
-        _alt = getInterpreter().adaptivePredict(_input,24,_ctx);
+        _alt = getInterpreter().adaptivePredict(_input,22,_ctx);
       }
       }
     }
@@ -2702,19 +2718,19 @@ public class EsqlBaseParser extends ParserConfig {
 
   public final OrderExpressionContext orderExpression() throws RecognitionException {
     OrderExpressionContext _localctx = new OrderExpressionContext(_ctx, getState());
-    enterRule(_localctx, 66, RULE_orderExpression);
+    enterRule(_localctx, 68, RULE_orderExpression);
     int _la;
     try {
       enterOuterAlt(_localctx, 1);
       {
-      setState(378);
+      setState(382);
       booleanExpression(0);
-      setState(380);
+      setState(384);
       _errHandler.sync(this);
-      switch ( getInterpreter().adaptivePredict(_input,25,_ctx) ) {
+      switch ( getInterpreter().adaptivePredict(_input,23,_ctx) ) {
       case 1:
         {
-        setState(379);
+        setState(383);
         ((OrderExpressionContext)_localctx).ordering = _input.LT(1);
         _la = _input.LA(1);
         if ( !(_la==ASC || _la==DESC) ) {
@@ -2728,14 +2744,14 @@ public class EsqlBaseParser extends ParserConfig {
         }
         break;
       }
-      setState(384);
+      setState(388);
       _errHandler.sync(this);
-      switch ( getInterpreter().adaptivePredict(_input,26,_ctx) ) {
+      switch ( getInterpreter().adaptivePredict(_input,24,_ctx) ) {
       case 1:
         {
-        setState(382);
+        setState(386);
         match(NULLS);
-        setState(383);
+        setState(387);
         ((OrderExpressionContext)_localctx).nullOrdering = _input.LT(1);
         _la = _input.LA(1);
         if ( !(_la==FIRST || _la==LAST) ) {
@@ -2790,13 +2806,13 @@ public class EsqlBaseParser extends ParserConfig {
 
   public final KeepCommandContext keepCommand() throws RecognitionException {
     KeepCommandContext _localctx = new KeepCommandContext(_ctx, getState());
-    enterRule(_localctx, 68, RULE_keepCommand);
+    enterRule(_localctx, 70, RULE_keepCommand);
     try {
       enterOuterAlt(_localctx, 1);
       {
-      setState(386);
+      setState(390);
       match(KEEP);
-      setState(387);
+      setState(391);
       qualifiedNamePatterns();
       }
     }
@@ -2839,13 +2855,13 @@ public class EsqlBaseParser extends ParserConfig {
 
   public final DropCommandContext dropCommand() throws RecognitionException {
     DropCommandContext _localctx = new DropCommandContext(_ctx, getState());
-    enterRule(_localctx, 70, RULE_dropCommand);
+    enterRule(_localctx, 72, RULE_dropCommand);
     try {
       enterOuterAlt(_localctx, 1);
       {
-      setState(389);
+      setState(393);
       match(DROP);
-      setState(390);
+      setState(394);
       qualifiedNamePatterns();
       }
     }
@@ -2895,32 +2911,32 @@ public class EsqlBaseParser extends ParserConfig {
 
   public final RenameCommandContext renameCommand() throws RecognitionException {
     RenameCommandContext _localctx = new RenameCommandContext(_ctx, getState());
-    enterRule(_localctx, 72, RULE_renameCommand);
+    enterRule(_localctx, 74, RULE_renameCommand);
     try {
       int _alt;
       enterOuterAlt(_localctx, 1);
       {
-      setState(392);
+      setState(396);
       match(RENAME);
-      setState(393);
+      setState(397);
       renameClause();
-      setState(398);
+      setState(402);
       _errHandler.sync(this);
-      _alt = getInterpreter().adaptivePredict(_input,27,_ctx);
+      _alt = getInterpreter().adaptivePredict(_input,25,_ctx);
       while ( _alt!=2 && _alt!=org.antlr.v4.runtime.atn.ATN.INVALID_ALT_NUMBER ) {
         if ( _alt==1 ) {
           {
           {
-          setState(394);
+          setState(398);
           match(COMMA);
-          setState(395);
+          setState(399);
           renameClause();
           }
           } 
         }
-        setState(400);
+        setState(404);
         _errHandler.sync(this);
-        _alt = getInterpreter().adaptivePredict(_input,27,_ctx);
+        _alt = getInterpreter().adaptivePredict(_input,25,_ctx);
       }
       }
     }
@@ -2969,30 +2985,30 @@ public class EsqlBaseParser extends ParserConfig {
 
   public final RenameClauseContext renameClause() throws RecognitionException {
     RenameClauseContext _localctx = new RenameClauseContext(_ctx, getState());
-    enterRule(_localctx, 74, RULE_renameClause);
+    enterRule(_localctx, 76, RULE_renameClause);
     try {
-      setState(409);
+      setState(413);
       _errHandler.sync(this);
-      switch ( getInterpreter().adaptivePredict(_input,28,_ctx) ) {
+      switch ( getInterpreter().adaptivePredict(_input,26,_ctx) ) {
       case 1:
         enterOuterAlt(_localctx, 1);
         {
-        setState(401);
+        setState(405);
         ((RenameClauseContext)_localctx).oldName = qualifiedNamePattern();
-        setState(402);
+        setState(406);
         match(AS);
-        setState(403);
+        setState(407);
         ((RenameClauseContext)_localctx).newName = qualifiedNamePattern();
         }
         break;
       case 2:
         enterOuterAlt(_localctx, 2);
         {
-        setState(405);
+        setState(409);
         ((RenameClauseContext)_localctx).newName = qualifiedNamePattern();
-        setState(406);
+        setState(410);
         match(ASSIGN);
-        setState(407);
+        setState(411);
         ((RenameClauseContext)_localctx).oldName = qualifiedNamePattern();
         }
         break;
@@ -3018,8 +3034,8 @@ public class EsqlBaseParser extends ParserConfig {
     public StringContext string() {
       return getRuleContext(StringContext.class,0);
     }
-    public CommandOptionsContext commandOptions() {
-      return getRuleContext(CommandOptionsContext.class,0);
+    public DissectCommandOptionsContext dissectCommandOptions() {
+      return getRuleContext(DissectCommandOptionsContext.class,0);
     }
     @SuppressWarnings("this-escape")
     public DissectCommandContext(ParserRuleContext parent, int invokingState) {
@@ -3043,23 +3059,206 @@ public class EsqlBaseParser extends ParserConfig {
 
   public final DissectCommandContext dissectCommand() throws RecognitionException {
     DissectCommandContext _localctx = new DissectCommandContext(_ctx, getState());
-    enterRule(_localctx, 76, RULE_dissectCommand);
+    enterRule(_localctx, 78, RULE_dissectCommand);
     try {
       enterOuterAlt(_localctx, 1);
       {
-      setState(411);
-      match(DISSECT);
-      setState(412);
-      primaryExpression(0);
-      setState(413);
-      string();
       setState(415);
+      match(DISSECT);
+      setState(416);
+      primaryExpression(0);
+      setState(417);
+      string();
+      setState(419);
+      _errHandler.sync(this);
+      switch ( getInterpreter().adaptivePredict(_input,27,_ctx) ) {
+      case 1:
+        {
+        setState(418);
+        dissectCommandOptions();
+        }
+        break;
+      }
+      }
+    }
+    catch (RecognitionException re) {
+      _localctx.exception = re;
+      _errHandler.reportError(this, re);
+      _errHandler.recover(this, re);
+    }
+    finally {
+      exitRule();
+    }
+    return _localctx;
+  }
+
+  @SuppressWarnings("CheckReturnValue")
+  public static class DissectCommandOptionsContext extends ParserRuleContext {
+    public List<DissectCommandOptionContext> dissectCommandOption() {
+      return getRuleContexts(DissectCommandOptionContext.class);
+    }
+    public DissectCommandOptionContext dissectCommandOption(int i) {
+      return getRuleContext(DissectCommandOptionContext.class,i);
+    }
+    public List<TerminalNode> COMMA() { return getTokens(EsqlBaseParser.COMMA); }
+    public TerminalNode COMMA(int i) {
+      return getToken(EsqlBaseParser.COMMA, i);
+    }
+    @SuppressWarnings("this-escape")
+    public DissectCommandOptionsContext(ParserRuleContext parent, int invokingState) {
+      super(parent, invokingState);
+    }
+    @Override public int getRuleIndex() { return RULE_dissectCommandOptions; }
+    @Override
+    public void enterRule(ParseTreeListener listener) {
+      if ( listener instanceof EsqlBaseParserListener ) ((EsqlBaseParserListener)listener).enterDissectCommandOptions(this);
+    }
+    @Override
+    public void exitRule(ParseTreeListener listener) {
+      if ( listener instanceof EsqlBaseParserListener ) ((EsqlBaseParserListener)listener).exitDissectCommandOptions(this);
+    }
+    @Override
+    public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
+      if ( visitor instanceof EsqlBaseParserVisitor ) return ((EsqlBaseParserVisitor<? extends T>)visitor).visitDissectCommandOptions(this);
+      else return visitor.visitChildren(this);
+    }
+  }
+
+  public final DissectCommandOptionsContext dissectCommandOptions() throws RecognitionException {
+    DissectCommandOptionsContext _localctx = new DissectCommandOptionsContext(_ctx, getState());
+    enterRule(_localctx, 80, RULE_dissectCommandOptions);
+    try {
+      int _alt;
+      enterOuterAlt(_localctx, 1);
+      {
+      setState(421);
+      dissectCommandOption();
+      setState(426);
+      _errHandler.sync(this);
+      _alt = getInterpreter().adaptivePredict(_input,28,_ctx);
+      while ( _alt!=2 && _alt!=org.antlr.v4.runtime.atn.ATN.INVALID_ALT_NUMBER ) {
+        if ( _alt==1 ) {
+          {
+          {
+          setState(422);
+          match(COMMA);
+          setState(423);
+          dissectCommandOption();
+          }
+          } 
+        }
+        setState(428);
+        _errHandler.sync(this);
+        _alt = getInterpreter().adaptivePredict(_input,28,_ctx);
+      }
+      }
+    }
+    catch (RecognitionException re) {
+      _localctx.exception = re;
+      _errHandler.reportError(this, re);
+      _errHandler.recover(this, re);
+    }
+    finally {
+      exitRule();
+    }
+    return _localctx;
+  }
+
+  @SuppressWarnings("CheckReturnValue")
+  public static class DissectCommandOptionContext extends ParserRuleContext {
+    public IdentifierContext identifier() {
+      return getRuleContext(IdentifierContext.class,0);
+    }
+    public TerminalNode ASSIGN() { return getToken(EsqlBaseParser.ASSIGN, 0); }
+    public ConstantContext constant() {
+      return getRuleContext(ConstantContext.class,0);
+    }
+    @SuppressWarnings("this-escape")
+    public DissectCommandOptionContext(ParserRuleContext parent, int invokingState) {
+      super(parent, invokingState);
+    }
+    @Override public int getRuleIndex() { return RULE_dissectCommandOption; }
+    @Override
+    public void enterRule(ParseTreeListener listener) {
+      if ( listener instanceof EsqlBaseParserListener ) ((EsqlBaseParserListener)listener).enterDissectCommandOption(this);
+    }
+    @Override
+    public void exitRule(ParseTreeListener listener) {
+      if ( listener instanceof EsqlBaseParserListener ) ((EsqlBaseParserListener)listener).exitDissectCommandOption(this);
+    }
+    @Override
+    public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
+      if ( visitor instanceof EsqlBaseParserVisitor ) return ((EsqlBaseParserVisitor<? extends T>)visitor).visitDissectCommandOption(this);
+      else return visitor.visitChildren(this);
+    }
+  }
+
+  public final DissectCommandOptionContext dissectCommandOption() throws RecognitionException {
+    DissectCommandOptionContext _localctx = new DissectCommandOptionContext(_ctx, getState());
+    enterRule(_localctx, 82, RULE_dissectCommandOption);
+    try {
+      enterOuterAlt(_localctx, 1);
+      {
+      setState(429);
+      identifier();
+      setState(430);
+      match(ASSIGN);
+      setState(431);
+      constant();
+      }
+    }
+    catch (RecognitionException re) {
+      _localctx.exception = re;
+      _errHandler.reportError(this, re);
+      _errHandler.recover(this, re);
+    }
+    finally {
+      exitRule();
+    }
+    return _localctx;
+  }
+
+  @SuppressWarnings("CheckReturnValue")
+  public static class CommandNamedParametersContext extends ParserRuleContext {
+    public TerminalNode WITH() { return getToken(EsqlBaseParser.WITH, 0); }
+    public MapExpressionContext mapExpression() {
+      return getRuleContext(MapExpressionContext.class,0);
+    }
+    @SuppressWarnings("this-escape")
+    public CommandNamedParametersContext(ParserRuleContext parent, int invokingState) {
+      super(parent, invokingState);
+    }
+    @Override public int getRuleIndex() { return RULE_commandNamedParameters; }
+    @Override
+    public void enterRule(ParseTreeListener listener) {
+      if ( listener instanceof EsqlBaseParserListener ) ((EsqlBaseParserListener)listener).enterCommandNamedParameters(this);
+    }
+    @Override
+    public void exitRule(ParseTreeListener listener) {
+      if ( listener instanceof EsqlBaseParserListener ) ((EsqlBaseParserListener)listener).exitCommandNamedParameters(this);
+    }
+    @Override
+    public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
+      if ( visitor instanceof EsqlBaseParserVisitor ) return ((EsqlBaseParserVisitor<? extends T>)visitor).visitCommandNamedParameters(this);
+      else return visitor.visitChildren(this);
+    }
+  }
+
+  public final CommandNamedParametersContext commandNamedParameters() throws RecognitionException {
+    CommandNamedParametersContext _localctx = new CommandNamedParametersContext(_ctx, getState());
+    enterRule(_localctx, 84, RULE_commandNamedParameters);
+    try {
+      enterOuterAlt(_localctx, 1);
+      {
+      setState(435);
       _errHandler.sync(this);
       switch ( getInterpreter().adaptivePredict(_input,29,_ctx) ) {
       case 1:
         {
-        setState(414);
-        commandOptions();
+        setState(433);
+        match(WITH);
+        setState(434);
+        mapExpression();
         }
         break;
       }
@@ -3107,15 +3306,15 @@ public class EsqlBaseParser extends ParserConfig {
 
   public final GrokCommandContext grokCommand() throws RecognitionException {
     GrokCommandContext _localctx = new GrokCommandContext(_ctx, getState());
-    enterRule(_localctx, 78, RULE_grokCommand);
+    enterRule(_localctx, 86, RULE_grokCommand);
     try {
       enterOuterAlt(_localctx, 1);
       {
-      setState(417);
+      setState(437);
       match(GROK);
-      setState(418);
+      setState(438);
       primaryExpression(0);
-      setState(419);
+      setState(439);
       string();
       }
     }
@@ -3158,13 +3357,13 @@ public class EsqlBaseParser extends ParserConfig {
 
   public final MvExpandCommandContext mvExpandCommand() throws RecognitionException {
     MvExpandCommandContext _localctx = new MvExpandCommandContext(_ctx, getState());
-    enterRule(_localctx, 80, RULE_mvExpandCommand);
+    enterRule(_localctx, 88, RULE_mvExpandCommand);
     try {
       enterOuterAlt(_localctx, 1);
       {
-      setState(421);
+      setState(441);
       match(MV_EXPAND);
-      setState(422);
+      setState(442);
       qualifiedName();
       }
     }
@@ -3180,134 +3379,8 @@ public class EsqlBaseParser extends ParserConfig {
   }
 
   @SuppressWarnings("CheckReturnValue")
-  public static class CommandOptionsContext extends ParserRuleContext {
-    public List<CommandOptionContext> commandOption() {
-      return getRuleContexts(CommandOptionContext.class);
-    }
-    public CommandOptionContext commandOption(int i) {
-      return getRuleContext(CommandOptionContext.class,i);
-    }
-    public List<TerminalNode> COMMA() { return getTokens(EsqlBaseParser.COMMA); }
-    public TerminalNode COMMA(int i) {
-      return getToken(EsqlBaseParser.COMMA, i);
-    }
-    @SuppressWarnings("this-escape")
-    public CommandOptionsContext(ParserRuleContext parent, int invokingState) {
-      super(parent, invokingState);
-    }
-    @Override public int getRuleIndex() { return RULE_commandOptions; }
-    @Override
-    public void enterRule(ParseTreeListener listener) {
-      if ( listener instanceof EsqlBaseParserListener ) ((EsqlBaseParserListener)listener).enterCommandOptions(this);
-    }
-    @Override
-    public void exitRule(ParseTreeListener listener) {
-      if ( listener instanceof EsqlBaseParserListener ) ((EsqlBaseParserListener)listener).exitCommandOptions(this);
-    }
-    @Override
-    public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
-      if ( visitor instanceof EsqlBaseParserVisitor ) return ((EsqlBaseParserVisitor<? extends T>)visitor).visitCommandOptions(this);
-      else return visitor.visitChildren(this);
-    }
-  }
-
-  public final CommandOptionsContext commandOptions() throws RecognitionException {
-    CommandOptionsContext _localctx = new CommandOptionsContext(_ctx, getState());
-    enterRule(_localctx, 82, RULE_commandOptions);
-    try {
-      int _alt;
-      enterOuterAlt(_localctx, 1);
-      {
-      setState(424);
-      commandOption();
-      setState(429);
-      _errHandler.sync(this);
-      _alt = getInterpreter().adaptivePredict(_input,30,_ctx);
-      while ( _alt!=2 && _alt!=org.antlr.v4.runtime.atn.ATN.INVALID_ALT_NUMBER ) {
-        if ( _alt==1 ) {
-          {
-          {
-          setState(425);
-          match(COMMA);
-          setState(426);
-          commandOption();
-          }
-          } 
-        }
-        setState(431);
-        _errHandler.sync(this);
-        _alt = getInterpreter().adaptivePredict(_input,30,_ctx);
-      }
-      }
-    }
-    catch (RecognitionException re) {
-      _localctx.exception = re;
-      _errHandler.reportError(this, re);
-      _errHandler.recover(this, re);
-    }
-    finally {
-      exitRule();
-    }
-    return _localctx;
-  }
-
-  @SuppressWarnings("CheckReturnValue")
-  public static class CommandOptionContext extends ParserRuleContext {
-    public IdentifierContext identifier() {
-      return getRuleContext(IdentifierContext.class,0);
-    }
-    public TerminalNode ASSIGN() { return getToken(EsqlBaseParser.ASSIGN, 0); }
-    public ConstantContext constant() {
-      return getRuleContext(ConstantContext.class,0);
-    }
-    @SuppressWarnings("this-escape")
-    public CommandOptionContext(ParserRuleContext parent, int invokingState) {
-      super(parent, invokingState);
-    }
-    @Override public int getRuleIndex() { return RULE_commandOption; }
-    @Override
-    public void enterRule(ParseTreeListener listener) {
-      if ( listener instanceof EsqlBaseParserListener ) ((EsqlBaseParserListener)listener).enterCommandOption(this);
-    }
-    @Override
-    public void exitRule(ParseTreeListener listener) {
-      if ( listener instanceof EsqlBaseParserListener ) ((EsqlBaseParserListener)listener).exitCommandOption(this);
-    }
-    @Override
-    public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
-      if ( visitor instanceof EsqlBaseParserVisitor ) return ((EsqlBaseParserVisitor<? extends T>)visitor).visitCommandOption(this);
-      else return visitor.visitChildren(this);
-    }
-  }
-
-  public final CommandOptionContext commandOption() throws RecognitionException {
-    CommandOptionContext _localctx = new CommandOptionContext(_ctx, getState());
-    enterRule(_localctx, 84, RULE_commandOption);
-    try {
-      enterOuterAlt(_localctx, 1);
-      {
-      setState(432);
-      identifier();
-      setState(433);
-      match(ASSIGN);
-      setState(434);
-      constant();
-      }
-    }
-    catch (RecognitionException re) {
-      _localctx.exception = re;
-      _errHandler.reportError(this, re);
-      _errHandler.recover(this, re);
-    }
-    finally {
-      exitRule();
-    }
-    return _localctx;
-  }
-
-  @SuppressWarnings("CheckReturnValue")
   public static class ExplainCommandContext extends ParserRuleContext {
-    public TerminalNode EXPLAIN() { return getToken(EsqlBaseParser.EXPLAIN, 0); }
+    public TerminalNode DEV_EXPLAIN() { return getToken(EsqlBaseParser.DEV_EXPLAIN, 0); }
     public SubqueryExpressionContext subqueryExpression() {
       return getRuleContext(SubqueryExpressionContext.class,0);
     }
@@ -3333,13 +3406,13 @@ public class EsqlBaseParser extends ParserConfig {
 
   public final ExplainCommandContext explainCommand() throws RecognitionException {
     ExplainCommandContext _localctx = new ExplainCommandContext(_ctx, getState());
-    enterRule(_localctx, 86, RULE_explainCommand);
+    enterRule(_localctx, 90, RULE_explainCommand);
     try {
       enterOuterAlt(_localctx, 1);
       {
-      setState(436);
-      match(EXPLAIN);
-      setState(437);
+      setState(444);
+      match(DEV_EXPLAIN);
+      setState(445);
       subqueryExpression();
       }
     }
@@ -3356,11 +3429,11 @@ public class EsqlBaseParser extends ParserConfig {
 
   @SuppressWarnings("CheckReturnValue")
   public static class SubqueryExpressionContext extends ParserRuleContext {
-    public TerminalNode OPENING_BRACKET() { return getToken(EsqlBaseParser.OPENING_BRACKET, 0); }
+    public TerminalNode LP() { return getToken(EsqlBaseParser.LP, 0); }
     public QueryContext query() {
       return getRuleContext(QueryContext.class,0);
     }
-    public TerminalNode CLOSING_BRACKET() { return getToken(EsqlBaseParser.CLOSING_BRACKET, 0); }
+    public TerminalNode RP() { return getToken(EsqlBaseParser.RP, 0); }
     @SuppressWarnings("this-escape")
     public SubqueryExpressionContext(ParserRuleContext parent, int invokingState) {
       super(parent, invokingState);
@@ -3383,16 +3456,16 @@ public class EsqlBaseParser extends ParserConfig {
 
   public final SubqueryExpressionContext subqueryExpression() throws RecognitionException {
     SubqueryExpressionContext _localctx = new SubqueryExpressionContext(_ctx, getState());
-    enterRule(_localctx, 88, RULE_subqueryExpression);
+    enterRule(_localctx, 92, RULE_subqueryExpression);
     try {
       enterOuterAlt(_localctx, 1);
       {
-      setState(439);
-      match(OPENING_BRACKET);
-      setState(440);
+      setState(447);
+      match(LP);
+      setState(448);
       query(0);
-      setState(441);
-      match(CLOSING_BRACKET);
+      setState(449);
+      match(RP);
       }
     }
     catch (RecognitionException re) {
@@ -3443,14 +3516,14 @@ public class EsqlBaseParser extends ParserConfig {
 
   public final ShowCommandContext showCommand() throws RecognitionException {
     ShowCommandContext _localctx = new ShowCommandContext(_ctx, getState());
-    enterRule(_localctx, 90, RULE_showCommand);
+    enterRule(_localctx, 94, RULE_showCommand);
     try {
       _localctx = new ShowInfoContext(_localctx);
       enterOuterAlt(_localctx, 1);
       {
-      setState(443);
+      setState(451);
       match(SHOW);
-      setState(444);
+      setState(452);
       match(INFO);
       }
     }
@@ -3467,10 +3540,12 @@ public class EsqlBaseParser extends ParserConfig {
 
   @SuppressWarnings("CheckReturnValue")
   public static class EnrichCommandContext extends ParserRuleContext {
-    public Token policyName;
+    public EnrichPolicyNameContext policyName;
     public QualifiedNamePatternContext matchField;
     public TerminalNode ENRICH() { return getToken(EsqlBaseParser.ENRICH, 0); }
-    public TerminalNode ENRICH_POLICY_NAME() { return getToken(EsqlBaseParser.ENRICH_POLICY_NAME, 0); }
+    public EnrichPolicyNameContext enrichPolicyName() {
+      return getRuleContext(EnrichPolicyNameContext.class,0);
+    }
     public TerminalNode ON() { return getToken(EsqlBaseParser.ON, 0); }
     public TerminalNode WITH() { return getToken(EsqlBaseParser.WITH, 0); }
     public List<EnrichWithClauseContext> enrichWithClause() {
@@ -3508,56 +3583,110 @@ public class EsqlBaseParser extends ParserConfig {
 
   public final EnrichCommandContext enrichCommand() throws RecognitionException {
     EnrichCommandContext _localctx = new EnrichCommandContext(_ctx, getState());
-    enterRule(_localctx, 92, RULE_enrichCommand);
+    enterRule(_localctx, 96, RULE_enrichCommand);
     try {
       int _alt;
       enterOuterAlt(_localctx, 1);
       {
-      setState(446);
+      setState(454);
       match(ENRICH);
-      setState(447);
-      ((EnrichCommandContext)_localctx).policyName = match(ENRICH_POLICY_NAME);
-      setState(450);
+      setState(455);
+      ((EnrichCommandContext)_localctx).policyName = enrichPolicyName();
+      setState(458);
       _errHandler.sync(this);
-      switch ( getInterpreter().adaptivePredict(_input,31,_ctx) ) {
+      switch ( getInterpreter().adaptivePredict(_input,30,_ctx) ) {
       case 1:
         {
-        setState(448);
+        setState(456);
         match(ON);
-        setState(449);
+        setState(457);
         ((EnrichCommandContext)_localctx).matchField = qualifiedNamePattern();
         }
         break;
       }
-      setState(461);
+      setState(469);
       _errHandler.sync(this);
-      switch ( getInterpreter().adaptivePredict(_input,33,_ctx) ) {
+      switch ( getInterpreter().adaptivePredict(_input,32,_ctx) ) {
       case 1:
         {
-        setState(452);
+        setState(460);
         match(WITH);
-        setState(453);
+        setState(461);
         enrichWithClause();
-        setState(458);
+        setState(466);
         _errHandler.sync(this);
-        _alt = getInterpreter().adaptivePredict(_input,32,_ctx);
+        _alt = getInterpreter().adaptivePredict(_input,31,_ctx);
         while ( _alt!=2 && _alt!=org.antlr.v4.runtime.atn.ATN.INVALID_ALT_NUMBER ) {
           if ( _alt==1 ) {
             {
             {
-            setState(454);
+            setState(462);
             match(COMMA);
-            setState(455);
+            setState(463);
             enrichWithClause();
             }
             } 
           }
-          setState(460);
+          setState(468);
           _errHandler.sync(this);
-          _alt = getInterpreter().adaptivePredict(_input,32,_ctx);
+          _alt = getInterpreter().adaptivePredict(_input,31,_ctx);
         }
         }
         break;
+      }
+      }
+    }
+    catch (RecognitionException re) {
+      _localctx.exception = re;
+      _errHandler.reportError(this, re);
+      _errHandler.recover(this, re);
+    }
+    finally {
+      exitRule();
+    }
+    return _localctx;
+  }
+
+  @SuppressWarnings("CheckReturnValue")
+  public static class EnrichPolicyNameContext extends ParserRuleContext {
+    public TerminalNode ENRICH_POLICY_NAME() { return getToken(EsqlBaseParser.ENRICH_POLICY_NAME, 0); }
+    public TerminalNode QUOTED_STRING() { return getToken(EsqlBaseParser.QUOTED_STRING, 0); }
+    @SuppressWarnings("this-escape")
+    public EnrichPolicyNameContext(ParserRuleContext parent, int invokingState) {
+      super(parent, invokingState);
+    }
+    @Override public int getRuleIndex() { return RULE_enrichPolicyName; }
+    @Override
+    public void enterRule(ParseTreeListener listener) {
+      if ( listener instanceof EsqlBaseParserListener ) ((EsqlBaseParserListener)listener).enterEnrichPolicyName(this);
+    }
+    @Override
+    public void exitRule(ParseTreeListener listener) {
+      if ( listener instanceof EsqlBaseParserListener ) ((EsqlBaseParserListener)listener).exitEnrichPolicyName(this);
+    }
+    @Override
+    public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
+      if ( visitor instanceof EsqlBaseParserVisitor ) return ((EsqlBaseParserVisitor<? extends T>)visitor).visitEnrichPolicyName(this);
+      else return visitor.visitChildren(this);
+    }
+  }
+
+  public final EnrichPolicyNameContext enrichPolicyName() throws RecognitionException {
+    EnrichPolicyNameContext _localctx = new EnrichPolicyNameContext(_ctx, getState());
+    enterRule(_localctx, 98, RULE_enrichPolicyName);
+    int _la;
+    try {
+      enterOuterAlt(_localctx, 1);
+      {
+      setState(471);
+      _la = _input.LA(1);
+      if ( !(_la==ENRICH_POLICY_NAME || _la==QUOTED_STRING) ) {
+      _errHandler.recoverInline(this);
+      }
+      else {
+        if ( _input.LA(1)==Token.EOF ) matchedEOF = true;
+        _errHandler.reportMatch(this);
+        consume();
       }
       }
     }
@@ -3605,23 +3734,23 @@ public class EsqlBaseParser extends ParserConfig {
 
   public final EnrichWithClauseContext enrichWithClause() throws RecognitionException {
     EnrichWithClauseContext _localctx = new EnrichWithClauseContext(_ctx, getState());
-    enterRule(_localctx, 94, RULE_enrichWithClause);
+    enterRule(_localctx, 100, RULE_enrichWithClause);
     try {
       enterOuterAlt(_localctx, 1);
       {
-      setState(466);
+      setState(476);
       _errHandler.sync(this);
-      switch ( getInterpreter().adaptivePredict(_input,34,_ctx) ) {
+      switch ( getInterpreter().adaptivePredict(_input,33,_ctx) ) {
       case 1:
         {
-        setState(463);
+        setState(473);
         ((EnrichWithClauseContext)_localctx).newName = qualifiedNamePattern();
-        setState(464);
+        setState(474);
         match(ASSIGN);
         }
         break;
       }
-      setState(468);
+      setState(478);
       ((EnrichWithClauseContext)_localctx).enrichField = qualifiedNamePattern();
       }
     }
@@ -3637,118 +3766,42 @@ public class EsqlBaseParser extends ParserConfig {
   }
 
   @SuppressWarnings("CheckReturnValue")
-  public static class LookupCommandContext extends ParserRuleContext {
-    public IndexPatternContext tableName;
-    public QualifiedNamePatternsContext matchFields;
-    public TerminalNode DEV_LOOKUP() { return getToken(EsqlBaseParser.DEV_LOOKUP, 0); }
-    public TerminalNode ON() { return getToken(EsqlBaseParser.ON, 0); }
-    public IndexPatternContext indexPattern() {
-      return getRuleContext(IndexPatternContext.class,0);
-    }
-    public QualifiedNamePatternsContext qualifiedNamePatterns() {
-      return getRuleContext(QualifiedNamePatternsContext.class,0);
+  public static class SampleCommandContext extends ParserRuleContext {
+    public ConstantContext probability;
+    public TerminalNode SAMPLE() { return getToken(EsqlBaseParser.SAMPLE, 0); }
+    public ConstantContext constant() {
+      return getRuleContext(ConstantContext.class,0);
     }
     @SuppressWarnings("this-escape")
-    public LookupCommandContext(ParserRuleContext parent, int invokingState) {
+    public SampleCommandContext(ParserRuleContext parent, int invokingState) {
       super(parent, invokingState);
     }
-    @Override public int getRuleIndex() { return RULE_lookupCommand; }
+    @Override public int getRuleIndex() { return RULE_sampleCommand; }
     @Override
     public void enterRule(ParseTreeListener listener) {
-      if ( listener instanceof EsqlBaseParserListener ) ((EsqlBaseParserListener)listener).enterLookupCommand(this);
+      if ( listener instanceof EsqlBaseParserListener ) ((EsqlBaseParserListener)listener).enterSampleCommand(this);
     }
     @Override
     public void exitRule(ParseTreeListener listener) {
-      if ( listener instanceof EsqlBaseParserListener ) ((EsqlBaseParserListener)listener).exitLookupCommand(this);
+      if ( listener instanceof EsqlBaseParserListener ) ((EsqlBaseParserListener)listener).exitSampleCommand(this);
     }
     @Override
     public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
-      if ( visitor instanceof EsqlBaseParserVisitor ) return ((EsqlBaseParserVisitor<? extends T>)visitor).visitLookupCommand(this);
+      if ( visitor instanceof EsqlBaseParserVisitor ) return ((EsqlBaseParserVisitor<? extends T>)visitor).visitSampleCommand(this);
       else return visitor.visitChildren(this);
     }
   }
 
-  public final LookupCommandContext lookupCommand() throws RecognitionException {
-    LookupCommandContext _localctx = new LookupCommandContext(_ctx, getState());
-    enterRule(_localctx, 96, RULE_lookupCommand);
+  public final SampleCommandContext sampleCommand() throws RecognitionException {
+    SampleCommandContext _localctx = new SampleCommandContext(_ctx, getState());
+    enterRule(_localctx, 102, RULE_sampleCommand);
     try {
       enterOuterAlt(_localctx, 1);
       {
-      setState(470);
-      match(DEV_LOOKUP);
-      setState(471);
-      ((LookupCommandContext)_localctx).tableName = indexPattern();
-      setState(472);
-      match(ON);
-      setState(473);
-      ((LookupCommandContext)_localctx).matchFields = qualifiedNamePatterns();
-      }
-    }
-    catch (RecognitionException re) {
-      _localctx.exception = re;
-      _errHandler.reportError(this, re);
-      _errHandler.recover(this, re);
-    }
-    finally {
-      exitRule();
-    }
-    return _localctx;
-  }
-
-  @SuppressWarnings("CheckReturnValue")
-  public static class InlinestatsCommandContext extends ParserRuleContext {
-    public AggFieldsContext stats;
-    public FieldsContext grouping;
-    public TerminalNode DEV_INLINESTATS() { return getToken(EsqlBaseParser.DEV_INLINESTATS, 0); }
-    public AggFieldsContext aggFields() {
-      return getRuleContext(AggFieldsContext.class,0);
-    }
-    public TerminalNode BY() { return getToken(EsqlBaseParser.BY, 0); }
-    public FieldsContext fields() {
-      return getRuleContext(FieldsContext.class,0);
-    }
-    @SuppressWarnings("this-escape")
-    public InlinestatsCommandContext(ParserRuleContext parent, int invokingState) {
-      super(parent, invokingState);
-    }
-    @Override public int getRuleIndex() { return RULE_inlinestatsCommand; }
-    @Override
-    public void enterRule(ParseTreeListener listener) {
-      if ( listener instanceof EsqlBaseParserListener ) ((EsqlBaseParserListener)listener).enterInlinestatsCommand(this);
-    }
-    @Override
-    public void exitRule(ParseTreeListener listener) {
-      if ( listener instanceof EsqlBaseParserListener ) ((EsqlBaseParserListener)listener).exitInlinestatsCommand(this);
-    }
-    @Override
-    public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
-      if ( visitor instanceof EsqlBaseParserVisitor ) return ((EsqlBaseParserVisitor<? extends T>)visitor).visitInlinestatsCommand(this);
-      else return visitor.visitChildren(this);
-    }
-  }
-
-  public final InlinestatsCommandContext inlinestatsCommand() throws RecognitionException {
-    InlinestatsCommandContext _localctx = new InlinestatsCommandContext(_ctx, getState());
-    enterRule(_localctx, 98, RULE_inlinestatsCommand);
-    try {
-      enterOuterAlt(_localctx, 1);
-      {
-      setState(475);
-      match(DEV_INLINESTATS);
-      setState(476);
-      ((InlinestatsCommandContext)_localctx).stats = aggFields();
-      setState(479);
-      _errHandler.sync(this);
-      switch ( getInterpreter().adaptivePredict(_input,35,_ctx) ) {
-      case 1:
-        {
-        setState(477);
-        match(BY);
-        setState(478);
-        ((InlinestatsCommandContext)_localctx).grouping = fields();
-        }
-        break;
-      }
+      setState(480);
+      match(SAMPLE);
+      setState(481);
+      ((SampleCommandContext)_localctx).probability = constant();
       }
     }
     catch (RecognitionException re) {
@@ -3800,38 +3853,38 @@ public class EsqlBaseParser extends ParserConfig {
 
   public final ChangePointCommandContext changePointCommand() throws RecognitionException {
     ChangePointCommandContext _localctx = new ChangePointCommandContext(_ctx, getState());
-    enterRule(_localctx, 100, RULE_changePointCommand);
+    enterRule(_localctx, 104, RULE_changePointCommand);
     try {
       enterOuterAlt(_localctx, 1);
       {
-      setState(481);
+      setState(483);
       match(CHANGE_POINT);
-      setState(482);
+      setState(484);
       ((ChangePointCommandContext)_localctx).value = qualifiedName();
-      setState(485);
+      setState(487);
       _errHandler.sync(this);
-      switch ( getInterpreter().adaptivePredict(_input,36,_ctx) ) {
+      switch ( getInterpreter().adaptivePredict(_input,34,_ctx) ) {
       case 1:
         {
-        setState(483);
+        setState(485);
         match(ON);
-        setState(484);
+        setState(486);
         ((ChangePointCommandContext)_localctx).key = qualifiedName();
         }
         break;
       }
-      setState(492);
+      setState(494);
       _errHandler.sync(this);
-      switch ( getInterpreter().adaptivePredict(_input,37,_ctx) ) {
+      switch ( getInterpreter().adaptivePredict(_input,35,_ctx) ) {
       case 1:
         {
-        setState(487);
-        match(AS);
-        setState(488);
-        ((ChangePointCommandContext)_localctx).targetType = qualifiedName();
         setState(489);
-        match(COMMA);
+        match(AS);
         setState(490);
+        ((ChangePointCommandContext)_localctx).targetType = qualifiedName();
+        setState(491);
+        match(COMMA);
+        setState(492);
         ((ChangePointCommandContext)_localctx).targetPvalue = qualifiedName();
         }
         break;
@@ -3850,57 +3903,8 @@ public class EsqlBaseParser extends ParserConfig {
   }
 
   @SuppressWarnings("CheckReturnValue")
-  public static class InsistCommandContext extends ParserRuleContext {
-    public TerminalNode DEV_INSIST() { return getToken(EsqlBaseParser.DEV_INSIST, 0); }
-    public QualifiedNamePatternsContext qualifiedNamePatterns() {
-      return getRuleContext(QualifiedNamePatternsContext.class,0);
-    }
-    @SuppressWarnings("this-escape")
-    public InsistCommandContext(ParserRuleContext parent, int invokingState) {
-      super(parent, invokingState);
-    }
-    @Override public int getRuleIndex() { return RULE_insistCommand; }
-    @Override
-    public void enterRule(ParseTreeListener listener) {
-      if ( listener instanceof EsqlBaseParserListener ) ((EsqlBaseParserListener)listener).enterInsistCommand(this);
-    }
-    @Override
-    public void exitRule(ParseTreeListener listener) {
-      if ( listener instanceof EsqlBaseParserListener ) ((EsqlBaseParserListener)listener).exitInsistCommand(this);
-    }
-    @Override
-    public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
-      if ( visitor instanceof EsqlBaseParserVisitor ) return ((EsqlBaseParserVisitor<? extends T>)visitor).visitInsistCommand(this);
-      else return visitor.visitChildren(this);
-    }
-  }
-
-  public final InsistCommandContext insistCommand() throws RecognitionException {
-    InsistCommandContext _localctx = new InsistCommandContext(_ctx, getState());
-    enterRule(_localctx, 102, RULE_insistCommand);
-    try {
-      enterOuterAlt(_localctx, 1);
-      {
-      setState(494);
-      match(DEV_INSIST);
-      setState(495);
-      qualifiedNamePatterns();
-      }
-    }
-    catch (RecognitionException re) {
-      _localctx.exception = re;
-      _errHandler.reportError(this, re);
-      _errHandler.recover(this, re);
-    }
-    finally {
-      exitRule();
-    }
-    return _localctx;
-  }
-
-  @SuppressWarnings("CheckReturnValue")
   public static class ForkCommandContext extends ParserRuleContext {
-    public TerminalNode DEV_FORK() { return getToken(EsqlBaseParser.DEV_FORK, 0); }
+    public TerminalNode FORK() { return getToken(EsqlBaseParser.FORK, 0); }
     public ForkSubQueriesContext forkSubQueries() {
       return getRuleContext(ForkSubQueriesContext.class,0);
     }
@@ -3926,13 +3930,13 @@ public class EsqlBaseParser extends ParserConfig {
 
   public final ForkCommandContext forkCommand() throws RecognitionException {
     ForkCommandContext _localctx = new ForkCommandContext(_ctx, getState());
-    enterRule(_localctx, 104, RULE_forkCommand);
+    enterRule(_localctx, 106, RULE_forkCommand);
     try {
       enterOuterAlt(_localctx, 1);
       {
+      setState(496);
+      match(FORK);
       setState(497);
-      match(DEV_FORK);
-      setState(498);
       forkSubQueries();
       }
     }
@@ -3977,12 +3981,12 @@ public class EsqlBaseParser extends ParserConfig {
 
   public final ForkSubQueriesContext forkSubQueries() throws RecognitionException {
     ForkSubQueriesContext _localctx = new ForkSubQueriesContext(_ctx, getState());
-    enterRule(_localctx, 106, RULE_forkSubQueries);
+    enterRule(_localctx, 108, RULE_forkSubQueries);
     try {
       int _alt;
       enterOuterAlt(_localctx, 1);
       {
-      setState(501); 
+      setState(500); 
       _errHandler.sync(this);
       _alt = 1;
       do {
@@ -3990,7 +3994,7 @@ public class EsqlBaseParser extends ParserConfig {
         case 1:
           {
           {
-          setState(500);
+          setState(499);
           forkSubQuery();
           }
           }
@@ -3998,9 +4002,9 @@ public class EsqlBaseParser extends ParserConfig {
         default:
           throw new NoViableAltException(this);
         }
-        setState(503); 
+        setState(502); 
         _errHandler.sync(this);
-        _alt = getInterpreter().adaptivePredict(_input,38,_ctx);
+        _alt = getInterpreter().adaptivePredict(_input,36,_ctx);
       } while ( _alt!=2 && _alt!=org.antlr.v4.runtime.atn.ATN.INVALID_ALT_NUMBER );
       }
     }
@@ -4044,15 +4048,15 @@ public class EsqlBaseParser extends ParserConfig {
 
   public final ForkSubQueryContext forkSubQuery() throws RecognitionException {
     ForkSubQueryContext _localctx = new ForkSubQueryContext(_ctx, getState());
-    enterRule(_localctx, 108, RULE_forkSubQuery);
+    enterRule(_localctx, 110, RULE_forkSubQuery);
     try {
       enterOuterAlt(_localctx, 1);
       {
-      setState(505);
+      setState(504);
       match(LP);
-      setState(506);
+      setState(505);
       forkSubQueryCommand(0);
-      setState(507);
+      setState(506);
       match(RP);
       }
     }
@@ -4137,8 +4141,8 @@ public class EsqlBaseParser extends ParserConfig {
     int _parentState = getState();
     ForkSubQueryCommandContext _localctx = new ForkSubQueryCommandContext(_ctx, _parentState);
     ForkSubQueryCommandContext _prevctx = _localctx;
-    int _startState = 110;
-    enterRecursionRule(_localctx, 110, RULE_forkSubQueryCommand, _p);
+    int _startState = 112;
+    enterRecursionRule(_localctx, 112, RULE_forkSubQueryCommand, _p);
     try {
       int _alt;
       enterOuterAlt(_localctx, 1);
@@ -4148,13 +4152,13 @@ public class EsqlBaseParser extends ParserConfig {
       _ctx = _localctx;
       _prevctx = _localctx;
 
-      setState(510);
+      setState(509);
       forkSubQueryProcessingCommand();
       }
       _ctx.stop = _input.LT(-1);
-      setState(517);
+      setState(516);
       _errHandler.sync(this);
-      _alt = getInterpreter().adaptivePredict(_input,39,_ctx);
+      _alt = getInterpreter().adaptivePredict(_input,37,_ctx);
       while ( _alt!=2 && _alt!=org.antlr.v4.runtime.atn.ATN.INVALID_ALT_NUMBER ) {
         if ( _alt==1 ) {
           if ( _parseListeners!=null ) triggerExitRuleEvent();
@@ -4163,18 +4167,18 @@ public class EsqlBaseParser extends ParserConfig {
           {
           _localctx = new CompositeForkSubQueryContext(new ForkSubQueryCommandContext(_parentctx, _parentState));
           pushNewRecursionContext(_localctx, _startState, RULE_forkSubQueryCommand);
-          setState(512);
+          setState(511);
           if (!(precpred(_ctx, 1))) throw new FailedPredicateException(this, "precpred(_ctx, 1)");
-          setState(513);
+          setState(512);
           match(PIPE);
-          setState(514);
+          setState(513);
           forkSubQueryProcessingCommand();
           }
           } 
         }
-        setState(519);
+        setState(518);
         _errHandler.sync(this);
-        _alt = getInterpreter().adaptivePredict(_input,39,_ctx);
+        _alt = getInterpreter().adaptivePredict(_input,37,_ctx);
       }
       }
     }
@@ -4191,23 +4195,8 @@ public class EsqlBaseParser extends ParserConfig {
 
   @SuppressWarnings("CheckReturnValue")
   public static class ForkSubQueryProcessingCommandContext extends ParserRuleContext {
-    public EvalCommandContext evalCommand() {
-      return getRuleContext(EvalCommandContext.class,0);
-    }
-    public WhereCommandContext whereCommand() {
-      return getRuleContext(WhereCommandContext.class,0);
-    }
-    public LimitCommandContext limitCommand() {
-      return getRuleContext(LimitCommandContext.class,0);
-    }
-    public StatsCommandContext statsCommand() {
-      return getRuleContext(StatsCommandContext.class,0);
-    }
-    public SortCommandContext sortCommand() {
-      return getRuleContext(SortCommandContext.class,0);
-    }
-    public DissectCommandContext dissectCommand() {
-      return getRuleContext(DissectCommandContext.class,0);
+    public ProcessingCommandContext processingCommand() {
+      return getRuleContext(ProcessingCommandContext.class,0);
     }
     @SuppressWarnings("this-escape")
     public ForkSubQueryProcessingCommandContext(ParserRuleContext parent, int invokingState) {
@@ -4231,99 +4220,12 @@ public class EsqlBaseParser extends ParserConfig {
 
   public final ForkSubQueryProcessingCommandContext forkSubQueryProcessingCommand() throws RecognitionException {
     ForkSubQueryProcessingCommandContext _localctx = new ForkSubQueryProcessingCommandContext(_ctx, getState());
-    enterRule(_localctx, 112, RULE_forkSubQueryProcessingCommand);
-    try {
-      setState(526);
-      _errHandler.sync(this);
-      switch (_input.LA(1)) {
-      case EVAL:
-        enterOuterAlt(_localctx, 1);
-        {
-        setState(520);
-        evalCommand();
-        }
-        break;
-      case WHERE:
-        enterOuterAlt(_localctx, 2);
-        {
-        setState(521);
-        whereCommand();
-        }
-        break;
-      case LIMIT:
-        enterOuterAlt(_localctx, 3);
-        {
-        setState(522);
-        limitCommand();
-        }
-        break;
-      case STATS:
-        enterOuterAlt(_localctx, 4);
-        {
-        setState(523);
-        statsCommand();
-        }
-        break;
-      case SORT:
-        enterOuterAlt(_localctx, 5);
-        {
-        setState(524);
-        sortCommand();
-        }
-        break;
-      case DISSECT:
-        enterOuterAlt(_localctx, 6);
-        {
-        setState(525);
-        dissectCommand();
-        }
-        break;
-      default:
-        throw new NoViableAltException(this);
-      }
-    }
-    catch (RecognitionException re) {
-      _localctx.exception = re;
-      _errHandler.reportError(this, re);
-      _errHandler.recover(this, re);
-    }
-    finally {
-      exitRule();
-    }
-    return _localctx;
-  }
-
-  @SuppressWarnings("CheckReturnValue")
-  public static class RrfCommandContext extends ParserRuleContext {
-    public TerminalNode DEV_RRF() { return getToken(EsqlBaseParser.DEV_RRF, 0); }
-    @SuppressWarnings("this-escape")
-    public RrfCommandContext(ParserRuleContext parent, int invokingState) {
-      super(parent, invokingState);
-    }
-    @Override public int getRuleIndex() { return RULE_rrfCommand; }
-    @Override
-    public void enterRule(ParseTreeListener listener) {
-      if ( listener instanceof EsqlBaseParserListener ) ((EsqlBaseParserListener)listener).enterRrfCommand(this);
-    }
-    @Override
-    public void exitRule(ParseTreeListener listener) {
-      if ( listener instanceof EsqlBaseParserListener ) ((EsqlBaseParserListener)listener).exitRrfCommand(this);
-    }
-    @Override
-    public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
-      if ( visitor instanceof EsqlBaseParserVisitor ) return ((EsqlBaseParserVisitor<? extends T>)visitor).visitRrfCommand(this);
-      else return visitor.visitChildren(this);
-    }
-  }
-
-  public final RrfCommandContext rrfCommand() throws RecognitionException {
-    RrfCommandContext _localctx = new RrfCommandContext(_ctx, getState());
-    enterRule(_localctx, 114, RULE_rrfCommand);
+    enterRule(_localctx, 114, RULE_forkSubQueryProcessingCommand);
     try {
       enterOuterAlt(_localctx, 1);
       {
-      setState(528);
-      match(DEV_RRF);
+      setState(519);
+      processingCommand();
       }
     }
     catch (RecognitionException re) {
@@ -4339,19 +4241,22 @@ public class EsqlBaseParser extends ParserConfig {
 
   @SuppressWarnings("CheckReturnValue")
   public static class RerankCommandContext extends ParserRuleContext {
+    public QualifiedNameContext targetField;
     public ConstantContext queryText;
-    public IdentifierOrParameterContext inferenceId;
-    public TerminalNode DEV_RERANK() { return getToken(EsqlBaseParser.DEV_RERANK, 0); }
+    public TerminalNode RERANK() { return getToken(EsqlBaseParser.RERANK, 0); }
     public TerminalNode ON() { return getToken(EsqlBaseParser.ON, 0); }
     public RerankFieldsContext rerankFields() {
       return getRuleContext(RerankFieldsContext.class,0);
     }
+    public CommandNamedParametersContext commandNamedParameters() {
+      return getRuleContext(CommandNamedParametersContext.class,0);
+    }
     public ConstantContext constant() {
       return getRuleContext(ConstantContext.class,0);
     }
-    public TerminalNode WITH() { return getToken(EsqlBaseParser.WITH, 0); }
-    public IdentifierOrParameterContext identifierOrParameter() {
-      return getRuleContext(IdentifierOrParameterContext.class,0);
+    public TerminalNode ASSIGN() { return getToken(EsqlBaseParser.ASSIGN, 0); }
+    public QualifiedNameContext qualifiedName() {
+      return getRuleContext(QualifiedNameContext.class,0);
     }
     @SuppressWarnings("this-escape")
     public RerankCommandContext(ParserRuleContext parent, int invokingState) {
@@ -4379,26 +4284,28 @@ public class EsqlBaseParser extends ParserConfig {
     try {
       enterOuterAlt(_localctx, 1);
       {
-      setState(530);
-      match(DEV_RERANK);
-      setState(531);
-      ((RerankCommandContext)_localctx).queryText = constant();
-      setState(532);
-      match(ON);
-      setState(533);
-      rerankFields();
-      setState(536);
+      setState(521);
+      match(RERANK);
+      setState(525);
       _errHandler.sync(this);
-      switch ( getInterpreter().adaptivePredict(_input,41,_ctx) ) {
+      switch ( getInterpreter().adaptivePredict(_input,38,_ctx) ) {
       case 1:
         {
-        setState(534);
-        match(WITH);
-        setState(535);
-        ((RerankCommandContext)_localctx).inferenceId = identifierOrParameter();
+        setState(522);
+        ((RerankCommandContext)_localctx).targetField = qualifiedName();
+        setState(523);
+        match(ASSIGN);
         }
         break;
       }
+      setState(527);
+      ((RerankCommandContext)_localctx).queryText = constant();
+      setState(528);
+      match(ON);
+      setState(529);
+      rerankFields();
+      setState(530);
+      commandNamedParameters();
       }
     }
     catch (RecognitionException re) {
@@ -4416,14 +4323,12 @@ public class EsqlBaseParser extends ParserConfig {
   public static class CompletionCommandContext extends ParserRuleContext {
     public QualifiedNameContext targetField;
     public PrimaryExpressionContext prompt;
-    public IdentifierOrParameterContext inferenceId;
     public TerminalNode COMPLETION() { return getToken(EsqlBaseParser.COMPLETION, 0); }
-    public TerminalNode WITH() { return getToken(EsqlBaseParser.WITH, 0); }
+    public CommandNamedParametersContext commandNamedParameters() {
+      return getRuleContext(CommandNamedParametersContext.class,0);
+    }
     public PrimaryExpressionContext primaryExpression() {
       return getRuleContext(PrimaryExpressionContext.class,0);
-    }
-    public IdentifierOrParameterContext identifierOrParameter() {
-      return getRuleContext(IdentifierOrParameterContext.class,0);
     }
     public TerminalNode ASSIGN() { return getToken(EsqlBaseParser.ASSIGN, 0); }
     public QualifiedNameContext qualifiedName() {
@@ -4455,26 +4360,24 @@ public class EsqlBaseParser extends ParserConfig {
     try {
       enterOuterAlt(_localctx, 1);
       {
-      setState(538);
+      setState(532);
       match(COMPLETION);
-      setState(542);
+      setState(536);
       _errHandler.sync(this);
-      switch ( getInterpreter().adaptivePredict(_input,42,_ctx) ) {
+      switch ( getInterpreter().adaptivePredict(_input,39,_ctx) ) {
       case 1:
         {
-        setState(539);
+        setState(533);
         ((CompletionCommandContext)_localctx).targetField = qualifiedName();
-        setState(540);
+        setState(534);
         match(ASSIGN);
         }
         break;
       }
-      setState(544);
+      setState(538);
       ((CompletionCommandContext)_localctx).prompt = primaryExpression(0);
-      setState(545);
-      match(WITH);
-      setState(546);
-      ((CompletionCommandContext)_localctx).inferenceId = identifierOrParameter();
+      setState(539);
+      commandNamedParameters();
       }
     }
     catch (RecognitionException re) {
@@ -4489,42 +4392,211 @@ public class EsqlBaseParser extends ParserConfig {
   }
 
   @SuppressWarnings("CheckReturnValue")
-  public static class SampleCommandContext extends ParserRuleContext {
-    public DecimalValueContext probability;
-    public TerminalNode DEV_SAMPLE() { return getToken(EsqlBaseParser.DEV_SAMPLE, 0); }
-    public DecimalValueContext decimalValue() {
-      return getRuleContext(DecimalValueContext.class,0);
+  public static class LookupCommandContext extends ParserRuleContext {
+    public IndexPatternContext tableName;
+    public QualifiedNamePatternsContext matchFields;
+    public TerminalNode DEV_LOOKUP() { return getToken(EsqlBaseParser.DEV_LOOKUP, 0); }
+    public TerminalNode ON() { return getToken(EsqlBaseParser.ON, 0); }
+    public IndexPatternContext indexPattern() {
+      return getRuleContext(IndexPatternContext.class,0);
+    }
+    public QualifiedNamePatternsContext qualifiedNamePatterns() {
+      return getRuleContext(QualifiedNamePatternsContext.class,0);
     }
     @SuppressWarnings("this-escape")
-    public SampleCommandContext(ParserRuleContext parent, int invokingState) {
+    public LookupCommandContext(ParserRuleContext parent, int invokingState) {
       super(parent, invokingState);
     }
-    @Override public int getRuleIndex() { return RULE_sampleCommand; }
+    @Override public int getRuleIndex() { return RULE_lookupCommand; }
     @Override
     public void enterRule(ParseTreeListener listener) {
-      if ( listener instanceof EsqlBaseParserListener ) ((EsqlBaseParserListener)listener).enterSampleCommand(this);
+      if ( listener instanceof EsqlBaseParserListener ) ((EsqlBaseParserListener)listener).enterLookupCommand(this);
     }
     @Override
     public void exitRule(ParseTreeListener listener) {
-      if ( listener instanceof EsqlBaseParserListener ) ((EsqlBaseParserListener)listener).exitSampleCommand(this);
+      if ( listener instanceof EsqlBaseParserListener ) ((EsqlBaseParserListener)listener).exitLookupCommand(this);
     }
     @Override
     public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
-      if ( visitor instanceof EsqlBaseParserVisitor ) return ((EsqlBaseParserVisitor<? extends T>)visitor).visitSampleCommand(this);
+      if ( visitor instanceof EsqlBaseParserVisitor ) return ((EsqlBaseParserVisitor<? extends T>)visitor).visitLookupCommand(this);
       else return visitor.visitChildren(this);
     }
   }
 
-  public final SampleCommandContext sampleCommand() throws RecognitionException {
-    SampleCommandContext _localctx = new SampleCommandContext(_ctx, getState());
-    enterRule(_localctx, 120, RULE_sampleCommand);
+  public final LookupCommandContext lookupCommand() throws RecognitionException {
+    LookupCommandContext _localctx = new LookupCommandContext(_ctx, getState());
+    enterRule(_localctx, 120, RULE_lookupCommand);
     try {
       enterOuterAlt(_localctx, 1);
       {
-      setState(548);
-      match(DEV_SAMPLE);
-      setState(549);
-      ((SampleCommandContext)_localctx).probability = decimalValue();
+      setState(541);
+      match(DEV_LOOKUP);
+      setState(542);
+      ((LookupCommandContext)_localctx).tableName = indexPattern();
+      setState(543);
+      match(ON);
+      setState(544);
+      ((LookupCommandContext)_localctx).matchFields = qualifiedNamePatterns();
+      }
+    }
+    catch (RecognitionException re) {
+      _localctx.exception = re;
+      _errHandler.reportError(this, re);
+      _errHandler.recover(this, re);
+    }
+    finally {
+      exitRule();
+    }
+    return _localctx;
+  }
+
+  @SuppressWarnings("CheckReturnValue")
+  public static class InlinestatsCommandContext extends ParserRuleContext {
+    public AggFieldsContext stats;
+    public FieldsContext grouping;
+    public TerminalNode DEV_INLINESTATS() { return getToken(EsqlBaseParser.DEV_INLINESTATS, 0); }
+    public AggFieldsContext aggFields() {
+      return getRuleContext(AggFieldsContext.class,0);
+    }
+    public TerminalNode BY() { return getToken(EsqlBaseParser.BY, 0); }
+    public FieldsContext fields() {
+      return getRuleContext(FieldsContext.class,0);
+    }
+    @SuppressWarnings("this-escape")
+    public InlinestatsCommandContext(ParserRuleContext parent, int invokingState) {
+      super(parent, invokingState);
+    }
+    @Override public int getRuleIndex() { return RULE_inlinestatsCommand; }
+    @Override
+    public void enterRule(ParseTreeListener listener) {
+      if ( listener instanceof EsqlBaseParserListener ) ((EsqlBaseParserListener)listener).enterInlinestatsCommand(this);
+    }
+    @Override
+    public void exitRule(ParseTreeListener listener) {
+      if ( listener instanceof EsqlBaseParserListener ) ((EsqlBaseParserListener)listener).exitInlinestatsCommand(this);
+    }
+    @Override
+    public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
+      if ( visitor instanceof EsqlBaseParserVisitor ) return ((EsqlBaseParserVisitor<? extends T>)visitor).visitInlinestatsCommand(this);
+      else return visitor.visitChildren(this);
+    }
+  }
+
+  public final InlinestatsCommandContext inlinestatsCommand() throws RecognitionException {
+    InlinestatsCommandContext _localctx = new InlinestatsCommandContext(_ctx, getState());
+    enterRule(_localctx, 122, RULE_inlinestatsCommand);
+    try {
+      enterOuterAlt(_localctx, 1);
+      {
+      setState(546);
+      match(DEV_INLINESTATS);
+      setState(547);
+      ((InlinestatsCommandContext)_localctx).stats = aggFields();
+      setState(550);
+      _errHandler.sync(this);
+      switch ( getInterpreter().adaptivePredict(_input,40,_ctx) ) {
+      case 1:
+        {
+        setState(548);
+        match(BY);
+        setState(549);
+        ((InlinestatsCommandContext)_localctx).grouping = fields();
+        }
+        break;
+      }
+      }
+    }
+    catch (RecognitionException re) {
+      _localctx.exception = re;
+      _errHandler.reportError(this, re);
+      _errHandler.recover(this, re);
+    }
+    finally {
+      exitRule();
+    }
+    return _localctx;
+  }
+
+  @SuppressWarnings("CheckReturnValue")
+  public static class InsistCommandContext extends ParserRuleContext {
+    public TerminalNode DEV_INSIST() { return getToken(EsqlBaseParser.DEV_INSIST, 0); }
+    public QualifiedNamePatternsContext qualifiedNamePatterns() {
+      return getRuleContext(QualifiedNamePatternsContext.class,0);
+    }
+    @SuppressWarnings("this-escape")
+    public InsistCommandContext(ParserRuleContext parent, int invokingState) {
+      super(parent, invokingState);
+    }
+    @Override public int getRuleIndex() { return RULE_insistCommand; }
+    @Override
+    public void enterRule(ParseTreeListener listener) {
+      if ( listener instanceof EsqlBaseParserListener ) ((EsqlBaseParserListener)listener).enterInsistCommand(this);
+    }
+    @Override
+    public void exitRule(ParseTreeListener listener) {
+      if ( listener instanceof EsqlBaseParserListener ) ((EsqlBaseParserListener)listener).exitInsistCommand(this);
+    }
+    @Override
+    public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
+      if ( visitor instanceof EsqlBaseParserVisitor ) return ((EsqlBaseParserVisitor<? extends T>)visitor).visitInsistCommand(this);
+      else return visitor.visitChildren(this);
+    }
+  }
+
+  public final InsistCommandContext insistCommand() throws RecognitionException {
+    InsistCommandContext _localctx = new InsistCommandContext(_ctx, getState());
+    enterRule(_localctx, 124, RULE_insistCommand);
+    try {
+      enterOuterAlt(_localctx, 1);
+      {
+      setState(552);
+      match(DEV_INSIST);
+      setState(553);
+      qualifiedNamePatterns();
+      }
+    }
+    catch (RecognitionException re) {
+      _localctx.exception = re;
+      _errHandler.reportError(this, re);
+      _errHandler.recover(this, re);
+    }
+    finally {
+      exitRule();
+    }
+    return _localctx;
+  }
+
+  @SuppressWarnings("CheckReturnValue")
+  public static class FuseCommandContext extends ParserRuleContext {
+    public TerminalNode DEV_FUSE() { return getToken(EsqlBaseParser.DEV_FUSE, 0); }
+    @SuppressWarnings("this-escape")
+    public FuseCommandContext(ParserRuleContext parent, int invokingState) {
+      super(parent, invokingState);
+    }
+    @Override public int getRuleIndex() { return RULE_fuseCommand; }
+    @Override
+    public void enterRule(ParseTreeListener listener) {
+      if ( listener instanceof EsqlBaseParserListener ) ((EsqlBaseParserListener)listener).enterFuseCommand(this);
+    }
+    @Override
+    public void exitRule(ParseTreeListener listener) {
+      if ( listener instanceof EsqlBaseParserListener ) ((EsqlBaseParserListener)listener).exitFuseCommand(this);
+    }
+    @Override
+    public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
+      if ( visitor instanceof EsqlBaseParserVisitor ) return ((EsqlBaseParserVisitor<? extends T>)visitor).visitFuseCommand(this);
+      else return visitor.visitChildren(this);
+    }
+  }
+
+  public final FuseCommandContext fuseCommand() throws RecognitionException {
+    FuseCommandContext _localctx = new FuseCommandContext(_ctx, getState());
+    enterRule(_localctx, 126, RULE_fuseCommand);
+    try {
+      enterOuterAlt(_localctx, 1);
+      {
+      setState(555);
+      match(DEV_FUSE);
       }
     }
     catch (RecognitionException re) {
@@ -4732,25 +4804,25 @@ public class EsqlBaseParser extends ParserConfig {
     int _parentState = getState();
     BooleanExpressionContext _localctx = new BooleanExpressionContext(_ctx, _parentState);
     BooleanExpressionContext _prevctx = _localctx;
-    int _startState = 122;
-    enterRecursionRule(_localctx, 122, RULE_booleanExpression, _p);
+    int _startState = 128;
+    enterRecursionRule(_localctx, 128, RULE_booleanExpression, _p);
     int _la;
     try {
       int _alt;
       enterOuterAlt(_localctx, 1);
       {
-      setState(580);
+      setState(586);
       _errHandler.sync(this);
-      switch ( getInterpreter().adaptivePredict(_input,46,_ctx) ) {
+      switch ( getInterpreter().adaptivePredict(_input,44,_ctx) ) {
       case 1:
         {
         _localctx = new LogicalNotContext(_localctx);
         _ctx = _localctx;
         _prevctx = _localctx;
 
-        setState(552);
+        setState(558);
         match(NOT);
-        setState(553);
+        setState(559);
         booleanExpression(8);
         }
         break;
@@ -4759,7 +4831,7 @@ public class EsqlBaseParser extends ParserConfig {
         _localctx = new BooleanDefaultContext(_localctx);
         _ctx = _localctx;
         _prevctx = _localctx;
-        setState(554);
+        setState(560);
         valueExpression();
         }
         break;
@@ -4768,7 +4840,7 @@ public class EsqlBaseParser extends ParserConfig {
         _localctx = new RegexExpressionContext(_localctx);
         _ctx = _localctx;
         _prevctx = _localctx;
-        setState(555);
+        setState(561);
         regexBooleanExpression();
         }
         break;
@@ -4777,41 +4849,41 @@ public class EsqlBaseParser extends ParserConfig {
         _localctx = new LogicalInContext(_localctx);
         _ctx = _localctx;
         _prevctx = _localctx;
-        setState(556);
+        setState(562);
         valueExpression();
-        setState(558);
+        setState(564);
         _errHandler.sync(this);
         _la = _input.LA(1);
         if (_la==NOT) {
           {
-          setState(557);
+          setState(563);
           match(NOT);
           }
         }
 
-        setState(560);
+        setState(566);
         match(IN);
-        setState(561);
-        match(LP);
-        setState(562);
-        valueExpression();
         setState(567);
+        match(LP);
+        setState(568);
+        valueExpression();
+        setState(573);
         _errHandler.sync(this);
         _la = _input.LA(1);
         while (_la==COMMA) {
           {
           {
-          setState(563);
+          setState(569);
           match(COMMA);
-          setState(564);
+          setState(570);
           valueExpression();
           }
           }
-          setState(569);
+          setState(575);
           _errHandler.sync(this);
           _la = _input.LA(1);
         }
-        setState(570);
+        setState(576);
         match(RP);
         }
         break;
@@ -4820,21 +4892,21 @@ public class EsqlBaseParser extends ParserConfig {
         _localctx = new IsNullContext(_localctx);
         _ctx = _localctx;
         _prevctx = _localctx;
-        setState(572);
+        setState(578);
         valueExpression();
-        setState(573);
+        setState(579);
         match(IS);
-        setState(575);
+        setState(581);
         _errHandler.sync(this);
         _la = _input.LA(1);
         if (_la==NOT) {
           {
-          setState(574);
+          setState(580);
           match(NOT);
           }
         }
 
-        setState(577);
+        setState(583);
         match(NULL);
         }
         break;
@@ -4843,33 +4915,33 @@ public class EsqlBaseParser extends ParserConfig {
         _localctx = new MatchExpressionContext(_localctx);
         _ctx = _localctx;
         _prevctx = _localctx;
-        setState(579);
+        setState(585);
         matchBooleanExpression();
         }
         break;
       }
       _ctx.stop = _input.LT(-1);
-      setState(590);
+      setState(596);
       _errHandler.sync(this);
-      _alt = getInterpreter().adaptivePredict(_input,48,_ctx);
+      _alt = getInterpreter().adaptivePredict(_input,46,_ctx);
       while ( _alt!=2 && _alt!=org.antlr.v4.runtime.atn.ATN.INVALID_ALT_NUMBER ) {
         if ( _alt==1 ) {
           if ( _parseListeners!=null ) triggerExitRuleEvent();
           _prevctx = _localctx;
           {
-          setState(588);
+          setState(594);
           _errHandler.sync(this);
-          switch ( getInterpreter().adaptivePredict(_input,47,_ctx) ) {
+          switch ( getInterpreter().adaptivePredict(_input,45,_ctx) ) {
           case 1:
             {
             _localctx = new LogicalBinaryContext(new BooleanExpressionContext(_parentctx, _parentState));
             ((LogicalBinaryContext)_localctx).left = _prevctx;
             pushNewRecursionContext(_localctx, _startState, RULE_booleanExpression);
-            setState(582);
+            setState(588);
             if (!(precpred(_ctx, 5))) throw new FailedPredicateException(this, "precpred(_ctx, 5)");
-            setState(583);
+            setState(589);
             ((LogicalBinaryContext)_localctx).operator = match(AND);
-            setState(584);
+            setState(590);
             ((LogicalBinaryContext)_localctx).right = booleanExpression(6);
             }
             break;
@@ -4878,20 +4950,20 @@ public class EsqlBaseParser extends ParserConfig {
             _localctx = new LogicalBinaryContext(new BooleanExpressionContext(_parentctx, _parentState));
             ((LogicalBinaryContext)_localctx).left = _prevctx;
             pushNewRecursionContext(_localctx, _startState, RULE_booleanExpression);
-            setState(585);
+            setState(591);
             if (!(precpred(_ctx, 4))) throw new FailedPredicateException(this, "precpred(_ctx, 4)");
-            setState(586);
+            setState(592);
             ((LogicalBinaryContext)_localctx).operator = match(OR);
-            setState(587);
+            setState(593);
             ((LogicalBinaryContext)_localctx).right = booleanExpression(5);
             }
             break;
           }
           } 
         }
-        setState(592);
+        setState(598);
         _errHandler.sync(this);
-        _alt = getInterpreter().adaptivePredict(_input,48,_ctx);
+        _alt = getInterpreter().adaptivePredict(_input,46,_ctx);
       }
       }
     }
@@ -4908,8 +4980,20 @@ public class EsqlBaseParser extends ParserConfig {
 
   @SuppressWarnings("CheckReturnValue")
   public static class RegexBooleanExpressionContext extends ParserRuleContext {
-    public Token kind;
-    public StringContext pattern;
+    @SuppressWarnings("this-escape")
+    public RegexBooleanExpressionContext(ParserRuleContext parent, int invokingState) {
+      super(parent, invokingState);
+    }
+    @Override public int getRuleIndex() { return RULE_regexBooleanExpression; }
+   
+    @SuppressWarnings("this-escape")
+    public RegexBooleanExpressionContext() { }
+    public void copyFrom(RegexBooleanExpressionContext ctx) {
+      super.copyFrom(ctx);
+    }
+  }
+  @SuppressWarnings("CheckReturnValue")
+  public static class LikeExpressionContext extends RegexBooleanExpressionContext {
     public ValueExpressionContext valueExpression() {
       return getRuleContext(ValueExpressionContext.class,0);
     }
@@ -4918,75 +5002,253 @@ public class EsqlBaseParser extends ParserConfig {
       return getRuleContext(StringContext.class,0);
     }
     public TerminalNode NOT() { return getToken(EsqlBaseParser.NOT, 0); }
-    public TerminalNode RLIKE() { return getToken(EsqlBaseParser.RLIKE, 0); }
     @SuppressWarnings("this-escape")
-    public RegexBooleanExpressionContext(ParserRuleContext parent, int invokingState) {
-      super(parent, invokingState);
-    }
-    @Override public int getRuleIndex() { return RULE_regexBooleanExpression; }
+    public LikeExpressionContext(RegexBooleanExpressionContext ctx) { copyFrom(ctx); }
     @Override
     public void enterRule(ParseTreeListener listener) {
-      if ( listener instanceof EsqlBaseParserListener ) ((EsqlBaseParserListener)listener).enterRegexBooleanExpression(this);
+      if ( listener instanceof EsqlBaseParserListener ) ((EsqlBaseParserListener)listener).enterLikeExpression(this);
     }
     @Override
     public void exitRule(ParseTreeListener listener) {
-      if ( listener instanceof EsqlBaseParserListener ) ((EsqlBaseParserListener)listener).exitRegexBooleanExpression(this);
+      if ( listener instanceof EsqlBaseParserListener ) ((EsqlBaseParserListener)listener).exitLikeExpression(this);
     }
     @Override
     public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
-      if ( visitor instanceof EsqlBaseParserVisitor ) return ((EsqlBaseParserVisitor<? extends T>)visitor).visitRegexBooleanExpression(this);
+      if ( visitor instanceof EsqlBaseParserVisitor ) return ((EsqlBaseParserVisitor<? extends T>)visitor).visitLikeExpression(this);
+      else return visitor.visitChildren(this);
+    }
+  }
+  @SuppressWarnings("CheckReturnValue")
+  public static class LikeListExpressionContext extends RegexBooleanExpressionContext {
+    public ValueExpressionContext valueExpression() {
+      return getRuleContext(ValueExpressionContext.class,0);
+    }
+    public TerminalNode LIKE() { return getToken(EsqlBaseParser.LIKE, 0); }
+    public TerminalNode LP() { return getToken(EsqlBaseParser.LP, 0); }
+    public List<StringContext> string() {
+      return getRuleContexts(StringContext.class);
+    }
+    public StringContext string(int i) {
+      return getRuleContext(StringContext.class,i);
+    }
+    public TerminalNode RP() { return getToken(EsqlBaseParser.RP, 0); }
+    public TerminalNode NOT() { return getToken(EsqlBaseParser.NOT, 0); }
+    public List<TerminalNode> COMMA() { return getTokens(EsqlBaseParser.COMMA); }
+    public TerminalNode COMMA(int i) {
+      return getToken(EsqlBaseParser.COMMA, i);
+    }
+    @SuppressWarnings("this-escape")
+    public LikeListExpressionContext(RegexBooleanExpressionContext ctx) { copyFrom(ctx); }
+    @Override
+    public void enterRule(ParseTreeListener listener) {
+      if ( listener instanceof EsqlBaseParserListener ) ((EsqlBaseParserListener)listener).enterLikeListExpression(this);
+    }
+    @Override
+    public void exitRule(ParseTreeListener listener) {
+      if ( listener instanceof EsqlBaseParserListener ) ((EsqlBaseParserListener)listener).exitLikeListExpression(this);
+    }
+    @Override
+    public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
+      if ( visitor instanceof EsqlBaseParserVisitor ) return ((EsqlBaseParserVisitor<? extends T>)visitor).visitLikeListExpression(this);
+      else return visitor.visitChildren(this);
+    }
+  }
+  @SuppressWarnings("CheckReturnValue")
+  public static class RlikeExpressionContext extends RegexBooleanExpressionContext {
+    public ValueExpressionContext valueExpression() {
+      return getRuleContext(ValueExpressionContext.class,0);
+    }
+    public TerminalNode RLIKE() { return getToken(EsqlBaseParser.RLIKE, 0); }
+    public StringContext string() {
+      return getRuleContext(StringContext.class,0);
+    }
+    public TerminalNode NOT() { return getToken(EsqlBaseParser.NOT, 0); }
+    @SuppressWarnings("this-escape")
+    public RlikeExpressionContext(RegexBooleanExpressionContext ctx) { copyFrom(ctx); }
+    @Override
+    public void enterRule(ParseTreeListener listener) {
+      if ( listener instanceof EsqlBaseParserListener ) ((EsqlBaseParserListener)listener).enterRlikeExpression(this);
+    }
+    @Override
+    public void exitRule(ParseTreeListener listener) {
+      if ( listener instanceof EsqlBaseParserListener ) ((EsqlBaseParserListener)listener).exitRlikeExpression(this);
+    }
+    @Override
+    public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
+      if ( visitor instanceof EsqlBaseParserVisitor ) return ((EsqlBaseParserVisitor<? extends T>)visitor).visitRlikeExpression(this);
+      else return visitor.visitChildren(this);
+    }
+  }
+  @SuppressWarnings("CheckReturnValue")
+  public static class RlikeListExpressionContext extends RegexBooleanExpressionContext {
+    public ValueExpressionContext valueExpression() {
+      return getRuleContext(ValueExpressionContext.class,0);
+    }
+    public TerminalNode RLIKE() { return getToken(EsqlBaseParser.RLIKE, 0); }
+    public TerminalNode LP() { return getToken(EsqlBaseParser.LP, 0); }
+    public List<StringContext> string() {
+      return getRuleContexts(StringContext.class);
+    }
+    public StringContext string(int i) {
+      return getRuleContext(StringContext.class,i);
+    }
+    public TerminalNode RP() { return getToken(EsqlBaseParser.RP, 0); }
+    public TerminalNode NOT() { return getToken(EsqlBaseParser.NOT, 0); }
+    public List<TerminalNode> COMMA() { return getTokens(EsqlBaseParser.COMMA); }
+    public TerminalNode COMMA(int i) {
+      return getToken(EsqlBaseParser.COMMA, i);
+    }
+    @SuppressWarnings("this-escape")
+    public RlikeListExpressionContext(RegexBooleanExpressionContext ctx) { copyFrom(ctx); }
+    @Override
+    public void enterRule(ParseTreeListener listener) {
+      if ( listener instanceof EsqlBaseParserListener ) ((EsqlBaseParserListener)listener).enterRlikeListExpression(this);
+    }
+    @Override
+    public void exitRule(ParseTreeListener listener) {
+      if ( listener instanceof EsqlBaseParserListener ) ((EsqlBaseParserListener)listener).exitRlikeListExpression(this);
+    }
+    @Override
+    public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
+      if ( visitor instanceof EsqlBaseParserVisitor ) return ((EsqlBaseParserVisitor<? extends T>)visitor).visitRlikeListExpression(this);
       else return visitor.visitChildren(this);
     }
   }
 
   public final RegexBooleanExpressionContext regexBooleanExpression() throws RecognitionException {
     RegexBooleanExpressionContext _localctx = new RegexBooleanExpressionContext(_ctx, getState());
-    enterRule(_localctx, 124, RULE_regexBooleanExpression);
+    enterRule(_localctx, 130, RULE_regexBooleanExpression);
     int _la;
     try {
-      setState(607);
+      setState(645);
       _errHandler.sync(this);
-      switch ( getInterpreter().adaptivePredict(_input,51,_ctx) ) {
+      switch ( getInterpreter().adaptivePredict(_input,53,_ctx) ) {
       case 1:
+        _localctx = new LikeExpressionContext(_localctx);
         enterOuterAlt(_localctx, 1);
         {
-        setState(593);
+        setState(599);
         valueExpression();
-        setState(595);
+        setState(601);
         _errHandler.sync(this);
         _la = _input.LA(1);
         if (_la==NOT) {
           {
-          setState(594);
+          setState(600);
           match(NOT);
           }
         }
 
-        setState(597);
-        ((RegexBooleanExpressionContext)_localctx).kind = match(LIKE);
-        setState(598);
-        ((RegexBooleanExpressionContext)_localctx).pattern = string();
+        setState(603);
+        match(LIKE);
+        setState(604);
+        string();
         }
         break;
       case 2:
+        _localctx = new RlikeExpressionContext(_localctx);
         enterOuterAlt(_localctx, 2);
         {
-        setState(600);
+        setState(606);
         valueExpression();
-        setState(602);
+        setState(608);
         _errHandler.sync(this);
         _la = _input.LA(1);
         if (_la==NOT) {
           {
-          setState(601);
+          setState(607);
           match(NOT);
           }
         }
 
-        setState(604);
-        ((RegexBooleanExpressionContext)_localctx).kind = match(RLIKE);
-        setState(605);
-        ((RegexBooleanExpressionContext)_localctx).pattern = string();
+        setState(610);
+        match(RLIKE);
+        setState(611);
+        string();
+        }
+        break;
+      case 3:
+        _localctx = new LikeListExpressionContext(_localctx);
+        enterOuterAlt(_localctx, 3);
+        {
+        setState(613);
+        valueExpression();
+        setState(615);
+        _errHandler.sync(this);
+        _la = _input.LA(1);
+        if (_la==NOT) {
+          {
+          setState(614);
+          match(NOT);
+          }
+        }
+
+        setState(617);
+        match(LIKE);
+        setState(618);
+        match(LP);
+        setState(619);
+        string();
+        setState(624);
+        _errHandler.sync(this);
+        _la = _input.LA(1);
+        while (_la==COMMA) {
+          {
+          {
+          setState(620);
+          match(COMMA);
+          setState(621);
+          string();
+          }
+          }
+          setState(626);
+          _errHandler.sync(this);
+          _la = _input.LA(1);
+        }
+        setState(627);
+        match(RP);
+        }
+        break;
+      case 4:
+        _localctx = new RlikeListExpressionContext(_localctx);
+        enterOuterAlt(_localctx, 4);
+        {
+        setState(629);
+        valueExpression();
+        setState(631);
+        _errHandler.sync(this);
+        _la = _input.LA(1);
+        if (_la==NOT) {
+          {
+          setState(630);
+          match(NOT);
+          }
+        }
+
+        setState(633);
+        match(RLIKE);
+        setState(634);
+        match(LP);
+        setState(635);
+        string();
+        setState(640);
+        _errHandler.sync(this);
+        _la = _input.LA(1);
+        while (_la==COMMA) {
+          {
+          {
+          setState(636);
+          match(COMMA);
+          setState(637);
+          string();
+          }
+          }
+          setState(642);
+          _errHandler.sync(this);
+          _la = _input.LA(1);
+        }
+        setState(643);
+        match(RP);
         }
         break;
       }
@@ -5040,28 +5302,28 @@ public class EsqlBaseParser extends ParserConfig {
 
   public final MatchBooleanExpressionContext matchBooleanExpression() throws RecognitionException {
     MatchBooleanExpressionContext _localctx = new MatchBooleanExpressionContext(_ctx, getState());
-    enterRule(_localctx, 126, RULE_matchBooleanExpression);
+    enterRule(_localctx, 132, RULE_matchBooleanExpression);
     int _la;
     try {
       enterOuterAlt(_localctx, 1);
       {
-      setState(609);
+      setState(647);
       ((MatchBooleanExpressionContext)_localctx).fieldExp = qualifiedName();
-      setState(612);
+      setState(650);
       _errHandler.sync(this);
       _la = _input.LA(1);
       if (_la==CAST_OP) {
         {
-        setState(610);
+        setState(648);
         match(CAST_OP);
-        setState(611);
+        setState(649);
         ((MatchBooleanExpressionContext)_localctx).fieldType = dataType();
         }
       }
 
-      setState(614);
+      setState(652);
       match(COLON);
-      setState(615);
+      setState(653);
       ((MatchBooleanExpressionContext)_localctx).matchQuery = constant();
       }
     }
@@ -5143,16 +5405,16 @@ public class EsqlBaseParser extends ParserConfig {
 
   public final ValueExpressionContext valueExpression() throws RecognitionException {
     ValueExpressionContext _localctx = new ValueExpressionContext(_ctx, getState());
-    enterRule(_localctx, 128, RULE_valueExpression);
+    enterRule(_localctx, 134, RULE_valueExpression);
     try {
-      setState(622);
+      setState(660);
       _errHandler.sync(this);
-      switch ( getInterpreter().adaptivePredict(_input,53,_ctx) ) {
+      switch ( getInterpreter().adaptivePredict(_input,55,_ctx) ) {
       case 1:
         _localctx = new ValueExpressionDefaultContext(_localctx);
         enterOuterAlt(_localctx, 1);
         {
-        setState(617);
+        setState(655);
         operatorExpression(0);
         }
         break;
@@ -5160,11 +5422,11 @@ public class EsqlBaseParser extends ParserConfig {
         _localctx = new ComparisonContext(_localctx);
         enterOuterAlt(_localctx, 2);
         {
-        setState(618);
+        setState(656);
         ((ComparisonContext)_localctx).left = operatorExpression(0);
-        setState(619);
+        setState(657);
         comparisonOperator();
-        setState(620);
+        setState(658);
         ((ComparisonContext)_localctx).right = operatorExpression(0);
         }
         break;
@@ -5282,23 +5544,23 @@ public class EsqlBaseParser extends ParserConfig {
     int _parentState = getState();
     OperatorExpressionContext _localctx = new OperatorExpressionContext(_ctx, _parentState);
     OperatorExpressionContext _prevctx = _localctx;
-    int _startState = 130;
-    enterRecursionRule(_localctx, 130, RULE_operatorExpression, _p);
+    int _startState = 136;
+    enterRecursionRule(_localctx, 136, RULE_operatorExpression, _p);
     int _la;
     try {
       int _alt;
       enterOuterAlt(_localctx, 1);
       {
-      setState(628);
+      setState(666);
       _errHandler.sync(this);
-      switch ( getInterpreter().adaptivePredict(_input,54,_ctx) ) {
+      switch ( getInterpreter().adaptivePredict(_input,56,_ctx) ) {
       case 1:
         {
         _localctx = new OperatorExpressionDefaultContext(_localctx);
         _ctx = _localctx;
         _prevctx = _localctx;
 
-        setState(625);
+        setState(663);
         primaryExpression(0);
         }
         break;
@@ -5307,7 +5569,7 @@ public class EsqlBaseParser extends ParserConfig {
         _localctx = new ArithmeticUnaryContext(_localctx);
         _ctx = _localctx;
         _prevctx = _localctx;
-        setState(626);
+        setState(664);
         ((ArithmeticUnaryContext)_localctx).operator = _input.LT(1);
         _la = _input.LA(1);
         if ( !(_la==PLUS || _la==MINUS) ) {
@@ -5318,31 +5580,31 @@ public class EsqlBaseParser extends ParserConfig {
           _errHandler.reportMatch(this);
           consume();
         }
-        setState(627);
+        setState(665);
         operatorExpression(3);
         }
         break;
       }
       _ctx.stop = _input.LT(-1);
-      setState(638);
+      setState(676);
       _errHandler.sync(this);
-      _alt = getInterpreter().adaptivePredict(_input,56,_ctx);
+      _alt = getInterpreter().adaptivePredict(_input,58,_ctx);
       while ( _alt!=2 && _alt!=org.antlr.v4.runtime.atn.ATN.INVALID_ALT_NUMBER ) {
         if ( _alt==1 ) {
           if ( _parseListeners!=null ) triggerExitRuleEvent();
           _prevctx = _localctx;
           {
-          setState(636);
+          setState(674);
           _errHandler.sync(this);
-          switch ( getInterpreter().adaptivePredict(_input,55,_ctx) ) {
+          switch ( getInterpreter().adaptivePredict(_input,57,_ctx) ) {
           case 1:
             {
             _localctx = new ArithmeticBinaryContext(new OperatorExpressionContext(_parentctx, _parentState));
             ((ArithmeticBinaryContext)_localctx).left = _prevctx;
             pushNewRecursionContext(_localctx, _startState, RULE_operatorExpression);
-            setState(630);
+            setState(668);
             if (!(precpred(_ctx, 2))) throw new FailedPredicateException(this, "precpred(_ctx, 2)");
-            setState(631);
+            setState(669);
             ((ArithmeticBinaryContext)_localctx).operator = _input.LT(1);
             _la = _input.LA(1);
             if ( !(((((_la - 89)) & ~0x3f) == 0 && ((1L << (_la - 89)) & 7L) != 0)) ) {
@@ -5353,7 +5615,7 @@ public class EsqlBaseParser extends ParserConfig {
               _errHandler.reportMatch(this);
               consume();
             }
-            setState(632);
+            setState(670);
             ((ArithmeticBinaryContext)_localctx).right = operatorExpression(3);
             }
             break;
@@ -5362,9 +5624,9 @@ public class EsqlBaseParser extends ParserConfig {
             _localctx = new ArithmeticBinaryContext(new OperatorExpressionContext(_parentctx, _parentState));
             ((ArithmeticBinaryContext)_localctx).left = _prevctx;
             pushNewRecursionContext(_localctx, _startState, RULE_operatorExpression);
-            setState(633);
+            setState(671);
             if (!(precpred(_ctx, 1))) throw new FailedPredicateException(this, "precpred(_ctx, 1)");
-            setState(634);
+            setState(672);
             ((ArithmeticBinaryContext)_localctx).operator = _input.LT(1);
             _la = _input.LA(1);
             if ( !(_la==PLUS || _la==MINUS) ) {
@@ -5375,16 +5637,16 @@ public class EsqlBaseParser extends ParserConfig {
               _errHandler.reportMatch(this);
               consume();
             }
-            setState(635);
+            setState(673);
             ((ArithmeticBinaryContext)_localctx).right = operatorExpression(2);
             }
             break;
           }
           } 
         }
-        setState(640);
+        setState(678);
         _errHandler.sync(this);
-        _alt = getInterpreter().adaptivePredict(_input,56,_ctx);
+        _alt = getInterpreter().adaptivePredict(_input,58,_ctx);
       }
       }
     }
@@ -5534,22 +5796,22 @@ public class EsqlBaseParser extends ParserConfig {
     int _parentState = getState();
     PrimaryExpressionContext _localctx = new PrimaryExpressionContext(_ctx, _parentState);
     PrimaryExpressionContext _prevctx = _localctx;
-    int _startState = 132;
-    enterRecursionRule(_localctx, 132, RULE_primaryExpression, _p);
+    int _startState = 138;
+    enterRecursionRule(_localctx, 138, RULE_primaryExpression, _p);
     try {
       int _alt;
       enterOuterAlt(_localctx, 1);
       {
-      setState(649);
+      setState(687);
       _errHandler.sync(this);
-      switch ( getInterpreter().adaptivePredict(_input,57,_ctx) ) {
+      switch ( getInterpreter().adaptivePredict(_input,59,_ctx) ) {
       case 1:
         {
         _localctx = new ConstantDefaultContext(_localctx);
         _ctx = _localctx;
         _prevctx = _localctx;
 
-        setState(642);
+        setState(680);
         constant();
         }
         break;
@@ -5558,7 +5820,7 @@ public class EsqlBaseParser extends ParserConfig {
         _localctx = new DereferenceContext(_localctx);
         _ctx = _localctx;
         _prevctx = _localctx;
-        setState(643);
+        setState(681);
         qualifiedName();
         }
         break;
@@ -5567,7 +5829,7 @@ public class EsqlBaseParser extends ParserConfig {
         _localctx = new FunctionContext(_localctx);
         _ctx = _localctx;
         _prevctx = _localctx;
-        setState(644);
+        setState(682);
         functionExpression();
         }
         break;
@@ -5576,19 +5838,19 @@ public class EsqlBaseParser extends ParserConfig {
         _localctx = new ParenthesizedExpressionContext(_localctx);
         _ctx = _localctx;
         _prevctx = _localctx;
-        setState(645);
+        setState(683);
         match(LP);
-        setState(646);
+        setState(684);
         booleanExpression(0);
-        setState(647);
+        setState(685);
         match(RP);
         }
         break;
       }
       _ctx.stop = _input.LT(-1);
-      setState(656);
+      setState(694);
       _errHandler.sync(this);
-      _alt = getInterpreter().adaptivePredict(_input,58,_ctx);
+      _alt = getInterpreter().adaptivePredict(_input,60,_ctx);
       while ( _alt!=2 && _alt!=org.antlr.v4.runtime.atn.ATN.INVALID_ALT_NUMBER ) {
         if ( _alt==1 ) {
           if ( _parseListeners!=null ) triggerExitRuleEvent();
@@ -5597,18 +5859,18 @@ public class EsqlBaseParser extends ParserConfig {
           {
           _localctx = new InlineCastContext(new PrimaryExpressionContext(_parentctx, _parentState));
           pushNewRecursionContext(_localctx, _startState, RULE_primaryExpression);
-          setState(651);
+          setState(689);
           if (!(precpred(_ctx, 1))) throw new FailedPredicateException(this, "precpred(_ctx, 1)");
-          setState(652);
+          setState(690);
           match(CAST_OP);
-          setState(653);
+          setState(691);
           dataType();
           }
           } 
         }
-        setState(658);
+        setState(696);
         _errHandler.sync(this);
-        _alt = getInterpreter().adaptivePredict(_input,58,_ctx);
+        _alt = getInterpreter().adaptivePredict(_input,60,_ctx);
       }
       }
     }
@@ -5666,22 +5928,22 @@ public class EsqlBaseParser extends ParserConfig {
 
   public final FunctionExpressionContext functionExpression() throws RecognitionException {
     FunctionExpressionContext _localctx = new FunctionExpressionContext(_ctx, getState());
-    enterRule(_localctx, 134, RULE_functionExpression);
+    enterRule(_localctx, 140, RULE_functionExpression);
     int _la;
     try {
       int _alt;
       enterOuterAlt(_localctx, 1);
       {
-      setState(659);
+      setState(697);
       functionName();
-      setState(660);
+      setState(698);
       match(LP);
-      setState(674);
+      setState(712);
       _errHandler.sync(this);
       switch (_input.LA(1)) {
       case ASTERISK:
         {
-        setState(661);
+        setState(699);
         match(ASTERISK);
         }
         break;
@@ -5689,6 +5951,8 @@ public class EsqlBaseParser extends ParserConfig {
       case INTEGER_LITERAL:
       case DECIMAL_LITERAL:
       case FALSE:
+      case FIRST:
+      case LAST:
       case NOT:
       case NULL:
       case PARAM:
@@ -5704,34 +5968,34 @@ public class EsqlBaseParser extends ParserConfig {
       case QUOTED_IDENTIFIER:
         {
         {
-        setState(662);
+        setState(700);
         booleanExpression(0);
-        setState(667);
+        setState(705);
         _errHandler.sync(this);
-        _alt = getInterpreter().adaptivePredict(_input,59,_ctx);
+        _alt = getInterpreter().adaptivePredict(_input,61,_ctx);
         while ( _alt!=2 && _alt!=org.antlr.v4.runtime.atn.ATN.INVALID_ALT_NUMBER ) {
           if ( _alt==1 ) {
             {
             {
-            setState(663);
+            setState(701);
             match(COMMA);
-            setState(664);
+            setState(702);
             booleanExpression(0);
             }
             } 
           }
-          setState(669);
+          setState(707);
           _errHandler.sync(this);
-          _alt = getInterpreter().adaptivePredict(_input,59,_ctx);
+          _alt = getInterpreter().adaptivePredict(_input,61,_ctx);
         }
-        setState(672);
+        setState(710);
         _errHandler.sync(this);
         _la = _input.LA(1);
         if (_la==COMMA) {
           {
-          setState(670);
+          setState(708);
           match(COMMA);
-          setState(671);
+          setState(709);
           mapExpression();
           }
         }
@@ -5744,7 +6008,7 @@ public class EsqlBaseParser extends ParserConfig {
       default:
         break;
       }
-      setState(676);
+      setState(714);
       match(RP);
       }
     }
@@ -5764,6 +6028,8 @@ public class EsqlBaseParser extends ParserConfig {
     public IdentifierOrParameterContext identifierOrParameter() {
       return getRuleContext(IdentifierOrParameterContext.class,0);
     }
+    public TerminalNode FIRST() { return getToken(EsqlBaseParser.FIRST, 0); }
+    public TerminalNode LAST() { return getToken(EsqlBaseParser.LAST, 0); }
     @SuppressWarnings("this-escape")
     public FunctionNameContext(ParserRuleContext parent, int invokingState) {
       super(parent, invokingState);
@@ -5786,12 +6052,39 @@ public class EsqlBaseParser extends ParserConfig {
 
   public final FunctionNameContext functionName() throws RecognitionException {
     FunctionNameContext _localctx = new FunctionNameContext(_ctx, getState());
-    enterRule(_localctx, 136, RULE_functionName);
+    enterRule(_localctx, 142, RULE_functionName);
     try {
-      enterOuterAlt(_localctx, 1);
-      {
-      setState(678);
-      identifierOrParameter();
+      setState(719);
+      _errHandler.sync(this);
+      switch (_input.LA(1)) {
+      case PARAM:
+      case DOUBLE_PARAMS:
+      case NAMED_OR_POSITIONAL_PARAM:
+      case NAMED_OR_POSITIONAL_DOUBLE_PARAMS:
+      case UNQUOTED_IDENTIFIER:
+      case QUOTED_IDENTIFIER:
+        enterOuterAlt(_localctx, 1);
+        {
+        setState(716);
+        identifierOrParameter();
+        }
+        break;
+      case FIRST:
+        enterOuterAlt(_localctx, 2);
+        {
+        setState(717);
+        match(FIRST);
+        }
+        break;
+      case LAST:
+        enterOuterAlt(_localctx, 3);
+        {
+        setState(718);
+        match(LAST);
+        }
+        break;
+      default:
+        throw new NoViableAltException(this);
       }
     }
     catch (RecognitionException re) {
@@ -5808,13 +6101,13 @@ public class EsqlBaseParser extends ParserConfig {
   @SuppressWarnings("CheckReturnValue")
   public static class MapExpressionContext extends ParserRuleContext {
     public TerminalNode LEFT_BRACES() { return getToken(EsqlBaseParser.LEFT_BRACES, 0); }
+    public TerminalNode RIGHT_BRACES() { return getToken(EsqlBaseParser.RIGHT_BRACES, 0); }
     public List<EntryExpressionContext> entryExpression() {
       return getRuleContexts(EntryExpressionContext.class);
     }
     public EntryExpressionContext entryExpression(int i) {
       return getRuleContext(EntryExpressionContext.class,i);
     }
-    public TerminalNode RIGHT_BRACES() { return getToken(EsqlBaseParser.RIGHT_BRACES, 0); }
     public List<TerminalNode> COMMA() { return getTokens(EsqlBaseParser.COMMA); }
     public TerminalNode COMMA(int i) {
       return getToken(EsqlBaseParser.COMMA, i);
@@ -5841,32 +6134,40 @@ public class EsqlBaseParser extends ParserConfig {
 
   public final MapExpressionContext mapExpression() throws RecognitionException {
     MapExpressionContext _localctx = new MapExpressionContext(_ctx, getState());
-    enterRule(_localctx, 138, RULE_mapExpression);
+    enterRule(_localctx, 144, RULE_mapExpression);
     int _la;
     try {
       enterOuterAlt(_localctx, 1);
       {
-      setState(680);
+      setState(721);
       match(LEFT_BRACES);
-      setState(681);
-      entryExpression();
-      setState(686);
+      setState(730);
       _errHandler.sync(this);
       _la = _input.LA(1);
-      while (_la==COMMA) {
+      if (_la==QUOTED_STRING) {
         {
-        {
-        setState(682);
-        match(COMMA);
-        setState(683);
+        setState(722);
         entryExpression();
-        }
-        }
-        setState(688);
+        setState(727);
         _errHandler.sync(this);
         _la = _input.LA(1);
+        while (_la==COMMA) {
+          {
+          {
+          setState(723);
+          match(COMMA);
+          setState(724);
+          entryExpression();
+          }
+          }
+          setState(729);
+          _errHandler.sync(this);
+          _la = _input.LA(1);
+        }
+        }
       }
-      setState(689);
+
+      setState(732);
       match(RIGHT_BRACES);
       }
     }
@@ -5914,15 +6215,15 @@ public class EsqlBaseParser extends ParserConfig {
 
   public final EntryExpressionContext entryExpression() throws RecognitionException {
     EntryExpressionContext _localctx = new EntryExpressionContext(_ctx, getState());
-    enterRule(_localctx, 140, RULE_entryExpression);
+    enterRule(_localctx, 146, RULE_entryExpression);
     try {
       enterOuterAlt(_localctx, 1);
       {
-      setState(691);
+      setState(734);
       ((EntryExpressionContext)_localctx).key = string();
-      setState(692);
+      setState(735);
       match(COLON);
-      setState(693);
+      setState(736);
       ((EntryExpressionContext)_localctx).value = constant();
       }
     }
@@ -6190,17 +6491,17 @@ public class EsqlBaseParser extends ParserConfig {
 
   public final ConstantContext constant() throws RecognitionException {
     ConstantContext _localctx = new ConstantContext(_ctx, getState());
-    enterRule(_localctx, 142, RULE_constant);
+    enterRule(_localctx, 148, RULE_constant);
     int _la;
     try {
-      setState(737);
+      setState(780);
       _errHandler.sync(this);
-      switch ( getInterpreter().adaptivePredict(_input,66,_ctx) ) {
+      switch ( getInterpreter().adaptivePredict(_input,70,_ctx) ) {
       case 1:
         _localctx = new NullLiteralContext(_localctx);
         enterOuterAlt(_localctx, 1);
         {
-        setState(695);
+        setState(738);
         match(NULL);
         }
         break;
@@ -6208,9 +6509,9 @@ public class EsqlBaseParser extends ParserConfig {
         _localctx = new QualifiedIntegerLiteralContext(_localctx);
         enterOuterAlt(_localctx, 2);
         {
-        setState(696);
+        setState(739);
         integerValue();
-        setState(697);
+        setState(740);
         match(UNQUOTED_IDENTIFIER);
         }
         break;
@@ -6218,7 +6519,7 @@ public class EsqlBaseParser extends ParserConfig {
         _localctx = new DecimalLiteralContext(_localctx);
         enterOuterAlt(_localctx, 3);
         {
-        setState(699);
+        setState(742);
         decimalValue();
         }
         break;
@@ -6226,7 +6527,7 @@ public class EsqlBaseParser extends ParserConfig {
         _localctx = new IntegerLiteralContext(_localctx);
         enterOuterAlt(_localctx, 4);
         {
-        setState(700);
+        setState(743);
         integerValue();
         }
         break;
@@ -6234,7 +6535,7 @@ public class EsqlBaseParser extends ParserConfig {
         _localctx = new BooleanLiteralContext(_localctx);
         enterOuterAlt(_localctx, 5);
         {
-        setState(701);
+        setState(744);
         booleanValue();
         }
         break;
@@ -6242,7 +6543,7 @@ public class EsqlBaseParser extends ParserConfig {
         _localctx = new InputParameterContext(_localctx);
         enterOuterAlt(_localctx, 6);
         {
-        setState(702);
+        setState(745);
         parameter();
         }
         break;
@@ -6250,7 +6551,7 @@ public class EsqlBaseParser extends ParserConfig {
         _localctx = new StringLiteralContext(_localctx);
         enterOuterAlt(_localctx, 7);
         {
-        setState(703);
+        setState(746);
         string();
         }
         break;
@@ -6258,27 +6559,27 @@ public class EsqlBaseParser extends ParserConfig {
         _localctx = new NumericArrayLiteralContext(_localctx);
         enterOuterAlt(_localctx, 8);
         {
-        setState(704);
+        setState(747);
         match(OPENING_BRACKET);
-        setState(705);
+        setState(748);
         numericValue();
-        setState(710);
+        setState(753);
         _errHandler.sync(this);
         _la = _input.LA(1);
         while (_la==COMMA) {
           {
           {
-          setState(706);
+          setState(749);
           match(COMMA);
-          setState(707);
+          setState(750);
           numericValue();
           }
           }
-          setState(712);
+          setState(755);
           _errHandler.sync(this);
           _la = _input.LA(1);
         }
-        setState(713);
+        setState(756);
         match(CLOSING_BRACKET);
         }
         break;
@@ -6286,27 +6587,27 @@ public class EsqlBaseParser extends ParserConfig {
         _localctx = new BooleanArrayLiteralContext(_localctx);
         enterOuterAlt(_localctx, 9);
         {
-        setState(715);
+        setState(758);
         match(OPENING_BRACKET);
-        setState(716);
+        setState(759);
         booleanValue();
-        setState(721);
+        setState(764);
         _errHandler.sync(this);
         _la = _input.LA(1);
         while (_la==COMMA) {
           {
           {
-          setState(717);
+          setState(760);
           match(COMMA);
-          setState(718);
+          setState(761);
           booleanValue();
           }
           }
-          setState(723);
+          setState(766);
           _errHandler.sync(this);
           _la = _input.LA(1);
         }
-        setState(724);
+        setState(767);
         match(CLOSING_BRACKET);
         }
         break;
@@ -6314,27 +6615,27 @@ public class EsqlBaseParser extends ParserConfig {
         _localctx = new StringArrayLiteralContext(_localctx);
         enterOuterAlt(_localctx, 10);
         {
-        setState(726);
+        setState(769);
         match(OPENING_BRACKET);
-        setState(727);
+        setState(770);
         string();
-        setState(732);
+        setState(775);
         _errHandler.sync(this);
         _la = _input.LA(1);
         while (_la==COMMA) {
           {
           {
-          setState(728);
+          setState(771);
           match(COMMA);
-          setState(729);
+          setState(772);
           string();
           }
           }
-          setState(734);
+          setState(777);
           _errHandler.sync(this);
           _la = _input.LA(1);
         }
-        setState(735);
+        setState(778);
         match(CLOSING_BRACKET);
         }
         break;
@@ -6377,12 +6678,12 @@ public class EsqlBaseParser extends ParserConfig {
 
   public final BooleanValueContext booleanValue() throws RecognitionException {
     BooleanValueContext _localctx = new BooleanValueContext(_ctx, getState());
-    enterRule(_localctx, 144, RULE_booleanValue);
+    enterRule(_localctx, 150, RULE_booleanValue);
     int _la;
     try {
       enterOuterAlt(_localctx, 1);
       {
-      setState(739);
+      setState(782);
       _la = _input.LA(1);
       if ( !(_la==FALSE || _la==TRUE) ) {
       _errHandler.recoverInline(this);
@@ -6435,22 +6736,22 @@ public class EsqlBaseParser extends ParserConfig {
 
   public final NumericValueContext numericValue() throws RecognitionException {
     NumericValueContext _localctx = new NumericValueContext(_ctx, getState());
-    enterRule(_localctx, 146, RULE_numericValue);
+    enterRule(_localctx, 152, RULE_numericValue);
     try {
-      setState(743);
+      setState(786);
       _errHandler.sync(this);
-      switch ( getInterpreter().adaptivePredict(_input,67,_ctx) ) {
+      switch ( getInterpreter().adaptivePredict(_input,71,_ctx) ) {
       case 1:
         enterOuterAlt(_localctx, 1);
         {
-        setState(741);
+        setState(784);
         decimalValue();
         }
         break;
       case 2:
         enterOuterAlt(_localctx, 2);
         {
-        setState(742);
+        setState(785);
         integerValue();
         }
         break;
@@ -6494,17 +6795,17 @@ public class EsqlBaseParser extends ParserConfig {
 
   public final DecimalValueContext decimalValue() throws RecognitionException {
     DecimalValueContext _localctx = new DecimalValueContext(_ctx, getState());
-    enterRule(_localctx, 148, RULE_decimalValue);
+    enterRule(_localctx, 154, RULE_decimalValue);
     int _la;
     try {
       enterOuterAlt(_localctx, 1);
       {
-      setState(746);
+      setState(789);
       _errHandler.sync(this);
       _la = _input.LA(1);
       if (_la==PLUS || _la==MINUS) {
         {
-        setState(745);
+        setState(788);
         _la = _input.LA(1);
         if ( !(_la==PLUS || _la==MINUS) ) {
         _errHandler.recoverInline(this);
@@ -6517,7 +6818,7 @@ public class EsqlBaseParser extends ParserConfig {
         }
       }
 
-      setState(748);
+      setState(791);
       match(DECIMAL_LITERAL);
       }
     }
@@ -6559,17 +6860,17 @@ public class EsqlBaseParser extends ParserConfig {
 
   public final IntegerValueContext integerValue() throws RecognitionException {
     IntegerValueContext _localctx = new IntegerValueContext(_ctx, getState());
-    enterRule(_localctx, 150, RULE_integerValue);
+    enterRule(_localctx, 156, RULE_integerValue);
     int _la;
     try {
       enterOuterAlt(_localctx, 1);
       {
-      setState(751);
+      setState(794);
       _errHandler.sync(this);
       _la = _input.LA(1);
       if (_la==PLUS || _la==MINUS) {
         {
-        setState(750);
+        setState(793);
         _la = _input.LA(1);
         if ( !(_la==PLUS || _la==MINUS) ) {
         _errHandler.recoverInline(this);
@@ -6582,7 +6883,7 @@ public class EsqlBaseParser extends ParserConfig {
         }
       }
 
-      setState(753);
+      setState(796);
       match(INTEGER_LITERAL);
       }
     }
@@ -6622,11 +6923,11 @@ public class EsqlBaseParser extends ParserConfig {
 
   public final StringContext string() throws RecognitionException {
     StringContext _localctx = new StringContext(_ctx, getState());
-    enterRule(_localctx, 152, RULE_string);
+    enterRule(_localctx, 158, RULE_string);
     try {
       enterOuterAlt(_localctx, 1);
       {
-      setState(755);
+      setState(798);
       match(QUOTED_STRING);
       }
     }
@@ -6671,12 +6972,12 @@ public class EsqlBaseParser extends ParserConfig {
 
   public final ComparisonOperatorContext comparisonOperator() throws RecognitionException {
     ComparisonOperatorContext _localctx = new ComparisonOperatorContext(_ctx, getState());
-    enterRule(_localctx, 154, RULE_comparisonOperator);
+    enterRule(_localctx, 160, RULE_comparisonOperator);
     int _la;
     try {
       enterOuterAlt(_localctx, 1);
       {
-      setState(757);
+      setState(800);
       _la = _input.LA(1);
       if ( !(((((_la - 80)) & ~0x3f) == 0 && ((1L << (_la - 80)) & 125L) != 0)) ) {
       _errHandler.recoverInline(this);
@@ -6734,15 +7035,15 @@ public class EsqlBaseParser extends ParserConfig {
 
   public final JoinCommandContext joinCommand() throws RecognitionException {
     JoinCommandContext _localctx = new JoinCommandContext(_ctx, getState());
-    enterRule(_localctx, 156, RULE_joinCommand);
+    enterRule(_localctx, 162, RULE_joinCommand);
     int _la;
     try {
       enterOuterAlt(_localctx, 1);
       {
-      setState(759);
+      setState(802);
       ((JoinCommandContext)_localctx).type = _input.LT(1);
       _la = _input.LA(1);
-      if ( !((((_la) & ~0x3f) == 0 && ((1L << _la) & 54525952L) != 0)) ) {
+      if ( !((((_la) & ~0x3f) == 0 && ((1L << _la) & 109051904L) != 0)) ) {
         ((JoinCommandContext)_localctx).type = (Token)_errHandler.recoverInline(this);
       }
       else {
@@ -6750,11 +7051,11 @@ public class EsqlBaseParser extends ParserConfig {
         _errHandler.reportMatch(this);
         consume();
       }
-      setState(760);
+      setState(803);
       match(JOIN);
-      setState(761);
+      setState(804);
       joinTarget();
-      setState(762);
+      setState(805);
       joinCondition();
       }
     }
@@ -6797,11 +7098,11 @@ public class EsqlBaseParser extends ParserConfig {
 
   public final JoinTargetContext joinTarget() throws RecognitionException {
     JoinTargetContext _localctx = new JoinTargetContext(_ctx, getState());
-    enterRule(_localctx, 158, RULE_joinTarget);
+    enterRule(_localctx, 164, RULE_joinTarget);
     try {
       enterOuterAlt(_localctx, 1);
       {
-      setState(764);
+      setState(807);
       ((JoinTargetContext)_localctx).index = indexPattern();
       }
     }
@@ -6851,32 +7152,32 @@ public class EsqlBaseParser extends ParserConfig {
 
   public final JoinConditionContext joinCondition() throws RecognitionException {
     JoinConditionContext _localctx = new JoinConditionContext(_ctx, getState());
-    enterRule(_localctx, 160, RULE_joinCondition);
+    enterRule(_localctx, 166, RULE_joinCondition);
     try {
       int _alt;
       enterOuterAlt(_localctx, 1);
       {
-      setState(766);
+      setState(809);
       match(ON);
-      setState(767);
+      setState(810);
       joinPredicate();
-      setState(772);
+      setState(815);
       _errHandler.sync(this);
-      _alt = getInterpreter().adaptivePredict(_input,70,_ctx);
+      _alt = getInterpreter().adaptivePredict(_input,74,_ctx);
       while ( _alt!=2 && _alt!=org.antlr.v4.runtime.atn.ATN.INVALID_ALT_NUMBER ) {
         if ( _alt==1 ) {
           {
           {
-          setState(768);
+          setState(811);
           match(COMMA);
-          setState(769);
+          setState(812);
           joinPredicate();
           }
           } 
         }
-        setState(774);
+        setState(817);
         _errHandler.sync(this);
-        _alt = getInterpreter().adaptivePredict(_input,70,_ctx);
+        _alt = getInterpreter().adaptivePredict(_input,74,_ctx);
       }
       }
     }
@@ -6918,11 +7219,11 @@ public class EsqlBaseParser extends ParserConfig {
 
   public final JoinPredicateContext joinPredicate() throws RecognitionException {
     JoinPredicateContext _localctx = new JoinPredicateContext(_ctx, getState());
-    enterRule(_localctx, 162, RULE_joinPredicate);
+    enterRule(_localctx, 168, RULE_joinPredicate);
     try {
       enterOuterAlt(_localctx, 1);
       {
-      setState(775);
+      setState(818);
       valueExpression();
       }
     }
@@ -6945,13 +7246,13 @@ public class EsqlBaseParser extends ParserConfig {
       return sourceCommand_sempred((SourceCommandContext)_localctx, predIndex);
     case 3:
       return processingCommand_sempred((ProcessingCommandContext)_localctx, predIndex);
-    case 55:
+    case 56:
       return forkSubQueryCommand_sempred((ForkSubQueryCommandContext)_localctx, predIndex);
-    case 61:
+    case 64:
       return booleanExpression_sempred((BooleanExpressionContext)_localctx, predIndex);
-    case 65:
+    case 68:
       return operatorExpression_sempred((OperatorExpressionContext)_localctx, predIndex);
-    case 66:
+    case 69:
       return primaryExpression_sempred((PrimaryExpressionContext)_localctx, predIndex);
     }
     return true;
@@ -6967,13 +7268,13 @@ public class EsqlBaseParser extends ParserConfig {
     switch (predIndex) {
     case 1:
       return this.isDevVersion();
+    case 2:
+      return this.isDevVersion();
     }
     return true;
   }
   private boolean processingCommand_sempred(ProcessingCommandContext _localctx, int predIndex) {
     switch (predIndex) {
-    case 2:
-      return this.isDevVersion();
     case 3:
       return this.isDevVersion();
     case 4:
@@ -6982,48 +7283,44 @@ public class EsqlBaseParser extends ParserConfig {
       return this.isDevVersion();
     case 6:
       return this.isDevVersion();
-    case 7:
-      return this.isDevVersion();
-    case 8:
-      return this.isDevVersion();
     }
     return true;
   }
   private boolean forkSubQueryCommand_sempred(ForkSubQueryCommandContext _localctx, int predIndex) {
     switch (predIndex) {
-    case 9:
+    case 7:
       return precpred(_ctx, 1);
     }
     return true;
   }
   private boolean booleanExpression_sempred(BooleanExpressionContext _localctx, int predIndex) {
     switch (predIndex) {
-    case 10:
+    case 8:
       return precpred(_ctx, 5);
-    case 11:
+    case 9:
       return precpred(_ctx, 4);
     }
     return true;
   }
   private boolean operatorExpression_sempred(OperatorExpressionContext _localctx, int predIndex) {
     switch (predIndex) {
-    case 12:
+    case 10:
       return precpred(_ctx, 2);
-    case 13:
+    case 11:
       return precpred(_ctx, 1);
     }
     return true;
   }
   private boolean primaryExpression_sempred(PrimaryExpressionContext _localctx, int predIndex) {
     switch (predIndex) {
-    case 14:
+    case 12:
       return precpred(_ctx, 1);
     }
     return true;
   }
 
   public static final String _serializedATN =
-    "\u0004\u0001\u008b\u030a\u0002\u0000\u0007\u0000\u0002\u0001\u0007\u0001"+
+    "\u0004\u0001\u008b\u0335\u0002\u0000\u0007\u0000\u0002\u0001\u0007\u0001"+
     "\u0002\u0002\u0007\u0002\u0002\u0003\u0007\u0003\u0002\u0004\u0007\u0004"+
     "\u0002\u0005\u0007\u0005\u0002\u0006\u0007\u0006\u0002\u0007\u0007\u0007"+
     "\u0002\b\u0007\b\u0002\t\u0007\t\u0002\n\u0007\n\u0002\u000b\u0007\u000b"+
@@ -7043,465 +7340,492 @@ public class EsqlBaseParser extends ParserConfig {
     "@\u0002A\u0007A\u0002B\u0007B\u0002C\u0007C\u0002D\u0007D\u0002E\u0007"+
     "E\u0002F\u0007F\u0002G\u0007G\u0002H\u0007H\u0002I\u0007I\u0002J\u0007"+
     "J\u0002K\u0007K\u0002L\u0007L\u0002M\u0007M\u0002N\u0007N\u0002O\u0007"+
-    "O\u0002P\u0007P\u0002Q\u0007Q\u0001\u0000\u0001\u0000\u0001\u0000\u0001"+
-    "\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0005"+
-    "\u0001\u00ae\b\u0001\n\u0001\f\u0001\u00b1\t\u0001\u0001\u0002\u0001\u0002"+
-    "\u0001\u0002\u0001\u0002\u0001\u0002\u0001\u0002\u0003\u0002\u00b9\b\u0002"+
+    "O\u0002P\u0007P\u0002Q\u0007Q\u0002R\u0007R\u0002S\u0007S\u0002T\u0007"+
+    "T\u0001\u0000\u0001\u0000\u0001\u0000\u0001\u0001\u0001\u0001\u0001\u0001"+
+    "\u0001\u0001\u0001\u0001\u0001\u0001\u0005\u0001\u00b4\b\u0001\n\u0001"+
+    "\f\u0001\u00b7\t\u0001\u0001\u0002\u0001\u0002\u0001\u0002\u0001\u0002"+
+    "\u0001\u0002\u0001\u0002\u0001\u0002\u0003\u0002\u00c0\b\u0002\u0001\u0003"+
     "\u0001\u0003\u0001\u0003\u0001\u0003\u0001\u0003\u0001\u0003\u0001\u0003"+
     "\u0001\u0003\u0001\u0003\u0001\u0003\u0001\u0003\u0001\u0003\u0001\u0003"+
     "\u0001\u0003\u0001\u0003\u0001\u0003\u0001\u0003\u0001\u0003\u0001\u0003"+
     "\u0001\u0003\u0001\u0003\u0001\u0003\u0001\u0003\u0001\u0003\u0001\u0003"+
-    "\u0001\u0003\u0001\u0003\u0001\u0003\u0001\u0003\u0001\u0003\u0003\u0003"+
-    "\u00d8\b\u0003\u0001\u0004\u0001\u0004\u0001\u0004\u0001\u0005\u0001\u0005"+
-    "\u0001\u0006\u0001\u0006\u0001\u0006\u0001\u0007\u0001\u0007\u0001\u0007"+
-    "\u0005\u0007\u00e5\b\u0007\n\u0007\f\u0007\u00e8\t\u0007\u0001\b\u0001"+
-    "\b\u0001\b\u0003\b\u00ed\b\b\u0001\b\u0001\b\u0001\t\u0001\t\u0001\t\u0005"+
-    "\t\u00f4\b\t\n\t\f\t\u00f7\t\t\u0001\n\u0001\n\u0001\n\u0003\n\u00fc\b"+
-    "\n\u0001\u000b\u0001\u000b\u0001\u000b\u0001\f\u0001\f\u0001\f\u0001\r"+
-    "\u0001\r\u0001\r\u0005\r\u0107\b\r\n\r\f\r\u010a\t\r\u0001\r\u0003\r\u010d"+
-    "\b\r\u0001\u000e\u0001\u000e\u0001\u000e\u0003\u000e\u0112\b\u000e\u0001"+
-    "\u000e\u0001\u000e\u0001\u000e\u0001\u000e\u0003\u000e\u0118\b\u000e\u0003"+
-    "\u000e\u011a\b\u000e\u0001\u000f\u0001\u000f\u0001\u0010\u0001\u0010\u0001"+
-    "\u0011\u0001\u0011\u0001\u0012\u0001\u0012\u0001\u0012\u0001\u0012\u0005"+
-    "\u0012\u0126\b\u0012\n\u0012\f\u0012\u0129\t\u0012\u0001\u0013\u0001\u0013"+
-    "\u0001\u0013\u0001\u0014\u0001\u0014\u0003\u0014\u0130\b\u0014\u0001\u0014"+
-    "\u0001\u0014\u0003\u0014\u0134\b\u0014\u0001\u0015\u0001\u0015\u0001\u0015"+
-    "\u0005\u0015\u0139\b\u0015\n\u0015\f\u0015\u013c\t\u0015\u0001\u0016\u0001"+
-    "\u0016\u0001\u0016\u0003\u0016\u0141\b\u0016\u0001\u0017\u0001\u0017\u0001"+
-    "\u0017\u0005\u0017\u0146\b\u0017\n\u0017\f\u0017\u0149\t\u0017\u0001\u0018"+
-    "\u0001\u0018\u0001\u0018\u0005\u0018\u014e\b\u0018\n\u0018\f\u0018\u0151"+
-    "\t\u0018\u0001\u0019\u0001\u0019\u0001\u0019\u0005\u0019\u0156\b\u0019"+
-    "\n\u0019\f\u0019\u0159\t\u0019\u0001\u001a\u0001\u001a\u0001\u001b\u0001"+
-    "\u001b\u0001\u001b\u0003\u001b\u0160\b\u001b\u0001\u001c\u0001\u001c\u0003"+
-    "\u001c\u0164\b\u001c\u0001\u001d\u0001\u001d\u0003\u001d\u0168\b\u001d"+
-    "\u0001\u001e\u0001\u001e\u0001\u001e\u0003\u001e\u016d\b\u001e\u0001\u001f"+
-    "\u0001\u001f\u0001\u001f\u0001 \u0001 \u0001 \u0001 \u0005 \u0176\b \n"+
-    " \f \u0179\t \u0001!\u0001!\u0003!\u017d\b!\u0001!\u0001!\u0003!\u0181"+
-    "\b!\u0001\"\u0001\"\u0001\"\u0001#\u0001#\u0001#\u0001$\u0001$\u0001$"+
-    "\u0001$\u0005$\u018d\b$\n$\f$\u0190\t$\u0001%\u0001%\u0001%\u0001%\u0001"+
-    "%\u0001%\u0001%\u0001%\u0003%\u019a\b%\u0001&\u0001&\u0001&\u0001&\u0003"+
-    "&\u01a0\b&\u0001\'\u0001\'\u0001\'\u0001\'\u0001(\u0001(\u0001(\u0001"+
-    ")\u0001)\u0001)\u0005)\u01ac\b)\n)\f)\u01af\t)\u0001*\u0001*\u0001*\u0001"+
-    "*\u0001+\u0001+\u0001+\u0001,\u0001,\u0001,\u0001,\u0001-\u0001-\u0001"+
-    "-\u0001.\u0001.\u0001.\u0001.\u0003.\u01c3\b.\u0001.\u0001.\u0001.\u0001"+
-    ".\u0005.\u01c9\b.\n.\f.\u01cc\t.\u0003.\u01ce\b.\u0001/\u0001/\u0001/"+
-    "\u0003/\u01d3\b/\u0001/\u0001/\u00010\u00010\u00010\u00010\u00010\u0001"+
-    "1\u00011\u00011\u00011\u00031\u01e0\b1\u00012\u00012\u00012\u00012\u0003"+
-    "2\u01e6\b2\u00012\u00012\u00012\u00012\u00012\u00032\u01ed\b2\u00013\u0001"+
-    "3\u00013\u00014\u00014\u00014\u00015\u00045\u01f6\b5\u000b5\f5\u01f7\u0001"+
-    "6\u00016\u00016\u00016\u00017\u00017\u00017\u00017\u00017\u00017\u0005"+
-    "7\u0204\b7\n7\f7\u0207\t7\u00018\u00018\u00018\u00018\u00018\u00018\u0003"+
-    "8\u020f\b8\u00019\u00019\u0001:\u0001:\u0001:\u0001:\u0001:\u0001:\u0003"+
-    ":\u0219\b:\u0001;\u0001;\u0001;\u0001;\u0003;\u021f\b;\u0001;\u0001;\u0001"+
-    ";\u0001;\u0001<\u0001<\u0001<\u0001=\u0001=\u0001=\u0001=\u0001=\u0001"+
-    "=\u0001=\u0003=\u022f\b=\u0001=\u0001=\u0001=\u0001=\u0001=\u0005=\u0236"+
-    "\b=\n=\f=\u0239\t=\u0001=\u0001=\u0001=\u0001=\u0001=\u0003=\u0240\b="+
-    "\u0001=\u0001=\u0001=\u0003=\u0245\b=\u0001=\u0001=\u0001=\u0001=\u0001"+
-    "=\u0001=\u0005=\u024d\b=\n=\f=\u0250\t=\u0001>\u0001>\u0003>\u0254\b>"+
-    "\u0001>\u0001>\u0001>\u0001>\u0001>\u0003>\u025b\b>\u0001>\u0001>\u0001"+
-    ">\u0003>\u0260\b>\u0001?\u0001?\u0001?\u0003?\u0265\b?\u0001?\u0001?\u0001"+
-    "?\u0001@\u0001@\u0001@\u0001@\u0001@\u0003@\u026f\b@\u0001A\u0001A\u0001"+
-    "A\u0001A\u0003A\u0275\bA\u0001A\u0001A\u0001A\u0001A\u0001A\u0001A\u0005"+
-    "A\u027d\bA\nA\fA\u0280\tA\u0001B\u0001B\u0001B\u0001B\u0001B\u0001B\u0001"+
-    "B\u0001B\u0003B\u028a\bB\u0001B\u0001B\u0001B\u0005B\u028f\bB\nB\fB\u0292"+
-    "\tB\u0001C\u0001C\u0001C\u0001C\u0001C\u0001C\u0005C\u029a\bC\nC\fC\u029d"+
-    "\tC\u0001C\u0001C\u0003C\u02a1\bC\u0003C\u02a3\bC\u0001C\u0001C\u0001"+
-    "D\u0001D\u0001E\u0001E\u0001E\u0001E\u0005E\u02ad\bE\nE\fE\u02b0\tE\u0001"+
-    "E\u0001E\u0001F\u0001F\u0001F\u0001F\u0001G\u0001G\u0001G\u0001G\u0001"+
-    "G\u0001G\u0001G\u0001G\u0001G\u0001G\u0001G\u0001G\u0001G\u0005G\u02c5"+
-    "\bG\nG\fG\u02c8\tG\u0001G\u0001G\u0001G\u0001G\u0001G\u0001G\u0005G\u02d0"+
-    "\bG\nG\fG\u02d3\tG\u0001G\u0001G\u0001G\u0001G\u0001G\u0001G\u0005G\u02db"+
-    "\bG\nG\fG\u02de\tG\u0001G\u0001G\u0003G\u02e2\bG\u0001H\u0001H\u0001I"+
-    "\u0001I\u0003I\u02e8\bI\u0001J\u0003J\u02eb\bJ\u0001J\u0001J\u0001K\u0003"+
-    "K\u02f0\bK\u0001K\u0001K\u0001L\u0001L\u0001M\u0001M\u0001N\u0001N\u0001"+
-    "N\u0001N\u0001N\u0001O\u0001O\u0001P\u0001P\u0001P\u0001P\u0005P\u0303"+
-    "\bP\nP\fP\u0306\tP\u0001Q\u0001Q\u0001Q\u0000\u0005\u0002nz\u0082\u0084"+
-    "R\u0000\u0002\u0004\u0006\b\n\f\u000e\u0010\u0012\u0014\u0016\u0018\u001a"+
-    "\u001c\u001e \"$&(*,.02468:<>@BDFHJLNPRTVXZ\\^`bdfhjlnprtvxz|~\u0080\u0082"+
-    "\u0084\u0086\u0088\u008a\u008c\u008e\u0090\u0092\u0094\u0096\u0098\u009a"+
-    "\u009c\u009e\u00a0\u00a2\u0000\t\u0002\u000055kk\u0001\u0000ef\u0002\u0000"+
-    "99??\u0002\u0000BBEE\u0001\u0000WX\u0001\u0000Y[\u0002\u0000AANN\u0002"+
-    "\u0000PPRV\u0002\u0000\u0016\u0016\u0018\u0019\u032a\u0000\u00a4\u0001"+
-    "\u0000\u0000\u0000\u0002\u00a7\u0001\u0000\u0000\u0000\u0004\u00b8\u0001"+
-    "\u0000\u0000\u0000\u0006\u00d7\u0001\u0000\u0000\u0000\b\u00d9\u0001\u0000"+
-    "\u0000\u0000\n\u00dc\u0001\u0000\u0000\u0000\f\u00de\u0001\u0000\u0000"+
-    "\u0000\u000e\u00e1\u0001\u0000\u0000\u0000\u0010\u00ec\u0001\u0000\u0000"+
-    "\u0000\u0012\u00f0\u0001\u0000\u0000\u0000\u0014\u00f8\u0001\u0000\u0000"+
-    "\u0000\u0016\u00fd\u0001\u0000\u0000\u0000\u0018\u0100\u0001\u0000\u0000"+
-    "\u0000\u001a\u0103\u0001\u0000\u0000\u0000\u001c\u0119\u0001\u0000\u0000"+
-    "\u0000\u001e\u011b\u0001\u0000\u0000\u0000 \u011d\u0001\u0000\u0000\u0000"+
-    "\"\u011f\u0001\u0000\u0000\u0000$\u0121\u0001\u0000\u0000\u0000&\u012a"+
-    "\u0001\u0000\u0000\u0000(\u012d\u0001\u0000\u0000\u0000*\u0135\u0001\u0000"+
-    "\u0000\u0000,\u013d\u0001\u0000\u0000\u0000.\u0142\u0001\u0000\u0000\u0000"+
-    "0\u014a\u0001\u0000\u0000\u00002\u0152\u0001\u0000\u0000\u00004\u015a"+
-    "\u0001\u0000\u0000\u00006\u015f\u0001\u0000\u0000\u00008\u0163\u0001\u0000"+
-    "\u0000\u0000:\u0167\u0001\u0000\u0000\u0000<\u016c\u0001\u0000\u0000\u0000"+
-    ">\u016e\u0001\u0000\u0000\u0000@\u0171\u0001\u0000\u0000\u0000B\u017a"+
-    "\u0001\u0000\u0000\u0000D\u0182\u0001\u0000\u0000\u0000F\u0185\u0001\u0000"+
-    "\u0000\u0000H\u0188\u0001\u0000\u0000\u0000J\u0199\u0001\u0000\u0000\u0000"+
-    "L\u019b\u0001\u0000\u0000\u0000N\u01a1\u0001\u0000\u0000\u0000P\u01a5"+
-    "\u0001\u0000\u0000\u0000R\u01a8\u0001\u0000\u0000\u0000T\u01b0\u0001\u0000"+
-    "\u0000\u0000V\u01b4\u0001\u0000\u0000\u0000X\u01b7\u0001\u0000\u0000\u0000"+
-    "Z\u01bb\u0001\u0000\u0000\u0000\\\u01be\u0001\u0000\u0000\u0000^\u01d2"+
-    "\u0001\u0000\u0000\u0000`\u01d6\u0001\u0000\u0000\u0000b\u01db\u0001\u0000"+
-    "\u0000\u0000d\u01e1\u0001\u0000\u0000\u0000f\u01ee\u0001\u0000\u0000\u0000"+
-    "h\u01f1\u0001\u0000\u0000\u0000j\u01f5\u0001\u0000\u0000\u0000l\u01f9"+
-    "\u0001\u0000\u0000\u0000n\u01fd\u0001\u0000\u0000\u0000p\u020e\u0001\u0000"+
-    "\u0000\u0000r\u0210\u0001\u0000\u0000\u0000t\u0212\u0001\u0000\u0000\u0000"+
-    "v\u021a\u0001\u0000\u0000\u0000x\u0224\u0001\u0000\u0000\u0000z\u0244"+
-    "\u0001\u0000\u0000\u0000|\u025f\u0001\u0000\u0000\u0000~\u0261\u0001\u0000"+
-    "\u0000\u0000\u0080\u026e\u0001\u0000\u0000\u0000\u0082\u0274\u0001\u0000"+
-    "\u0000\u0000\u0084\u0289\u0001\u0000\u0000\u0000\u0086\u0293\u0001\u0000"+
-    "\u0000\u0000\u0088\u02a6\u0001\u0000\u0000\u0000\u008a\u02a8\u0001\u0000"+
-    "\u0000\u0000\u008c\u02b3\u0001\u0000\u0000\u0000\u008e\u02e1\u0001\u0000"+
-    "\u0000\u0000\u0090\u02e3\u0001\u0000\u0000\u0000\u0092\u02e7\u0001\u0000"+
-    "\u0000\u0000\u0094\u02ea\u0001\u0000\u0000\u0000\u0096\u02ef\u0001\u0000"+
-    "\u0000\u0000\u0098\u02f3\u0001\u0000\u0000\u0000\u009a\u02f5\u0001\u0000"+
-    "\u0000\u0000\u009c\u02f7\u0001\u0000\u0000\u0000\u009e\u02fc\u0001\u0000"+
-    "\u0000\u0000\u00a0\u02fe\u0001\u0000\u0000\u0000\u00a2\u0307\u0001\u0000"+
-    "\u0000\u0000\u00a4\u00a5\u0003\u0002\u0001\u0000\u00a5\u00a6\u0005\u0000"+
-    "\u0000\u0001\u00a6\u0001\u0001\u0000\u0000\u0000\u00a7\u00a8\u0006\u0001"+
-    "\uffff\uffff\u0000\u00a8\u00a9\u0003\u0004\u0002\u0000\u00a9\u00af\u0001"+
-    "\u0000\u0000\u0000\u00aa\u00ab\n\u0001\u0000\u0000\u00ab\u00ac\u00054"+
-    "\u0000\u0000\u00ac\u00ae\u0003\u0006\u0003\u0000\u00ad\u00aa\u0001\u0000"+
-    "\u0000\u0000\u00ae\u00b1\u0001\u0000\u0000\u0000\u00af\u00ad\u0001\u0000"+
-    "\u0000\u0000\u00af\u00b0\u0001\u0000\u0000\u0000\u00b0\u0003\u0001\u0000"+
-    "\u0000\u0000\u00b1\u00af\u0001\u0000\u0000\u0000\u00b2\u00b9\u0003V+\u0000"+
-    "\u00b3\u00b9\u0003\u0016\u000b\u0000\u00b4\u00b9\u0003\f\u0006\u0000\u00b5"+
-    "\u00b9\u0003Z-\u0000\u00b6\u00b7\u0004\u0002\u0001\u0000\u00b7\u00b9\u0003"+
-    "\u0018\f\u0000\u00b8\u00b2\u0001\u0000\u0000\u0000\u00b8\u00b3\u0001\u0000"+
-    "\u0000\u0000\u00b8\u00b4\u0001\u0000\u0000\u0000\u00b8\u00b5\u0001\u0000"+
-    "\u0000\u0000\u00b8\u00b6\u0001\u0000\u0000\u0000\u00b9\u0005\u0001\u0000"+
-    "\u0000\u0000\u00ba\u00d8\u0003&\u0013\u0000\u00bb\u00d8\u0003\b\u0004"+
-    "\u0000\u00bc\u00d8\u0003D\"\u0000\u00bd\u00d8\u0003>\u001f\u0000\u00be"+
-    "\u00d8\u0003(\u0014\u0000\u00bf\u00d8\u0003@ \u0000\u00c0\u00d8\u0003"+
-    "F#\u0000\u00c1\u00d8\u0003H$\u0000\u00c2\u00d8\u0003L&\u0000\u00c3\u00d8"+
-    "\u0003N\'\u0000\u00c4\u00d8\u0003\\.\u0000\u00c5\u00d8\u0003P(\u0000\u00c6"+
-    "\u00d8\u0003\u009cN\u0000\u00c7\u00d8\u0003d2\u0000\u00c8\u00d8\u0003"+
-    "v;\u0000\u00c9\u00ca\u0004\u0003\u0002\u0000\u00ca\u00d8\u0003b1\u0000"+
-    "\u00cb\u00cc\u0004\u0003\u0003\u0000\u00cc\u00d8\u0003`0\u0000\u00cd\u00ce"+
-    "\u0004\u0003\u0004\u0000\u00ce\u00d8\u0003f3\u0000\u00cf\u00d0\u0004\u0003"+
-    "\u0005\u0000\u00d0\u00d8\u0003h4\u0000\u00d1\u00d2\u0004\u0003\u0006\u0000"+
-    "\u00d2\u00d8\u0003t:\u0000\u00d3\u00d4\u0004\u0003\u0007\u0000\u00d4\u00d8"+
-    "\u0003r9\u0000\u00d5\u00d6\u0004\u0003\b\u0000\u00d6\u00d8\u0003x<\u0000"+
-    "\u00d7\u00ba\u0001\u0000\u0000\u0000\u00d7\u00bb\u0001\u0000\u0000\u0000"+
-    "\u00d7\u00bc\u0001\u0000\u0000\u0000\u00d7\u00bd\u0001\u0000\u0000\u0000"+
-    "\u00d7\u00be\u0001\u0000\u0000\u0000\u00d7\u00bf\u0001\u0000\u0000\u0000"+
-    "\u00d7\u00c0\u0001\u0000\u0000\u0000\u00d7\u00c1\u0001\u0000\u0000\u0000"+
-    "\u00d7\u00c2\u0001\u0000\u0000\u0000\u00d7\u00c3\u0001\u0000\u0000\u0000"+
-    "\u00d7\u00c4\u0001\u0000\u0000\u0000\u00d7\u00c5\u0001\u0000\u0000\u0000"+
-    "\u00d7\u00c6\u0001\u0000\u0000\u0000\u00d7\u00c7\u0001\u0000\u0000\u0000"+
-    "\u00d7\u00c8\u0001\u0000\u0000\u0000\u00d7\u00c9\u0001\u0000\u0000\u0000"+
-    "\u00d7\u00cb\u0001\u0000\u0000\u0000\u00d7\u00cd\u0001\u0000\u0000\u0000"+
-    "\u00d7\u00cf\u0001\u0000\u0000\u0000\u00d7\u00d1\u0001\u0000\u0000\u0000"+
-    "\u00d7\u00d3\u0001\u0000\u0000\u0000\u00d7\u00d5\u0001\u0000\u0000\u0000"+
-    "\u00d8\u0007\u0001\u0000\u0000\u0000\u00d9\u00da\u0005\u000f\u0000\u0000"+
-    "\u00da\u00db\u0003z=\u0000\u00db\t\u0001\u0000\u0000\u0000\u00dc\u00dd"+
-    "\u00034\u001a\u0000\u00dd\u000b\u0001\u0000\u0000\u0000\u00de\u00df\u0005"+
-    "\f\u0000\u0000\u00df\u00e0\u0003\u000e\u0007\u0000\u00e0\r\u0001\u0000"+
-    "\u0000\u0000\u00e1\u00e6\u0003\u0010\b\u0000\u00e2\u00e3\u0005>\u0000"+
-    "\u0000\u00e3\u00e5\u0003\u0010\b\u0000\u00e4\u00e2\u0001\u0000\u0000\u0000"+
-    "\u00e5\u00e8\u0001\u0000\u0000\u0000\u00e6\u00e4\u0001\u0000\u0000\u0000"+
-    "\u00e6\u00e7\u0001\u0000\u0000\u0000\u00e7\u000f\u0001\u0000\u0000\u0000"+
-    "\u00e8\u00e6\u0001\u0000\u0000\u0000\u00e9\u00ea\u0003.\u0017\u0000\u00ea"+
-    "\u00eb\u0005:\u0000\u0000\u00eb\u00ed\u0001\u0000\u0000\u0000\u00ec\u00e9"+
-    "\u0001\u0000\u0000\u0000\u00ec\u00ed\u0001\u0000\u0000\u0000\u00ed\u00ee"+
-    "\u0001\u0000\u0000\u0000\u00ee\u00ef\u0003z=\u0000\u00ef\u0011\u0001\u0000"+
-    "\u0000\u0000\u00f0\u00f5\u0003\u0014\n\u0000\u00f1\u00f2\u0005>\u0000"+
-    "\u0000\u00f2\u00f4\u0003\u0014\n\u0000\u00f3\u00f1\u0001\u0000\u0000\u0000"+
-    "\u00f4\u00f7\u0001\u0000\u0000\u0000\u00f5\u00f3\u0001\u0000\u0000\u0000"+
-    "\u00f5\u00f6\u0001\u0000\u0000\u0000\u00f6\u0013\u0001\u0000\u0000\u0000"+
-    "\u00f7\u00f5\u0001\u0000\u0000\u0000\u00f8\u00fb\u0003.\u0017\u0000\u00f9"+
-    "\u00fa\u0005:\u0000\u0000\u00fa\u00fc\u0003z=\u0000\u00fb\u00f9\u0001"+
-    "\u0000\u0000\u0000\u00fb\u00fc\u0001\u0000\u0000\u0000\u00fc\u0015\u0001"+
-    "\u0000\u0000\u0000\u00fd\u00fe\u0005\u0013\u0000\u0000\u00fe\u00ff\u0003"+
-    "\u001a\r\u0000\u00ff\u0017\u0001\u0000\u0000\u0000\u0100\u0101\u0005\u0014"+
-    "\u0000\u0000\u0101\u0102\u0003\u001a\r\u0000\u0102\u0019\u0001\u0000\u0000"+
-    "\u0000\u0103\u0108\u0003\u001c\u000e\u0000\u0104\u0105\u0005>\u0000\u0000"+
-    "\u0105\u0107\u0003\u001c\u000e\u0000\u0106\u0104\u0001\u0000\u0000\u0000"+
-    "\u0107\u010a\u0001\u0000\u0000\u0000\u0108\u0106\u0001\u0000\u0000\u0000"+
-    "\u0108\u0109\u0001\u0000\u0000\u0000\u0109\u010c\u0001\u0000\u0000\u0000"+
-    "\u010a\u0108\u0001\u0000\u0000\u0000\u010b\u010d\u0003$\u0012\u0000\u010c"+
-    "\u010b\u0001\u0000\u0000\u0000\u010c\u010d\u0001\u0000\u0000\u0000\u010d"+
-    "\u001b\u0001\u0000\u0000\u0000\u010e\u010f\u0003\u001e\u000f\u0000\u010f"+
-    "\u0110\u0005=\u0000\u0000\u0110\u0112\u0001\u0000\u0000\u0000\u0111\u010e"+
-    "\u0001\u0000\u0000\u0000\u0111\u0112\u0001\u0000\u0000\u0000\u0112\u0113"+
-    "\u0001\u0000\u0000\u0000\u0113\u011a\u0003\"\u0011\u0000\u0114\u0117\u0003"+
-    "\"\u0011\u0000\u0115\u0116\u0005<\u0000\u0000\u0116\u0118\u0003 \u0010"+
-    "\u0000\u0117\u0115\u0001\u0000\u0000\u0000\u0117\u0118\u0001\u0000\u0000"+
-    "\u0000\u0118\u011a\u0001\u0000\u0000\u0000\u0119\u0111\u0001\u0000\u0000"+
-    "\u0000\u0119\u0114\u0001\u0000\u0000\u0000\u011a\u001d\u0001\u0000\u0000"+
-    "\u0000\u011b\u011c\u0007\u0000\u0000\u0000\u011c\u001f\u0001\u0000\u0000"+
-    "\u0000\u011d\u011e\u0007\u0000\u0000\u0000\u011e!\u0001\u0000\u0000\u0000"+
-    "\u011f\u0120\u0007\u0000\u0000\u0000\u0120#\u0001\u0000\u0000\u0000\u0121"+
-    "\u0122\u0005j\u0000\u0000\u0122\u0127\u0005k\u0000\u0000\u0123\u0124\u0005"+
-    ">\u0000\u0000\u0124\u0126\u0005k\u0000\u0000\u0125\u0123\u0001\u0000\u0000"+
-    "\u0000\u0126\u0129\u0001\u0000\u0000\u0000\u0127\u0125\u0001\u0000\u0000"+
-    "\u0000\u0127\u0128\u0001\u0000\u0000\u0000\u0128%\u0001\u0000\u0000\u0000"+
-    "\u0129\u0127\u0001\u0000\u0000\u0000\u012a\u012b\u0005\t\u0000\u0000\u012b"+
-    "\u012c\u0003\u000e\u0007\u0000\u012c\'\u0001\u0000\u0000\u0000\u012d\u012f"+
-    "\u0005\u000e\u0000\u0000\u012e\u0130\u0003*\u0015\u0000\u012f\u012e\u0001"+
-    "\u0000\u0000\u0000\u012f\u0130\u0001\u0000\u0000\u0000\u0130\u0133\u0001"+
-    "\u0000\u0000\u0000\u0131\u0132\u0005;\u0000\u0000\u0132\u0134\u0003\u000e"+
-    "\u0007\u0000\u0133\u0131\u0001\u0000\u0000\u0000\u0133\u0134\u0001\u0000"+
-    "\u0000\u0000\u0134)\u0001\u0000\u0000\u0000\u0135\u013a\u0003,\u0016\u0000"+
-    "\u0136\u0137\u0005>\u0000\u0000\u0137\u0139\u0003,\u0016\u0000\u0138\u0136"+
-    "\u0001\u0000\u0000\u0000\u0139\u013c\u0001\u0000\u0000\u0000\u013a\u0138"+
-    "\u0001\u0000\u0000\u0000\u013a\u013b\u0001\u0000\u0000\u0000\u013b+\u0001"+
-    "\u0000\u0000\u0000\u013c\u013a\u0001\u0000\u0000\u0000\u013d\u0140\u0003"+
-    "\u0010\b\u0000\u013e\u013f\u0005\u000f\u0000\u0000\u013f\u0141\u0003z"+
-    "=\u0000\u0140\u013e\u0001\u0000\u0000\u0000\u0140\u0141\u0001\u0000\u0000"+
-    "\u0000\u0141-\u0001\u0000\u0000\u0000\u0142\u0147\u0003<\u001e\u0000\u0143"+
-    "\u0144\u0005@\u0000\u0000\u0144\u0146\u0003<\u001e\u0000\u0145\u0143\u0001"+
-    "\u0000\u0000\u0000\u0146\u0149\u0001\u0000\u0000\u0000\u0147\u0145\u0001"+
-    "\u0000\u0000\u0000\u0147\u0148\u0001\u0000\u0000\u0000\u0148/\u0001\u0000"+
-    "\u0000\u0000\u0149\u0147\u0001\u0000\u0000\u0000\u014a\u014f\u00036\u001b"+
-    "\u0000\u014b\u014c\u0005@\u0000\u0000\u014c\u014e\u00036\u001b\u0000\u014d"+
-    "\u014b\u0001\u0000\u0000\u0000\u014e\u0151\u0001\u0000\u0000\u0000\u014f"+
-    "\u014d\u0001\u0000\u0000\u0000\u014f\u0150\u0001\u0000\u0000\u0000\u0150"+
-    "1\u0001\u0000\u0000\u0000\u0151\u014f\u0001\u0000\u0000\u0000\u0152\u0157"+
-    "\u00030\u0018\u0000\u0153\u0154\u0005>\u0000\u0000\u0154\u0156\u00030"+
-    "\u0018\u0000\u0155\u0153\u0001\u0000\u0000\u0000\u0156\u0159\u0001\u0000"+
-    "\u0000\u0000\u0157\u0155\u0001\u0000\u0000\u0000\u0157\u0158\u0001\u0000"+
-    "\u0000\u0000\u01583\u0001\u0000\u0000\u0000\u0159\u0157\u0001\u0000\u0000"+
-    "\u0000\u015a\u015b\u0007\u0001\u0000\u0000\u015b5\u0001\u0000\u0000\u0000"+
-    "\u015c\u0160\u0005\u0080\u0000\u0000\u015d\u0160\u00038\u001c\u0000\u015e"+
-    "\u0160\u0003:\u001d\u0000\u015f\u015c\u0001\u0000\u0000\u0000\u015f\u015d"+
-    "\u0001\u0000\u0000\u0000\u015f\u015e\u0001\u0000\u0000\u0000\u01607\u0001"+
-    "\u0000\u0000\u0000\u0161\u0164\u0005L\u0000\u0000\u0162\u0164\u0005_\u0000"+
-    "\u0000\u0163\u0161\u0001\u0000\u0000\u0000\u0163\u0162\u0001\u0000\u0000"+
-    "\u0000\u01649\u0001\u0000\u0000\u0000\u0165\u0168\u0005^\u0000\u0000\u0166"+
-    "\u0168\u0005`\u0000\u0000\u0167\u0165\u0001\u0000\u0000\u0000\u0167\u0166"+
-    "\u0001\u0000\u0000\u0000\u0168;\u0001\u0000\u0000\u0000\u0169\u016d\u0003"+
-    "4\u001a\u0000\u016a\u016d\u00038\u001c\u0000\u016b\u016d\u0003:\u001d"+
-    "\u0000\u016c\u0169\u0001\u0000\u0000\u0000\u016c\u016a\u0001\u0000\u0000"+
-    "\u0000\u016c\u016b\u0001\u0000\u0000\u0000\u016d=\u0001\u0000\u0000\u0000"+
-    "\u016e\u016f\u0005\u000b\u0000\u0000\u016f\u0170\u0003\u008eG\u0000\u0170"+
-    "?\u0001\u0000\u0000\u0000\u0171\u0172\u0005\r\u0000\u0000\u0172\u0177"+
-    "\u0003B!\u0000\u0173\u0174\u0005>\u0000\u0000\u0174\u0176\u0003B!\u0000"+
-    "\u0175\u0173\u0001\u0000\u0000\u0000\u0176\u0179\u0001\u0000\u0000\u0000"+
-    "\u0177\u0175\u0001\u0000\u0000\u0000\u0177\u0178\u0001\u0000\u0000\u0000"+
-    "\u0178A\u0001\u0000\u0000\u0000\u0179\u0177\u0001\u0000\u0000\u0000\u017a"+
-    "\u017c\u0003z=\u0000\u017b\u017d\u0007\u0002\u0000\u0000\u017c\u017b\u0001"+
-    "\u0000\u0000\u0000\u017c\u017d\u0001\u0000\u0000\u0000\u017d\u0180\u0001"+
-    "\u0000\u0000\u0000\u017e\u017f\u0005I\u0000\u0000\u017f\u0181\u0007\u0003"+
-    "\u0000\u0000\u0180\u017e\u0001\u0000\u0000\u0000\u0180\u0181\u0001\u0000"+
-    "\u0000\u0000\u0181C\u0001\u0000\u0000\u0000\u0182\u0183\u0005\u001d\u0000"+
-    "\u0000\u0183\u0184\u00032\u0019\u0000\u0184E\u0001\u0000\u0000\u0000\u0185"+
-    "\u0186\u0005\u001c\u0000\u0000\u0186\u0187\u00032\u0019\u0000\u0187G\u0001"+
-    "\u0000\u0000\u0000\u0188\u0189\u0005 \u0000\u0000\u0189\u018e\u0003J%"+
-    "\u0000\u018a\u018b\u0005>\u0000\u0000\u018b\u018d\u0003J%\u0000\u018c"+
-    "\u018a\u0001\u0000\u0000\u0000\u018d\u0190\u0001\u0000\u0000\u0000\u018e"+
-    "\u018c\u0001\u0000\u0000\u0000\u018e\u018f\u0001\u0000\u0000\u0000\u018f"+
-    "I\u0001\u0000\u0000\u0000\u0190\u018e\u0001\u0000\u0000\u0000\u0191\u0192"+
-    "\u00030\u0018\u0000\u0192\u0193\u0005\u0084\u0000\u0000\u0193\u0194\u0003"+
-    "0\u0018\u0000\u0194\u019a\u0001\u0000\u0000\u0000\u0195\u0196\u00030\u0018"+
-    "\u0000\u0196\u0197\u0005:\u0000\u0000\u0197\u0198\u00030\u0018\u0000\u0198"+
-    "\u019a\u0001\u0000\u0000\u0000\u0199\u0191\u0001\u0000\u0000\u0000\u0199"+
-    "\u0195\u0001\u0000\u0000\u0000\u019aK\u0001\u0000\u0000\u0000\u019b\u019c"+
-    "\u0005\b\u0000\u0000\u019c\u019d\u0003\u0084B\u0000\u019d\u019f\u0003"+
-    "\u0098L\u0000\u019e\u01a0\u0003R)\u0000\u019f\u019e\u0001\u0000\u0000"+
-    "\u0000\u019f\u01a0\u0001\u0000\u0000\u0000\u01a0M\u0001\u0000\u0000\u0000"+
-    "\u01a1\u01a2\u0005\n\u0000\u0000\u01a2\u01a3\u0003\u0084B\u0000\u01a3"+
-    "\u01a4\u0003\u0098L\u0000\u01a4O\u0001\u0000\u0000\u0000\u01a5\u01a6\u0005"+
-    "\u001b\u0000\u0000\u01a6\u01a7\u0003.\u0017\u0000\u01a7Q\u0001\u0000\u0000"+
-    "\u0000\u01a8\u01ad\u0003T*\u0000\u01a9\u01aa\u0005>\u0000\u0000\u01aa"+
-    "\u01ac\u0003T*\u0000\u01ab\u01a9\u0001\u0000\u0000\u0000\u01ac\u01af\u0001"+
-    "\u0000\u0000\u0000\u01ad\u01ab\u0001\u0000\u0000\u0000\u01ad\u01ae\u0001"+
-    "\u0000\u0000\u0000\u01aeS\u0001\u0000\u0000\u0000\u01af\u01ad\u0001\u0000"+
-    "\u0000\u0000\u01b0\u01b1\u00034\u001a\u0000\u01b1\u01b2\u0005:\u0000\u0000"+
-    "\u01b2\u01b3\u0003\u008eG\u0000\u01b3U\u0001\u0000\u0000\u0000\u01b4\u01b5"+
-    "\u0005\u0006\u0000\u0000\u01b5\u01b6\u0003X,\u0000\u01b6W\u0001\u0000"+
-    "\u0000\u0000\u01b7\u01b8\u0005a\u0000\u0000\u01b8\u01b9\u0003\u0002\u0001"+
-    "\u0000\u01b9\u01ba\u0005b\u0000\u0000\u01baY\u0001\u0000\u0000\u0000\u01bb"+
-    "\u01bc\u0005!\u0000\u0000\u01bc\u01bd\u0005\u0088\u0000\u0000\u01bd[\u0001"+
-    "\u0000\u0000\u0000\u01be\u01bf\u0005\u0005\u0000\u0000\u01bf\u01c2\u0005"+
-    "&\u0000\u0000\u01c0\u01c1\u0005J\u0000\u0000\u01c1\u01c3\u00030\u0018"+
-    "\u0000\u01c2\u01c0\u0001\u0000\u0000\u0000\u01c2\u01c3\u0001\u0000\u0000"+
-    "\u0000\u01c3\u01cd\u0001\u0000\u0000\u0000\u01c4\u01c5\u0005O\u0000\u0000"+
-    "\u01c5\u01ca\u0003^/\u0000\u01c6\u01c7\u0005>\u0000\u0000\u01c7\u01c9"+
-    "\u0003^/\u0000\u01c8\u01c6\u0001\u0000\u0000\u0000\u01c9\u01cc\u0001\u0000"+
-    "\u0000\u0000\u01ca\u01c8\u0001\u0000\u0000\u0000\u01ca\u01cb\u0001\u0000"+
-    "\u0000\u0000\u01cb\u01ce\u0001\u0000\u0000\u0000\u01cc\u01ca\u0001\u0000"+
-    "\u0000\u0000\u01cd\u01c4\u0001\u0000\u0000\u0000\u01cd\u01ce\u0001\u0000"+
-    "\u0000\u0000\u01ce]\u0001\u0000\u0000\u0000\u01cf\u01d0\u00030\u0018\u0000"+
-    "\u01d0\u01d1\u0005:\u0000\u0000\u01d1\u01d3\u0001\u0000\u0000\u0000\u01d2"+
-    "\u01cf\u0001\u0000\u0000\u0000\u01d2\u01d3\u0001\u0000\u0000\u0000\u01d3"+
-    "\u01d4\u0001\u0000\u0000\u0000\u01d4\u01d5\u00030\u0018\u0000\u01d5_\u0001"+
-    "\u0000\u0000\u0000\u01d6\u01d7\u0005\u001a\u0000\u0000\u01d7\u01d8\u0003"+
-    "\u001c\u000e\u0000\u01d8\u01d9\u0005J\u0000\u0000\u01d9\u01da\u00032\u0019"+
-    "\u0000\u01daa\u0001\u0000\u0000\u0000\u01db\u01dc\u0005\u0010\u0000\u0000"+
-    "\u01dc\u01df\u0003*\u0015\u0000\u01dd\u01de\u0005;\u0000\u0000\u01de\u01e0"+
-    "\u0003\u000e\u0007\u0000\u01df\u01dd\u0001\u0000\u0000\u0000\u01df\u01e0"+
-    "\u0001\u0000\u0000\u0000\u01e0c\u0001\u0000\u0000\u0000\u01e1\u01e2\u0005"+
-    "\u0004\u0000\u0000\u01e2\u01e5\u0003.\u0017\u0000\u01e3\u01e4\u0005J\u0000"+
-    "\u0000\u01e4\u01e6\u0003.\u0017\u0000\u01e5\u01e3\u0001\u0000\u0000\u0000"+
-    "\u01e5\u01e6\u0001\u0000\u0000\u0000\u01e6\u01ec\u0001\u0000\u0000\u0000"+
-    "\u01e7\u01e8\u0005\u0084\u0000\u0000\u01e8\u01e9\u0003.\u0017\u0000\u01e9"+
-    "\u01ea\u0005>\u0000\u0000\u01ea\u01eb\u0003.\u0017\u0000\u01eb\u01ed\u0001"+
-    "\u0000\u0000\u0000\u01ec\u01e7\u0001\u0000\u0000\u0000\u01ec\u01ed\u0001"+
-    "\u0000\u0000\u0000\u01ede\u0001\u0000\u0000\u0000\u01ee\u01ef\u0005\u001e"+
-    "\u0000\u0000\u01ef\u01f0\u00032\u0019\u0000\u01f0g\u0001\u0000\u0000\u0000"+
-    "\u01f1\u01f2\u0005\u0015\u0000\u0000\u01f2\u01f3\u0003j5\u0000\u01f3i"+
-    "\u0001\u0000\u0000\u0000\u01f4\u01f6\u0003l6\u0000\u01f5\u01f4\u0001\u0000"+
-    "\u0000\u0000\u01f6\u01f7\u0001\u0000\u0000\u0000\u01f7\u01f5\u0001\u0000"+
-    "\u0000\u0000\u01f7\u01f8\u0001\u0000\u0000\u0000\u01f8k\u0001\u0000\u0000"+
-    "\u0000\u01f9\u01fa\u0005c\u0000\u0000\u01fa\u01fb\u0003n7\u0000\u01fb"+
-    "\u01fc\u0005d\u0000\u0000\u01fcm\u0001\u0000\u0000\u0000\u01fd\u01fe\u0006"+
-    "7\uffff\uffff\u0000\u01fe\u01ff\u0003p8\u0000\u01ff\u0205\u0001\u0000"+
-    "\u0000\u0000\u0200\u0201\n\u0001\u0000\u0000\u0201\u0202\u00054\u0000"+
-    "\u0000\u0202\u0204\u0003p8\u0000\u0203\u0200\u0001\u0000\u0000\u0000\u0204"+
-    "\u0207\u0001\u0000\u0000\u0000\u0205\u0203\u0001\u0000\u0000\u0000\u0205"+
-    "\u0206\u0001\u0000\u0000\u0000\u0206o\u0001\u0000\u0000\u0000\u0207\u0205"+
-    "\u0001\u0000\u0000\u0000\u0208\u020f\u0003&\u0013\u0000\u0209\u020f\u0003"+
-    "\b\u0004\u0000\u020a\u020f\u0003>\u001f\u0000\u020b\u020f\u0003(\u0014"+
-    "\u0000\u020c\u020f\u0003@ \u0000\u020d\u020f\u0003L&\u0000\u020e\u0208"+
-    "\u0001\u0000\u0000\u0000\u020e\u0209\u0001\u0000\u0000\u0000\u020e\u020a"+
-    "\u0001\u0000\u0000\u0000\u020e\u020b\u0001\u0000\u0000\u0000\u020e\u020c"+
-    "\u0001\u0000\u0000\u0000\u020e\u020d\u0001\u0000\u0000\u0000\u020fq\u0001"+
-    "\u0000\u0000\u0000\u0210\u0211\u0005\u001f\u0000\u0000\u0211s\u0001\u0000"+
-    "\u0000\u0000\u0212\u0213\u0005\u0011\u0000\u0000\u0213\u0214\u0003\u008e"+
-    "G\u0000\u0214\u0215\u0005J\u0000\u0000\u0215\u0218\u0003\u0012\t\u0000"+
-    "\u0216\u0217\u0005O\u0000\u0000\u0217\u0219\u0003<\u001e\u0000\u0218\u0216"+
-    "\u0001\u0000\u0000\u0000\u0218\u0219\u0001\u0000\u0000\u0000\u0219u\u0001"+
-    "\u0000\u0000\u0000\u021a\u021e\u0005\u0007\u0000\u0000\u021b\u021c\u0003"+
-    ".\u0017\u0000\u021c\u021d\u0005:\u0000\u0000\u021d\u021f\u0001\u0000\u0000"+
-    "\u0000\u021e\u021b\u0001\u0000\u0000\u0000\u021e\u021f\u0001\u0000\u0000"+
-    "\u0000\u021f\u0220\u0001\u0000\u0000\u0000\u0220\u0221\u0003\u0084B\u0000"+
-    "\u0221\u0222\u0005O\u0000\u0000\u0222\u0223\u0003<\u001e\u0000\u0223w"+
-    "\u0001\u0000\u0000\u0000\u0224\u0225\u0005\u0012\u0000\u0000\u0225\u0226"+
-    "\u0003\u0094J\u0000\u0226y\u0001\u0000\u0000\u0000\u0227\u0228\u0006="+
-    "\uffff\uffff\u0000\u0228\u0229\u0005G\u0000\u0000\u0229\u0245\u0003z="+
-    "\b\u022a\u0245\u0003\u0080@\u0000\u022b\u0245\u0003|>\u0000\u022c\u022e"+
-    "\u0003\u0080@\u0000\u022d\u022f\u0005G\u0000\u0000\u022e\u022d\u0001\u0000"+
-    "\u0000\u0000\u022e\u022f\u0001\u0000\u0000\u0000\u022f\u0230\u0001\u0000"+
-    "\u0000\u0000\u0230\u0231\u0005C\u0000\u0000\u0231\u0232\u0005c\u0000\u0000"+
-    "\u0232\u0237\u0003\u0080@\u0000\u0233\u0234\u0005>\u0000\u0000\u0234\u0236"+
-    "\u0003\u0080@\u0000\u0235\u0233\u0001\u0000\u0000\u0000\u0236\u0239\u0001"+
-    "\u0000\u0000\u0000\u0237\u0235\u0001\u0000\u0000\u0000\u0237\u0238\u0001"+
-    "\u0000\u0000\u0000\u0238\u023a\u0001\u0000\u0000\u0000\u0239\u0237\u0001"+
-    "\u0000\u0000\u0000\u023a\u023b\u0005d\u0000\u0000\u023b\u0245\u0001\u0000"+
-    "\u0000\u0000\u023c\u023d\u0003\u0080@\u0000\u023d\u023f\u0005D\u0000\u0000"+
-    "\u023e\u0240\u0005G\u0000\u0000\u023f\u023e\u0001\u0000\u0000\u0000\u023f"+
-    "\u0240\u0001\u0000\u0000\u0000\u0240\u0241\u0001\u0000\u0000\u0000\u0241"+
-    "\u0242\u0005H\u0000\u0000\u0242\u0245\u0001\u0000\u0000\u0000\u0243\u0245"+
-    "\u0003~?\u0000\u0244\u0227\u0001\u0000\u0000\u0000\u0244\u022a\u0001\u0000"+
-    "\u0000\u0000\u0244\u022b\u0001\u0000\u0000\u0000\u0244\u022c\u0001\u0000"+
-    "\u0000\u0000\u0244\u023c\u0001\u0000\u0000\u0000\u0244\u0243\u0001\u0000"+
-    "\u0000\u0000\u0245\u024e\u0001\u0000\u0000\u0000\u0246\u0247\n\u0005\u0000"+
-    "\u0000\u0247\u0248\u00058\u0000\u0000\u0248\u024d\u0003z=\u0006\u0249"+
-    "\u024a\n\u0004\u0000\u0000\u024a\u024b\u0005K\u0000\u0000\u024b\u024d"+
-    "\u0003z=\u0005\u024c\u0246\u0001\u0000\u0000\u0000\u024c\u0249\u0001\u0000"+
-    "\u0000\u0000\u024d\u0250\u0001\u0000\u0000\u0000\u024e\u024c\u0001\u0000"+
-    "\u0000\u0000\u024e\u024f\u0001\u0000\u0000\u0000\u024f{\u0001\u0000\u0000"+
-    "\u0000\u0250\u024e\u0001\u0000\u0000\u0000\u0251\u0253\u0003\u0080@\u0000"+
-    "\u0252\u0254\u0005G\u0000\u0000\u0253\u0252\u0001\u0000\u0000\u0000\u0253"+
-    "\u0254\u0001\u0000\u0000\u0000\u0254\u0255\u0001\u0000\u0000\u0000\u0255"+
-    "\u0256\u0005F\u0000\u0000\u0256\u0257\u0003\u0098L\u0000\u0257\u0260\u0001"+
-    "\u0000\u0000\u0000\u0258\u025a\u0003\u0080@\u0000\u0259\u025b\u0005G\u0000"+
-    "\u0000\u025a\u0259\u0001\u0000\u0000\u0000\u025a\u025b\u0001\u0000\u0000"+
-    "\u0000\u025b\u025c\u0001\u0000\u0000\u0000\u025c\u025d\u0005M\u0000\u0000"+
-    "\u025d\u025e\u0003\u0098L\u0000\u025e\u0260\u0001\u0000\u0000\u0000\u025f"+
-    "\u0251\u0001\u0000\u0000\u0000\u025f\u0258\u0001\u0000\u0000\u0000\u0260"+
-    "}\u0001\u0000\u0000\u0000\u0261\u0264\u0003.\u0017\u0000\u0262\u0263\u0005"+
-    "<\u0000\u0000\u0263\u0265\u0003\n\u0005\u0000\u0264\u0262\u0001\u0000"+
-    "\u0000\u0000\u0264\u0265\u0001\u0000\u0000\u0000\u0265\u0266\u0001\u0000"+
-    "\u0000\u0000\u0266\u0267\u0005=\u0000\u0000\u0267\u0268\u0003\u008eG\u0000"+
-    "\u0268\u007f\u0001\u0000\u0000\u0000\u0269\u026f\u0003\u0082A\u0000\u026a"+
-    "\u026b\u0003\u0082A\u0000\u026b\u026c\u0003\u009aM\u0000\u026c\u026d\u0003"+
-    "\u0082A\u0000\u026d\u026f\u0001\u0000\u0000\u0000\u026e\u0269\u0001\u0000"+
-    "\u0000\u0000\u026e\u026a\u0001\u0000\u0000\u0000\u026f\u0081\u0001\u0000"+
-    "\u0000\u0000\u0270\u0271\u0006A\uffff\uffff\u0000\u0271\u0275\u0003\u0084"+
-    "B\u0000\u0272\u0273\u0007\u0004\u0000\u0000\u0273\u0275\u0003\u0082A\u0003"+
-    "\u0274\u0270\u0001\u0000\u0000\u0000\u0274\u0272\u0001\u0000\u0000\u0000"+
-    "\u0275\u027e\u0001\u0000\u0000\u0000\u0276\u0277\n\u0002\u0000\u0000\u0277"+
-    "\u0278\u0007\u0005\u0000\u0000\u0278\u027d\u0003\u0082A\u0003\u0279\u027a"+
-    "\n\u0001\u0000\u0000\u027a\u027b\u0007\u0004\u0000\u0000\u027b\u027d\u0003"+
-    "\u0082A\u0002\u027c\u0276\u0001\u0000\u0000\u0000\u027c\u0279\u0001\u0000"+
-    "\u0000\u0000\u027d\u0280\u0001\u0000\u0000\u0000\u027e\u027c\u0001\u0000"+
-    "\u0000\u0000\u027e\u027f\u0001\u0000\u0000\u0000\u027f\u0083\u0001\u0000"+
-    "\u0000\u0000\u0280\u027e\u0001\u0000\u0000\u0000\u0281\u0282\u0006B\uffff"+
-    "\uffff\u0000\u0282\u028a\u0003\u008eG\u0000\u0283\u028a\u0003.\u0017\u0000"+
-    "\u0284\u028a\u0003\u0086C\u0000\u0285\u0286\u0005c\u0000\u0000\u0286\u0287"+
-    "\u0003z=\u0000\u0287\u0288\u0005d\u0000\u0000\u0288\u028a\u0001\u0000"+
-    "\u0000\u0000\u0289\u0281\u0001\u0000\u0000\u0000\u0289\u0283\u0001\u0000"+
-    "\u0000\u0000\u0289\u0284\u0001\u0000\u0000\u0000\u0289\u0285\u0001\u0000"+
-    "\u0000\u0000\u028a\u0290\u0001\u0000\u0000\u0000\u028b\u028c\n\u0001\u0000"+
-    "\u0000\u028c\u028d\u0005<\u0000\u0000\u028d\u028f\u0003\n\u0005\u0000"+
-    "\u028e\u028b\u0001\u0000\u0000\u0000\u028f\u0292\u0001\u0000\u0000\u0000"+
-    "\u0290\u028e\u0001\u0000\u0000\u0000\u0290\u0291\u0001\u0000\u0000\u0000"+
-    "\u0291\u0085\u0001\u0000\u0000\u0000\u0292\u0290\u0001\u0000\u0000\u0000"+
-    "\u0293\u0294\u0003\u0088D\u0000\u0294\u02a2\u0005c\u0000\u0000\u0295\u02a3"+
-    "\u0005Y\u0000\u0000\u0296\u029b\u0003z=\u0000\u0297\u0298\u0005>\u0000"+
-    "\u0000\u0298\u029a\u0003z=\u0000\u0299\u0297\u0001\u0000\u0000\u0000\u029a"+
-    "\u029d\u0001\u0000\u0000\u0000\u029b\u0299\u0001\u0000\u0000\u0000\u029b"+
-    "\u029c\u0001\u0000\u0000\u0000\u029c\u02a0\u0001\u0000\u0000\u0000\u029d"+
-    "\u029b\u0001\u0000\u0000\u0000\u029e\u029f\u0005>\u0000\u0000\u029f\u02a1"+
-    "\u0003\u008aE\u0000\u02a0\u029e\u0001\u0000\u0000\u0000\u02a0\u02a1\u0001"+
-    "\u0000\u0000\u0000\u02a1\u02a3\u0001\u0000\u0000\u0000\u02a2\u0295\u0001"+
-    "\u0000\u0000\u0000\u02a2\u0296\u0001\u0000\u0000\u0000\u02a2\u02a3\u0001"+
-    "\u0000\u0000\u0000\u02a3\u02a4\u0001\u0000\u0000\u0000\u02a4\u02a5\u0005"+
-    "d\u0000\u0000\u02a5\u0087\u0001\u0000\u0000\u0000\u02a6\u02a7\u0003<\u001e"+
-    "\u0000\u02a7\u0089\u0001\u0000\u0000\u0000\u02a8\u02a9\u0005\\\u0000\u0000"+
-    "\u02a9\u02ae\u0003\u008cF\u0000\u02aa\u02ab\u0005>\u0000\u0000\u02ab\u02ad"+
-    "\u0003\u008cF\u0000\u02ac\u02aa\u0001\u0000\u0000\u0000\u02ad\u02b0\u0001"+
-    "\u0000\u0000\u0000\u02ae\u02ac\u0001\u0000\u0000\u0000\u02ae\u02af\u0001"+
-    "\u0000\u0000\u0000\u02af\u02b1\u0001\u0000\u0000\u0000\u02b0\u02ae\u0001"+
-    "\u0000\u0000\u0000\u02b1\u02b2\u0005]\u0000\u0000\u02b2\u008b\u0001\u0000"+
-    "\u0000\u0000\u02b3\u02b4\u0003\u0098L\u0000\u02b4\u02b5\u0005=\u0000\u0000"+
-    "\u02b5\u02b6\u0003\u008eG\u0000\u02b6\u008d\u0001\u0000\u0000\u0000\u02b7"+
-    "\u02e2\u0005H\u0000\u0000\u02b8\u02b9\u0003\u0096K\u0000\u02b9\u02ba\u0005"+
-    "e\u0000\u0000\u02ba\u02e2\u0001\u0000\u0000\u0000\u02bb\u02e2\u0003\u0094"+
-    "J\u0000\u02bc\u02e2\u0003\u0096K\u0000\u02bd\u02e2\u0003\u0090H\u0000"+
-    "\u02be\u02e2\u00038\u001c\u0000\u02bf\u02e2\u0003\u0098L\u0000\u02c0\u02c1"+
-    "\u0005a\u0000\u0000\u02c1\u02c6\u0003\u0092I\u0000\u02c2\u02c3\u0005>"+
-    "\u0000\u0000\u02c3\u02c5\u0003\u0092I\u0000\u02c4\u02c2\u0001\u0000\u0000"+
-    "\u0000\u02c5\u02c8\u0001\u0000\u0000\u0000\u02c6\u02c4\u0001\u0000\u0000"+
-    "\u0000\u02c6\u02c7\u0001\u0000\u0000\u0000\u02c7\u02c9\u0001\u0000\u0000"+
-    "\u0000\u02c8\u02c6\u0001\u0000\u0000\u0000\u02c9\u02ca\u0005b\u0000\u0000"+
-    "\u02ca\u02e2\u0001\u0000\u0000\u0000\u02cb\u02cc\u0005a\u0000\u0000\u02cc"+
-    "\u02d1\u0003\u0090H\u0000\u02cd\u02ce\u0005>\u0000\u0000\u02ce\u02d0\u0003"+
-    "\u0090H\u0000\u02cf\u02cd\u0001\u0000\u0000\u0000\u02d0\u02d3\u0001\u0000"+
-    "\u0000\u0000\u02d1\u02cf\u0001\u0000\u0000\u0000\u02d1\u02d2\u0001\u0000"+
-    "\u0000\u0000\u02d2\u02d4\u0001\u0000\u0000\u0000\u02d3\u02d1\u0001\u0000"+
-    "\u0000\u0000\u02d4\u02d5\u0005b\u0000\u0000\u02d5\u02e2\u0001\u0000\u0000"+
-    "\u0000\u02d6\u02d7\u0005a\u0000\u0000\u02d7\u02dc\u0003\u0098L\u0000\u02d8"+
-    "\u02d9\u0005>\u0000\u0000\u02d9\u02db\u0003\u0098L\u0000\u02da\u02d8\u0001"+
-    "\u0000\u0000\u0000\u02db\u02de\u0001\u0000\u0000\u0000\u02dc\u02da\u0001"+
-    "\u0000\u0000\u0000\u02dc\u02dd\u0001\u0000\u0000\u0000\u02dd\u02df\u0001"+
-    "\u0000\u0000\u0000\u02de\u02dc\u0001\u0000\u0000\u0000\u02df\u02e0\u0005"+
-    "b\u0000\u0000\u02e0\u02e2\u0001\u0000\u0000\u0000\u02e1\u02b7\u0001\u0000"+
-    "\u0000\u0000\u02e1\u02b8\u0001\u0000\u0000\u0000\u02e1\u02bb\u0001\u0000"+
-    "\u0000\u0000\u02e1\u02bc\u0001\u0000\u0000\u0000\u02e1\u02bd\u0001\u0000"+
-    "\u0000\u0000\u02e1\u02be\u0001\u0000\u0000\u0000\u02e1\u02bf\u0001\u0000"+
-    "\u0000\u0000\u02e1\u02c0\u0001\u0000\u0000\u0000\u02e1\u02cb\u0001\u0000"+
-    "\u0000\u0000\u02e1\u02d6\u0001\u0000\u0000\u0000\u02e2\u008f\u0001\u0000"+
-    "\u0000\u0000\u02e3\u02e4\u0007\u0006\u0000\u0000\u02e4\u0091\u0001\u0000"+
-    "\u0000\u0000\u02e5\u02e8\u0003\u0094J\u0000\u02e6\u02e8\u0003\u0096K\u0000"+
-    "\u02e7\u02e5\u0001\u0000\u0000\u0000\u02e7\u02e6\u0001\u0000\u0000\u0000"+
-    "\u02e8\u0093\u0001\u0000\u0000\u0000\u02e9\u02eb\u0007\u0004\u0000\u0000"+
-    "\u02ea\u02e9\u0001\u0000\u0000\u0000\u02ea\u02eb\u0001\u0000\u0000\u0000"+
-    "\u02eb\u02ec\u0001\u0000\u0000\u0000\u02ec\u02ed\u00057\u0000\u0000\u02ed"+
-    "\u0095\u0001\u0000\u0000\u0000\u02ee\u02f0\u0007\u0004\u0000\u0000\u02ef"+
-    "\u02ee\u0001\u0000\u0000\u0000\u02ef\u02f0\u0001\u0000\u0000\u0000\u02f0"+
-    "\u02f1\u0001\u0000\u0000\u0000\u02f1\u02f2\u00056\u0000\u0000\u02f2\u0097"+
-    "\u0001\u0000\u0000\u0000\u02f3\u02f4\u00055\u0000\u0000\u02f4\u0099\u0001"+
-    "\u0000\u0000\u0000\u02f5\u02f6\u0007\u0007\u0000\u0000\u02f6\u009b\u0001"+
-    "\u0000\u0000\u0000\u02f7\u02f8\u0007\b\u0000\u0000\u02f8\u02f9\u0005r"+
-    "\u0000\u0000\u02f9\u02fa\u0003\u009eO\u0000\u02fa\u02fb\u0003\u00a0P\u0000"+
-    "\u02fb\u009d\u0001\u0000\u0000\u0000\u02fc\u02fd\u0003\u001c\u000e\u0000"+
-    "\u02fd\u009f\u0001\u0000\u0000\u0000\u02fe\u02ff\u0005J\u0000\u0000\u02ff"+
-    "\u0304\u0003\u00a2Q\u0000\u0300\u0301\u0005>\u0000\u0000\u0301\u0303\u0003"+
-    "\u00a2Q\u0000\u0302\u0300\u0001\u0000\u0000\u0000\u0303\u0306\u0001\u0000"+
-    "\u0000\u0000\u0304\u0302\u0001\u0000\u0000\u0000\u0304\u0305\u0001\u0000"+
-    "\u0000\u0000\u0305\u00a1\u0001\u0000\u0000\u0000\u0306\u0304\u0001\u0000"+
-    "\u0000\u0000\u0307\u0308\u0003\u0080@\u0000\u0308\u00a3\u0001\u0000\u0000"+
-    "\u0000G\u00af\u00b8\u00d7\u00e6\u00ec\u00f5\u00fb\u0108\u010c\u0111\u0117"+
-    "\u0119\u0127\u012f\u0133\u013a\u0140\u0147\u014f\u0157\u015f\u0163\u0167"+
-    "\u016c\u0177\u017c\u0180\u018e\u0199\u019f\u01ad\u01c2\u01ca\u01cd\u01d2"+
-    "\u01df\u01e5\u01ec\u01f7\u0205\u020e\u0218\u021e\u022e\u0237\u023f\u0244"+
-    "\u024c\u024e\u0253\u025a\u025f\u0264\u026e\u0274\u027c\u027e\u0289\u0290"+
-    "\u029b\u02a0\u02a2\u02ae\u02c6\u02d1\u02dc\u02e1\u02e7\u02ea\u02ef\u0304";
+    "\u0001\u0003\u0003\u0003\u00dc\b\u0003\u0001\u0004\u0001\u0004\u0001\u0004"+
+    "\u0001\u0005\u0001\u0005\u0001\u0006\u0001\u0006\u0001\u0006\u0001\u0007"+
+    "\u0001\u0007\u0001\u0007\u0005\u0007\u00e9\b\u0007\n\u0007\f\u0007\u00ec"+
+    "\t\u0007\u0001\b\u0001\b\u0001\b\u0003\b\u00f1\b\b\u0001\b\u0001\b\u0001"+
+    "\t\u0001\t\u0001\t\u0005\t\u00f8\b\t\n\t\f\t\u00fb\t\t\u0001\n\u0001\n"+
+    "\u0001\n\u0003\n\u0100\b\n\u0001\u000b\u0001\u000b\u0001\u000b\u0001\f"+
+    "\u0001\f\u0001\f\u0001\r\u0001\r\u0001\r\u0005\r\u010b\b\r\n\r\f\r\u010e"+
+    "\t\r\u0001\r\u0003\r\u0111\b\r\u0001\u000e\u0001\u000e\u0001\u000e\u0001"+
+    "\u000e\u0001\u000e\u0001\u000e\u0001\u000e\u0001\u000e\u0001\u000e\u0003"+
+    "\u000e\u011c\b\u000e\u0001\u000f\u0001\u000f\u0001\u0010\u0001\u0010\u0001"+
+    "\u0011\u0001\u0011\u0001\u0012\u0001\u0012\u0001\u0013\u0001\u0013\u0001"+
+    "\u0013\u0001\u0013\u0005\u0013\u012a\b\u0013\n\u0013\f\u0013\u012d\t\u0013"+
+    "\u0001\u0014\u0001\u0014\u0001\u0014\u0001\u0015\u0001\u0015\u0003\u0015"+
+    "\u0134\b\u0015\u0001\u0015\u0001\u0015\u0003\u0015\u0138\b\u0015\u0001"+
+    "\u0016\u0001\u0016\u0001\u0016\u0005\u0016\u013d\b\u0016\n\u0016\f\u0016"+
+    "\u0140\t\u0016\u0001\u0017\u0001\u0017\u0001\u0017\u0003\u0017\u0145\b"+
+    "\u0017\u0001\u0018\u0001\u0018\u0001\u0018\u0005\u0018\u014a\b\u0018\n"+
+    "\u0018\f\u0018\u014d\t\u0018\u0001\u0019\u0001\u0019\u0001\u0019\u0005"+
+    "\u0019\u0152\b\u0019\n\u0019\f\u0019\u0155\t\u0019\u0001\u001a\u0001\u001a"+
+    "\u0001\u001a\u0005\u001a\u015a\b\u001a\n\u001a\f\u001a\u015d\t\u001a\u0001"+
+    "\u001b\u0001\u001b\u0001\u001c\u0001\u001c\u0001\u001c\u0003\u001c\u0164"+
+    "\b\u001c\u0001\u001d\u0001\u001d\u0003\u001d\u0168\b\u001d\u0001\u001e"+
+    "\u0001\u001e\u0003\u001e\u016c\b\u001e\u0001\u001f\u0001\u001f\u0001\u001f"+
+    "\u0003\u001f\u0171\b\u001f\u0001 \u0001 \u0001 \u0001!\u0001!\u0001!\u0001"+
+    "!\u0005!\u017a\b!\n!\f!\u017d\t!\u0001\"\u0001\"\u0003\"\u0181\b\"\u0001"+
+    "\"\u0001\"\u0003\"\u0185\b\"\u0001#\u0001#\u0001#\u0001$\u0001$\u0001"+
+    "$\u0001%\u0001%\u0001%\u0001%\u0005%\u0191\b%\n%\f%\u0194\t%\u0001&\u0001"+
+    "&\u0001&\u0001&\u0001&\u0001&\u0001&\u0001&\u0003&\u019e\b&\u0001\'\u0001"+
+    "\'\u0001\'\u0001\'\u0003\'\u01a4\b\'\u0001(\u0001(\u0001(\u0005(\u01a9"+
+    "\b(\n(\f(\u01ac\t(\u0001)\u0001)\u0001)\u0001)\u0001*\u0001*\u0003*\u01b4"+
+    "\b*\u0001+\u0001+\u0001+\u0001+\u0001,\u0001,\u0001,\u0001-\u0001-\u0001"+
+    "-\u0001.\u0001.\u0001.\u0001.\u0001/\u0001/\u0001/\u00010\u00010\u0001"+
+    "0\u00010\u00030\u01cb\b0\u00010\u00010\u00010\u00010\u00050\u01d1\b0\n"+
+    "0\f0\u01d4\t0\u00030\u01d6\b0\u00011\u00011\u00012\u00012\u00012\u0003"+
+    "2\u01dd\b2\u00012\u00012\u00013\u00013\u00013\u00014\u00014\u00014\u0001"+
+    "4\u00034\u01e8\b4\u00014\u00014\u00014\u00014\u00014\u00034\u01ef\b4\u0001"+
+    "5\u00015\u00015\u00016\u00046\u01f5\b6\u000b6\f6\u01f6\u00017\u00017\u0001"+
+    "7\u00017\u00018\u00018\u00018\u00018\u00018\u00018\u00058\u0203\b8\n8"+
+    "\f8\u0206\t8\u00019\u00019\u0001:\u0001:\u0001:\u0001:\u0003:\u020e\b"+
+    ":\u0001:\u0001:\u0001:\u0001:\u0001:\u0001;\u0001;\u0001;\u0001;\u0003"+
+    ";\u0219\b;\u0001;\u0001;\u0001;\u0001<\u0001<\u0001<\u0001<\u0001<\u0001"+
+    "=\u0001=\u0001=\u0001=\u0003=\u0227\b=\u0001>\u0001>\u0001>\u0001?\u0001"+
+    "?\u0001@\u0001@\u0001@\u0001@\u0001@\u0001@\u0001@\u0003@\u0235\b@\u0001"+
+    "@\u0001@\u0001@\u0001@\u0001@\u0005@\u023c\b@\n@\f@\u023f\t@\u0001@\u0001"+
+    "@\u0001@\u0001@\u0001@\u0003@\u0246\b@\u0001@\u0001@\u0001@\u0003@\u024b"+
+    "\b@\u0001@\u0001@\u0001@\u0001@\u0001@\u0001@\u0005@\u0253\b@\n@\f@\u0256"+
+    "\t@\u0001A\u0001A\u0003A\u025a\bA\u0001A\u0001A\u0001A\u0001A\u0001A\u0003"+
+    "A\u0261\bA\u0001A\u0001A\u0001A\u0001A\u0001A\u0003A\u0268\bA\u0001A\u0001"+
+    "A\u0001A\u0001A\u0001A\u0005A\u026f\bA\nA\fA\u0272\tA\u0001A\u0001A\u0001"+
+    "A\u0001A\u0003A\u0278\bA\u0001A\u0001A\u0001A\u0001A\u0001A\u0005A\u027f"+
+    "\bA\nA\fA\u0282\tA\u0001A\u0001A\u0003A\u0286\bA\u0001B\u0001B\u0001B"+
+    "\u0003B\u028b\bB\u0001B\u0001B\u0001B\u0001C\u0001C\u0001C\u0001C\u0001"+
+    "C\u0003C\u0295\bC\u0001D\u0001D\u0001D\u0001D\u0003D\u029b\bD\u0001D\u0001"+
+    "D\u0001D\u0001D\u0001D\u0001D\u0005D\u02a3\bD\nD\fD\u02a6\tD\u0001E\u0001"+
+    "E\u0001E\u0001E\u0001E\u0001E\u0001E\u0001E\u0003E\u02b0\bE\u0001E\u0001"+
+    "E\u0001E\u0005E\u02b5\bE\nE\fE\u02b8\tE\u0001F\u0001F\u0001F\u0001F\u0001"+
+    "F\u0001F\u0005F\u02c0\bF\nF\fF\u02c3\tF\u0001F\u0001F\u0003F\u02c7\bF"+
+    "\u0003F\u02c9\bF\u0001F\u0001F\u0001G\u0001G\u0001G\u0003G\u02d0\bG\u0001"+
+    "H\u0001H\u0001H\u0001H\u0005H\u02d6\bH\nH\fH\u02d9\tH\u0003H\u02db\bH"+
+    "\u0001H\u0001H\u0001I\u0001I\u0001I\u0001I\u0001J\u0001J\u0001J\u0001"+
+    "J\u0001J\u0001J\u0001J\u0001J\u0001J\u0001J\u0001J\u0001J\u0001J\u0005"+
+    "J\u02f0\bJ\nJ\fJ\u02f3\tJ\u0001J\u0001J\u0001J\u0001J\u0001J\u0001J\u0005"+
+    "J\u02fb\bJ\nJ\fJ\u02fe\tJ\u0001J\u0001J\u0001J\u0001J\u0001J\u0001J\u0005"+
+    "J\u0306\bJ\nJ\fJ\u0309\tJ\u0001J\u0001J\u0003J\u030d\bJ\u0001K\u0001K"+
+    "\u0001L\u0001L\u0003L\u0313\bL\u0001M\u0003M\u0316\bM\u0001M\u0001M\u0001"+
+    "N\u0003N\u031b\bN\u0001N\u0001N\u0001O\u0001O\u0001P\u0001P\u0001Q\u0001"+
+    "Q\u0001Q\u0001Q\u0001Q\u0001R\u0001R\u0001S\u0001S\u0001S\u0001S\u0005"+
+    "S\u032e\bS\nS\fS\u0331\tS\u0001T\u0001T\u0001T\u0000\u0005\u0002p\u0080"+
+    "\u0088\u008aU\u0000\u0002\u0004\u0006\b\n\f\u000e\u0010\u0012\u0014\u0016"+
+    "\u0018\u001a\u001c\u001e \"$&(*,.02468:<>@BDFHJLNPRTVXZ\\^`bdfhjlnprt"+
+    "vxz|~\u0080\u0082\u0084\u0086\u0088\u008a\u008c\u008e\u0090\u0092\u0094"+
+    "\u0096\u0098\u009a\u009c\u009e\u00a0\u00a2\u00a4\u00a6\u00a8\u0000\n\u0002"+
+    "\u000055kk\u0001\u0000ef\u0002\u000099??\u0002\u0000BBEE\u0002\u0000&"+
+    "&55\u0001\u0000WX\u0001\u0000Y[\u0002\u0000AANN\u0002\u0000PPRV\u0002"+
+    "\u0000\u0017\u0017\u0019\u001a\u0356\u0000\u00aa\u0001\u0000\u0000\u0000"+
+    "\u0002\u00ad\u0001\u0000\u0000\u0000\u0004\u00bf\u0001\u0000\u0000\u0000"+
+    "\u0006\u00db\u0001\u0000\u0000\u0000\b\u00dd\u0001\u0000\u0000\u0000\n"+
+    "\u00e0\u0001\u0000\u0000\u0000\f\u00e2\u0001\u0000\u0000\u0000\u000e\u00e5"+
+    "\u0001\u0000\u0000\u0000\u0010\u00f0\u0001\u0000\u0000\u0000\u0012\u00f4"+
+    "\u0001\u0000\u0000\u0000\u0014\u00fc\u0001\u0000\u0000\u0000\u0016\u0101"+
+    "\u0001\u0000\u0000\u0000\u0018\u0104\u0001\u0000\u0000\u0000\u001a\u0107"+
+    "\u0001\u0000\u0000\u0000\u001c\u011b\u0001\u0000\u0000\u0000\u001e\u011d"+
+    "\u0001\u0000\u0000\u0000 \u011f\u0001\u0000\u0000\u0000\"\u0121\u0001"+
+    "\u0000\u0000\u0000$\u0123\u0001\u0000\u0000\u0000&\u0125\u0001\u0000\u0000"+
+    "\u0000(\u012e\u0001\u0000\u0000\u0000*\u0131\u0001\u0000\u0000\u0000,"+
+    "\u0139\u0001\u0000\u0000\u0000.\u0141\u0001\u0000\u0000\u00000\u0146\u0001"+
+    "\u0000\u0000\u00002\u014e\u0001\u0000\u0000\u00004\u0156\u0001\u0000\u0000"+
+    "\u00006\u015e\u0001\u0000\u0000\u00008\u0163\u0001\u0000\u0000\u0000:"+
+    "\u0167\u0001\u0000\u0000\u0000<\u016b\u0001\u0000\u0000\u0000>\u0170\u0001"+
+    "\u0000\u0000\u0000@\u0172\u0001\u0000\u0000\u0000B\u0175\u0001\u0000\u0000"+
+    "\u0000D\u017e\u0001\u0000\u0000\u0000F\u0186\u0001\u0000\u0000\u0000H"+
+    "\u0189\u0001\u0000\u0000\u0000J\u018c\u0001\u0000\u0000\u0000L\u019d\u0001"+
+    "\u0000\u0000\u0000N\u019f\u0001\u0000\u0000\u0000P\u01a5\u0001\u0000\u0000"+
+    "\u0000R\u01ad\u0001\u0000\u0000\u0000T\u01b3\u0001\u0000\u0000\u0000V"+
+    "\u01b5\u0001\u0000\u0000\u0000X\u01b9\u0001\u0000\u0000\u0000Z\u01bc\u0001"+
+    "\u0000\u0000\u0000\\\u01bf\u0001\u0000\u0000\u0000^\u01c3\u0001\u0000"+
+    "\u0000\u0000`\u01c6\u0001\u0000\u0000\u0000b\u01d7\u0001\u0000\u0000\u0000"+
+    "d\u01dc\u0001\u0000\u0000\u0000f\u01e0\u0001\u0000\u0000\u0000h\u01e3"+
+    "\u0001\u0000\u0000\u0000j\u01f0\u0001\u0000\u0000\u0000l\u01f4\u0001\u0000"+
+    "\u0000\u0000n\u01f8\u0001\u0000\u0000\u0000p\u01fc\u0001\u0000\u0000\u0000"+
+    "r\u0207\u0001\u0000\u0000\u0000t\u0209\u0001\u0000\u0000\u0000v\u0214"+
+    "\u0001\u0000\u0000\u0000x\u021d\u0001\u0000\u0000\u0000z\u0222\u0001\u0000"+
+    "\u0000\u0000|\u0228\u0001\u0000\u0000\u0000~\u022b\u0001\u0000\u0000\u0000"+
+    "\u0080\u024a\u0001\u0000\u0000\u0000\u0082\u0285\u0001\u0000\u0000\u0000"+
+    "\u0084\u0287\u0001\u0000\u0000\u0000\u0086\u0294\u0001\u0000\u0000\u0000"+
+    "\u0088\u029a\u0001\u0000\u0000\u0000\u008a\u02af\u0001\u0000\u0000\u0000"+
+    "\u008c\u02b9\u0001\u0000\u0000\u0000\u008e\u02cf\u0001\u0000\u0000\u0000"+
+    "\u0090\u02d1\u0001\u0000\u0000\u0000\u0092\u02de\u0001\u0000\u0000\u0000"+
+    "\u0094\u030c\u0001\u0000\u0000\u0000\u0096\u030e\u0001\u0000\u0000\u0000"+
+    "\u0098\u0312\u0001\u0000\u0000\u0000\u009a\u0315\u0001\u0000\u0000\u0000"+
+    "\u009c\u031a\u0001\u0000\u0000\u0000\u009e\u031e\u0001\u0000\u0000\u0000"+
+    "\u00a0\u0320\u0001\u0000\u0000\u0000\u00a2\u0322\u0001\u0000\u0000\u0000"+
+    "\u00a4\u0327\u0001\u0000\u0000\u0000\u00a6\u0329\u0001\u0000\u0000\u0000"+
+    "\u00a8\u0332\u0001\u0000\u0000\u0000\u00aa\u00ab\u0003\u0002\u0001\u0000"+
+    "\u00ab\u00ac\u0005\u0000\u0000\u0001\u00ac\u0001\u0001\u0000\u0000\u0000"+
+    "\u00ad\u00ae\u0006\u0001\uffff\uffff\u0000\u00ae\u00af\u0003\u0004\u0002"+
+    "\u0000\u00af\u00b5\u0001\u0000\u0000\u0000\u00b0\u00b1\n\u0001\u0000\u0000"+
+    "\u00b1\u00b2\u00054\u0000\u0000\u00b2\u00b4\u0003\u0006\u0003\u0000\u00b3"+
+    "\u00b0\u0001\u0000\u0000\u0000\u00b4\u00b7\u0001\u0000\u0000\u0000\u00b5"+
+    "\u00b3\u0001\u0000\u0000\u0000\u00b5\u00b6\u0001\u0000\u0000\u0000\u00b6"+
+    "\u0003\u0001\u0000\u0000\u0000\u00b7\u00b5\u0001\u0000\u0000\u0000\u00b8"+
+    "\u00c0\u0003\u0016\u000b\u0000\u00b9\u00c0\u0003\f\u0006\u0000\u00ba\u00c0"+
+    "\u0003^/\u0000\u00bb\u00bc\u0004\u0002\u0001\u0000\u00bc\u00c0\u0003\u0018"+
+    "\f\u0000\u00bd\u00be\u0004\u0002\u0002\u0000\u00be\u00c0\u0003Z-\u0000"+
+    "\u00bf\u00b8\u0001\u0000\u0000\u0000\u00bf\u00b9\u0001\u0000\u0000\u0000"+
+    "\u00bf\u00ba\u0001\u0000\u0000\u0000\u00bf\u00bb\u0001\u0000\u0000\u0000"+
+    "\u00bf\u00bd\u0001\u0000\u0000\u0000\u00c0\u0005\u0001\u0000\u0000\u0000"+
+    "\u00c1\u00dc\u0003(\u0014\u0000\u00c2\u00dc\u0003\b\u0004\u0000\u00c3"+
+    "\u00dc\u0003F#\u0000\u00c4\u00dc\u0003@ \u0000\u00c5\u00dc\u0003*\u0015"+
+    "\u0000\u00c6\u00dc\u0003B!\u0000\u00c7\u00dc\u0003H$\u0000\u00c8\u00dc"+
+    "\u0003J%\u0000\u00c9\u00dc\u0003N\'\u0000\u00ca\u00dc\u0003V+\u0000\u00cb"+
+    "\u00dc\u0003`0\u0000\u00cc\u00dc\u0003X,\u0000\u00cd\u00dc\u0003\u00a2"+
+    "Q\u0000\u00ce\u00dc\u0003h4\u0000\u00cf\u00dc\u0003v;\u0000\u00d0\u00dc"+
+    "\u0003f3\u0000\u00d1\u00dc\u0003j5\u0000\u00d2\u00dc\u0003t:\u0000\u00d3"+
+    "\u00d4\u0004\u0003\u0003\u0000\u00d4\u00dc\u0003z=\u0000\u00d5\u00d6\u0004"+
+    "\u0003\u0004\u0000\u00d6\u00dc\u0003x<\u0000\u00d7\u00d8\u0004\u0003\u0005"+
+    "\u0000\u00d8\u00dc\u0003|>\u0000\u00d9\u00da\u0004\u0003\u0006\u0000\u00da"+
+    "\u00dc\u0003~?\u0000\u00db\u00c1\u0001\u0000\u0000\u0000\u00db\u00c2\u0001"+
+    "\u0000\u0000\u0000\u00db\u00c3\u0001\u0000\u0000\u0000\u00db\u00c4\u0001"+
+    "\u0000\u0000\u0000\u00db\u00c5\u0001\u0000\u0000\u0000\u00db\u00c6\u0001"+
+    "\u0000\u0000\u0000\u00db\u00c7\u0001\u0000\u0000\u0000\u00db\u00c8\u0001"+
+    "\u0000\u0000\u0000\u00db\u00c9\u0001\u0000\u0000\u0000\u00db\u00ca\u0001"+
+    "\u0000\u0000\u0000\u00db\u00cb\u0001\u0000\u0000\u0000\u00db\u00cc\u0001"+
+    "\u0000\u0000\u0000\u00db\u00cd\u0001\u0000\u0000\u0000\u00db\u00ce\u0001"+
+    "\u0000\u0000\u0000\u00db\u00cf\u0001\u0000\u0000\u0000\u00db\u00d0\u0001"+
+    "\u0000\u0000\u0000\u00db\u00d1\u0001\u0000\u0000\u0000\u00db\u00d2\u0001"+
+    "\u0000\u0000\u0000\u00db\u00d3\u0001\u0000\u0000\u0000\u00db\u00d5\u0001"+
+    "\u0000\u0000\u0000\u00db\u00d7\u0001\u0000\u0000\u0000\u00db\u00d9\u0001"+
+    "\u0000\u0000\u0000\u00dc\u0007\u0001\u0000\u0000\u0000\u00dd\u00de\u0005"+
+    "\u0011\u0000\u0000\u00de\u00df\u0003\u0080@\u0000\u00df\t\u0001\u0000"+
+    "\u0000\u0000\u00e0\u00e1\u00036\u001b\u0000\u00e1\u000b\u0001\u0000\u0000"+
+    "\u0000\u00e2\u00e3\u0005\r\u0000\u0000\u00e3\u00e4\u0003\u000e\u0007\u0000"+
+    "\u00e4\r\u0001\u0000\u0000\u0000\u00e5\u00ea\u0003\u0010\b\u0000\u00e6"+
+    "\u00e7\u0005>\u0000\u0000\u00e7\u00e9\u0003\u0010\b\u0000\u00e8\u00e6"+
+    "\u0001\u0000\u0000\u0000\u00e9\u00ec\u0001\u0000\u0000\u0000\u00ea\u00e8"+
+    "\u0001\u0000\u0000\u0000\u00ea\u00eb\u0001\u0000\u0000\u0000\u00eb\u000f"+
+    "\u0001\u0000\u0000\u0000\u00ec\u00ea\u0001\u0000\u0000\u0000\u00ed\u00ee"+
+    "\u00030\u0018\u0000\u00ee\u00ef\u0005:\u0000\u0000\u00ef\u00f1\u0001\u0000"+
+    "\u0000\u0000\u00f0\u00ed\u0001\u0000\u0000\u0000\u00f0\u00f1\u0001\u0000"+
+    "\u0000\u0000\u00f1\u00f2\u0001\u0000\u0000\u0000\u00f2\u00f3\u0003\u0080"+
+    "@\u0000\u00f3\u0011\u0001\u0000\u0000\u0000\u00f4\u00f9\u0003\u0014\n"+
+    "\u0000\u00f5\u00f6\u0005>\u0000\u0000\u00f6\u00f8\u0003\u0014\n\u0000"+
+    "\u00f7\u00f5\u0001\u0000\u0000\u0000\u00f8\u00fb\u0001\u0000\u0000\u0000"+
+    "\u00f9\u00f7\u0001\u0000\u0000\u0000\u00f9\u00fa\u0001\u0000\u0000\u0000"+
+    "\u00fa\u0013\u0001\u0000\u0000\u0000\u00fb\u00f9\u0001\u0000\u0000\u0000"+
+    "\u00fc\u00ff\u00030\u0018\u0000\u00fd\u00fe\u0005:\u0000\u0000\u00fe\u0100"+
+    "\u0003\u0080@\u0000\u00ff\u00fd\u0001\u0000\u0000\u0000\u00ff\u0100\u0001"+
+    "\u0000\u0000\u0000\u0100\u0015\u0001\u0000\u0000\u0000\u0101\u0102\u0005"+
+    "\u0013\u0000\u0000\u0102\u0103\u0003\u001a\r\u0000\u0103\u0017\u0001\u0000"+
+    "\u0000\u0000\u0104\u0105\u0005\u0014\u0000\u0000\u0105\u0106\u0003\u001a"+
+    "\r\u0000\u0106\u0019\u0001\u0000\u0000\u0000\u0107\u010c\u0003\u001c\u000e"+
+    "\u0000\u0108\u0109\u0005>\u0000\u0000\u0109\u010b\u0003\u001c\u000e\u0000"+
+    "\u010a\u0108\u0001\u0000\u0000\u0000\u010b\u010e\u0001\u0000\u0000\u0000"+
+    "\u010c\u010a\u0001\u0000\u0000\u0000\u010c\u010d\u0001\u0000\u0000\u0000"+
+    "\u010d\u0110\u0001\u0000\u0000\u0000\u010e\u010c\u0001\u0000\u0000\u0000"+
+    "\u010f\u0111\u0003&\u0013\u0000\u0110\u010f\u0001\u0000\u0000\u0000\u0110"+
+    "\u0111\u0001\u0000\u0000\u0000\u0111\u001b\u0001\u0000\u0000\u0000\u0112"+
+    "\u0113\u0003\u001e\u000f\u0000\u0113\u0114\u0005=\u0000\u0000\u0114\u0115"+
+    "\u0003\"\u0011\u0000\u0115\u011c\u0001\u0000\u0000\u0000\u0116\u0117\u0003"+
+    "\"\u0011\u0000\u0117\u0118\u0005<\u0000\u0000\u0118\u0119\u0003 \u0010"+
+    "\u0000\u0119\u011c\u0001\u0000\u0000\u0000\u011a\u011c\u0003$\u0012\u0000"+
+    "\u011b\u0112\u0001\u0000\u0000\u0000\u011b\u0116\u0001\u0000\u0000\u0000"+
+    "\u011b\u011a\u0001\u0000\u0000\u0000\u011c\u001d\u0001\u0000\u0000\u0000"+
+    "\u011d\u011e\u0005k\u0000\u0000\u011e\u001f\u0001\u0000\u0000\u0000\u011f"+
+    "\u0120\u0005k\u0000\u0000\u0120!\u0001\u0000\u0000\u0000\u0121\u0122\u0005"+
+    "k\u0000\u0000\u0122#\u0001\u0000\u0000\u0000\u0123\u0124\u0007\u0000\u0000"+
+    "\u0000\u0124%\u0001\u0000\u0000\u0000\u0125\u0126\u0005j\u0000\u0000\u0126"+
+    "\u012b\u0005k\u0000\u0000\u0127\u0128\u0005>\u0000\u0000\u0128\u012a\u0005"+
+    "k\u0000\u0000\u0129\u0127\u0001\u0000\u0000\u0000\u012a\u012d\u0001\u0000"+
+    "\u0000\u0000\u012b\u0129\u0001\u0000\u0000\u0000\u012b\u012c\u0001\u0000"+
+    "\u0000\u0000\u012c\'\u0001\u0000\u0000\u0000\u012d\u012b\u0001\u0000\u0000"+
+    "\u0000\u012e\u012f\u0005\t\u0000\u0000\u012f\u0130\u0003\u000e\u0007\u0000"+
+    "\u0130)\u0001\u0000\u0000\u0000\u0131\u0133\u0005\u0010\u0000\u0000\u0132"+
+    "\u0134\u0003,\u0016\u0000\u0133\u0132\u0001\u0000\u0000\u0000\u0133\u0134"+
+    "\u0001\u0000\u0000\u0000\u0134\u0137\u0001\u0000\u0000\u0000\u0135\u0136"+
+    "\u0005;\u0000\u0000\u0136\u0138\u0003\u000e\u0007\u0000\u0137\u0135\u0001"+
+    "\u0000\u0000\u0000\u0137\u0138\u0001\u0000\u0000\u0000\u0138+\u0001\u0000"+
+    "\u0000\u0000\u0139\u013e\u0003.\u0017\u0000\u013a\u013b\u0005>\u0000\u0000"+
+    "\u013b\u013d\u0003.\u0017\u0000\u013c\u013a\u0001\u0000\u0000\u0000\u013d"+
+    "\u0140\u0001\u0000\u0000\u0000\u013e\u013c\u0001\u0000\u0000\u0000\u013e"+
+    "\u013f\u0001\u0000\u0000\u0000\u013f-\u0001\u0000\u0000\u0000\u0140\u013e"+
+    "\u0001\u0000\u0000\u0000\u0141\u0144\u0003\u0010\b\u0000\u0142\u0143\u0005"+
+    "\u0011\u0000\u0000\u0143\u0145\u0003\u0080@\u0000\u0144\u0142\u0001\u0000"+
+    "\u0000\u0000\u0144\u0145\u0001\u0000\u0000\u0000\u0145/\u0001\u0000\u0000"+
+    "\u0000\u0146\u014b\u0003>\u001f\u0000\u0147\u0148\u0005@\u0000\u0000\u0148"+
+    "\u014a\u0003>\u001f\u0000\u0149\u0147\u0001\u0000\u0000\u0000\u014a\u014d"+
+    "\u0001\u0000\u0000\u0000\u014b\u0149\u0001\u0000\u0000\u0000\u014b\u014c"+
+    "\u0001\u0000\u0000\u0000\u014c1\u0001\u0000\u0000\u0000\u014d\u014b\u0001"+
+    "\u0000\u0000\u0000\u014e\u0153\u00038\u001c\u0000\u014f\u0150\u0005@\u0000"+
+    "\u0000\u0150\u0152\u00038\u001c\u0000\u0151\u014f\u0001\u0000\u0000\u0000"+
+    "\u0152\u0155\u0001\u0000\u0000\u0000\u0153\u0151\u0001\u0000\u0000\u0000"+
+    "\u0153\u0154\u0001\u0000\u0000\u0000\u01543\u0001\u0000\u0000\u0000\u0155"+
+    "\u0153\u0001\u0000\u0000\u0000\u0156\u015b\u00032\u0019\u0000\u0157\u0158"+
+    "\u0005>\u0000\u0000\u0158\u015a\u00032\u0019\u0000\u0159\u0157\u0001\u0000"+
+    "\u0000\u0000\u015a\u015d\u0001\u0000\u0000\u0000\u015b\u0159\u0001\u0000"+
+    "\u0000\u0000\u015b\u015c\u0001\u0000\u0000\u0000\u015c5\u0001\u0000\u0000"+
+    "\u0000\u015d\u015b\u0001\u0000\u0000\u0000\u015e\u015f\u0007\u0001\u0000"+
+    "\u0000\u015f7\u0001\u0000\u0000\u0000\u0160\u0164\u0005\u0080\u0000\u0000"+
+    "\u0161\u0164\u0003:\u001d\u0000\u0162\u0164\u0003<\u001e\u0000\u0163\u0160"+
+    "\u0001\u0000\u0000\u0000\u0163\u0161\u0001\u0000\u0000\u0000\u0163\u0162"+
+    "\u0001\u0000\u0000\u0000\u01649\u0001\u0000\u0000\u0000\u0165\u0168\u0005"+
+    "L\u0000\u0000\u0166\u0168\u0005_\u0000\u0000\u0167\u0165\u0001\u0000\u0000"+
+    "\u0000\u0167\u0166\u0001\u0000\u0000\u0000\u0168;\u0001\u0000\u0000\u0000"+
+    "\u0169\u016c\u0005^\u0000\u0000\u016a\u016c\u0005`\u0000\u0000\u016b\u0169"+
+    "\u0001\u0000\u0000\u0000\u016b\u016a\u0001\u0000\u0000\u0000\u016c=\u0001"+
+    "\u0000\u0000\u0000\u016d\u0171\u00036\u001b\u0000\u016e\u0171\u0003:\u001d"+
+    "\u0000\u016f\u0171\u0003<\u001e\u0000\u0170\u016d\u0001\u0000\u0000\u0000"+
+    "\u0170\u016e\u0001\u0000\u0000\u0000\u0170\u016f\u0001\u0000\u0000\u0000"+
+    "\u0171?\u0001\u0000\u0000\u0000\u0172\u0173\u0005\u000b\u0000\u0000\u0173"+
+    "\u0174\u0003\u0094J\u0000\u0174A\u0001\u0000\u0000\u0000\u0175\u0176\u0005"+
+    "\u000f\u0000\u0000\u0176\u017b\u0003D\"\u0000\u0177\u0178\u0005>\u0000"+
+    "\u0000\u0178\u017a\u0003D\"\u0000\u0179\u0177\u0001\u0000\u0000\u0000"+
+    "\u017a\u017d\u0001\u0000\u0000\u0000\u017b\u0179\u0001\u0000\u0000\u0000"+
+    "\u017b\u017c\u0001\u0000\u0000\u0000\u017cC\u0001\u0000\u0000\u0000\u017d"+
+    "\u017b\u0001\u0000\u0000\u0000\u017e\u0180\u0003\u0080@\u0000\u017f\u0181"+
+    "\u0007\u0002\u0000\u0000\u0180\u017f\u0001\u0000\u0000\u0000\u0180\u0181"+
+    "\u0001\u0000\u0000\u0000\u0181\u0184\u0001\u0000\u0000\u0000\u0182\u0183"+
+    "\u0005I\u0000\u0000\u0183\u0185\u0007\u0003\u0000\u0000\u0184\u0182\u0001"+
+    "\u0000\u0000\u0000\u0184\u0185\u0001\u0000\u0000\u0000\u0185E\u0001\u0000"+
+    "\u0000\u0000\u0186\u0187\u0005\u001e\u0000\u0000\u0187\u0188\u00034\u001a"+
+    "\u0000\u0188G\u0001\u0000\u0000\u0000\u0189\u018a\u0005\u001d\u0000\u0000"+
+    "\u018a\u018b\u00034\u001a\u0000\u018bI\u0001\u0000\u0000\u0000\u018c\u018d"+
+    "\u0005 \u0000\u0000\u018d\u0192\u0003L&\u0000\u018e\u018f\u0005>\u0000"+
+    "\u0000\u018f\u0191\u0003L&\u0000\u0190\u018e\u0001\u0000\u0000\u0000\u0191"+
+    "\u0194\u0001\u0000\u0000\u0000\u0192\u0190\u0001\u0000\u0000\u0000\u0192"+
+    "\u0193\u0001\u0000\u0000\u0000\u0193K\u0001\u0000\u0000\u0000\u0194\u0192"+
+    "\u0001\u0000\u0000\u0000\u0195\u0196\u00032\u0019\u0000\u0196\u0197\u0005"+
+    "\u0084\u0000\u0000\u0197\u0198\u00032\u0019\u0000\u0198\u019e\u0001\u0000"+
+    "\u0000\u0000\u0199\u019a\u00032\u0019\u0000\u019a\u019b\u0005:\u0000\u0000"+
+    "\u019b\u019c\u00032\u0019\u0000\u019c\u019e\u0001\u0000\u0000\u0000\u019d"+
+    "\u0195\u0001\u0000\u0000\u0000\u019d\u0199\u0001\u0000\u0000\u0000\u019e"+
+    "M\u0001\u0000\u0000\u0000\u019f\u01a0\u0005\b\u0000\u0000\u01a0\u01a1"+
+    "\u0003\u008aE\u0000\u01a1\u01a3\u0003\u009eO\u0000\u01a2\u01a4\u0003P"+
+    "(\u0000\u01a3\u01a2\u0001\u0000\u0000\u0000\u01a3\u01a4\u0001\u0000\u0000"+
+    "\u0000\u01a4O\u0001\u0000\u0000\u0000\u01a5\u01aa\u0003R)\u0000\u01a6"+
+    "\u01a7\u0005>\u0000\u0000\u01a7\u01a9\u0003R)\u0000\u01a8\u01a6\u0001"+
+    "\u0000\u0000\u0000\u01a9\u01ac\u0001\u0000\u0000\u0000\u01aa\u01a8\u0001"+
+    "\u0000\u0000\u0000\u01aa\u01ab\u0001\u0000\u0000\u0000\u01abQ\u0001\u0000"+
+    "\u0000\u0000\u01ac\u01aa\u0001\u0000\u0000\u0000\u01ad\u01ae\u00036\u001b"+
+    "\u0000\u01ae\u01af\u0005:\u0000\u0000\u01af\u01b0\u0003\u0094J\u0000\u01b0"+
+    "S\u0001\u0000\u0000\u0000\u01b1\u01b2\u0005O\u0000\u0000\u01b2\u01b4\u0003"+
+    "\u0090H\u0000\u01b3\u01b1\u0001\u0000\u0000\u0000\u01b3\u01b4\u0001\u0000"+
+    "\u0000\u0000\u01b4U\u0001\u0000\u0000\u0000\u01b5\u01b6\u0005\n\u0000"+
+    "\u0000\u01b6\u01b7\u0003\u008aE\u0000\u01b7\u01b8\u0003\u009eO\u0000\u01b8"+
+    "W\u0001\u0000\u0000\u0000\u01b9\u01ba\u0005\u001c\u0000\u0000\u01ba\u01bb"+
+    "\u00030\u0018\u0000\u01bbY\u0001\u0000\u0000\u0000\u01bc\u01bd\u0005\u0006"+
+    "\u0000\u0000\u01bd\u01be\u0003\\.\u0000\u01be[\u0001\u0000\u0000\u0000"+
+    "\u01bf\u01c0\u0005c\u0000\u0000\u01c0\u01c1\u0003\u0002\u0001\u0000\u01c1"+
+    "\u01c2\u0005d\u0000\u0000\u01c2]\u0001\u0000\u0000\u0000\u01c3\u01c4\u0005"+
+    "!\u0000\u0000\u01c4\u01c5\u0005\u0088\u0000\u0000\u01c5_\u0001\u0000\u0000"+
+    "\u0000\u01c6\u01c7\u0005\u0005\u0000\u0000\u01c7\u01ca\u0003b1\u0000\u01c8"+
+    "\u01c9\u0005J\u0000\u0000\u01c9\u01cb\u00032\u0019\u0000\u01ca\u01c8\u0001"+
+    "\u0000\u0000\u0000\u01ca\u01cb\u0001\u0000\u0000\u0000\u01cb\u01d5\u0001"+
+    "\u0000\u0000\u0000\u01cc\u01cd\u0005O\u0000\u0000\u01cd\u01d2\u0003d2"+
+    "\u0000\u01ce\u01cf\u0005>\u0000\u0000\u01cf\u01d1\u0003d2\u0000\u01d0"+
+    "\u01ce\u0001\u0000\u0000\u0000\u01d1\u01d4\u0001\u0000\u0000\u0000\u01d2"+
+    "\u01d0\u0001\u0000\u0000\u0000\u01d2\u01d3\u0001\u0000\u0000\u0000\u01d3"+
+    "\u01d6\u0001\u0000\u0000\u0000\u01d4\u01d2\u0001\u0000\u0000\u0000\u01d5"+
+    "\u01cc\u0001\u0000\u0000\u0000\u01d5\u01d6\u0001\u0000\u0000\u0000\u01d6"+
+    "a\u0001\u0000\u0000\u0000\u01d7\u01d8\u0007\u0004\u0000\u0000\u01d8c\u0001"+
+    "\u0000\u0000\u0000\u01d9\u01da\u00032\u0019\u0000\u01da\u01db\u0005:\u0000"+
+    "\u0000\u01db\u01dd\u0001\u0000\u0000\u0000\u01dc\u01d9\u0001\u0000\u0000"+
+    "\u0000\u01dc\u01dd\u0001\u0000\u0000\u0000\u01dd\u01de\u0001\u0000\u0000"+
+    "\u0000\u01de\u01df\u00032\u0019\u0000\u01dfe\u0001\u0000\u0000\u0000\u01e0"+
+    "\u01e1\u0005\u000e\u0000\u0000\u01e1\u01e2\u0003\u0094J\u0000\u01e2g\u0001"+
+    "\u0000\u0000\u0000\u01e3\u01e4\u0005\u0004\u0000\u0000\u01e4\u01e7\u0003"+
+    "0\u0018\u0000\u01e5\u01e6\u0005J\u0000\u0000\u01e6\u01e8\u00030\u0018"+
+    "\u0000\u01e7\u01e5\u0001\u0000\u0000\u0000\u01e7\u01e8\u0001\u0000\u0000"+
+    "\u0000\u01e8\u01ee\u0001\u0000\u0000\u0000\u01e9\u01ea\u0005\u0084\u0000"+
+    "\u0000\u01ea\u01eb\u00030\u0018\u0000\u01eb\u01ec\u0005>\u0000\u0000\u01ec"+
+    "\u01ed\u00030\u0018\u0000\u01ed\u01ef\u0001\u0000\u0000\u0000\u01ee\u01e9"+
+    "\u0001\u0000\u0000\u0000\u01ee\u01ef\u0001\u0000\u0000\u0000\u01efi\u0001"+
+    "\u0000\u0000\u0000\u01f0\u01f1\u0005\u0015\u0000\u0000\u01f1\u01f2\u0003"+
+    "l6\u0000\u01f2k\u0001\u0000\u0000\u0000\u01f3\u01f5\u0003n7\u0000\u01f4"+
+    "\u01f3\u0001\u0000\u0000\u0000\u01f5\u01f6\u0001\u0000\u0000\u0000\u01f6"+
+    "\u01f4\u0001\u0000\u0000\u0000\u01f6\u01f7\u0001\u0000\u0000\u0000\u01f7"+
+    "m\u0001\u0000\u0000\u0000\u01f8\u01f9\u0005c\u0000\u0000\u01f9\u01fa\u0003"+
+    "p8\u0000\u01fa\u01fb\u0005d\u0000\u0000\u01fbo\u0001\u0000\u0000\u0000"+
+    "\u01fc\u01fd\u00068\uffff\uffff\u0000\u01fd\u01fe\u0003r9\u0000\u01fe"+
+    "\u0204\u0001\u0000\u0000\u0000\u01ff\u0200\n\u0001\u0000\u0000\u0200\u0201"+
+    "\u00054\u0000\u0000\u0201\u0203\u0003r9\u0000\u0202\u01ff\u0001\u0000"+
+    "\u0000\u0000\u0203\u0206\u0001\u0000\u0000\u0000\u0204\u0202\u0001\u0000"+
+    "\u0000\u0000\u0204\u0205\u0001\u0000\u0000\u0000\u0205q\u0001\u0000\u0000"+
+    "\u0000\u0206\u0204\u0001\u0000\u0000\u0000\u0207\u0208\u0003\u0006\u0003"+
+    "\u0000\u0208s\u0001\u0000\u0000\u0000\u0209\u020d\u0005\f\u0000\u0000"+
+    "\u020a\u020b\u00030\u0018\u0000\u020b\u020c\u0005:\u0000\u0000\u020c\u020e"+
+    "\u0001\u0000\u0000\u0000\u020d\u020a\u0001\u0000\u0000\u0000\u020d\u020e"+
+    "\u0001\u0000\u0000\u0000\u020e\u020f\u0001\u0000\u0000\u0000\u020f\u0210"+
+    "\u0003\u0094J\u0000\u0210\u0211\u0005J\u0000\u0000\u0211\u0212\u0003\u0012"+
+    "\t\u0000\u0212\u0213\u0003T*\u0000\u0213u\u0001\u0000\u0000\u0000\u0214"+
+    "\u0218\u0005\u0007\u0000\u0000\u0215\u0216\u00030\u0018\u0000\u0216\u0217"+
+    "\u0005:\u0000\u0000\u0217\u0219\u0001\u0000\u0000\u0000\u0218\u0215\u0001"+
+    "\u0000\u0000\u0000\u0218\u0219\u0001\u0000\u0000\u0000\u0219\u021a\u0001"+
+    "\u0000\u0000\u0000\u021a\u021b\u0003\u008aE\u0000\u021b\u021c\u0003T*"+
+    "\u0000\u021cw\u0001\u0000\u0000\u0000\u021d\u021e\u0005\u001b\u0000\u0000"+
+    "\u021e\u021f\u0003\u001c\u000e\u0000\u021f\u0220\u0005J\u0000\u0000\u0220"+
+    "\u0221\u00034\u001a\u0000\u0221y\u0001\u0000\u0000\u0000\u0222\u0223\u0005"+
+    "\u0012\u0000\u0000\u0223\u0226\u0003,\u0016\u0000\u0224\u0225\u0005;\u0000"+
+    "\u0000\u0225\u0227\u0003\u000e\u0007\u0000\u0226\u0224\u0001\u0000\u0000"+
+    "\u0000\u0226\u0227\u0001\u0000\u0000\u0000\u0227{\u0001\u0000\u0000\u0000"+
+    "\u0228\u0229\u0005\u001f\u0000\u0000\u0229\u022a\u00034\u001a\u0000\u022a"+
+    "}\u0001\u0000\u0000\u0000\u022b\u022c\u0005\u0016\u0000\u0000\u022c\u007f"+
+    "\u0001\u0000\u0000\u0000\u022d\u022e\u0006@\uffff\uffff\u0000\u022e\u022f"+
+    "\u0005G\u0000\u0000\u022f\u024b\u0003\u0080@\b\u0230\u024b\u0003\u0086"+
+    "C\u0000\u0231\u024b\u0003\u0082A\u0000\u0232\u0234\u0003\u0086C\u0000"+
+    "\u0233\u0235\u0005G\u0000\u0000\u0234\u0233\u0001\u0000\u0000\u0000\u0234"+
+    "\u0235\u0001\u0000\u0000\u0000\u0235\u0236\u0001\u0000\u0000\u0000\u0236"+
+    "\u0237\u0005C\u0000\u0000\u0237\u0238\u0005c\u0000\u0000\u0238\u023d\u0003"+
+    "\u0086C\u0000\u0239\u023a\u0005>\u0000\u0000\u023a\u023c\u0003\u0086C"+
+    "\u0000\u023b\u0239\u0001\u0000\u0000\u0000\u023c\u023f\u0001\u0000\u0000"+
+    "\u0000\u023d\u023b\u0001\u0000\u0000\u0000\u023d\u023e\u0001\u0000\u0000"+
+    "\u0000\u023e\u0240\u0001\u0000\u0000\u0000\u023f\u023d\u0001\u0000\u0000"+
+    "\u0000\u0240\u0241\u0005d\u0000\u0000\u0241\u024b\u0001\u0000\u0000\u0000"+
+    "\u0242\u0243\u0003\u0086C\u0000\u0243\u0245\u0005D\u0000\u0000\u0244\u0246"+
+    "\u0005G\u0000\u0000\u0245\u0244\u0001\u0000\u0000\u0000\u0245\u0246\u0001"+
+    "\u0000\u0000\u0000\u0246\u0247\u0001\u0000\u0000\u0000\u0247\u0248\u0005"+
+    "H\u0000\u0000\u0248\u024b\u0001\u0000\u0000\u0000\u0249\u024b\u0003\u0084"+
+    "B\u0000\u024a\u022d\u0001\u0000\u0000\u0000\u024a\u0230\u0001\u0000\u0000"+
+    "\u0000\u024a\u0231\u0001\u0000\u0000\u0000\u024a\u0232\u0001\u0000\u0000"+
+    "\u0000\u024a\u0242\u0001\u0000\u0000\u0000\u024a\u0249\u0001\u0000\u0000"+
+    "\u0000\u024b\u0254\u0001\u0000\u0000\u0000\u024c\u024d\n\u0005\u0000\u0000"+
+    "\u024d\u024e\u00058\u0000\u0000\u024e\u0253\u0003\u0080@\u0006\u024f\u0250"+
+    "\n\u0004\u0000\u0000\u0250\u0251\u0005K\u0000\u0000\u0251\u0253\u0003"+
+    "\u0080@\u0005\u0252\u024c\u0001\u0000\u0000\u0000\u0252\u024f\u0001\u0000"+
+    "\u0000\u0000\u0253\u0256\u0001\u0000\u0000\u0000\u0254\u0252\u0001\u0000"+
+    "\u0000\u0000\u0254\u0255\u0001\u0000\u0000\u0000\u0255\u0081\u0001\u0000"+
+    "\u0000\u0000\u0256\u0254\u0001\u0000\u0000\u0000\u0257\u0259\u0003\u0086"+
+    "C\u0000\u0258\u025a\u0005G\u0000\u0000\u0259\u0258\u0001\u0000\u0000\u0000"+
+    "\u0259\u025a\u0001\u0000\u0000\u0000\u025a\u025b\u0001\u0000\u0000\u0000"+
+    "\u025b\u025c\u0005F\u0000\u0000\u025c\u025d\u0003\u009eO\u0000\u025d\u0286"+
+    "\u0001\u0000\u0000\u0000\u025e\u0260\u0003\u0086C\u0000\u025f\u0261\u0005"+
+    "G\u0000\u0000\u0260\u025f\u0001\u0000\u0000\u0000\u0260\u0261\u0001\u0000"+
+    "\u0000\u0000\u0261\u0262\u0001\u0000\u0000\u0000\u0262\u0263\u0005M\u0000"+
+    "\u0000\u0263\u0264\u0003\u009eO\u0000\u0264\u0286\u0001\u0000\u0000\u0000"+
+    "\u0265\u0267\u0003\u0086C\u0000\u0266\u0268\u0005G\u0000\u0000\u0267\u0266"+
+    "\u0001\u0000\u0000\u0000\u0267\u0268\u0001\u0000\u0000\u0000\u0268\u0269"+
+    "\u0001\u0000\u0000\u0000\u0269\u026a\u0005F\u0000\u0000\u026a\u026b\u0005"+
+    "c\u0000\u0000\u026b\u0270\u0003\u009eO\u0000\u026c\u026d\u0005>\u0000"+
+    "\u0000\u026d\u026f\u0003\u009eO\u0000\u026e\u026c\u0001\u0000\u0000\u0000"+
+    "\u026f\u0272\u0001\u0000\u0000\u0000\u0270\u026e\u0001\u0000\u0000\u0000"+
+    "\u0270\u0271\u0001\u0000\u0000\u0000\u0271\u0273\u0001\u0000\u0000\u0000"+
+    "\u0272\u0270\u0001\u0000\u0000\u0000\u0273\u0274\u0005d\u0000\u0000\u0274"+
+    "\u0286\u0001\u0000\u0000\u0000\u0275\u0277\u0003\u0086C\u0000\u0276\u0278"+
+    "\u0005G\u0000\u0000\u0277\u0276\u0001\u0000\u0000\u0000\u0277\u0278\u0001"+
+    "\u0000\u0000\u0000\u0278\u0279\u0001\u0000\u0000\u0000\u0279\u027a\u0005"+
+    "M\u0000\u0000\u027a\u027b\u0005c\u0000\u0000\u027b\u0280\u0003\u009eO"+
+    "\u0000\u027c\u027d\u0005>\u0000\u0000\u027d\u027f\u0003\u009eO\u0000\u027e"+
+    "\u027c\u0001\u0000\u0000\u0000\u027f\u0282\u0001\u0000\u0000\u0000\u0280"+
+    "\u027e\u0001\u0000\u0000\u0000\u0280\u0281\u0001\u0000\u0000\u0000\u0281"+
+    "\u0283\u0001\u0000\u0000\u0000\u0282\u0280\u0001\u0000\u0000\u0000\u0283"+
+    "\u0284\u0005d\u0000\u0000\u0284\u0286\u0001\u0000\u0000\u0000\u0285\u0257"+
+    "\u0001\u0000\u0000\u0000\u0285\u025e\u0001\u0000\u0000\u0000\u0285\u0265"+
+    "\u0001\u0000\u0000\u0000\u0285\u0275\u0001\u0000\u0000\u0000\u0286\u0083"+
+    "\u0001\u0000\u0000\u0000\u0287\u028a\u00030\u0018\u0000\u0288\u0289\u0005"+
+    "<\u0000\u0000\u0289\u028b\u0003\n\u0005\u0000\u028a\u0288\u0001\u0000"+
+    "\u0000\u0000\u028a\u028b\u0001\u0000\u0000\u0000\u028b\u028c\u0001\u0000"+
+    "\u0000\u0000\u028c\u028d\u0005=\u0000\u0000\u028d\u028e\u0003\u0094J\u0000"+
+    "\u028e\u0085\u0001\u0000\u0000\u0000\u028f\u0295\u0003\u0088D\u0000\u0290"+
+    "\u0291\u0003\u0088D\u0000\u0291\u0292\u0003\u00a0P\u0000\u0292\u0293\u0003"+
+    "\u0088D\u0000\u0293\u0295\u0001\u0000\u0000\u0000\u0294\u028f\u0001\u0000"+
+    "\u0000\u0000\u0294\u0290\u0001\u0000\u0000\u0000\u0295\u0087\u0001\u0000"+
+    "\u0000\u0000\u0296\u0297\u0006D\uffff\uffff\u0000\u0297\u029b\u0003\u008a"+
+    "E\u0000\u0298\u0299\u0007\u0005\u0000\u0000\u0299\u029b\u0003\u0088D\u0003"+
+    "\u029a\u0296\u0001\u0000\u0000\u0000\u029a\u0298\u0001\u0000\u0000\u0000"+
+    "\u029b\u02a4\u0001\u0000\u0000\u0000\u029c\u029d\n\u0002\u0000\u0000\u029d"+
+    "\u029e\u0007\u0006\u0000\u0000\u029e\u02a3\u0003\u0088D\u0003\u029f\u02a0"+
+    "\n\u0001\u0000\u0000\u02a0\u02a1\u0007\u0005\u0000\u0000\u02a1\u02a3\u0003"+
+    "\u0088D\u0002\u02a2\u029c\u0001\u0000\u0000\u0000\u02a2\u029f\u0001\u0000"+
+    "\u0000\u0000\u02a3\u02a6\u0001\u0000\u0000\u0000\u02a4\u02a2\u0001\u0000"+
+    "\u0000\u0000\u02a4\u02a5\u0001\u0000\u0000\u0000\u02a5\u0089\u0001\u0000"+
+    "\u0000\u0000\u02a6\u02a4\u0001\u0000\u0000\u0000\u02a7\u02a8\u0006E\uffff"+
+    "\uffff\u0000\u02a8\u02b0\u0003\u0094J\u0000\u02a9\u02b0\u00030\u0018\u0000"+
+    "\u02aa\u02b0\u0003\u008cF\u0000\u02ab\u02ac\u0005c\u0000\u0000\u02ac\u02ad"+
+    "\u0003\u0080@\u0000\u02ad\u02ae\u0005d\u0000\u0000\u02ae\u02b0\u0001\u0000"+
+    "\u0000\u0000\u02af\u02a7\u0001\u0000\u0000\u0000\u02af\u02a9\u0001\u0000"+
+    "\u0000\u0000\u02af\u02aa\u0001\u0000\u0000\u0000\u02af\u02ab\u0001\u0000"+
+    "\u0000\u0000\u02b0\u02b6\u0001\u0000\u0000\u0000\u02b1\u02b2\n\u0001\u0000"+
+    "\u0000\u02b2\u02b3\u0005<\u0000\u0000\u02b3\u02b5\u0003\n\u0005\u0000"+
+    "\u02b4\u02b1\u0001\u0000\u0000\u0000\u02b5\u02b8\u0001\u0000\u0000\u0000"+
+    "\u02b6\u02b4\u0001\u0000\u0000\u0000\u02b6\u02b7\u0001\u0000\u0000\u0000"+
+    "\u02b7\u008b\u0001\u0000\u0000\u0000\u02b8\u02b6\u0001\u0000\u0000\u0000"+
+    "\u02b9\u02ba\u0003\u008eG\u0000\u02ba\u02c8\u0005c\u0000\u0000\u02bb\u02c9"+
+    "\u0005Y\u0000\u0000\u02bc\u02c1\u0003\u0080@\u0000\u02bd\u02be\u0005>"+
+    "\u0000\u0000\u02be\u02c0\u0003\u0080@\u0000\u02bf\u02bd\u0001\u0000\u0000"+
+    "\u0000\u02c0\u02c3\u0001\u0000\u0000\u0000\u02c1\u02bf\u0001\u0000\u0000"+
+    "\u0000\u02c1\u02c2\u0001\u0000\u0000\u0000\u02c2\u02c6\u0001\u0000\u0000"+
+    "\u0000\u02c3\u02c1\u0001\u0000\u0000\u0000\u02c4\u02c5\u0005>\u0000\u0000"+
+    "\u02c5\u02c7\u0003\u0090H\u0000\u02c6\u02c4\u0001\u0000\u0000\u0000\u02c6"+
+    "\u02c7\u0001\u0000\u0000\u0000\u02c7\u02c9\u0001\u0000\u0000\u0000\u02c8"+
+    "\u02bb\u0001\u0000\u0000\u0000\u02c8\u02bc\u0001\u0000\u0000\u0000\u02c8"+
+    "\u02c9\u0001\u0000\u0000\u0000\u02c9\u02ca\u0001\u0000\u0000\u0000\u02ca"+
+    "\u02cb\u0005d\u0000\u0000\u02cb\u008d\u0001\u0000\u0000\u0000\u02cc\u02d0"+
+    "\u0003>\u001f\u0000\u02cd\u02d0\u0005B\u0000\u0000\u02ce\u02d0\u0005E"+
+    "\u0000\u0000\u02cf\u02cc\u0001\u0000\u0000\u0000\u02cf\u02cd\u0001\u0000"+
+    "\u0000\u0000\u02cf\u02ce\u0001\u0000\u0000\u0000\u02d0\u008f\u0001\u0000"+
+    "\u0000\u0000\u02d1\u02da\u0005\\\u0000\u0000\u02d2\u02d7\u0003\u0092I"+
+    "\u0000\u02d3\u02d4\u0005>\u0000\u0000\u02d4\u02d6\u0003\u0092I\u0000\u02d5"+
+    "\u02d3\u0001\u0000\u0000\u0000\u02d6\u02d9\u0001\u0000\u0000\u0000\u02d7"+
+    "\u02d5\u0001\u0000\u0000\u0000\u02d7\u02d8\u0001\u0000\u0000\u0000\u02d8"+
+    "\u02db\u0001\u0000\u0000\u0000\u02d9\u02d7\u0001\u0000\u0000\u0000\u02da"+
+    "\u02d2\u0001\u0000\u0000\u0000\u02da\u02db\u0001\u0000\u0000\u0000\u02db"+
+    "\u02dc\u0001\u0000\u0000\u0000\u02dc\u02dd\u0005]\u0000\u0000\u02dd\u0091"+
+    "\u0001\u0000\u0000\u0000\u02de\u02df\u0003\u009eO\u0000\u02df\u02e0\u0005"+
+    "=\u0000\u0000\u02e0\u02e1\u0003\u0094J\u0000\u02e1\u0093\u0001\u0000\u0000"+
+    "\u0000\u02e2\u030d\u0005H\u0000\u0000\u02e3\u02e4\u0003\u009cN\u0000\u02e4"+
+    "\u02e5\u0005e\u0000\u0000\u02e5\u030d\u0001\u0000\u0000\u0000\u02e6\u030d"+
+    "\u0003\u009aM\u0000\u02e7\u030d\u0003\u009cN\u0000\u02e8\u030d\u0003\u0096"+
+    "K\u0000\u02e9\u030d\u0003:\u001d\u0000\u02ea\u030d\u0003\u009eO\u0000"+
+    "\u02eb\u02ec\u0005a\u0000\u0000\u02ec\u02f1\u0003\u0098L\u0000\u02ed\u02ee"+
+    "\u0005>\u0000\u0000\u02ee\u02f0\u0003\u0098L\u0000\u02ef\u02ed\u0001\u0000"+
+    "\u0000\u0000\u02f0\u02f3\u0001\u0000\u0000\u0000\u02f1\u02ef\u0001\u0000"+
+    "\u0000\u0000\u02f1\u02f2\u0001\u0000\u0000\u0000\u02f2\u02f4\u0001\u0000"+
+    "\u0000\u0000\u02f3\u02f1\u0001\u0000\u0000\u0000\u02f4\u02f5\u0005b\u0000"+
+    "\u0000\u02f5\u030d\u0001\u0000\u0000\u0000\u02f6\u02f7\u0005a\u0000\u0000"+
+    "\u02f7\u02fc\u0003\u0096K\u0000\u02f8\u02f9\u0005>\u0000\u0000\u02f9\u02fb"+
+    "\u0003\u0096K\u0000\u02fa\u02f8\u0001\u0000\u0000\u0000\u02fb\u02fe\u0001"+
+    "\u0000\u0000\u0000\u02fc\u02fa\u0001\u0000\u0000\u0000\u02fc\u02fd\u0001"+
+    "\u0000\u0000\u0000\u02fd\u02ff\u0001\u0000\u0000\u0000\u02fe\u02fc\u0001"+
+    "\u0000\u0000\u0000\u02ff\u0300\u0005b\u0000\u0000\u0300\u030d\u0001\u0000"+
+    "\u0000\u0000\u0301\u0302\u0005a\u0000\u0000\u0302\u0307\u0003\u009eO\u0000"+
+    "\u0303\u0304\u0005>\u0000\u0000\u0304\u0306\u0003\u009eO\u0000\u0305\u0303"+
+    "\u0001\u0000\u0000\u0000\u0306\u0309\u0001\u0000\u0000\u0000\u0307\u0305"+
+    "\u0001\u0000\u0000\u0000\u0307\u0308\u0001\u0000\u0000\u0000\u0308\u030a"+
+    "\u0001\u0000\u0000\u0000\u0309\u0307\u0001\u0000\u0000\u0000\u030a\u030b"+
+    "\u0005b\u0000\u0000\u030b\u030d\u0001\u0000\u0000\u0000\u030c\u02e2\u0001"+
+    "\u0000\u0000\u0000\u030c\u02e3\u0001\u0000\u0000\u0000\u030c\u02e6\u0001"+
+    "\u0000\u0000\u0000\u030c\u02e7\u0001\u0000\u0000\u0000\u030c\u02e8\u0001"+
+    "\u0000\u0000\u0000\u030c\u02e9\u0001\u0000\u0000\u0000\u030c\u02ea\u0001"+
+    "\u0000\u0000\u0000\u030c\u02eb\u0001\u0000\u0000\u0000\u030c\u02f6\u0001"+
+    "\u0000\u0000\u0000\u030c\u0301\u0001\u0000\u0000\u0000\u030d\u0095\u0001"+
+    "\u0000\u0000\u0000\u030e\u030f\u0007\u0007\u0000\u0000\u030f\u0097\u0001"+
+    "\u0000\u0000\u0000\u0310\u0313\u0003\u009aM\u0000\u0311\u0313\u0003\u009c"+
+    "N\u0000\u0312\u0310\u0001\u0000\u0000\u0000\u0312\u0311\u0001\u0000\u0000"+
+    "\u0000\u0313\u0099\u0001\u0000\u0000\u0000\u0314\u0316\u0007\u0005\u0000"+
+    "\u0000\u0315\u0314\u0001\u0000\u0000\u0000\u0315\u0316\u0001\u0000\u0000"+
+    "\u0000\u0316\u0317\u0001\u0000\u0000\u0000\u0317\u0318\u00057\u0000\u0000"+
+    "\u0318\u009b\u0001\u0000\u0000\u0000\u0319\u031b\u0007\u0005\u0000\u0000"+
+    "\u031a\u0319\u0001\u0000\u0000\u0000\u031a\u031b\u0001\u0000\u0000\u0000"+
+    "\u031b\u031c\u0001\u0000\u0000\u0000\u031c\u031d\u00056\u0000\u0000\u031d"+
+    "\u009d\u0001\u0000\u0000\u0000\u031e\u031f\u00055\u0000\u0000\u031f\u009f"+
+    "\u0001\u0000\u0000\u0000\u0320\u0321\u0007\b\u0000\u0000\u0321\u00a1\u0001"+
+    "\u0000\u0000\u0000\u0322\u0323\u0007\t\u0000\u0000\u0323\u0324\u0005r"+
+    "\u0000\u0000\u0324\u0325\u0003\u00a4R\u0000\u0325\u0326\u0003\u00a6S\u0000"+
+    "\u0326\u00a3\u0001\u0000\u0000\u0000\u0327\u0328\u0003\u001c\u000e\u0000"+
+    "\u0328\u00a5\u0001\u0000\u0000\u0000\u0329\u032a\u0005J\u0000\u0000\u032a"+
+    "\u032f\u0003\u00a8T\u0000\u032b\u032c\u0005>\u0000\u0000\u032c\u032e\u0003"+
+    "\u00a8T\u0000\u032d\u032b\u0001\u0000\u0000\u0000\u032e\u0331\u0001\u0000"+
+    "\u0000\u0000\u032f\u032d\u0001\u0000\u0000\u0000\u032f\u0330\u0001\u0000"+
+    "\u0000\u0000\u0330\u00a7\u0001\u0000\u0000\u0000\u0331\u032f\u0001\u0000"+
+    "\u0000\u0000\u0332\u0333\u0003\u0086C\u0000\u0333\u00a9\u0001\u0000\u0000"+
+    "\u0000K\u00b5\u00bf\u00db\u00ea\u00f0\u00f9\u00ff\u010c\u0110\u011b\u012b"+
+    "\u0133\u0137\u013e\u0144\u014b\u0153\u015b\u0163\u0167\u016b\u0170\u017b"+
+    "\u0180\u0184\u0192\u019d\u01a3\u01aa\u01b3\u01ca\u01d2\u01d5\u01dc\u01e7"+
+    "\u01ee\u01f6\u0204\u020d\u0218\u0226\u0234\u023d\u0245\u024a\u0252\u0254"+
+    "\u0259\u0260\u0267\u0270\u0277\u0280\u0285\u028a\u0294\u029a\u02a2\u02a4"+
+    "\u02af\u02b6\u02c1\u02c6\u02c8\u02cf\u02d7\u02da\u02f1\u02fc\u0307\u030c"+
+    "\u0312\u0315\u031a\u032f";
   public static final ATN _ATN =
     new ATNDeserializer().deserialize(_serializedATN.toCharArray());
   static {

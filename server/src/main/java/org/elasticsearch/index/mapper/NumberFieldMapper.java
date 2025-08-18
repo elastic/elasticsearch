@@ -24,6 +24,7 @@ import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.sandbox.document.HalfFloatPoint;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
+import org.apache.lucene.search.IndexSortSortedNumericDocValuesRangeQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
@@ -46,7 +47,6 @@ import org.elasticsearch.index.fielddata.plain.SortedDoublesIndexFieldData;
 import org.elasticsearch.index.fielddata.plain.SortedNumericIndexFieldData;
 import org.elasticsearch.index.mapper.TimeSeriesParams.MetricType;
 import org.elasticsearch.index.query.SearchExecutionContext;
-import org.elasticsearch.lucene.search.XIndexSortSortedNumericDocValuesRangeQuery;
 import org.elasticsearch.script.DoubleFieldScript;
 import org.elasticsearch.script.LongFieldScript;
 import org.elasticsearch.script.Script;
@@ -492,8 +492,13 @@ public class NumberFieldMapper extends FieldMapper {
             }
 
             @Override
-            BlockLoader blockLoaderFromFallbackSyntheticSource(String fieldName, Number nullValue, boolean coerce) {
-                return floatingPointBlockLoaderFromFallbackSyntheticSource(this, fieldName, nullValue, coerce);
+            BlockLoader blockLoaderFromFallbackSyntheticSource(
+                String fieldName,
+                Number nullValue,
+                boolean coerce,
+                MappedFieldType.BlockLoaderContext blContext
+            ) {
+                return floatingPointBlockLoaderFromFallbackSyntheticSource(this, fieldName, nullValue, coerce, blContext);
             }
         },
         FLOAT("float", NumericType.FLOAT) {
@@ -681,8 +686,13 @@ public class NumberFieldMapper extends FieldMapper {
             }
 
             @Override
-            BlockLoader blockLoaderFromFallbackSyntheticSource(String fieldName, Number nullValue, boolean coerce) {
-                return floatingPointBlockLoaderFromFallbackSyntheticSource(this, fieldName, nullValue, coerce);
+            BlockLoader blockLoaderFromFallbackSyntheticSource(
+                String fieldName,
+                Number nullValue,
+                boolean coerce,
+                MappedFieldType.BlockLoaderContext blContext
+            ) {
+                return floatingPointBlockLoaderFromFallbackSyntheticSource(this, fieldName, nullValue, coerce, blContext);
             }
         },
         DOUBLE("double", NumericType.DOUBLE) {
@@ -836,8 +846,13 @@ public class NumberFieldMapper extends FieldMapper {
             }
 
             @Override
-            BlockLoader blockLoaderFromFallbackSyntheticSource(String fieldName, Number nullValue, boolean coerce) {
-                return floatingPointBlockLoaderFromFallbackSyntheticSource(this, fieldName, nullValue, coerce);
+            BlockLoader blockLoaderFromFallbackSyntheticSource(
+                String fieldName,
+                Number nullValue,
+                boolean coerce,
+                MappedFieldType.BlockLoaderContext blContext
+            ) {
+                return floatingPointBlockLoaderFromFallbackSyntheticSource(this, fieldName, nullValue, coerce, blContext);
             }
         },
         BYTE("byte", NumericType.BYTE) {
@@ -959,8 +974,13 @@ public class NumberFieldMapper extends FieldMapper {
             }
 
             @Override
-            BlockLoader blockLoaderFromFallbackSyntheticSource(String fieldName, Number nullValue, boolean coerce) {
-                return integerBlockLoaderFromFallbackSyntheticSource(this, fieldName, nullValue, coerce);
+            BlockLoader blockLoaderFromFallbackSyntheticSource(
+                String fieldName,
+                Number nullValue,
+                boolean coerce,
+                MappedFieldType.BlockLoaderContext blContext
+            ) {
+                return integerBlockLoaderFromFallbackSyntheticSource(this, fieldName, nullValue, coerce, blContext);
             }
 
             private boolean isOutOfRange(Object value) {
@@ -1082,8 +1102,13 @@ public class NumberFieldMapper extends FieldMapper {
             }
 
             @Override
-            BlockLoader blockLoaderFromFallbackSyntheticSource(String fieldName, Number nullValue, boolean coerce) {
-                return integerBlockLoaderFromFallbackSyntheticSource(this, fieldName, nullValue, coerce);
+            BlockLoader blockLoaderFromFallbackSyntheticSource(
+                String fieldName,
+                Number nullValue,
+                boolean coerce,
+                MappedFieldType.BlockLoaderContext blContext
+            ) {
+                return integerBlockLoaderFromFallbackSyntheticSource(this, fieldName, nullValue, coerce, blContext);
             }
 
             private boolean isOutOfRange(Object value) {
@@ -1211,7 +1236,7 @@ public class NumberFieldMapper extends FieldMapper {
                     query = SortedNumericDocValuesField.newSlowRangeQuery(field, l, u);
                 }
                 if (hasDocValues && context.indexSortedOnField(field)) {
-                    query = new XIndexSortSortedNumericDocValuesRangeQuery(field, l, u, query);
+                    query = new IndexSortSortedNumericDocValuesRangeQuery(field, l, u, query);
                 }
                 return query;
             }
@@ -1279,8 +1304,13 @@ public class NumberFieldMapper extends FieldMapper {
             }
 
             @Override
-            BlockLoader blockLoaderFromFallbackSyntheticSource(String fieldName, Number nullValue, boolean coerce) {
-                return integerBlockLoaderFromFallbackSyntheticSource(this, fieldName, nullValue, coerce);
+            BlockLoader blockLoaderFromFallbackSyntheticSource(
+                String fieldName,
+                Number nullValue,
+                boolean coerce,
+                MappedFieldType.BlockLoaderContext blContext
+            ) {
+                return integerBlockLoaderFromFallbackSyntheticSource(this, fieldName, nullValue, coerce, blContext);
             }
         },
         LONG("long", NumericType.LONG) {
@@ -1367,7 +1397,7 @@ public class NumberFieldMapper extends FieldMapper {
                         query = SortedNumericDocValuesField.newSlowRangeQuery(field, l, u);
                     }
                     if (hasDocValues && context.indexSortedOnField(field)) {
-                        query = new XIndexSortSortedNumericDocValuesRangeQuery(field, l, u, query);
+                        query = new IndexSortSortedNumericDocValuesRangeQuery(field, l, u, query);
                     }
                     return query;
                 });
@@ -1436,7 +1466,12 @@ public class NumberFieldMapper extends FieldMapper {
             }
 
             @Override
-            BlockLoader blockLoaderFromFallbackSyntheticSource(String fieldName, Number nullValue, boolean coerce) {
+            BlockLoader blockLoaderFromFallbackSyntheticSource(
+                String fieldName,
+                Number nullValue,
+                boolean coerce,
+                MappedFieldType.BlockLoaderContext blContext
+            ) {
                 var reader = new NumberFallbackSyntheticSourceReader(this, nullValue, coerce) {
                     @Override
                     public void writeToBlock(List<Number> values, BlockLoader.Builder blockBuilder) {
@@ -1447,7 +1482,11 @@ public class NumberFieldMapper extends FieldMapper {
                     }
                 };
 
-                return new FallbackSyntheticSourceBlockLoader(reader, fieldName) {
+                return new FallbackSyntheticSourceBlockLoader(
+                    reader,
+                    fieldName,
+                    IgnoredSourceFieldMapper.ignoredSourceFormat(blContext.indexSettings().getIndexVersionCreated())
+                ) {
                     @Override
                     public Builder builder(BlockFactory factory, int expectedCount) {
                         return factory.longs(expectedCount);
@@ -1735,14 +1774,20 @@ public class NumberFieldMapper extends FieldMapper {
 
         abstract BlockLoader blockLoaderFromSource(SourceValueFetcher sourceValueFetcher, BlockSourceReader.LeafIteratorLookup lookup);
 
-        abstract BlockLoader blockLoaderFromFallbackSyntheticSource(String fieldName, Number nullValue, boolean coerce);
+        abstract BlockLoader blockLoaderFromFallbackSyntheticSource(
+            String fieldName,
+            Number nullValue,
+            boolean coerce,
+            MappedFieldType.BlockLoaderContext blContext
+        );
 
         // All values that fit into integer are returned as integers
         private static BlockLoader integerBlockLoaderFromFallbackSyntheticSource(
             NumberType type,
             String fieldName,
             Number nullValue,
-            boolean coerce
+            boolean coerce,
+            MappedFieldType.BlockLoaderContext blContext
         ) {
             var reader = new NumberFallbackSyntheticSourceReader(type, nullValue, coerce) {
                 @Override
@@ -1754,7 +1799,11 @@ public class NumberFieldMapper extends FieldMapper {
                 }
             };
 
-            return new FallbackSyntheticSourceBlockLoader(reader, fieldName) {
+            return new FallbackSyntheticSourceBlockLoader(
+                reader,
+                fieldName,
+                IgnoredSourceFieldMapper.ignoredSourceFormat(blContext.indexSettings().getIndexVersionCreated())
+            ) {
                 @Override
                 public Builder builder(BlockFactory factory, int expectedCount) {
                     return factory.ints(expectedCount);
@@ -1767,7 +1816,8 @@ public class NumberFieldMapper extends FieldMapper {
             NumberType type,
             String fieldName,
             Number nullValue,
-            boolean coerce
+            boolean coerce,
+            MappedFieldType.BlockLoaderContext blContext
         ) {
             var reader = new NumberFallbackSyntheticSourceReader(type, nullValue, coerce) {
                 @Override
@@ -1779,7 +1829,11 @@ public class NumberFieldMapper extends FieldMapper {
                 }
             };
 
-            return new FallbackSyntheticSourceBlockLoader(reader, fieldName) {
+            return new FallbackSyntheticSourceBlockLoader(
+                reader,
+                fieldName,
+                IgnoredSourceFieldMapper.ignoredSourceFormat(blContext.indexSettings().getIndexVersionCreated())
+            ) {
                 @Override
                 public Builder builder(BlockFactory factory, int expectedCount) {
                     return factory.doubles(expectedCount);
@@ -1975,7 +2029,7 @@ public class NumberFieldMapper extends FieldMapper {
 
             // Multi fields don't have fallback synthetic source.
             if (isSyntheticSource && blContext.parentField(name()) == null) {
-                return type.blockLoaderFromFallbackSyntheticSource(name(), nullValue, coerce);
+                return type.blockLoaderFromFallbackSyntheticSource(name(), nullValue, coerce, blContext);
             }
 
             BlockSourceReader.LeafIteratorLookup lookup = hasDocValues() == false && (isStored() || isIndexed())

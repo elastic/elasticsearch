@@ -7,7 +7,9 @@
 
 package org.elasticsearch.compute.aggregation;
 
+// begin generated imports
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.ann.Aggregator;
 import org.elasticsearch.compute.ann.GroupingAggregator;
@@ -16,10 +18,12 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.IntVector;
+import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.sort.IpBucketedSort;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.search.sort.SortOrder;
+// end generated imports
 
 /**
  * Aggregates the top N field values for BytesRef.
@@ -68,12 +72,8 @@ class TopIpAggregator {
         }
     }
 
-    public static void combineStates(GroupingState current, int groupId, GroupingState state, int statePosition) {
-        current.merge(groupId, state, statePosition);
-    }
-
-    public static Block evaluateFinal(GroupingState state, IntVector selected, DriverContext driverContext) {
-        return state.toBlock(driverContext.blockFactory(), selected);
+    public static Block evaluateFinal(GroupingState state, IntVector selected, GroupingAggregatorEvaluationContext ctx) {
+        return state.toBlock(ctx.blockFactory(), selected);
     }
 
     public static class GroupingState implements GroupingAggregatorState {
@@ -85,10 +85,6 @@ class TopIpAggregator {
 
         public void add(int groupId, BytesRef value) {
             sort.collect(value, groupId);
-        }
-
-        public void merge(int groupId, GroupingState other, int otherGroupId) {
-            sort.merge(groupId, other.sort, otherGroupId);
         }
 
         @Override
@@ -120,10 +116,6 @@ class TopIpAggregator {
 
         public void add(BytesRef value) {
             internalState.add(0, value);
-        }
-
-        public void merge(GroupingState other) {
-            internalState.merge(0, other, 0);
         }
 
         @Override

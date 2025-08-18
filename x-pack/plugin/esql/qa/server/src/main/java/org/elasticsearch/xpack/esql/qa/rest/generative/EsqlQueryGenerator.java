@@ -9,10 +9,12 @@ package org.elasticsearch.xpack.esql.qa.rest.generative;
 
 import org.elasticsearch.xpack.esql.CsvTestsDataLoader;
 import org.elasticsearch.xpack.esql.qa.rest.generative.command.CommandGenerator;
+import org.elasticsearch.xpack.esql.qa.rest.generative.command.pipe.ChangePointGenerator;
 import org.elasticsearch.xpack.esql.qa.rest.generative.command.pipe.DissectGenerator;
 import org.elasticsearch.xpack.esql.qa.rest.generative.command.pipe.DropGenerator;
 import org.elasticsearch.xpack.esql.qa.rest.generative.command.pipe.EnrichGenerator;
 import org.elasticsearch.xpack.esql.qa.rest.generative.command.pipe.EvalGenerator;
+import org.elasticsearch.xpack.esql.qa.rest.generative.command.pipe.ForkGenerator;
 import org.elasticsearch.xpack.esql.qa.rest.generative.command.pipe.GrokGenerator;
 import org.elasticsearch.xpack.esql.qa.rest.generative.command.pipe.KeepGenerator;
 import org.elasticsearch.xpack.esql.qa.rest.generative.command.pipe.LimitGenerator;
@@ -36,7 +38,11 @@ import static org.elasticsearch.test.ESTestCase.randomLongBetween;
 
 public class EsqlQueryGenerator {
 
-    public record Column(String name, String type) {}
+    public static final String COLUMN_NAME = "name";
+    public static final String COLUMN_TYPE = "type";
+    public static final String COLUMN_ORIGINAL_TYPES = "original_types";
+
+    public record Column(String name, String type, List<String> originalTypes) {}
 
     public record QueryExecuted(String query, int depth, List<Column> outputSchema, List<List<Object>> result, Exception exception) {}
 
@@ -49,10 +55,12 @@ public class EsqlQueryGenerator {
      * These are downstream commands, ie. that cannot appear as the first command in a query
      */
     static List<CommandGenerator> PIPE_COMMANDS = List.of(
+        ChangePointGenerator.INSTANCE,
         DissectGenerator.INSTANCE,
         DropGenerator.INSTANCE,
         EnrichGenerator.INSTANCE,
         EvalGenerator.INSTANCE,
+        ForkGenerator.INSTANCE,
         GrokGenerator.INSTANCE,
         KeepGenerator.INSTANCE,
         LimitGenerator.INSTANCE,
@@ -70,6 +78,46 @@ public class EsqlQueryGenerator {
 
     public static CommandGenerator randomPipeCommandGenerator() {
         return randomFrom(PIPE_COMMANDS);
+    }
+
+    public interface Executor {
+        void run(CommandGenerator generator, CommandGenerator.CommandDescription current);
+
+        List<CommandGenerator.CommandDescription> previousCommands();
+
+        boolean continueExecuting();
+
+        List<EsqlQueryGenerator.Column> currentSchema();
+
+    }
+
+    public static void generatePipeline(
+        final int depth,
+        CommandGenerator commandGenerator,
+        final CommandGenerator.QuerySchema schema,
+        Executor executor
+    ) {
+        CommandGenerator.CommandDescription desc = commandGenerator.generate(List.of(), List.of(), schema);
+        executor.run(commandGenerator, desc);
+        if (executor.continueExecuting() == false) {
+            return;
+        }
+
+        for (int j = 0; j < depth; j++) {
+            if (executor.currentSchema().isEmpty()) {
+                break;
+            }
+            commandGenerator = EsqlQueryGenerator.randomPipeCommandGenerator();
+            desc = commandGenerator.generate(executor.previousCommands(), executor.currentSchema(), schema);
+            if (desc == CommandGenerator.EMPTY_DESCRIPTION) {
+                continue;
+            }
+
+            executor.run(commandGenerator, desc);
+            if (executor.continueExecuting() == false) {
+                break;
+            }
+        }
     }
 
     public static String booleanExpression(List<Column> previousOutput) {
@@ -180,7 +228,7 @@ public class EsqlQueryGenerator {
             };
         }
         // all types
-        name = randomName(previousOutput);
+        name = randomBoolean() ? randomStringField(previousOutput) : randomNumericOrDateField(previousOutput);
         if (name == null) {
             return "count(*)";
         }
@@ -193,6 +241,10 @@ public class EsqlQueryGenerator {
 
     public static String randomNumericOrDateField(List<Column> previousOutput) {
         return randomName(previousOutput, Set.of("long", "integer", "double", "date"));
+    }
+
+    public static String randomDateField(List<Column> previousOutput) {
+        return randomName(previousOutput, Set.of("date"));
     }
 
     public static String randomNumericField(List<Column> previousOutput) {
@@ -253,6 +305,22 @@ public class EsqlQueryGenerator {
 
     }
 
+    /**
+     * returns a random identifier or one of the existing names
+     */
+    public static String randomAttributeOrIdentifier(List<EsqlQueryGenerator.Column> previousOutput) {
+        String name;
+        if (randomBoolean()) {
+            name = EsqlQueryGenerator.randomIdentifier();
+        } else {
+            name = EsqlQueryGenerator.randomName(previousOutput);
+            if (name == null) {
+                name = EsqlQueryGenerator.randomIdentifier();
+            }
+        }
+        return name;
+    }
+
     public static String randomIdentifier() {
         // Let's create identifiers that are long enough to avoid collisions with reserved keywords.
         // There could be a smarter way (introspection on the lexer class?), but probably it's not worth the effort
@@ -264,7 +332,10 @@ public class EsqlQueryGenerator {
         // https://github.com/elastic/elasticsearch/issues/121741
         field.name().equals("<all-fields-projected>")
             // this is a known pathological case, no need to test it for now
-            || field.name().equals("<no-fields>")) == false;
+            || field.name().equals("<no-fields>")
+            // no dense vectors for now, they are not supported in most commands
+            || field.type().contains("vector")
+            || field.originalTypes.stream().anyMatch(x -> x.contains("vector"))) == false;
     }
 
     public static String unquote(String colName) {

@@ -24,7 +24,7 @@
 # Extract Elasticsearch artifact
 ################################################################################
 
-FROM docker.elastic.co/wolfi/chainguard-base-fips:latest@sha256:68e0781cd592beda39880428985d5fecca1cf2abb18365da73bf1f7ebd994974 AS builder
+FROM docker.elastic.co/wolfi/chainguard-base-fips:latest@sha256:fa6cb6918686d555f00704265499344202cb1205054bed2263c15bece3b226ec AS builder
 
 # Install required packages to extract the Elasticsearch distribution
 RUN <%= retry.loop(package_manager, "export DEBIAN_FRONTEND=noninteractive && ${package_manager} update && ${package_manager} update && ${package_manager} add --no-cache curl") %>
@@ -103,7 +103,7 @@ WORKDIR /usr/share/elasticsearch/config
 # Add entrypoint
 ################################################################################
 
-FROM docker.elastic.co/wolfi/chainguard-base-fips:latest@sha256:68e0781cd592beda39880428985d5fecca1cf2abb18365da73bf1f7ebd994974
+FROM docker.elastic.co/wolfi/chainguard-base-fips:latest@sha256:fa6cb6918686d555f00704265499344202cb1205054bed2263c15bece3b226ec
 
 RUN <%= retry.loop(package_manager,
           "export DEBIAN_FRONTEND=noninteractive && \n" +
@@ -172,8 +172,10 @@ RUN cat <<EOF > /usr/share/elasticsearch/config/jvm.options.d/fips.options
 -Dorg.bouncycastle.fips.approved_only=true
 -Djava.security.properties=config/fips_java.security
 -Djava.security.policy=config/fips_java.policy
+-Djavax.net.ssl.trustStoreType=BCFKS
 -Djavax.net.ssl.trustStore=config/cacerts.bcfks
 -Djavax.net.ssl.trustStorePassword=passwordcacert
+
 EOF
 
 EXPOSE 9200 9300

@@ -25,6 +25,7 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.SourceOperator;
+import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -52,6 +53,7 @@ public abstract class LuceneOperator extends SourceOperator {
 
     public static final int NO_LIMIT = Integer.MAX_VALUE;
 
+    protected final List<? extends RefCounted> shardContextCounters;
     protected final BlockFactory blockFactory;
 
     /**
@@ -77,7 +79,14 @@ public abstract class LuceneOperator extends SourceOperator {
      */
     long rowsEmitted;
 
-    protected LuceneOperator(BlockFactory blockFactory, int maxPageSize, LuceneSliceQueue sliceQueue) {
+    protected LuceneOperator(
+        List<? extends RefCounted> shardContextCounters,
+        BlockFactory blockFactory,
+        int maxPageSize,
+        LuceneSliceQueue sliceQueue
+    ) {
+        this.shardContextCounters = shardContextCounters;
+        shardContextCounters.forEach(RefCounted::mustIncRef);
         this.blockFactory = blockFactory;
         this.maxPageSize = maxPageSize;
         this.sliceQueue = sliceQueue;
@@ -103,11 +112,18 @@ public abstract class LuceneOperator extends SourceOperator {
             int taskConcurrency,
             int limit,
             boolean needsScore,
-            ScoreMode scoreMode
+            Function<ShardContext, ScoreMode> scoreModeFunction
         ) {
             this.limit = limit;
             this.dataPartitioning = dataPartitioning;
-            this.sliceQueue = LuceneSliceQueue.create(contexts, queryFunction, dataPartitioning, autoStrategy, taskConcurrency, scoreMode);
+            this.sliceQueue = LuceneSliceQueue.create(
+                contexts,
+                queryFunction,
+                dataPartitioning,
+                autoStrategy,
+                taskConcurrency,
+                scoreModeFunction
+            );
             this.taskConcurrency = Math.min(sliceQueue.totalSlices(), taskConcurrency);
             this.needsScore = needsScore;
         }
@@ -138,13 +154,18 @@ public abstract class LuceneOperator extends SourceOperator {
     protected abstract Page getCheckedOutput() throws IOException;
 
     @Override
-    public void close() {}
+    public final void close() {
+        shardContextCounters.forEach(RefCounted::decRef);
+        additionalClose();
+    }
+
+    protected void additionalClose() { /* Override this method to add any additional cleanup logic if needed */ }
 
     LuceneScorer getCurrentOrLoadNextScorer() {
         while (currentScorer == null || currentScorer.isDone()) {
             if (currentSlice == null || sliceIndex >= currentSlice.numLeaves()) {
                 sliceIndex = 0;
-                currentSlice = sliceQueue.nextSlice();
+                currentSlice = sliceQueue.nextSlice(currentSlice);
                 if (currentSlice == null) {
                     doneCollecting = true;
                     return null;

@@ -240,6 +240,7 @@ public class SecurityNetty4Transport extends Netty4Transport {
             SSLEngine serverEngine = sslService.createSSLEngine(configuration, null, -1);
             serverEngine.setUseClientMode(false);
             final SslHandler sslHandler = new SslHandler(serverEngine);
+            sslHandler.setHandshakeTimeoutMillis(configuration.handshakeTimeoutMillis());
             ch.pipeline().addFirst("sslhandler", sslHandler);
             super.initChannel(ch);
             assert ch.pipeline().first() == sslHandler : "SSL handler must be first handler in pipeline";
@@ -340,6 +341,7 @@ public class SecurityNetty4Transport extends Netty4Transport {
             }
             final ChannelPromise connectPromise = ctx.newPromise();
             final SslHandler sslHandler = new SslHandler(sslEngine);
+            sslHandler.setHandshakeTimeoutMillis(sslConfiguration.handshakeTimeoutMillis());
             ctx.pipeline().replace(this, "ssl", sslHandler);
             final Future<?> handshakePromise = sslHandler.handshakeFuture();
             Netty4Utils.addListener(connectPromise, result -> {

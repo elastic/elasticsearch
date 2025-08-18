@@ -36,6 +36,11 @@ class MergeReaderWrapper extends FlatVectorsReader implements OffHeapStats {
         this.mergeReader = mergeReader;
     }
 
+    // For testing
+    FlatVectorsReader getMainReader() {
+        return mainReader;
+    }
+
     @Override
     public RandomVectorScorer getRandomVectorScorer(String field, float[] target) throws IOException {
         return mainReader.getRandomVectorScorer(field, target);

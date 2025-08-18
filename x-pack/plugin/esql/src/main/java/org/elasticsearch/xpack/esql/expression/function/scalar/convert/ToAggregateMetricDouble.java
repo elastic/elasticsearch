@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.convert;
 
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.compute.data.AggregateMetricDoubleArrayBlock;
 import org.elasticsearch.compute.data.AggregateMetricDoubleBlock;
 import org.elasticsearch.compute.data.AggregateMetricDoubleBlockBuilder;
 import org.elasticsearch.compute.data.Block;
@@ -147,7 +148,12 @@ public class ToAggregateMetricDouble extends AbstractConvertFunction {
             try {
                 doubleBlock = valuesBuilder.build().asBlock();
                 countBlock = blockFactory.newConstantIntBlockWith(1, doubleBlock.getPositionCount());
-                AggregateMetricDoubleBlock aggBlock = new AggregateMetricDoubleBlock(doubleBlock, doubleBlock, doubleBlock, countBlock);
+                AggregateMetricDoubleBlock aggBlock = new AggregateMetricDoubleArrayBlock(
+                    doubleBlock,
+                    doubleBlock,
+                    doubleBlock,
+                    countBlock
+                );
                 doubleBlock.incRef();
                 doubleBlock.incRef();
                 success = true;

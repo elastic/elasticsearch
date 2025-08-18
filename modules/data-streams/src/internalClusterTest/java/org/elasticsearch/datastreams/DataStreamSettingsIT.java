@@ -211,7 +211,7 @@ public class DataStreamSettingsIT extends ESIntegTestCase {
                 .getDataStreamSettingsResponses();
             assertThat(dataStreamSettingsResponses.size(), equalTo(testDataStreamNames.size()));
             for (int i = 0; i < testDataStreamNames.size(); i++) {
-                UpdateDataStreamSettingsAction.DataStreamSettingsResponse dataStreamSettingsResponse = dataStreamSettingsResponses.get(0);
+                UpdateDataStreamSettingsAction.DataStreamSettingsResponse dataStreamSettingsResponse = dataStreamSettingsResponses.get(i);
                 assertThat(dataStreamSettingsResponse.dataStreamSucceeded(), equalTo(true));
                 assertThat(dataStreamSettingsResponse.settings().get("index.number_of_shards"), equalTo(Integer.toString(numberOfShards)));
                 assertThat(

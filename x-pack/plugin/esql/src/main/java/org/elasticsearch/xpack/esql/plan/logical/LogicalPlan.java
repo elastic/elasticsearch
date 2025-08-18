@@ -25,6 +25,7 @@ public abstract class LogicalPlan extends QueryPlan<LogicalPlan> implements Reso
         PARSED,
         PRE_ANALYZED,
         ANALYZED,
+        PRE_OPTIMIZED,
         OPTIMIZED;
     }
 
@@ -50,6 +51,14 @@ public abstract class LogicalPlan extends QueryPlan<LogicalPlan> implements Reso
 
     public void setAnalyzed() {
         stage = Stage.ANALYZED;
+    }
+
+    public boolean preOptimized() {
+        return stage.ordinal() >= Stage.PRE_OPTIMIZED.ordinal();
+    }
+
+    public void setPreOptimized() {
+        stage = Stage.PRE_OPTIMIZED;
     }
 
     public boolean optimized() {

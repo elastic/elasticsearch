@@ -68,6 +68,7 @@ public class EmptyStateIndexRemoverTests extends ESTestCase {
     public void verifyNoOtherInteractionsWithMocks() {
         verify(client).settings();
         verify(client, atLeastOnce()).threadPool();
+        verify(client).projectResolver();
         verify(listener, Mockito.atLeast(0)).delegateFailureAndWrap(any());
         verifyNoMoreInteractions(client, listener);
     }

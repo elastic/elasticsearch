@@ -28,7 +28,7 @@ import static org.elasticsearch.xpack.inference.external.response.XContentUtils.
 
 public class IbmWatsonxEmbeddingsResponseEntity {
 
-    private static final String FAILED_TO_FIND_FIELD_TEMPLATE = "Failed to find required field [%s] in IBM Watsonx embeddings response";
+    private static final String FAILED_TO_FIND_FIELD_TEMPLATE = "Failed to find required field [%s] in IBM watsonx embeddings response";
 
     public static TextEmbeddingFloatResults fromResponse(Request request, HttpResult response) throws IOException {
         var parserConfig = XContentParserConfiguration.EMPTY.withDeprecationHandler(LoggingDeprecationHandler.INSTANCE);

@@ -213,6 +213,7 @@ module org.elasticsearch.server {
     exports org.elasticsearch.common.regex;
     exports org.elasticsearch.common.scheduler;
     exports org.elasticsearch.common.settings;
+    exports org.elasticsearch.common.streams;
     exports org.elasticsearch.common.text;
     exports org.elasticsearch.common.time;
     exports org.elasticsearch.common.transport;
@@ -425,12 +426,15 @@ module org.elasticsearch.server {
             org.elasticsearch.action.bulk.BulkFeatures,
             org.elasticsearch.features.InfrastructureFeatures,
             org.elasticsearch.rest.action.admin.cluster.ClusterRerouteFeatures,
+            org.elasticsearch.rest.action.admin.cluster.GetSnapshotsFeatures,
             org.elasticsearch.index.mapper.MapperFeatures,
             org.elasticsearch.index.IndexFeatures,
             org.elasticsearch.search.SearchFeatures,
+            org.elasticsearch.synonyms.SynonymFeatures,
             org.elasticsearch.script.ScriptFeatures,
             org.elasticsearch.search.retriever.RetrieversFeatures,
-            org.elasticsearch.action.admin.cluster.stats.ClusterStatsFeatures;
+            org.elasticsearch.action.admin.cluster.stats.ClusterStatsFeatures,
+            org.elasticsearch.ingest.IngestFeatures;
 
     uses org.elasticsearch.plugins.internal.SettingsExtension;
     uses RestExtension;
@@ -474,11 +478,12 @@ module org.elasticsearch.server {
             org.elasticsearch.serverless.apifiltering;
     exports org.elasticsearch.lucene.spatial;
     exports org.elasticsearch.inference.configuration;
+    exports org.elasticsearch.inference.validation;
     exports org.elasticsearch.monitor.metrics;
     exports org.elasticsearch.plugins.internal.rewriter to org.elasticsearch.inference;
     exports org.elasticsearch.lucene.util.automaton;
     exports org.elasticsearch.index.codec.perfield;
-    exports org.elasticsearch.lucene.search;
     exports org.elasticsearch.index.codec.vectors to org.elasticsearch.test.knn;
     exports org.elasticsearch.index.codec.vectors.es818 to org.elasticsearch.test.knn;
+    exports org.elasticsearch.inference.telemetry;
 }

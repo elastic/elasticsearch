@@ -40,6 +40,9 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
+import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
@@ -68,7 +71,6 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
-import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.oneOf;
@@ -463,34 +465,6 @@ public class RestEsqlIT extends RestEsqlTestCase {
         assertThat(((List<String>) driverSliceArgs.get("operators")), not(empty()));
     }
 
-    public void testProfileOrdinalsGroupingOperator() throws IOException {
-        assumeTrue("requires pragmas", Build.current().isSnapshot());
-        indexTimestampData(1);
-
-        RequestObjectBuilder builder = requestObjectBuilder().query(fromIndex() + " | STATS AVG(value) BY test.keyword");
-        builder.profile(true);
-        // Lock to shard level partitioning, so we get consistent profile output
-        builder.pragmas(Settings.builder().put("data_partitioning", "shard").build());
-        Map<String, Object> result = runEsql(builder);
-
-        List<List<String>> signatures = new ArrayList<>();
-        @SuppressWarnings("unchecked")
-        List<Map<String, Object>> profiles = (List<Map<String, Object>>) ((Map<String, Object>) result.get("profile")).get("drivers");
-        for (Map<String, Object> p : profiles) {
-            fixTypesOnProfile(p);
-            assertThat(p, commonProfile());
-            List<String> sig = new ArrayList<>();
-            @SuppressWarnings("unchecked")
-            List<Map<String, Object>> operators = (List<Map<String, Object>>) p.get("operators");
-            for (Map<String, Object> o : operators) {
-                sig.add((String) o.get("operator"));
-            }
-            signatures.add(sig);
-        }
-
-        assertThat(signatures, hasItem(hasItem("OrdinalsGroupingOperator[aggregators=[\"sum of longs\", \"count\"]]")));
-    }
-
     @AwaitsFix(bugUrl = "disabled until JOIN infrastructrure properly lands")
     public void testInlineStatsProfile() throws IOException {
         assumeTrue("INLINESTATS only available on snapshots", Build.current().isSnapshot());
@@ -786,6 +760,117 @@ public class RestEsqlIT extends RestEsqlTestCase {
         }
     }
 
+    public void testDateMathIndexPattern() throws IOException {
+        ZonedDateTime now = ZonedDateTime.now(ZoneOffset.UTC);
+
+        String[] indices = {
+            "test-index-" + DateTimeFormatter.ofPattern("yyyy", Locale.ROOT).format(now),
+            "test-index-" + DateTimeFormatter.ofPattern("yyyy", Locale.ROOT).format(now.minusYears(1)),
+            "test-index-" + DateTimeFormatter.ofPattern("yyyy", Locale.ROOT).format(now.minusYears(2)) };
+
+        int idx = 0;
+        for (String index : indices) {
+            createIndex(index);
+            for (int i = 0; i < 10; i++) {
+                Request request = new Request("POST", "/" + index + "/_doc/");
+                request.addParameter("refresh", "true");
+                request.setJsonEntity("{\"f\":" + idx++ + "}");
+                assertOK(client().performRequest(request));
+            }
+        }
+
+        String query = """
+            {
+                "query": "from <test-index-{now/d{yyyy}}> | sort f asc | limit 1 | keep f"
+            }
+            """;
+        Request request = new Request("POST", "/_query");
+        request.setJsonEntity(query);
+        Response resp = client().performRequest(request);
+        Map<String, Object> results = entityAsMap(resp);
+        List<?> values = (List<?>) results.get("values");
+        assertThat(values.size(), is(1));
+        List<?> row = (List<?>) values.get(0);
+        assertThat(row.get(0), is(0));
+
+        query = """
+            {
+                "query": "from <test-index-{now/d-1y{yyyy}}> | sort f asc | limit 1 | keep f"
+            }
+            """;
+        request = new Request("POST", "/_query");
+        request.setJsonEntity(query);
+        resp = client().performRequest(request);
+        results = entityAsMap(resp);
+        values = (List<?>) results.get("values");
+        assertThat(values.size(), is(1));
+        row = (List<?>) values.get(0);
+        assertThat(row.get(0), is(10));
+
+        for (String index : indices) {
+            assertThat(deleteIndex(index).isAcknowledged(), is(true)); // clean up
+        }
+    }
+
+    public void testDateMathInJoin() throws IOException {
+        ZonedDateTime now = ZonedDateTime.now(ZoneOffset.UTC);
+
+        createIndex("idx", Settings.EMPTY, """
+            {
+                "properties": {
+                    "key": {
+                        "type": "keyword"
+                    }
+                }
+            }
+            """);
+
+        Request request = new Request("POST", "/idx/_doc/");
+        request.addParameter("refresh", "true");
+        request.setJsonEntity("{\"key\":\"foo\"}");
+        assertOK(client().performRequest(request));
+
+        String[] lookupIndices = {
+            "lookup-index-" + DateTimeFormatter.ofPattern("yyyy", Locale.ROOT).format(now),
+            "lookup-index-" + DateTimeFormatter.ofPattern("yyyy", Locale.ROOT).format(now.minusYears(1)) };
+
+        for (String index : lookupIndices) {
+            createIndex(index, Settings.builder().put("mode", "lookup").build(), """
+                {
+                    "properties": {
+                        "key": {
+                            "type": "keyword"
+                        }
+                    }
+                }
+                """);
+            request = new Request("POST", "/" + index + "/_doc/");
+            request.addParameter("refresh", "true");
+            request.setJsonEntity("{\"key\":\"foo\", \"value\": \"" + index + "\"}");
+            assertOK(client().performRequest(request));
+        }
+
+        String[] queries = {
+            "from idx | lookup join <lookup-index-{now/d{yyyy}}> on key | limit 1",
+            "from idx | lookup join <lookup-index-{now/d-1y{yyyy}}> on key | limit 1" };
+        for (int i = 0; i < queries.length; i++) {
+            String queryPayload = "{\"query\": \"" + queries[i] + "\"}";
+            request = new Request("POST", "/_query");
+            request.setJsonEntity(queryPayload);
+            Response resp = client().performRequest(request);
+            Map<String, Object> results = entityAsMap(resp);
+            List<?> values = (List<?>) results.get("values");
+            assertThat(values.size(), is(1));
+            List<?> row = (List<?>) values.get(0);
+            assertThat(row.get(1), is(lookupIndices[i]));
+        }
+
+        assertThat(deleteIndex("idx").isAcknowledged(), is(true)); // clean up
+        for (String index : lookupIndices) {
+            assertThat(deleteIndex(index).isAcknowledged(), is(true)); // clean up
+        }
+    }
+
     static MapMatcher commonProfile() {
         return matchesMap() //
             .entry("description", any(String.class))
@@ -829,7 +914,9 @@ public class RestEsqlIT extends RestEsqlTestCase {
                 .entry("process_nanos", greaterThan(0))
                 .entry("processed_queries", List.of("*:*"))
                 .entry("partitioning_strategies", matchesMap().entry("rest-esql-test:0", "SHARD"));
-            case "ValuesSourceReaderOperator" -> basicProfile().entry("values_loaded", greaterThanOrEqualTo(0))
+            case "ValuesSourceReaderOperator" -> basicProfile().entry("pages_received", greaterThan(0))
+                .entry("pages_emitted", greaterThan(0))
+                .entry("values_loaded", greaterThanOrEqualTo(0))
                 .entry("readers_built", matchesMap().extraOk());
             case "AggregationOperator" -> matchesMap().entry("pages_processed", greaterThan(0))
                 .entry("rows_received", greaterThan(0))
@@ -840,7 +927,7 @@ public class RestEsqlIT extends RestEsqlTestCase {
             case "ExchangeSourceOperator" -> matchesMap().entry("pages_waiting", 0)
                 .entry("pages_emitted", greaterThan(0))
                 .entry("rows_emitted", greaterThan(0));
-            case "ProjectOperator", "EvalOperator" -> basicProfile();
+            case "ProjectOperator", "EvalOperator" -> basicProfile().entry("pages_processed", greaterThan(0));
             case "LimitOperator" -> matchesMap().entry("pages_processed", greaterThan(0))
                 .entry("limit", 1000)
                 .entry("limit_remaining", 999)
@@ -876,8 +963,7 @@ public class RestEsqlIT extends RestEsqlTestCase {
     }
 
     private MapMatcher basicProfile() {
-        return matchesMap().entry("pages_processed", greaterThan(0))
-            .entry("process_nanos", greaterThan(0))
+        return matchesMap().entry("process_nanos", greaterThan(0))
             .entry("rows_received", greaterThan(0))
             .entry("rows_emitted", greaterThan(0));
     }

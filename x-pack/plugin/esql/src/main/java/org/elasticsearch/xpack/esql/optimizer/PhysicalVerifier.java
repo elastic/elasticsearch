@@ -20,24 +20,27 @@ import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import static org.elasticsearch.xpack.esql.common.Failure.fail;
 
 /** Physical plan verifier. */
-public final class PhysicalVerifier {
+public final class PhysicalVerifier extends PostOptimizationPhasePlanVerifier<PhysicalPlan> {
 
     public static final PhysicalVerifier INSTANCE = new PhysicalVerifier();
 
     private PhysicalVerifier() {}
 
-    /** Verifies the physical plan. */
-    public Failures verify(PhysicalPlan plan) {
-        Failures failures = new Failures();
-        Failures depFailures = new Failures();
-
-        // AwaitsFix https://github.com/elastic/elasticsearch/issues/118531
-        var enriches = plan.collectFirstChildren(EnrichExec.class::isInstance);
-        if (enriches.isEmpty() == false && ((EnrichExec) enriches.get(0)).mode() == Enrich.Mode.REMOTE) {
-            return failures;
+    @Override
+    boolean skipVerification(PhysicalPlan optimizedPlan, boolean skipRemoteEnrichVerification) {
+        if (skipRemoteEnrichVerification) {
+            // AwaitsFix https://github.com/elastic/elasticsearch/issues/118531
+            var enriches = optimizedPlan.collectFirstChildren(EnrichExec.class::isInstance);
+            if (enriches.isEmpty() == false && ((EnrichExec) enriches.get(0)).mode() == Enrich.Mode.REMOTE) {
+                return true;
+            }
         }
+        return false;
+    }
 
-        plan.forEachDown(p -> {
+    @Override
+    void checkPlanConsistency(PhysicalPlan optimizedPlan, Failures failures, Failures depFailures) {
+        optimizedPlan.forEachDown(p -> {
             if (p instanceof FieldExtractExec fieldExtractExec) {
                 Attribute sourceAttribute = fieldExtractExec.sourceAttribute();
                 if (sourceAttribute == null) {
@@ -64,11 +67,5 @@ public final class PhysicalVerifier {
                 });
             }
         });
-
-        if (depFailures.hasFailures()) {
-            throw new IllegalStateException(depFailures.toString());
-        }
-
-        return failures;
     }
 }

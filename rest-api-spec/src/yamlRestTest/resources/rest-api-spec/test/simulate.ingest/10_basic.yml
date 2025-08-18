@@ -748,3 +748,42 @@ setup:
   - match: { docs.1.doc._index: "index-2" }
   - match: { docs.1.doc._source.foo: "rab" }
   - match: { docs.1.doc.executed_pipelines: ["my-pipeline"] }
+
+---
+"Test simulate with pipeline with created_date":
+  - requires:
+        test_runner_features: capabilities
+        capabilities:
+          - method: PUT
+            path: /_ingest/pipeline/{id}
+            capabilities: [ pipeline_tracking_info ]
+        reason: "Pipelines have tracking info: modified_date and created_date"
+  - requires:
+      test_runner_features: contains
+  - skip:
+      features: headers
+  - do:
+      catch: request
+      headers:
+        Content-Type: application/json
+      simulate.ingest:
+        pipeline: "my_pipeline"
+        body: >
+          {
+            "docs": [
+              {
+                "_index": "index-1",
+                "_source": {
+                  "foo": "bar"
+                }
+              }
+            ],
+            "pipeline_substitutions": {
+              "my_pipeline": {
+                "processors": [],
+                "created_date": "asd"
+              }
+            }
+          }
+  - match: { status: 500 }
+  - contains: { error.reason: "Provided a pipeline property which is managed by the system: created_date." }

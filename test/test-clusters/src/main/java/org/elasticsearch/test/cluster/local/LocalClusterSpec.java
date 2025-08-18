@@ -212,7 +212,12 @@ public class LocalClusterSpec implements ClusterSpec {
         }
 
         public boolean isSecurityEnabled() {
-            return Boolean.parseBoolean(getSetting("xpack.security.enabled", getVersion().onOrAfter("8.0.0") ? "true" : "false"));
+            return Boolean.parseBoolean(
+                getSetting(
+                    "xpack.security.enabled",
+                    getVersion().equals(Version.fromString("0.0.0")) || getVersion().onOrAfter("8.0.0") ? "true" : "false"
+                )
+            );
         }
 
         public boolean isRemoteClusterServerEnabled() {

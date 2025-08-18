@@ -35,13 +35,29 @@ public class UnsupportedEsField extends EsField {
     }
 
     public UnsupportedEsField(String name, List<String> originalTypes, String inherited, Map<String, EsField> properties) {
-        super(name, DataType.UNSUPPORTED, properties, false);
+        this(name, originalTypes, inherited, properties, TimeSeriesFieldType.UNKNOWN);
+    }
+
+    public UnsupportedEsField(
+        String name,
+        List<String> originalTypes,
+        String inherited,
+        Map<String, EsField> properties,
+        TimeSeriesFieldType timeSeriesFieldType
+    ) {
+        super(name, DataType.UNSUPPORTED, properties, false, timeSeriesFieldType);
         this.originalTypes = originalTypes;
         this.inherited = inherited;
     }
 
     public UnsupportedEsField(StreamInput in) throws IOException {
-        this(readCachedStringWithVersionCheck(in), readOriginalTypes(in), in.readOptionalString(), in.readImmutableMap(EsField::readFrom));
+        this(
+            readCachedStringWithVersionCheck(in),
+            readOriginalTypes(in),
+            in.readOptionalString(),
+            in.readImmutableMap(EsField::readFrom),
+            readTimeSeriesFieldType(in)
+        );
     }
 
     private static List<String> readOriginalTypes(StreamInput in) throws IOException {
@@ -64,6 +80,7 @@ public class UnsupportedEsField extends EsField {
         }
         out.writeOptionalString(getInherited());
         out.writeMap(getProperties(), (o, x) -> x.writeTo(out));
+        writeTimeSeriesFieldType(out);
     }
 
     public String getWriteableName() {

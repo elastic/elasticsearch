@@ -18,6 +18,7 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchResponseUtils;
@@ -647,7 +648,7 @@ public class RemoteClusterSecurityRestIT extends AbstractRemoteClusterSecurityTe
             // remote cluster is not reported in transport profiles
             assertThat(ObjectPath.eval("transport.profiles", node), anEmptyMap());
 
-            if (Boolean.parseBoolean(ObjectPath.eval("settings.remote_cluster_server.enabled", node))) {
+            if (Booleans.parseBoolean(ObjectPath.eval("settings.remote_cluster_server.enabled", node))) {
                 numberOfRemoteClusterServerNodes += 1;
                 final List<String> boundAddresses = ObjectPath.eval("remote_cluster_server.bound_address", node);
                 assertThat(boundAddresses, notNullValue());

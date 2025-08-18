@@ -10,12 +10,10 @@ package org.elasticsearch.xpack.inference.services.custom;
 import org.apache.http.HttpHeaders;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.inference.services.custom.response.CustomResponseParser;
-import org.elasticsearch.xpack.inference.services.custom.response.ErrorResponseParser;
 import org.elasticsearch.xpack.inference.services.custom.response.TextEmbeddingResponseParser;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 import org.hamcrest.MatcherAssert;
@@ -94,7 +92,10 @@ public class CustomModelTests extends ESTestCase {
     }
 
     public static CustomModel getTestModel() {
-        return getTestModel(TaskType.TEXT_EMBEDDING, new TextEmbeddingResponseParser("$.result.embeddings[*].embedding"));
+        return getTestModel(
+            TaskType.TEXT_EMBEDDING,
+            new TextEmbeddingResponseParser("$.result.embeddings[*].embedding", CustomServiceEmbeddingType.FLOAT)
+        );
     }
 
     public static CustomModel getTestModel(TaskType taskType, CustomResponseParser responseParser) {
@@ -109,19 +110,13 @@ public class CustomModelTests extends ESTestCase {
         String requestContentString = "\"input\":\"${input}\"";
 
         CustomServiceSettings serviceSettings = new CustomServiceSettings(
-            new CustomServiceSettings.TextEmbeddingSettings(
-                SimilarityMeasure.DOT_PRODUCT,
-                dims,
-                maxInputTokens,
-                DenseVectorFieldMapper.ElementType.FLOAT
-            ),
+            new CustomServiceSettings.TextEmbeddingSettings(SimilarityMeasure.DOT_PRODUCT, dims, maxInputTokens),
             url,
             headers,
             QueryParameters.EMPTY,
             requestContentString,
             responseParser,
-            new RateLimitSettings(10_000),
-            new ErrorResponseParser("$.error.message", inferenceId)
+            new RateLimitSettings(10_000)
         );
 
         CustomTaskSettings taskSettings = new CustomTaskSettings(Map.of(taskSettingsKey, taskSettingsValue));

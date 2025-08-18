@@ -42,15 +42,9 @@ public class LimitGenerator implements CommandGenerator {
         List<List<Object>> output
     ) {
         int limit = (int) commandDescription.context().get(LIMIT);
-        boolean defaultLimit = false;
-        for (CommandDescription previousCommand : previousCommands) {
-            if (previousCommand.commandName().equals(LIMIT)) {
-                defaultLimit = true;
-            }
-        }
 
-        if (previousOutput.size() > limit && output.size() != limit || defaultLimit && previousOutput.size() < output.size()) {
-            return new ValidationResult(false, "Expecting [" + limit + "] records, got [" + output.size() + "]");
+        if (output.size() > limit) {
+            return new ValidationResult(false, "Expecting at most [" + limit + "] records, got [" + output.size() + "]");
         }
         return CommandGenerator.expectSameColumns(previousColumns, columns);
     }

@@ -14,7 +14,7 @@ import org.elasticsearch.action.admin.indices.segments.IndicesSegmentResponse;
 import org.elasticsearch.action.admin.indices.segments.ShardSegments;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.engine.Segment;
@@ -103,7 +103,8 @@ public class SegmentCountStepTests extends AbstractStepTestCase<SegmentCountStep
 
         SegmentCountStep step = new SegmentCountStep(stepKey, nextStepKey, client, maxNumSegments);
         IndexMetadata indexMetadata = makeMeta(index);
-        step.evaluateCondition(Metadata.builder().put(indexMetadata, true).build(), indexMetadata.getIndex(), new AsyncWaitStep.Listener() {
+        final var state = projectStateFromProject(ProjectMetadata.builder(randomProjectIdOrDefault()).put(indexMetadata, true));
+        step.evaluateCondition(state, indexMetadata.getIndex(), new AsyncWaitStep.Listener() {
             @Override
             public void onResponse(boolean conditionMet, ToXContentObject info) {
                 conditionMetResult.set(conditionMet);
@@ -155,7 +156,8 @@ public class SegmentCountStepTests extends AbstractStepTestCase<SegmentCountStep
 
         SegmentCountStep step = new SegmentCountStep(stepKey, nextStepKey, client, maxNumSegments);
         IndexMetadata indexMetadata = makeMeta(index);
-        step.evaluateCondition(Metadata.builder().put(indexMetadata, true).build(), indexMetadata.getIndex(), new AsyncWaitStep.Listener() {
+        final var state = projectStateFromProject(ProjectMetadata.builder(randomProjectIdOrDefault()).put(indexMetadata, true));
+        step.evaluateCondition(state, indexMetadata.getIndex(), new AsyncWaitStep.Listener() {
             @Override
             public void onResponse(boolean conditionMet, ToXContentObject info) {
                 conditionMetResult.set(conditionMet);
@@ -212,7 +214,8 @@ public class SegmentCountStepTests extends AbstractStepTestCase<SegmentCountStep
 
         SegmentCountStep step = new SegmentCountStep(stepKey, nextStepKey, client, maxNumSegments);
         IndexMetadata indexMetadata = makeMeta(index);
-        step.evaluateCondition(Metadata.builder().put(indexMetadata, true).build(), indexMetadata.getIndex(), new AsyncWaitStep.Listener() {
+        final var state = projectStateFromProject(ProjectMetadata.builder(randomProjectIdOrDefault()).put(indexMetadata, true));
+        step.evaluateCondition(state, indexMetadata.getIndex(), new AsyncWaitStep.Listener() {
             @Override
             public void onResponse(boolean conditionMet, ToXContentObject info) {
                 conditionMetResult.set(conditionMet);
@@ -249,7 +252,8 @@ public class SegmentCountStepTests extends AbstractStepTestCase<SegmentCountStep
 
         SegmentCountStep step = new SegmentCountStep(stepKey, nextStepKey, client, maxNumSegments);
         IndexMetadata indexMetadata = makeMeta(index);
-        step.evaluateCondition(Metadata.builder().put(indexMetadata, true).build(), indexMetadata.getIndex(), new AsyncWaitStep.Listener() {
+        final var state = projectStateFromProject(ProjectMetadata.builder(randomProjectIdOrDefault()).put(indexMetadata, true));
+        step.evaluateCondition(state, indexMetadata.getIndex(), new AsyncWaitStep.Listener() {
             @Override
             public void onResponse(boolean conditionMet, ToXContentObject info) {
                 throw new AssertionError("unexpected method call");

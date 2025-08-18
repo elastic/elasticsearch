@@ -398,7 +398,7 @@ public final class SnapshotShardsService extends AbstractLifecycleComponent impl
             newSnapshotShards.put(shardId, snapshotStatus);
             final IndexId indexId = entry.indices().get(shardId.getIndexName());
             assert indexId != null;
-            assert SnapshotsService.useShardGenerations(entry.version())
+            assert SnapshotsServiceUtils.useShardGenerations(entry.version())
                 || ShardGenerations.fixShardGeneration(snapshotStatus.generation()) == null
                 : "Found non-null, non-numeric shard generation ["
                     + snapshotStatus.generation()
@@ -411,6 +411,7 @@ public final class SnapshotShardsService extends AbstractLifecycleComponent impl
                 entry.version(),
                 entry.startTime()
             );
+            snapshotStatus.updateStatusDescription("shard snapshot enqueuing to start");
             startShardSnapshotTaskRunner.enqueueTask(new ActionListener<>() {
                 @Override
                 public void onResponse(Releasable releasable) {
@@ -429,7 +430,6 @@ public final class SnapshotShardsService extends AbstractLifecycleComponent impl
                     assert false : wrapperException; // impossible
                 }
             });
-            snapshotStatus.updateStatusDescription("shard snapshot enqueued to start");
         }
 
         // apply some backpressure by reserving one SNAPSHOT thread for the startup work
@@ -605,7 +605,7 @@ public final class SnapshotShardsService extends AbstractLifecycleComponent impl
                 throw new IndexShardSnapshotFailedException(shardId, "shard didn't fully recover yet");
             }
 
-            final Repository repository = repositoriesService.repository(snapshot.getRepository());
+            final Repository repository = repositoriesService.repository(snapshot.getProjectId(), snapshot.getRepository());
             SnapshotIndexCommit snapshotIndexCommit = null;
             try {
                 snapshotStatus.updateStatusDescription("acquiring commit reference from IndexShard: triggers a shard flush");
@@ -905,7 +905,7 @@ public final class SnapshotShardsService extends AbstractLifecycleComponent impl
             updateResultListener,
             (req, reqListener) -> transportService.sendRequest(
                 transportService.getLocalNode(),
-                SnapshotsService.UPDATE_SNAPSHOT_STATUS_ACTION_NAME,
+                TransportUpdateSnapshotStatusAction.NAME,
                 req,
                 new ActionListenerResponseHandler<>(
                     reqListener.map(res -> null),

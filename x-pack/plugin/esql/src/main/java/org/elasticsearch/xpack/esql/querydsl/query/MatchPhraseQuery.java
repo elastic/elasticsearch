@@ -108,4 +108,9 @@ public class MatchPhraseQuery extends Query {
     public boolean scorable() {
         return true;
     }
+
+    @Override
+    public boolean containsPlan() {
+        return false;
+    }
 }

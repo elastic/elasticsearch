@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.spatial;
 import java.lang.IllegalArgumentException;
 import java.lang.Override;
 import java.lang.String;
+import java.util.function.Function;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.LongBlock;
@@ -72,7 +73,7 @@ public final class StGeohashFromFieldAndLiteralAndLiteralEvaluator implements Ev
 
   @Override
   public String toString() {
-    return "StGeohashFromFieldAndLiteralAndLiteralEvaluator[" + "in=" + in + ", bounds=" + bounds + "]";
+    return "StGeohashFromFieldAndLiteralAndLiteralEvaluator[" + "in=" + in + "]";
   }
 
   @Override
@@ -97,10 +98,10 @@ public final class StGeohashFromFieldAndLiteralAndLiteralEvaluator implements Ev
 
     private final EvalOperator.ExpressionEvaluator.Factory in;
 
-    private final StGeohash.GeoHashBoundedGrid bounds;
+    private final Function<DriverContext, StGeohash.GeoHashBoundedGrid> bounds;
 
     public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory in,
-        StGeohash.GeoHashBoundedGrid bounds) {
+        Function<DriverContext, StGeohash.GeoHashBoundedGrid> bounds) {
       this.source = source;
       this.in = in;
       this.bounds = bounds;
@@ -108,12 +109,12 @@ public final class StGeohashFromFieldAndLiteralAndLiteralEvaluator implements Ev
 
     @Override
     public StGeohashFromFieldAndLiteralAndLiteralEvaluator get(DriverContext context) {
-      return new StGeohashFromFieldAndLiteralAndLiteralEvaluator(source, in.get(context), bounds, context);
+      return new StGeohashFromFieldAndLiteralAndLiteralEvaluator(source, in.get(context), bounds.apply(context), context);
     }
 
     @Override
     public String toString() {
-      return "StGeohashFromFieldAndLiteralAndLiteralEvaluator[" + "in=" + in + ", bounds=" + bounds + "]";
+      return "StGeohashFromFieldAndLiteralAndLiteralEvaluator[" + "in=" + in + "]";
     }
   }
 }

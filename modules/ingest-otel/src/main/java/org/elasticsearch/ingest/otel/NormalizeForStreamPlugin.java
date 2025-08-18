@@ -9,6 +9,7 @@
 
 package org.elasticsearch.ingest.otel;
 
+import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.ingest.Processor;
 import org.elasticsearch.plugins.IngestPlugin;
 import org.elasticsearch.plugins.Plugin;
@@ -19,6 +20,10 @@ public class NormalizeForStreamPlugin extends Plugin implements IngestPlugin {
 
     @Override
     public Map<String, Processor.Factory> getProcessors(Processor.Parameters parameters) {
-        return Map.of(NormalizeForStreamProcessor.TYPE, new NormalizeForStreamProcessor.Factory());
+        if (DataStream.LOGS_STREAM_FEATURE_FLAG) {
+            return Map.of(NormalizeForStreamProcessor.TYPE, new NormalizeForStreamProcessor.Factory());
+        } else {
+            return Map.of();
+        }
     }
 }

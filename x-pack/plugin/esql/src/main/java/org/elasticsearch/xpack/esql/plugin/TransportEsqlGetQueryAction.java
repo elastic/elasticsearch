@@ -49,7 +49,7 @@ public class TransportEsqlGetQueryAction extends HandledTransportAction<EsqlGetQ
             nodeClient,
             ESQL_ORIGIN,
             TransportGetTaskAction.TYPE,
-            new GetTaskRequest().setTaskId(request.id()),
+            new GetTaskRequest().setTaskId(request.id().getTaskId()),
             new ActionListener<>() {
                 @Override
                 public void onResponse(GetTaskResponse response) {
@@ -64,7 +64,7 @@ public class TransportEsqlGetQueryAction extends HandledTransportAction<EsqlGetQ
                         TransportListTasksAction.TYPE,
                         new ListTasksRequest().setDetailed(true)
                             .setActions(DriverTaskRunner.ACTION_NAME)
-                            .setTargetParentTaskId(request.id()),
+                            .setTargetParentTaskId(request.id().getTaskId()),
                         new ActionListener<>() {
                             @Override
                             public void onResponse(ListTasksResponse response) {
@@ -91,7 +91,6 @@ public class TransportEsqlGetQueryAction extends HandledTransportAction<EsqlGetQ
 
     private static EsqlGetQueryResponse.DetailedQuery toDetailedQuery(TaskInfo main, ListTasksResponse sub) {
         String query = main.description();
-        String coordinatingNode = main.node();
 
         // TODO include completed drivers in documentsFound and valuesLoaded
         long documentsFound = 0;
@@ -110,9 +109,7 @@ public class TransportEsqlGetQueryAction extends HandledTransportAction<EsqlGetQ
             main.runningTimeNanos(),
             documentsFound,
             valuesLoaded,
-            query,
-            coordinatingNode,
-            sub.getTasks().stream().map(TaskInfo::node).distinct().toList() // Data nodes
+            query
         );
     }
 }

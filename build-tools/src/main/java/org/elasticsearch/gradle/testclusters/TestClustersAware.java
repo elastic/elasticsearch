@@ -88,12 +88,4 @@ public interface TestClustersAware extends Task {
             }
         }
     }
-
-    default void enableEntitlements() {
-        for (ElasticsearchCluster cluster : getClusters()) {
-            for (ElasticsearchNode node : cluster.getNodes()) {
-                node.cliJvmArgs("-Des.entitlements.enabled=true");
-            }
-        }
-    }
 }

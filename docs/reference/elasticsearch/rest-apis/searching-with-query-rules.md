@@ -18,13 +18,13 @@ $$$query-rules$$$
 * A referring site
 * etc.
 
-Query rules define a metadata key that will be used to match the metadata provided in the [rule retriever](/reference/elasticsearch/rest-apis/retrievers.md#rule-retriever) with the criteria specified in the rule.
+Query rules define a metadata key that will be used to match the metadata provided in the [rule retriever](/reference/elasticsearch/rest-apis/retrievers/rule-retriever.md) with the criteria specified in the rule.
 
 When a query rule matches the rule metadata according to its defined criteria, the query rule action is applied to the underlying `organic` query.
 
 For example, a query rule could be defined to match a user-entered query string of `pugs` and a country `us` and promote adoptable shelter dogs if the rule query met both criteria.
 
-Rules are defined using the [query rules API](https://www.elastic.co/docs/api/doc/elasticsearch/group/endpoint-query_rules) and searched using the [rule retriever](/reference/elasticsearch/rest-apis/retrievers.md#rule-retriever) or the [rule query](/reference/query-languages/query-dsl/query-dsl-rule-query.md).
+Rules are defined using the [query rules API](https://www.elastic.co/docs/api/doc/elasticsearch/group/endpoint-query_rules) and searched using the [rule retriever](/reference/elasticsearch/rest-apis/retrievers/rule-retriever.md) or the [rule query](/reference/query-languages/query-dsl/query-dsl-rule-query.md).
 
 
 ## Rule definition [query-rule-definition]
@@ -148,7 +148,7 @@ You can use the [Get query ruleset](https://www.elastic.co/docs/api/doc/elastics
 
 ## Search using query rules [rule-query-search]
 
-Once you have defined one or more query rulesets, you can search using these rulesets using the [rule retriever](/reference/elasticsearch/rest-apis/retrievers.md#rule-retriever) or the [rule query](/reference/query-languages/query-dsl/query-dsl-rule-query.md). Retrievers are the recommended way to use rule queries, as they will work out of the box with other reranking retrievers such as [Reciprocal rank fusion](/reference/elasticsearch/rest-apis/reciprocal-rank-fusion.md).
+Once you have defined one or more query rulesets, you can search using these rulesets using the [rule retriever](/reference/elasticsearch/rest-apis/retrievers/rule-retriever.md) or the [rule query](/reference/query-languages/query-dsl/query-dsl-rule-query.md). Retrievers are the recommended way to use rule queries, as they will work out of the box with other reranking retrievers such as [Reciprocal rank fusion](/reference/elasticsearch/rest-apis/reciprocal-rank-fusion.md).
 
 Rulesets are evaluated in order, so rules in the first ruleset you specify will be applied before any subsequent rulesets.
 
@@ -186,7 +186,7 @@ It’s possible to have multiple rules in a ruleset match a single [rule query](
 * If multiple documents are specified in a single rule, in the order they are specified
 * If a document is matched by both a `pinned` rule and an `exclude` rule, the `exclude` rule will take precedence
 
-You can specify reranking retrievers such as [rrf](/reference/elasticsearch/rest-apis/retrievers.md#rrf-retriever) or [text_similarity_reranker](/reference/elasticsearch/rest-apis/retrievers.md#text-similarity-reranker-retriever) in the rule query to apply query rules on already-reranked results. Here is an example:
+You can specify reranking retrievers such as [rrf](/reference/elasticsearch/rest-apis/retrievers/rrf-retriever.md) or [text_similarity_reranker](/reference/elasticsearch/rest-apis/retrievers/text-similarity-reranker-retriever.md) in the rule query to apply query rules on already-reranked results. Here is an example:
 
 ```console
 GET my-index-000001/_search

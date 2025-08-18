@@ -1,5 +1,5 @@
 pr: 130337
-summary: Add `XmlProcessor` initial implementation
+summary: Add `xml` ingest processor for parsing XML
 area: Ingest Node
 type: enhancement
 issues:

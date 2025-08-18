@@ -17,6 +17,7 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.core.UpdateForV10;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
@@ -28,7 +29,13 @@ public class TransportGetSnapshotLifecycleStatsAction extends TransportLocalProj
     GetSnapshotLifecycleStatsAction.Request,
     GetSnapshotLifecycleStatsAction.Response> {
 
+    /**
+     * This was a TransportMasterNodeAction so for BwC it must be registered with the TransportService until
+     * we no longer need to support calling this action remotely.
+     */
+    @UpdateForV10(owner = UpdateForV10.Owner.DATA_MANAGEMENT)
     @Inject
+    @SuppressWarnings("this-escape")
     public TransportGetSnapshotLifecycleStatsAction(
         TransportService transportService,
         ClusterService clusterService,

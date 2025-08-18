@@ -9,6 +9,8 @@
 
 package org.elasticsearch.action.search;
 
+import com.carrotsearch.randomizedtesting.annotations.Repeat;
+
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.ScoreMode;
 import org.elasticsearch.TransportVersion;
@@ -446,8 +448,8 @@ public class TransportSearchIT extends ESIntegTestCase {
         );
     }
 
+    @Repeat(iterations = 100)
     public void testCircuitBreakerReduceFail() throws Exception {
-        updateClusterSettings(Settings.builder().put(SearchService.BATCHED_QUERY_PHASE.getKey(), false));
         int numShards = randomIntBetween(1, 10);
         indexSomeDocs("test", numShards, numShards * 3);
 
@@ -521,9 +523,7 @@ public class TransportSearchIT extends ESIntegTestCase {
             }
             assertBusy(() -> assertThat(requestBreakerUsed(), equalTo(0L)));
         } finally {
-            updateClusterSettings(
-                Settings.builder().putNull("indices.breaker.request.limit").putNull(SearchService.BATCHED_QUERY_PHASE.getKey())
-            );
+            updateClusterSettings(Settings.builder().putNull("indices.breaker.request.limit"));
         }
     }
 

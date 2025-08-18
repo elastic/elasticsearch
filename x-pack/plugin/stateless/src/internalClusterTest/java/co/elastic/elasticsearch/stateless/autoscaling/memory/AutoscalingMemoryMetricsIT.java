@@ -1310,6 +1310,7 @@ public class AutoscalingMemoryMetricsIT extends AbstractStatelessIntegTestCase {
         var projectType = randomFrom(ProjectType.values());
         var indexingOperationMemoryMetricsEnabled = randomBoolean();
         var nodeSettings = Settings.builder()
+            .put(disableIndexingDiskAndMemoryControllersNodeSettings()) // avoid uncontrolled flush for updating posting memory usages
             .put(INDEXING_OPERATIONS_MEMORY_REQUIREMENTS_VALIDITY_SETTING.getKey(), TimeValue.timeValueSeconds(2))
             .put(INDEXING_OPERATIONS_MEMORY_REQUIREMENTS_ENABLED_SETTING.getKey(), indexingOperationMemoryMetricsEnabled)
             .put(ServerlessSharedSettings.PROJECT_TYPE.getKey(), projectType)
@@ -1317,7 +1318,12 @@ public class AutoscalingMemoryMetricsIT extends AbstractStatelessIntegTestCase {
             .build();
 
         startMasterAndIndexNode(nodeSettings);
-        createIndex(INDEX_NAME, indexSettings(1, 0).build());
+        createIndex(
+            INDEX_NAME,
+            indexSettings(1, 0).put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), ByteSizeValue.ofGb(1L))
+                .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), TimeValue.MINUS_ONE)
+                .build()
+        );
         ensureGreen(INDEX_NAME);
 
         var currentHeapSize = JvmInfo.jvmInfo().getMem().getHeapMax().getBytes();

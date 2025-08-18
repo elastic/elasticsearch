@@ -94,7 +94,6 @@ public class OptimizerVerificationTests extends AbstractLogicalPlanOptimizerTest
 
         String err;
 
-
         // Remote enrich is ok after limit
         plan("""
             FROM test

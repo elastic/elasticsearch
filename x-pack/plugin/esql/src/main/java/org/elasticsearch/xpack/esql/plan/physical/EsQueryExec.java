@@ -32,7 +32,13 @@ import java.util.Map;
 import java.util.Objects;
 
 public class EsQueryExec extends LeafExec implements EstimatesRowSize {
-    public static final EsField DOC_ID_FIELD = new EsField("_doc", DataType.DOC_DATA_TYPE, Map.of(), false);
+    public static final EsField DOC_ID_FIELD = new EsField(
+        "_doc",
+        DataType.DOC_DATA_TYPE,
+        Map.of(),
+        false,
+        EsField.TimeSeriesFieldType.NONE
+    );
 
     private final String indexPattern;
     private final IndexMode indexMode;

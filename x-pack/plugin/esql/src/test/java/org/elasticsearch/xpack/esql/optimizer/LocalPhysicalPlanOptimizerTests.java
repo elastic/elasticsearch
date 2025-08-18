@@ -224,8 +224,8 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
                 List.of("a", "b"),
                 Map.of("", "idx"),
                 Map.ofEntries(
-                    Map.entry("a", new EsField("a", DataType.INTEGER, Map.of(), true)),
-                    Map.entry("b", new EsField("b", DataType.LONG, Map.of(), true))
+                    Map.entry("a", new EsField("a", DataType.INTEGER, Map.of(), true, EsField.TimeSeriesFieldType.NONE)),
+                    Map.entry("b", new EsField("b", DataType.LONG, Map.of(), true, EsField.TimeSeriesFieldType.NONE))
                 )
             )
         );

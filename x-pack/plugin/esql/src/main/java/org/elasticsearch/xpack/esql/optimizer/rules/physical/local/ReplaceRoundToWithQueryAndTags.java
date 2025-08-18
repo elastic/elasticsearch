@@ -296,7 +296,7 @@ public class ReplaceRoundToWithQueryAndTags extends PhysicalOptimizerRules.Param
         FieldAttribute tagField = new FieldAttribute(
             roundTo.source(),
             tagFieldName,
-            new EsField(tagFieldName, roundTo.dataType(), Map.of(), false)
+            new EsField(tagFieldName, roundTo.dataType(), Map.of(), false, EsField.TimeSeriesFieldType.NONE)
         );
         // Add new tag field to attributes/output
         List<Attribute> newAttributes = new ArrayList<>(queryExec.attrs());

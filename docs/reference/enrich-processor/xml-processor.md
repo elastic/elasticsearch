@@ -516,7 +516,58 @@ Result:
 
 ### Force content mode
 
-When `force_content` is `true`, all element text content is stored under the special `#text` key:
+When `force_content` is `true`, all element text content is stored under the special `#text` key, even for simple elements without attributes. This provides a consistent structure when elements may have varying complexity.
+
+**Without force_content (default behavior):**
+
+```console
+POST _ingest/pipeline/_simulate
+{
+  "pipeline": {
+    "processors": [
+      {
+        "xml": {
+          "field": "xml_content",
+          "force_content": false
+        }
+      }
+    ]
+  },
+  "docs": [
+    {
+      "_source": {
+        "xml_content": "<book><title>The Recognitions</title><author nationality=\"American\">William H. Gaddis</author></book>"
+      }
+    }
+  ]
+}
+```
+
+Result (simple elements as string values, complex elements with #text):
+
+```console-result
+{
+  "docs": [
+    {
+      "doc": {
+        ...
+        "_source": {
+          "xml_content": "<book><title>The Recognitions</title><author nationality=\"American\">William H. Gaddis</author></book>",
+          "book": {
+            "title": "The Recognitions",
+            "author": {
+              "nationality": "American",
+              "#text": "William H. Gaddis"
+            }
+          }
+        }
+      }
+    }
+  ]
+}
+```
+
+**With force_content enabled:**
 
 ```console
 POST _ingest/pipeline/_simulate
@@ -534,14 +585,14 @@ POST _ingest/pipeline/_simulate
   "docs": [
     {
       "_source": {
-        "xml_content": "<book author=\"William H. Gaddis\">The Recognitions</book>"
+        "xml_content": "<book><title>The Recognitions</title><author nationality=\"American\">William H. Gaddis</author></book>"
       }
     }
   ]
 }
 ```
 
-Result:
+Result (all text content under #text key):
 
 ```console-result
 {
@@ -550,10 +601,15 @@ Result:
       "doc": {
         ...
         "_source": {
-          "xml_content": "<book author=\"William H. Gaddis\">The Recognitions</book>",
+          "xml_content": "<book><title>The Recognitions</title><author nationality=\"American\">William H. Gaddis</author></book>",
           "book": {
-            "author": "William H. Gaddis",
-            "#text": "The Recognitions"
+            "title": {
+              "#text": "The Recognitions"
+            },
+            "author": {
+              "nationality": "American",
+              "#text": "William H. Gaddis"
+            }
           }
         }
       }

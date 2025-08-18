@@ -15,6 +15,7 @@ import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.util.BytesRef;
 
 import java.io.IOException;
+import java.util.List;
 
 public class PatternedTextDocValues extends BinaryDocValues {
     private final SortedSetDocValues templateDocValues;
@@ -45,13 +46,15 @@ public class PatternedTextDocValues extends BinaryDocValues {
         assert templateDocValues.docValueCount() == 1;
         String template = templateDocValues.lookupOrd(templateDocValues.nextOrd()).utf8ToString();
         Long timestamp = PatternedTextValueProcessor.hasTimestamp(template) ? timestampDocValues.nextValue() : null;
-
         int argsCount = PatternedTextValueProcessor.countArgs(template);
+
         if (argsCount > 0) {
             assert argsDocValues.docValueCount() == 1;
             var mergedArgs = argsDocValues.lookupOrd(argsDocValues.nextOrd());
             var args = PatternedTextValueProcessor.decodeRemainingArgs(mergedArgs.utf8ToString());
             return PatternedTextValueProcessor.merge(new PatternedTextValueProcessor.Parts(template, timestamp, args));
+        } else if (timestamp != null) {
+            return PatternedTextValueProcessor.merge(new PatternedTextValueProcessor.Parts(template, timestamp, List.of()));
         } else {
             return template;
         }

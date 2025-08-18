@@ -116,9 +116,9 @@ Sort by template_id:
           query: { match_all: {} }
 
   - match: { hits.total.value: 5 }
-  - match: { hits.hits.0.fields: {"foo.template_id": ["iJEgF75EQNk"]} }
+  - match: { hits.hits.0.fields: {"foo.template_id": ["TZwL6Ju2bIg"]} }
   - match: { hits.hits.0._id: "2" }
-  - match: { hits.hits.1.fields: {"foo.template_id": ["iJEgF75EQNk"]} }
+  - match: { hits.hits.1.fields: {"foo.template_id": ["TZwL6Ju2bIg"]} }
   - match: { hits.hits.1._id: "5" }
   - match: { hits.hits.2.fields: {"foo.template_id": ["k-2qtjujOCw"]} }
   - match: { hits.hits.2._id: "4" }

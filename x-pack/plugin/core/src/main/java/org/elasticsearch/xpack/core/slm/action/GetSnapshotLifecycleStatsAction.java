@@ -7,15 +7,15 @@
 
 package org.elasticsearch.xpack.core.slm.action;
 
-import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.support.local.LocalClusterStateRequest;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
-import org.elasticsearch.action.support.master.MasterNodeReadRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.UpdateForV10;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xcontent.ToXContentObject;
@@ -40,55 +40,50 @@ public class GetSnapshotLifecycleStatsAction extends ActionType<GetSnapshotLifec
         super(NAME);
     }
 
-    public static class Request extends MasterNodeReadRequest<Request> {
+    public static class Request extends LocalClusterStateRequest {
+        // TODO: remove
         private static final Logger logger = LogManager.getLogger(GetSnapshotLifecycleStatsAction.Request.class);
 
-        // for backwards compatibility, store the ack timeout to maintain compatibility with AcknowledgedRequest used in previous versions
-        private final TimeValue ackTimeout;
-
-        // private to avoid non-backwards compatible instantiation
-        private Request(StreamInput input) throws IOException {
-            super(input);
-            this.ackTimeout = null;
-        }
-
-        // private, should not be used directly
-        private Request(TimeValue masterNodeTimeout, TimeValue ackTimeout) {
-            super(masterNodeTimeout);
-            this.ackTimeout = ackTimeout;
-        }
+        // // for backwards compatibility, store the ack timeout to maintain compatibility with AcknowledgedRequest used in previous
+        // versions
+        // private final TimeValue ackTimeout;
 
         public Request(TimeValue masterNodeTimeout) throws IOException {
             super(masterNodeTimeout);
-            this.ackTimeout = null;
+            // this.ackTimeout = null;
         }
 
+        // private, to avoid non-backwards compatible use
+        private Request(StreamInput input) throws IOException {
+            super(input);
+            // this.ackTimeout = null;
+        }
+
+        // private, should not be used directly
+        // private Request(TimeValue masterNodeTimeout, TimeValue ackTimeout) {
+        // super(masterNodeTimeout);
+        // this.ackTimeout = ackTimeout;
+        // }
+
+        /**
+         * Previously this request was an AcknowledgedRequest, which had an ack timeout, and the action was an MasterNodeAction.
+         * This method only exists for backward compatibility to deserialize request from previous versions.
+         */
+        @UpdateForV10(owner = UpdateForV10.Owner.DATA_MANAGEMENT)
         public static Request read(StreamInput input) throws IOException {
+            // TODO: remove logs
             logger.info("Reading GetSnapshotLifecycleStatsAction.Request from stream input");
             if (input.getTransportVersion().onOrAfter(SLM_GET_STATS_CHANGE_REQUEST_TYPE)) {
-                logger.info("Reading old GetSnapshotLifecycleStatsAction.Request format");
+                logger.info("Reading new GetSnapshotLifecycleStatsAction.Request format");
                 return new Request(input);
             } else {
-                logger.info("Reading new GetSnapshotLifecycleStatsAction.Request format");
+                logger.info("Reading old GetSnapshotLifecycleStatsAction.Request format");
                 var requestBwc = new AcknowledgedRequest.Plain(input);
-                return new GetSnapshotLifecycleStatsAction.Request(requestBwc.masterNodeTimeout(), requestBwc.ackTimeout());
+                // return new Request(requestBwc.masterNodeTimeout(), requestBwc.ackTimeout());
+                return new Request(requestBwc.masterNodeTimeout());
             }
         }
 
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            if (out.getTransportVersion().onOrAfter(SLM_GET_STATS_CHANGE_REQUEST_TYPE)) {
-                super.writeTo(out);
-            } else {
-                // For backwards compatibility, write the request as an AcknowledgedRequest
-                new AcknowledgedRequest.Plain(this.masterNodeTimeout(), this.ackTimeout).writeTo(out);
-            }
-        }
-
-        @Override
-        public ActionRequestValidationException validate() {
-            return null;
-        }
     }
 
     public static class Response extends ActionResponse implements ToXContentObject {

@@ -155,8 +155,8 @@ public class XmlProcessorFactoryTests extends ESTestCase {
                 case "force_array":
                     config.put("force_array", true);
                     break;
-                case "strict":
-                    config.put("parse_options", "strict");
+                case "strict_parsing":
+                    config.put("strict_parsing", true);
                     break;
                 default:
                     throw new IllegalArgumentException("Unknown option: " + option);
@@ -329,12 +329,12 @@ public class XmlProcessorFactoryTests extends ESTestCase {
         assertThat(processor.isForceArray(), equalTo(true));
     }
 
-    public void testCreateWithStrictParseOptions() throws Exception {
-        Map<String, Object> config = createConfigWithOptions(DEFAULT_FIELD, "strict");
+    public void testCreateWithStrictParsing() throws Exception {
+        Map<String, Object> config = createConfigWithOptions(DEFAULT_FIELD, "strict_parsing");
         XmlProcessor processor = createProcessor(config);
 
         assertThat(processor.getField(), equalTo(DEFAULT_FIELD));
-        assertThat(processor.getParseOptions(), equalTo("strict"));
+        assertThat(processor.getStrictParsing(), equalTo(true));
         assertThat(processor.isStrict(), equalTo(true));
     }
 
@@ -353,19 +353,6 @@ public class XmlProcessorFactoryTests extends ESTestCase {
         assertThat(processor.isForceContent(), equalTo(true));
         assertThat(processor.isForceArray(), equalTo(true));
         assertThat(processor.isRemoveNamespaces(), equalTo(true));
-    }
-
-    // Tests for invalid parse options
-
-    public void testCreateWithInvalidParseOptions() throws Exception {
-        Map<String, Object> config = createBaseConfig();
-        config.put("parse_options", "invalid_option");
-
-        expectCreationFailure(
-            config,
-            IllegalArgumentException.class,
-            "Invalid parse_options [invalid_option]. Only 'strict' is supported."
-        );
     }
 
     // Tests for XPath compilation errors (testing precompilation feature)

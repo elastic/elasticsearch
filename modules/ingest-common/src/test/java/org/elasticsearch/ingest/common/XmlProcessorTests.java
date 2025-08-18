@@ -544,7 +544,7 @@ public class XmlProcessorTests extends ESTestCase {
         String xml = "<foo><bar>valid</bar></foo>";
 
         Map<String, Object> config = new HashMap<>();
-        config.put("parse_options", "strict");
+        config.put("strict_parsing", true);
         XmlProcessor processor = createTestProcessor(config);
         IngestDocument ingestDocument = createTestIngestDocument(xml);
 

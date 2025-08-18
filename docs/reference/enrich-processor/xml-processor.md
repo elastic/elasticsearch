@@ -22,7 +22,7 @@ $$$xml-options$$$
 | `remove_namespaces` | no | `false` | If `true`, removes namespace prefixes from element and attribute names. |
 | `force_content` | no | `false` | If `true`, forces text content and attributes to always parse to a hash value with `#text` key for content. |
 | `force_array` | no | `false` | If `true`, forces all parsed values to be arrays. Single elements are wrapped in arrays. |
-| `parse_options` | no | - | Controls XML parsing behavior. Set to `"strict"` for strict XML validation that fails fast on invalid content. |
+| `strict_parsing` | no | `false` | If `true`, enables strict XML validation that fails fast on invalid content. |
 | `xpath` | no | - | Map of XPath expressions to target field names. Extracts values from the XML using XPath and stores them in the specified fields. |
 | `namespaces` | no | - | Map of namespace prefixes to URIs for use with XPath expressions. Required when XPath expressions contain namespace prefixes. |
 | `description` | no | - | Description of the processor. Useful for describing the purpose of the processor or its configuration. |
@@ -422,7 +422,7 @@ Result:
 
 ### Strict parsing mode
 
-Use `parse_options: "strict"` for strict XML validation:
+Use `strict_parsing: true` for strict XML validation:
 
 ```console
 POST _ingest/pipeline/_simulate
@@ -432,7 +432,7 @@ POST _ingest/pipeline/_simulate
       {
         "xml": {
           "field": "xml_content",
-          "parse_options": "strict",
+          "strict_parsing": true,
           "ignore_failure": true
         }
       }
@@ -441,7 +441,7 @@ POST _ingest/pipeline/_simulate
   "docs": [
     {
       "_source": {
-        "xml_content": "<catalog><book><title>Invalid XML with control character</title></book></catalog>"
+        "xml_content": "<catalog><book><title>Invalid XML with control character \u0000</title></book></catalog>"
       }
     }
   ]
@@ -457,7 +457,7 @@ Result (with parsing failure):
       "doc": {
         ...
         "_source": {
-          "xml_content": "<catalog><book><title>Invalid XML with control character</title></book></catalog>",
+          "xml_content": "<catalog><book><title>Invalid XML with control character \u0000</title></book></catalog>",
           "tags": ["_xmlparsefailure"]
         }
       }

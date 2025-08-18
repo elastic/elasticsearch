@@ -79,7 +79,7 @@ public final class XmlProcessor extends AbstractProcessor {
     private final Map<String, String> xpathExpressions;
     private final Map<String, String> namespaces;
     private final Map<String, XPathExpression> compiledXPathExpressions;
-    private final String parseOptions;
+    private final boolean strictParsing;
 
     XmlProcessor(
         String tag,
@@ -96,7 +96,7 @@ public final class XmlProcessor extends AbstractProcessor {
         boolean forceArray,
         Map<String, String> xpathExpressions,
         Map<String, String> namespaces,
-        String parseOptions
+        boolean strictParsing
     ) {
         super(tag, description);
         this.field = field;
@@ -112,7 +112,7 @@ public final class XmlProcessor extends AbstractProcessor {
         this.xpathExpressions = xpathExpressions != null ? Map.copyOf(xpathExpressions) : Map.of();
         this.namespaces = namespaces != null ? Map.copyOf(namespaces) : Map.of();
         this.compiledXPathExpressions = compileXPathExpressions(this.xpathExpressions, this.namespaces);
-        this.parseOptions = parseOptions != null ? parseOptions : "";
+        this.strictParsing = strictParsing;
     }
 
     public String getField() {
@@ -144,7 +144,7 @@ public final class XmlProcessor extends AbstractProcessor {
     }
 
     public boolean isStrict() {
-        return "strict".equals(parseOptions);
+        return strictParsing;
     }
 
     public boolean isForceArray() {
@@ -159,8 +159,8 @@ public final class XmlProcessor extends AbstractProcessor {
         return namespaces;
     }
 
-    public String getParseOptions() {
-        return parseOptions;
+    public boolean getStrictParsing() {
+        return strictParsing;
     }
 
     @Override
@@ -488,11 +488,8 @@ public final class XmlProcessor extends AbstractProcessor {
                 }
             }
 
-            // Parse parse_options parameter
-            String parseOptions = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "parse_options", "");
-            if (parseOptions != null && !parseOptions.isEmpty() && !"strict".equals(parseOptions)) {
-                throw new IllegalArgumentException("Invalid parse_options [" + parseOptions + "]. Only 'strict' is supported.");
-            }
+            // Parse strict_parsing parameter
+            boolean strictParsing = ConfigurationUtils.readBooleanProperty(TYPE, processorTag, config, "strict_parsing", false);
 
             return new XmlProcessor(
                 processorTag,
@@ -509,7 +506,7 @@ public final class XmlProcessor extends AbstractProcessor {
                 forceArray,
                 xpathExpressions,
                 namespaces,
-                parseOptions
+                strictParsing
             );
         }
     }

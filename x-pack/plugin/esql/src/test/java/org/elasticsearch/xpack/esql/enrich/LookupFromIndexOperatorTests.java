@@ -11,6 +11,7 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.document.IntField;
 import org.apache.lucene.document.LongField;
 import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.BytesRef;
@@ -39,9 +40,11 @@ import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.compute.test.NoOpReleasable;
 import org.elasticsearch.compute.test.OperatorTestCase;
 import org.elasticsearch.compute.test.SequenceLongBlockSourceOperator;
+import org.elasticsearch.compute.test.TupleLongLongBlockSourceOperator;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperServiceTestCase;
@@ -86,25 +89,37 @@ public class LookupFromIndexOperatorTests extends OperatorTestCase {
     private final ThreadPool threadPool = threadPool();
     private final Directory lookupIndexDirectory = newDirectory();
     private final List<Releasable> releasables = new ArrayList<>();
+    private int numberOfJoinColumns; // we only allow 1 or 2 columns due to simpleInput() implementation
 
     @Before
     public void buildLookupIndex() throws IOException {
+        numberOfJoinColumns = 1 + randomInt(1); // 1 or 2 join columns
         try (RandomIndexWriter writer = new RandomIndexWriter(random(), lookupIndexDirectory)) {
             for (int i = 0; i < LOOKUP_SIZE; i++) {
-                writer.addDocument(
-                    List.of(
-                        new LongField("match", i, Field.Store.NO),
-                        new KeywordFieldMapper.KeywordField("lkwd", new BytesRef("l" + i), KeywordFieldMapper.Defaults.FIELD_TYPE),
-                        new IntField("lint", -i, Field.Store.NO)
-                    )
-                );
+                List<IndexableField> fields = new ArrayList<>();
+                fields.add(new LongField("match0", i, Field.Store.NO));
+                if (numberOfJoinColumns == 2) {
+                    fields.add(new LongField("match1", i + 1, Field.Store.NO));
+                }
+                fields.add(new KeywordFieldMapper.KeywordField("lkwd", new BytesRef("l" + i), KeywordFieldMapper.Defaults.FIELD_TYPE));
+                fields.add(new IntField("lint", -i, Field.Store.NO));
+                writer.addDocument(fields);
             }
         }
     }
 
     @Override
     protected SourceOperator simpleInput(BlockFactory blockFactory, int size) {
-        return new SequenceLongBlockSourceOperator(blockFactory, LongStream.range(0, size).map(l -> l % LOOKUP_SIZE));
+        if (numberOfJoinColumns == 1) {
+            return new SequenceLongBlockSourceOperator(blockFactory, LongStream.range(0, size).map(l -> l % LOOKUP_SIZE));
+        } else if (numberOfJoinColumns == 2) {
+            return new TupleLongLongBlockSourceOperator(
+                blockFactory,
+                LongStream.range(0, size).mapToObj(l -> Tuple.tuple(l % LOOKUP_SIZE, l % LOOKUP_SIZE + 1))
+            );
+        } else {
+            throw new IllegalStateException("numberOfJoinColumns must be 1 or 2, got: " + numberOfJoinColumns);
+        }
     }
 
     @Override
@@ -117,10 +132,10 @@ public class LookupFromIndexOperatorTests extends OperatorTestCase {
         int count = results.stream().mapToInt(Page::getPositionCount).sum();
         assertThat(count, equalTo(input.stream().mapToInt(Page::getPositionCount).sum()));
         for (Page r : results) {
-            assertThat(r.getBlockCount(), equalTo(3));
+            assertThat(r.getBlockCount(), equalTo(numberOfJoinColumns + 2));
             LongVector match = r.<LongBlock>getBlock(0).asVector();
-            BytesRefVector lkwd = r.<BytesRefBlock>getBlock(1).asVector();
-            IntVector lint = r.<IntBlock>getBlock(2).asVector();
+            BytesRefVector lkwd = r.<BytesRefBlock>getBlock(numberOfJoinColumns).asVector();
+            IntVector lint = r.<IntBlock>getBlock(numberOfJoinColumns + 1).asVector();
             for (int p = 0; p < r.getPositionCount(); p++) {
                 long m = match.getLong(p);
                 assertThat(lkwd.getBytesRef(p, new BytesRef()).utf8ToString(), equalTo("l" + m));
@@ -134,24 +149,26 @@ public class LookupFromIndexOperatorTests extends OperatorTestCase {
         String sessionId = "test";
         CancellableTask parentTask = new CancellableTask(0, "test", "test", "test", TaskId.EMPTY_TASK_ID, Map.of());
         int maxOutstandingRequests = 1;
-        int inputChannel = 0;
         DataType inputDataType = DataType.LONG;
         String lookupIndex = "idx";
-        FieldAttribute.FieldName matchField = new FieldAttribute.FieldName("match");
         List<NamedExpression> loadFields = List.of(
             new ReferenceAttribute(Source.EMPTY, "lkwd", DataType.KEYWORD),
             new ReferenceAttribute(Source.EMPTY, "lint", DataType.INTEGER)
         );
+
+        List<MatchConfig> matchFields = new ArrayList<>();
+        for (int i = 0; i < numberOfJoinColumns; i++) {
+            FieldAttribute.FieldName matchField = new FieldAttribute.FieldName("match" + i);
+            matchFields.add(new MatchConfig(matchField, i, inputDataType));
+        }
         return new LookupFromIndexOperator.Factory(
+            matchFields,
             sessionId,
             parentTask,
             maxOutstandingRequests,
-            inputChannel,
             this::lookupService,
-            inputDataType,
             lookupIndex,
             lookupIndex,
-            matchField,
             loadFields,
             Source.EMPTY
         );
@@ -164,9 +181,13 @@ public class LookupFromIndexOperatorTests extends OperatorTestCase {
 
     @Override
     protected Matcher<String> expectedToStringOfSimple() {
-        return matchesPattern(
-            "LookupOperator\\[index=idx input_type=LONG match_field=match load_fields=\\[lkwd\\{r}#\\d+, lint\\{r}#\\d+] inputChannel=0]"
-        );
+        StringBuilder sb = new StringBuilder();
+        sb.append("LookupOperator\\[index=idx load_fields=\\[lkwd\\{r}#\\d+, lint\\{r}#\\d+]");
+        for (int i = 0; i < numberOfJoinColumns; i++) {
+            sb.append(" input_type=LONG match_field=match").append(i).append(" inputChannel=").append(i);
+        }
+        sb.append("]");
+        return matchesPattern(sb.toString());
     }
 
     private LookupFromIndexService lookupService(DriverContext mainContext) {
@@ -240,14 +261,25 @@ public class LookupFromIndexOperatorTests extends OperatorTestCase {
         return shardId -> {
             MapperServiceTestCase mapperHelper = new MapperServiceTestCase() {
             };
-            MapperService mapperService = mapperHelper.createMapperService("""
+            StringBuilder stringBuilder = new StringBuilder();
+            stringBuilder.append("""
                 {
                     "doc": { "properties": {
-                        "match": { "type": "long" },
+                        "match0": { "type": "long" },
+                """);
+            if (numberOfJoinColumns == 2) {
+                stringBuilder.append("""
+                        "match1": { "type": "long" },
+                    """);
+            }
+            stringBuilder.append("""
                         "lkwd": { "type": "keyword" },
                         "lint": { "type": "integer" }
                     }}
-                }""");
+                }
+                """);
+
+            MapperService mapperService = mapperHelper.createMapperService(stringBuilder.toString());
             DirectoryReader reader = DirectoryReader.open(lookupIndexDirectory);
             SearchExecutionContext executionCtx = mapperHelper.createSearchExecutionContext(mapperService, newSearcher(reader));
             var ctx = new EsPhysicalOperationProviders.DefaultShardContext(0, new NoOpReleasable(), executionCtx, AliasFilter.EMPTY);

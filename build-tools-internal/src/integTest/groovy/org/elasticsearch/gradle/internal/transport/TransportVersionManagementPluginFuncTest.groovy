@@ -92,8 +92,8 @@ class TransportVersionManagementPluginFuncTest extends AbstractGradleFuncTest {
 
         file("myserver/build.gradle") << """
             apply plugin: 'java-library'
-            apply plugin: 'elasticsearch.transport-version-management'
-            apply plugin: 'elasticsearch.global-transport-version-management'
+            apply plugin: 'elasticsearch.transport-version-references'
+            apply plugin: 'elasticsearch.transport-version-resources'
         """
         definedTransportVersion("existing_91", "8012000")
         definedTransportVersion("existing_92", "8123000,8012001")
@@ -112,7 +112,7 @@ class TransportVersionManagementPluginFuncTest extends AbstractGradleFuncTest {
 
         file("myplugin/build.gradle") << """
             apply plugin: 'java-library'
-            apply plugin: 'elasticsearch.transport-version-management'
+            apply plugin: 'elasticsearch.transport-version-references'
 
             dependencies {
                 implementation project(":myserver")

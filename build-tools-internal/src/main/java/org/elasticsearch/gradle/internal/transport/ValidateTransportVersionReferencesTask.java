@@ -51,7 +51,7 @@ public abstract class ValidateTransportVersionReferencesTask extends DefaultTask
         }
         Path namesFile = getReferencesFile().get().getAsFile().toPath();
 
-        for (var tvReference : TransportVersionUtils.readReferencesFile(namesFile)) {
+        for (var tvReference : TransportVersionReference.listFromFile(namesFile)) {
             if (referenceChecker.test(tvReference.name()) == false) {
                 throw new RuntimeException(
                     "TransportVersion.fromName(\""

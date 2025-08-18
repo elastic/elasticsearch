@@ -35,7 +35,7 @@ import org.elasticsearch.search.vectors.IVFKnnSearchStrategy;
 import java.io.IOException;
 
 import static org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsReader.SIMILARITY_FUNCTIONS;
-import static org.elasticsearch.index.codec.vectors.IVFVectorsFormat.DYNAMIC_NPROBE;
+import static org.elasticsearch.index.codec.vectors.IVFVectorsFormat.DYNAMIC_VISIT_RATIO;
 
 /**
  * Reader for IVF vectors. This reader is used to read the IVF vectors from the index.
@@ -84,6 +84,9 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
             }
         }
     }
+
+    abstract CentroidIterator getPostingListPrefetchIterator(CentroidIterator centroidIterator, IndexInput postingListSlice)
+        throws IOException;
 
     abstract CentroidIterator getCentroidIterator(FieldInfo fieldInfo, int numCentroids, IndexInput centroids, float[] target)
         throws IOException;
@@ -222,82 +225,53 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
             percentFiltered = Math.max(0f, Math.min(1f, (float) bitSet.approximateCardinality() / bitSet.length()));
         }
         int numVectors = rawVectorsReader.getFloatVectorValues(field).size();
-        int nProbe = DYNAMIC_NPROBE;
+        float visitRatio = DYNAMIC_VISIT_RATIO;
         // Search strategy may be null if this is being called from checkIndex (e.g. from a test)
         if (knnCollector.getSearchStrategy() instanceof IVFKnnSearchStrategy ivfSearchStrategy) {
-            nProbe = ivfSearchStrategy.getNProbe();
+            visitRatio = ivfSearchStrategy.getVisitRatio();
         }
 
         FieldEntry entry = fields.get(fieldInfo.number);
-        if (nProbe == DYNAMIC_NPROBE) {
+        if (visitRatio == DYNAMIC_VISIT_RATIO) {
             // empirically based, and a good dynamic to get decent recall while scaling a la "efSearch"
-            // scaling by the number of centroids vs. the nearest neighbors requested
+            // scaling by the number of vectors vs. the nearest neighbors requested
             // not perfect, but a comparative heuristic.
-            // we might want to utilize the total vector count as well, but this is a good start
-            nProbe = (int) Math.round(Math.log10(entry.numCentroids) * Math.sqrt(knnCollector.k()));
-            // clip to be between 1 and the number of centroids
-            nProbe = Math.max(Math.min(nProbe, entry.numCentroids), 1);
+            // TODO: we might want to consider the density of the centroids as experiments shows that for fewer vectors per centroid,
+            // the least vectors we need to score to get a good recall.
+            float estimated = Math.round(Math.log10(numVectors) * Math.log10(numVectors) * (knnCollector.k()));
+            // clip so we visit at least one vector
+            visitRatio = estimated / numVectors;
         }
-        CentroidIterator centroidIterator = getCentroidIterator(fieldInfo, entry.numCentroids, entry.centroidSlice(ivfCentroids), target);
+        // we account for soar vectors here. We can potentially visit a vector twice so we multiply by 2 here.
+        long maxVectorVisited = (long) (2.0 * visitRatio * numVectors);
         IndexInput postListSlice = entry.postingListSlice(ivfClusters);
+        CentroidIterator centroidPrefetchingIterator = getPostingListPrefetchIterator(
+            getCentroidIterator(fieldInfo, entry.numCentroids, entry.centroidSlice(ivfCentroids), target),
+            postListSlice
+        );
         PostingVisitor scorer = getPostingVisitor(fieldInfo, postListSlice, target, acceptDocs);
-        int centroidsVisited = 0;
         long expectedDocs = 0;
         long actualDocs = 0;
         // initially we visit only the "centroids to search"
         // Note, numCollected is doing the bare minimum here.
         // TODO do we need to handle nested doc counts similarly to how we handle
         // filtering? E.g. keep exploring until we hit an expected number of parent documents vs. child vectors?
-        long nextOffset = -1;
-        long nextLength = -1;
-        while (centroidIterator.hasNext()
-            && (centroidsVisited < nProbe || knnCollector.minCompetitiveSimilarity() == Float.NEGATIVE_INFINITY)) {
-            ++centroidsVisited;
+        while (centroidPrefetchingIterator.hasNext()
+            && (maxVectorVisited > actualDocs || knnCollector.minCompetitiveSimilarity() == Float.NEGATIVE_INFINITY)) {
             // todo do we actually need to know the score???
-
-            // FIXME: opportunistically prefetch here?? (could do nProbe of these ... how does this help with low memory???
-            // FIXME: prefetch the next one not the current one
-            // FIXME: deal with last one correctly
-            long offset;
-            if (nextOffset == -1) {
-                offset = centroidIterator.nextPostingListOffset();
-                if (centroidIterator.hasNext()) {
-                    nextOffset = centroidIterator.nextPostingListOffset();
-                    nextLength = centroidIterator.curPostingListLength();
-                    // scorer.prefetch(offset, length);
-                    // scorer.prefetch(nextOffset);
-                    // FIXME: clean this up
-                    if (nextLength == -2) {
-                        nextLength = postListSlice.length() - nextOffset;
-                    }
-                    postListSlice.prefetch(nextOffset, nextLength);
-                }
-            } else {
-                offset = nextOffset;
-
-                nextOffset = centroidIterator.nextPostingListOffset();
-                nextLength = centroidIterator.curPostingListLength();
-                // FIXME: clean this up
-                if (nextLength == -2) {
-                    nextLength = postListSlice.length() - nextOffset;
-                }
-                postListSlice.prefetch(nextOffset, nextLength);
-                // scorer.prefetch(nextOffset);
-            }
+            CentroidOffsetAndLength offsetAndLength = centroidPrefetchingIterator.nextPostingListOffsetAndLength();
             // todo do we need direct access to the raw centroid???, this is used for quantizing, maybe hydrating and quantizing
             // is enough?
-
-            expectedDocs += scorer.resetPostingsScorer(offset);
+            expectedDocs += scorer.resetPostingsScorer(offsetAndLength.offset());
             actualDocs += scorer.visit(knnCollector);
         }
         if (acceptDocs != null) {
             float unfilteredRatioVisited = (float) expectedDocs / numVectors;
             int filteredVectors = (int) Math.ceil(numVectors * percentFiltered);
             float expectedScored = Math.min(2 * filteredVectors * unfilteredRatioVisited, expectedDocs / 2f);
-            while (centroidIterator.hasNext() && (actualDocs < expectedScored || actualDocs < knnCollector.k())) {
-                // FIXME: add prefetching logic here as well
-                long offset = centroidIterator.nextPostingListOffset();
-                scorer.resetPostingsScorer(offset);
+            while (centroidPrefetchingIterator.hasNext() && (actualDocs < expectedScored || actualDocs < knnCollector.k())) {
+                CentroidOffsetAndLength offsetAndLength = centroidPrefetchingIterator.nextPostingListOffsetAndLength();
+                scorer.resetPostingsScorer(offsetAndLength.offset());
                 actualDocs += scorer.visit(knnCollector);
             }
         }
@@ -344,18 +318,16 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
     abstract PostingVisitor getPostingVisitor(FieldInfo fieldInfo, IndexInput postingsLists, float[] target, Bits needsScoring)
         throws IOException;
 
+    record CentroidOffsetAndLength(long offset, long length) {}
+
     interface CentroidIterator {
         boolean hasNext();
 
-        long nextPostingListOffset() throws IOException;
-
-        long curPostingListLength() throws IOException;
+        CentroidOffsetAndLength nextPostingListOffsetAndLength() throws IOException;
     }
 
     interface PostingVisitor {
         // TODO maybe we can not specifically pass the centroid...
-
-        void prefetch(long offset) throws IOException;
 
         /** returns the number of documents in the posting list */
         int resetPostingsScorer(long offset) throws IOException;

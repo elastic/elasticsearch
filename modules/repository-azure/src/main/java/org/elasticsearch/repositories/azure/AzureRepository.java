@@ -178,7 +178,7 @@ public class AzureRepository extends MeteredBlobStoreRepository {
 
     @Override
     protected AzureBlobStore createBlobStore() {
-        final AzureBlobStore blobStore = new AzureBlobStore(metadata, storageService, bigArrays, repositoriesMetrics);
+        final AzureBlobStore blobStore = new AzureBlobStore(getProjectId(), metadata, storageService, bigArrays, repositoriesMetrics);
 
         logger.debug(
             () -> format(
@@ -204,6 +204,6 @@ public class AzureRepository extends MeteredBlobStoreRepository {
 
     @Override
     protected Set<String> getExtraUsageFeatures() {
-        return storageService.getExtraUsageFeatures(Repository.CLIENT_NAME.get(getMetadata().settings()));
+        return storageService.getExtraUsageFeatures(getProjectId(), Repository.CLIENT_NAME.get(getMetadata().settings()));
     }
 }

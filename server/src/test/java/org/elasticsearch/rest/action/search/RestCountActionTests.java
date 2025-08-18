@@ -12,7 +12,6 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchResponseSections;
 import org.elasticsearch.action.search.ShardSearchFailure;
-import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
@@ -26,10 +25,8 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 
-import static org.elasticsearch.core.TimeValue.timeValueMillis;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItems;
-import static org.mockito.Mockito.mock;
 
 public final class RestCountActionTests extends RestActionTestCase {
     private RestCountAction action;
@@ -47,23 +44,40 @@ public final class RestCountActionTests extends RestActionTestCase {
         Map<String, String> params = new HashMap<>();
         params.put("stats", "tag1,tag2,tag3");
 
-        RestRequest request = new FakeRestRequest.Builder(xContentRegistry())
-            .withMethod(RestRequest.Method.GET)
+        RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.GET)
             .withPath("/some_index/_count")
             .withParams(params)
             .build();
 
         AtomicReference<SearchRequest> searchRequestRef = new AtomicReference<>();
-        
+
         verifyingClient.setExecuteVerifier((actionType, actionRequest) -> {
             searchRequestRef.set((SearchRequest) actionRequest);
             SearchHits hits = new SearchHits(new SearchHit[0], null, 0);
-            SearchResponseSections searchResponseSections = new SearchResponseSections(hits, InternalAggregations.EMPTY, null, false, false, null, 1);
-            return new SearchResponse(searchResponseSections, null, 1, 1, 0, 100, ShardSearchFailure.EMPTY_ARRAY, SearchResponse.Clusters.EMPTY, null);
+            SearchResponseSections searchResponseSections = new SearchResponseSections(
+                hits,
+                InternalAggregations.EMPTY,
+                null,
+                false,
+                false,
+                null,
+                1
+            );
+            return new SearchResponse(
+                searchResponseSections,
+                null,
+                1,
+                1,
+                0,
+                100,
+                ShardSearchFailure.EMPTY_ARRAY,
+                SearchResponse.Clusters.EMPTY,
+                null
+            );
         });
 
         action.handleRequest(request, new FakeRestChannel(request, randomBoolean(), 1), verifyingClient);
-        
+
         SearchRequest capturedRequest = searchRequestRef.get();
         assertNotNull(capturedRequest.source());
         assertNotNull(capturedRequest.source().stats());
@@ -74,22 +88,39 @@ public final class RestCountActionTests extends RestActionTestCase {
      * Test count request without stats parameter (should not have stats set)
      */
     public void testNoStatsParameter() throws Exception {
-        RestRequest request = new FakeRestRequest.Builder(xContentRegistry())
-            .withMethod(RestRequest.Method.GET)
+        RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.GET)
             .withPath("/some_index/_count")
             .build();
 
         AtomicReference<SearchRequest> searchRequestRef = new AtomicReference<>();
-        
+
         verifyingClient.setExecuteVerifier((actionType, actionRequest) -> {
             searchRequestRef.set((SearchRequest) actionRequest);
             SearchHits hits = new SearchHits(new SearchHit[0], null, 0);
-            SearchResponseSections searchResponseSections = new SearchResponseSections(hits, InternalAggregations.EMPTY, null, false, false, null, 1);
-            return new SearchResponse(searchResponseSections, null, 1, 1, 0, 100, ShardSearchFailure.EMPTY_ARRAY, SearchResponse.Clusters.EMPTY, null);
+            SearchResponseSections searchResponseSections = new SearchResponseSections(
+                hits,
+                InternalAggregations.EMPTY,
+                null,
+                false,
+                false,
+                null,
+                1
+            );
+            return new SearchResponse(
+                searchResponseSections,
+                null,
+                1,
+                1,
+                0,
+                100,
+                ShardSearchFailure.EMPTY_ARRAY,
+                SearchResponse.Clusters.EMPTY,
+                null
+            );
         });
 
         action.handleRequest(request, new FakeRestChannel(request, randomBoolean(), 1), verifyingClient);
-        
+
         SearchRequest capturedRequest = searchRequestRef.get();
         assertNotNull(capturedRequest.source());
         assertNull(capturedRequest.source().stats());
@@ -102,23 +133,40 @@ public final class RestCountActionTests extends RestActionTestCase {
         Map<String, String> params = new HashMap<>();
         params.put("stats", "single_tag");
 
-        RestRequest request = new FakeRestRequest.Builder(xContentRegistry())
-            .withMethod(RestRequest.Method.GET)
+        RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.GET)
             .withPath("/_count")
             .withParams(params)
             .build();
 
         AtomicReference<SearchRequest> searchRequestRef = new AtomicReference<>();
-        
+
         verifyingClient.setExecuteVerifier((actionType, actionRequest) -> {
             searchRequestRef.set((SearchRequest) actionRequest);
             SearchHits hits = new SearchHits(new SearchHit[0], null, 0);
-            SearchResponseSections searchResponseSections = new SearchResponseSections(hits, InternalAggregations.EMPTY, null, false, false, null, 1);
-            return new SearchResponse(searchResponseSections, null, 1, 1, 0, 100, ShardSearchFailure.EMPTY_ARRAY, SearchResponse.Clusters.EMPTY, null);
+            SearchResponseSections searchResponseSections = new SearchResponseSections(
+                hits,
+                InternalAggregations.EMPTY,
+                null,
+                false,
+                false,
+                null,
+                1
+            );
+            return new SearchResponse(
+                searchResponseSections,
+                null,
+                1,
+                1,
+                0,
+                100,
+                ShardSearchFailure.EMPTY_ARRAY,
+                SearchResponse.Clusters.EMPTY,
+                null
+            );
         });
 
         action.handleRequest(request, new FakeRestChannel(request, randomBoolean(), 1), verifyingClient);
-        
+
         SearchRequest capturedRequest = searchRequestRef.get();
         assertNotNull(capturedRequest.source());
         assertNotNull(capturedRequest.source().stats());
@@ -133,23 +181,40 @@ public final class RestCountActionTests extends RestActionTestCase {
         Map<String, String> params = new HashMap<>();
         params.put("stats", "");
 
-        RestRequest request = new FakeRestRequest.Builder(xContentRegistry())
-            .withMethod(RestRequest.Method.POST)
+        RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.POST)
             .withPath("/_count")
             .withParams(params)
             .build();
 
         AtomicReference<SearchRequest> searchRequestRef = new AtomicReference<>();
-        
+
         verifyingClient.setExecuteVerifier((actionType, actionRequest) -> {
             searchRequestRef.set((SearchRequest) actionRequest);
             SearchHits hits = new SearchHits(new SearchHit[0], null, 0);
-            SearchResponseSections searchResponseSections = new SearchResponseSections(hits, InternalAggregations.EMPTY, null, false, false, null, 1);
-            return new SearchResponse(searchResponseSections, null, 1, 1, 0, 100, ShardSearchFailure.EMPTY_ARRAY, SearchResponse.Clusters.EMPTY, null);
+            SearchResponseSections searchResponseSections = new SearchResponseSections(
+                hits,
+                InternalAggregations.EMPTY,
+                null,
+                false,
+                false,
+                null,
+                1
+            );
+            return new SearchResponse(
+                searchResponseSections,
+                null,
+                1,
+                1,
+                0,
+                100,
+                ShardSearchFailure.EMPTY_ARRAY,
+                SearchResponse.Clusters.EMPTY,
+                null
+            );
         });
 
         action.handleRequest(request, new FakeRestChannel(request, randomBoolean(), 1), verifyingClient);
-        
+
         SearchRequest capturedRequest = searchRequestRef.get();
         assertNotNull(capturedRequest.source());
         assertNotNull(capturedRequest.source().stats());

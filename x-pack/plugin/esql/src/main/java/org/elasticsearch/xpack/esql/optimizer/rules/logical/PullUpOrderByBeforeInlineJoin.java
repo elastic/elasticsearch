@@ -30,7 +30,7 @@ public final class PullUpOrderByBeforeInlineJoin extends OptimizerRules.Optimize
         if (plan instanceof InlineJoin inlineJoin) {
             OrderBy orderBy = findOrderByNotPrecededByLimit(inlineJoin);
             if (orderBy != null) {
-                LogicalPlan newInlineJoin = removeOrderBy(inlineJoin, orderBy);
+                LogicalPlan newInlineJoin = inlineJoin.transformUp(OrderBy.class, ob -> ob == orderBy ? orderBy.child() : ob);
                 return new OrderBy(orderBy.source(), newInlineJoin, orderBy.order());
             }
         }
@@ -54,16 +54,5 @@ public final class PullUpOrderByBeforeInlineJoin extends OptimizerRules.Optimize
             }
         }
         return null;
-    }
-
-    // Removes the found OrderBy node from its current position in the subtree
-    private static LogicalPlan removeOrderBy(LogicalPlan plan, OrderBy orderBy) {
-        if (plan == orderBy) {
-            return orderBy.child();
-        }
-        if (plan.children().isEmpty()) {
-            return plan;
-        }
-        return plan.replaceChildren(plan.children().stream().map(child -> removeOrderBy(child, orderBy)).toList());
     }
 }

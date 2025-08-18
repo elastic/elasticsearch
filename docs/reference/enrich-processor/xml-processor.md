@@ -148,54 +148,6 @@ Result with empty elements filtered out:
 }
 ```
 
-### Converting element names to lowercase
-
-```console
-POST _ingest/pipeline/_simulate
-{
-  "pipeline": {
-    "processors": [
-      {
-        "xml": {
-          "field": "xml_content",
-          "to_lower": true
-        }
-      }
-    ]
-  },
-  "docs": [
-    {
-      "_source": {
-        "xml_content": "<Catalog><Book><Author>William H. Gaddis</Author><Title>The Recognitions</Title></Book></Catalog>"
-      }
-    }
-  ]
-}
-```
-
-Result:
-
-```console-result
-{
-  "docs": [
-    {
-      "doc": {
-        ...
-        "_source": {
-          "xml_content": "<Catalog><Book><Author>William H. Gaddis</Author><Title>The Recognitions</Title></Book></Catalog>",
-          "catalog": {
-            "book": {
-              "author": "William H. Gaddis",
-              "title": "The Recognitions"
-            }
-          }
-        }
-      }
-    }
-  ]
-}
-```
-
 ### Handling XML attributes
 
 XML attributes are included as properties in the resulting JSON object alongside element content:
@@ -367,58 +319,7 @@ Result:
 }
 ```
 
-### Force array behavior
 
-When `force_array` is true, all parsed values become arrays:
-
-```console
-POST _ingest/pipeline/_simulate
-{
-  "pipeline": {
-    "processors": [
-      {
-        "xml": {
-          "field": "xml_content",
-          "force_array": true
-        }
-      }
-    ]
-  },
-  "docs": [
-    {
-      "_source": {
-        "xml_content": "<catalog><book><title>The Recognitions</title></book></catalog>"
-      }
-    }
-  ]
-}
-```
-
-Result:
-
-```console-result
-{
-  "docs": [
-    {
-      "doc": {
-        ...
-        "_source": {
-          "xml_content": "<catalog><book><title>The Recognitions</title></book></catalog>",
-          "catalog": [
-            {
-              "book": [
-                {
-                  "title": ["The Recognitions"]
-                }
-              ]
-            }
-          ]
-        }
-      }
-    }
-  ]
-}
-```
 
 ### Strict parsing mode
 

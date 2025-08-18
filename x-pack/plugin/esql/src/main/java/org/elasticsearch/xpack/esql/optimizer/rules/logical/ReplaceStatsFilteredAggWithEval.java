@@ -105,11 +105,11 @@ public class ReplaceStatsFilteredAggWithEval extends OptimizerRules.OptimizerRul
                         // project the correct output (the one of the former inlinejoin) and remove the InlineJoin altogether,
                         // replacing it with its right-hand side followed by its left-hand side
                         plan = new Project(newIJ.source(), newIJ.right(), newIJ.output());
-                    } else {
+                    } else { // this is a standalone Aggregate
                         plan = localRelation(aggregate.source(), newEvals);
                     }
                 } else {
-                    if (ij.get() != null) {
+                    if (ij.get() != null) { // this is an Aggregate part of right-hand side of an InlineJoin
                         // only update the Aggregate and add an Eval for the removed aggregations
                         plan = ij.get().transformUp(Aggregate.class, agg -> {
                             // if the aggregate is not the one we are looking for, return it unchanged
@@ -121,7 +121,7 @@ public class ReplaceStatsFilteredAggWithEval extends OptimizerRules.OptimizerRul
                             newPlan = new Project(aggregate.source(), newPlan, newProjections);
                             return newPlan;
                         });
-                    } else {
+                    } else { // this is a standalone Aggregate
                         plan = aggregate.with(aggregate.child(), aggregate.groupings(), newAggs);
                         plan = new Eval(aggregate.source(), plan, newEvals);
                         plan = new Project(aggregate.source(), plan, newProjections);

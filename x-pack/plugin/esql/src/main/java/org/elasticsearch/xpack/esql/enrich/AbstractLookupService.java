@@ -299,7 +299,7 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
             releasables.add(localBreaker);
             final DriverContext driverContext = new DriverContext(
                 bigArrays,
-                blockFactory.newChildFactory(localBreaker),
+                blockFactory.newChildFactory(localBreaker)
                 DriverContext.Phase.OTHER
             );
             final ElementType[] mergingTypes = new ElementType[request.extractFields.size()];

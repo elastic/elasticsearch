@@ -588,6 +588,9 @@ tests:
 - class: org.elasticsearch.test.rest.yaml.CcsCommonYamlTestSuiteIT
   method: test {p0=search/160_exists_query/Test exists query on _id field}
   issue: https://github.com/elastic/elasticsearch/issues/133097
+- class: org.elasticsearch.xpack.esql.optimizer.OptimizerVerificationTests
+  method: testRemoteEnrichAfterCoordinatorOnlyPlans
+  issue: https://github.com/elastic/elasticsearch/issues/133015
 
 # Examples:
 #

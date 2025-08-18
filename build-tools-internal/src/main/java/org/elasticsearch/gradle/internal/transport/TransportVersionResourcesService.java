@@ -76,7 +76,7 @@ public abstract class TransportVersionResourcesService implements BuildService<T
     }
 
     /**
-     * Return the transport version resources directory for this repository.
+     * Return the directory for this repository which contains transport version resources.
      * This should be an input to any tasks reading resources from this service.
      */
     Path getResourcesDir() {

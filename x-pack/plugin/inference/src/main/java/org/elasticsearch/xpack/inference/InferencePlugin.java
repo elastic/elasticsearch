@@ -468,7 +468,7 @@ public class InferencePlugin extends Plugin
                 .setPrimaryIndex(InferenceIndex.INDEX_NAME)
                 .setDescription("Contains inference service and model configuration")
                 .setMappings(InferenceIndex.mappings())
-                .setSettings(InferenceIndex.settings())
+                .setSettings(getIndexSettings())
                 .setOrigin(ClientHelper.INFERENCE_ORIGIN)
                 .setPriorSystemIndexDescriptors(List.of(inferenceIndexV1Descriptor))
                 .build(),
@@ -478,11 +478,21 @@ public class InferencePlugin extends Plugin
                 .setPrimaryIndex(InferenceSecretsIndex.INDEX_NAME)
                 .setDescription("Contains inference service secrets")
                 .setMappings(InferenceSecretsIndex.mappings())
-                .setSettings(InferenceSecretsIndex.settings())
+                .setSettings(getSecretsIndexSettings())
                 .setOrigin(ClientHelper.INFERENCE_ORIGIN)
                 .setNetNew()
                 .build()
         );
+    }
+
+    // Overridable for tests
+    protected Settings getIndexSettings() {
+        return InferenceIndex.settings();
+    }
+
+    // Overridable for tests
+    protected Settings getSecretsIndexSettings() {
+        return InferenceSecretsIndex.settings();
     }
 
     @Override

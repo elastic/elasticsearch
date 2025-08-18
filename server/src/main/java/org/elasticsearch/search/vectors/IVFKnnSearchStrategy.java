@@ -13,14 +13,14 @@ import org.apache.lucene.search.knn.KnnSearchStrategy;
 import java.util.Objects;
 
 public class IVFKnnSearchStrategy extends KnnSearchStrategy {
-    private final int nProbe;
+    private final float visitRatio;
 
-    IVFKnnSearchStrategy(int nProbe) {
-        this.nProbe = nProbe;
+    IVFKnnSearchStrategy(float visitRatio) {
+        this.visitRatio = visitRatio;
     }
 
-    public int getNProbe() {
-        return nProbe;
+    public float getVisitRatio() {
+        return visitRatio;
     }
 
     @Override
@@ -28,12 +28,12 @@ public class IVFKnnSearchStrategy extends KnnSearchStrategy {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         IVFKnnSearchStrategy that = (IVFKnnSearchStrategy) o;
-        return nProbe == that.nProbe;
+        return visitRatio == that.visitRatio;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hashCode(nProbe);
+        return Objects.hashCode(visitRatio);
     }
 
     @Override

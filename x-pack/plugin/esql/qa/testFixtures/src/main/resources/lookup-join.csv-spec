@@ -429,7 +429,7 @@ emp_no:integer | language_code:integer | language_name:keyword
 
 mvJoinKeyOnTheLookupIndex
 required_capability: join_lookup_v12
-required_capability: join_lookup_skip_mv_warnings
+required_capability: async_operator_warnings_fix
 
 FROM employees
 | WHERE 10003 < emp_no AND emp_no < 10008
@@ -451,7 +451,7 @@ emp_no:integer | language_code:integer | language_name:keyword
 
 mvJoinKeyOnFrom
 required_capability: join_lookup_v12
-required_capability: join_lookup_skip_mv_warnings
+required_capability: async_operator_warnings_fix
 
 FROM employees
 | WHERE emp_no < 10006
@@ -474,7 +474,7 @@ emp_no:integer | language_code:integer | language_name:keyword
 
 mvJoinKeyOnTheLookupIndexAfterStats
 required_capability: join_lookup_v12
-required_capability: join_lookup_skip_mv_warnings
+required_capability: async_operator_warnings_fix
 
 FROM employees
 | WHERE 10003 < emp_no AND emp_no < 10008
@@ -497,7 +497,7 @@ emp_no:integer | language_code:integer | language_name:keyword
 
 mvJoinKeyOnFromAfterStats
 required_capability: join_lookup_v12
-required_capability: join_lookup_skip_mv_warnings
+required_capability: async_operator_warnings_fix
 
 FROM employees
 | WHERE emp_no < 10006
@@ -521,7 +521,7 @@ emp_no:integer | language_code:integer | language_name:keyword
 
 mvJoinKeyFromRow
 required_capability: join_lookup_v12
-required_capability: join_lookup_skip_mv_warnings
+required_capability: async_operator_warnings_fix
 
 ROW language_code = [4, 5, 6, 7]
 | LOOKUP JOIN languages_lookup_non_unique_key ON language_code
@@ -538,7 +538,7 @@ language_code:integer | language_name:keyword | country:text
 
 mvJoinKeyFromRowExpanded
 required_capability: join_lookup_v12
-required_capability: join_lookup_skip_mv_warnings
+required_capability: async_operator_warnings_fix
 
 ROW language_code = [4, 5, 6, 7, 8]
 | MV_EXPAND language_code

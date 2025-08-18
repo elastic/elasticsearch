@@ -381,6 +381,7 @@ public class OperatorTests extends MapperServiceTestCase {
             List.of(searchContext),
             ctx -> queryAndTags,
             randomFrom(DataPartitioning.values()),
+            DataPartitioning.AutoStrategy.DEFAULT,
             randomIntBetween(1, 10),
             randomPageSize(),
             limit,

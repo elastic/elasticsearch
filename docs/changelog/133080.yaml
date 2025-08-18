@@ -1,0 +1,5 @@
+pr: 133080
+summary: "Fix(semantic_text): index underlying `dense_vector` field in older indices"
+area: Relevance
+type: bug
+issues: []

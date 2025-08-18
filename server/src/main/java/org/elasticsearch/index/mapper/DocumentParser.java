@@ -703,8 +703,6 @@ public final class DocumentParser {
         boolean supportStoringArrayOffsets = mapper != null && mapper.supportStoringArrayOffsets();
         String fullPath = context.path().pathAsText(arrayFieldName);
 
-        // Check if we need to record the array source. This only applies to synthetic source.
-        boolean canRemoveSingleLeafElement = false;
         if (context.canAddIgnoredField() && supportStoringArrayOffsets == false) {
             Mapper.SourceKeepMode mode = Mapper.SourceKeepMode.NONE;
             boolean objectWithFallbackSyntheticSource = false;
@@ -721,13 +719,6 @@ public final class DocumentParser {
                 fieldWithStoredArraySource = mode != Mapper.SourceKeepMode.NONE;
             }
             boolean copyToFieldHasValuesInDocument = context.isWithinCopyTo() == false && context.isCopyToDestinationField(fullPath);
-
-            canRemoveSingleLeafElement = mapper instanceof FieldMapper
-                && mode == Mapper.SourceKeepMode.ARRAYS
-                && context.inArrayScope() == false
-                && mapper.leafName().equals(NOOP_FIELD_MAPPER_NAME) == false
-                && fieldWithFallbackSyntheticSource == false
-                && copyToFieldHasValuesInDocument == false;
 
             if (objectWithFallbackSyntheticSource
                 || fieldWithFallbackSyntheticSource
@@ -776,9 +767,6 @@ public final class DocumentParser {
             && previousToken == XContentParser.Token.START_ARRAY
             && context.isImmediateParentAnArray()) {
             context.getOffSetContext().maybeRecordEmptyArray(mapper.getOffsetFieldName());
-        }
-        if (elements <= 1 && canRemoveSingleLeafElement) {
-            context.removeLastIgnoredField(fullPath);
         }
         postProcessDynamicArrayMapping(context, lastFieldName);
     }

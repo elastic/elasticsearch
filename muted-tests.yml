@@ -585,6 +585,9 @@ tests:
 - class: org.elasticsearch.xpack.test.rest.XPackRestIT
   method: test {p0=esql/60_usage/Basic ESQL usage output (telemetry) non-snapshot version}
   issue: https://github.com/elastic/elasticsearch/issues/133014
+- class: org.elasticsearch.test.rest.yaml.CcsCommonYamlTestSuiteIT
+  method: test {p0=search/160_exists_query/Test exists query on _id field}
+  issue: https://github.com/elastic/elasticsearch/issues/133097
 
 # Examples:
 #

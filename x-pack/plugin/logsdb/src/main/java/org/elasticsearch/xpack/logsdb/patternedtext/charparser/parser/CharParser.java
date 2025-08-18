@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.logsdb.patternedtext.charparser.parser;
 
+import org.elasticsearch.xpack.logsdb.patternedtext.charparser.api.DataLossParseException;
+import org.elasticsearch.xpack.logsdb.patternedtext.charparser.api.ParseException;
 import org.elasticsearch.xpack.logsdb.patternedtext.charparser.api.Parser;
 import org.elasticsearch.xpack.logsdb.patternedtext.charparser.common.EncodingType;
 import org.elasticsearch.xpack.logsdb.patternedtext.charparser.compiler.CompiledSchema;
@@ -78,6 +80,8 @@ public final class CharParser implements Parser {
     private final StringBuilder patternedMessage = new StringBuilder();
     private final List<Argument<?>> arguments = new ArrayList<>();
     private Timestamp timestamp = null;
+    // a character counter that is used to verify data integrity
+    int totalCharsAttributedToArgs;
 
     // current subToken state
     private int currentSubTokenStartIndex;
@@ -97,10 +101,13 @@ public final class CharParser implements Parser {
     private final char[] bufferedSubTokenDelimiters;
 
     // current multi-token state
+    private int currentMultiTokenStartIndex;
     int currentMultiTokenBitmask;
     int currentTokenIndex;
     final TokenType[] bufferedTokens;
     final int[] bufferedTokenBitmasks;
+    final int[] bufferedTokenStartIndexes;
+    final int[] bufferedTokenLengths;
     private final char[] bufferedTokenDelimiters;
     private final int[] currentMultiTokenSubTokenValues;
     private int currentMultiTokenSubTokenIndex;
@@ -126,6 +133,8 @@ public final class CharParser implements Parser {
         bufferedSubTokenLengths = new int[compiledSchema.maxSubTokensPerToken + 1];
         bufferedTokens = new TokenType[compiledSchema.maxTokensPerMultiToken + 1];
         bufferedTokenBitmasks = new int[compiledSchema.maxTokensPerMultiToken + 1];
+        bufferedTokenStartIndexes = new int[compiledSchema.maxTokensPerMultiToken + 1];
+        bufferedTokenLengths = new int[compiledSchema.maxTokensPerMultiToken + 1];
         bufferedTokenDelimiters = new char[compiledSchema.maxTokensPerMultiToken + 1];
     }
 
@@ -145,6 +154,7 @@ public final class CharParser implements Parser {
     }
 
     private void resetMultiTokenState() {
+        currentMultiTokenStartIndex = -1;
         currentTokenIndex = -1;
         currentMultiTokenBitmask = allMultiTokenBitmask;
         currentMultiTokenSubTokenIndex = 0;
@@ -155,6 +165,7 @@ public final class CharParser implements Parser {
         patternedMessage.setLength(0);
         arguments.clear();
         timestamp = null;
+        totalCharsAttributedToArgs = 0;
         resetSubTokenState();
         resetTokenState();
         resetMultiTokenState();
@@ -215,7 +226,7 @@ public final class CharParser implements Parser {
      * @param rawMessage the input message to parse
      * @return a {@link PatternedMessage} containing the pattern template, timestamp, and typed arguments
      */
-    public PatternedMessage parse(String rawMessage) {
+    public PatternedMessage parse(String rawMessage) throws ParseException {
         if (rawMessage == null || rawMessage.isEmpty()) {
             return new PatternedMessage("", null, new Argument<?>[0]);
         }
@@ -344,6 +355,13 @@ public final class CharParser implements Parser {
 
                     // handle token finalization
                     int formerMultiTokenBitmask = currentMultiTokenBitmask;
+                    int formerMultiTokenEndIndex;
+                    if (currentTokenIndex >= 0) {
+                        formerMultiTokenEndIndex = bufferedTokenStartIndexes[currentTokenIndex] + bufferedTokenLengths[currentTokenIndex];
+                    } else {
+                        formerMultiTokenEndIndex = indexWithinRawMessage;
+                    }
+
                     if (charType == TOKEN_DELIMITER_CHAR_CODE || charType == LINE_END_CODE) {
                         int currentTokenLength = indexWithinRawMessage - currentTokenStartIndex;
                         if (currentTokenLength == 0) {
@@ -361,8 +379,12 @@ public final class CharParser implements Parser {
                             bufferedTokens[currentTokenIndex] = currentToken;
                             bufferedTokenDelimiters[currentTokenIndex] = currentChar;
                             bufferedTokenBitmasks[currentTokenIndex] = currentTokenBitmask;
+                            bufferedTokenStartIndexes[currentTokenIndex] = currentTokenStartIndex;
+                            bufferedTokenLengths[currentTokenIndex] = currentTokenLength;
 
-                            if (currentTokenIndex == compiledSchema.maxTokensPerMultiToken) {
+                            if (currentTokenIndex == 0) {
+                                currentMultiTokenStartIndex = currentTokenStartIndex;
+                            } else if (currentTokenIndex == compiledSchema.maxTokensPerMultiToken) {
                                 // we already passed the maximum number of tokens for any known multi-token
                                 currentMultiTokenBitmask = 0;
                             } else {
@@ -436,11 +458,17 @@ public final class CharParser implements Parser {
                                 if (multiTokenType.encodingType() == EncodingType.TIMESTAMP) {
                                     createAndStoreTimestamp(multiTokenType);
                                 } else {
-                                    throw new IllegalStateException("Unknown multi-token type: " + multiTokenType.name());
+                                    throw new ParseException("Unknown multi-token type: " + multiTokenType.name());
                                 }
+
+                                int multiTokenLength = formerMultiTokenEndIndex - currentMultiTokenStartIndex;
+                                totalCharsAttributedToArgs += multiTokenLength - 2; // deducting 2 for the %T placeholder
+
                                 // now fixing the buffers so that the last token becomes the only buffered token
                                 bufferedTokens[0] = bufferedTokens[currentTokenIndex];
                                 bufferedTokenBitmasks[0] = bufferedTokenBitmasks[currentTokenIndex];
+                                bufferedTokenStartIndexes[0] = bufferedTokenStartIndexes[currentTokenIndex];
+                                bufferedTokenLengths[0] = bufferedTokenLengths[currentTokenIndex];
                                 bufferedTokenDelimiters[0] = bufferedTokenDelimiters[currentTokenIndex];
                                 currentTokenIndex = 0;
                                 currentMultiTokenSubTokenIndex = 0;
@@ -461,16 +489,26 @@ public final class CharParser implements Parser {
                                         case INTEGER -> new IntegerArgument(bufferedSubTokenIntValues[0]);
                                         case HEX -> new HexadecimalArgument(
                                             rawMessage,
-                                            bufferedSubTokenStartIndexes[0],
-                                            bufferedSubTokenLengths[0]
+                                            bufferedTokenStartIndexes[i],
+                                            bufferedTokenLengths[i]
                                         );
-                                        case IPV4 -> new IPv4Argument(bufferedSubTokenIntValues);
-                                        case UUID -> new UUIDArgument(rawMessage, currentTokenStartIndex, indexWithinRawMessage);
+                                        case IPV4 -> {
+                                            if (currentTokenIndex == 0) {
+                                                // IPv4 tokens can only be part of a single token, so we can safely create an IPv4 argument
+                                                yield new IPv4Argument(bufferedSubTokenIntValues);
+                                            } else {
+                                                throw new ParseException(
+                                                    "IPV4 token cannot be part of a multi-token, but found at position " + i
+                                                );
+                                            }
+                                        }
+                                        case UUID -> new UUIDArgument(rawMessage, bufferedTokenStartIndexes[i], bufferedTokenLengths[i]);
                                         default -> null;
                                     };
                                     if (argument != null) {
                                         arguments.add(argument);
                                         patternedMessage.append(ARGUMENT_PLACEHOLDER_PREFIX).append(argument.type().getSymbol());
+                                        totalCharsAttributedToArgs += bufferedTokenLengths[i] - 2; // 2 for symbols
                                     } else {
                                         // todo
                                     }
@@ -511,6 +549,7 @@ public final class CharParser implements Parser {
                                 if (argument != null) {
                                     arguments.add(argument);
                                     patternedMessage.append(ARGUMENT_PLACEHOLDER_PREFIX).append(argument.type().getSymbol());
+                                    totalCharsAttributedToArgs += bufferedSubTokenLengths[i] - 2; // deducting 2 for the % prefix and symbol
                                 } else {
                                     patternedMessage.append(rawMessage, bufferedSubTokenStartIndexes[i], indexWithinRawMessage);
                                 }
@@ -533,6 +572,11 @@ public final class CharParser implements Parser {
                     break;
                 default:
             }
+        }
+
+        int consumedCharsForPatternedMessage = patternedMessage.length() + totalCharsAttributedToArgs;
+        if (consumedCharsForPatternedMessage != rawMessage.length()) {
+            throw new DataLossParseException("Data loss detected during parsing", rawMessage.length(), consumedCharsForPatternedMessage);
         }
         return new PatternedMessage(patternedMessage.toString(), timestamp, arguments.toArray(new Argument<?>[0]));
     }

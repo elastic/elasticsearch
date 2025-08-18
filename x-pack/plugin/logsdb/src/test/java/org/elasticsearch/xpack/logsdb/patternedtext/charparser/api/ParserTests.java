@@ -22,7 +22,7 @@ public class ParserTests extends ESTestCase {
         parser = ParserFactory.createParser();
     }
 
-    public void testSimpleIpAndNumber() {
+    public void testSimpleIpAndNumber() throws ParseException {
         PatternedMessage patternedMessage = parser.parse("Response from 127.0.0.1 took 2000 ms");
         assertEquals("Response from %4 took %I ms", patternedMessage.pattern());
         Argument<?>[] arguments = patternedMessage.arguments();
@@ -31,7 +31,7 @@ public class ParserTests extends ESTestCase {
         assertEquals("INTEGER", arguments[1].type().name());
     }
 
-    public void testTimestampAndIpAndNumber() {
+    public void testTimestampAndIpAndNumber() throws ParseException {
         PatternedMessage patternedMessage = parser.parse("Oct 05 2023 02:48:07 PM INFO Response from 146.10.10.133 took 2000 ms");
         assertEquals("%T INFO Response from %4 took %I ms", patternedMessage.pattern());
         assertEquals(1696517287000L, patternedMessage.timestamp().getTimestamp());

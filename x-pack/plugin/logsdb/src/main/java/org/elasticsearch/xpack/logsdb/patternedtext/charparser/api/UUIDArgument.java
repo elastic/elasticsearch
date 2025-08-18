@@ -19,12 +19,11 @@ import java.util.UUID;
  */
 public final class UUIDArgument extends ByteEncodedArgument {
 
-    public UUIDArgument(String s, int start, int end) {
+    public UUIDArgument(String s, int start, int length) {
         super(16);
-        int length = end - start;
         if (length == 36) {
             // UUID in standard format (e.g., "123e4567-e89b-12d3-a456-426614174000")
-            UUID uuid = UUID.fromString(s.substring(start, end));
+            UUID uuid = UUID.fromString(s.substring(start, start + length));
             ByteUtils.writeLongLE(uuid.getMostSignificantBits(), encodedBytes, 0);
             ByteUtils.writeLongLE(uuid.getLeastSignificantBits(), encodedBytes, 8);
         } else if (length == 32) {

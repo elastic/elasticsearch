@@ -10,6 +10,7 @@
 package org.elasticsearch.benchmark.index.mapper;
 
 import org.elasticsearch.xpack.logsdb.patternedtext.charparser.api.Parser;
+import org.elasticsearch.xpack.logsdb.patternedtext.charparser.api.ParseException;
 import org.elasticsearch.xpack.logsdb.patternedtext.charparser.api.ParserFactory;
 import org.elasticsearch.xpack.logsdb.patternedtext.charparser.api.Argument;
 import org.elasticsearch.xpack.logsdb.patternedtext.charparser.api.IPv4Argument;
@@ -28,7 +29,6 @@ import org.openjdk.jmh.annotations.State;
 import org.openjdk.jmh.annotations.Warmup;
 import org.openjdk.jmh.infra.Blackhole;
 
-import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
@@ -66,7 +66,7 @@ public class PatternedTextParserBenchmark {
     }
 
     @Benchmark
-    public void parseWithCharParser(Blackhole blackhole) {
+    public void parseWithCharParser(Blackhole blackhole) throws ParseException {
         PatternedMessage result = parser.parse(testMessageNoComma);
         blackhole.consume(result);
         // long timestamp = TimestampFormat.parseTimestamp(dateTimeFormatter, "Oct 05 2023 02:48:00 PM");
@@ -140,7 +140,7 @@ public class PatternedTextParserBenchmark {
                     Date date = usedFormatter.parse(tsString);
                     timestampArg = new Timestamp(date.getTime(), usedFormatter.toPattern());
                     patternBuilder.append("%T");
-                } catch (ParseException e) {
+                } catch (java.text.ParseException e) {
                     patternBuilder.append(tsString);
                 }
             }

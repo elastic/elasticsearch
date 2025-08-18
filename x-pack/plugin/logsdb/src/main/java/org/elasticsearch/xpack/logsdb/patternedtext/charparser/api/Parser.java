@@ -43,6 +43,7 @@ public interface Parser {
      * @param rawMessage the input text message to parse, must not be null
      * @return a {@link PatternedMessage} containing the extracted template, timestamp, and typed arguments
      * @throws IllegalArgumentException if rawMessage is null
+     * @throws ParseException if a parsing error occurs
      */
-    PatternedMessage parse(String rawMessage);
+    PatternedMessage parse(String rawMessage) throws ParseException;
 }

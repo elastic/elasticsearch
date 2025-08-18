@@ -68,7 +68,7 @@ public abstract class ValidateTransportVersionResourcesTask extends DefaultTask 
         for (var definition : definitions.values()) {
             validateDefinition(definition, referencedNames);
         }
-        
+
         for (var entry : idsByBase.entrySet()) {
             validateBase(entry.getKey(), entry.getValue());
         }

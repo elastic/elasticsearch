@@ -44,7 +44,6 @@ public class MetricStatsTests extends AbstractWireSerializingTestCase<ClusterBal
     }
 
     public void testToXContent() throws IOException {
-        // Given
         double total = randomDouble();
         double min = randomDouble();
         double max = randomDouble();
@@ -57,7 +56,6 @@ public class MetricStatsTests extends AbstractWireSerializingTestCase<ClusterBal
         // Convert to map for easy assertions
         Map<String, Object> map = XContentHelper.convertToMap(BytesReference.bytes(builder), false, builder.contentType()).v2();
 
-        // Then
         assertThat(map.get("total"), equalTo(total));
         assertThat(map.get("min"), equalTo(min));
         assertThat(map.get("max"), equalTo(max));

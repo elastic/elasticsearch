@@ -52,7 +52,6 @@ public class TierBalanceStatsTests extends AbstractWireSerializingTestCase<Clust
 
     @SuppressWarnings("unchecked")
     public void testToXContent() throws IOException {
-        // Given
         ClusterBalanceStats.MetricStats shardCount = createRandomMetricStats();
         ClusterBalanceStats.MetricStats undesiredShardAllocations = createRandomMetricStats();
         ClusterBalanceStats.MetricStats forecastWriteLoad = createRandomMetricStats();

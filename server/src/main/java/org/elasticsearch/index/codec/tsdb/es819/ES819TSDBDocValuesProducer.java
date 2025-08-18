@@ -516,10 +516,10 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
         }
     }
 
-    abstract static class BaseNumericValuesWithDISI extends NumericDocValues {
+    abstract static class BaseSparseNumericValues extends NumericDocValues {
         protected final IndexedDISI disi;
 
-        BaseNumericValuesWithDISI(IndexedDISI disi) {
+        BaseSparseNumericValues(IndexedDISI disi) {
             this.disi = disi;
         }
 
@@ -1257,7 +1257,7 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
                     entry.denseRankPower,
                     entry.numValues
                 );
-                return new BaseNumericValuesWithDISI(disi) {
+                return new BaseSparseNumericValues(disi) {
                     @Override
                     public long longValue() throws IOException {
                         return 0L;  // Only one ordinal!
@@ -1294,7 +1294,7 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
                     entry.denseRankPower,
                     entry.numValues
                 );
-                return new BaseNumericValuesWithDISI(disi) {
+                return new BaseSparseNumericValues(disi) {
                     @Override
                     public long longValue() {
                         return ordinalsReader.readValueAndAdvance(disi.docID());
@@ -1437,7 +1437,7 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
                 entry.denseRankPower,
                 entry.numValues
             );
-            return new BaseNumericValuesWithDISI(disi) {
+            return new BaseSparseNumericValues(disi) {
                 private final TSDBDocValuesEncoder decoder = new TSDBDocValuesEncoder(ES819TSDBDocValuesFormat.NUMERIC_BLOCK_SIZE);
                 private long currentBlockIndex = -1;
                 private final long[] currentBlock = new long[ES819TSDBDocValuesFormat.NUMERIC_BLOCK_SIZE];

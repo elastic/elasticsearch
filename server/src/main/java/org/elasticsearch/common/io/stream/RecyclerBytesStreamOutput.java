@@ -118,13 +118,18 @@ public class RecyclerBytesStreamOutput extends BytesStream implements Releasable
             return;
         }
 
+        // Ensure we have at least enough capacity for ASCII representation and max vint
+        if ((charCount + 5) > (pageSize - currentPageOffset)) {
+            ensureCapacity(charCount);
+        }
+
         // Optimistically write length assuming all ASCII (1 byte per char)
         long startPosition = position();
-        writeVInt(charCount);
-
-        // Ensure we have at least enough capacity for ASCII representation
-        if (charCount > (pageSize - currentPageOffset)) {
-            ensureCapacity(charCount);
+        if (Integer.numberOfLeadingZeros(charCount) >= 25) {
+            bytesRefBytes[bytesRefOffset + currentPageOffset] = (byte) charCount;
+            ++currentPageOffset;
+        } else {
+            currentPageOffset += putMultiByteVInt(bytesRefBytes, charCount, bytesRefOffset + currentPageOffset);
         }
 
         if (writeAsciiChars(str, charCount) == false) {
@@ -156,7 +161,6 @@ public class RecyclerBytesStreamOutput extends BytesStream implements Releasable
             currentPageOffset += charsToWrite;
             charIndex += charsToWrite;
 
-            // Check if we need to move to next page AFTER writing
             if (currentPageOffset == pageSize && charIndex < charCount) {
                 nextPage();
             }

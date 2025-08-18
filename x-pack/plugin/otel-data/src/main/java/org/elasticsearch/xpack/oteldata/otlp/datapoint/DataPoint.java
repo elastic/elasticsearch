@@ -22,6 +22,8 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Set;
 
+import static io.opentelemetry.proto.metrics.v1.AggregationTemporality.AGGREGATION_TEMPORALITY_CUMULATIVE;
+
 /**
  * Represents a metrics data point in the OpenTelemetry metrics data model.
  * This interface defines methods to access various properties of a data point,
@@ -147,7 +149,13 @@ public interface DataPoint {
 
         @Override
         public String getDynamicTemplate(MappingHints mappingHints) {
-            String prefix = metric.getDataCase() == Metric.DataCase.SUM ? "counter_" : "gauge_";
+            String prefix;
+            if (metric.hasSum()) {
+                AggregationTemporality temporality = metric.getSum().getAggregationTemporality();
+                prefix = temporality == AGGREGATION_TEMPORALITY_CUMULATIVE ? "counter_" : "gauge_";
+            } else {
+                prefix = "gauge_";
+            }
             if (dataPoint.getValueCase() == NumberDataPoint.ValueCase.AS_INT) {
                 return prefix + "long";
             } else if (dataPoint.getValueCase() == NumberDataPoint.ValueCase.AS_DOUBLE) {

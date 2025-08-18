@@ -75,6 +75,8 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 
 import static io.opentelemetry.api.common.AttributeKey.stringKey;
+import static io.opentelemetry.sdk.metrics.data.AggregationTemporality.CUMULATIVE;
+import static io.opentelemetry.sdk.metrics.data.AggregationTemporality.DELTA;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.anEmptyMap;
@@ -286,7 +288,7 @@ public class OTLPMetricsIndexingIT extends ESSingleNodeTestCase {
 
     public void testTimeSeriesMetrics() throws Exception {
         long now = Clock.getDefault().now();
-        MetricData metric1 = createCounter(TEST_RESOURCE, Attributes.empty(), "counter", 42, "By", now);
+        MetricData metric1 = createCounter(TEST_RESOURCE, Attributes.empty(), "counter", 42, "By", now, CUMULATIVE);
         MetricData metric2 = createDoubleGauge(TEST_RESOURCE, Attributes.empty(), "gauge", 42, "By", now);
         export(List.of(metric1, metric2));
 
@@ -303,9 +305,30 @@ public class OTLPMetricsIndexingIT extends ESSingleNodeTestCase {
         });
     }
 
+    public void testCounterTemporality() throws Exception {
+        long now = Clock.getDefault().now();
+        export(
+            List.of(
+                createCounter(TEST_RESOURCE, Attributes.empty(), "cumulative_counter", 42, "By", now, CUMULATIVE),
+                createCounter(TEST_RESOURCE, Attributes.empty(), "delta_counter", 42, "By", now, DELTA)
+            )
+        );
+
+        assertResponse(client().admin().indices().prepareGetMappings(TEST_REQUEST_TIMEOUT, "metrics-generic.otel-default"), resp -> {
+            Map<String, MappingMetadata> mappings = resp.getMappings();
+            assertThat(mappings, aMapWithSize(1));
+            Map<String, Object> mapping = mappings.values().iterator().next().getSourceAsMap();
+            assertThat(mapping, not(anEmptyMap()));
+            assertThat(evaluate(mapping, "properties.metrics.properties.cumulative_counter.type"), equalTo("long"));
+            assertThat(evaluate(mapping, "properties.metrics.properties.cumulative_counter.time_series_metric"), equalTo("counter"));
+            assertThat(evaluate(mapping, "properties.metrics.properties.delta_counter.type"), equalTo("long"));
+            assertThat(evaluate(mapping, "properties.metrics.properties.delta_counter.time_series_metric"), equalTo("gauge"));
+        });
+    }
+
     public void testExponentialHistograms() throws Exception {
         long now = Clock.getDefault().now();
-        export(List.of(createExponentialHistogram(now, "exponential_histogram", AggregationTemporality.DELTA, Attributes.empty())));
+        export(List.of(createExponentialHistogram(now, "exponential_histogram", DELTA, Attributes.empty())));
 
         assertResponse(client().admin().indices().prepareGetMappings(TEST_REQUEST_TIMEOUT, "metrics-generic.otel-default"), resp -> {
             Map<String, MappingMetadata> mappings = resp.getMappings();
@@ -334,7 +357,7 @@ public class OTLPMetricsIndexingIT extends ESSingleNodeTestCase {
                 createExponentialHistogram(
                     now,
                     "exponential_histogram_summary",
-                    AggregationTemporality.DELTA,
+                    DELTA,
                     Attributes.of(
                         AttributeKey.stringArrayKey("elasticsearch.mapping.hints"),
                         List.of("aggregate_metric_double", "_doc_count")
@@ -364,7 +387,7 @@ public class OTLPMetricsIndexingIT extends ESSingleNodeTestCase {
 
     public void testHistogram() throws Exception {
         long now = Clock.getDefault().now();
-        export(List.of(createHistogram(now, "histogram", AggregationTemporality.DELTA, Attributes.empty())));
+        export(List.of(createHistogram(now, "histogram", DELTA, Attributes.empty())));
 
         assertResponse(client().admin().indices().prepareGetMappings(TEST_REQUEST_TIMEOUT, "metrics-generic.otel-default"), resp -> {
             Map<String, MappingMetadata> mappings = resp.getMappings();
@@ -391,7 +414,7 @@ public class OTLPMetricsIndexingIT extends ESSingleNodeTestCase {
                 createHistogram(
                     now,
                     "histogram_summary",
-                    AggregationTemporality.DELTA,
+                    DELTA,
                     Attributes.of(
                         AttributeKey.stringArrayKey("elasticsearch.mapping.hints"),
                         List.of("aggregate_metric_double", "_doc_count")
@@ -422,8 +445,8 @@ public class OTLPMetricsIndexingIT extends ESSingleNodeTestCase {
             RuntimeException.class,
             () -> export(
                 List.of(
-                    createExponentialHistogram(now, "exponential_histogram", AggregationTemporality.CUMULATIVE, Attributes.empty()),
-                    createHistogram(now, "histogram", AggregationTemporality.CUMULATIVE, Attributes.empty())
+                    createExponentialHistogram(now, "exponential_histogram", CUMULATIVE, Attributes.empty()),
+                    createHistogram(now, "histogram", CUMULATIVE, Attributes.empty())
                 )
             )
         );
@@ -509,7 +532,8 @@ public class OTLPMetricsIndexingIT extends ESSingleNodeTestCase {
         String name,
         long value,
         String unit,
-        long timeEpochNanos
+        long timeEpochNanos,
+        AggregationTemporality temporality
     ) {
         return ImmutableMetricData.createLongSum(
             resource,
@@ -519,7 +543,7 @@ public class OTLPMetricsIndexingIT extends ESSingleNodeTestCase {
             unit,
             ImmutableSumData.create(
                 true,
-                AggregationTemporality.CUMULATIVE,
+                temporality,
                 List.of(ImmutableLongPointData.create(timeEpochNanos, timeEpochNanos, attributes, value))
             )
         );

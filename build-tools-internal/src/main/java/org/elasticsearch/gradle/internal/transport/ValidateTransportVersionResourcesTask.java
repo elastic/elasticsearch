@@ -65,21 +65,13 @@ public abstract class ValidateTransportVersionResourcesTask extends DefaultTask 
         Map<Integer, List<IdAndDefinition>> idsByBase = collectIdsByBase(definitions.values());
         Map<String, TransportVersionLatest> latestByReleaseBranch = getResources().get().getLatestByReleaseBranch();
 
-        // now load all definitions, do some validation and record them by various keys for later quick lookup
-        // NOTE: this must run after loading referenced names and existing definitions
-        // NOTE: this is sorted so that the order of cross validation is deterministic
         for (var definition : definitions.values()) {
             validateDefinition(definition, referencedNames);
         }
-
-        // cleanup base lookup so we can check ids
-        // NOTE: this must run after definition recording
+        
         for (var entry : idsByBase.entrySet()) {
             validateBase(entry.getKey(), entry.getValue());
         }
-
-        // now load all latest versions and do validation
-        // NOTE: this must run after definition recording and idsByBase cleanup
 
         for (var latest : latestByReleaseBranch.values()) {
             validateLatest(latest, definitions, idsByBase);

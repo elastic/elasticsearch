@@ -61,7 +61,7 @@ public abstract class TransportVersionResourcesService implements BuildService<T
 
     private static final Path DEFINITIONS_DIR = Path.of("definitions");
     private static final Path NAMED_DIR = DEFINITIONS_DIR.resolve("named");
-    private static final Path INITIAL_DIR = DEFINITIONS_DIR.resolve("initial");
+    private static final Path UNREFERENCED_DIR = DEFINITIONS_DIR.resolve("unreferenced");
     private static final Path LATEST_DIR = Path.of("latest");
 
     private final Path resourcesDir;
@@ -99,8 +99,8 @@ public abstract class TransportVersionResourcesService implements BuildService<T
     /** Return all named definitions, mapped by their name. */
     Map<String, TransportVersionDefinition> getNamedDefinitions() throws IOException {
         Map<String, TransportVersionDefinition> definitions = new HashMap<>();
-        // temporarily include initial in named until validation understands the distinction
-        for (var dir : List.of(NAMED_DIR, INITIAL_DIR)) {
+        // temporarily include unreferenced in named until validation understands the distinction
+        for (var dir : List.of(NAMED_DIR, UNREFERENCED_DIR)) {
             try (var definitionsStream = Files.list(resourcesDir.resolve(dir))) {
                 for (var definitionFile : definitionsStream.toList()) {
                     String contents = Files.readString(definitionFile, StandardCharsets.UTF_8).strip();

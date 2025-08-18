@@ -22,7 +22,6 @@ import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.ByteArrayStreamInput;
 import org.elasticsearch.index.IndexVersion;
-import org.elasticsearch.index.codec.tsdb.es819.BulkNumericDocValues;
 import org.elasticsearch.index.mapper.BlockLoader.BlockFactory;
 import org.elasticsearch.index.mapper.BlockLoader.BooleanBuilder;
 import org.elasticsearch.index.mapper.BlockLoader.Builder;
@@ -38,6 +37,7 @@ import org.elasticsearch.search.fetch.StoredFieldsSpec;
 
 import java.io.IOException;
 
+import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.COSINE_MAGNITUDE_FIELD_SUFFIX;
 import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.ElementType.BYTE;
 
 /**
@@ -132,8 +132,11 @@ public abstract class BlockDocValuesReader implements BlockLoader.AllReader {
 
         @Override
         public BlockLoader.Block read(BlockFactory factory, Docs docs, int offset) throws IOException {
-            if (numericDocValues instanceof BulkNumericDocValues bulkDv) {
-                return bulkDv.read(factory, docs, offset);
+            if (numericDocValues instanceof BlockLoader.OptionalColumnAtATimeReader direct) {
+                BlockLoader.Block result = direct.tryRead(factory, docs, offset);
+                if (result != null) {
+                    return result;
+                }
             }
             try (BlockLoader.LongBuilder builder = factory.longsFromDocValues(docs.count() - offset)) {
                 int lastDoc = -1;
@@ -540,6 +543,11 @@ public abstract class BlockDocValuesReader implements BlockLoader.AllReader {
                 case FLOAT -> {
                     FloatVectorValues floatVectorValues = context.reader().getFloatVectorValues(fieldName);
                     if (floatVectorValues != null) {
+                        if (fieldType.isNormalized()) {
+                            NumericDocValues magnitudeDocValues = context.reader()
+                                .getNumericDocValues(fieldType.name() + COSINE_MAGNITUDE_FIELD_SUFFIX);
+                            return new FloatDenseVectorNormalizedValuesBlockReader(floatVectorValues, dimensions, magnitudeDocValues);
+                        }
                         return new FloatDenseVectorValuesBlockReader(floatVectorValues, dimensions);
                     }
                 }
@@ -584,6 +592,9 @@ public abstract class BlockDocValuesReader implements BlockLoader.AllReader {
         }
 
         private void read(int doc, BlockLoader.FloatBuilder builder) throws IOException {
+            assert vectorValues.dimension() == dimensions
+                : "unexpected dimensions for vector value; expected " + dimensions + " but got " + vectorValues.dimension();
+
             if (iterator.docID() > doc) {
                 builder.appendNull();
             } else if (iterator.docID() == doc || iterator.advance(doc) == doc) {
@@ -611,8 +622,6 @@ public abstract class BlockDocValuesReader implements BlockLoader.AllReader {
 
         protected void appendDoc(BlockLoader.FloatBuilder builder) throws IOException {
             float[] floats = vectorValues.vectorValue(iterator.index());
-            assert floats.length == dimensions
-                : "unexpected dimensions for vector value; expected " + dimensions + " but got " + floats.length;
             for (float aFloat : floats) {
                 builder.appendFloat(aFloat);
             }
@@ -624,6 +633,38 @@ public abstract class BlockDocValuesReader implements BlockLoader.AllReader {
         }
     }
 
+    private static class FloatDenseVectorNormalizedValuesBlockReader extends DenseVectorValuesBlockReader<FloatVectorValues> {
+        private final NumericDocValues magnitudeDocValues;
+
+        FloatDenseVectorNormalizedValuesBlockReader(
+            FloatVectorValues floatVectorValues,
+            int dimensions,
+            NumericDocValues magnitudeDocValues
+        ) {
+            super(floatVectorValues, dimensions);
+            this.magnitudeDocValues = magnitudeDocValues;
+        }
+
+        @Override
+        protected void appendDoc(BlockLoader.FloatBuilder builder) throws IOException {
+            float magnitude = 1.0f;
+            // If all vectors are normalized, no doc values will be present. The vector may be normalized already, so we may not have a
+            // stored magnitude for all docs
+            if ((magnitudeDocValues != null) && magnitudeDocValues.advanceExact(iterator.docID())) {
+                magnitude = Float.intBitsToFloat((int) magnitudeDocValues.longValue());
+            }
+            float[] floats = vectorValues.vectorValue(iterator.index());
+            for (float aFloat : floats) {
+                builder.appendFloat(aFloat * magnitude);
+            }
+        }
+
+        @Override
+        public String toString() {
+            return "BlockDocValuesReader.FloatDenseVectorNormalizedValuesBlockReader";
+        }
+    }
+
     private static class ByteDenseVectorValuesBlockReader extends DenseVectorValuesBlockReader<ByteVectorValues> {
         ByteDenseVectorValuesBlockReader(ByteVectorValues floatVectorValues, int dimensions) {
             super(floatVectorValues, dimensions);
@@ -631,8 +672,6 @@ public abstract class BlockDocValuesReader implements BlockLoader.AllReader {
 
         protected void appendDoc(BlockLoader.FloatBuilder builder) throws IOException {
             byte[] bytes = vectorValues.vectorValue(iterator.index());
-            assert bytes.length == dimensions
-                : "unexpected dimensions for vector value; expected " + dimensions + " but got " + bytes.length;
             for (byte aFloat : bytes) {
                 builder.appendFloat(aFloat);
             }
@@ -711,7 +750,13 @@ public abstract class BlockDocValuesReader implements BlockLoader.AllReader {
             if (docs.count() - offset == 1) {
                 return readSingleDoc(factory, docs.get(offset));
             }
-            try (var builder = factory.singletonOrdinalsBuilder(ordinals, docs.count() - offset)) {
+            if (ordinals instanceof BlockLoader.OptionalColumnAtATimeReader direct) {
+                BlockLoader.Block block = direct.tryRead(factory, docs, offset);
+                if (block != null) {
+                    return block;
+                }
+            }
+            try (var builder = factory.singletonOrdinalsBuilder(ordinals, docs.count() - offset, false)) {
                 for (int i = offset; i < docs.count(); i++) {
                     int doc = docs.get(i);
                     if (doc < ordinals.docID()) {

@@ -130,6 +130,11 @@ public class MetadataAttribute extends TypedAttribute {
     }
 
     @Override
+    public boolean isDimension() {
+        return false;
+    }
+
+    @Override
     protected NodeInfo<? extends Expression> info() {
         return NodeInfo.create(this, MetadataAttribute::new, name(), dataType(), nullable(), id(), synthetic(), searchable);
     }

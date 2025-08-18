@@ -20,6 +20,14 @@ import static org.elasticsearch.test.ESTestCase.randomIntBetween;
 import static org.elasticsearch.test.ESTestCase.randomRealisticUnicodeOfCodepointLengthBetween;
 
 public class DefaultObjectGenerationHandler implements DataSourceHandler {
+
+    /**
+     * Field names will not be generated which start with `_reserved_`. Handlers can safely
+     * create field names starting with this prefix without the concern of randomly generated
+     * fields having the same name.
+     */
+    public static final String RESERVED_FIELD_NAME_PREFIX = "_reserved_";
+
     @Override
     public DataSourceResponse.ChildFieldGenerator handle(DataSourceRequest.ChildFieldGenerator request) {
         return new DataSourceResponse.ChildFieldGenerator() {
@@ -55,6 +63,9 @@ public class DefaultObjectGenerationHandler implements DataSourceHandler {
                         continue;
                     }
                     if (fieldName.indexOf('.') != -1) {
+                        continue;
+                    }
+                    if (fieldName.startsWith(RESERVED_FIELD_NAME_PREFIX)) {
                         continue;
                     }
 

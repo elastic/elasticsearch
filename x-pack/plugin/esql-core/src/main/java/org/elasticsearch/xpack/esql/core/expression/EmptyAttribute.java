@@ -53,6 +53,11 @@ public class EmptyAttribute extends Attribute {
     }
 
     @Override
+    public boolean isDimension() {
+        return false;
+    }
+
+    @Override
     public boolean resolved() {
         return true;
     }

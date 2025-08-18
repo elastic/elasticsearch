@@ -1101,6 +1101,8 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         private List<Consumer<UploadedBccInfo>> uploadedBccConsumers = null;
         private volatile long recoveredGeneration = -1;
         private volatile long recoveredPrimaryTerm = -1;
+        private volatile String recoveredNodeEphemeralId;
+        private volatile long recoveredTranslogStartFile;
 
         // Used to prevent duplicated commits when unhollowing shards
         private volatile long hollowGeneration = -1;
@@ -1316,6 +1318,8 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
 
             recoveredPrimaryTerm = recoveredCommit.primaryTerm();
             recoveredGeneration = recoveredCommit.generation();
+            recoveredNodeEphemeralId = recoveredCommit.nodeEphemeralId();
+            recoveredTranslogStartFile = recoveredCommit.translogRecoveryStartFile();
             assert assertRecoveredCommitFilesHaveBlobLocations(Map.copyOf(recoveredCommit.commitFiles()), Map.copyOf(blobLocations));
             // We set the translog release end file to the ineffective value of -1 for the following reasons:
             // * We cannot use the translog start file as the release file, as it may have the HOLLOW_TRANSLOG_RECOVERY_START_FILE value.
@@ -1452,10 +1456,11 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         private VirtualBatchedCompoundCommit appendCommit(StatelessCommitRef reference) {
             assert Thread.holdsLock(this);
 
+            final String nodeEphemeralId = calculateNodeEphemeralId(reference);
             if (currentVirtualBcc == null) {
                 final var newVirtualBcc = new VirtualBatchedCompoundCommit(
                     shardId,
-                    ephemeralNodeIdSupplier.get(),
+                    nodeEphemeralId,
                     reference.getPrimaryTerm(),
                     reference.getGeneration(),
                     fileName -> getBlobLocation(shardId, fileName),
@@ -1474,6 +1479,8 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                 );
                 currentVirtualBcc = newVirtualBcc;
             } else {
+                // we know we flush after translog recovery.
+                assert currentVirtualBcc.assertSameNodeEphemeralId(nodeEphemeralId);
                 final boolean appended = currentVirtualBcc.appendCommit(reference, useInternalFilesReplicatedContent);
                 assert appended : "append must be successful since append and freeze have exclusive access";
                 logger.trace(
@@ -1517,6 +1524,17 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                 : statelessCompoundCommit.primaryTermAndGeneration() + " was already present in " + commitReferencesInfos;
 
             return currentVirtualBcc;
+        }
+
+        private String calculateNodeEphemeralId(StatelessCommitRef reference) {
+            // we need to carry over translog info when replaying from translog.
+            if (reference.carryOverTranslog()) {
+                assert reference.getTranslogRecoveryStartFile() == recoveredTranslogStartFile
+                    : reference.getTranslogRecoveryStartFile() + " != " + recoveredTranslogStartFile;
+                return recoveredNodeEphemeralId;
+            } else {
+                return ephemeralNodeIdSupplier.get();
+            }
         }
 
         /**

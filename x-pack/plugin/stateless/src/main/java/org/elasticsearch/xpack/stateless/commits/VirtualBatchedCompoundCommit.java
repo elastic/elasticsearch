@@ -759,6 +759,11 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
         }
     }
 
+    boolean assertSameNodeEphemeralId(String id) {
+        assert id.equals(nodeEphemeralId) : id + " != " + nodeEphemeralId;
+        return true;
+    }
+
     @Override
     public String toString() {
         return "VirtualBatchedCompoundCommit{"

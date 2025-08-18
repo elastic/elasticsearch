@@ -111,6 +111,66 @@ public class RecyclerBytesStreamOutput extends BytesStream implements Releasable
         }
     }
 
+    public void writeUTF8String(String str) throws IOException {
+        final int charCount = str.length();
+        if (charCount == 0) {
+            writeVInt(0);
+            return;
+        }
+
+        // Optimistically write length assuming all ASCII (1 byte per char)
+        long startPosition = position();
+        writeVInt(charCount);
+
+        // Ensure we have at least enough capacity for ASCII representation
+        if (charCount > (pageSize - currentPageOffset)) {
+            ensureCapacity(charCount);
+        }
+
+        if (writeAsciiChars(str, charCount) == false) {
+            seek(startPosition);
+            handleNonAsciiString(str);
+        }
+    }
+
+    /**
+     * Fast path for writing ASCII characters. Returns true if all characters
+     * were ASCII, false if a non-ASCII character was encountered.
+     */
+    private boolean writeAsciiChars(String str, int charCount) {
+        int charIndex = 0;
+
+        while (charIndex < charCount) {
+            int remainingInPage = pageSize - currentPageOffset;
+            int charsToWrite = Math.min(remainingInPage, charCount - charIndex);
+
+            for (int i = 0; i < charsToWrite; i++) {
+                char c = str.charAt(charIndex + i);
+                if (c > 0x7F) {
+                    return false;
+                }
+                bytesRefBytes[bytesRefOffset + currentPageOffset + i] = (byte) c;
+            }
+
+            // Update positions for what we wrote
+            currentPageOffset += charsToWrite;
+            charIndex += charsToWrite;
+
+            // Check if we need to move to next page AFTER writing
+            if (currentPageOffset == pageSize && charIndex < charCount) {
+                nextPage();
+            }
+        }
+
+        return true; // All characters were ASCII
+    }
+
+    private void handleNonAsciiString(String str) throws IOException {
+        byte[] utf8Bytes = str.getBytes(java.nio.charset.StandardCharsets.UTF_8);
+        writeVInt(utf8Bytes.length);
+        writeBytes(utf8Bytes, 0, utf8Bytes.length);
+    }
+
     @Override
     public void writeInt(int i) throws IOException {
         final int currentPageOffset = this.currentPageOffset;

@@ -336,7 +336,7 @@ public class AsyncEsqlQueryActionIT extends AbstractPausableIntegTestCase {
             }
         }
         assertThat(tasks, hasSize(1));
-        return tasks.getFirst().getExpirationTimeMillis();
+        return tasks.get(0).getExpirationTimeMillis();
     }
 
     private static long getExpirationFromDoc(String asyncId) {

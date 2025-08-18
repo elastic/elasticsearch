@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.TypedAttribute;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.Check;
+import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 import org.elasticsearch.xpack.esql.stats.SearchStats;
 
 /**
@@ -50,6 +51,8 @@ public interface LucenePushdownPredicates {
      */
     @Nullable
     TransportVersion minTransportVersion();
+
+    EsqlFlags flags();
 
     /**
      * For TEXT fields, we need to check if the field has a subfield of type KEYWORD that can be used instead.
@@ -122,16 +125,21 @@ public interface LucenePushdownPredicates {
      * In particular, it assumes TEXT fields have no exact subfields (underlying keyword field),
      * and that isAggregatable means indexed and has hasDocValues.
      */
-    LucenePushdownPredicates DEFAULT = forCanMatch(null);
+    LucenePushdownPredicates DEFAULT = forCanMatch(null, new EsqlFlags(true));
 
     /**
      * A {@link LucenePushdownPredicates} for use with the {@code can_match} phase.
      */
-    static LucenePushdownPredicates forCanMatch(TransportVersion minTransportVersion) {
+    static LucenePushdownPredicates forCanMatch(TransportVersion minTransportVersion, EsqlFlags flags) {
         return new LucenePushdownPredicates() {
             @Override
             public TransportVersion minTransportVersion() {
                 return minTransportVersion;
+            }
+
+            @Override
+            public EsqlFlags flags() {
+                return flags;
             }
 
             @Override
@@ -162,13 +170,18 @@ public interface LucenePushdownPredicates {
      * If we have access to {@link SearchStats} over a collection of shards, we can make more fine-grained decisions about what can be
      * pushed down. This should open up more opportunities for lucene pushdown.
      */
-    static LucenePushdownPredicates from(SearchStats stats) {
+    static LucenePushdownPredicates from(SearchStats stats, EsqlFlags flags) {
         // TODO: use FieldAttribute#fieldName, otherwise this doesn't apply to field attributes used for union types.
         // C.f. https://github.com/elastic/elasticsearch/issues/128905
         return new LucenePushdownPredicates() {
             @Override
             public TransportVersion minTransportVersion() {
                 return null;
+            }
+
+            @Override
+            public EsqlFlags flags() {
+                return flags;
             }
 
             @Override

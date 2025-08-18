@@ -11,7 +11,6 @@ package org.elasticsearch.ingest.common;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.ESTestCase.WithoutEntitlements;
 import org.junit.Before;
 
 import java.util.HashMap;
@@ -19,7 +18,6 @@ import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
 
-@WithoutEntitlements // ES-12084
 public class RegisteredDomainProcessorFactoryTests extends ESTestCase {
 
     private RegisteredDomainProcessor.Factory factory;

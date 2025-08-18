@@ -25,6 +25,7 @@ import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.FeatureFlag;
+import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.mapper.IgnoredSourceFieldMapper;
 import org.elasticsearch.index.mapper.Mapper;
@@ -305,7 +306,7 @@ public final class IndexSettings {
     static class RefreshIntervalValidator implements Setting.Validator<TimeValue> {
 
         static final String STATELESS_ALLOW_INDEX_REFRESH_INTERVAL_OVERRIDE = "es.stateless.allow.index.refresh_interval.override";
-        private static final boolean IS_OVERRIDE_ALLOWED = Boolean.parseBoolean(
+        private static final boolean IS_OVERRIDE_ALLOWED = Booleans.parseBoolean(
             System.getProperty(STATELESS_ALLOW_INDEX_REFRESH_INTERVAL_OVERRIDE, "false")
         );
 
@@ -847,6 +848,14 @@ public final class IndexSettings {
         Property.Final
     );
 
+    public static final boolean SYNTHETIC_VECTORS = new FeatureFlag("mapping_synthetic_vectors").isEnabled();
+    public static final Setting<Boolean> INDEX_MAPPING_SOURCE_SYNTHETIC_VECTORS_SETTING = Setting.boolSetting(
+        "index.mapping.synthetic_vectors",
+        false,
+        Property.IndexScope,
+        Property.Final
+    );
+
     private final Index index;
     private final IndexVersion version;
     private final Logger logger;
@@ -890,7 +899,6 @@ public final class IndexSettings {
     private final boolean logsdbRouteOnSortFields;
     private final boolean logsdbSortOnHostName;
     private final boolean logsdbAddHostNameField;
-
     private volatile long retentionLeaseMillis;
 
     /**

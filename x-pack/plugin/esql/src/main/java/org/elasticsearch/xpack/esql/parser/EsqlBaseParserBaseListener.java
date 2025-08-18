@@ -541,6 +541,42 @@ public class EsqlBaseParserBaseListener implements EsqlBaseParserListener {
    *
    * <p>The default implementation does nothing.</p>
    */
+  @Override public void enterDissectCommandOptions(EsqlBaseParser.DissectCommandOptionsContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void exitDissectCommandOptions(EsqlBaseParser.DissectCommandOptionsContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void enterDissectCommandOption(EsqlBaseParser.DissectCommandOptionContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void exitDissectCommandOption(EsqlBaseParser.DissectCommandOptionContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void enterCommandNamedParameters(EsqlBaseParser.CommandNamedParametersContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void exitCommandNamedParameters(EsqlBaseParser.CommandNamedParametersContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
   @Override public void enterGrokCommand(EsqlBaseParser.GrokCommandContext ctx) { }
   /**
    * {@inheritDoc}
@@ -560,30 +596,6 @@ public class EsqlBaseParserBaseListener implements EsqlBaseParserListener {
    * <p>The default implementation does nothing.</p>
    */
   @Override public void exitMvExpandCommand(EsqlBaseParser.MvExpandCommandContext ctx) { }
-  /**
-   * {@inheritDoc}
-   *
-   * <p>The default implementation does nothing.</p>
-   */
-  @Override public void enterCommandOptions(EsqlBaseParser.CommandOptionsContext ctx) { }
-  /**
-   * {@inheritDoc}
-   *
-   * <p>The default implementation does nothing.</p>
-   */
-  @Override public void exitCommandOptions(EsqlBaseParser.CommandOptionsContext ctx) { }
-  /**
-   * {@inheritDoc}
-   *
-   * <p>The default implementation does nothing.</p>
-   */
-  @Override public void enterCommandOption(EsqlBaseParser.CommandOptionContext ctx) { }
-  /**
-   * {@inheritDoc}
-   *
-   * <p>The default implementation does nothing.</p>
-   */
-  @Override public void exitCommandOption(EsqlBaseParser.CommandOptionContext ctx) { }
   /**
    * {@inheritDoc}
    *
@@ -637,6 +649,18 @@ public class EsqlBaseParserBaseListener implements EsqlBaseParserListener {
    *
    * <p>The default implementation does nothing.</p>
    */
+  @Override public void enterEnrichPolicyName(EsqlBaseParser.EnrichPolicyNameContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void exitEnrichPolicyName(EsqlBaseParser.EnrichPolicyNameContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
   @Override public void enterEnrichWithClause(EsqlBaseParser.EnrichWithClauseContext ctx) { }
   /**
    * {@inheritDoc}
@@ -661,30 +685,6 @@ public class EsqlBaseParserBaseListener implements EsqlBaseParserListener {
    *
    * <p>The default implementation does nothing.</p>
    */
-  @Override public void enterLookupCommand(EsqlBaseParser.LookupCommandContext ctx) { }
-  /**
-   * {@inheritDoc}
-   *
-   * <p>The default implementation does nothing.</p>
-   */
-  @Override public void exitLookupCommand(EsqlBaseParser.LookupCommandContext ctx) { }
-  /**
-   * {@inheritDoc}
-   *
-   * <p>The default implementation does nothing.</p>
-   */
-  @Override public void enterInlinestatsCommand(EsqlBaseParser.InlinestatsCommandContext ctx) { }
-  /**
-   * {@inheritDoc}
-   *
-   * <p>The default implementation does nothing.</p>
-   */
-  @Override public void exitInlinestatsCommand(EsqlBaseParser.InlinestatsCommandContext ctx) { }
-  /**
-   * {@inheritDoc}
-   *
-   * <p>The default implementation does nothing.</p>
-   */
   @Override public void enterChangePointCommand(EsqlBaseParser.ChangePointCommandContext ctx) { }
   /**
    * {@inheritDoc}
@@ -692,18 +692,6 @@ public class EsqlBaseParserBaseListener implements EsqlBaseParserListener {
    * <p>The default implementation does nothing.</p>
    */
   @Override public void exitChangePointCommand(EsqlBaseParser.ChangePointCommandContext ctx) { }
-  /**
-   * {@inheritDoc}
-   *
-   * <p>The default implementation does nothing.</p>
-   */
-  @Override public void enterInsistCommand(EsqlBaseParser.InsistCommandContext ctx) { }
-  /**
-   * {@inheritDoc}
-   *
-   * <p>The default implementation does nothing.</p>
-   */
-  @Override public void exitInsistCommand(EsqlBaseParser.InsistCommandContext ctx) { }
   /**
    * {@inheritDoc}
    *
@@ -781,66 +769,6 @@ public class EsqlBaseParserBaseListener implements EsqlBaseParserListener {
    *
    * <p>The default implementation does nothing.</p>
    */
-  @Override public void enterRrfCommand(EsqlBaseParser.RrfCommandContext ctx) { }
-  /**
-   * {@inheritDoc}
-   *
-   * <p>The default implementation does nothing.</p>
-   */
-  @Override public void exitRrfCommand(EsqlBaseParser.RrfCommandContext ctx) { }
-  /**
-   * {@inheritDoc}
-   *
-   * <p>The default implementation does nothing.</p>
-   */
-  @Override public void enterFuseCommand(EsqlBaseParser.FuseCommandContext ctx) { }
-  /**
-   * {@inheritDoc}
-   *
-   * <p>The default implementation does nothing.</p>
-   */
-  @Override public void exitFuseCommand(EsqlBaseParser.FuseCommandContext ctx) { }
-  /**
-   * {@inheritDoc}
-   *
-   * <p>The default implementation does nothing.</p>
-   */
-  @Override public void enterInferenceCommandOptions(EsqlBaseParser.InferenceCommandOptionsContext ctx) { }
-  /**
-   * {@inheritDoc}
-   *
-   * <p>The default implementation does nothing.</p>
-   */
-  @Override public void exitInferenceCommandOptions(EsqlBaseParser.InferenceCommandOptionsContext ctx) { }
-  /**
-   * {@inheritDoc}
-   *
-   * <p>The default implementation does nothing.</p>
-   */
-  @Override public void enterInferenceCommandOption(EsqlBaseParser.InferenceCommandOptionContext ctx) { }
-  /**
-   * {@inheritDoc}
-   *
-   * <p>The default implementation does nothing.</p>
-   */
-  @Override public void exitInferenceCommandOption(EsqlBaseParser.InferenceCommandOptionContext ctx) { }
-  /**
-   * {@inheritDoc}
-   *
-   * <p>The default implementation does nothing.</p>
-   */
-  @Override public void enterInferenceCommandOptionValue(EsqlBaseParser.InferenceCommandOptionValueContext ctx) { }
-  /**
-   * {@inheritDoc}
-   *
-   * <p>The default implementation does nothing.</p>
-   */
-  @Override public void exitInferenceCommandOptionValue(EsqlBaseParser.InferenceCommandOptionValueContext ctx) { }
-  /**
-   * {@inheritDoc}
-   *
-   * <p>The default implementation does nothing.</p>
-   */
   @Override public void enterRerankCommand(EsqlBaseParser.RerankCommandContext ctx) { }
   /**
    * {@inheritDoc}
@@ -860,6 +788,54 @@ public class EsqlBaseParserBaseListener implements EsqlBaseParserListener {
    * <p>The default implementation does nothing.</p>
    */
   @Override public void exitCompletionCommand(EsqlBaseParser.CompletionCommandContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void enterLookupCommand(EsqlBaseParser.LookupCommandContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void exitLookupCommand(EsqlBaseParser.LookupCommandContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void enterInlinestatsCommand(EsqlBaseParser.InlinestatsCommandContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void exitInlinestatsCommand(EsqlBaseParser.InlinestatsCommandContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void enterInsistCommand(EsqlBaseParser.InsistCommandContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void exitInsistCommand(EsqlBaseParser.InsistCommandContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void enterFuseCommand(EsqlBaseParser.FuseCommandContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void exitFuseCommand(EsqlBaseParser.FuseCommandContext ctx) { }
   /**
    * {@inheritDoc}
    *
@@ -980,6 +956,18 @@ public class EsqlBaseParserBaseListener implements EsqlBaseParserListener {
    * <p>The default implementation does nothing.</p>
    */
   @Override public void exitLikeListExpression(EsqlBaseParser.LikeListExpressionContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void enterRlikeListExpression(EsqlBaseParser.RlikeListExpressionContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void exitRlikeListExpression(EsqlBaseParser.RlikeListExpressionContext ctx) { }
   /**
    * {@inheritDoc}
    *

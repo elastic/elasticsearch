@@ -7,10 +7,14 @@
 
 package org.elasticsearch.xpack.esql.plugin;
 
+import org.elasticsearch.action.NoShardAvailableActionException;
 import org.elasticsearch.action.admin.indices.template.put.TransportPutComposableIndexTemplateAction;
 import org.elasticsearch.action.datastreams.CreateDataStreamAction;
+import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.datastreams.DataStreamsPlugin;
 import org.elasticsearch.index.IndexNotFoundException;
@@ -21,6 +25,7 @@ import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
 
 import java.util.Collection;
 import java.util.List;
+import java.util.UUID;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
@@ -108,11 +113,76 @@ public class IndexResolutionIT extends AbstractEsqlIntegTestCase {
         assertAcked(client().admin().indices().prepareCreate("index-1"));
         indexRandom(true, "index-1", 10);
         assertAcked(client().admin().indices().prepareClose("index-1"));
+        assertAcked(client().admin().indices().prepareCreate("index-2"));
+        indexRandom(true, "index-2", 15);
 
         expectThrows(
             ClusterBlockException.class,
             containsString("index [index-1] blocked by: [FORBIDDEN/4/index closed]"),
             () -> run(syncEsqlQueryRequest().query("FROM index-1"))
+        );
+        expectThrows(
+            ClusterBlockException.class,
+            containsString("index [index-1] blocked by: [FORBIDDEN/4/index closed]"),
+            () -> run(syncEsqlQueryRequest().query("FROM index-1,index-2"))
+        );
+        try (var response = run(syncEsqlQueryRequest().query("FROM index-*"))) {
+            assertOk(response);
+            assertResultCount(response, 15);// only index-2 records match
+        }
+    }
+
+    public void testHiddenIndices() {
+        assertAcked(client().admin().indices().prepareCreate("regular-index-1"));
+        indexRandom(true, "regular-index-1", 10);
+        assertAcked(
+            client().admin()
+                .indices()
+                .prepareCreate(".hidden-index-1")
+                .setSettings(Settings.builder().put(IndexMetadata.SETTING_INDEX_HIDDEN, true))
+        );
+        indexRandom(true, ".hidden-index-1", 15);
+
+        try (var response = run(syncEsqlQueryRequest().query("FROM .hidden-index-1"))) {
+            assertOk(response);
+            assertResultCount(response, 15);
+        }
+        try (var response = run(syncEsqlQueryRequest().query("FROM *-index-1"))) {
+            assertOk(response);
+            assertResultCount(response, 10); // only non-hidden index matches when specifying pattern
+        }
+        try (var response = run(syncEsqlQueryRequest().query("FROM .hidden-*"))) {
+            assertOk(response);
+            assertResultCount(response, 15); // hidden indices do match when specifying hidden/dot pattern
+        }
+    }
+
+    public void testUnavailableIndex() {
+        assertAcked(client().admin().indices().prepareCreate("available-index-1"));
+        indexRandom(true, "available-index-1", 10);
+        assertAcked(
+            client().admin()
+                .indices()
+                .prepareCreate("unavailable-index-1")
+                .setSettings(Settings.builder().put("index.routing.allocation.require._name", UUID.randomUUID().toString()))
+                .setWaitForActiveShards(ActiveShardCount.NONE)
+        );
+
+        expectThrows(
+            NoShardAvailableActionException.class,
+            containsString("index [unavailable-index-1] has no active shard copy"),
+            () -> run(syncEsqlQueryRequest().query("FROM unavailable-index-1"))
+        );
+
+        expectThrows(
+            NoShardAvailableActionException.class,
+            containsString("index [unavailable-index-1] has no active shard copy"),
+            () -> run(syncEsqlQueryRequest().query("FROM unavailable-index-1,available-index-1"))
+        );
+        expectThrows(
+            NoShardAvailableActionException.class,
+            containsString("index [unavailable-index-1] has no active shard copy"),
+            () -> run(syncEsqlQueryRequest().query("FROM *-index-1"))
         );
     }
 
@@ -133,5 +203,13 @@ public class IndexResolutionIT extends AbstractEsqlIntegTestCase {
 
     private static void assertOk(EsqlQueryResponse response) {
         assertThat(response.isPartial(), equalTo(false));
+    }
+
+    private static void assertResultCount(EsqlQueryResponse response, long rows) {
+        long count = 0;
+        for (var iterator = response.column(0); iterator.hasNext(); iterator.next()) {
+            count++;
+        }
+        assertThat(count, equalTo(rows));
     }
 }

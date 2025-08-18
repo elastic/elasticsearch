@@ -112,11 +112,18 @@ public abstract class LuceneOperator extends SourceOperator {
             int taskConcurrency,
             int limit,
             boolean needsScore,
-            ScoreMode scoreMode
+            Function<ShardContext, ScoreMode> scoreModeFunction
         ) {
             this.limit = limit;
             this.dataPartitioning = dataPartitioning;
-            this.sliceQueue = LuceneSliceQueue.create(contexts, queryFunction, dataPartitioning, autoStrategy, taskConcurrency, scoreMode);
+            this.sliceQueue = LuceneSliceQueue.create(
+                contexts,
+                queryFunction,
+                dataPartitioning,
+                autoStrategy,
+                taskConcurrency,
+                scoreModeFunction
+            );
             this.taskConcurrency = Math.min(sliceQueue.totalSlices(), taskConcurrency);
             this.needsScore = needsScore;
         }
@@ -158,7 +165,7 @@ public abstract class LuceneOperator extends SourceOperator {
         while (currentScorer == null || currentScorer.isDone()) {
             if (currentSlice == null || sliceIndex >= currentSlice.numLeaves()) {
                 sliceIndex = 0;
-                currentSlice = sliceQueue.nextSlice();
+                currentSlice = sliceQueue.nextSlice(currentSlice);
                 if (currentSlice == null) {
                     doneCollecting = true;
                     return null;

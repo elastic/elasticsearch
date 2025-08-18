@@ -9,9 +9,14 @@
 
 package org.elasticsearch.ingest.otel;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
 
+import java.io.IOException;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -436,6 +441,202 @@ public class NormalizeForStreamProcessorTests extends ESTestCase {
 
         assertNull(resource.get("agent"));
         assertNull(attributes.get("service"));
+    }
+
+    /**
+     * Test for ECS-JSON {@code message} field normalization.
+     * <p>
+     * Input document:
+     * <pre>
+     * {
+     *   "@timestamp": "2023-10-01T12:00:00Z",
+     *   "message": "{
+     *     \"@timestamp\": \"2023-10-02T12:00:00Z\",
+     *     \"log.level\": \"INFO\",
+     *     \"service.name\": \"my-service\",
+     *     \"message\": \"The actual log message\",
+     *     \"http\": {
+     *       \"method\": \"GET\",
+     *       \"url\": {
+     *         \"path\": \"/api/v1/resource\"
+     *       }
+     *     }
+     *   }"
+     * }
+     * </pre>
+     * <p>
+     * Expected output document:
+     * <pre>
+     * {
+     *   "@timestamp": "2023-10-02T12:00:00Z",
+     *   "severity_text": "INFO",
+     *   "body": {
+     *     "text": "The actual log message"
+     *   },
+     *   "resource": {
+     *     "attributes": {
+     *       "service.name": "my-service"
+     *     }
+     *   },
+     *   "attributes": {
+     *     "http.method": "GET",
+     *     "http.url.path": "/api/v1/resource"
+     *   }
+     * }
+     * </pre>
+     */
+    public void testExecute_ecsJsonMessageNormalization() throws IOException {
+        Map<String, Object> httpUrl = new HashMap<>();
+        httpUrl.put("path", "/api/v1/resource");
+
+        Map<String, Object> http = new HashMap<>();
+        http.put("method", "GET");
+        http.put("url", httpUrl);
+
+        Map<String, Object> message = new HashMap<>();
+        message.put("@timestamp", "2023-10-02T12:00:00Z");
+        message.put("log.level", "INFO");
+        message.put("service.name", "my-service");
+        message.put("message", "The actual log message");
+        message.put("http", http);
+
+        Map<String, Object> source = new HashMap<>();
+        source.put("@timestamp", "2023-10-01T12:00:00Z");
+        source.put("message", representJsonAsString(message));
+
+        IngestDocument document = new IngestDocument("index", "id", 1, null, null, source);
+        processor.execute(document);
+
+        Map<String, Object> result = document.getSource();
+
+        assertEquals("2023-10-02T12:00:00Z", result.get("@timestamp"));
+        assertEquals("INFO", result.get("severity_text"));
+        assertEquals("The actual log message", get(get(result, "body"), "text"));
+        assertEquals(Map.of("service.name", "my-service"), get(get(result, "resource"), "attributes"));
+        assertEquals(Map.of("http.method", "GET", "http.url.path", "/api/v1/resource"), get(result, "attributes"));
+    }
+
+    /**
+     * Test for non-ECS-JSON {@code message} field normalization.
+     * <p>
+     * Input document:
+     * <pre>
+     * {
+     *   "@timestamp": "2023-10-01T12:00:00Z",
+     *   "log": {
+     *     "level": "INFO"
+     *   },
+     *   "service": {
+     *     "name": "my-service"
+     *   },
+     *   "tags": ["user-action", "api-call"],
+     *   "message": "{
+     *     \"root_cause\": \"Network error\",
+     *     \"http\": {
+     *       \"method\": \"GET\",
+     *       \"url\": {
+     *         \"path\": \"/api/v1/resource\"
+     *       }
+     *     }
+     *   }"
+     * }
+     * </pre>
+     * <p>
+     * Expected output document:
+     * <pre>
+     * {
+     *   "@timestamp": "2023-10-01T12:00:00Z",
+     *   "severity_text": "INFO",
+     *   "resource": {
+     *     "attributes": {
+     *       "service.name": "my-service"
+     *     }
+     *   },
+     *   "attributes": {
+     *     "tags": ["user-action", "api-call"]
+     *   },
+     *   "body": {
+     *     "structured": {
+     *       "root_cause": "Network error",
+     *       "http": {
+     *         "method": "GET",
+     *         "url": {
+     *           "path": "/api/v1/resource"
+     *         }
+     *       }
+     *     }
+     *   }
+     * }
+     * </pre>
+     */
+    public void testExecute_nonEcsJsonMessageNormalization() throws IOException {
+        Map<String, Object> httpUrl = new HashMap<>();
+        httpUrl.put("path", "/api/v1/resource");
+
+        Map<String, Object> http = new HashMap<>();
+        http.put("method", "GET");
+        http.put("url", httpUrl);
+
+        Map<String, Object> message = new HashMap<>();
+        message.put("root_cause", "Network error");
+        message.put("http", http);
+
+        Map<String, Object> log = new HashMap<>();
+        log.put("level", "INFO");
+
+        Map<String, Object> service = new HashMap<>();
+        service.put("name", "my-service");
+
+        Map<String, Object> source = new HashMap<>();
+        source.put("@timestamp", "2023-10-01T12:00:00Z");
+        source.put("log", log);
+        source.put("service", service);
+        source.put("tags", new ArrayList<>(List.of("user-action", "api-call")));
+        source.put("message", representJsonAsString(message));
+
+        IngestDocument document = new IngestDocument("index", "id", 1, null, null, source);
+        processor.execute(document);
+
+        Map<String, Object> result = document.getSource();
+
+        assertEquals("2023-10-01T12:00:00Z", result.get("@timestamp"));
+        assertEquals("INFO", result.get("severity_text"));
+        assertEquals(Map.of("service.name", "my-service"), get(get(result, "resource"), "attributes"));
+        assertEquals(Map.of("tags", List.of("user-action", "api-call")), get(result, "attributes"));
+        assertEquals(message, get(get(result, "body"), "structured"));
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testOtherPrimitiveMessage() {
+        Map<String, Object> source = new HashMap<>();
+        source.put("message", 42);
+        IngestDocument document = new IngestDocument("index", "id", 1, null, null, source);
+
+        processor.execute(document);
+
+        Map<String, Object> result = document.getSource();
+        assertEquals(42, ((Map<String, Object>) result.get("body")).get("text"));
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testObjectMessage() {
+        Map<String, Object> source = new HashMap<>();
+        Map<String, Object> message = new HashMap<>();
+        message.put("key1", "value1");
+        message.put("key2", "value2");
+        source.put("message", message);
+        IngestDocument document = new IngestDocument("index", "id", 1, null, null, source);
+
+        processor.execute(document);
+
+        Map<String, Object> result = document.getSource();
+        assertEquals(message, ((Map<String, Object>) result.get("body")).get("text"));
+    }
+
+    private static String representJsonAsString(Map<String, Object> json) throws IOException {
+        try (XContentBuilder xContentBuilder = XContentFactory.jsonBuilder()) {
+            return Strings.toString(xContentBuilder.map(json));
+        }
     }
 
     /**

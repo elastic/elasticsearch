@@ -9,6 +9,8 @@
 
 package org.elasticsearch.core.internal.provider;
 
+import org.elasticsearch.core.Booleans;
+
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
@@ -469,7 +471,7 @@ public final class EmbeddedImplClassLoader extends SecureClassLoader {
         try (InputStream is = parent.getResourceAsStream(jarPrefix + "/META-INF/MANIFEST.MF")) {
             if (is != null) {
                 Manifest manifest = new Manifest(is);
-                return Boolean.parseBoolean(manifest.getMainAttributes().getValue(MULTI_RELEASE));
+                return Booleans.parseBooleanLenient(manifest.getMainAttributes().getValue(MULTI_RELEASE), false);
             }
         }
         return false;

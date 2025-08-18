@@ -938,7 +938,7 @@ public class MetadataCreateIndexService {
         @Nullable final String requestMappings,
         final List<CompressedXContent> templateMappings,
         final NamedXContentRegistry xContentRegistry
-    ) throws Exception {
+    ) throws IOException {
         List<CompressedXContent> result = new ArrayList<>(templateMappings.size() + 1);
         result.addAll(templateMappings);
         if (requestMappings != null) {
@@ -956,7 +956,7 @@ public class MetadataCreateIndexService {
         final ComposableIndexTemplate template,
         final NamedXContentRegistry xContentRegistry,
         final String indexName
-    ) throws Exception {
+    ) throws IOException {
         List<CompressedXContent> templateMappings = MetadataIndexTemplateService.collectMappings(
             template,
             projectMetadata.componentTemplates(),

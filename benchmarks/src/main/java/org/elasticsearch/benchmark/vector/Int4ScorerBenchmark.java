@@ -8,12 +8,14 @@
  */
 package org.elasticsearch.benchmark.vector;
 
+import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.store.MMapDirectory;
 import org.apache.lucene.util.VectorUtil;
+import org.apache.lucene.util.quantization.OptimizedScalarQuantizer;
 import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.simdvec.ES91Int4VectorsScorer;
@@ -52,19 +54,25 @@ public class Int4ScorerBenchmark {
         LogConfigurator.configureESLogging(); // native access requires logging to be initialized
     }
 
-    @Param({ "384", "702", "1024" })
+    @Param({ "384", "782", "1024" })
     int dims;
 
-    int numVectors = 200;
-    int numQueries = 10;
+    int numVectors = 20 * ES91Int4VectorsScorer.BULK_SIZE;
+    int numQueries = 5;
 
     byte[] scratch;
     byte[][] binaryVectors;
     byte[][] binaryQueries;
+    float[] scores = new float[ES91Int4VectorsScorer.BULK_SIZE];
+
+    float[] scratchFloats = new float[3];
 
     ES91Int4VectorsScorer scorer;
     Directory dir;
     IndexInput in;
+
+    OptimizedScalarQuantizer.QuantizationResult queryCorrections;
+    float centroidDp;
 
     @Setup
     public void setup() throws IOException {
@@ -77,8 +85,18 @@ public class Int4ScorerBenchmark {
                     binaryVector[i] = (byte) ThreadLocalRandom.current().nextInt(16);
                 }
                 out.writeBytes(binaryVector, 0, binaryVector.length);
+                ThreadLocalRandom.current().nextBytes(binaryVector);
+                out.writeBytes(binaryVector, 0, 14); // corrections
             }
         }
+
+        queryCorrections = new OptimizedScalarQuantizer.QuantizationResult(
+            ThreadLocalRandom.current().nextFloat(),
+            ThreadLocalRandom.current().nextFloat(),
+            ThreadLocalRandom.current().nextFloat(),
+            Short.toUnsignedInt((short) ThreadLocalRandom.current().nextInt())
+        );
+        centroidDp = ThreadLocalRandom.current().nextFloat();
 
         in = dir.openInput("vectors", IOContext.DEFAULT);
         binaryQueries = new byte[numVectors][dims];
@@ -105,18 +123,66 @@ public class Int4ScorerBenchmark {
             in.seek(0);
             for (int i = 0; i < numVectors; i++) {
                 in.readBytes(scratch, 0, dims);
-                bh.consume(VectorUtil.int4DotProduct(binaryQueries[j], scratch));
+                int dp = VectorUtil.int4DotProduct(binaryQueries[j], scratch);
+                in.readFloats(scratchFloats, 0, 3);
+                float score = scorer.applyCorrections(
+                    queryCorrections.lowerInterval(),
+                    queryCorrections.upperInterval(),
+                    queryCorrections.quantizedComponentSum(),
+                    queryCorrections.additionalCorrection(),
+                    VectorSimilarityFunction.EUCLIDEAN,
+                    centroidDp, // assuming no centroid dot product for this benchmark
+                    scratchFloats[0],
+                    scratchFloats[1],
+                    Short.toUnsignedInt(in.readShort()),
+                    scratchFloats[2],
+                    dp
+                );
+                bh.consume(score);
             }
         }
     }
 
     @Benchmark
     @Fork(jvmArgsPrepend = { "--add-modules=jdk.incubator.vector" })
-    public void scoreFromMemorySegmentOnlyVector(Blackhole bh) throws IOException {
+    public void scoreFromMemorySegment(Blackhole bh) throws IOException {
         for (int j = 0; j < numQueries; j++) {
             in.seek(0);
             for (int i = 0; i < numVectors; i++) {
-                bh.consume(scorer.int4DotProduct(binaryQueries[j]));
+                bh.consume(
+                    scorer.score(
+                        binaryQueries[j],
+                        queryCorrections.lowerInterval(),
+                        queryCorrections.upperInterval(),
+                        queryCorrections.quantizedComponentSum(),
+                        queryCorrections.additionalCorrection(),
+                        VectorSimilarityFunction.EUCLIDEAN,
+                        centroidDp
+                    )
+                );
+            }
+        }
+    }
+
+    @Benchmark
+    @Fork(jvmArgsPrepend = { "--add-modules=jdk.incubator.vector" })
+    public void scoreFromMemorySegmentBulk(Blackhole bh) throws IOException {
+        for (int j = 0; j < numQueries; j++) {
+            in.seek(0);
+            for (int i = 0; i < numVectors; i += ES91Int4VectorsScorer.BULK_SIZE) {
+                scorer.scoreBulk(
+                    binaryQueries[j],
+                    queryCorrections.lowerInterval(),
+                    queryCorrections.upperInterval(),
+                    queryCorrections.quantizedComponentSum(),
+                    queryCorrections.additionalCorrection(),
+                    VectorSimilarityFunction.EUCLIDEAN,
+                    centroidDp,
+                    scores
+                );
+                for (float score : scores) {
+                    bh.consume(score);
+                }
             }
         }
     }

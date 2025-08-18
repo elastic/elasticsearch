@@ -23,6 +23,7 @@ import java.lang.invoke.MethodType;
 import java.util.Objects;
 
 import static java.lang.foreign.ValueLayout.ADDRESS;
+import static java.lang.foreign.ValueLayout.JAVA_FLOAT;
 import static java.lang.foreign.ValueLayout.JAVA_INT;
 import static org.elasticsearch.nativeaccess.jdk.LinkerHelper.downcallHandle;
 
@@ -32,8 +33,11 @@ public final class JdkVectorLibrary implements VectorLibrary {
 
     static final MethodHandle dot7u$mh;
     static final MethodHandle sqr7u$mh;
+    static final MethodHandle cosf32$mh;
+    static final MethodHandle dotf32$mh;
+    static final MethodHandle sqrf32$mh;
 
-    static final VectorSimilarityFunctions INSTANCE;
+    public static final JdkVectorSimilarityFunctions INSTANCE;
 
     static {
         LoaderHelper.loadLibrary("vec");
@@ -54,6 +58,21 @@ public final class JdkVectorLibrary implements VectorLibrary {
                         FunctionDescriptor.of(JAVA_INT, ADDRESS, ADDRESS, JAVA_INT),
                         LinkerHelperUtil.critical()
                     );
+                    cosf32$mh = downcallHandle(
+                        "cosf32_2",
+                        FunctionDescriptor.of(JAVA_FLOAT, ADDRESS, ADDRESS, JAVA_INT),
+                        LinkerHelperUtil.critical()
+                    );
+                    dotf32$mh = downcallHandle(
+                        "dotf32_2",
+                        FunctionDescriptor.of(JAVA_FLOAT, ADDRESS, ADDRESS, JAVA_INT),
+                        LinkerHelperUtil.critical()
+                    );
+                    sqrf32$mh = downcallHandle(
+                        "sqrf32_2",
+                        FunctionDescriptor.of(JAVA_FLOAT, ADDRESS, ADDRESS, JAVA_INT),
+                        LinkerHelperUtil.critical()
+                    );
                 } else {
                     dot7u$mh = downcallHandle(
                         "dot7u",
@@ -63,6 +82,21 @@ public final class JdkVectorLibrary implements VectorLibrary {
                     sqr7u$mh = downcallHandle(
                         "sqr7u",
                         FunctionDescriptor.of(JAVA_INT, ADDRESS, ADDRESS, JAVA_INT),
+                        LinkerHelperUtil.critical()
+                    );
+                    cosf32$mh = downcallHandle(
+                        "cosf32",
+                        FunctionDescriptor.of(JAVA_FLOAT, ADDRESS, ADDRESS, JAVA_INT),
+                        LinkerHelperUtil.critical()
+                    );
+                    dotf32$mh = downcallHandle(
+                        "dotf32",
+                        FunctionDescriptor.of(JAVA_FLOAT, ADDRESS, ADDRESS, JAVA_INT),
+                        LinkerHelperUtil.critical()
+                    );
+                    sqrf32$mh = downcallHandle(
+                        "sqrf32",
+                        FunctionDescriptor.of(JAVA_FLOAT, ADDRESS, ADDRESS, JAVA_INT),
                         LinkerHelperUtil.critical()
                     );
                 }
@@ -75,6 +109,9 @@ public final class JdkVectorLibrary implements VectorLibrary {
                 }
                 dot7u$mh = null;
                 sqr7u$mh = null;
+                cosf32$mh = null;
+                dotf32$mh = null;
+                sqrf32$mh = null;
                 INSTANCE = null;
             }
         } catch (Throwable t) {
@@ -120,7 +157,46 @@ public final class JdkVectorLibrary implements VectorLibrary {
             return sqr7u(a, b, length);
         }
 
-        static void checkByteSize(MemorySegment a, MemorySegment b) {
+        /**
+         * Computes the cosine of given float32 vectors.
+         *
+         * @param a      address of the first vector
+         * @param b      address of the second vector
+         * @param elementCount the vector dimensions, number of float32 elements in the segment
+         */
+        static float cosineF32(MemorySegment a, MemorySegment b, int elementCount) {
+            checkByteSize(a, b);
+            Objects.checkFromIndexSize(0, elementCount, (int) a.byteSize() / Float.BYTES);
+            return cosf32(a, b, elementCount);
+        }
+
+        /**
+         * Computes the dot product of given float32 vectors.
+         *
+         * @param a      address of the first vector
+         * @param b      address of the second vector
+         * @param elementCount the vector dimensions, number of float32 elements in the segment
+         */
+        static float dotProductF32(MemorySegment a, MemorySegment b, int elementCount) {
+            checkByteSize(a, b);
+            Objects.checkFromIndexSize(0, elementCount, (int) a.byteSize() / Float.BYTES);
+            return dotf32(a, b, elementCount);
+        }
+
+        /**
+         * Computes the square distance of given float32 vectors.
+         *
+         * @param a      address of the first vector
+         * @param b      address of the second vector
+         * @param elementCount the vector dimensions, number of float32 elements in the segment
+         */
+        static float squareDistanceF32(MemorySegment a, MemorySegment b, int elementCount) {
+            checkByteSize(a, b);
+            Objects.checkFromIndexSize(0, elementCount, (int) a.byteSize() / Float.BYTES);
+            return sqrf32(a, b, elementCount);
+        }
+
+        private static void checkByteSize(MemorySegment a, MemorySegment b) {
             if (a.byteSize() != b.byteSize()) {
                 throw new IllegalArgumentException("dimensions differ: " + a.byteSize() + "!=" + b.byteSize());
             }
@@ -142,8 +218,35 @@ public final class JdkVectorLibrary implements VectorLibrary {
             }
         }
 
+        private static float cosf32(MemorySegment a, MemorySegment b, int length) {
+            try {
+                return (float) JdkVectorLibrary.cosf32$mh.invokeExact(a, b, length);
+            } catch (Throwable t) {
+                throw new AssertionError(t);
+            }
+        }
+
+        private static float dotf32(MemorySegment a, MemorySegment b, int length) {
+            try {
+                return (float) JdkVectorLibrary.dotf32$mh.invokeExact(a, b, length);
+            } catch (Throwable t) {
+                throw new AssertionError(t);
+            }
+        }
+
+        private static float sqrf32(MemorySegment a, MemorySegment b, int length) {
+            try {
+                return (float) JdkVectorLibrary.sqrf32$mh.invokeExact(a, b, length);
+            } catch (Throwable t) {
+                throw new AssertionError(t);
+            }
+        }
+
         static final MethodHandle DOT_HANDLE_7U;
         static final MethodHandle SQR_HANDLE_7U;
+        static final MethodHandle COS_HANDLE_FLOAT32;
+        static final MethodHandle DOT_HANDLE_FLOAT32;
+        static final MethodHandle SQR_HANDLE_FLOAT32;
 
         static {
             try {
@@ -151,6 +254,11 @@ public final class JdkVectorLibrary implements VectorLibrary {
                 var mt = MethodType.methodType(int.class, MemorySegment.class, MemorySegment.class, int.class);
                 DOT_HANDLE_7U = lookup.findStatic(JdkVectorSimilarityFunctions.class, "dotProduct7u", mt);
                 SQR_HANDLE_7U = lookup.findStatic(JdkVectorSimilarityFunctions.class, "squareDistance7u", mt);
+
+                mt = MethodType.methodType(float.class, MemorySegment.class, MemorySegment.class, int.class);
+                COS_HANDLE_FLOAT32 = lookup.findStatic(JdkVectorSimilarityFunctions.class, "cosineF32", mt);
+                DOT_HANDLE_FLOAT32 = lookup.findStatic(JdkVectorSimilarityFunctions.class, "dotProductF32", mt);
+                SQR_HANDLE_FLOAT32 = lookup.findStatic(JdkVectorSimilarityFunctions.class, "squareDistanceF32", mt);
             } catch (NoSuchMethodException | IllegalAccessException e) {
                 throw new RuntimeException(e);
             }
@@ -164,6 +272,21 @@ public final class JdkVectorLibrary implements VectorLibrary {
         @Override
         public MethodHandle squareDistanceHandle7u() {
             return SQR_HANDLE_7U;
+        }
+
+        @Override
+        public MethodHandle cosineHandleFloat32() {
+            return COS_HANDLE_FLOAT32;
+        }
+
+        @Override
+        public MethodHandle dotProductHandleFloat32() {
+            return DOT_HANDLE_FLOAT32;
+        }
+
+        @Override
+        public MethodHandle squareDistanceHandleFloat32() {
+            return SQR_HANDLE_FLOAT32;
         }
     }
 }

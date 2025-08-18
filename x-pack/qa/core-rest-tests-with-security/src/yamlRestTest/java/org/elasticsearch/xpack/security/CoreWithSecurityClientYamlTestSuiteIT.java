@@ -53,6 +53,8 @@ public class CoreWithSecurityClientYamlTestSuiteIT extends ESClientYamlSuiteTest
         .feature(FeatureFlag.DOC_VALUES_SKIPPER)
         .feature(FeatureFlag.USE_LUCENE101_POSTINGS_FORMAT)
         .feature(FeatureFlag.IVF_FORMAT)
+        .feature(FeatureFlag.SYNTHETIC_VECTORS)
+        .feature(FeatureFlag.RERANK_SNIPPETS)
         .build();
 
     public CoreWithSecurityClientYamlTestSuiteIT(@Name("yaml") ClientYamlTestCandidate testCandidate) {

@@ -29,7 +29,7 @@ FROM_RP : RP -> type(RP), popMode;
 // in 8.14 ` were not allowed
 // this has been relaxed in 8.15 since " is used for quoting
 fragment UNQUOTED_SOURCE_PART
-    : ~[:"=|,[\]/ \t\r\n]
+    : ~[:"=|,[\]/() \t\r\n]
     | '/' ~[*/] // allow single / but not followed by another / or * which would start a comment -- used in index pattern date spec
     ;
 

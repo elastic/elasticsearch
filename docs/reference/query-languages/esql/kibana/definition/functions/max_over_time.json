@@ -117,6 +117,18 @@
       "params" : [
         {
           "name" : "field",
+          "type" : "unsigned_long",
+          "optional" : false,
+          "description" : ""
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "unsigned_long"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
           "type" : "version",
           "optional" : false,
           "description" : ""

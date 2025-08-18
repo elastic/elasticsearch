@@ -22,6 +22,7 @@ package org.elasticsearch.test.knn;
 
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.StoredFields;
 import org.apache.lucene.index.VectorEncoding;
 import org.apache.lucene.index.VectorSimilarityFunction;
@@ -32,17 +33,29 @@ import org.apache.lucene.queries.function.valuesource.ConstKnnByteVectorValueSou
 import org.apache.lucene.queries.function.valuesource.ConstKnnFloatValueSource;
 import org.apache.lucene.queries.function.valuesource.FloatKnnVectorFieldSource;
 import org.apache.lucene.queries.function.valuesource.FloatVectorSimilarityFunction;
+import org.apache.lucene.search.BooleanClause;
+import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.ConstantScoreScorer;
+import org.apache.lucene.search.ConstantScoreWeight;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.KnnByteVectorQuery;
 import org.apache.lucene.search.KnnFloatVectorQuery;
 import org.apache.lucene.search.PatienceKnnVectorQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.ScoreDoc;
+import org.apache.lucene.search.ScoreMode;
+import org.apache.lucene.search.Scorer;
+import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TotalHits;
+import org.apache.lucene.search.Weight;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FSDirectory;
 import org.apache.lucene.store.MMapDirectory;
+import org.apache.lucene.util.BitSet;
+import org.apache.lucene.util.BitSetIterator;
+import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.common.io.Channels;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
@@ -64,9 +77,11 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.attribute.FileTime;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
+import java.util.Random;
 import java.util.Set;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutorService;
@@ -83,16 +98,16 @@ import static org.elasticsearch.test.knn.KnnIndexer.VECTOR_FIELD;
 
 class KnnSearcher {
 
-    private final Path docPath;
+    private final List<Path> docPath;
     private final Path indexPath;
     private final Path queryPath;
     private final int numDocs;
     private final int numQueryVectors;
-    private final long randomSeed = 42;
-    private final float selectivity = 1f;
+    private final long randomSeed;
+    private final float selectivity;
     private final int topK;
     private final int efSearch;
-    private final int nProbe;
+    private final double visitPercentage;
     private final KnnIndexTester.IndexType indexType;
     private int dim;
     private final VectorSimilarityFunction similarityFunction;
@@ -101,7 +116,7 @@ class KnnSearcher {
     private final int searchThreads;
     private final int numSearchers;
 
-    KnnSearcher(Path indexPath, CmdLineArgs cmdLineArgs, int nProbe) {
+    KnnSearcher(Path indexPath, CmdLineArgs cmdLineArgs, double visitPercentage) {
         this.docPath = cmdLineArgs.docVectors();
         this.indexPath = indexPath;
         this.queryPath = cmdLineArgs.queryVectors();
@@ -116,13 +131,16 @@ class KnnSearcher {
             throw new IllegalArgumentException("numQueryVectors must be > 0");
         }
         this.efSearch = cmdLineArgs.numCandidates();
-        this.nProbe = nProbe;
+        this.visitPercentage = visitPercentage;
         this.indexType = cmdLineArgs.indexType();
         this.searchThreads = cmdLineArgs.searchThreads();
         this.numSearchers = cmdLineArgs.numSearchers();
+        this.randomSeed = cmdLineArgs.seed();
+        this.selectivity = cmdLineArgs.filterSelectivity();
     }
 
     void runSearch(KnnIndexTester.Results finalResults, boolean earlyTermination) throws IOException {
+        Query filterQuery = this.selectivity < 1f ? generateRandomQuery(new Random(randomSeed), indexPath, numDocs, selectivity) : null;
         TopDocs[] results = new TopDocs[numQueryVectors];
         int[][] resultIds = new int[numQueryVectors][];
         long elapsed, totalCpuTimeMS, totalVisited = 0;
@@ -135,12 +153,6 @@ class KnnSearcher {
                 : null
         ) {
             long queryPathSizeInBytes = input.size();
-            logger.info(
-                "queryPath size: "
-                    + queryPathSizeInBytes
-                    + " bytes, assuming vector count is "
-                    + (queryPathSizeInBytes / ((long) dim * vectorEncoding.byteSize))
-            );
             if (dim == -1) {
                 offsetByteSize = 4;
                 ByteBuffer preamble = ByteBuffer.allocate(4).order(ByteOrder.LITTLE_ENDIAN);
@@ -153,6 +165,17 @@ class KnnSearcher {
                     throw new IllegalArgumentException("queryPath \"" + queryPath + "\" has invalid dimension: " + dim);
                 }
             }
+            if (queryPathSizeInBytes % (((long) dim * vectorEncoding.byteSize + offsetByteSize)) != 0) {
+                throw new IllegalArgumentException(
+                    "docsPath \"" + queryPath + "\" does not contain a whole number of vectors?  size=" + queryPathSizeInBytes
+                );
+            }
+            logger.info(
+                "queryPath size: "
+                    + queryPathSizeInBytes
+                    + " bytes, assuming vector count is "
+                    + (queryPathSizeInBytes / ((long) dim * vectorEncoding.byteSize + offsetByteSize))
+            );
             KnnIndexer.VectorReader targetReader = KnnIndexer.VectorReader.create(input, dim, vectorEncoding, offsetByteSize);
             long startNS;
             try (MMapDirectory dir = new MMapDirectory(indexPath)) {
@@ -164,10 +187,10 @@ class KnnSearcher {
                     for (int i = 0; i < numQueryVectors; i++) {
                         if (vectorEncoding.equals(VectorEncoding.BYTE)) {
                             targetReader.next(targetBytes);
-                            doVectorQuery(targetBytes, searcher, earlyTermination);
+                            doVectorQuery(targetBytes, searcher, filterQuery, earlyTermination);
                         } else {
                             targetReader.next(target);
-                            doVectorQuery(target, searcher, earlyTermination);
+                            doVectorQuery(target, searcher, filterQuery, earlyTermination);
                         }
                     }
                     targetReader.reset();
@@ -180,7 +203,7 @@ class KnnSearcher {
                         for (int s = 0; s < numSearchers; s++) {
                             queryConsumers[s] = i -> {
                                 try {
-                                    results[i] = doVectorQuery(queries[i], searcher, earlyTermination);
+                                    results[i] = doVectorQuery(queries[i], searcher, filterQuery, earlyTermination);
                                 } catch (IOException e) {
                                     throw new UncheckedIOException(e);
                                 }
@@ -194,7 +217,7 @@ class KnnSearcher {
                         for (int s = 0; s < numSearchers; s++) {
                             queryConsumers[s] = i -> {
                                 try {
-                                    results[i] = doVectorQuery(queries[i], searcher, earlyTermination);
+                                    results[i] = doVectorQuery(queries[i], searcher, filterQuery, earlyTermination);
                                 } catch (IOException e) {
                                     throw new UncheckedIOException(e);
                                 }
@@ -274,8 +297,8 @@ class KnnSearcher {
             }
         }
         logger.info("checking results");
-        int[][] nn = getOrCalculateExactNN(offsetByteSize);
-        finalResults.nProbe = indexType == KnnIndexTester.IndexType.IVF ? nProbe : 0;
+        int[][] nn = getOrCalculateExactNN(offsetByteSize, filterQuery);
+        finalResults.visitPercentage = indexType == KnnIndexTester.IndexType.IVF ? visitPercentage : 0;
         finalResults.avgRecall = checkResults(resultIds, nn, topK);
         finalResults.qps = (1000f * numQueryVectors) / elapsed;
         finalResults.avgLatency = (float) elapsed / numQueryVectors;
@@ -284,7 +307,34 @@ class KnnSearcher {
         finalResults.avgCpuCount = (double) totalCpuTimeMS / elapsed;
     }
 
-    private int[][] getOrCalculateExactNN(int vectorFileOffsetBytes) throws IOException {
+    private static Query generateRandomQuery(Random random, Path indexPath, int size, float selectivity) throws IOException {
+        FixedBitSet bitSet = new FixedBitSet(size);
+        for (int i = 0; i < size; i++) {
+            if (random.nextFloat() < selectivity) {
+                bitSet.set(i);
+            } else {
+                bitSet.clear(i);
+            }
+        }
+
+        try (Directory dir = FSDirectory.open(indexPath); DirectoryReader reader = DirectoryReader.open(dir)) {
+            BitSet[] segmentDocs = new BitSet[reader.leaves().size()];
+            for (var leafContext : reader.leaves()) {
+                var storedFields = leafContext.reader().storedFields();
+                FixedBitSet segmentBitSet = new FixedBitSet(reader.maxDoc());
+                for (int d = 0; d < leafContext.reader().maxDoc(); d++) {
+                    int docID = Integer.parseInt(storedFields.document(d, Set.of(ID_FIELD)).get(ID_FIELD));
+                    if (bitSet.get(docID)) {
+                        segmentBitSet.set(d);
+                    }
+                }
+                segmentDocs[leafContext.ord] = segmentBitSet;
+            }
+            return new BitSetQuery(segmentDocs);
+        }
+    }
+
+    private int[][] getOrCalculateExactNN(int vectorFileOffsetBytes, Query filterQuery) throws IOException {
         // look in working directory for cached nn file
         String hash = Integer.toString(
             Objects.hash(
@@ -312,9 +362,9 @@ class KnnSearcher {
             // checking low-precision recall
             int[][] nn;
             if (vectorEncoding.equals(VectorEncoding.BYTE)) {
-                nn = computeExactNNByte(queryPath, vectorFileOffsetBytes);
+                nn = computeExactNNByte(queryPath, filterQuery, vectorFileOffsetBytes);
             } else {
-                nn = computeExactNN(queryPath, vectorFileOffsetBytes);
+                nn = computeExactNN(queryPath, filterQuery, vectorFileOffsetBytes);
             }
             writeExactNN(nn, nnPath);
             long elapsedMS = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startNS); // ns -> ms
@@ -323,8 +373,13 @@ class KnnSearcher {
         }
     }
 
-    private boolean isNewer(Path path, Path... others) throws IOException {
+    private boolean isNewer(Path path, List<Path> paths, Path... others) throws IOException {
         FileTime modified = Files.getLastModifiedTime(path);
+        for (Path p : paths) {
+            if (Files.getLastModifiedTime(p).compareTo(modified) >= 0) {
+                return false;
+            }
+        }
         for (Path other : others) {
             if (Files.getLastModifiedTime(other).compareTo(modified) >= 0) {
                 return false;
@@ -333,7 +388,7 @@ class KnnSearcher {
         return true;
     }
 
-    TopDocs doVectorQuery(byte[] vector, IndexSearcher searcher, boolean earlyTermination) throws IOException {
+    TopDocs doVectorQuery(byte[] vector, IndexSearcher searcher, Query filterQuery, boolean earlyTermination) throws IOException {
         Query knnQuery;
         if (overSamplingFactor > 1f) {
             throw new IllegalArgumentException("oversampling factor > 1 is not supported for byte vectors");
@@ -346,7 +401,7 @@ class KnnSearcher {
                 vector,
                 topK,
                 efSearch,
-                null,
+                filterQuery,
                 DenseVectorFieldMapper.FilterHeuristic.ACORN.getKnnSearchStrategy()
             );
             if (indexType == KnnIndexTester.IndexType.HNSW && earlyTermination) {
@@ -360,7 +415,7 @@ class KnnSearcher {
         return new TopDocs(new TotalHits(profiler.getVectorOpsCount(), docs.totalHits.relation()), docs.scoreDocs);
     }
 
-    TopDocs doVectorQuery(float[] vector, IndexSearcher searcher, boolean earlyTermination) throws IOException {
+    TopDocs doVectorQuery(float[] vector, IndexSearcher searcher, Query filterQuery, boolean earlyTermination) throws IOException {
         Query knnQuery;
         int topK = this.topK;
         if (overSamplingFactor > 1f) {
@@ -369,14 +424,15 @@ class KnnSearcher {
         }
         int efSearch = Math.max(topK, this.efSearch);
         if (indexType == KnnIndexTester.IndexType.IVF) {
-            knnQuery = new IVFKnnFloatVectorQuery(VECTOR_FIELD, vector, topK, efSearch, null, nProbe);
+            float visitRatio = (float) (visitPercentage / 100);
+            knnQuery = new IVFKnnFloatVectorQuery(VECTOR_FIELD, vector, topK, efSearch, filterQuery, visitRatio);
         } else {
             knnQuery = new ESKnnFloatVectorQuery(
                 VECTOR_FIELD,
                 vector,
                 topK,
                 efSearch,
-                null,
+                filterQuery,
                 DenseVectorFieldMapper.FilterHeuristic.ACORN.getKnnSearchStrategy()
             );
             if (indexType == KnnIndexTester.IndexType.HNSW && earlyTermination) {
@@ -449,7 +505,7 @@ class KnnSearcher {
         }
     }
 
-    private int[][] computeExactNN(Path queryPath, int vectorFileOffsetBytes) throws IOException {
+    private int[][] computeExactNN(Path queryPath, Query filterQuery, int vectorFileOffsetBytes) throws IOException {
         int[][] result = new int[numQueryVectors][];
         try (Directory dir = FSDirectory.open(indexPath); DirectoryReader reader = DirectoryReader.open(dir)) {
             List<Callable<Void>> tasks = new ArrayList<>();
@@ -463,7 +519,7 @@ class KnnSearcher {
                 for (int i = 0; i < numQueryVectors; i++) {
                     float[] queryVector = new float[dim];
                     queryReader.next(queryVector);
-                    tasks.add(new ComputeNNFloatTask(i, topK, queryVector, result, reader, similarityFunction));
+                    tasks.add(new ComputeNNFloatTask(i, topK, queryVector, result, reader, filterQuery, similarityFunction));
                 }
                 ForkJoinPool.commonPool().invokeAll(tasks);
             }
@@ -471,7 +527,7 @@ class KnnSearcher {
         }
     }
 
-    private int[][] computeExactNNByte(Path queryPath, int vectorFileOffsetBytes) throws IOException {
+    private int[][] computeExactNNByte(Path queryPath, Query filterQuery, int vectorFileOffsetBytes) throws IOException {
         int[][] result = new int[numQueryVectors][];
         try (Directory dir = FSDirectory.open(indexPath); DirectoryReader reader = DirectoryReader.open(dir)) {
             List<Callable<Void>> tasks = new ArrayList<>();
@@ -480,7 +536,7 @@ class KnnSearcher {
                 for (int i = 0; i < numQueryVectors; i++) {
                     byte[] queryVector = new byte[dim];
                     queryReader.next(queryVector);
-                    tasks.add(new ComputeNNByteTask(i, queryVector, result, reader, similarityFunction));
+                    tasks.add(new ComputeNNByteTask(i, queryVector, result, reader, filterQuery, similarityFunction));
                 }
                 ForkJoinPool.commonPool().invokeAll(tasks);
             }
@@ -495,6 +551,7 @@ class KnnSearcher {
         private final int[][] result;
         private final IndexReader reader;
         private final VectorSimilarityFunction similarityFunction;
+        private final Query filterQuery;
         private final int topK;
 
         ComputeNNFloatTask(
@@ -503,6 +560,7 @@ class KnnSearcher {
             float[] query,
             int[][] result,
             IndexReader reader,
+            Query filterQuery,
             VectorSimilarityFunction similarityFunction
         ) {
             this.queryOrd = queryOrd;
@@ -510,6 +568,7 @@ class KnnSearcher {
             this.result = result;
             this.reader = reader;
             this.similarityFunction = similarityFunction;
+            this.filterQuery = filterQuery;
             this.topK = topK;
         }
 
@@ -520,6 +579,11 @@ class KnnSearcher {
                 var queryVector = new ConstKnnFloatValueSource(query);
                 var docVectors = new FloatKnnVectorFieldSource(VECTOR_FIELD);
                 Query query = new FunctionQuery(new FloatVectorSimilarityFunction(similarityFunction, queryVector, docVectors));
+                if (filterQuery != null) {
+                    query = new BooleanQuery.Builder().add(query, BooleanClause.Occur.SHOULD)
+                        .add(filterQuery, BooleanClause.Occur.FILTER)
+                        .build();
+                }
                 var topDocs = searcher.search(query, topK);
                 result[queryOrd] = getResultIds(topDocs, reader.storedFields());
                 if ((queryOrd + 1) % 10 == 0) {
@@ -538,13 +602,22 @@ class KnnSearcher {
         private final byte[] query;
         private final int[][] result;
         private final IndexReader reader;
+        private final Query filterQuery;
         private final VectorSimilarityFunction similarityFunction;
 
-        ComputeNNByteTask(int queryOrd, byte[] query, int[][] result, IndexReader reader, VectorSimilarityFunction similarityFunction) {
+        ComputeNNByteTask(
+            int queryOrd,
+            byte[] query,
+            int[][] result,
+            IndexReader reader,
+            Query filterQuery,
+            VectorSimilarityFunction similarityFunction
+        ) {
             this.queryOrd = queryOrd;
             this.query = query;
             this.result = result;
             this.reader = reader;
+            this.filterQuery = filterQuery;
             this.similarityFunction = similarityFunction;
         }
 
@@ -556,6 +629,11 @@ class KnnSearcher {
                 var queryVector = new ConstKnnByteVectorValueSource(query);
                 var docVectors = new ByteKnnVectorFieldSource(VECTOR_FIELD);
                 Query query = new FunctionQuery(new ByteVectorSimilarityFunction(similarityFunction, queryVector, docVectors));
+                if (filterQuery != null) {
+                    query = new BooleanQuery.Builder().add(query, BooleanClause.Occur.SHOULD)
+                        .add(filterQuery, BooleanClause.Occur.FILTER)
+                        .build();
+                }
                 var topDocs = searcher.search(query, topK);
                 result[queryOrd] = getResultIds(topDocs, reader.storedFields());
                 if ((queryOrd + 1) % 10 == 0) {
@@ -580,6 +658,59 @@ class KnnSearcher {
             }
         }
         return resultIds;
+    }
+
+    private static class BitSetQuery extends Query {
+        private final BitSet[] segmentDocs;
+
+        BitSetQuery(BitSet[] segmentDocs) {
+            this.segmentDocs = segmentDocs;
+        }
+
+        @Override
+        public Weight createWeight(IndexSearcher searcher, ScoreMode scoreMode, float boost) throws IOException {
+            return new ConstantScoreWeight(this, boost) {
+                public ScorerSupplier scorerSupplier(LeafReaderContext context) throws IOException {
+                    var bitSet = segmentDocs[context.ord];
+                    var cardinality = bitSet.cardinality();
+                    var scorer = new ConstantScoreScorer(score(), scoreMode, new BitSetIterator(bitSet, cardinality));
+                    return new ScorerSupplier() {
+                        @Override
+                        public Scorer get(long leadCost) throws IOException {
+                            return scorer;
+                        }
+
+                        @Override
+                        public long cost() {
+                            return cardinality;
+                        }
+                    };
+                }
+
+                @Override
+                public boolean isCacheable(LeafReaderContext ctx) {
+                    return false;
+                }
+            };
+        }
+
+        @Override
+        public void visit(QueryVisitor visitor) {}
+
+        @Override
+        public String toString(String field) {
+            return "BitSetQuery";
+        }
+
+        @Override
+        public boolean equals(Object other) {
+            return sameClassAs(other) && Arrays.equals(segmentDocs, ((BitSetQuery) other).segmentDocs);
+        }
+
+        @Override
+        public int hashCode() {
+            return 31 * classHash() + Arrays.hashCode(segmentDocs);
+        }
     }
 
 }

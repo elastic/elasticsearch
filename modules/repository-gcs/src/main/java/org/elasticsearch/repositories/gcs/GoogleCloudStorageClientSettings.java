@@ -31,6 +31,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 
 import static org.elasticsearch.common.settings.Setting.timeSetting;
 
@@ -194,6 +195,25 @@ public class GoogleCloudStorageClientSettings {
     @Nullable
     public Proxy getProxy() {
         return proxy;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (o == null || getClass() != o.getClass()) return false;
+        GoogleCloudStorageClientSettings that = (GoogleCloudStorageClientSettings) o;
+        return Objects.equals(credential, that.credential)
+            && Objects.equals(endpoint, that.endpoint)
+            && Objects.equals(projectId, that.projectId)
+            && Objects.equals(connectTimeout, that.connectTimeout)
+            && Objects.equals(readTimeout, that.readTimeout)
+            && Objects.equals(applicationName, that.applicationName)
+            && Objects.equals(tokenUri, that.tokenUri)
+            && Objects.equals(proxy, that.proxy);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(credential, endpoint, projectId, connectTimeout, readTimeout, applicationName, tokenUri, proxy);
     }
 
     public static Map<String, GoogleCloudStorageClientSettings> load(final Settings settings) {

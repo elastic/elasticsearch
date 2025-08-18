@@ -13,26 +13,27 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.xpack.esql.capabilities.PostAnalysisPlanVerificationAware;
-import org.elasticsearch.xpack.esql.common.Failure;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
-import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.MapExpression;
 import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.Check;
+import org.elasticsearch.xpack.esql.expression.Foldables;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.MapParam;
 import org.elasticsearch.xpack.esql.expression.function.OptionalArgument;
+import org.elasticsearch.xpack.esql.expression.function.Options;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
+import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdownPredicates;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.planner.TranslatorHandler;
 import org.elasticsearch.xpack.esql.querydsl.query.MatchPhraseQuery;
@@ -55,15 +56,14 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.Param
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.THIRD;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isNotNull;
-import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isNotNullAndFoldable;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_NANOS;
 import static org.elasticsearch.xpack.esql.core.type.DataType.FLOAT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
-import static org.elasticsearch.xpack.esql.core.type.DataType.IP;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
-import static org.elasticsearch.xpack.esql.core.type.DataType.VERSION;
+import static org.elasticsearch.xpack.esql.expression.Foldables.TypeResolutionValidator.forPreOptimizationValidation;
+import static org.elasticsearch.xpack.esql.expression.Foldables.resolveTypeQuery;
 
 /**
  * Full text function that performs a {@link org.elasticsearch.xpack.esql.querydsl.query.MatchPhraseQuery} .
@@ -92,9 +92,7 @@ public class MatchPhrase extends FullTextFunction implements OptionalArgument, P
 
     @FunctionInfo(
         returnType = "boolean",
-        appliesTo = {
-            @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.UNAVAILABLE, version = "9.0"),
-            @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA, version = "9.1.0") },
+        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA, version = "9.1.0") },
         description = """
             Use `MATCH_PHRASE` to perform a [`match_phrase`](/reference/query-languages/query-dsl/query-dsl-match-query-phrase.md) on the
             specified field.
@@ -191,7 +189,7 @@ public class MatchPhrase extends FullTextFunction implements OptionalArgument, P
 
     @Override
     protected TypeResolution resolveParams() {
-        return resolveField().and(resolveQuery()).and(resolveOptions(options(), THIRD));
+        return resolveField().and(resolveQuery()).and(Options.resolve(options(), source(), THIRD, ALLOWED_OPTIONS));
     }
 
     private TypeResolution resolveField() {
@@ -199,14 +197,17 @@ public class MatchPhrase extends FullTextFunction implements OptionalArgument, P
     }
 
     private TypeResolution resolveQuery() {
-        return isType(query(), QUERY_DATA_TYPES::contains, sourceText(), SECOND, "keyword").and(
-            isNotNullAndFoldable(query(), sourceText(), SECOND)
+        TypeResolution result = isType(query(), QUERY_DATA_TYPES::contains, sourceText(), SECOND, "keyword").and(
+            isNotNull(query(), sourceText(), SECOND)
         );
-    }
-
-    @Override
-    protected Map<String, Object> resolvedOptions() throws InvalidArgumentException {
-        return matchPhraseQueryOptions();
+        if (result.unresolved()) {
+            return result;
+        }
+        result = resolveTypeQuery(query(), sourceText(), forPreOptimizationValidation(query()));
+        if (result.equals(TypeResolution.TYPE_RESOLVED) == false) {
+            return result;
+        }
+        return TypeResolution.TYPE_RESOLVED;
     }
 
     private Map<String, Object> matchPhraseQueryOptions() throws InvalidArgumentException {
@@ -215,7 +216,7 @@ public class MatchPhrase extends FullTextFunction implements OptionalArgument, P
         }
 
         Map<String, Object> matchPhraseOptions = new HashMap<>();
-        populateOptionsMap((MapExpression) options(), matchPhraseOptions, SECOND, sourceText(), ALLOWED_OPTIONS);
+        Options.populateMap((MapExpression) options(), matchPhraseOptions, source(), SECOND, ALLOWED_OPTIONS);
         return matchPhraseOptions;
     }
 
@@ -252,25 +253,12 @@ public class MatchPhrase extends FullTextFunction implements OptionalArgument, P
     public BiConsumer<LogicalPlan, Failures> postAnalysisPlanVerification() {
         return (plan, failures) -> {
             super.postAnalysisPlanVerification().accept(plan, failures);
-            plan.forEachExpression(MatchPhrase.class, mp -> {
-                if (mp.fieldAsFieldAttribute() == null) {
-                    failures.add(
-                        Failure.fail(
-                            mp.field(),
-                            "[{}] {} cannot operate on [{}], which is not a field from an index mapping",
-                            functionName(),
-                            functionType(),
-                            mp.field().sourceText()
-                        )
-                    );
-                }
-            });
+            FullTextFunction.fieldVerifier(plan, this, field, failures);
         };
     }
 
-    @Override
     public Object queryAsObject() {
-        Object queryAsObject = query().fold(FoldContext.small() /* TODO remove me */);
+        Object queryAsObject = Foldables.queryAsObject(query(), sourceText());
 
         // Convert BytesRef to string for string-based values
         if (queryAsObject instanceof BytesRef bytesRef) {
@@ -293,7 +281,7 @@ public class MatchPhrase extends FullTextFunction implements OptionalArgument, P
     }
 
     @Override
-    protected Query translate(TranslatorHandler handler) {
+    protected Query translate(LucenePushdownPredicates pushdownPredicates, TranslatorHandler handler) {
         var fieldAttribute = fieldAsFieldAttribute();
         Check.notNull(fieldAttribute, "MatchPhrase must have a field attribute as the first argument");
         String fieldName = getNameFromFieldAttribute(fieldAttribute);

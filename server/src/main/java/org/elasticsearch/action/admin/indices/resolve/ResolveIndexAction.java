@@ -629,7 +629,7 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
                         if (ia.isSystem()) {
                             attributes.add(Attribute.SYSTEM);
                         }
-                        final boolean isFrozen = Boolean.parseBoolean(writeIndex.getSettings().get("index.frozen"));
+                        final boolean isFrozen = writeIndex.getSettings().getAsBoolean("index.frozen", false);
                         if (isFrozen) {
                             attributes.add(Attribute.FROZEN);
                         }

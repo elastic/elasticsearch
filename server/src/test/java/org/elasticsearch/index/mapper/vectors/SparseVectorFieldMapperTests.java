@@ -17,6 +17,7 @@ import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
@@ -26,6 +27,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.DocumentMapper;
@@ -33,7 +35,6 @@ import org.elasticsearch.index.mapper.DocumentParsingException;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.mapper.MapperTestCase;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.inference.WeightedToken;
@@ -54,6 +55,10 @@ import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.TreeMap;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.index.IndexVersions.SPARSE_VECTOR_PRUNING_INDEX_OPTIONS_SUPPORT;
 import static org.elasticsearch.index.IndexVersions.UPGRADE_TO_LUCENE_10_0_0;
@@ -66,14 +71,29 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
-public class SparseVectorFieldMapperTests extends MapperTestCase {
+public class SparseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase {
+
+    public static final float STRICT_TOKENS_WEIGHT_THRESHOLD = 0.5f;
+    public static final float STRICT_TOKENS_FREQ_RATIO_THRESHOLD = 1;
+
+    private static final Map<String, Float> COMMON_TOKENS = Map.of(
+        "common1_drop_default",
+        0.1f,
+        "common2_drop_default",
+        0.1f,
+        "common3_drop_default",
+        0.1f
+    );
+
+    private static final Map<String, Float> MEDIUM_TOKENS = Map.of("medium1_keep_strict", 0.5f, "medium2_keep_default", 0.25f);
+
+    private static final Map<String, Float> RARE_TOKENS = Map.of("rare1_keep_strict", 0.9f, "rare2_keep_strict", 0.85f);
 
     @Override
     protected Object getSampleValueForDocument() {
-        Map<String, Float> map = new LinkedHashMap<>();
-        map.put("ten", 10f);
-        map.put("twenty", 20f);
-        return map;
+        return new TreeMap<>(
+            randomMap(1, 5, () -> Tuple.tuple(randomAlphaOfLengthBetween(5, 10), Float.valueOf(randomIntBetween(1, 127))))
+        );
     }
 
     @Override
@@ -123,7 +143,7 @@ public class SparseVectorFieldMapperTests extends MapperTestCase {
             b.field("prune", true);
             b.startObject("pruning_config");
             {
-                b.field("tokens_freq_ratio_threshold", 3.0f);
+                b.field("tokens_freq_ratio_threshold", 1.0f);
                 b.field("tokens_weight_threshold", 0.5f);
             }
             b.endObject();
@@ -178,6 +198,13 @@ public class SparseVectorFieldMapperTests extends MapperTestCase {
         b.endObject();
     }
 
+    private void mapping(XContentBuilder b, @Nullable Boolean prune, PruningConfig pruningConfig) throws IOException {
+        b.field("type", "sparse_vector");
+        if (prune != null) {
+            b.field("index_options", new SparseVectorFieldMapper.SparseVectorIndexOptions(prune, pruningConfig.tokenPruningConfig));
+        }
+    }
+
     @Override
     protected boolean supportsStoredFields() {
         return false;
@@ -209,26 +236,22 @@ public class SparseVectorFieldMapperTests extends MapperTestCase {
         DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
         assertEquals(Strings.toString(fieldMapping(this::minimalMapping)), mapper.mappingSource().toString());
 
-        ParsedDocument doc1 = mapper.parse(source(this::writeField));
+        @SuppressWarnings("unchecked")
+        var expected = (Map<String, Float>) getSampleValueForDocument();
+        ParsedDocument doc1 = mapper.parse(source(b -> b.field("field", expected)));
 
         List<IndexableField> fields = doc1.rootDoc().getFields("field");
-        assertEquals(2, fields.size());
+        assertEquals(expected.size(), fields.size());
         assertThat(fields.get(0), Matchers.instanceOf(FeatureField.class));
-        FeatureField featureField1 = null;
-        FeatureField featureField2 = null;
+
         for (IndexableField field : fields) {
-            if (field.stringValue().equals("ten")) {
-                featureField1 = (FeatureField) field;
-            } else if (field.stringValue().equals("twenty")) {
-                featureField2 = (FeatureField) field;
-            } else {
-                throw new UnsupportedOperationException();
+            if (field instanceof FeatureField fField) {
+                var value = expected.remove(fField.stringValue());
+                assertThat(fField.getFeatureValue(), equalTo(value));
+                int freq1 = getFrequency(fField.tokenStream(null, null));
+                assertThat(XFeatureField.decodeFeatureValue(freq1), equalTo(value));
             }
         }
-
-        int freq1 = getFrequency(featureField1.tokenStream(null, null));
-        int freq2 = getFrequency(featureField2.tokenStream(null, null));
-        assertTrue(freq1 < freq2);
     }
 
     public void testDefaultsWithAndWithoutIncludeDefaults() throws Exception {
@@ -460,7 +483,8 @@ public class SparseVectorFieldMapperTests extends MapperTestCase {
 
             @Override
             public SyntheticSourceExample example(int maxValues) {
-                return new SyntheticSourceExample(getSampleValueForDocument(), getSampleValueForDocument(), b -> {
+                var sample = getSampleValueForDocument();
+                return new SyntheticSourceExample(sample, sample, b -> {
                     if (withStore) {
                         minimalStoreMapping(b);
                     } else {
@@ -679,14 +703,58 @@ public class SparseVectorFieldMapperTests extends MapperTestCase {
         );
     }
 
+    private enum PruningScenario {
+        NO_PRUNING,      // No pruning applied - all tokens preserved
+        DEFAULT_PRUNING, // Default pruning configuration
+        STRICT_PRUNING   // Stricter pruning with higher thresholds
+    }
+
+    private enum PruningConfig {
+        NULL(null),
+        EXPLICIT_DEFAULT(new TokenPruningConfig()),
+        STRICT(new TokenPruningConfig(STRICT_TOKENS_FREQ_RATIO_THRESHOLD, STRICT_TOKENS_WEIGHT_THRESHOLD, false));
+
+        public final @Nullable TokenPruningConfig tokenPruningConfig;
+
+        PruningConfig(@Nullable TokenPruningConfig tokenPruningConfig) {
+            this.tokenPruningConfig = tokenPruningConfig;
+        }
+    }
+
+    private final Set<PruningOptions> validIndexPruningScenarios = Set.of(
+        new PruningOptions(false, PruningConfig.NULL),
+        new PruningOptions(true, PruningConfig.NULL),
+        new PruningOptions(true, PruningConfig.EXPLICIT_DEFAULT),
+        new PruningOptions(true, PruningConfig.STRICT),
+        new PruningOptions(null, PruningConfig.NULL)
+    );
+
+    private record PruningOptions(@Nullable Boolean prune, PruningConfig pruningConfig) {}
+
     private void withSearchExecutionContext(MapperService mapperService, CheckedConsumer<SearchExecutionContext, IOException> consumer)
         throws IOException {
         var mapper = mapperService.documentMapper();
         try (Directory directory = newDirectory()) {
             RandomIndexWriter iw = new RandomIndexWriter(random(), directory);
-            var sourceToParse = source(this::writeField);
-            ParsedDocument doc1 = mapper.parse(sourceToParse);
-            iw.addDocument(doc1.rootDoc());
+
+            int commonDocs = 20;
+            for (int i = 0; i < commonDocs; i++) {
+                iw.addDocument(mapper.parse(source(b -> b.field("field", COMMON_TOKENS))).rootDoc());
+            }
+
+            int mediumDocs = 5;
+            for (int i = 0; i < mediumDocs; i++) {
+                iw.addDocument(mapper.parse(source(b -> b.field("field", MEDIUM_TOKENS))).rootDoc());
+            }
+
+            iw.addDocument(mapper.parse(source(b -> b.field("field", RARE_TOKENS))).rootDoc());
+
+            // This will lower the averageTokenFreqRatio so that common tokens get pruned with default settings
+            Map<String, Float> uniqueDoc = new TreeMap<>();
+            for (int i = 0; i < 20; i++) {
+                uniqueDoc.put("unique" + i, 0.5f);
+            }
+            iw.addDocument(mapper.parse(source(b -> b.field("field", uniqueDoc))).rootDoc());
             iw.close();
 
             try (DirectoryReader reader = wrapInMockESDirectoryReader(DirectoryReader.open(directory))) {
@@ -696,161 +764,95 @@ public class SparseVectorFieldMapperTests extends MapperTestCase {
         }
     }
 
-    public void testTypeQueryFinalizationWithRandomOptions() throws Exception {
-        for (int i = 0; i < 20; i++) {
-            runTestTypeQueryFinalization(
-                randomBoolean(), // useIndexVersionBeforeIndexOptions
-                randomBoolean(), // useMapperDefaultIndexOptions
-                randomBoolean(), // setMapperIndexOptionsPruneToFalse
-                randomBoolean(), // queryOverridesPruningConfig
-                randomBoolean()  // queryOverridesPruneToBeFalse
+    public void testPruningScenarios() throws Exception {
+        for (int i = 0; i < 120; i++) {
+            assertPruningScenario(
+                randomFrom(validIndexPruningScenarios),
+                new PruningOptions(randomBoolean() ? randomBoolean() : null, randomFrom(PruningConfig.values()))
             );
         }
     }
 
-    public void testTypeQueryFinalizationDefaultsCurrentVersion() throws Exception {
-        IndexVersion version = IndexVersion.current();
-        MapperService mapperService = createMapperService(version, fieldMapping(this::minimalMapping));
-
-        // query should be pruned by default on newer index versions
-        performTypeQueryFinalizationTest(mapperService, null, null, true);
+    private XContentBuilder getIndexMapping(PruningOptions pruningOptions) throws IOException {
+        return fieldMapping(b -> mapping(b, pruningOptions.prune, pruningOptions.pruningConfig));
     }
 
-    public void testTypeQueryFinalizationDefaultsPreviousVersion() throws Exception {
-        IndexVersion version = IndexVersionUtils.randomVersionBetween(
-            random(),
-            UPGRADE_TO_LUCENE_10_0_0,
-            IndexVersionUtils.getPreviousVersion(SPARSE_VECTOR_PRUNING_INDEX_OPTIONS_SUPPORT)
-        );
-        MapperService mapperService = createMapperService(version, fieldMapping(this::minimalMapping));
-
-        // query should _not_ be pruned by default on older index versions
-        performTypeQueryFinalizationTest(mapperService, null, null, false);
-    }
-
-    public void testTypeQueryFinalizationWithIndexExplicit() throws Exception {
-        IndexVersion version = IndexVersion.current();
-        MapperService mapperService = createMapperService(version, fieldMapping(this::minimalMapping));
-
-        // query should be pruned via explicit index options
-        performTypeQueryFinalizationTest(mapperService, null, null, true);
-    }
-
-    public void testTypeQueryFinalizationWithIndexExplicitDoNotPrune() throws Exception {
-        IndexVersion version = IndexVersion.current();
-        MapperService mapperService = createMapperService(version, fieldMapping(this::mappingWithIndexOptionsPruneFalse));
-
-        // query should be pruned via explicit index options
-        performTypeQueryFinalizationTest(mapperService, null, null, false);
-    }
-
-    public void testTypeQueryFinalizationQueryOverridesPruning() throws Exception {
-        IndexVersion version = IndexVersion.current();
-        MapperService mapperService = createMapperService(version, fieldMapping(this::mappingWithIndexOptionsPruneFalse));
-
-        // query should still be pruned due to query builder setting it
-        performTypeQueryFinalizationTest(mapperService, true, new TokenPruningConfig(), true);
-    }
-
-    public void testTypeQueryFinalizationQueryOverridesPruningOff() throws Exception {
-        IndexVersion version = IndexVersion.current();
-        MapperService mapperService = createMapperService(version, fieldMapping(this::mappingWithIndexOptionsPruneFalse));
-
-        // query should not pruned due to query builder setting it
-        performTypeQueryFinalizationTest(mapperService, false, null, false);
-    }
-
-    private void performTypeQueryFinalizationTest(
-        MapperService mapperService,
-        @Nullable Boolean queryPrune,
-        @Nullable TokenPruningConfig queryTokenPruningConfig,
-        boolean queryShouldBePruned
-    ) throws IOException {
-        withSearchExecutionContext(mapperService, (context) -> {
-            SparseVectorFieldMapper.SparseVectorFieldType ft = (SparseVectorFieldMapper.SparseVectorFieldType) mapperService.fieldType(
-                "field"
-            );
-            Query finalizedQuery = ft.finalizeSparseVectorQuery(context, "field", QUERY_VECTORS, queryPrune, queryTokenPruningConfig);
-
-            if (queryShouldBePruned) {
-                assertQueryWasPruned(finalizedQuery);
-            } else {
-                assertQueryWasNotPruned(finalizedQuery);
-            }
-        });
-    }
-
-    private void assertQueryWasPruned(Query query) {
-        assertQueryHasClauseCount(query, 0);
-    }
-
-    private void assertQueryWasNotPruned(Query query) {
-        assertQueryHasClauseCount(query, QUERY_VECTORS.size());
-    }
-
-    private void assertQueryHasClauseCount(Query query, int clauseCount) {
+    private void assertQueryContains(List<Query> expectedClauses, Query query) {
         SparseVectorQueryWrapper queryWrapper = (SparseVectorQueryWrapper) query;
         var termsQuery = queryWrapper.getTermsQuery();
         assertNotNull(termsQuery);
         var booleanQuery = (BooleanQuery) termsQuery;
-        Collection<Query> clauses = booleanQuery.getClauses(BooleanClause.Occur.SHOULD);
-        assertThat(clauses.size(), equalTo(clauseCount));
+
+        Collection<Query> shouldClauses = booleanQuery.getClauses(BooleanClause.Occur.SHOULD);
+        assertThat(shouldClauses, Matchers.containsInAnyOrder(expectedClauses.toArray()));
     }
 
-    /**
-     * Runs a test of the query finalization based on various parameters
-     * that provides
-     * @param useIndexVersionBeforeIndexOptions set to true to use a previous index version before mapper index_options
-     * @param useMapperDefaultIndexOptions set to false to use an explicit, non-default mapper index_options
-     * @param setMapperIndexOptionsPruneToFalse set to true to use prune:false in the mapper index_options
-     * @param queryOverridesPruningConfig set to true to designate the query will provide a pruning_config
-     * @param queryOverridesPruneToBeFalse if true and queryOverridesPruningConfig is true, the query will provide prune:false
-     * @throws IOException
-     */
-    private void runTestTypeQueryFinalization(
-        boolean useIndexVersionBeforeIndexOptions,
-        boolean useMapperDefaultIndexOptions,
-        boolean setMapperIndexOptionsPruneToFalse,
-        boolean queryOverridesPruningConfig,
-        boolean queryOverridesPruneToBeFalse
-    ) throws IOException {
-        MapperService mapperService = getMapperServiceForTest(
-            useIndexVersionBeforeIndexOptions,
-            useMapperDefaultIndexOptions,
-            setMapperIndexOptionsPruneToFalse
-        );
-
-        // check and see if the query should explicitly override the index_options
-        Boolean shouldQueryPrune = queryOverridesPruningConfig ? (queryOverridesPruneToBeFalse == false) : null;
-
-        // get the pruning configuration for the query if it's overriding
-        TokenPruningConfig queryPruningConfig = Boolean.TRUE.equals(shouldQueryPrune) ? new TokenPruningConfig() : null;
-
-        // our logic if the results should be pruned or not
-        // we should _not_ prune if any of the following:
-        // - the query explicitly overrides the options and `prune` is set to false
-        // - the query does not override the pruning options and:
-        // - either we are using a previous index version
-        // - or the index_options explicitly sets `prune` to false
-        boolean resultShouldNotBePruned = ((queryOverridesPruningConfig && queryOverridesPruneToBeFalse)
-            || (queryOverridesPruningConfig == false && (useIndexVersionBeforeIndexOptions || setMapperIndexOptionsPruneToFalse)));
-
-        try {
-            performTypeQueryFinalizationTest(mapperService, shouldQueryPrune, queryPruningConfig, resultShouldNotBePruned == false);
-        } catch (AssertionError e) {
-            String message = "performTypeQueryFinalizationTest failed using parameters: "
-                + "useIndexVersionBeforeIndexOptions: "
-                + useIndexVersionBeforeIndexOptions
-                + ", useMapperDefaultIndexOptions: "
-                + useMapperDefaultIndexOptions
-                + ", setMapperIndexOptionsPruneToFalse: "
-                + setMapperIndexOptionsPruneToFalse
-                + ", queryOverridesPruningConfig: "
-                + queryOverridesPruningConfig
-                + ", queryOverridesPruneToBeFalse: "
-                + queryOverridesPruneToBeFalse;
-            throw new AssertionError(message, e);
+    private PruningScenario getEffectivePruningScenario(
+        PruningOptions indexPruningOptions,
+        PruningOptions queryPruningOptions,
+        IndexVersion indexVersion
+    ) {
+        Boolean shouldPrune = queryPruningOptions.prune;
+        if (shouldPrune == null) {
+            shouldPrune = indexPruningOptions.prune;
         }
+
+        if (shouldPrune == null) {
+            shouldPrune = indexVersion.onOrAfter(SPARSE_VECTOR_PRUNING_INDEX_OPTIONS_SUPPORT);
+        }
+
+        PruningScenario pruningScenario = PruningScenario.NO_PRUNING;
+        if (shouldPrune) {
+            PruningConfig pruningConfig = queryPruningOptions.pruningConfig;
+            if (pruningConfig == PruningConfig.NULL) {
+                pruningConfig = indexPruningOptions.pruningConfig;
+            }
+            pruningScenario = switch (pruningConfig) {
+                case STRICT -> PruningScenario.STRICT_PRUNING;
+                case EXPLICIT_DEFAULT, NULL -> PruningScenario.DEFAULT_PRUNING;
+            };
+        }
+
+        return pruningScenario;
+    }
+
+    private List<Query> getExpectedQueryClauses(
+        SparseVectorFieldMapper.SparseVectorFieldType ft,
+        PruningScenario pruningScenario,
+        SearchExecutionContext searchExecutionContext
+    ) {
+        List<WeightedToken> tokens = switch (pruningScenario) {
+            case NO_PRUNING -> QUERY_VECTORS;
+            case DEFAULT_PRUNING -> QUERY_VECTORS.stream()
+                .filter(t -> t.token().startsWith("rare") || t.token().startsWith("medium"))
+                .toList();
+            case STRICT_PRUNING -> QUERY_VECTORS.stream().filter(t -> t.token().endsWith("keep_strict")).toList();
+        };
+
+        return tokens.stream().map(t -> {
+            Query termQuery = ft.termQuery(t.token(), searchExecutionContext);
+            return new BoostQuery(termQuery, t.weight());
+        }).collect(Collectors.toUnmodifiableList());
+    }
+
+    private void assertPruningScenario(PruningOptions indexPruningOptions, PruningOptions queryPruningOptions) throws IOException {
+        IndexVersion indexVersion = getIndexVersionForTest(randomBoolean());
+        MapperService mapperService = createMapperService(indexVersion, getIndexMapping(indexPruningOptions));
+        PruningScenario effectivePruningScenario = getEffectivePruningScenario(indexPruningOptions, queryPruningOptions, indexVersion);
+        withSearchExecutionContext(mapperService, (context) -> {
+            SparseVectorFieldMapper.SparseVectorFieldType ft = (SparseVectorFieldMapper.SparseVectorFieldType) mapperService.fieldType(
+                "field"
+            );
+            List<Query> expectedQueryClauses = getExpectedQueryClauses(ft, effectivePruningScenario, context);
+            Query finalizedQuery = ft.finalizeSparseVectorQuery(
+                context,
+                "field",
+                QUERY_VECTORS,
+                queryPruningOptions.prune,
+                queryPruningOptions.pruningConfig.tokenPruningConfig
+            );
+            assertQueryContains(expectedQueryClauses, finalizedQuery);
+        });
     }
 
     private IndexVersion getIndexVersionForTest(boolean usePreviousIndex) {
@@ -863,36 +865,10 @@ public class SparseVectorFieldMapperTests extends MapperTestCase {
             : IndexVersionUtils.randomVersionBetween(random(), SPARSE_VECTOR_PRUNING_INDEX_OPTIONS_SUPPORT, IndexVersion.current());
     }
 
-    private MapperService getMapperServiceForTest(
-        boolean usePreviousIndex,
-        boolean useIndexOptionsDefaults,
-        boolean explicitIndexOptionsDoNotPrune
-    ) throws IOException {
-        // get the index version of the test to use
-        // either a current version that supports index options, or a previous version that does not
-        IndexVersion indexVersion = getIndexVersionForTest(usePreviousIndex);
-
-        // if it's using the old index, we always use the minimal mapping without index_options
-        if (usePreviousIndex) {
-            return createMapperService(indexVersion, fieldMapping(this::minimalMapping));
-        }
-
-        // if we set explicitIndexOptionsDoNotPrune, the index_options (if present) will explicitly include "prune: false"
-        if (explicitIndexOptionsDoNotPrune) {
-            return createMapperService(indexVersion, fieldMapping(this::mappingWithIndexOptionsPruneFalse));
-        }
-
-        // either return the default (minimal) mapping or one with an explicit pruning_config
-        return useIndexOptionsDefaults
-            ? createMapperService(indexVersion, fieldMapping(this::minimalMapping))
-            : createMapperService(indexVersion, fieldMapping(this::minimalMappingWithExplicitIndexOptions));
-    }
-
-    private static List<WeightedToken> QUERY_VECTORS = List.of(
-        new WeightedToken("pugs", 0.5f),
-        new WeightedToken("cats", 0.4f),
-        new WeightedToken("is", 0.1f)
-    );
+    private static final List<WeightedToken> QUERY_VECTORS = Stream.of(RARE_TOKENS, MEDIUM_TOKENS, COMMON_TOKENS)
+        .flatMap(map -> map.entrySet().stream())
+        .map(entry -> new WeightedToken(entry.getKey(), entry.getValue()))
+        .collect(Collectors.toList());
 
     /**
      * Handles float/double conversion when reading/writing with xcontent by converting all numbers to floats.
@@ -908,5 +884,9 @@ public class SparseVectorFieldMapperTests extends MapperTestCase {
             }
         }
         return result;
+    }
+
+    public static IndexVersion getIndexOptionsCompatibleIndexVersion() {
+        return IndexVersionUtils.randomVersionBetween(random(), SPARSE_VECTOR_PRUNING_INDEX_OPTIONS_SUPPORT, IndexVersion.current());
     }
 }

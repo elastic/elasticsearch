@@ -9,9 +9,7 @@
 package org.elasticsearch.ingest.attachment;
 
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.ESTestCase.WithoutEntitlements;
 
-@WithoutEntitlements // ES-12084
 public class TikaImplTests extends ESTestCase {
 
     public void testTikaLoads() throws Exception {

@@ -7,12 +7,15 @@
 
 package org.elasticsearch.xpack.esql.optimizer;
 
+import org.elasticsearch.xpack.esql.VerificationException;
+import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PropagateEmptyRelation;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceStatsFilteredAggWithEval;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceStringCasingWithInsensitiveRegexMatch;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.local.InferIsNotNull;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.local.InferNonNullAggConstraint;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.local.LocalPropagateEmptyRelation;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.local.ReplaceDateTruncBucketWithRoundTo;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.local.ReplaceFieldWithConstantOrNull;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.local.ReplaceTopNWithLimitAndSort;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
@@ -35,6 +38,8 @@ import static org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizer.operat
  */
 public class LocalLogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan, LocalLogicalOptimizerContext> {
 
+    private final LogicalVerifier verifier = LogicalVerifier.INSTANCE;
+
     private static final List<Batch<LogicalPlan>> RULES = arrayAsArrayList(
         new Batch<>(
             "Local rewrite",
@@ -42,7 +47,8 @@ public class LocalLogicalPlanOptimizer extends ParameterizedRuleExecutor<Logical
             new ReplaceTopNWithLimitAndSort(),
             new ReplaceFieldWithConstantOrNull(),
             new InferIsNotNull(),
-            new InferNonNullAggConstraint()
+            new InferNonNullAggConstraint(),
+            new ReplaceDateTruncBucketWithRoundTo()
         ),
         localOperators(),
         cleanup()
@@ -81,6 +87,12 @@ public class LocalLogicalPlanOptimizer extends ParameterizedRuleExecutor<Logical
     }
 
     public LogicalPlan localOptimize(LogicalPlan plan) {
-        return execute(plan);
+        LogicalPlan optimized = execute(plan);
+        Failures failures = verifier.verify(optimized, true, plan.output());
+        if (failures.hasFailures()) {
+            throw new VerificationException(failures);
+        }
+        return optimized;
     }
+
 }

@@ -39,7 +39,6 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.mapper.MapperTestCase;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.mapper.ValueFetcher;
@@ -66,7 +65,7 @@ import java.util.Set;
 import static org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsFormat.DEFAULT_BEAM_WIDTH;
 import static org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsFormat.DEFAULT_MAX_CONN;
 import static org.apache.lucene.tests.index.BaseKnnVectorsFormatTestCase.randomNormalizedVector;
-import static org.elasticsearch.index.codec.vectors.IVFVectorsFormat.DYNAMIC_NPROBE;
+import static org.elasticsearch.index.codec.vectors.IVFVectorsFormat.DYNAMIC_VISIT_RATIO;
 import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.DEFAULT_OVERSAMPLE;
 import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.IVF_FORMAT;
 import static org.hamcrest.Matchers.containsString;
@@ -75,7 +74,7 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-public class DenseVectorFieldMapperTests extends MapperTestCase {
+public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase {
 
     private static final IndexVersion INDEXED_BY_DEFAULT_PREVIOUS_INDEX_VERSION = IndexVersions.V_8_10_0;
     private final ElementType elementType;
@@ -85,7 +84,7 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
 
     public DenseVectorFieldMapperTests() {
         this.elementType = randomFrom(ElementType.BYTE, ElementType.FLOAT, ElementType.BIT);
-        this.indexed = randomBoolean();
+        this.indexed = usually();
         this.indexOptionsSet = this.indexed && randomBoolean();
         int baseDims = ElementType.BIT == elementType ? 4 * Byte.SIZE : 4;
         int randomMultiplier = ElementType.FLOAT == elementType ? randomIntBetween(1, 64) : 1;
@@ -150,12 +149,20 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
     protected Object getSampleValueForDocument() {
         return elementType == ElementType.FLOAT
             ? convertToList(randomNormalizedVector(this.dims))
-            : List.of((byte) 1, (byte) 1, (byte) 1, (byte) 1);
+            : convertToList(randomByteArrayOfLength(elementType == ElementType.BIT ? this.dims / Byte.SIZE : dims));
     }
 
-    private static List<Float> convertToList(float[] vector) {
+    public static List<Float> convertToList(float[] vector) {
         List<Float> list = new ArrayList<>(vector.length);
         for (float v : vector) {
+            list.add(v);
+        }
+        return list;
+    }
+
+    public static List<Byte> convertToList(byte[] vector) {
+        List<Byte> list = new ArrayList<>(vector.length);
+        for (byte v : vector) {
             list.add(v);
         }
         return list;
@@ -335,6 +342,24 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
                 .endObject(),
             m -> assertTrue(m.toString().contains("\"type\":\"bbq_hnsw\""))
         );
+        if (IVF_FORMAT.isEnabled()) {
+            checker.registerUpdateCheck(
+                b -> b.field("type", "dense_vector")
+                    .field("dims", dims * 16)
+                    .field("index", true)
+                    .startObject("index_options")
+                    .field("type", "flat")
+                    .endObject(),
+                b -> b.field("type", "dense_vector")
+                    .field("dims", dims * 16)
+                    .field("index", true)
+                    .startObject("index_options")
+                    .field("type", "bbq_disk")
+                    .endObject(),
+                m -> assertTrue(m.toString().contains("\"type\":\"bbq_disk\""))
+            );
+        }
+
         // update for int8_flat
         checker.registerUpdateCheck(
             b -> b.field("type", "dense_vector")
@@ -445,6 +470,23 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
                 .endObject(),
             m -> assertTrue(m.toString().contains("\"type\":\"bbq_hnsw\""))
         );
+        if (IVF_FORMAT.isEnabled()) {
+            checker.registerUpdateCheck(
+                b -> b.field("type", "dense_vector")
+                    .field("dims", dims * 16)
+                    .field("index", true)
+                    .startObject("index_options")
+                    .field("type", "int8_flat")
+                    .endObject(),
+                b -> b.field("type", "dense_vector")
+                    .field("dims", dims * 16)
+                    .field("index", true)
+                    .startObject("index_options")
+                    .field("type", "bbq_disk")
+                    .endObject(),
+                m -> assertTrue(m.toString().contains("\"type\":\"bbq_disk\""))
+            );
+        }
         // update for hnsw
         checker.registerUpdateCheck(
             b -> b.field("type", "dense_vector")
@@ -604,6 +646,23 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
                 .endObject(),
             m -> assertTrue(m.toString().contains("\"type\":\"bbq_hnsw\""))
         );
+        if (IVF_FORMAT.isEnabled()) {
+            checker.registerUpdateCheck(
+                b -> b.field("type", "dense_vector")
+                    .field("dims", dims * 16)
+                    .field("index", true)
+                    .startObject("index_options")
+                    .field("type", "hnsw")
+                    .endObject(),
+                b -> b.field("type", "dense_vector")
+                    .field("dims", dims * 16)
+                    .field("index", true)
+                    .startObject("index_options")
+                    .field("type", "bbq_disk")
+                    .endObject(),
+                m -> assertTrue(m.toString().contains("\"type\":\"bbq_disk\""))
+            );
+        }
         // update for int8_hnsw
         checker.registerUpdateCheck(
             b -> b.field("type", "dense_vector")
@@ -749,6 +808,23 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
                 .endObject(),
             m -> assertTrue(m.toString().contains("\"type\":\"bbq_hnsw\""))
         );
+        if (IVF_FORMAT.isEnabled()) {
+            checker.registerUpdateCheck(
+                b -> b.field("type", "dense_vector")
+                    .field("dims", dims * 16)
+                    .field("index", true)
+                    .startObject("index_options")
+                    .field("type", "int8_hnsw")
+                    .endObject(),
+                b -> b.field("type", "dense_vector")
+                    .field("dims", dims * 16)
+                    .field("index", true)
+                    .startObject("index_options")
+                    .field("type", "bbq_disk")
+                    .endObject(),
+                m -> assertTrue(m.toString().contains("\"type\":\"bbq_disk\""))
+            );
+        }
         // update for int4_flat
         checker.registerUpdateCheck(
             b -> b.field("type", "dense_vector")
@@ -865,6 +941,23 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
                 .endObject(),
             m -> assertTrue(m.toString().contains("\"type\":\"bbq_hnsw\""))
         );
+        if (IVF_FORMAT.isEnabled()) {
+            checker.registerUpdateCheck(
+                b -> b.field("type", "dense_vector")
+                    .field("dims", dims * 16)
+                    .field("index", true)
+                    .startObject("index_options")
+                    .field("type", "int4_flat")
+                    .endObject(),
+                b -> b.field("type", "dense_vector")
+                    .field("dims", dims * 16)
+                    .field("index", true)
+                    .startObject("index_options")
+                    .field("type", "bbq_disk")
+                    .endObject(),
+                m -> assertTrue(m.toString().contains("\"type\":\"bbq_disk\""))
+            );
+        }
         // update for int4_hnsw
         checker.registerUpdateCheck(
             b -> b.field("type", "dense_vector")
@@ -1075,6 +1168,23 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
                 .endObject(),
             m -> assertTrue(m.toString().contains("\"type\":\"bbq_hnsw\""))
         );
+        if (IVF_FORMAT.isEnabled()) {
+            checker.registerUpdateCheck(
+                b -> b.field("type", "dense_vector")
+                    .field("dims", dims * 16)
+                    .field("index", true)
+                    .startObject("index_options")
+                    .field("type", "int4_hnsw")
+                    .endObject(),
+                b -> b.field("type", "dense_vector")
+                    .field("dims", dims * 16)
+                    .field("index", true)
+                    .startObject("index_options")
+                    .field("type", "bbq_disk")
+                    .endObject(),
+                m -> assertTrue(m.toString().contains("\"type\":\"bbq_disk\""))
+            );
+        }
         // update for bbq_flat
         checker.registerUpdateCheck(
             b -> b.field("type", "dense_vector")
@@ -1205,6 +1315,23 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
                     .endObject()
             )
         );
+        if (IVF_FORMAT.isEnabled()) {
+            checker.registerUpdateCheck(
+                b -> b.field("type", "dense_vector")
+                    .field("dims", dims * 16)
+                    .field("index", true)
+                    .startObject("index_options")
+                    .field("type", "bbq_flat")
+                    .endObject(),
+                b -> b.field("type", "dense_vector")
+                    .field("dims", dims * 16)
+                    .field("index", true)
+                    .startObject("index_options")
+                    .field("type", "bbq_disk")
+                    .endObject(),
+                m -> assertTrue(m.toString().contains("\"type\":\"bbq_disk\""))
+            );
+        }
         // update for bbq_hnsw
         checker.registerConflictCheck(
             "index_options",
@@ -1320,6 +1447,23 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
                     .endObject()
             )
         );
+        if (IVF_FORMAT.isEnabled()) {
+            checker.registerUpdateCheck(
+                b -> b.field("type", "dense_vector")
+                    .field("dims", dims * 16)
+                    .field("index", true)
+                    .startObject("index_options")
+                    .field("type", "bbq_hnsw")
+                    .endObject(),
+                b -> b.field("type", "dense_vector")
+                    .field("dims", dims * 16)
+                    .field("index", true)
+                    .startObject("index_options")
+                    .field("type", "bbq_disk")
+                    .endObject(),
+                m -> assertTrue(m.toString().contains("\"type\":\"bbq_disk\""))
+            );
+        }
     }
 
     @Override
@@ -1360,7 +1504,7 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
                 b.field("index", true);
                 b.field("similarity", "dot_product");
                 b.startObject("index_options");
-                b.field("type", "bbq_ivf");
+                b.field("type", "bbq_disk");
                 b.endObject();
             }));
 
@@ -1370,7 +1514,7 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
                 .getIndexOptions();
             assertEquals(3.0F, indexOptions.rescoreVector.oversample(), 0.0F);
             assertEquals(IVFVectorsFormat.DEFAULT_VECTORS_PER_CLUSTER, indexOptions.clusterSize);
-            assertEquals(DYNAMIC_NPROBE, indexOptions.defaultNProbe);
+            assertEquals(DYNAMIC_VISIT_RATIO, indexOptions.defaultVisitPercentage, 0.0);
         }
         {
             DocumentMapper mapperService = createDocumentMapper(fieldMapping(b -> {
@@ -1379,9 +1523,9 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
                 b.field("index", true);
                 b.field("similarity", "dot_product");
                 b.startObject("index_options");
-                b.field("type", "bbq_ivf");
+                b.field("type", "bbq_disk");
                 b.field("cluster_size", 1000);
-                b.field("default_n_probe", 10);
+                b.field("default_visit_percentage", 5.0);
                 b.field(DenseVectorFieldMapper.RescoreVector.NAME, Map.of("oversample", 2.0f));
                 b.endObject();
             }));
@@ -1392,7 +1536,7 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
                 .getIndexOptions();
             assertEquals(2F, indexOptions.rescoreVector.oversample(), 0.0F);
             assertEquals(1000, indexOptions.clusterSize);
-            assertEquals(10, indexOptions.defaultNProbe);
+            assertEquals(5.0, indexOptions.defaultVisitPercentage, 0.0);
         }
     }
 
@@ -1406,7 +1550,7 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
                     b -> b.field("type", "dense_vector")
                         .field("dims", dims)
                         .startObject("index_options")
-                        .field("type", "bbq_ivf")
+                        .field("type", "bbq_disk")
                         .endObject()
                 )
             )
@@ -2067,9 +2211,9 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
 
         int dimensions = randomIntBetween(64, 1024);
         // Build a dense vector field mapper with float element type, which will trigger int8 HNSW index options
-        DenseVectorFieldMapper mapper = new DenseVectorFieldMapper.Builder("test", IndexVersion.current()).elementType(ElementType.FLOAT)
-            .dimensions(dimensions)
-            .build(context);
+        DenseVectorFieldMapper mapper = new DenseVectorFieldMapper.Builder("test", IndexVersion.current(), false).elementType(
+            ElementType.FLOAT
+        ).dimensions(dimensions).build(context);
 
         // Change the element type to byte, which is incompatible with int8 HNSW index options
         DenseVectorFieldMapper.Builder builder = (DenseVectorFieldMapper.Builder) mapper.getMergeBuilder();
@@ -2808,7 +2952,7 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
             b.field("index", true);
             b.field("similarity", "dot_product");
             b.startObject("index_options");
-            b.field("type", "bbq_ivf");
+            b.field("type", "bbq_disk");
             b.endObject();
         }));
         CodecService codecService = new CodecService(mapperService, BigArrays.NON_RECYCLING_INSTANCE);

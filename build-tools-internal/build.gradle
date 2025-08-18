@@ -220,6 +220,14 @@ gradlePlugin {
       id = 'elasticsearch.internal-yaml-rest-test'
       implementationClass = 'org.elasticsearch.gradle.internal.test.rest.InternalYamlRestTestPlugin'
     }
+    transportVersionReferencesPlugin {
+      id = 'elasticsearch.transport-version-references'
+      implementationClass = 'org.elasticsearch.gradle.internal.transport.TransportVersionReferencesPlugin'
+    }
+    transportVersionResourcesPlugin {
+      id = 'elasticsearch.transport-version-resources'
+      implementationClass = 'org.elasticsearch.gradle.internal.transport.TransportVersionResourcesPlugin'
+    }
   }
 }
 

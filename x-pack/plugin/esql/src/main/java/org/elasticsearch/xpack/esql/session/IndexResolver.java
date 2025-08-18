@@ -7,8 +7,6 @@
 package org.elasticsearch.xpack.esql.session;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.NoShardAvailableActionException;
-import org.elasticsearch.action.fieldcaps.FieldCapabilitiesFailure;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesIndexResponse;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
@@ -149,17 +147,6 @@ public class IndexResolver {
             }
         }
 
-        Map<String, FieldCapabilitiesFailure> unavailableRemotes = EsqlCCSUtils.determineUnavailableRemoteClusters(
-            fieldCapsResponse.getFailures()
-        );
-
-        Set<NoShardAvailableActionException> unavailableShards = new HashSet<>();
-        for (FieldCapabilitiesFailure failure : fieldCapsResponse.getFailures()) {
-            if (failure.getException() instanceof NoShardAvailableActionException e) {
-                unavailableShards.add(e);
-            }
-        }
-
         Map<String, IndexMode> concreteIndices = Maps.newMapWithExpectedSize(fieldCapsResponse.getIndexResponses().size());
         for (FieldCapabilitiesIndexResponse ir : fieldCapsResponse.getIndexResponses()) {
             concreteIndices.put(ir.getIndexName(), ir.getIndexMode());
@@ -170,8 +157,14 @@ public class IndexResolver {
             allEmpty &= ir.get().isEmpty();
         }
         // If all the mappings are empty we return an empty set of resolved indices to line up with QL
+        // Introduced with #46775
+        // We need to be able to differentiate between an empty mapping index and an empty index due to fields not being found. An empty
+        // mapping index will generate no columns (important) for a query like FROM empty-mapping-index, whereas an empty result here but
+        // for fields that do not exist in the index (but the index has a mapping) will result in "VerificationException Unknown column"
+        // errors.
         var index = new EsIndex(indexPattern, rootFields, allEmpty ? Map.of() : concreteIndices, partiallyUnmappedFields);
-        return IndexResolution.valid(index, concreteIndices.keySet(), unavailableShards, unavailableRemotes);
+        var failures = EsqlCCSUtils.groupFailuresPerCluster(fieldCapsResponse.getFailures());
+        return IndexResolution.valid(index, concreteIndices.keySet(), failures);
     }
 
     private static Map<String, List<IndexFieldCapabilities>> collectFieldCaps(FieldCapabilitiesResponse fieldCapsResponse) {

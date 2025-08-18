@@ -83,7 +83,7 @@ Parameters for `index_options` are:
     :   (Optional, float) Tokens whose weight is less than `tokens_weight_threshold` are considered insignificant and pruned. This value must be between 0 and 1. Default: `0.4`.
 
     ::::{note}
-    The default values for `tokens_freq_ratio_threshold` and `tokens_weight_threshold` were chosen based on tests using ELSERv2 that provided the most optimal results.
+    The default values for `tokens_freq_ratio_threshold` and `tokens_weight_threshold` were chosen based on tests using ELSERv2 that provided the optimal results.
     ::::
 
 When token pruning is applied, non-significant tokens will be pruned from the query.

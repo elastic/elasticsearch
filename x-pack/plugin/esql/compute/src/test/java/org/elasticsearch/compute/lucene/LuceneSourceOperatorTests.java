@@ -24,6 +24,7 @@ import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.lucene.read.ValuesSourceReaderOperatorTests;
 import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Operator;
@@ -223,6 +224,7 @@ public class LuceneSourceOperatorTests extends AnyOperatorTestCase {
             List.of(ctx),
             queryFunction,
             dataPartitioning,
+            DataPartitioning.AutoStrategy.DEFAULT,
             taskConcurrency,
             maxPageSize,
             limit,

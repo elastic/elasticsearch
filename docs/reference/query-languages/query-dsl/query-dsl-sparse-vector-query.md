@@ -80,7 +80,7 @@ GET _search
     :   (Optional, boolean) If `true` we only input pruned tokens into scoring, and discard non-pruned tokens. It is strongly recommended to set this to `false` for the main query, but this can be set to `true` for a rescore query to get more relevant results. Default: `false`.
 
     ::::{note}
-    The default values for `tokens_freq_ratio_threshold` and `tokens_weight_threshold` were chosen based on tests using ELSERv2 that provided the most optimal results.
+    The default values for `tokens_freq_ratio_threshold` and `tokens_weight_threshold` were chosen based on tests using ELSERv2 that provided the optimal results.
     ::::
 
 When token pruning is applied, non-significant tokens will be pruned from the query.
@@ -150,7 +150,7 @@ GET my-index/_search
 }
 ```
 
-This can also be achieved using [reciprocal rank fusion (RRF)](/reference/elasticsearch/rest-apis/reciprocal-rank-fusion.md), through an [`rrf` retriever](/reference/elasticsearch/rest-apis/retrievers.md#rrf-retriever) with multiple [`standard` retrievers](/reference/elasticsearch/rest-apis/retrievers.md#standard-retriever).
+This can also be achieved using [reciprocal rank fusion (RRF)](/reference/elasticsearch/rest-apis/reciprocal-rank-fusion.md), through an [`rrf` retriever](/reference/elasticsearch/rest-apis/retrievers/rrf-retriever.md) with multiple [`standard` retrievers](/reference/elasticsearch/rest-apis/retrievers/standard-retriever.md).
 
 ```console
 GET my-index/_search

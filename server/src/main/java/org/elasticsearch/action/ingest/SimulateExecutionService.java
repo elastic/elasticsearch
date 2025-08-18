@@ -49,7 +49,9 @@ class SimulateExecutionService {
                 pipeline.getMetadata(),
                 verbosePipelineProcessor,
                 pipeline.getFieldAccessPattern(),
-                pipeline.getDeprecated()
+                pipeline.getDeprecated(),
+                pipeline.getCreatedDateMillis().orElse(null),
+                pipeline.getModifiedDateMillis().orElse(null)
             );
             ingestDocument.executePipeline(verbosePipeline, (result, e) -> {
                 handler.accept(new SimulateDocumentVerboseResult(processorResultList), e);

@@ -59,4 +59,9 @@ public class NotQuery extends Query {
     public Query negate(Source source) {
         return child;
     }
+
+    @Override
+    public boolean containsPlan() {
+        return child.containsPlan();
+    }
 }

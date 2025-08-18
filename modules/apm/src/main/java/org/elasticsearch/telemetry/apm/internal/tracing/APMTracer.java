@@ -235,10 +235,10 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
         // You can just pass the Context object directly to another thread (it is immutable and thus thread-safe).
 
         // Attempt to fetch a local parent context first, otherwise look for a remote parent
-        Context parentContext = traceContext.getTransient("parent_" + Task.APM_TRACE_CONTEXT);
+        Context parentContext = traceContext.getTransient(Task.PARENT_APM_TRACE_CONTEXT);
         if (parentContext == null) {
-            final String traceParentHeader = traceContext.getTransient("parent_" + Task.TRACE_PARENT_HTTP_HEADER);
-            final String traceStateHeader = traceContext.getTransient("parent_" + Task.TRACE_STATE);
+            final String traceParentHeader = traceContext.getTransient(Task.PARENT_TRACE_PARENT_HEADER);
+            final String traceStateHeader = traceContext.getTransient(Task.PARENT_TRACE_STATE);
 
             if (traceParentHeader != null) {
                 final Map<String, String> traceContextMap = Maps.newMapWithExpectedSize(2);

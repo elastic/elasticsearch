@@ -54,24 +54,10 @@ public final class IgnoreNullMetrics extends Rule<LogicalPlan, LogicalPlan> {
         }
 
         Expression finalConditional = conditional;
-        return logicalPlan.transformUp(p -> {
-            // Find where to put the new Filter node; We want it right after the relation leaf node
-            // We want to add the filter right after the TS command, which is a "leaf" node.
-            // So we want to find the first node above the leaf node.
-            //
-            // Maybe instead of looking for leaf nodes, this should specifically look for an EsRelation with time series mode?
-            // That could avoid the check earlier in the rule.
-            for (Node child : p.children()) {
-                if (child.children().isEmpty() == false) {
-                    return false;
-                }
-            }
-            return true;
-        }, p -> {
-            assert p.children().size() == 1;
-            return new Filter(p.source(), p.children().get(0), finalConditional);
-
-        });
+        // Find where to put the new Filter node; We want it right after the relation leaf node
+        // We want to add the filter right after the TS command, which is a "leaf" node.
+        // So we want to find the first node above the leaf node.
+        return logicalPlan.transformUp(p -> isMetricsQuery((LogicalPlan) p), p -> new Filter(p.source(), p, finalConditional));
     }
 
     private Set<Attribute> collectMetrics(LogicalPlan logicalPlan) {

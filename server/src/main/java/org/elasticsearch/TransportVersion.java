@@ -163,22 +163,23 @@ public record TransportVersion(String name, int id, TransportVersion nextPatchVe
         }
     }
 
-    public static List<TransportVersion> collectFromInputStreams(
+    public static List<TransportVersion> collectFromResources(
         String component,
-        Function<String, InputStream> nameToStream,
+        Function<String, InputStream> resourceLoader,
+        String manifestFileName,
         String latestFileName
     ) {
         TransportVersion latest = parseFromBufferedReader(
             component,
             "/transport/latest/" + latestFileName,
-            nameToStream,
+            resourceLoader,
             (c, p, br) -> fromBufferedReader(c, p, true, false, br, Integer.MAX_VALUE)
         );
         if (latest != null) {
             List<String> versionRelativePaths = parseFromBufferedReader(
                 component,
-                "/transport/definitions/manifest.txt",
-                nameToStream,
+                "/transport/definitions/" + manifestFileName,
+                resourceLoader,
                 (c, p, br) -> br.lines().filter(line -> line.isBlank() == false).toList()
             );
             if (versionRelativePaths != null) {
@@ -187,7 +188,7 @@ public record TransportVersion(String name, int id, TransportVersion nextPatchVe
                     TransportVersion transportVersion = parseFromBufferedReader(
                         component,
                         "/transport/definitions/" + versionRelativePath,
-                        nameToStream,
+                        resourceLoader,
                         (c, p, br) -> fromBufferedReader(c, p, false, versionRelativePath.startsWith("named/"), br, latest.id())
                     );
                     if (transportVersion != null) {
@@ -426,9 +427,10 @@ public record TransportVersion(String name, int id, TransportVersion nextPatchVe
         static {
             // collect all the transport versions from server and es modules/plugins (defined in server)
             List<TransportVersion> allVersions = new ArrayList<>(TransportVersions.DEFINED_VERSIONS);
-            List<TransportVersion> streamVersions = collectFromInputStreams(
+            List<TransportVersion> streamVersions = collectFromResources(
                 "<server>",
                 TransportVersion.class::getResourceAsStream,
+                "manifest.txt",
                 Version.CURRENT.major + "." + Version.CURRENT.minor + ".csv"
             );
             Map<String, TransportVersion> allVersionsByName = streamVersions.stream()

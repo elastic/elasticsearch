@@ -676,7 +676,7 @@ public class EsqlSession {
                     preAnalysis.indices.getFirst().indexPattern(),
                     result.fieldNames,
                     requestFilter,
-                    listener.delegateFailure((l, indexResolution) -> {
+                    listener.delegateFailureAndWrap((l, indexResolution) -> {
                         EsqlCCSUtils.initCrossClusterState(verifier.licenseState(), indexResolution, executionInfo);
                         l.onResponse(result.withIndexResolution(indexResolution));
                     })

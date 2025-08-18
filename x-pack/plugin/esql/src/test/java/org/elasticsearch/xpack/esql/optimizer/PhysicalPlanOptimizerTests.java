@@ -413,8 +413,8 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
                 List.of("a", "b"),
                 Map.of("", "idx"),
                 Map.ofEntries(
-                    Map.entry("a", new EsField("a", DataType.INTEGER, Map.of(), true)),
-                    Map.entry("b", new EsField("b", DataType.LONG, Map.of(), true))
+                    Map.entry("a", new EsField("a", DataType.INTEGER, Map.of(), true, EsField.TimeSeriesFieldType.NONE)),
+                    Map.entry("b", new EsField("b", DataType.LONG, Map.of(), true, EsField.TimeSeriesFieldType.NONE))
                 )
             )
         );
@@ -427,10 +427,13 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
                 List.of("city", "airport", "region", "city_boundary"),
                 Map.of("", "airport_city_boundaries"),
                 Map.ofEntries(
-                    Map.entry("city", new EsField("city", DataType.KEYWORD, Map.of(), true)),
-                    Map.entry("airport", new EsField("airport", DataType.TEXT, Map.of(), false)),
-                    Map.entry("region", new EsField("region", DataType.TEXT, Map.of(), false)),
-                    Map.entry("city_boundary", new EsField("city_boundary", DataType.GEO_SHAPE, Map.of(), false))
+                    Map.entry("city", new EsField("city", DataType.KEYWORD, Map.of(), true, EsField.TimeSeriesFieldType.NONE)),
+                    Map.entry("airport", new EsField("airport", DataType.TEXT, Map.of(), false, EsField.TimeSeriesFieldType.NONE)),
+                    Map.entry("region", new EsField("region", DataType.TEXT, Map.of(), false, EsField.TimeSeriesFieldType.NONE)),
+                    Map.entry(
+                        "city_boundary",
+                        new EsField("city_boundary", DataType.GEO_SHAPE, Map.of(), false, EsField.TimeSeriesFieldType.NONE)
+                    )
                 )
             )
         );
@@ -442,7 +445,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
                 EnrichPolicy.MATCH_TYPE,
                 List.of("department"),
                 Map.of("", ".enrich-departments-1", "cluster_1", ".enrich-departments-2"),
-                Map.of("department", new EsField("department", DataType.KEYWORD, Map.of(), true))
+                Map.of("department", new EsField("department", DataType.KEYWORD, Map.of(), true, EsField.TimeSeriesFieldType.NONE))
             )
         );
         enrichResolution.addResolvedPolicy(
@@ -453,7 +456,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
                 EnrichPolicy.MATCH_TYPE,
                 List.of("department"),
                 Map.of("", ".enrich-departments-3"),
-                Map.of("department", new EsField("department", DataType.KEYWORD, Map.of(), true))
+                Map.of("department", new EsField("department", DataType.KEYWORD, Map.of(), true, EsField.TimeSeriesFieldType.NONE))
             )
         );
         enrichResolution.addResolvedPolicy(
@@ -464,7 +467,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
                 EnrichPolicy.MATCH_TYPE,
                 List.of("department"),
                 Map.of("cluster_1", ".enrich-departments-2"),
-                Map.of("department", new EsField("department", DataType.KEYWORD, Map.of(), true))
+                Map.of("department", new EsField("department", DataType.KEYWORD, Map.of(), true, EsField.TimeSeriesFieldType.NONE))
             )
         );
         enrichResolution.addResolvedPolicy(
@@ -475,7 +478,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
                 EnrichPolicy.MATCH_TYPE,
                 List.of("supervisor"),
                 Map.of("", ".enrich-supervisors-a", "cluster_1", ".enrich-supervisors-b"),
-                Map.of("supervisor", new EsField("supervisor", DataType.KEYWORD, Map.of(), true))
+                Map.of("supervisor", new EsField("supervisor", DataType.KEYWORD, Map.of(), true, EsField.TimeSeriesFieldType.NONE))
             )
         );
         enrichResolution.addResolvedPolicy(
@@ -486,7 +489,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
                 EnrichPolicy.MATCH_TYPE,
                 List.of("supervisor"),
                 Map.of("", ".enrich-supervisors-c"),
-                Map.of("supervisor", new EsField("supervisor", DataType.KEYWORD, Map.of(), true))
+                Map.of("supervisor", new EsField("supervisor", DataType.KEYWORD, Map.of(), true, EsField.TimeSeriesFieldType.NONE))
             )
         );
         enrichResolution.addResolvedPolicy(
@@ -497,7 +500,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
                 EnrichPolicy.MATCH_TYPE,
                 List.of("supervisor"),
                 Map.of("cluster_1", ".enrich-supervisors-b"),
-                Map.of("supervisor", new EsField("supervisor", DataType.KEYWORD, Map.of(), true))
+                Map.of("supervisor", new EsField("supervisor", DataType.KEYWORD, Map.of(), true, EsField.TimeSeriesFieldType.NONE))
             )
         );
         return enrichResolution;
@@ -2996,9 +2999,9 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
                 "test",
                 Map.of(
                     "some_field1",
-                    new EsField("some_field1", DataType.KEYWORD, Map.of(), true),
+                    new EsField("some_field1", DataType.KEYWORD, Map.of(), true, EsField.TimeSeriesFieldType.NONE),
                     "some_field2",
-                    new EsField("some_field2", DataType.KEYWORD, Map.of(), true)
+                    new EsField("some_field2", DataType.KEYWORD, Map.of(), true, EsField.TimeSeriesFieldType.NONE)
                 )
             ),
             IndexMode.STANDARD
@@ -7006,7 +7009,10 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             | eval employee_id = to_str(emp_no)
             | ENRICH _remote:departments
             """));
-        assertThat(error.getMessage(), containsString("line 4:3: ENRICH with remote policy can't be executed after STATS"));
+        assertThat(
+            error.getMessage(),
+            containsString("line 4:3: ENRICH with remote policy can't be executed after [STATS size=count(*) BY emp_no]@2:3")
+        );
     }
 
     public void testEnrichBeforeLimit() {
@@ -7356,7 +7362,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             """));
         assertThat(
             error.getMessage(),
-            containsString("ENRICH with remote policy can't be executed after another ENRICH with coordinator policy")
+            containsString("ENRICH with remote policy can't be executed after [ENRICH _coordinator:departments]@3:3")
         );
     }
 
@@ -7870,7 +7876,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         Map<String, EsField> fields = new HashMap<>();
 
         for (String fieldName : fieldNames) {
-            fields.put(fieldName, new EsField(fieldName, DataType.KEYWORD, Map.of(), false));
+            fields.put(fieldName, new EsField(fieldName, DataType.KEYWORD, Map.of(), false, EsField.TimeSeriesFieldType.NONE));
         }
 
         return fields;

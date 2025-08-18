@@ -68,7 +68,7 @@ public class WriteLoadConstraintMonitor {
         }
 
         if (writeLoadConstraintSettings.getWriteLoadConstraintEnabled() != WriteLoadConstraintSettings.WriteLoadDeciderStatus.ENABLED) {
-            logger.trace("skipping monitor because the write load decider is disabled");
+            logger.debug("skipping monitor because the write load decider is disabled");
             return;
         }
 
@@ -84,7 +84,7 @@ public class WriteLoadConstraintMonitor {
                 nodeIdsExceedingLatencyThreshold.add(nodeId);
             }
             if (writeThreadPoolStats.averageThreadPoolUtilization() < writeLoadConstraintSettings.getHighUtilizationThreshold()
-                .getAsPercent()) {
+                .getAsRatio()) {
                 nodeIdsBelowUtilizationThreshold.add(nodeId);
             }
         });

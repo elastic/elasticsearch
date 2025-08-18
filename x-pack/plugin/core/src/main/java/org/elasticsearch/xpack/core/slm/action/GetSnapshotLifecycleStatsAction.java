@@ -48,7 +48,7 @@ public class GetSnapshotLifecycleStatsAction extends ActionType<GetSnapshotLifec
         // versions
         // private final TimeValue ackTimeout;
 
-        public Request(TimeValue masterNodeTimeout) throws IOException {
+        public Request(TimeValue masterNodeTimeout) {
             super(masterNodeTimeout);
             // this.ackTimeout = null;
         }

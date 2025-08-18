@@ -35,7 +35,6 @@ import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.set.Sets;
-import org.elasticsearch.core.Nullable;
 
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -72,7 +71,7 @@ public class StatelessCommitNotificationPublisher {
      * @param listener What should be done with the result ({@link CommitsInUse}).
      */
     public void sendNewUploadedCommitNotificationAndFetchInUseCommits(
-        @Nullable IndexShardRoutingTable shardRoutingTable,
+        IndexShardRoutingTable shardRoutingTable,
         Set<String> currentRoutingNodesWithAssignedSearchShards,
         Set<String> allSearchNodesRetainingCommits,
         BatchedCompoundCommit uploadedBcc,
@@ -82,8 +81,8 @@ public class StatelessCommitNotificationPublisher {
         ActionListener<CommitsInUse> listener
     ) {
         assert uploadedBcc != null;
-        assert (shardRoutingTable == null && currentRoutingNodesWithAssignedSearchShards.isEmpty())
-            || shardRoutingTable.assignedUnpromotableShards()
+        assert shardRoutingTable != null
+            && shardRoutingTable.assignedUnpromotableShards()
                 .stream()
                 .filter(ShardRouting::assignedToNode)
                 .map(ShardRouting::currentNodeId)

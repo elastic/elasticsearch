@@ -20,6 +20,7 @@ package co.elastic.elasticsearch.stateless.commits;
 import co.elastic.elasticsearch.stateless.AbstractStatelessIntegTestCase;
 import co.elastic.elasticsearch.stateless.Stateless;
 import co.elastic.elasticsearch.stateless.action.NewCommitNotificationRequest;
+import co.elastic.elasticsearch.stateless.action.TransportFetchShardCommitsInUseAction;
 import co.elastic.elasticsearch.stateless.action.TransportNewCommitNotificationAction;
 import co.elastic.elasticsearch.stateless.cache.SharedBlobCacheWarmingService;
 import co.elastic.elasticsearch.stateless.cache.StatelessSharedBlobCacheService;
@@ -29,11 +30,13 @@ import co.elastic.elasticsearch.stateless.engine.RefreshThrottler;
 import co.elastic.elasticsearch.stateless.engine.translog.TranslogReplicator;
 import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService;
 
+import org.apache.logging.log4j.core.LogEvent;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.TriConsumer;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.EngineConfig;
@@ -45,6 +48,7 @@ import org.elasticsearch.node.PluginComponentBinding;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.internal.DocumentParsingProvider;
 import org.elasticsearch.telemetry.TelemetryProvider;
+import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.transport.MockTransportService;
 
 import java.util.ArrayList;
@@ -52,12 +56,15 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.CyclicBarrier;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BooleanSupplier;
 import java.util.function.Function;
 
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.not;
 
 public class StatelessCommitNotificationsIT extends AbstractStatelessIntegTestCase {
 
@@ -285,5 +292,88 @@ public class StatelessCommitNotificationsIT extends AbstractStatelessIntegTestCa
         assertThat(requests.get(0), equalTo(requests.get(1)));
 
         ensureGreen(indexName);
+    }
+
+    public void testSkipCommitNotificationAndFetchCommitsInUseForDeletedIndex() throws Exception {
+        final String indexNode = startMasterAndIndexNode(
+            Settings.builder()
+                .put(disableIndexingDiskAndMemoryControllersNodeSettings())
+                .put(StatelessCommitService.STATELESS_UPLOAD_MAX_AMOUNT_COMMITS.getKey(), 100)
+                .build()
+        );
+        final String searchNode = startSearchNode();
+
+        final String indexName = randomIdentifier();
+        createIndex(
+            indexName,
+            indexSettings(1, 1).put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), ByteSizeValue.ofGb(1L))
+                .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), -1)
+                .build()
+        );
+        ensureGreen(indexName);
+        final var index = resolveIndex(indexName);
+        final var shardId = new ShardId(index, 0);
+
+        // Index and flush a commit so that it gets used by the search node
+        indexDocs(indexName, between(10, 20));
+        flush(indexName);
+        final var commitService = internalCluster().getInstance(StatelessCommitService.class, indexNode);
+        assertThat(commitService.getAllSearchNodesRetainingCommitsForShard(shardId), not(empty()));
+
+        indexDocs(indexName, between(10, 20));
+        refresh(indexName);
+        final var virtualBcc = commitService.getCurrentVirtualBcc(shardId);
+        assertNotNull(virtualBcc);
+
+        // Trigger a flush and wait for the upload to be blocked at calling the upload consumer then delete the index
+        final var barrier = new CyclicBarrier(2);
+        commitService.addConsumerForNewUploadedBcc(shardId, uploadedBccInfo -> {
+            safeAwait(barrier);
+            safeAwait(barrier);
+        });
+        final Thread thread = new Thread(() -> flush(indexName));
+        thread.start();
+        safeAwait(barrier);
+        safeGet(indicesAdmin().prepareDelete(indexName).execute());
+
+        final MockTransportService searchNodeTransportService = MockTransportService.getInstance(searchNode);
+        searchNodeTransportService.addRequestHandlingBehavior(
+            TransportFetchShardCommitsInUseAction.NAME + "[n]",
+            (handler, request, channel, task) -> {
+                throw new AssertionError("fetch commits-in-use should be skipped for deleted index");
+            }
+        );
+        searchNodeTransportService.addRequestHandlingBehavior(
+            TransportNewCommitNotificationAction.NAME + "[u]",
+            (handler, request, channel, task) -> {
+                throw new AssertionError("commit notification should be skipped for deleted index");
+            }
+        );
+
+        // Unblock the consumer so that StatelessCommitService attempts to send the new commit notification. It should not trigger NPE.
+        try (var mockLog = MockLog.capture(StatelessCommitService.class)) {
+            mockLog.addExpectation(new MockLog.LoggingExpectation() {
+                private final AtomicBoolean seen = new AtomicBoolean(false);
+
+                @Override
+                public void match(LogEvent event) {
+                    if (event.getThrown() instanceof NullPointerException) {
+                        seen.set(true);
+                    }
+                }
+
+                @Override
+                public void assertMatched() {
+                    assertFalse("Unexpected NullPointerException", seen.get());
+                }
+            });
+
+            safeAwait(barrier); // unblock the upload consumer
+            // Wait for the VBCC to be closed which indicates the commit notification is processed
+            assertBusy(() -> assertFalse(virtualBcc.hasReferences()));
+            mockLog.assertAllExpectationsMatched(); // should not see NPE
+        }
+        thread.join(30_000);
+        assertFalse(thread.isAlive());
     }
 }

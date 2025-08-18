@@ -579,6 +579,9 @@ tests:
 - class: org.elasticsearch.upgrades.SyntheticSourceRollingUpgradeIT
   method: testIndexing {upgradedNodes=1}
   issue: https://github.com/elastic/elasticsearch/issues/133060
+- class: org.elasticsearch.upgrades.SyntheticSourceRollingUpgradeIT
+  method: testIndexing {upgradedNodes=0}
+  issue: https://github.com/elastic/elasticsearch/issues/133061
 
 # Examples:
 #

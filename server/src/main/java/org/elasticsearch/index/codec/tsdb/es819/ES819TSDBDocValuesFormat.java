@@ -33,9 +33,10 @@ public class ES819TSDBDocValuesFormat extends org.apache.lucene.codecs.DocValues
 
     static final int NUMERIC_BLOCK_SHIFT = 7;
     public static final int NUMERIC_BLOCK_SIZE = 1 << NUMERIC_BLOCK_SHIFT;
-    public static final int MIN_DOC_PER_ORDINAL_FOR_ORDINAL_RANGE_ENCODING = 512;
     static final int NUMERIC_BLOCK_MASK = NUMERIC_BLOCK_SIZE - 1;
     static final int DIRECT_MONOTONIC_BLOCK_SHIFT = 16;
+    public static final int ORDINAL_RANGE_ENCODING_MIN_DOC_PER_ORDINAL = 512;
+    public static final int ORDINAL_RANGE_ENCODING_BLOCK_SHIFT = 12;
     static final String CODEC_NAME = "ES819TSDB";
     static final String DATA_CODEC = "ES819TSDBDocValuesData";
     static final String DATA_EXTENSION = "dvd";
@@ -111,7 +112,7 @@ public class ES819TSDBDocValuesFormat extends org.apache.lucene.codecs.DocValues
 
     /** Default constructor. */
     public ES819TSDBDocValuesFormat() {
-        this(DEFAULT_SKIP_INDEX_INTERVAL_SIZE, MIN_DOC_PER_ORDINAL_FOR_ORDINAL_RANGE_ENCODING, OPTIMIZED_MERGE_ENABLE_DEFAULT);
+        this(DEFAULT_SKIP_INDEX_INTERVAL_SIZE, ORDINAL_RANGE_ENCODING_MIN_DOC_PER_ORDINAL, OPTIMIZED_MERGE_ENABLE_DEFAULT);
     }
 
     /** Doc values fields format with specified skipIndexIntervalSize. */

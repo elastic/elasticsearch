@@ -175,6 +175,7 @@ final class ES819TSDBDocValuesConsumer extends XDocValuesConsumer {
                     // When a field is sorted, use ordinal range encode for long runs of the same ordinal.
                     meta.writeInt(-2);
                     meta.writeVInt(Math.toIntExact(maxOrd));
+                    meta.writeByte((byte) ES819TSDBDocValuesFormat.ORDINAL_RANGE_ENCODING_BLOCK_SHIFT);
                     values = valuesProducer.getSortedNumeric(field);
                     if (enableOptimizedMerge && numDocsWithValue < maxDoc) {
                         disiAccumulator = new DISIAccumulator(dir, context, data, IndexedDISI.DEFAULT_DENSE_RANK_POWER);
@@ -183,7 +184,7 @@ final class ES819TSDBDocValuesConsumer extends XDocValuesConsumer {
                         meta,
                         data,
                         maxOrd + 1,
-                        ES819TSDBDocValuesFormat.DIRECT_MONOTONIC_BLOCK_SHIFT
+                        ES819TSDBDocValuesFormat.ORDINAL_RANGE_ENCODING_BLOCK_SHIFT
                     );
                     long lastOrd = 0;
                     startDocs.add(0);

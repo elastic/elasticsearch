@@ -47,7 +47,6 @@ import org.elasticsearch.index.mapper.BlockLoader;
 
 import java.io.IOException;
 
-import static org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormat.DIRECT_MONOTONIC_BLOCK_SHIFT;
 import static org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormat.SKIP_INDEX_JUMP_LENGTH_PER_LEVEL;
 import static org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormat.SKIP_INDEX_MAX_LEVEL;
 import static org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormat.TERMS_DICT_BLOCK_LZ4_SHIFT;
@@ -1069,7 +1068,8 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
             } else if (indexBlockShift == -2) {
                 // encoded ordinal range, no block index
                 final int numOrds = meta.readVInt();
-                entry.sortedOrdinals = DirectMonotonicReader.loadMeta(meta, numOrds + 1, DIRECT_MONOTONIC_BLOCK_SHIFT);
+                final int blockShift = meta.readByte();
+                entry.sortedOrdinals = DirectMonotonicReader.loadMeta(meta, numOrds + 1, blockShift);
             } else {
                 entry.indexMeta = DirectMonotonicReader.loadMeta(
                     meta,

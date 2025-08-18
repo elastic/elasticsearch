@@ -14,7 +14,7 @@ $$$xml-options$$$
 | --- | --- | --- | --- |
 | `field` | yes | - | The field containing the XML string to be parsed. |
 | `target_field` | no | `field` | The field that the converted structured object will be written into. Any existing content in this field will be overwritten. |
-| `store_xml` | no | `true` | If `true`, stores the parsed XML structure in the target field. If `false`, only XPath extraction results are stored. |
+| `store_xml` | no | `true` | If `true`, stores the parsed XML structure in the target field. If `false`, only XPath extraction results are stored and `target_field` is ignored. |
 | `ignore_missing` | no | `false` | If `true` and `field` does not exist, the processor quietly exits without modifying the document. |
 | `ignore_failure` | no | `false` | Ignore failures for the processor. When `true` and XML parsing fails, adds `_xmlparsefailure` tag to the document. See [Handling pipeline failures](docs-content://manage-data/ingest/transform-enrich/ingest-pipelines.md#handling-pipeline-failures). |
 | `to_lower` | no | `false` | Convert XML element names and attribute names to lowercase. |

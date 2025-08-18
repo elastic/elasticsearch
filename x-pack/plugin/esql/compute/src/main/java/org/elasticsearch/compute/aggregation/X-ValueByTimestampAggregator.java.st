@@ -27,10 +27,51 @@ import org.elasticsearch.core.Releasables;
  * A time-series aggregation function that collects the $Occurrence$ occurrence value of a time series in a specified interval.
  * This class is generated. Edit `X-ValueByTimestampAggregator.java.st` instead.
  */
+@Aggregator(
+    {
+        @IntermediateState(name = "timestamps", type = "LONG"),
+        @IntermediateState(name = "values", type = "$TYPE$"),
+        @IntermediateState(name = "seen", type = "BOOLEAN") }
+)
 @GroupingAggregator(
     { @IntermediateState(name = "timestamps", type = "LONG_BLOCK"), @IntermediateState(name = "values", type = "$TYPE$_BLOCK") }
 )
 public class $Occurrence$$Type$ByTimestampAggregator {
+    public static String describe() {
+        return "$occurrence$_$type$_by_timestamp";
+    }
+
+    public static Long$Type$State initSingle(DriverContext driverContext) {
+        return new Long$Type$State(0, 0);
+    }
+
+    public static void first(Long$Type$State current, $type$ value, long timestamp) {
+        current.v1(timestamp);
+        current.v2(value);
+    }
+
+    public static void combine(Long$Type$State current, $type$ value, long timestamp) {
+        if (timestamp $if(First)$<$else$>$endif$ current.v1()) {
+            current.v1(timestamp);
+            current.v2(value);
+        }
+    }
+
+    public static void combineIntermediate(Long$Type$State current, long timestamp, $type$ value, boolean seen) {
+        if (seen) {
+            if (current.seen()) {
+                combine(current, value, timestamp);
+            } else {
+                first(current, value, timestamp);
+                current.seen(true);
+            }
+        }
+    }
+
+    public static Block evaluateFinal(Long$Type$State current, DriverContext ctx) {
+        return ctx.blockFactory().newConstant$Type$BlockWith(current.v2(), 1);
+    }
+
     public static GroupingState initGrouping(DriverContext driverContext) {
         return new GroupingState(driverContext.bigArrays());
     }
@@ -76,6 +117,11 @@ public class $Occurrence$$Type$ByTimestampAggregator {
                 timestamps = bigArrays.newLongArray(1, false);
                 this.timestamps = timestamps;
                 this.values = bigArrays.new$Type$Array(1, false);
+                /*
+                 * Enable group id tracking because we use has hasValue in the
+                 * collection itself to detect the when a value first arrives.
+                 */
+                enableGroupIdTracking(new SeenGroupIds.Empty());
                 success = true;
             } finally {
                 if (success == false) {

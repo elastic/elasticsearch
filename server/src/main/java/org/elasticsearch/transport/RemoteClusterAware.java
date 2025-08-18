@@ -49,6 +49,10 @@ public abstract class RemoteClusterAware {
         this.isRemoteClusterClientEnabled = DiscoveryNode.isRemoteClusterClient(settings);
     }
 
+    protected String getNodeName() {
+        return nodeName;
+    }
+
     /**
      * Returns remote clusters that are enabled in these settings
      */

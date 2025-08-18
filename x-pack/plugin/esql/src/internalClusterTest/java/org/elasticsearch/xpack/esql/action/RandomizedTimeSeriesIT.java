@@ -49,7 +49,7 @@ import static org.hamcrest.Matchers.equalTo;
 @SuppressWarnings("unchecked")
 public class RandomizedTimeSeriesIT extends AbstractEsqlIntegTestCase {
 
-    private static final Long NUM_DOCS = 1000L;
+    private static final Long NUM_DOCS = 2000L;
     private static final String DATASTREAM_NAME = "tsit_ds";
     private List<XContentBuilder> documents = null;
     private TSDataGenerationHelper dataGenerationHelper;
@@ -205,7 +205,7 @@ public class RandomizedTimeSeriesIT extends AbstractEsqlIntegTestCase {
                 values(metrics.gauge_hdd.bytes.used),
                 max(max_over_time(metrics.gauge_hdd.bytes.used)),
                 min(min_over_time(metrics.gauge_hdd.bytes.used)),
-                count(count_over_time(metrics.gauge_hdd.bytes.used)),
+                sum(count_over_time(metrics.gauge_hdd.bytes.used)),
                 sum(sum_over_time(metrics.gauge_hdd.bytes.used)),
                 avg(avg_over_time(metrics.gauge_hdd.bytes.used))
                 BY tbucket=bucket(@timestamp, 1 minute), %s
@@ -217,20 +217,13 @@ public class RandomizedTimeSeriesIT extends AbstractEsqlIntegTestCase {
                 var rowKey = getRowKey(row, dimensions, 6);
                 var docValues = valuesInWindow(groups.get(rowKey), "gauge_hdd.bytes.used");
                 // Max of int is always int, so we can safely round the result.
-                var valuesAsInts = docValues.stream().map(Integer::valueOf).toList();
+                var valuesAsInts = docValues.stream().toList();
                 assertThat(valuesAsInts, containsInAnyOrder(docValues.toArray()));
                 assertThat(row.get(1), equalTo(Math.round(aggregateValuesInWindow(docValues, Agg.MAX))));
                 assertThat(row.get(2), equalTo(Math.round(aggregateValuesInWindow(docValues, Agg.MIN))));
-                // TODO: Enable assertions after we fix the computation.
-                // assertThat(row.get(3), equalTo((long) docValues.size()));
+                assertThat(row.get(3), equalTo((long) docValues.size()));
                 assertThat(row.get(4), equalTo(aggregateValuesInWindow(docValues, Agg.SUM).longValue()));
-                // We check the expected vs ES-calculated average. We divide them to normalize the error
-                // and allow for a 20% error margin.
-                // Double esAvg = (Double) row.get(5);
-                // Double expectedAvg = aggregateValuesInWindow(docValues, Agg.AVG);
-                // var ratio = esAvg / expectedAvg;
-                // assertThat(ratio, closeTo(1, 0.25));
-
+                assertThat(row.get(5), equalTo(aggregateValuesInWindow(docValues, Agg.SUM) / (double) docValues.size()));
             }
         }
     }
@@ -248,7 +241,7 @@ public class RandomizedTimeSeriesIT extends AbstractEsqlIntegTestCase {
                 values(metrics.gauge_hdd.bytes.used),
                 max(max_over_time(metrics.gauge_hdd.bytes.used)),
                 min(min_over_time(metrics.gauge_hdd.bytes.used)),
-                count(count_over_time(metrics.gauge_hdd.bytes.used)),
+                sum(count_over_time(metrics.gauge_hdd.bytes.used)),
                 sum(sum_over_time(metrics.gauge_hdd.bytes.used)),
                 avg(avg_over_time(metrics.gauge_hdd.bytes.used))
                 BY tbucket=bucket(@timestamp, 1 minute)
@@ -260,19 +253,13 @@ public class RandomizedTimeSeriesIT extends AbstractEsqlIntegTestCase {
                 var windowStart = windowStart(row.get(6), 60);
                 var docValues = valuesInWindow(groups.get(List.of(Long.toString(windowStart))), "gauge_hdd.bytes.used");
                 // Make sure that expected timestamps and values are present
-                var valuesAsInts = docValues.stream().map(Integer::valueOf).toList();
+                var valuesAsInts = docValues.stream().toList();
                 assertThat(valuesAsInts, containsInAnyOrder(docValues.toArray()));
                 assertThat(row.get(1), equalTo(Math.round(aggregateValuesInWindow(docValues, Agg.MAX))));
                 assertThat(row.get(2), equalTo(Math.round(aggregateValuesInWindow(docValues, Agg.MIN))));
-                // TODO: Enable assertions after we fix the computation.
-                // assertThat(row.get(3), equalTo((long) docValues.size()));
+                assertThat(row.get(3), equalTo((long) docValues.size()));
                 assertThat(row.get(4), equalTo(aggregateValuesInWindow(docValues, Agg.SUM).longValue()));
-                // We check the expected vs ES-calculated average. We divide them to normalize the error
-                // and allow for a 20% error margin.
-                // Double esAvg = (Double) row.get(5);
-                // Double expectedAvg = aggregateValuesInWindow(docValues, Agg.AVG);
-                // var ratio = esAvg / expectedAvg;
-                // assertThat(ratio, closeTo(1, 0.25));
+                assertThat(row.get(5), equalTo(aggregateValuesInWindow(docValues, Agg.SUM) / (double) docValues.size()));
             }
         }
     }

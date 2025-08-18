@@ -51,8 +51,13 @@ class TSDataGenerationHelper {
         // Metrics coming into our system have a pre-set group of attributes.
         // Making a list-to-set-to-list to ensure uniqueness.
         this.numDocs = numDocs;
-        attributesForMetrics = List.copyOf(Set.copyOf(ESTestCase.randomList(1, 300, () -> ESTestCase.randomAlphaOfLengthBetween(2, 30))));
-        numTimeSeries = ESTestCase.randomIntBetween(10, (int) Math.sqrt(numDocs));
+        var maxAttributes = (int) Math.sqrt(numDocs);
+        attributesForMetrics = List.copyOf(
+            Set.copyOf(ESTestCase.randomList(1, maxAttributes, () -> ESTestCase.randomAlphaOfLengthBetween(2, 30)))
+        );
+        var maxTimeSeries = (int) Math.sqrt(numDocs);
+        var minTimeSeries = Math.max(1, maxTimeSeries / 4);
+        numTimeSeries = ESTestCase.randomIntBetween(minTimeSeries, maxTimeSeries);
         // allTimeSeries contains the list of dimension-values for each time series.
         List<List<Tuple<String, Object>>> allTimeSeries = IntStream.range(0, numTimeSeries).mapToObj(tsIdx -> {
             List<String> dimensionsInMetric = ESTestCase.randomNonEmptySubsetOf(attributesForMetrics);

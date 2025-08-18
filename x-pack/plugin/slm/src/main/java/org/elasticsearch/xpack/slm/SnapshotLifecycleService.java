@@ -233,6 +233,19 @@ public class SnapshotLifecycleService implements Closeable, ClusterStateListener
     }
 
     /**
+     * Gets the policy name from a job id, which is expected to be in the format
+     * {@code <policyid>-<version>}. This method extracts the policy id by
+     * removing the version part (the last part after the last dash).
+     */
+    public static String getPolicyId(String jobId) {
+        int lastDashIndex = jobId.lastIndexOf('-');
+        if (lastDashIndex == -1) {
+            throw new IllegalArgumentException("Invalid job id format: " + jobId);
+        }
+        return jobId.substring(0, lastDashIndex);
+    }
+
+    /**
      * Cancel all scheduled snapshot jobs
      */
     private void cancelSnapshotJobs(SnapshotLifecycleProjectState project) {

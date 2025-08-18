@@ -13,18 +13,31 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
+import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsRequest;
+import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsResponse;
+import org.elasticsearch.action.admin.cluster.snapshots.get.TransportGetSnapshotsAction;
+import org.elasticsearch.action.support.master.AcknowledgedRequest;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.cluster.AckedBatchedClusterStateUpdateTask;
+import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
+import org.elasticsearch.cluster.ProjectState;
+import org.elasticsearch.cluster.SimpleBatchedExecutor;
 import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
+import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.scheduler.SchedulerEngine;
 import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.snapshots.RegisteredPolicySnapshots;
 import org.elasticsearch.snapshots.RegisteredPolicySnapshots.PolicySnapshot;
 import org.elasticsearch.snapshots.SnapshotException;
@@ -35,6 +48,7 @@ import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicySecurityClient;
 import org.elasticsearch.xpack.core.slm.SnapshotInvocationRecord;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecycleMetadata;
+import org.elasticsearch.xpack.core.slm.SnapshotLifecyclePolicy;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecyclePolicyMetadata;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecycleStats;
 import org.elasticsearch.xpack.slm.history.SnapshotHistoryItem;
@@ -53,6 +67,8 @@ import java.util.Set;
 
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.core.ilm.LifecycleOperationMetadata.currentSLMMode;
+import static org.elasticsearch.xpack.slm.SnapshotLifecycleService.getJobId;
+import static org.elasticsearch.xpack.slm.SnapshotLifecycleService.getPolicyId;
 
 public class SnapshotLifecycleTask implements SchedulerEngine.Listener {
 
@@ -62,6 +78,7 @@ public class SnapshotLifecycleTask implements SchedulerEngine.Listener {
     private final Client client;
     private final ClusterService clusterService;
     private final SnapshotHistoryStore historyStore;
+    private final MasterServiceTaskQueue<UpdatePolicyStatsTask> updatePolicyStatsQueue;
 
     public SnapshotLifecycleTask(
         final ProjectId projectId,
@@ -73,13 +90,128 @@ public class SnapshotLifecycleTask implements SchedulerEngine.Listener {
         this.client = client;
         this.clusterService = clusterService;
         this.historyStore = historyStore;
+
+        ClusterStateTaskExecutor<UpdatePolicyStatsTask> executor = new SimpleBatchedExecutor<>() {
+            @Override
+            public Tuple<ClusterState, Object> executeTask(UpdatePolicyStatsTask updatePolicyStatsTask, ClusterState clusterState) throws Exception {
+                // TODO
+                return null;
+            }
+
+            @Override
+            public void taskSucceeded(UpdatePolicyStatsTask updatePolicyStatsTask, Object o) {
+                // TODO
+            }
+        };
+        this.updatePolicyStatsQueue = clusterService.createTaskQueue("slm-update-policy-stats", Priority.HIGH, executor);
+    }
+
+    static class UpdatePolicyStatsTask extends ClusterStateUpdateTask {
+
+        @Override
+        public ClusterState execute(ClusterState currentState) throws Exception {
+            return null;
+        }
+
+        @Override
+        public void onFailure(Exception e) {
+            // TODO
+        }
+    }
+
+    private static List<String> getStaleRegisteredSnapshotIds(ProjectState projectState, String policyId) {
+        Set<SnapshotId> runningSnapshots = currentlyRunningSnapshots(projectState.cluster());
+
+        RegisteredPolicySnapshots registeredSnapshots = projectState.metadata()
+            .custom(RegisteredPolicySnapshots.TYPE, RegisteredPolicySnapshots.EMPTY);
+
+        List<String> staleRegisterSnapshotIds = registeredSnapshots.getSnapshots().stream()
+            // look for snapshots of this SLM policy, leave the rest to the policy that owns it
+            .filter(policySnapshot -> policySnapshot.getPolicy().equals(policyId))
+            // look for snapshots that are no longer running
+            .filter(policySnapshot -> runningSnapshots.contains(policySnapshot.getSnapshotId()) == false)
+            .map(policySnapshot ->  policySnapshot.getSnapshotId().getName())
+            .toList();
+
+        return staleRegisterSnapshotIds;
     }
 
     @Override
     public void triggered(SchedulerEngine.Event event) {
         logger.debug("snapshot lifecycle policy task triggered from job [{}]", event.jobName());
-        ProjectMetadata projectMetadata = clusterService.state().getMetadata().getProject(projectId);
-        final Optional<String> snapshotName = maybeTakeSnapshot(projectMetadata, event.jobName(), client, clusterService, historyStore);
+        ProjectState projectState = clusterService.state().projectState(projectId);
+        ProjectMetadata metadata = projectState.metadata();
+        String policyId = getPolicyId(event.jobName());
+
+        List<String> snapshotsToCleanup = getStaleRegisteredSnapshotIds(projectState, policyId);
+        if (snapshotsToCleanup.isEmpty() == false) {
+            var policyMetadata = getSnapPolicyMetadata(metadata, event.jobName());
+            if (policyMetadata.isEmpty()) {
+                logger.warn("snapshot lifecycle policy for job [{}] no longer exists", event.jobName());
+                return;
+            }
+            SnapshotLifecyclePolicy policy = policyMetadata.get().getPolicy();
+
+            GetSnapshotsRequest getSnapshotsRequest = new GetSnapshotsRequest(
+                TimeValue.MAX_VALUE,
+                new String[] { policy.getRepository() },
+                snapshotsToCleanup.toArray(new String[0])
+            );
+
+            GetSnapshotsResponse getSnapshotsResponse = client.admin().cluster()
+                .execute(TransportGetSnapshotsAction.TYPE, getSnapshotsRequest).actionGet();
+
+
+            // cluster update task
+            // verify
+            int countSnapshotFailure = 0;
+            int countSnapshotSuccess = 0;
+            SnapshotInfo lastSuccess = null;
+            SnapshotInfo lastFailure = null;
+            for (SnapshotInfo snapshotInfo : getSnapshotsResponse.getSnapshots()) {
+                if (snapshotInfo.state() == null || snapshotInfo.state().completed() == false) {
+                    // skip unknown state and non-completed snapshots
+                    continue;
+                }
+                if (snapshotInfo.failedShards() == 0) {
+                    countSnapshotSuccess++;
+                    if (lastSuccess == null || snapshotInfo.startTime() > lastSuccess.startTime()) {
+                        lastSuccess = snapshotInfo;
+                    }
+                } else {
+                    countSnapshotFailure++;
+                    if (lastFailure == null || snapshotInfo.startTime() > lastFailure.startTime()) {
+                        lastFailure = snapshotInfo;
+                    }
+                }
+            }
+
+
+//            client.admin().cluster().getSnapshots(getSnapshotsRequest, new ActionListener<>() {
+//
+//                @Override
+//                public void onResponse(GetSnapshotsResponse response) {
+//                    int countSnapshotFailed = 0;
+//                    int countSnapshotSuccessful = 0;
+//                    for (SnapshotInfo snapshot : response.getSnapshots()) {
+//                        boolean success = snapshot.failedShards() == 0;
+//                        if (success) {
+//                            countSnapshotSuccessful++;
+//                        } else {
+//                            countSnapshotFailed++;
+//                        }
+//                    }
+//
+//                }
+//
+//                @Override
+//                public void onFailure(Exception e) {
+//
+//                }
+//            });
+        }
+
+        final Optional<String> snapshotName = maybeTakeSnapshot(metadata, event.jobName(), client, clusterService, historyStore);
 
         // Would be cleaner if we could use Optional#ifPresentOrElse
         snapshotName.ifPresent(
@@ -219,7 +351,7 @@ public class SnapshotLifecycleTask implements SchedulerEngine.Listener {
             .flatMap(
                 configMap -> configMap.values()
                     .stream()
-                    .filter(policyMeta -> jobId.equals(SnapshotLifecycleService.getJobId(policyMeta)))
+                    .filter(policyMeta -> jobId.equals(getJobId(policyMeta)))
                     .findFirst()
             );
     }

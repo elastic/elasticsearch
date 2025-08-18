@@ -24,6 +24,7 @@ import org.apache.lucene.index.ImpactsEnum;
 import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.PostingsEnum;
+import org.apache.lucene.index.SegmentInfo;
 import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.SortedNumericDocValues;
@@ -31,6 +32,7 @@ import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.internal.hppc.IntObjectHashMap;
 import org.apache.lucene.search.DocIdSetIterator;
+import org.apache.lucene.search.SortField;
 import org.apache.lucene.store.ByteArrayDataInput;
 import org.apache.lucene.store.ChecksumIndexInput;
 import org.apache.lucene.store.DataInput;
@@ -53,7 +55,7 @@ import static org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormat.
 
 final class ES819TSDBDocValuesProducer extends DocValuesProducer {
     final IntObjectHashMap<NumericEntry> numerics;
-    private int primarySortFieldNumber = -1;
+    private final int primarySortFieldNumber;
     final IntObjectHashMap<BinaryEntry> binaries;
     final IntObjectHashMap<SortedEntry> sorted;
     final IntObjectHashMap<SortedSetEntry> sortedSets;
@@ -73,23 +75,17 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
         this.sortedNumerics = new IntObjectHashMap<>();
         this.skippers = new IntObjectHashMap<>();
         this.maxDoc = state.segmentInfo.maxDoc();
+        this.primarySortFieldNumber = primarySortFieldNumber(state.segmentInfo, state.fieldInfos);
         this.merging = false;
 
         // read in the entries from the metadata file.
         int version = -1;
         String metaName = IndexFileNames.segmentFileName(state.segmentInfo.name, state.segmentSuffix, metaExtension);
+
         try (ChecksumIndexInput in = state.directory.openChecksumInput(metaName)) {
             Throwable priorE = null;
 
             try {
-                final var indexSort = state.segmentInfo.getIndexSort();
-                if (indexSort != null && indexSort.getSort().length > 0) {
-                    var primarySortField = indexSort.getSort()[0];
-                    var sortField = state.fieldInfos.fieldInfo(primarySortField.getField());
-                    if (sortField != null) {
-                        primarySortFieldNumber = sortField.number;
-                    }
-                }
                 version = CodecUtil.checkIndexHeader(
                     in,
                     metaCodec,
@@ -149,6 +145,7 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
         IndexInput data,
         int maxDoc,
         int version,
+        int primarySortFieldNumber,
         boolean merging
     ) {
         this.numerics = numerics;
@@ -160,6 +157,7 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
         this.data = data.clone();
         this.maxDoc = maxDoc;
         this.version = version;
+        this.primarySortFieldNumber = primarySortFieldNumber;
         this.merging = merging;
     }
 
@@ -175,6 +173,7 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
             data,
             maxDoc,
             version,
+            primarySortFieldNumber,
             true
         );
     }
@@ -1012,6 +1011,24 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
     @Override
     public void close() throws IOException {
         data.close();
+    }
+
+    /**
+     * Returns the field number of the primary sort field for the given segment,
+     * if the field is sorted in ascending order. Returns {@code -1} if not found.
+     */
+    static int primarySortFieldNumber(SegmentInfo segmentInfo, FieldInfos fieldInfos) {
+        final var indexSort = segmentInfo.getIndexSort();
+        if (indexSort != null || indexSort.getSort().length > 0) {
+            SortField sortField = indexSort.getSort()[0];
+            if (sortField.getReverse() == false) {
+                FieldInfo fieldInfo = fieldInfos.fieldInfo(sortField.getField());
+                if (fieldInfo != null) {
+                    return fieldInfo.number;
+                }
+            }
+        }
+        return -1;
     }
 
     private void readFields(IndexInput meta, FieldInfos infos) throws IOException {

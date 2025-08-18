@@ -64,7 +64,7 @@ final class ES819TSDBDocValuesConsumer extends XDocValuesConsumer {
     private final int skipIndexIntervalSize;
     private final int minDocsPerOrdinalForOrdinalRangeEncoding;
     final boolean enableOptimizedMerge;
-    private int primarySortField = -1;
+    private final int primarySortFieldNumber;
 
     ES819TSDBDocValuesConsumer(
         SegmentWriteState state,
@@ -79,6 +79,7 @@ final class ES819TSDBDocValuesConsumer extends XDocValuesConsumer {
         this.termsDictBuffer = new byte[1 << 14];
         this.dir = state.directory;
         this.minDocsPerOrdinalForOrdinalRangeEncoding = minDocsPerOrdinalForOrdinalRangeEncoding;
+        this.primarySortFieldNumber = ES819TSDBDocValuesProducer.primarySortFieldNumber(state.segmentInfo, state.fieldInfos);
         this.context = state.context;
         boolean success = false;
         try {
@@ -103,13 +104,6 @@ final class ES819TSDBDocValuesConsumer extends XDocValuesConsumer {
             maxDoc = state.segmentInfo.maxDoc();
             this.skipIndexIntervalSize = skipIndexIntervalSize;
             this.enableOptimizedMerge = enableOptimizedMerge;
-            final var indexSort = state.segmentInfo.getIndexSort();
-            if (indexSort != null && indexSort.getSort().length > 0 && indexSort.getSort()[0].getReverse() == false) {
-                var sortField = state.fieldInfos.fieldInfo(indexSort.getSort()[0].getField());
-                if (sortField != null) {
-                    primarySortField = sortField.number;
-                }
-            }
             success = true;
         } finally {
             if (success == false) {
@@ -136,7 +130,9 @@ final class ES819TSDBDocValuesConsumer extends XDocValuesConsumer {
     }
 
     private boolean shouldEncodeOrdinalRange(FieldInfo field, long maxOrd, int numDocsWithValue) {
-        return maxDoc > 1 && field.number == primarySortField && (numDocsWithValue / maxOrd) >= minDocsPerOrdinalForOrdinalRangeEncoding;
+        return maxDoc > 1
+            && field.number == primarySortFieldNumber
+            && (numDocsWithValue / maxOrd) >= minDocsPerOrdinalForOrdinalRangeEncoding;
     }
 
     private long[] writeField(FieldInfo field, TsdbDocValuesProducer valuesProducer, long maxOrd, OffsetsAccumulator offsetsAccumulator)

@@ -406,6 +406,11 @@ public class DenseVectorFieldMapper extends FieldMapper {
             return new Parameter<?>[] { elementType, dims, indexed, similarity, indexOptions, meta };
         }
 
+        public Builder indexed(boolean indexed) {
+            this.indexed.setValue(indexed);
+            return this;
+        }
+
         public Builder similarity(VectorSimilarity vectorSimilarity) {
             similarity.setValue(vectorSimilarity);
             return this;

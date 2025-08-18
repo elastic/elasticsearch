@@ -20,6 +20,7 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.LocalCircuitBreaker;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.lucene.DataPartitioning;
 import org.elasticsearch.compute.lucene.LuceneOperator;
 import org.elasticsearch.compute.operator.ChangePointOperator;
 import org.elasticsearch.compute.operator.ColumnExtractOperator;
@@ -117,6 +118,7 @@ import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
 import org.elasticsearch.xpack.esql.plan.physical.RrfScoreEvalExec;
 import org.elasticsearch.xpack.esql.plan.physical.SampleExec;
 import org.elasticsearch.xpack.esql.plan.physical.ShowExec;
+import org.elasticsearch.xpack.esql.plan.physical.TimeSeriesAggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.TimeSeriesSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
 import org.elasticsearch.xpack.esql.plan.physical.inference.CompletionExec;
@@ -201,6 +203,7 @@ public class LocalExecutionPlanner {
      * turn the given plan into a list of drivers to execute
      */
     public LocalExecutionPlan plan(String description, FoldContext foldCtx, PhysicalPlan localPhysicalPlan) {
+
         var context = new LocalExecutionPlannerContext(
             description,
             new ArrayList<>(),
@@ -210,6 +213,11 @@ public class LocalExecutionPlanner {
             blockFactory,
             foldCtx,
             settings,
+            new Holder<>(
+                localPhysicalPlan.anyMatch(p -> p instanceof TimeSeriesAggregateExec)
+                    ? DataPartitioning.AutoStrategy.DEFAULT_TIME_SERIES
+                    : DataPartitioning.AutoStrategy.DEFAULT
+            ),
             shardContexts
         );
 
@@ -1012,6 +1020,7 @@ public class LocalExecutionPlanner {
         BlockFactory blockFactory,
         FoldContext foldCtx,
         Settings settings,
+        Holder<DataPartitioning.AutoStrategy> autoPartitioningStrategy,
         List<EsPhysicalOperationProviders.ShardContext> shardContexts
     ) {
         void addDriverFactory(DriverFactory driverFactory) {

@@ -85,7 +85,15 @@ public class StatelessSearchSkipBlockIT extends AbstractStatelessIntegTestCase {
         }
 
         startSearchNodes(randomIntBetween(1, numShards * numReplicas));
-        assertBusy(() -> assertHitCount(searchRequest, numDocs));
+        assertBusy(() -> {
+            try {
+                assertHitCount(searchRequest, numDocs);
+            } catch (SearchPhaseExecutionException e) {
+                // A SearchPhaseExecutionException may imply a search shard is not yet available.
+                // Throwing an AssertionError allows us to retry in the assertBusy loop.
+                throw new AssertionError(e);
+            }
+        });
     }
 
     public void testMultiSearchWhenIndexSearchShardsAreNotUp() throws Exception {

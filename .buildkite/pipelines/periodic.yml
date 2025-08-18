@@ -24,3 +24,6 @@ steps:
           machineType: n1-standard-32
           buildDirectory: /dev/shm/bk
           GRADLE_TASK: "{{matrix.GRADLE_TASK}}"
+        env:
+          ES_RUNTIME_JAVA: "{{matrix.ES_RUNTIME_JAVA}}"
+          GRADLE_TASK: "{{matrix.GRADLE_TASK}}"

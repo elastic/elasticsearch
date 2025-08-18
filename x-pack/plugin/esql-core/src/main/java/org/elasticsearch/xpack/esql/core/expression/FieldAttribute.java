@@ -56,28 +56,27 @@ public class FieldAttribute extends TypedAttribute {
     private final EsField field;
     protected FieldName lazyFieldName;
 
+    @Deprecated
+    /**
+     * For testing only
+     */
     public FieldAttribute(Source source, String name, EsField field) {
-        this(source, null, name, field);
-    }
-
-    public FieldAttribute(Source source, @Nullable String parentName, String name, EsField field) {
-        this(source, parentName, name, field, Nullability.TRUE, null, false);
-    }
-
-    public FieldAttribute(Source source, @Nullable String parentName, String name, EsField field, boolean synthetic) {
-        this(source, parentName, name, field, Nullability.TRUE, null, synthetic);
+        this(source, null, null, name, field, Nullability.TRUE, null, false);
     }
 
     public FieldAttribute(
         Source source,
         @Nullable String parentName,
+        @Nullable String qualifier,
         String name,
         EsField field,
-        Nullability nullability,
-        @Nullable NameId id,
         boolean synthetic
     ) {
-        this(source, parentName, null, name, field, nullability, id, synthetic);
+        this(source, parentName, qualifier, name, field, Nullability.TRUE, null, synthetic);
+    }
+
+    public FieldAttribute(Source source, @Nullable String parentName, @Nullable String qualifier, String name, EsField field) {
+        this(source, parentName, qualifier, name, field, Nullability.TRUE, null, false);
     }
 
     public FieldAttribute(
@@ -206,7 +205,16 @@ public class FieldAttribute extends TypedAttribute {
     }
 
     private FieldAttribute innerField(EsField type) {
-        return new FieldAttribute(source(), fieldName().string, name() + "." + type.getName(), type, nullable(), id(), synthetic());
+        return new FieldAttribute(
+            source(),
+            fieldName().string,
+            qualifier(),
+            name() + "." + type.getName(),
+            type,
+            nullable(),
+            id(),
+            synthetic()
+        );
     }
 
     @Override

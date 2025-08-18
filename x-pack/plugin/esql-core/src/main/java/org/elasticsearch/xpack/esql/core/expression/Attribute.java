@@ -53,7 +53,6 @@ public abstract class Attribute extends NamedExpression {
         this(source, qualifier, name, nullability, id, false);
     }
 
-    // TODO check all usages of constructors without qualifiers; we may be dropping qualifiers while copying. Applies to all subclasses.
     public Attribute(Source source, String name, Nullability nullability, @Nullable NameId id, boolean synthetic) {
         this(source, null, name, nullability, id, synthetic);
     }

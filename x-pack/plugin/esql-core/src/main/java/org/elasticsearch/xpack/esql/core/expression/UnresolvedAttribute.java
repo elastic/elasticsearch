@@ -34,6 +34,7 @@ public class UnresolvedAttribute extends Attribute implements Unresolvable {
     private final String unresolvedMsg;
     private final Object resolutionMetadata;
 
+    // TODO: Check usage of constructors without qualifiers, that's likely where qualifiers need to be plugged into resolution logic.
     public UnresolvedAttribute(Source source, String name) {
         this(source, name, null);
     }

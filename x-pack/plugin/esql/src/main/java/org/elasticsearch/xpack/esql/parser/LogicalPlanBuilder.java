@@ -516,11 +516,13 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
 
         Attribute targetType = new ReferenceAttribute(
             src,
+            null,
             parsedTargetTypeColumn == null ? "type" : parsedTargetTypeColumn.name(),
             DataType.KEYWORD
         );
         Attribute targetPvalue = new ReferenceAttribute(
             src,
+            null,
             parsedTargetPvalueColumn == null ? "pvalue" : parsedTargetPvalueColumn.name(),
             DataType.DOUBLE
         );

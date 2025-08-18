@@ -449,10 +449,6 @@ public class RequestExecutorService implements RequestExecutor {
         }
 
         private TimeValue executeEnqueuedTaskInternal() {
-            var timeBeforeAvailableToken = rateLimiter.timeToReserve(1);
-            if (shouldExecuteImmediately(timeBeforeAvailableToken) == false) {
-                return timeBeforeAvailableToken;
-            }
 
             var task = queue.poll();
 
@@ -460,16 +456,16 @@ public class RequestExecutorService implements RequestExecutor {
             // So we'll need to check for null and call a helper method executePreparedTasks()
 
             if (shouldExecuteTask(task) == false) {
-                return NO_TASKS_AVAILABLE;
+                logger.warn(
+                    "not executing task [{}] because it is null or has already completed",
+                    task == null ? "null" : task.getRequestManager().inferenceEntityId()
+                );
+                return TimeValue.ZERO;
             }
-
-            // We should never have to wait because we checked above
-            var reserveRes = rateLimiter.reserve(1);
-            assert shouldExecuteImmediately(reserveRes) : "Reserving request tokens required a sleep when it should not have";
 
             task.getRequestManager()
                 .execute(task.getInferenceInputs(), requestSender, task.getRequestCompletedFunction(), task.getListener());
-            return EXECUTED_A_TASK;
+            return TimeValue.ZERO;
         }
 
         private static boolean shouldExecuteTask(RejectableTask task) {

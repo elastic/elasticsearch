@@ -229,11 +229,16 @@ public class SyntheticSourceRollingUpgradeIT extends AbstractRollingUpgradeWithS
             assertThat(field3, both(greaterThanOrEqualTo(0)).and(lessThanOrEqualTo(9)));
         }
         {
-            List<?> field4 = ObjectPath.evaluate(responseBody, "values.0.3");
-            assertThat(field4, not(emptyIterable()));
-            for (var e : field4) {
-                Integer value = (Integer) e;
-                assertThat(value, both(greaterThanOrEqualTo(0)).and(lessThanOrEqualTo(9)));
+            var object = ObjectPath.evaluate(responseBody, "values.0.3");
+            if (object instanceof List<?> field4) {
+                assertThat(field4, not(emptyIterable()));
+                for (var e : field4) {
+                    Integer value = (Integer) e;
+                    assertThat(value, both(greaterThanOrEqualTo(0)).and(lessThanOrEqualTo(9)));
+                }
+            } else {
+                Integer field4 = (Integer) object;
+                assertThat(field4, both(greaterThanOrEqualTo(0)).and(lessThanOrEqualTo(9)));
             }
         }
     }

@@ -201,7 +201,14 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             new ResolveUnionTypes(),  // Must be after ResolveRefs, so union types can be found
             new ImplicitCastAggregateMetricDoubles()
         ),
-        new Batch<>("Finish Analysis", Limiter.ONCE, new AddImplicitLimit(), new AddImplicitForkLimit(), new UnionTypesCleanup())
+        new Batch<>(
+            "Finish Analysis",
+            Limiter.ONCE,
+            new AddImplicitLimit(),
+            new AddImplicitForkLimit(),
+            new UnionTypesCleanup(),
+            new IgnoreNullMetrics()
+        )
     );
 
     private final Verifier verifier;

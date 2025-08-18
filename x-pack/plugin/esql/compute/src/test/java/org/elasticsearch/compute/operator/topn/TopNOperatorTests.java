@@ -1463,7 +1463,7 @@ public class TopNOperatorTests extends OperatorTestCase {
                 List.of(DEFAULT_UNSORTABLE),
                 List.of(new TopNOperator.SortOrder(0, randomBoolean(), randomBoolean())),
                 randomPageSize(),
-                driverContext.phase()
+                driverContext().phase()
             )
         ) {
             op.addInput(new Page(blockFactory().newIntArrayVector(new int[] { 1 }, 1).asBlock()));
@@ -1487,7 +1487,7 @@ public class TopNOperatorTests extends OperatorTestCase {
                 encoders,
                 List.of(new TopNOperator.SortOrder(0, randomBoolean(), randomBoolean())),
                 randomPageSize(),
-                driverContext.phase()
+                driverContext().phase()
             )
         ) {
             int[] blockValues = IntStream.range(0, rows).toArray();

@@ -53,7 +53,7 @@ public class TestDriverFactory {
             final int maxOverReservedBytes = overReservedBytes + Randomness.get().nextInt(1024 * 1024);
             var localBreaker = new LocalCircuitBreaker(driverContext.breaker(), overReservedBytes, maxOverReservedBytes);
             BlockFactory localBlockFactory = driverContext.blockFactory().newChildFactory(localBreaker);
-            driverContext = new DriverContext(localBlockFactory.bigArrays(), localBlockFactory, DriverContext.Phase.OTHER);
+            driverContext = new DriverContext(localBlockFactory.bigArrays(), localBlockFactory);
         }
         if (driverContext.breaker() instanceof LocalCircuitBreaker localBreaker) {
             releasable = Releasables.wrap(releasable, localBreaker);

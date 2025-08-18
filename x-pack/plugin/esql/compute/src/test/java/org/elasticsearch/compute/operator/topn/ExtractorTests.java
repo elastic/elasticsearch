@@ -21,6 +21,7 @@ import org.elasticsearch.compute.data.DocVector;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.lucene.ShardRefCounted;
 import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
+import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.test.BlockTestUtils;
 import org.elasticsearch.compute.test.TestBlockFactory;
 import org.elasticsearch.core.RefCounted;
@@ -118,6 +119,7 @@ public class ExtractorTests extends ESTestCase {
                                 ShardRefCounted.ALWAYS_REFERENCED,
                                 // Shard ID should be small and non-negative.
                                 blockFactory.newConstantIntBlockWith(randomIntBetween(0, 255), 1).asVector(),
+                                DocVector.NO_GLOBAL_SHARD,
                                 blockFactory.newConstantIntBlockWith(randomInt(), 1).asVector(),
                                 blockFactory.newConstantIntBlockWith(randomInt(), 1).asVector(),
                                 randomBoolean() ? null : randomBoolean()
@@ -196,7 +198,8 @@ public class ExtractorTests extends ESTestCase {
             testCase.type,
             testCase.encoder.toUnsortable(),
             false,
-            1
+            1,
+            DriverContext.Phase.OTHER
         );
         BytesRef values = valuesBuilder.bytesRefView();
         if (result instanceof ResultBuilderForDoc fd) {
@@ -226,7 +229,8 @@ public class ExtractorTests extends ESTestCase {
             testCase.type,
             testCase.encoder.toUnsortable(),
             true,
-            1
+            1,
+            DriverContext.Phase.OTHER
         );
         BytesRef keys = keysBuilder.bytesRefView();
         if (testCase.type == ElementType.NULL) {

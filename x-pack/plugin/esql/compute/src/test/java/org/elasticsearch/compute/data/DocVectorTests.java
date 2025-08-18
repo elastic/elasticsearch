@@ -40,6 +40,7 @@ public class DocVectorTests extends ComputeTestCase {
         DocVector docs = new DocVector(
             ShardRefCounted.ALWAYS_REFERENCED,
             intRange(0, length),
+            DocVector.NO_GLOBAL_SHARD,
             intRange(0, length),
             intRange(0, length),
             true
@@ -52,6 +53,7 @@ public class DocVectorTests extends ComputeTestCase {
         DocVector docs = new DocVector(
             ShardRefCounted.ALWAYS_REFERENCED,
             intRange(0, 2),
+            DocVector.NO_GLOBAL_SHARD,
             intRange(0, 2),
             blockFactory.newIntArrayVector(new int[] { 1, 0 }, 2),
             false
@@ -65,6 +67,7 @@ public class DocVectorTests extends ComputeTestCase {
         DocVector docs = new DocVector(
             ShardRefCounted.ALWAYS_REFERENCED,
             intRange(0, 2),
+            DocVector.NO_GLOBAL_SHARD,
             blockFactory.newConstantIntVector(0, 2),
             intRange(0, 2),
             null
@@ -78,6 +81,7 @@ public class DocVectorTests extends ComputeTestCase {
         DocVector docs = new DocVector(
             ShardRefCounted.ALWAYS_REFERENCED,
             blockFactory.newConstantIntVector(0, 2),
+            DocVector.NO_GLOBAL_SHARD,
             intRange(0, 2),
             intRange(0, 2),
             null
@@ -91,6 +95,7 @@ public class DocVectorTests extends ComputeTestCase {
         DocVector docs = new DocVector(
             ShardRefCounted.ALWAYS_REFERENCED,
             blockFactory.newConstantIntVector(0, 2),
+            DocVector.NO_GLOBAL_SHARD,
             blockFactory.newConstantIntVector(0, 2),
             blockFactory.newIntArrayVector(new int[] { 0, 1 }, 2),
             null
@@ -104,6 +109,7 @@ public class DocVectorTests extends ComputeTestCase {
         DocVector docs = new DocVector(
             ShardRefCounted.ALWAYS_REFERENCED,
             blockFactory.newConstantIntVector(0, 2),
+            DocVector.NO_GLOBAL_SHARD,
             blockFactory.newConstantIntVector(0, 2),
             blockFactory.newIntArrayVector(new int[] { 2, 2 }, 2),
             null
@@ -117,6 +123,7 @@ public class DocVectorTests extends ComputeTestCase {
         DocVector docs = new DocVector(
             ShardRefCounted.ALWAYS_REFERENCED,
             blockFactory.newConstantIntVector(0, 2),
+            DocVector.NO_GLOBAL_SHARD,
             blockFactory.newConstantIntVector(0, 2),
             blockFactory.newIntArrayVector(new int[] { 1, 0 }, 2),
             null
@@ -272,6 +279,7 @@ public class DocVectorTests extends ComputeTestCase {
         var block = new DocVector(
             ShardRefCounted.ALWAYS_REFERENCED,
             intRange(0, 2),
+            DocVector.NO_GLOBAL_SHARD,
             blockFactory.newConstantIntBlockWith(0, 2).asVector(),
             intRange(0, 2),
             null
@@ -297,6 +305,7 @@ public class DocVectorTests extends ComputeTestCase {
         DocVector docs = new DocVector(
             ShardRefCounted.ALWAYS_REFERENCED,
             blockFactory.newConstantIntBlockWith(0, 1).asVector(),
+            DocVector.NO_GLOBAL_SHARD,
             blockFactory.newConstantIntBlockWith(0, 1).asVector(),
             blockFactory.newConstantIntBlockWith(0, 1).asVector(),
             false
@@ -312,6 +321,7 @@ public class DocVectorTests extends ComputeTestCase {
             DocVector docs = new DocVector(
                 ShardRefCounted.ALWAYS_REFERENCED,
                 factory.newConstantIntVector(0, 10),
+                DocVector.NO_GLOBAL_SHARD,
                 factory.newConstantIntVector(0, 10),
                 factory.newIntArrayVector(new int[] { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9 }, 10),
                 false
@@ -320,6 +330,7 @@ public class DocVectorTests extends ComputeTestCase {
             DocVector expected = new DocVector(
                 ShardRefCounted.ALWAYS_REFERENCED,
                 factory.newConstantIntVector(0, 3),
+                DocVector.NO_GLOBAL_SHARD,
                 factory.newConstantIntVector(0, 3),
                 factory.newIntArrayVector(new int[] { 1, 2, 3 }, 3),
                 false
@@ -339,7 +350,7 @@ public class DocVectorTests extends ComputeTestCase {
                 shards = factory.newConstantIntVector(0, 10);
                 segments = factory.newConstantIntVector(0, 10);
                 docs = factory.newConstantIntVector(0, 10);
-                result = new DocVector(ShardRefCounted.ALWAYS_REFERENCED, shards, segments, docs, false);
+                result = new DocVector(ShardRefCounted.ALWAYS_REFERENCED, shards, DocVector.NO_GLOBAL_SHARD, segments, docs, false);
                 return result;
             } finally {
                 if (result == null) {

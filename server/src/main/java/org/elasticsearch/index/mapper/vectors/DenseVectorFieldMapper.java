@@ -1693,18 +1693,22 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 if (rescoreVector == null) {
                     rescoreVector = new RescoreVector(DEFAULT_OVERSAMPLE);
                 }
-                Object nProbeNode = indexOptionsMap.remove("default_n_probe");
-                int nProbe = -1;
-                if (nProbeNode != null) {
-                    nProbe = XContentMapValues.nodeIntegerValue(nProbeNode);
-                    if (nProbe < 1 && nProbe != -1) {
+                Object visitPercentageNode = indexOptionsMap.remove("default_visit_percentage");
+                double visitPercentage = 0d;
+                if (visitPercentageNode != null) {
+                    visitPercentage = (float) XContentMapValues.nodeDoubleValue(visitPercentageNode);
+                    if (visitPercentage < 0d || visitPercentage > 100d) {
                         throw new IllegalArgumentException(
-                            "default_n_probe must be at least 1 or exactly -1, got: " + nProbe + " for field [" + fieldName + "]"
+                            "default_visit_percentage must be between 0.0 and 100.0, got: "
+                                + visitPercentage
+                                + " for field ["
+                                + fieldName
+                                + "]"
                         );
                     }
                 }
                 MappingParser.checkNoRemainingFields(fieldName, indexOptionsMap);
-                return new BBQIVFIndexOptions(clusterSize, nProbe, rescoreVector);
+                return new BBQIVFIndexOptions(clusterSize, visitPercentage, rescoreVector);
             }
 
             @Override
@@ -2297,12 +2301,12 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
     static class BBQIVFIndexOptions extends QuantizedIndexOptions {
         final int clusterSize;
-        final int defaultNProbe;
+        final double defaultVisitPercentage;
 
-        BBQIVFIndexOptions(int clusterSize, int defaultNProbe, RescoreVector rescoreVector) {
+        BBQIVFIndexOptions(int clusterSize, double defaultVisitPercentage, RescoreVector rescoreVector) {
             super(VectorIndexType.BBQ_DISK, rescoreVector);
             this.clusterSize = clusterSize;
-            this.defaultNProbe = defaultNProbe;
+            this.defaultVisitPercentage = defaultVisitPercentage;
         }
 
         @Override
@@ -2320,13 +2324,13 @@ public class DenseVectorFieldMapper extends FieldMapper {
         boolean doEquals(DenseVectorIndexOptions other) {
             BBQIVFIndexOptions that = (BBQIVFIndexOptions) other;
             return clusterSize == that.clusterSize
-                && defaultNProbe == that.defaultNProbe
+                && defaultVisitPercentage == that.defaultVisitPercentage
                 && Objects.equals(rescoreVector, that.rescoreVector);
         }
 
         @Override
         int doHashCode() {
-            return Objects.hash(clusterSize, defaultNProbe, rescoreVector);
+            return Objects.hash(clusterSize, defaultVisitPercentage, rescoreVector);
         }
 
         @Override
@@ -2339,7 +2343,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             builder.startObject();
             builder.field("type", type);
             builder.field("cluster_size", clusterSize);
-            builder.field("default_n_probe", defaultNProbe);
+            builder.field("default_visit_percentage", defaultVisitPercentage);
             if (rescoreVector != null) {
                 rescoreVector.toXContent(builder, params);
             }
@@ -2736,6 +2740,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                         .add(filter, BooleanClause.Occur.FILTER)
                         .build();
             } else if (indexOptions instanceof BBQIVFIndexOptions bbqIndexOptions) {
+                float defaultVisitRatio = (float) (bbqIndexOptions.defaultVisitPercentage / 100d);
                 knnQuery = parentFilter != null
                     ? new DiversifyingChildrenIVFKnnFloatVectorQuery(
                         name(),
@@ -2744,9 +2749,9 @@ public class DenseVectorFieldMapper extends FieldMapper {
                         numCands,
                         filter,
                         parentFilter,
-                        bbqIndexOptions.defaultNProbe
+                        defaultVisitRatio
                     )
-                    : new IVFKnnFloatVectorQuery(name(), queryVector, adjustedK, numCands, filter, bbqIndexOptions.defaultNProbe);
+                    : new IVFKnnFloatVectorQuery(name(), queryVector, adjustedK, numCands, filter, defaultVisitRatio);
             } else {
                 knnQuery = parentFilter != null
                     ? new ESDiversifyingChildrenFloatKnnVectorQuery(

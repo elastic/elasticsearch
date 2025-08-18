@@ -19,12 +19,12 @@ import org.elasticsearch.xpack.esql.capabilities.PostOptimizationVerificationAwa
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
-import org.elasticsearch.xpack.esql.core.expression.Foldables;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.Foldables;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionType;
@@ -37,8 +37,6 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Mul
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 
 import java.io.IOException;
-import java.time.ZoneId;
-import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -50,6 +48,7 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.Param
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isNumeric;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
 import static org.elasticsearch.xpack.esql.expression.Validations.isFoldable;
+import static org.elasticsearch.xpack.esql.session.Configuration.DEFAULT_TZ;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.dateTimeToLong;
 
 /**
@@ -86,8 +85,6 @@ public class Bucket extends GroupingFunction.EvaluatableGroupingFunction
         Rounding.builder(TimeValue.timeValueMillis(50)).build(),
         Rounding.builder(TimeValue.timeValueMillis(10)).build(),
         Rounding.builder(TimeValue.timeValueMillis(1)).build(), };
-
-    private static final ZoneId DEFAULT_TZ = ZoneOffset.UTC; // TODO: plug in the config
 
     private final Expression field;
     private final Expression buckets;
@@ -301,15 +298,22 @@ public class Bucket extends GroupingFunction.EvaluatableGroupingFunction
     }
 
     private Rounding.Prepared getDateRounding(FoldContext foldContext) {
+        return getDateRounding(foldContext, null, null);
+    }
+
+    public Rounding.Prepared getDateRounding(FoldContext foldContext, Long min, Long max) {
         assert field.dataType() == DataType.DATETIME || field.dataType() == DataType.DATE_NANOS : "expected date type; got " + field;
         if (buckets.dataType().isWholeNumber()) {
             int b = ((Number) buckets.fold(foldContext)).intValue();
             long f = foldToLong(foldContext, from);
             long t = foldToLong(foldContext, to);
+            if (min != null && max != null) {
+                return new DateRoundingPicker(b, f, t).pickRounding().prepare(min, max);
+            }
             return new DateRoundingPicker(b, f, t).pickRounding().prepareForUnknown();
         } else {
             assert DataType.isTemporalAmount(buckets.dataType()) : "Unexpected span data type [" + buckets.dataType() + "]";
-            return DateTrunc.createRounding(buckets.fold(foldContext), DEFAULT_TZ);
+            return DateTrunc.createRounding(buckets.fold(foldContext), DEFAULT_TZ, min, max);
         }
     }
 

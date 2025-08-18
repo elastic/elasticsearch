@@ -15,7 +15,10 @@ import org.elasticsearch.xcontent.XContentType;
 
 import java.util.Map;
 
-public class PipelineConfigurationBridge extends StableBridgeAPI.Proxy<PipelineConfiguration> {
+/**
+ * An external bridge for {@link PipelineConfiguration}
+ */
+public class PipelineConfigurationBridge extends StableBridgeAPI.ProxyInternal<PipelineConfiguration> {
     public PipelineConfigurationBridge(final PipelineConfiguration delegate) {
         super(delegate);
     }
@@ -25,25 +28,25 @@ public class PipelineConfigurationBridge extends StableBridgeAPI.Proxy<PipelineC
     }
 
     public String getId() {
-        return delegate.getId();
+        return internalDelegate.getId();
     }
 
     public Map<String, Object> getConfig() {
-        return delegate.getConfig();
+        return internalDelegate.getConfig();
     }
 
     public Map<String, Object> getConfig(final boolean unmodifiable) {
-        return delegate.getConfig(unmodifiable);
+        return internalDelegate.getConfig(unmodifiable);
     }
 
     @Override
     public int hashCode() {
-        return delegate.hashCode();
+        return internalDelegate.hashCode();
     }
 
     @Override
     public String toString() {
-        return delegate.toString();
+        return internalDelegate.toString();
     }
 
     @Override
@@ -51,7 +54,7 @@ public class PipelineConfigurationBridge extends StableBridgeAPI.Proxy<PipelineC
         if (this == obj) {
             return true;
         } else if (obj instanceof PipelineConfigurationBridge other) {
-            return delegate.equals(other.delegate);
+            return internalDelegate.equals(other.internalDelegate);
         } else {
             return false;
         }

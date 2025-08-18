@@ -47,6 +47,7 @@ import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.xpack.esql.core.util.NumericUtils.UNSIGNED_LONG_MAX;
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.CARTESIAN;
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.GEO;
 import static org.hamcrest.Matchers.equalTo;
@@ -353,6 +354,26 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         }
         if (type == DataType.DOUBLE) {
             return doubleCases(min.doubleValue(), max.doubleValue(), includeZero);
+        }
+        throw new IllegalArgumentException("bogus numeric type [" + type + "]");
+    }
+
+    /**
+     * A {@link List} of the cases for the specified type without any limits.
+     * See {@link #getSuppliersForNumericType} for cases with limits on numbers.
+     */
+    public static List<TypedDataSupplier> unlimitedSuppliers(DataType type) {
+        if (type == DataType.INTEGER) {
+            return intCases(Integer.MIN_VALUE, Integer.MAX_VALUE, true);
+        }
+        if (type == DataType.LONG) {
+            return longCases(Long.MIN_VALUE, Long.MAX_VALUE, true);
+        }
+        if (type == DataType.UNSIGNED_LONG) {
+            return ulongCases(BigInteger.ZERO, UNSIGNED_LONG_MAX, true);
+        }
+        if (type == DataType.DOUBLE) {
+            return doubleCases(-Double.MAX_VALUE, Double.MAX_VALUE, true);
         }
         throw new IllegalArgumentException("bogus numeric type [" + type + "]");
     }
@@ -1887,14 +1908,17 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
                     throw new IllegalStateException("Multirow values require exactly 1 element to be a literal, got " + values.size());
                 }
 
-                return new Literal(Source.synthetic(name), stringToBytesRef(values.get(0), type), type);
+                return new Literal(Source.synthetic(name), convertLiterals(values.get(0), type), type);
             }
-            return new Literal(Source.synthetic(name), stringToBytesRef(data, type), type);
+            return new Literal(Source.synthetic(name), convertLiterals(data, type), type);
         }
 
-        private Object stringToBytesRef(Object o, DataType type) {
+        private Object convertLiterals(Object o, DataType type) {
             if ((type == DataType.KEYWORD || type == DataType.TEXT) && o instanceof String s) {
                 return BytesRefs.toBytesRef(s);
+            }
+            if (type == DataType.UNSIGNED_LONG && o instanceof BigInteger bi) {
+                return NumericUtils.asLongUnsigned(bi);
             }
             return o;
         }

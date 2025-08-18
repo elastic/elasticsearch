@@ -9,7 +9,7 @@
 
 package org.elasticsearch.action.search;
 
-import org.elasticsearch.CrossProjectAwareRequest;
+import org.elasticsearch.CrossProjectResolvableRequest;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
@@ -56,7 +56,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
  */
 public class SearchRequest extends LegacyActionRequest
     implements
-        CrossProjectAwareRequest,
+        CrossProjectResolvableRequest,
         IndicesRequest.Replaceable,
         Rewriteable<SearchRequest> {
 
@@ -76,10 +76,7 @@ public class SearchRequest extends LegacyActionRequest
     private String[] indices = Strings.EMPTY_ARRAY;
 
     @Nullable
-    private String queryRouting = null;
-
-    @Nullable
-    private List<QualifiedExpression> qualifiedExpressions;
+    private List<RewrittenExpression> rewrittenExpressions;
 
     @Nullable
     private String routing;
@@ -408,11 +405,6 @@ public class SearchRequest extends LegacyActionRequest
     public SearchRequest indices(String... indices) {
         validateIndices(indices);
         this.indices = indices;
-        return this;
-    }
-
-    public SearchRequest queryRouting(String queryRouting) {
-        this.queryRouting = queryRouting;
         return this;
     }
 
@@ -871,22 +863,12 @@ public class SearchRequest extends LegacyActionRequest
     }
 
     @Override
-    public boolean crossProjectModeEnabled() {
-        return qualifiedExpressions != null;
-    }
-
-    @Override
-    public void qualified(List<QualifiedExpression> qualifiedExpressions) {
-        this.qualifiedExpressions = qualifiedExpressions;
+    public void rewritten(List<RewrittenExpression> rewrittenExpressions) {
+        this.rewrittenExpressions = rewrittenExpressions;
         indices(
-            qualifiedExpressions.stream()
-                .flatMap(indexExpression -> indexExpression.qualified().stream().map(ExpressionWithProject::expression))
+            rewrittenExpressions.stream()
+                .flatMap(indexExpression -> indexExpression.canonicalExpressions().stream().map(CanonicalExpression::expression))
                 .toArray(String[]::new)
         );
-    }
-
-    @Override
-    public String queryRouting() {
-        return queryRouting;
     }
 }

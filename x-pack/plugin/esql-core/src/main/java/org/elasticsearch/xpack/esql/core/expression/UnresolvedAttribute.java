@@ -19,7 +19,16 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
 
-// unfortunately we can't use UnresolvedNamedExpression
+/**
+ * An unresolved attribute. We build these while walking the syntax
+ * tree and then resolve them into other {@link Attribute} subclasses during
+ * analysis.
+ * <p>
+ *     For example, if they reference the data directly from lucene they'll be
+ *     {@link FieldAttribute}s. If they reference the results of another calculation
+ *     they will be {@link ReferenceAttribute}s.
+ * </p>
+ */
 public class UnresolvedAttribute extends Attribute implements Unresolvable {
     private final boolean customMessage;
     private final String unresolvedMsg;

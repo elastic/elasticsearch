@@ -51,7 +51,6 @@ import java.util.UUID;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
-import static org.hamcrest.Matchers.startsWith;
 
 public class PatternedTextFieldMapperTests extends MapperTestCase {
 
@@ -69,7 +68,7 @@ public class PatternedTextFieldMapperTests extends MapperTestCase {
     protected void assertExistsQuery(MappedFieldType fieldType, Query query, LuceneDocument fields) {
         assertThat(query, instanceOf(FieldExistsQuery.class));
         FieldExistsQuery fieldExistsQuery = (FieldExistsQuery) query;
-        assertThat(fieldExistsQuery.getField(), startsWith("field"));
+        assertThat(fieldExistsQuery.getField(), equalTo("field.template_id"));
         assertNoFieldNamesField(fields);
     }
 
@@ -131,23 +130,41 @@ public class PatternedTextFieldMapperTests extends MapperTestCase {
     }
 
     public void testDefaults() throws IOException {
-        DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
+        DocumentMapper mapper = createMapperService(fieldMapping(this::minimalMapping)).documentMapper();
         assertEquals(Strings.toString(fieldMapping(this::minimalMapping)), mapper.mappingSource().toString());
 
         ParsedDocument doc = mapper.parse(source(b -> b.field("field", "1234")));
-        List<IndexableField> fields = doc.rootDoc().getFields("field");
-        assertEquals(1, fields.size());
-        assertEquals("1234", fields.get(0).stringValue());
-        IndexableFieldType fieldType = fields.get(0).fieldType();
-        assertThat(fieldType.omitNorms(), equalTo(true));
-        assertTrue(fieldType.tokenized());
-        assertFalse(fieldType.stored());
-        assertThat(fieldType.indexOptions(), equalTo(IndexOptions.DOCS));
-        assertThat(fieldType.storeTermVectors(), equalTo(false));
-        assertThat(fieldType.storeTermVectorOffsets(), equalTo(false));
-        assertThat(fieldType.storeTermVectorPositions(), equalTo(false));
-        assertThat(fieldType.storeTermVectorPayloads(), equalTo(false));
-        assertEquals(DocValuesType.NONE, fieldType.docValuesType());
+        {
+            List<IndexableField> fields = doc.rootDoc().getFields("field");
+            assertEquals(1, fields.size());
+            assertEquals("1234", fields.get(0).stringValue());
+            IndexableFieldType fieldType = fields.get(0).fieldType();
+            assertThat(fieldType.omitNorms(), equalTo(true));
+            assertTrue(fieldType.tokenized());
+            assertFalse(fieldType.stored());
+            assertThat(fieldType.indexOptions(), equalTo(IndexOptions.DOCS));
+            assertThat(fieldType.storeTermVectors(), equalTo(false));
+            assertThat(fieldType.storeTermVectorOffsets(), equalTo(false));
+            assertThat(fieldType.storeTermVectorPositions(), equalTo(false));
+            assertThat(fieldType.storeTermVectorPayloads(), equalTo(false));
+            assertEquals(DocValuesType.NONE, fieldType.docValuesType());
+        }
+
+        {
+            List<IndexableField> fields = doc.rootDoc().getFields("field.template_id");
+            assertEquals(1, fields.size());
+            assertEquals("D3OycqSEnDM", fields.get(0).binaryValue().utf8ToString());
+            IndexableFieldType fieldType = fields.get(0).fieldType();
+            assertThat(fieldType.omitNorms(), equalTo(true));
+            assertFalse(fieldType.tokenized());
+            assertFalse(fieldType.stored());
+            assertThat(fieldType.indexOptions(), equalTo(IndexOptions.NONE));
+            assertThat(fieldType.storeTermVectors(), equalTo(false));
+            assertThat(fieldType.storeTermVectorOffsets(), equalTo(false));
+            assertThat(fieldType.storeTermVectorPositions(), equalTo(false));
+            assertThat(fieldType.storeTermVectorPayloads(), equalTo(false));
+            assertEquals(DocValuesType.SORTED_SET, fieldType.docValuesType());
+        }
     }
 
     public void testNullConfigValuesFail() throws MapperParsingException {

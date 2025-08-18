@@ -183,16 +183,20 @@ public final class TimeSeriesSourceOperator extends LuceneOperator {
             for (LeafIterator leaf : oneTsidQueue) {
                 leaf.reinitializeIfNeeded(executingThread);
             }
-            do {
-                PriorityQueue<LeafIterator> sub = subQueueForNextTsid();
-                if (sub.size() == 0) {
-                    break;
-                }
-                tsHashesBuilder.appendNewTsid(sub.top().timeSeriesHash);
-                if (readValuesForOneTsid(sub)) {
-                    break;
-                }
-            } while (mainQueue.size() > 0);
+            if (mainQueue.size() + oneTsidQueue.size() == 1) {
+                readValuesFromSingleRemainingLeaf();
+            } else {
+                do {
+                    PriorityQueue<LeafIterator> sub = subQueueForNextTsid();
+                    if (sub.size() == 0) {
+                        break;
+                    }
+                    tsHashesBuilder.appendNewTsid(sub.top().timeSeriesHash);
+                    if (readValuesForOneTsid(sub)) {
+                        break;
+                    }
+                } while (mainQueue.size() > 0);
+            }
         }
 
         private boolean readValuesForOneTsid(PriorityQueue<LeafIterator> sub) throws IOException {
@@ -234,6 +238,38 @@ public final class TimeSeriesSourceOperator extends LuceneOperator {
                 }
             }
             return oneTsidQueue;
+        }
+
+        private void readValuesFromSingleRemainingLeaf() throws IOException {
+            if (oneTsidQueue.size() == 0) {
+                oneTsidQueue.add(getMainQueue().pop());
+                tsidsLoaded++;
+            }
+            final LeafIterator sub = oneTsidQueue.top();
+            int lastTsid = -1;
+            do {
+                currentPagePos++;
+                remainingDocs--;
+                docCollector.collect(sub.segmentOrd, sub.docID);
+                if (lastTsid != sub.lastTsidOrd) {
+                    tsHashesBuilder.appendNewTsid(sub.timeSeriesHash);
+                    lastTsid = sub.lastTsidOrd;
+                }
+                tsHashesBuilder.appendOrdinal();
+                timestampsBuilder.appendLong(sub.timestamp);
+                if (sub.nextDoc() == false) {
+                    if (sub.docID == DocIdSetIterator.NO_MORE_DOCS) {
+                        oneTsidQueue.clear();
+                        return;
+                    } else {
+                        ++tsidsLoaded;
+                    }
+                }
+            } while (remainingDocs > 0 && currentPagePos < maxPageSize);
+        }
+
+        private PriorityQueue<LeafIterator> getMainQueue() {
+            return mainQueue;
         }
 
         boolean completed() {

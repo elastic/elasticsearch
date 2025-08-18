@@ -70,7 +70,6 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
-import org.elasticsearch.xpack.esql.core.expression.Foldables;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
@@ -83,10 +82,12 @@ import org.elasticsearch.xpack.esql.enrich.EnrichLookupOperator;
 import org.elasticsearch.xpack.esql.enrich.EnrichLookupService;
 import org.elasticsearch.xpack.esql.enrich.LookupFromIndexOperator;
 import org.elasticsearch.xpack.esql.enrich.LookupFromIndexService;
+import org.elasticsearch.xpack.esql.enrich.MatchConfig;
 import org.elasticsearch.xpack.esql.evaluator.EvalMapper;
 import org.elasticsearch.xpack.esql.evaluator.command.GrokEvaluatorExtracter;
+import org.elasticsearch.xpack.esql.expression.Foldables;
 import org.elasticsearch.xpack.esql.expression.Order;
-import org.elasticsearch.xpack.esql.inference.InferenceRunner;
+import org.elasticsearch.xpack.esql.inference.InferenceService;
 import org.elasticsearch.xpack.esql.inference.XContentRowEncoder;
 import org.elasticsearch.xpack.esql.inference.completion.CompletionOperator;
 import org.elasticsearch.xpack.esql.inference.rerank.RerankOperator;
@@ -159,7 +160,7 @@ public class LocalExecutionPlanner {
     private final Supplier<ExchangeSink> exchangeSinkSupplier;
     private final EnrichLookupService enrichLookupService;
     private final LookupFromIndexService lookupFromIndexService;
-    private final InferenceRunner inferenceRunner;
+    private final InferenceService inferenceService;
     private final PhysicalOperationProviders physicalOperationProviders;
     private final List<ShardContext> shardContexts;
 
@@ -175,7 +176,7 @@ public class LocalExecutionPlanner {
         Supplier<ExchangeSink> exchangeSinkSupplier,
         EnrichLookupService enrichLookupService,
         LookupFromIndexService lookupFromIndexService,
-        InferenceRunner inferenceRunner,
+        InferenceService inferenceService,
         PhysicalOperationProviders physicalOperationProviders,
         List<ShardContext> shardContexts
     ) {
@@ -191,7 +192,7 @@ public class LocalExecutionPlanner {
         this.exchangeSinkSupplier = exchangeSinkSupplier;
         this.enrichLookupService = enrichLookupService;
         this.lookupFromIndexService = lookupFromIndexService;
-        this.inferenceRunner = inferenceRunner;
+        this.inferenceService = inferenceService;
         this.physicalOperationProviders = physicalOperationProviders;
         this.shardContexts = shardContexts;
     }
@@ -318,7 +319,7 @@ public class LocalExecutionPlanner {
             source.layout
         );
 
-        return source.with(new CompletionOperator.Factory(inferenceRunner, inferenceId, promptEvaluatorFactory), outputLayout);
+        return source.with(new CompletionOperator.Factory(inferenceService, inferenceId, promptEvaluatorFactory), outputLayout);
     }
 
     private PhysicalOperation planRrfScoreEvalExec(RrfScoreEvalExec rrf, LocalExecutionPlannerContext context) {
@@ -528,7 +529,7 @@ public class LocalExecutionPlanner {
         PhysicalOperation source = plan(eval.child(), context);
 
         for (Alias field : eval.fields()) {
-            var evaluatorSupplier = EvalMapper.toEvaluator(context.foldCtx(), field.child(), source.layout);
+            var evaluatorSupplier = EvalMapper.toEvaluator(context.foldCtx(), field.child(), source.layout, context.shardContexts);
             Layout.Builder layout = source.layout.builder();
             layout.append(field.toAttribute());
             source = source.with(new EvalOperatorFactory(evaluatorSupplier), layout.build());
@@ -654,7 +655,7 @@ public class LocalExecutionPlanner {
         int scoreChannel = outputLayout.get(rerank.scoreAttribute().id()).channel();
 
         return source.with(
-            new RerankOperator.Factory(inferenceRunner, inferenceId, queryText, rowEncoderFactory, scoreChannel),
+            new RerankOperator.Factory(inferenceService, inferenceId, queryText, rowEncoderFactory, scoreChannel),
             outputLayout
         );
     }
@@ -779,36 +780,21 @@ public class LocalExecutionPlanner {
             }
             matchFields.add(new MatchConfig(right, input));
         }
-        if (matchFields.size() != 1) {
-            throw new IllegalArgumentException("can't plan [" + join + "]: multiple join predicates are not supported");
-        }
-        // TODO support multiple match fields, and support more than equality predicates
-        MatchConfig matchConfig = matchFields.getFirst();
 
         return source.with(
             new LookupFromIndexOperator.Factory(
+                matchFields,
                 sessionId,
                 parentTask,
                 context.queryPragmas().enrichMaxWorkers(),
-                matchConfig.channel(),
                 ctx -> lookupFromIndexService,
-                matchConfig.type(),
                 localSourceExec.indexPattern(),
                 indexName,
-                matchConfig.fieldName(),
                 join.addedFields().stream().map(f -> (NamedExpression) f).toList(),
                 join.source()
             ),
             layout
         );
-    }
-
-    private record MatchConfig(FieldAttribute.FieldName fieldName, int channel, DataType type) {
-        private MatchConfig(FieldAttribute match, Layout.ChannelAndType input) {
-            // TODO: Using exactAttribute was supposed to handle TEXT fields with KEYWORD subfields - but we don't allow these in lookup
-            // indices, so the call to exactAttribute looks redundant now.
-            this(match.exactAttribute().fieldName(), input.channel(), input.type());
-        }
     }
 
     private PhysicalOperation planLocal(LocalSourceExec localSourceExec, LocalExecutionPlannerContext context) {

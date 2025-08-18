@@ -44,6 +44,7 @@ public class MapperFeatures implements FeatureSpecification {
     static final NodeFeature NPE_ON_DIMS_UPDATE_FIX = new NodeFeature("mapper.npe_on_dims_update_fix");
     static final NodeFeature IVF_FORMAT_CLUSTER_FEATURE = new NodeFeature("mapper.ivf_format_cluster_feature");
     static final NodeFeature IVF_NESTED_SUPPORT = new NodeFeature("mapper.ivf_nested_support");
+    static final NodeFeature BBQ_DISK_SUPPORT = new NodeFeature("mapper.bbq_disk_support");
     static final NodeFeature SEARCH_LOAD_PER_SHARD = new NodeFeature("mapper.search_load_per_shard");
     static final NodeFeature PATTERNED_TEXT = new NodeFeature("mapper.patterned_text");
 
@@ -76,6 +77,7 @@ public class MapperFeatures implements FeatureSpecification {
             USE_DEFAULT_OVERSAMPLE_VALUE_FOR_BBQ,
             IVF_FORMAT_CLUSTER_FEATURE,
             IVF_NESTED_SUPPORT,
+            BBQ_DISK_SUPPORT,
             SEARCH_LOAD_PER_SHARD,
             SPARSE_VECTOR_INDEX_OPTIONS_FEATURE,
             PATTERNED_TEXT

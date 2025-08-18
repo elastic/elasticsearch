@@ -11,15 +11,17 @@ package org.elasticsearch.gradle;
 
 public enum Architecture {
 
-    X64("x86_64", "linux/amd64"),
-    AARCH64("aarch64", "linux/arm64");
+    X64("x86_64", "linux/amd64", "amd64"),
+    AARCH64("aarch64", "linux/arm64", "arm64");
 
     public final String classifier;
     public final String dockerPlatform;
+    public final String dockerClassifier;
 
-    Architecture(String classifier, String dockerPlatform) {
+    Architecture(String classifier, String dockerPlatform, String dockerClassifier) {
         this.classifier = classifier;
         this.dockerPlatform = dockerPlatform;
+        this.dockerClassifier = dockerClassifier;
     }
 
     public static Architecture current() {

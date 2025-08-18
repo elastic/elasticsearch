@@ -24,6 +24,7 @@ import org.elasticsearch.gateway.GatewayMetaState;
 import org.elasticsearch.gateway.PersistedClusterStateService;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.InternalTestCluster;
 
 import java.io.IOException;
@@ -39,6 +40,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, autoManageMasterNodes = false)
+@ESTestCase.WithoutEntitlements // CLI tools don't run with entitlements enforced
 public class UnsafeBootstrapAndDetachCommandIT extends ESIntegTestCase {
 
     private MockTerminal executeCommand(ElasticsearchNodeCommand command, Environment environment, boolean abort) throws Exception {

@@ -100,6 +100,7 @@ public abstract class AbstractLogicalPlanOptimizerTests extends ESTestCase {
                 EsqlTestUtils.TEST_CFG,
                 new EsqlFunctionRegistry(),
                 getIndexResultAirports,
+                defaultLookupResolution(),
                 enrichResolution,
                 emptyInferenceResolution()
             ),

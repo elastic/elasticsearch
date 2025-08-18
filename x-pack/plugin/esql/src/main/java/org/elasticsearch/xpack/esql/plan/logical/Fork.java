@@ -33,7 +33,7 @@ import java.util.stream.Collectors;
  * A Fork is a n-ary {@code Plan} where each child is a sub plan, e.g.
  * {@code FORK [WHERE content:"fox" ] [WHERE content:"dog"] }
  */
-public class Fork extends LogicalPlan implements PostAnalysisPlanVerificationAware, TelemetryAware {
+public class Fork extends LogicalPlan implements PostAnalysisPlanVerificationAware, TelemetryAware, PipelineBreaker {
 
     public static final String FORK_FIELD = "_fork";
     public static final int MAX_BRANCHES = 8;
@@ -46,7 +46,7 @@ public class Fork extends LogicalPlan implements PostAnalysisPlanVerificationAwa
             throw new IllegalArgumentException("FORK requires more than " + MIN_BRANCHES + " branches, got: " + children.size());
         }
         if (children.size() > MAX_BRANCHES) {
-            throw new IllegalArgumentException("FORK requires less than " + MAX_BRANCHES + " subqueries, got: " + children.size());
+            throw new IllegalArgumentException("FORK supports up to " + MAX_BRANCHES + " branches, got: " + children.size());
         }
 
         this.output = output;
@@ -192,7 +192,7 @@ public class Fork extends LogicalPlan implements PostAnalysisPlanVerificationAwa
                 return;
             }
 
-            failures.add(Failure.fail(otherFork, "Only a single FORK command is allowed, but found multiple"));
+            failures.add(Failure.fail(otherFork, "Only a single FORK command is supported, but found multiple"));
         });
 
         Map<String, DataType> outputTypes = fork.output().stream().collect(Collectors.toMap(Attribute::name, Attribute::dataType));

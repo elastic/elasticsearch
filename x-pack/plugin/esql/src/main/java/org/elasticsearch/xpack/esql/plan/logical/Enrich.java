@@ -26,7 +26,6 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.EmptyAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
@@ -35,9 +34,11 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.plan.GeneratingPlan;
+import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -47,6 +48,7 @@ import java.util.function.BiConsumer;
 
 import static org.elasticsearch.xpack.esql.common.Failure.fail;
 import static org.elasticsearch.xpack.esql.core.expression.Expressions.asAttributes;
+import static org.elasticsearch.xpack.esql.expression.Foldables.literalValueOf;
 import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutputAttributes;
 
 public class Enrich extends UnaryPlan implements GeneratingPlan<Enrich>, PostAnalysisPlanVerificationAware, TelemetryAware, SortAgnostic {
@@ -55,7 +57,7 @@ public class Enrich extends UnaryPlan implements GeneratingPlan<Enrich>, PostAna
         "Enrich",
         Enrich::readFrom
     );
-
+    // policyName can only be a string literal once it's resolved
     private final Expression policyName;
     private final NamedExpression matchField;
     private final EnrichPolicy policy;
@@ -151,7 +153,8 @@ public class Enrich extends UnaryPlan implements GeneratingPlan<Enrich>, PostAna
         out.writeNamedWriteable(policyName());
         out.writeNamedWriteable(matchField());
         if (out.getTransportVersion().before(TransportVersions.V_8_13_0)) {
-            out.writeString(BytesRefs.toString(policyName().fold(FoldContext.small() /* TODO remove me */))); // old policy name
+            // policyName can only be a string literal once it's resolved
+            out.writeString(BytesRefs.toString(literalValueOf(policyName()))); // old policy name
         }
         policy().writeTo(out);
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
@@ -192,6 +195,10 @@ public class Enrich extends UnaryPlan implements GeneratingPlan<Enrich>, PostAna
 
     public Expression policyName() {
         return policyName;
+    }
+
+    public String resolvedPolicyName() {
+        return BytesRefs.toString(literalValueOf(policyName));
     }
 
     public Mode mode() {
@@ -295,23 +302,33 @@ public class Enrich extends UnaryPlan implements GeneratingPlan<Enrich>, PostAna
      * retaining the originating cluster and restructing pages for routing, which might be complicated.
      */
     private static void checkRemoteEnrich(LogicalPlan plan, Failures failures) {
-        boolean[] agg = { false };
-        boolean[] enrichCoord = { false };
+        // First look for remote ENRICH, and then look at its children. Going over the whole plan once is trickier as remote ENRICHs can be
+        // in separate FORK branches which are valid by themselves.
+        plan.forEachUp(Enrich.class, enrich -> checkForPlansForbiddenBeforeRemoteEnrich(enrich, failures));
+    }
 
-        plan.forEachUp(UnaryPlan.class, u -> {
+    /**
+     * For a given remote {@link Enrich}, check if there are any forbidden plans upstream.
+     */
+    private static void checkForPlansForbiddenBeforeRemoteEnrich(Enrich enrich, Failures failures) {
+        if (enrich.mode != Mode.REMOTE) {
+            return;
+        }
+
+        Set<String> badCommands = new HashSet<>();
+
+        enrich.forEachUp(LogicalPlan.class, u -> {
             if (u instanceof Aggregate) {
-                agg[0] = true;
-            } else if (u instanceof Enrich enrich && enrich.mode() == Enrich.Mode.COORDINATOR) {
-                enrichCoord[0] = true;
-            }
-            if (u instanceof Enrich enrich && enrich.mode() == Enrich.Mode.REMOTE) {
-                if (agg[0]) {
-                    failures.add(fail(enrich, "ENRICH with remote policy can't be executed after STATS"));
-                }
-                if (enrichCoord[0]) {
-                    failures.add(fail(enrich, "ENRICH with remote policy can't be executed after another ENRICH with coordinator policy"));
-                }
+                badCommands.add("STATS");
+            } else if (u instanceof Enrich upstreamEnrich && upstreamEnrich.mode() == Enrich.Mode.COORDINATOR) {
+                badCommands.add("another ENRICH with coordinator policy");
+            } else if (u instanceof LookupJoin) {
+                badCommands.add("LOOKUP JOIN");
+            } else if (u instanceof Fork) {
+                badCommands.add("FORK");
             }
         });
+
+        badCommands.forEach(c -> failures.add(fail(enrich, "ENRICH with remote policy can't be executed after " + c)));
     }
 }

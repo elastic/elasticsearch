@@ -9,7 +9,7 @@
 
 package org.elasticsearch.action.fieldcaps;
 
-import org.elasticsearch.CrossProjectAwareRequest;
+import org.elasticsearch.CrossProjectResolvableRequest;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
@@ -44,7 +44,7 @@ import java.util.Set;
 
 public final class FieldCapabilitiesRequest extends LegacyActionRequest
     implements
-        CrossProjectAwareRequest,
+        CrossProjectResolvableRequest,
         IndicesRequest.Replaceable,
         ToXContentObject {
     public static final String NAME = "field_caps_request";
@@ -64,7 +64,7 @@ public final class FieldCapabilitiesRequest extends LegacyActionRequest
     private QueryBuilder indexFilter;
     private Map<String, Object> runtimeFields = Collections.emptyMap();
     private Long nowInMillis;
-    private List<QualifiedExpression> qualifiedExpressions;
+    private List<RewrittenExpression> rewrittenExpressions;
 
     public FieldCapabilitiesRequest(StreamInput in) throws IOException {
         super(in);
@@ -382,23 +382,12 @@ public final class FieldCapabilitiesRequest extends LegacyActionRequest
     }
 
     @Override
-    public boolean crossProjectModeEnabled() {
-        return qualifiedExpressions != null;
-    }
-
-    @Override
-    public void qualified(List<QualifiedExpression> qualifiedExpressions) {
-        this.qualifiedExpressions = qualifiedExpressions;
+    public void rewritten(List<RewrittenExpression> rewrittenExpressions) {
+        this.rewrittenExpressions = rewrittenExpressions;
         indices(
-            qualifiedExpressions.stream()
-                .flatMap(indexExpression -> indexExpression.qualified().stream().map(ExpressionWithProject::expression))
+            rewrittenExpressions.stream()
+                .flatMap(indexExpression -> indexExpression.canonicalExpressions().stream().map(CanonicalExpression::expression))
                 .toArray(String[]::new)
         );
-    }
-
-    @Override
-    public String queryRouting() {
-        // TODO how would this look in ES|QL?
-        return null;
     }
 }

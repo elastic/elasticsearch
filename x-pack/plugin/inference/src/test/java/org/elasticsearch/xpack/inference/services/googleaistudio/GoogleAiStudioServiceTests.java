@@ -658,7 +658,7 @@ public class GoogleAiStudioServiceTests extends ESTestCase {
 
         var mockModel = getInvalidModel("model_id", "service_name");
 
-        try (var service = new GoogleAiStudioService(factory, createWithEmptySettings(threadPool))) {
+        try (var service = new GoogleAiStudioService(factory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             service.infer(
                 mockModel,
@@ -696,7 +696,7 @@ public class GoogleAiStudioServiceTests extends ESTestCase {
 
         var model = GoogleAiStudioEmbeddingsModelTests.createModel("model", getUrl(webServer), "secret");
 
-        try (var service = new GoogleAiStudioService(factory, createWithEmptySettings(threadPool))) {
+        try (var service = new GoogleAiStudioService(factory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             var thrownException = expectThrows(
                 ValidationException.class,
@@ -730,7 +730,7 @@ public class GoogleAiStudioServiceTests extends ESTestCase {
     public void testInfer_SendsCompletionRequest() throws IOException {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
-        try (var service = new GoogleAiStudioService(senderFactory, createWithEmptySettings(threadPool))) {
+        try (var service = new GoogleAiStudioService(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
             String responseJson = """
                 {
                     "candidates": [
@@ -818,7 +818,7 @@ public class GoogleAiStudioServiceTests extends ESTestCase {
 
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
-        try (var service = new GoogleAiStudioService(senderFactory, createWithEmptySettings(threadPool))) {
+        try (var service = new GoogleAiStudioService(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
             String responseJson = """
                 {
                      "embeddings": [
@@ -897,7 +897,7 @@ public class GoogleAiStudioServiceTests extends ESTestCase {
 
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
-        try (var service = new GoogleAiStudioService(senderFactory, createWithEmptySettings(threadPool))) {
+        try (var service = new GoogleAiStudioService(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
             String responseJson = """
                 {
                      "embeddings": [
@@ -998,7 +998,7 @@ public class GoogleAiStudioServiceTests extends ESTestCase {
     public void testInfer_ResourceNotFound() throws IOException {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
-        try (var service = new GoogleAiStudioService(senderFactory, createWithEmptySettings(threadPool))) {
+        try (var service = new GoogleAiStudioService(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
 
             String responseJson = """
                 {
@@ -1033,7 +1033,7 @@ public class GoogleAiStudioServiceTests extends ESTestCase {
 
     public void testUpdateModelWithEmbeddingDetails_InvalidModelProvided() throws IOException {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
-        try (var service = new GoogleAiStudioService(senderFactory, createWithEmptySettings(threadPool))) {
+        try (var service = new GoogleAiStudioService(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
             var model = GoogleAiStudioCompletionModelTests.createModel(randomAlphaOfLength(10), randomAlphaOfLength(10));
             assertThrows(
                 ElasticsearchStatusException.class,
@@ -1052,7 +1052,7 @@ public class GoogleAiStudioServiceTests extends ESTestCase {
 
     private void testUpdateModelWithEmbeddingDetails_Successful(SimilarityMeasure similarityMeasure) throws IOException {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
-        try (var service = new GoogleAiStudioService(senderFactory, createWithEmptySettings(threadPool))) {
+        try (var service = new GoogleAiStudioService(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
             var embeddingSize = randomNonNegativeInt();
             var model = GoogleAiStudioEmbeddingsModelTests.createModel(
                 randomAlphaOfLength(10),
@@ -1124,7 +1124,7 @@ public class GoogleAiStudioServiceTests extends ESTestCase {
     }
 
     public void testSupportsStreaming() throws IOException {
-        try (var service = new GoogleAiStudioService(mock(), createWithEmptySettings(mock()))) {
+        try (var service = new GoogleAiStudioService(mock(), createWithEmptySettings(mock()), mockClusterServiceEmpty())) {
             assertThat(service.supportedStreamingTasks(), is(EnumSet.of(TaskType.COMPLETION)));
             assertFalse(service.canStream(TaskType.ANY));
         }
@@ -1171,6 +1171,10 @@ public class GoogleAiStudioServiceTests extends ESTestCase {
     }
 
     private GoogleAiStudioService createGoogleAiStudioService() {
-        return new GoogleAiStudioService(mock(HttpRequestSender.Factory.class), createWithEmptySettings(threadPool));
+        return new GoogleAiStudioService(
+            mock(HttpRequestSender.Factory.class),
+            createWithEmptySettings(threadPool),
+            mockClusterServiceEmpty()
+        );
     }
 }

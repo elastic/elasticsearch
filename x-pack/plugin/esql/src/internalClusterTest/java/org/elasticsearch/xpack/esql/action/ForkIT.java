@@ -1017,7 +1017,7 @@ public class ForkIT extends AbstractEsqlIntegTestCase {
                    ( FORK (WHERE true) (WHERE true) )
             """;
         var e = expectThrows(VerificationException.class, () -> run(query));
-        assertTrue(e.getMessage().contains("Only a single FORK command is allowed, but found multiple"));
+        assertTrue(e.getMessage().contains("Only a single FORK command is supported, but found multiple"));
     }
 
     public void testProfile() {
@@ -1054,7 +1054,7 @@ public class ForkIT extends AbstractEsqlIntegTestCase {
                    (WHERE true) (WHERE true) (WHERE true) (WHERE true)
             """;
         var e = expectThrows(ParsingException.class, () -> run(query));
-        assertTrue(e.getMessage().contains("Fork requires less than 8 branches"));
+        assertTrue(e.getMessage().contains("Fork supports up to 8 branches"));
 
     }
 

@@ -104,7 +104,7 @@ public class WildcardQueryBuilder extends AbstractQueryBuilder<WildcardQueryBuil
         value = in.readString();
         rewrite = in.readOptionalString();
         caseInsensitive = in.readBoolean();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_FIXED_INDEX_LIKE)) {
+        if (expressionTransportSupported(in.getTransportVersion())) {
             forceStringMatch = in.readBoolean();
         } else {
             forceStringMatch = false;
@@ -117,9 +117,18 @@ public class WildcardQueryBuilder extends AbstractQueryBuilder<WildcardQueryBuil
         out.writeString(value);
         out.writeOptionalString(rewrite);
         out.writeBoolean(caseInsensitive);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_FIXED_INDEX_LIKE)) {
+        if (expressionTransportSupported(out.getTransportVersion())) {
             out.writeBoolean(forceStringMatch);
         }
+    }
+
+    /**
+     * Returns true if the Transport version is compatible with ESQL_FIXED_INDEX_LIKE
+     */
+    public static boolean expressionTransportSupported(TransportVersion version) {
+        return version.onOrAfter(TransportVersions.ESQL_FIXED_INDEX_LIKE)
+            || version.isPatchFrom(TransportVersions.ESQL_FIXED_INDEX_LIKE_8_19)
+            || version.isPatchFrom(TransportVersions.ESQL_FIXED_INDEX_LIKE_9_1);
     }
 
     @Override

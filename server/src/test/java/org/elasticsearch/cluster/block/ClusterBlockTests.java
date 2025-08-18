@@ -191,6 +191,7 @@ public class ClusterBlockTests extends ESTestCase {
         assertThat(clusterBlocks.global(project1).size(), equalTo(2));
         assertThat(clusterBlocks.global(project2).size(), equalTo(1));
         assertTrue(clusterBlocks.indexBlocked(project1, randomFrom(projectGlobalBlock.levels()), project1Index));
+        assertTrue(clusterBlocks.hasGlobalBlock(project1, projectGlobalBlock));
     }
 
     private static ClusterBlock randomClusterBlock(TransportVersion version) {

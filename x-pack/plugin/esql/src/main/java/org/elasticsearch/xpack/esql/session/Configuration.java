@@ -24,6 +24,7 @@ import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneId;
+import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.util.Locale;
 import java.util.Map;
@@ -34,6 +35,7 @@ import static org.elasticsearch.common.unit.ByteSizeUnit.KB;
 public class Configuration implements Writeable {
 
     public static final int QUERY_COMPRESS_THRESHOLD_CHARS = KB.toIntBytes(5);
+    public static final ZoneId DEFAULT_TZ = ZoneOffset.UTC;
 
     private final String clusterName;
     private final String username;

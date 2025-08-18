@@ -170,7 +170,7 @@ public class InternalEngine extends Engine {
 
     private final LocalCheckpointTracker localCheckpointTracker;
 
-    private final CombinedDeletionPolicy combinedDeletionPolicy;
+    private final ElasticsearchIndexDeletionPolicy indexDeletionPolicy;
 
     // How many callers are currently requesting index throttling. Currently there are only two situations where we do this: when merges
     // are falling behind and when writing indexing buffer to disk is too slow. When this is 0, there is no throttling, else we throttle
@@ -277,13 +277,7 @@ public class InternalEngine extends Engine {
                 this.totalDiskSpace = ByteSizeValue.of(Environment.getFileStore(translog.location()).getTotalSpace(), ByteSizeUnit.BYTES);
                 this.lastCommittedSegmentInfos = store.readLastCommittedSegmentsInfo();
                 this.softDeletesPolicy = newSoftDeletesPolicy();
-                this.combinedDeletionPolicy = new CombinedDeletionPolicy(
-                    logger,
-                    translogDeletionPolicy,
-                    softDeletesPolicy,
-                    translog::getLastSyncedGlobalCheckpoint,
-                    newCommitsListener()
-                );
+                this.indexDeletionPolicy = newIndexDeletionPolicy(engineConfig, logger, translog, softDeletesPolicy);
                 this.localCheckpointTracker = createLocalCheckpointTracker(localCheckpointTrackerSupplier);
                 writer = createWriter();
                 bootstrapAppendOnlyInfoFromWriter(writer);
@@ -388,6 +382,25 @@ public class InternalEngine extends Engine {
             lastMinRetainedSeqNo,
             engineConfig.getIndexSettings().getSoftDeleteRetentionOperations(),
             engineConfig.retentionLeasesSupplier()
+        );
+    }
+
+    protected ElasticsearchIndexDeletionPolicy newIndexDeletionPolicy(
+        EngineConfig engineConfig,
+        Logger logger,
+        Translog translog,
+        SoftDeletesPolicy softDeletesPolicy
+    ) {
+        var wrapper = engineConfig.getIndexDeletionPolicyWrapper();
+        assert wrapper != null : "no index deletion policy wrapper for " + engineConfig.getShardId();
+        return wrapper.apply(
+            new CombinedDeletionPolicy(
+                logger,
+                translog.getDeletionPolicy(),
+                softDeletesPolicy,
+                translog::getLastSyncedGlobalCheckpoint,
+                newCommitsListener()
+            )
         );
     }
 
@@ -682,7 +695,7 @@ public class InternalEngine extends Engine {
 
     // Package private for testing purposes only
     boolean hasAcquiredIndexCommitsForTesting() {
-        return combinedDeletionPolicy.hasAcquiredIndexCommitsForTesting();
+        return indexDeletionPolicy.hasAcquiredIndexCommitsForTesting();
     }
 
     @Override
@@ -748,7 +761,7 @@ public class InternalEngine extends Engine {
     }
 
     private void revisitIndexDeletionPolicyOnTranslogSynced() throws IOException {
-        if (combinedDeletionPolicy.hasUnreferencedCommits()) {
+        if (indexDeletionPolicy.hasUnreferencedCommits()) {
             indexWriter.deleteUnusedFiles();
         }
         translog.trimUnreferencedReaders();
@@ -846,6 +859,14 @@ public class InternalEngine extends Engine {
         );
         final Searcher wrappedSearcher = searcherWrapper.apply(searcher);
         return getFromSearcher(get, wrappedSearcher, true);
+    }
+
+    @Override
+    public boolean isDocumentInLiveVersionMap(BytesRef uid) {
+        try (Releasable ignore = versionMap.acquireLock(uid)) {
+            final var versionValue = getVersionFromMap(uid);
+            return versionValue != null;
+        }
     }
 
     @Override
@@ -2239,7 +2260,7 @@ public class InternalEngine extends Engine {
                 // if we can't get the lock right away we block if needed otherwise barf
                 if (waitIfOngoing == false) {
                     logger.trace("detected an in-flight flush, not blocking to wait for it's completion");
-                    listener.onResponse(FlushResult.NO_FLUSH);
+                    listener.onResponse(FlushResult.FLUSH_REQUEST_SKIPPED_DUE_TO_COLLISION);
                     return;
                 }
                 logger.trace("waiting for in-flight flush to finish");
@@ -2326,7 +2347,7 @@ public class InternalEngine extends Engine {
             pruneDeletedTombstones();
         }
 
-        waitForCommitDurability(generation, listener.map(v -> new FlushResult(true, generation)));
+        waitForCommitDurability(generation, listener.map(v -> new FlushResult(false, generation)));
     }
 
     protected final boolean isFlushLockIsHeldByCurrentThread() {
@@ -2547,17 +2568,17 @@ public class InternalEngine extends Engine {
             future.actionGet();
             logger.trace("finish flush for snapshot");
         }
-        return acquireIndexCommitRef(() -> combinedDeletionPolicy.acquireIndexCommit(false));
+        return acquireIndexCommitRef(() -> indexDeletionPolicy.acquireIndexCommit(false));
     }
 
     @Override
     public IndexCommitRef acquireSafeIndexCommit() throws EngineException {
-        return acquireIndexCommitRef(() -> combinedDeletionPolicy.acquireIndexCommit(true));
+        return acquireIndexCommitRef(() -> indexDeletionPolicy.acquireIndexCommit(true));
     }
 
     private void releaseIndexCommit(IndexCommit snapshot) throws IOException {
         // Revisit the deletion policy if we can clean up the snapshotting commit.
-        if (combinedDeletionPolicy.releaseCommit(snapshot)) {
+        if (indexDeletionPolicy.releaseIndexCommit(snapshot)) {
             try {
                 // Here we don't have to trim translog because snapshotting an index commit
                 // does not lock translog or prevents unreferenced files from trimming.
@@ -2570,7 +2591,7 @@ public class InternalEngine extends Engine {
 
     @Override
     public SafeCommitInfo getSafeCommitInfo() {
-        return combinedDeletionPolicy.getSafeCommitInfo();
+        return indexDeletionPolicy.getSafeCommitInfo();
     }
 
     private boolean failOnTragicEvent(AlreadyClosedException ex) {
@@ -2748,7 +2769,7 @@ public class InternalEngine extends Engine {
         final IndexWriterConfig iwc = new IndexWriterConfig(engineConfig.getAnalyzer());
         iwc.setCommitOnClose(false); // we by default don't commit on close
         iwc.setOpenMode(IndexWriterConfig.OpenMode.APPEND);
-        iwc.setIndexDeletionPolicy(combinedDeletionPolicy);
+        iwc.setIndexDeletionPolicy(indexDeletionPolicy);
         iwc.setInfoStream(TESTS_VERBOSE ? InfoStream.getDefault() : new LoggerInfoStream(logger));
         iwc.setMergeScheduler(mergeScheduler.getMergeScheduler());
         // Give us the opportunity to upgrade old segments while performing
@@ -2860,6 +2881,16 @@ public class InternalEngine extends Engine {
                 throttle.deactivate();
             }
         }
+    }
+
+    @Override
+    public void suspendThrottling() {
+        throttle.suspendThrottle();
+    }
+
+    @Override
+    public void resumeThrottling() {
+        throttle.resumeThrottle();
     }
 
     @Override

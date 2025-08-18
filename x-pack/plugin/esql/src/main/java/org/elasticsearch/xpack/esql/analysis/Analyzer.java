@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.analysis;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.lucene.BytesRefs;
+import org.elasticsearch.compute.data.AggregateMetricDoubleBlockBuilder;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.index.IndexMode;
@@ -53,6 +54,17 @@ import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.UnresolvedFunction;
 import org.elasticsearch.xpack.esql.expression.function.UnsupportedAttribute;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Avg;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.AvgOverTime;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.CountOverTime;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Max;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.MaxOverTime;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Min;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.MinOverTime;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.SumOverTime;
 import org.elasticsearch.xpack.esql.expression.function.grouping.GroupingFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Case;
@@ -61,10 +73,13 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Least
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.AbstractConvertFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ConvertFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.FoldablesConvertFunction;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.FromAggregateMetricDouble;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToAggregateMetricDouble;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDateNanos;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDouble;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToInteger;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToLong;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToString;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToUnsignedLong;
 import org.elasticsearch.xpack.esql.expression.function.scalar.nulls.Coalesce;
 import org.elasticsearch.xpack.esql.expression.function.vector.VectorFunction;
@@ -135,6 +150,7 @@ import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.xpack.core.enrich.EnrichPolicy.GEO_MATCH_TYPE;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.IMPLICIT_CASTING_DATE_AND_DATE_NANOS;
+import static org.elasticsearch.xpack.esql.core.type.DataType.AGGREGATE_METRIC_DOUBLE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.BOOLEAN;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATETIME;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_NANOS;
@@ -173,16 +189,17 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             Limiter.ONCE,
             new ResolveTable(),
             new ResolveEnrich(),
-            new ResolveInference(),
             new ResolveLookupTables(),
             new ResolveFunctions(),
+            new ResolveInference(),
             new DateMillisToNanosInEsRelation(IMPLICIT_CASTING_DATE_AND_DATE_NANOS.isEnabled())
         ),
         new Batch<>(
             "Resolution",
             new ResolveRefs(),
             new ImplicitCasting(),
-            new ResolveUnionTypes()  // Must be after ResolveRefs, so union types can be found
+            new ResolveUnionTypes(),  // Must be after ResolveRefs, so union types can be found
+            new ImplicitCastAggregateMetricDoubles()
         ),
         new Batch<>("Finish Analysis", Limiter.ONCE, new AddImplicitLimit(), new AddImplicitForkLimit(), new UnionTypesCleanup())
     );
@@ -394,34 +411,6 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 return new UnresolvedAttribute(source, enrichFieldName, msg);
             } else {
                 return new ReferenceAttribute(source, enrichFieldName, mappedField.dataType(), Nullability.TRUE, null, false);
-            }
-        }
-    }
-
-    private static class ResolveInference extends ParameterizedAnalyzerRule<InferencePlan<?>, AnalyzerContext> {
-        @Override
-        protected LogicalPlan rule(InferencePlan<?> plan, AnalyzerContext context) {
-            assert plan.inferenceId().resolved() && plan.inferenceId().foldable();
-
-            String inferenceId = BytesRefs.toString(plan.inferenceId().fold(FoldContext.small()));
-            ResolvedInference resolvedInference = context.inferenceResolution().getResolvedInference(inferenceId);
-
-            if (resolvedInference != null && resolvedInference.taskType() == plan.taskType()) {
-                return plan;
-            } else if (resolvedInference != null) {
-                String error = "cannot use inference endpoint ["
-                    + inferenceId
-                    + "] with task type ["
-                    + resolvedInference.taskType()
-                    + "] within a "
-                    + plan.nodeName()
-                    + " command. Only inference endpoints with the task type ["
-                    + plan.taskType()
-                    + "] are supported.";
-                return plan.withInferenceResolutionError(inferenceId, error);
-            } else {
-                String error = context.inferenceResolution().getError(inferenceId);
-                return plan.withInferenceResolutionError(inferenceId, error);
             }
         }
     }
@@ -825,11 +814,23 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             List<Alias> newFields = new ArrayList<>();
             boolean changed = false;
 
+            // Do not need to cast as string if there are multiple rerank fields since it will be converted to YAML.
+            boolean castRerankFieldsAsString = rerank.rerankFields().size() < 2;
+
             // First resolving fields used in expression
             for (Alias field : rerank.rerankFields()) {
-                Alias result = (Alias) field.transformUp(UnresolvedAttribute.class, ua -> resolveAttribute(ua, childrenOutput));
-                newFields.add(result);
-                changed |= result != field;
+                Alias resolved = (Alias) field.transformUp(UnresolvedAttribute.class, ua -> resolveAttribute(ua, childrenOutput));
+
+                if (resolved.resolved()) {
+                    if (castRerankFieldsAsString
+                        && rerank.isValidRerankField(resolved)
+                        && DataType.isString(resolved.dataType()) == false) {
+                        resolved = resolved.replaceChild(new ToString(resolved.child().source(), resolved.child()));
+                    }
+                }
+
+                newFields.add(resolved);
+                changed |= resolved != field;
             }
 
             if (changed) {
@@ -1319,6 +1320,41 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         }
     }
 
+    private static class ResolveInference extends ParameterizedRule<LogicalPlan, LogicalPlan, AnalyzerContext> {
+
+        @Override
+        public LogicalPlan apply(LogicalPlan plan, AnalyzerContext context) {
+            return plan.transformDown(InferencePlan.class, p -> resolveInferencePlan(p, context));
+        }
+
+        private LogicalPlan resolveInferencePlan(InferencePlan<?> plan, AnalyzerContext context) {
+            assert plan.inferenceId().resolved() && plan.inferenceId().foldable();
+
+            String inferenceId = BytesRefs.toString(plan.inferenceId().fold(FoldContext.small()));
+            ResolvedInference resolvedInference = context.inferenceResolution().getResolvedInference(inferenceId);
+
+            if (resolvedInference == null) {
+                String error = context.inferenceResolution().getError(inferenceId);
+                return plan.withInferenceResolutionError(inferenceId, error);
+            }
+
+            if (resolvedInference.taskType() != plan.taskType()) {
+                String error = "cannot use inference endpoint ["
+                    + inferenceId
+                    + "] with task type ["
+                    + resolvedInference.taskType()
+                    + "] within a "
+                    + plan.nodeName()
+                    + " command. Only inference endpoints with the task type ["
+                    + plan.taskType()
+                    + "] are supported.";
+                return plan.withInferenceResolutionError(inferenceId, error);
+            }
+
+            return plan;
+        }
+    }
+
     private static class AddImplicitLimit extends ParameterizedRule<LogicalPlan, LogicalPlan, AnalyzerContext> {
         @Override
         public LogicalPlan apply(LogicalPlan logicalPlan, AnalyzerContext context) {
@@ -1389,7 +1425,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
     private static class ImplicitCasting extends ParameterizedRule<LogicalPlan, LogicalPlan, AnalyzerContext> {
         @Override
         public LogicalPlan apply(LogicalPlan plan, AnalyzerContext context) {
-            // do implicit casting for function arguments
+            // do implicit casting for named parameters
             return plan.transformExpressionsUp(
                 org.elasticsearch.xpack.esql.core.expression.function.Function.class,
                 e -> ImplicitCasting.cast(e, context.functionRegistry().snapshotRegistry())
@@ -1400,14 +1436,14 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             if (f instanceof In in) {
                 return processIn(in);
             }
+            if (f instanceof VectorFunction) {
+                return processVectorFunction(f);
+            }
             if (f instanceof EsqlScalarFunction || f instanceof GroupingFunction) { // exclude AggregateFunction until it is needed
                 return processScalarOrGroupingFunction(f, registry);
             }
             if (f instanceof EsqlArithmeticOperation || f instanceof BinaryComparison) {
                 return processBinaryOperator((BinaryOperator) f);
-            }
-            if (f instanceof VectorFunction vectorFunction) {
-                return processVectorFunction(f);
             }
             return f;
         }
@@ -1613,6 +1649,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             }
         }
 
+        @SuppressWarnings("unchecked")
         private static Expression processVectorFunction(org.elasticsearch.xpack.esql.core.expression.function.Function vectorFunction) {
             List<Expression> args = vectorFunction.arguments();
             List<Expression> newArgs = new ArrayList<>();
@@ -1620,7 +1657,14 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 if (arg.resolved() && arg.dataType().isNumeric() && arg.foldable()) {
                     Object folded = arg.fold(FoldContext.small() /* TODO remove me */);
                     if (folded instanceof List) {
-                        Literal denseVector = new Literal(arg.source(), folded, DataType.DENSE_VECTOR);
+                        // Convert to floats so blocks are created accordingly
+                        List<Float> floatVector;
+                        if (arg.dataType() == FLOAT) {
+                            floatVector = (List<Float>) folded;
+                        } else {
+                            floatVector = ((List<Number>) folded).stream().map(Number::floatValue).collect(Collectors.toList());
+                        }
+                        Literal denseVector = new Literal(arg.source(), floatVector, DataType.DENSE_VECTOR);
                         newArgs.add(denseVector);
                         continue;
                     }
@@ -1680,9 +1724,15 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 return plan;
             }
 
-            // And add generated fields to EsRelation, so these new attributes will appear in the OutputExec of the Fragment
-            // and thereby get used in FieldExtractExec
-            plan = plan.transformDown(EsRelation.class, esr -> {
+            return addGeneratedFieldsToEsRelations(plan, unionFieldAttributes);
+        }
+
+        /**
+         * Add generated fields to EsRelation, so these new attributes will appear in the OutputExec of the Fragment
+         * and thereby get used in FieldExtractExec
+         */
+        private static LogicalPlan addGeneratedFieldsToEsRelations(LogicalPlan plan, List<FieldAttribute> unionFieldAttributes) {
+            return plan.transformDown(EsRelation.class, esr -> {
                 List<Attribute> missing = new ArrayList<>();
                 for (FieldAttribute fa : unionFieldAttributes) {
                     // Using outputSet().contains looks by NameId, resp. uses semanticEquals.
@@ -1702,7 +1752,6 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 }
                 return esr;
             });
-            return plan;
         }
 
         private Expression resolveConvertFunction(ConvertFunction convert, List<FieldAttribute> unionFieldAttributes) {
@@ -1830,7 +1879,10 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 originalFieldAttr.id(),
                 true
             );
-            Expression e = ((Expression) convert).replaceChildren(Collections.singletonList(resolvedAttr));
+            Expression fn = (Expression) convert;
+            List<Expression> children = new ArrayList<>(fn.children());
+            children.set(0, resolvedAttr);
+            Expression e = ((Expression) convert).replaceChildren(children);
             /*
              * Resolve surrogates immediately because these type specific conversions are serialized
              * and SurrogateExpressions are expected to be resolved on the coordinating node. At least,
@@ -1948,5 +2000,104 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         ResolveUnionTypes.TypeResolutionKey key = new ResolveUnionTypes.TypeResolutionKey(fieldAttribute.name(), type);
         var concreteConvert = ResolveUnionTypes.typeSpecificConvert(convert, fieldAttribute.source(), type, imf);
         typeResolutions.put(key, concreteConvert);
+    }
+
+    /**
+     * Take InvalidMappedFields in specific aggregations (min, max, sum, count, and avg) and if all original data types
+     * are aggregate metric double + any combination of numerics, implicitly cast them to the same type: aggregate metric
+     * double for count, and double for min, max, and sum. Avg gets replaced with its surrogate (Div(Sum, Count))
+     */
+    private static class ImplicitCastAggregateMetricDoubles extends Rule<LogicalPlan, LogicalPlan> {
+
+        @Override
+        public LogicalPlan apply(LogicalPlan plan) {
+            return plan.transformUp(Aggregate.class, p -> p.childrenResolved() == false ? p : doRule(p));
+        }
+
+        private LogicalPlan doRule(Aggregate plan) {
+            Map<String, FieldAttribute> unionFields = new HashMap<>();
+            Holder<Boolean> aborted = new Holder<>(Boolean.FALSE);
+            var newPlan = plan.transformExpressionsOnly(AggregateFunction.class, aggFunc -> {
+                if (aggFunc.field() instanceof FieldAttribute fa && fa.field() instanceof InvalidMappedField mtf) {
+                    if (mtf.types().contains(AGGREGATE_METRIC_DOUBLE) == false
+                        || mtf.types().stream().allMatch(f -> f == AGGREGATE_METRIC_DOUBLE || f.isNumeric()) == false) {
+                        aborted.set(Boolean.TRUE);
+                        return aggFunc;
+                    }
+                    Map<String, Expression> typeConverters = typeConverters(aggFunc, fa, mtf);
+                    if (typeConverters == null) {
+                        aborted.set(Boolean.TRUE);
+                        return aggFunc;
+                    }
+                    var newField = unionFields.computeIfAbsent(
+                        Attribute.rawTemporaryName(fa.name(), aggFunc.functionName(), aggFunc.sourceText()),
+                        newName -> new FieldAttribute(
+                            fa.source(),
+                            fa.parentName(),
+                            newName,
+                            MultiTypeEsField.resolveFrom(mtf, typeConverters),
+                            fa.nullable(),
+                            null,
+                            true
+                        )
+                    );
+                    List<Expression> children = new ArrayList<>(aggFunc.children());
+                    children.set(0, newField);
+                    return aggFunc.replaceChildren(children);
+                }
+                return aggFunc;
+            });
+            if (unionFields.isEmpty() || aborted.get()) {
+                return plan;
+            }
+            return ResolveUnionTypes.addGeneratedFieldsToEsRelations(newPlan, unionFields.values().stream().toList());
+        }
+
+        private Map<String, Expression> typeConverters(AggregateFunction aggFunc, FieldAttribute fa, InvalidMappedField mtf) {
+            var metric = getMetric(aggFunc);
+            if (metric == null) {
+                return null;
+            }
+            Map<String, Expression> typeConverter = new HashMap<>();
+            for (DataType type : mtf.types()) {
+                final ConvertFunction convert;
+                // Counting on aggregate metric double has unique behavior in that we cannot just provide the number of
+                // documents, instead we have to look inside the aggregate metric double's count field and sum those together.
+                // Grabbing the count value with FromAggregateMetricDouble the same way we do with min/max/sum would result in
+                // a single Int field, and incorrectly be treated as 1 document (instead of however many originally went into
+                // the aggregate metric double).
+                if (metric == AggregateMetricDoubleBlockBuilder.Metric.COUNT) {
+                    convert = new ToAggregateMetricDouble(fa.source(), fa);
+                } else if (type == AGGREGATE_METRIC_DOUBLE) {
+                    convert = FromAggregateMetricDouble.withMetric(aggFunc.source(), fa, metric);
+                } else if (type.isNumeric()) {
+                    convert = new ToDouble(fa.source(), fa);
+                } else {
+                    return null;
+                }
+                Expression expression = ResolveUnionTypes.typeSpecificConvert(convert, fa.source(), type, mtf);
+                typeConverter.put(type.typeName(), expression);
+            }
+            return typeConverter;
+        }
+
+        private static AggregateMetricDoubleBlockBuilder.Metric getMetric(AggregateFunction aggFunc) {
+            if (aggFunc instanceof Max || aggFunc instanceof MaxOverTime) {
+                return AggregateMetricDoubleBlockBuilder.Metric.MAX;
+            }
+            if (aggFunc instanceof Min || aggFunc instanceof MinOverTime) {
+                return AggregateMetricDoubleBlockBuilder.Metric.MIN;
+            }
+            if (aggFunc instanceof Sum || aggFunc instanceof SumOverTime) {
+                return AggregateMetricDoubleBlockBuilder.Metric.SUM;
+            }
+            if (aggFunc instanceof Count || aggFunc instanceof CountOverTime) {
+                return AggregateMetricDoubleBlockBuilder.Metric.COUNT;
+            }
+            if (aggFunc instanceof Avg || aggFunc instanceof AvgOverTime) {
+                return AggregateMetricDoubleBlockBuilder.Metric.COUNT;
+            }
+            return null;
+        }
     }
 }

@@ -70,19 +70,16 @@ public abstract class FallbackSyntheticSourceBlockLoader implements BlockLoader 
         throw new UnsupportedOperationException();
     }
 
-    private record IgnoredSourceRowStrideReader<T>(String fieldName, Reader<T> reader) implements RowStrideReader {
-        @Override
-        public void read(int docId, StoredFields storedFields, Builder builder) throws IOException {
-            var ignoredSource = storedFields.storedFields().get(IgnoredSourceFieldMapper.NAME);
-            if (ignoredSource == null) {
-                builder.appendNull();
-                return;
-            }
+    private static class IgnoredSourceRowStrideReader<T> implements RowStrideReader {
+        // Contains name of the field and all its parents
+        private final Set<String> fieldNames;
+        private final String fieldName;
+        private final Reader<T> reader;
 
-            Map<String, List<IgnoredSourceFieldMapper.NameValue>> valuesForFieldAndParents = new HashMap<>();
-
-            // Contains name of the field and all its parents
-            Set<String> fieldNames = new HashSet<>() {
+        IgnoredSourceRowStrideReader(String fieldName, Reader<T> reader) {
+            this.fieldName = fieldName;
+            this.reader = reader;
+            this.fieldNames = new HashSet<>() {
                 {
                     add("_doc");
                 }
@@ -96,6 +93,18 @@ public abstract class FallbackSyntheticSourceBlockLoader implements BlockLoader 
                 current.append(part);
                 fieldNames.add(current.toString());
             }
+
+        }
+
+        @Override
+        public void read(int docId, StoredFields storedFields, Builder builder) throws IOException {
+            var ignoredSource = storedFields.storedFields().get(IgnoredSourceFieldMapper.NAME);
+            if (ignoredSource == null) {
+                builder.appendNull();
+                return;
+            }
+
+            Map<String, List<IgnoredSourceFieldMapper.NameValue>> valuesForFieldAndParents = new HashMap<>();
 
             for (Object value : ignoredSource) {
                 IgnoredSourceFieldMapper.NameValue nameValue = IgnoredSourceFieldMapper.decode(value);

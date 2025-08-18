@@ -172,13 +172,6 @@ public class RestSearchAction extends BaseRestHandler {
         }
         searchRequest.indices(Strings.splitStringByCommaToArray(request.param("index")));
 
-        String queryRouting = request.param("query_routing", null);
-        if (queryRouting != null) {
-            searchRequest.queryRouting(queryRouting);
-        } else {
-            log.info("No query routing defined");
-        }
-
         if (requestContentParser != null) {
             if (searchUsageHolder == null) {
                 searchRequest.source().parseXContent(requestContentParser, true, clusterSupportsFeature);

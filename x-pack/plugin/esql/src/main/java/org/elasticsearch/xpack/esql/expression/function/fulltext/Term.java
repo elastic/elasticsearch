@@ -21,12 +21,14 @@ import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
 import org.elasticsearch.xpack.esql.core.querydsl.query.TermQuery;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.expression.Foldables;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
+import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdownPredicates;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.planner.TranslatorHandler;
 
@@ -130,9 +132,9 @@ public class Term extends FullTextFunction implements PostAnalysisPlanVerificati
     }
 
     @Override
-    protected Query translate(TranslatorHandler handler) {
+    protected Query translate(LucenePushdownPredicates pushdownPredicates, TranslatorHandler handler) {
         // Uses a term query that contributes to scoring
-        return new TermQuery(source(), ((FieldAttribute) field()).name(), queryAsObject(), false, true);
+        return new TermQuery(source(), ((FieldAttribute) field()).name(), Foldables.queryAsObject(query(), sourceText()), false, true);
     }
 
     @Override

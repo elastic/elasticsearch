@@ -768,6 +768,9 @@ public class LookupJoinTypesIT extends ESIntegTestCase {
     }
 
     private static void saveJoinTypes(Supplier<Map<List<DataType>, DataType>> signatures) throws Exception {
+        if (System.getProperty("generateDocs") == null) {
+            return;
+        }
         ArrayList<EsqlFunctionRegistry.ArgSignature> args = new ArrayList<>();
         args.add(new EsqlFunctionRegistry.ArgSignature("field from the left index", null, null, false, false));
         args.add(new EsqlFunctionRegistry.ArgSignature("field from the lookup index", null, null, false, false));
@@ -776,7 +779,8 @@ public class LookupJoinTypesIT extends ESIntegTestCase {
             LookupJoinTypesIT.class,
             null,
             args,
-            signatures
+            signatures,
+            DocsV3Support.callbacksFromSystemProperty()
         );
         docs.renderDocs();
     }

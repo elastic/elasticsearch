@@ -47,7 +47,7 @@ When the above processor executes on the following document:
 ```js
 {
   "_source": {
-    "input_field": "http://myusername:mypassword@www.example.com:80/foo.gif?key1=val1&key2=val2#fragment"
+    "input_field": "http://myusername:mypassword@<example-url>:80/foo.gif?key1=val1&key2=val2#fragment"
   }
 }
 ```
@@ -56,13 +56,13 @@ It produces this result:
 
 ```js
 "_source" : {
-  "input_field" : "http://myusername:mypassword@www.example.com:80/foo.gif?key1=val1&key2=val2#fragment",
+  "input_field" : "http://myusername:mypassword@<example-url>:80/foo.gif?key1=val1&key2=val2#fragment",
   "url" : {
     "path" : "/foo.gif",
     "fragment" : "fragment",
     "extension" : "gif",
     "password" : "mypassword",
-    "original" : "http://myusername:mypassword@www.example.com:80/foo.gif?key1=val1&key2=val2#fragment",
+    "original" : "http://myusername:mypassword@<example-url>:80/foo.gif?key1=val1&key2=val2#fragment",
     "scheme" : "http",
     "port" : 80,
     "user_info" : "myusername:mypassword",

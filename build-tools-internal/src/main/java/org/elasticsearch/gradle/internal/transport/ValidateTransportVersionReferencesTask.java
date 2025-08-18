@@ -45,13 +45,13 @@ public abstract class ValidateTransportVersionReferencesTask extends DefaultTask
         final Predicate<String> referenceChecker;
         if (getDefinitionsDirectory().isPresent()) {
             Path definitionsDir = getDefinitionsDirectory().getAsFile().get().toPath();
-            referenceChecker = (name) -> Files.exists(definitionsDir.resolve(name + ".csv"));
+            referenceChecker = (name) -> Files.exists(definitionsDir.resolve("named/" + name + ".csv"));
         } else {
             referenceChecker = (name) -> false;
         }
         Path namesFile = getReferencesFile().get().getAsFile().toPath();
 
-        for (var tvReference : TransportVersionUtils.readReferencesFile(namesFile)) {
+        for (var tvReference : TransportVersionReference.listFromFile(namesFile)) {
             if (referenceChecker.test(tvReference.name()) == false) {
                 throw new RuntimeException(
                     "TransportVersion.fromName(\""

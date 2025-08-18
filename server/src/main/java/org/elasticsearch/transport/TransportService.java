@@ -1050,7 +1050,7 @@ public class TransportService extends AbstractLifecycleComponent
             @SuppressWarnings("unchecked")
             final RequestHandlerRegistry<TransportRequest> reg = (RequestHandlerRegistry<TransportRequest>) getRequestHandler(action);
             if (reg == null) {
-                assert false : action;
+                assert false : "Action [" + action + "] not found";
                 throw new ActionNotFoundTransportException("Action [" + action + "] not found");
             }
             final Executor executor = reg.getExecutor();

@@ -2,8 +2,8 @@
 steps:
   - group: java-ea-matrix
     steps:
-      - label: "{{matrix.ES_RUNTIME_JAVA}} / {{matrix.GRADLE_TASK}} / java-ea-matrix"
-        command: .ci/scripts/run-gradle.sh -Druntime.java="$${ES_RUNTIME_JAVA}" $$GRADLE_TASK
+      - label: "{{matrix.EA_JAVA}} / {{matrix.GRADLE_TASK}} / java-ea-matrix"
+        command: .ci/scripts/run-gradle.sh -Druntime.java="$${EA_JAVA}" $$GRADLE_TASK
         timeout_in_minutes: 300
         matrix:
           setup:
@@ -25,5 +25,5 @@ steps:
           buildDirectory: /dev/shm/bk
           GRADLE_TASK: "{{matrix.GRADLE_TASK}}"
         env:
-          ES_RUNTIME_JAVA: "{{matrix.ES_RUNTIME_JAVA}}"
+          ES_RUNTIME_JAVA: "{{matrix.EA_JAVA}}"
           GRADLE_TASK: "{{matrix.GRADLE_TASK}}"

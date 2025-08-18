@@ -7004,7 +7004,10 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             | eval employee_id = to_str(emp_no)
             | ENRICH _remote:departments
             """));
-        assertThat(error.getMessage(), containsString("line 4:3: ENRICH with remote policy can't be executed after STATS"));
+        assertThat(
+            error.getMessage(),
+            containsString("line 4:3: ENRICH with remote policy can't be executed after [STATS size=count(*) BY emp_no]@2:3")
+        );
     }
 
     public void testEnrichBeforeLimit() {
@@ -7354,7 +7357,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             """));
         assertThat(
             error.getMessage(),
-            containsString("ENRICH with remote policy can't be executed after another ENRICH with coordinator policy")
+            containsString("ENRICH with remote policy can't be executed after [ENRICH _coordinator:departments]@3:3")
         );
     }
 

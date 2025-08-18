@@ -53,7 +53,7 @@ import static org.elasticsearch.gradle.internal.transport.TransportVersionUtils.
  * Validates that each defined transport version constant is referenced by at least one project.
  */
 @CacheableTask
-public abstract class ValidateTransportVersionDefinitionsTask extends DefaultTask {
+public abstract class ValidateTransportVersionResourcesTask extends DefaultTask {
 
     @InputDirectory
     @Optional
@@ -85,7 +85,7 @@ public abstract class ValidateTransportVersionDefinitionsTask extends DefaultTas
     Map<String, TransportVersionLatest> latestByBranch = new HashMap<>();
 
     @Inject
-    public ValidateTransportVersionDefinitionsTask(ExecOperations execOperations) {
+    public ValidateTransportVersionResourcesTask(ExecOperations execOperations) {
         this.execOperations = execOperations;
         this.rootPath = getProject().getRootProject().getLayout().getProjectDirectory().getAsFile().toPath();
     }
@@ -93,7 +93,7 @@ public abstract class ValidateTransportVersionDefinitionsTask extends DefaultTas
     @TaskAction
     public void validateTransportVersions() throws IOException {
         Path resourcesDir = getResourcesDirectory().getAsFile().get().toPath();
-        Path definitionsDir = resourcesDir.resolve("defined");
+        Path definitionsDir = resourcesDir.resolve("definitions");
         Path latestDir = resourcesDir.resolve("latest");
 
         // first check which resource files already exist in main
@@ -107,9 +107,11 @@ public abstract class ValidateTransportVersionDefinitionsTask extends DefaultTas
         // now load all definitions, do some validation and record them by various keys for later quick lookup
         // NOTE: this must run after loading referenced names and existing definitions
         // NOTE: this is sorted so that the order of cross validation is deterministic
-        try (var definitionsStream = Files.list(definitionsDir).sorted()) {
-            for (var definitionFile : definitionsStream.toList()) {
-                recordAndValidateDefinition(readDefinitionFile(definitionFile));
+        for (String subDir : List.of("initial", "named")) {
+            try (var definitionsStream = Files.list(definitionsDir.resolve(subDir)).sorted()) {
+                for (var definitionFile : definitionsStream.toList()) {
+                    recordAndValidateDefinition(readDefinitionFile(definitionFile));
+                }
             }
         }
 

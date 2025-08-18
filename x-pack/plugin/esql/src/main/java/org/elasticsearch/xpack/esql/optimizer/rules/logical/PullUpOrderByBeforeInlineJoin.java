@@ -14,11 +14,11 @@ import org.elasticsearch.xpack.esql.plan.logical.SortAgnostic;
 import org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin;
 
 /**
- * Pulls "up" an {@link OrderBy} node that is not preceded by a {@link Limit}, but is preceded by an {@link InlineJoin}.
- * The InlineJoin is {@link SortAgnostic}, so the OrderBy can be pulled up without affecting the semantics of the join.
+ * Pulls "up" an {@link OrderBy} node that is not preceded by a not {@link SortAgnostic} node (such as {@link Limit}), but is preceded by an
+ * {@link InlineJoin}. The InlineJoin is {@link SortAgnostic}, so the OrderBy can be pulled up without affecting the semantics of the join.
  * This is needed since otherwise the OrderBy would remain to be executed unbounded, which isn't supported.
- * If it's preceded by a {@link Limit}, it will be merged into a {@link org.elasticsearch.xpack.esql.plan.logical.TopN} later in the
- * "cleanup" optimization stage.
+ * Specifically, if it's preceded by a {@link Limit}, it will be merged into a {@link org.elasticsearch.xpack.esql.plan.logical.TopN} later
+ * in the "cleanup" optimization stage.
  */
 public final class PullUpOrderByBeforeInlineJoin extends OptimizerRules.OptimizerRule<LogicalPlan> {
 

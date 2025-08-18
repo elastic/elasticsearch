@@ -35,7 +35,6 @@ public abstract class Attribute extends NamedExpression {
 
     // can the attr be null
     private final Nullability nullability;
-    // TODO: update all subclasses to correctly serialize this field
     private final String qualifier;
 
     public Attribute(Source source, String name, @Nullable NameId id) {
@@ -159,13 +158,13 @@ public abstract class Attribute extends NamedExpression {
     @Override
     @SuppressWarnings("checkstyle:EqualsHashCode")// equals is implemented in parent. See innerEquals instead
     public int hashCode() {
-        return Objects.hash(super.hashCode(), nullability);
+        return Objects.hash(super.hashCode(), qualifier, nullability);
     }
 
     @Override
     protected boolean innerEquals(Object o) {
         var other = (Attribute) o;
-        return super.innerEquals(other) && Objects.equals(nullability, other.nullability);
+        return super.innerEquals(other) && Objects.equals(qualifier, other.qualifier) && Objects.equals(nullability, other.nullability);
     }
 
     @Override

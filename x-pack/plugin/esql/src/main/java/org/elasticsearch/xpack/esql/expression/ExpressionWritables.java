@@ -130,7 +130,6 @@ public class ExpressionWritables {
     }
 
     public static List<NamedWriteableRegistry.Entry> namedExpressions() {
-        // TODO: update entries, add qualifiers to serialization code
         List<NamedWriteableRegistry.Entry> entries = new ArrayList<>();
         entries.addAll(ExpressionCoreWritables.namedExpressions());
         entries.add(UnsupportedAttribute.NAMED_EXPRESSION_ENTRY);

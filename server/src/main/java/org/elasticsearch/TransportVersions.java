@@ -364,6 +364,7 @@ public class TransportVersions {
     public static final TransportVersion EXTENDED_SNAPSHOT_STATS_IN_NODE_INFO = def(9_137_0_00);
     public static final TransportVersion SIMULATE_INGEST_MAPPING_MERGE_TYPE = def(9_138_0_00);
     public static final TransportVersion ESQL_LOOKUP_JOIN_ON_MANY_FIELDS = def(9_139_0_00);
+    public static final TransportVersion ESQL_QUALIFIERS_IN_ATTRIBUTES = def(9_140_0_00);
 
     /*
      * STOP! READ THIS FIRST! No, really,

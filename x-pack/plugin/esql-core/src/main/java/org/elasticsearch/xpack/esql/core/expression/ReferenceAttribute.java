@@ -55,25 +55,24 @@ public class ReferenceAttribute extends TypedAttribute {
         super(source, qualifier, name, dataType, nullability, id, synthetic);
     }
 
-    @Deprecated
-    /**
-     * Old constructor from when this had a qualifier string. Still needed to not break serialization.
-     */
-    // TODO: clean up/remove
-    private ReferenceAttribute(
-        Source source,
-        String name,
-        DataType dataType,
-        String qualifier,
-        Nullability nullability,
-        NameId id,
-        boolean synthetic
-    ) {
-        this(source, qualifier, name, dataType, nullability, id, synthetic);
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        if (((PlanStreamOutput) out).writeAttributeCacheHeader(this)) {
+            Source.EMPTY.writeTo(out);
+            out.writeString(name());
+            dataType().writeTo(out);
+            out.writeOptionalString(qualifier());
+            out.writeEnum(nullable());
+            id().writeTo(out);
+            out.writeBoolean(synthetic());
+        }
     }
 
-    @SuppressWarnings("unchecked")
-    private ReferenceAttribute(StreamInput in) throws IOException {
+    public static ReferenceAttribute readFrom(StreamInput in) throws IOException {
+        return ((PlanStreamInput) in).readAttributeWithCache(ReferenceAttribute::innerReadFrom);
+    }
+
+    private static ReferenceAttribute innerReadFrom(StreamInput in) throws IOException {
         /*
          * The funny casting dance with `(StreamInput & PlanStreamInput) in` is required
          * because we're in esql-core here and the real PlanStreamInput is in
@@ -82,33 +81,17 @@ public class ReferenceAttribute extends TypedAttribute {
          * and NameId. This should become a hard cast when we move everything out
          * of esql-core.
          */
-        this(
-            Source.readFrom((StreamInput & PlanStreamInput) in),
-            in.readString(),
-            DataType.readFrom(in),
-            in.readOptionalString(),
-            in.readEnum(Nullability.class),
-            NameId.readFrom((StreamInput & PlanStreamInput) in),
-            in.readBoolean()
-        );
-    }
+        Source source = Source.readFrom((StreamInput & PlanStreamInput) in);
+        // We could cache this if we wanted to.
+        String name = in.readString();
+        DataType dataType = DataType.readFrom(in);
+        // Also cacheable
+        String qualifier = in.readOptionalString();
+        Nullability nullability = in.readEnum(Nullability.class);
+        NameId id = NameId.readFrom((StreamInput & PlanStreamInput) in);
+        boolean synthetic = in.readBoolean();
 
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        if (((PlanStreamOutput) out).writeAttributeCacheHeader(this)) {
-            Source.EMPTY.writeTo(out);
-            out.writeString(name());
-            dataType().writeTo(out);
-            // We used to write the qualifier here. We can still do if needed in the future.
-            out.writeOptionalString(null);
-            out.writeEnum(nullable());
-            id().writeTo(out);
-            out.writeBoolean(synthetic());
-        }
-    }
-
-    public static ReferenceAttribute readFrom(StreamInput in) throws IOException {
-        return ((PlanStreamInput) in).readAttributeWithCache(ReferenceAttribute::new);
+        return new ReferenceAttribute(source, qualifier, name, dataType, nullability, id, synthetic);
     }
 
     @Override

@@ -183,7 +183,6 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                         try (
                             var computeListener = new ComputeListener(threadPool, onGroupFailure, l.map(ignored -> nodeResponseRef.get()))
                         ) {
-                            // FIXME(gal, NOCOMMIT) Removed this for the top n late materialization tests to pass.
                             // final boolean sameNode = transportService.getLocalNode().getId().equals(connection.getNode().getId());
                             var dataNodeRequest = new DataNodeRequest(
                                 childSessionId,

@@ -41,6 +41,7 @@ import org.elasticsearch.transport.Transports;
 import java.io.IOException;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
@@ -63,7 +64,12 @@ public class RestBulkAction extends BaseRestHandler {
 
     public static final String TYPES_DEPRECATION_MESSAGE = "[types removal] Specifying types in bulk requests is deprecated.";
     public static final String FAILURE_STORE_STATUS_CAPABILITY = "failure_store_status";
-    public static final Set<String> STREAMS_ALLOWED_PARAMS = Set.of("timeout", "error_trace");
+    public static final LinkedHashSet<String> STREAMS_ALLOWED_PARAMS = new LinkedHashSet<>(2) {
+        {
+            add("error_trace");
+            add("timeout");
+        }
+    };
 
     private final boolean allowExplicitIndex;
     private final IncrementalBulkService bulkHandler;

@@ -79,7 +79,9 @@ public final class IgnoreNullMetrics extends Rule<LogicalPlan, LogicalPlan> {
         logicalPlan.forEachDown(p -> {
             if (p instanceof UnaryPlan up) {
                 for (Attribute attr : up.inputSet()) {
-                    // Check if it's a metric. I think I need https://github.com/elastic/elasticsearch/pull/131463 to do that
+                    if (attr.isMetric()) {
+                        metrics.add(attr);
+                    }
                 }
             }
         });

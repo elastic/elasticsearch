@@ -48,6 +48,7 @@ import java.util.function.LongSupplier;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_VERSION_CREATED;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
@@ -384,7 +385,17 @@ public class WriteLoadConstraintMonitorTests extends ESTestCase {
         verify(testState.rerouteService).reroute(anyString(), eq(Priority.NORMAL), any());
         reset(testState.rerouteService);
 
-        // Now update cluster info to add to the hot-spotted nodes
+        assertThat(
+            "Test setup should leave at least two nodes not hot-spotted",
+            testState.clusterInfo.getNodeUsageStatsForThreadPools().size() - testState.clusterInfo.getNodeUsageStatsForThreadPools()
+                .values()
+                .stream()
+                .filter(stats -> nodeExceedsQueueLatencyThreshold(stats, testState.latencyThresholdMillis))
+                .count(),
+            greaterThanOrEqualTo(2L)
+        );
+
+        // Now update cluster info to add to an additional hot-spotted node
         final AtomicBoolean thresholdIncreased = new AtomicBoolean(false);
         var nodeUsageStatsWithExtraHotSpot = Maps.transformValues(testState.clusterInfo.getNodeUsageStatsForThreadPools(), stats -> {
             if (thresholdIncreased.get() == false && nodeExceedsQueueLatencyThreshold(stats, testState.latencyThresholdMillis) == false) {

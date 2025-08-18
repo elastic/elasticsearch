@@ -31,7 +31,7 @@ public class XContentRowEncoderTests extends ComputeTestCase {
     public void testEncode() {
         // Create a DriverContext, which is required by the encoder
         BlockFactory blockFactory = blockFactory();
-        DriverContext driverContext = new DriverContext(BigArrays.NON_RECYCLING_INSTANCE, blockFactory, DriverContext.Phase.OTHER);
+        DriverContext driverContext = new DriverContext(BigArrays.NON_RECYCLING_INSTANCE, blockFactory);
 
         // Define the fields to be encoded, along with mock evaluators that will produce the data
         Map<ColumnInfoImpl, EvalOperator.ExpressionEvaluator.Factory> fields = new LinkedHashMap<>();

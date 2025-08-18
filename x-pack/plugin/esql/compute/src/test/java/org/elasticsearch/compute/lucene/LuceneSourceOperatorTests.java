@@ -427,6 +427,11 @@ public class LuceneSourceOperatorTests extends AnyOperatorTestCase {
         }
 
         @Override
+        public int globalIndex() {
+            return index;
+        }
+
+        @Override
         public int index() {
             return index;
         }

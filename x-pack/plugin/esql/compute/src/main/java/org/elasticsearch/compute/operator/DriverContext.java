@@ -64,6 +64,11 @@ public class DriverContext {
 
     private final Phase phase;
 
+    // Mostly used by tests. Production code should pass an explicit phase.
+    public DriverContext(BigArrays bigArrays, BlockFactory blockFactory) {
+        this(bigArrays, blockFactory, WarningsMode.COLLECT, Phase.OTHER);
+    }
+
     public DriverContext(BigArrays bigArrays, BlockFactory blockFactory, Phase phase) {
         this(bigArrays, blockFactory, WarningsMode.COLLECT, phase);
     }

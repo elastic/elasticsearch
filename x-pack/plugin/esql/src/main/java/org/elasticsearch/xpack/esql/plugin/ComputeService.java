@@ -60,9 +60,7 @@ import org.elasticsearch.xpack.esql.optimizer.LocalLogicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalOptimizerContext.ProjectAfterTopN;
 import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalPlanOptimizer;
-import org.elasticsearch.xpack.esql.plan.logical.Enrich;
-import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
-import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.RemoveProjectAfterTopN;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSinkExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
@@ -773,10 +771,6 @@ public class ComputeService {
         if (fragment == null) {
             return Optional.empty();
         }
-        if (isTopNCompatible(fragment) == false) {
-            // If the fragment references multiple indices, we don't need to do anything special.
-            return Optional.empty();
-        }
         var fakeSearchStats = new SearchStatsHacks();
         final var logicalOptimizer = new LocalLogicalPlanOptimizer(
             new LocalLogicalOptimizerContext(configuration, foldCtx, fakeSearchStats)
@@ -791,23 +785,14 @@ public class ComputeService {
             }
         };
         var localPlan = PlannerUtils.localPlan(plan, logicalOptimizer, physicalOptimizer);
-        PhysicalPlan result = localPlan.transformUp(TopNExec.class, topN -> {
-            var child = topN.child();
-            return topN.replaceChild(new ExchangeSourceExec(topN.source(), child.output(), false /* isIntermediateAgg */));
-        });
-        return Optional.of(((UnaryExec) result).child());
-    }
-
-    /**
-     * Since we can't predict the actual optimized plan without the proper index stats, which we don't have during the reduce planning
-     * phase, we choose (for now) to take the easy route of just turning off this optimization for multi-index queries. A similar check
-     * is done during the planning in {@link org.elasticsearch.xpack.esql.optimizer.rules.physical.local.RemoveProjectAfterTopN}.
-     */
-    private static boolean isTopNCompatible(FragmentExec fragmentExec) {
-        LogicalPlan fragment = fragmentExec.fragment();
-        // FIXME(gal, NOCOMMIT) Document enrich as well
-        return fragment.anyMatch(p -> p instanceof EsRelation relation && relation.indexNameWithModes().size() > 1) == false
-            && fragment.anyMatch(p -> p instanceof Enrich) == false;
+        if (RemoveProjectAfterTopN.isTopNCompatible(localPlan)) {
+            PhysicalPlan result = localPlan.transformUp(TopNExec.class, topN -> {
+                var child = topN.child();
+                return topN.replaceChild(new ExchangeSourceExec(topN.source(), child.output(), false /* isIntermediateAgg */));
+            });
+            return Optional.of(((UnaryExec) result).child());
+        }
+        return Optional.empty();
     }
 
     // A hack to avoid the ReplaceFieldWithConstantOrNull optimization, since we don't have search stats during the reduce planning phase.

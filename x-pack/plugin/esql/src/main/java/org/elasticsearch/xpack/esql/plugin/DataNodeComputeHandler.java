@@ -237,7 +237,6 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
         private final int maxConcurrentShards;
         private final ExchangeSink blockingSink; // block until we have completed on all shards or the coordinator has enough data
         private final boolean failFastOnShardFailure;
-        private final AtomicInteger globalIndex = new AtomicInteger(0);
         private final Map<ShardId, Exception> shardLevelFailures;
         private final List<ComputeSearchContext> reduceNodeSearchContexts;
 
@@ -363,12 +362,8 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                         // we need to limit the number of active search contexts here or in SearchService
                         context = searchService.createSearchContext(shardRequest, SearchService.NO_TIMEOUT);
                         context.preProcess();
-                        // FIXME(gal, NOCOMMIT) Yuck
-                        int globalIndex = -1;
                         synchronized (reduceNodeSearchContexts) {
-                            globalIndex = this.globalIndex.getAndIncrement();
-                            assert globalIndex == reduceNodeSearchContexts.size()
-                                : "globalIndex: " + globalIndex + ", reduceNodeSearchContexts.size(): " + reduceNodeSearchContexts.size();
+                            int globalIndex = reduceNodeSearchContexts.size();
                             ComputeSearchContext cse = new ComputeSearchContext(i, globalIndex, context);
                             reduceNodeSearchContexts.add(cse);
                             searchContexts.add(cse);

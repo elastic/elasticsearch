@@ -33,6 +33,7 @@ public final class DocVector extends AbstractVector implements Vector {
     public static final int SHARD_SEGMENT_DOC_MAP_PER_ROW_OVERHEAD = Integer.BYTES * 2;
 
     private final IntVector shards;
+    /** See {@link org.elasticsearch.compute.lucene.ShardContext#globalIndex()} */
     private final int globalShard;
     private final IntVector segments;
     private final IntVector docs;
@@ -62,7 +63,6 @@ public final class DocVector extends AbstractVector implements Vector {
     public DocVector(
         ShardRefCounted shardRefCounters,
         IntVector shards,
-        // FIXME(gal, NOCOMMIT) document
         int globalShard,
         IntVector segments,
         IntVector docs,

@@ -24,7 +24,10 @@ import java.util.Optional;
  * Context of each shard we're operating against.
  */
 public interface ShardContext extends RefCounted {
-    // FIXME(gal, NOCOMMIT) Document
+    /**
+     * The index of this shard in the global list, which is held by the reduce coordinator. This is used by the reduce-side
+     * {@link org.elasticsearch.compute.operator.topn.TopNOperator} to convert the local index (see {@link #index()}) to the global index.
+     */
     int globalIndex();
 
     /**

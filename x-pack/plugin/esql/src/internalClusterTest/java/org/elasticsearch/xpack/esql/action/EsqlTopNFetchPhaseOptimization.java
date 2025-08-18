@@ -19,7 +19,6 @@ import org.elasticsearch.compute.operator.OperatorStatus;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.MockSearchService;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
@@ -35,8 +34,6 @@ import static org.hamcrest.Matchers.hasSize;
 
 // Verifies that the value source reader operator is optimized into the data node instead of the worker node.
 @ESIntegTestCase.ClusterScope(numDataNodes = 3)
-// FIXME(gal, NOCOMMIT) remove, for debugging only
-@TestLogging(value = "org.elasticsearch.xpack.esql:TRACE", reason = "debug")
 public class EsqlTopNFetchPhaseOptimization extends AbstractEsqlIntegTestCase {
     private static final int SHARD_COUNT = 1;
 

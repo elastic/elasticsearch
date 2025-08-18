@@ -24,6 +24,7 @@ import java.util.Map;
 class ResultBuilderForDoc implements ResultBuilder {
     private final BlockFactory blockFactory;
     private final int[] shards;
+    /** {@link org.elasticsearch.compute.lucene.ShardContext#globalIndex()}. */
     private int globalShard = DocVector.NO_GLOBAL_SHARD;
     private final int[] segments;
     private final int[] docs;
@@ -58,21 +59,21 @@ class ResultBuilderForDoc implements ResultBuilder {
         if (nextRefCounted == null) {
             throw new IllegalStateException("setNextRefCounted must be set before each decodeValue call");
         }
-        // FIXME(gal, NOCOMMIT) document global shard stuff
         shards[position] = TopNEncoder.DEFAULT_UNSORTABLE.decodeInt(values); // Skipping over the original local shard.
         int globalShard = TopNEncoder.DEFAULT_UNSORTABLE.decodeInt(values);
         switch (phase) {
-            case REDUCE -> shards[position] = globalShard;
             case OTHER -> {
-                if (globalShard == DocVector.NO_GLOBAL_SHARD) {
-                    assert globalShard == this.globalShard : "global shard must be the same for all rows";
-                } else {
+                // We need to keep the global shard around for the reduce phase. However, since this we are in (presumably) local data
+                // phase, all shards should share the same global shard.
+                if (this.globalShard == DocVector.NO_GLOBAL_SHARD) {
                     this.globalShard = globalShard;
+                } else {
+                    assert globalShard == this.globalShard : "global shard must be the same for all rows";
                 }
             }
-
+            // Swap the local index with the global one, so it can be used by later field extractors.
+            case REDUCE -> shards[position] = globalShard;
         }
-        // Since the doc (might) next be used by a more global worker, we set the global shard as the local shard.
         segments[position] = TopNEncoder.DEFAULT_UNSORTABLE.decodeInt(values);
         docs[position] = TopNEncoder.DEFAULT_UNSORTABLE.decodeInt(values);
         refCounted.putIfAbsent(shards[position], nextRefCounted);
@@ -87,7 +88,6 @@ class ResultBuilderForDoc implements ResultBuilder {
         IntVector segmentsVector = null;
         try {
             shardsVector = blockFactory.newIntArrayVector(shards, position);
-            // FIXME(gal, NOCOMMIT) document
             segmentsVector = blockFactory.newIntArrayVector(segments, position);
             var docsVector = blockFactory.newIntArrayVector(docs, position);
             DocVector docVector = new DocVector(

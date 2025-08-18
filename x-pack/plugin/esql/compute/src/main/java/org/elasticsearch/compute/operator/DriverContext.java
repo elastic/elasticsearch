@@ -207,7 +207,6 @@ public class DriverContext {
         return phase;
     }
 
-    // FIXME(gal, NOCOMMIT) document
     public enum Phase {
         REDUCE,
         OTHER;

@@ -9,15 +9,19 @@
       "_meta": {
         "version": "${fleet.version}",
         "managed_index_mappings_version": ${fleet.managed.index.version},
-        "description": "Integration package knowledge base content storage",
-        "managed": true
+        "description": "Integration package knowledge base content storage"
       },
       "properties": {
         "filename": {
           "type": "keyword"
         },
         "content": {
-          "type": "semantic_text"
+          "type": "semantic_text",
+          "inference_id": ".elser-2-elasticsearch",
+          "model_settings": {
+            "service": "elasticsearch",
+            "task_type": "sparse_embedding"
+          }
         },
         "version": {
           "type": "version"

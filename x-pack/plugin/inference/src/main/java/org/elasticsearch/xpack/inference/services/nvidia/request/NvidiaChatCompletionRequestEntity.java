@@ -34,10 +34,7 @@ public class NvidiaChatCompletionRequestEntity implements ToXContentObject {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        unifiedRequestEntity.toXContent(
-            builder,
-            UnifiedCompletionRequest.withMaxTokens(model.getServiceSettings().modelId(), params)
-        );
+        unifiedRequestEntity.toXContent(builder, UnifiedCompletionRequest.withMaxTokens(model.getServiceSettings().modelId(), params));
         builder.endObject();
         return builder;
     }

@@ -254,24 +254,22 @@ public class OptimizerVerificationTests extends AbstractLogicalPlanOptimizerTest
             | %s
             """, lookupCommand), analyzer);
 
-        String err = error(Strings.format("""
+        plan(Strings.format("""
             FROM test
             | EVAL language_code = languages
             | %s
             | ENRICH _remote:languages ON language_code
             """, lookupCommand), analyzer);
-        assertThat(err, containsString("4:3: ENRICH with remote policy can't be executed after [" + lookupCommand + "]@3:3"));
 
-        err = error(Strings.format("""
+        plan(Strings.format("""
             FROM test
             | EVAL language_code = languages
             | %s
             | ENRICH _remote:languages ON language_code
             | %s
             """, lookupCommand, lookupCommand), analyzer);
-        assertThat(err, containsString("4:3: ENRICH with remote policy can't be executed after [" + lookupCommand + "]@3:3"));
 
-        err = error(Strings.format("""
+        plan(Strings.format("""
             FROM test
             | EVAL language_code = languages
             | %s
@@ -279,7 +277,6 @@ public class OptimizerVerificationTests extends AbstractLogicalPlanOptimizerTest
             | MV_EXPAND language_code
             | ENRICH _remote:languages ON language_code
             """, lookupCommand), analyzer);
-        assertThat(err, containsString("6:3: ENRICH with remote policy can't be executed after [" + lookupCommand + "]@3:3"));
     }
 
     public void testRemoteLookupJoinWithPipelineBreaker() {

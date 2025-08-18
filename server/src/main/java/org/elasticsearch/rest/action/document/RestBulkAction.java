@@ -63,7 +63,7 @@ public class RestBulkAction extends BaseRestHandler {
 
     public static final String TYPES_DEPRECATION_MESSAGE = "[types removal] Specifying types in bulk requests is deprecated.";
     public static final String FAILURE_STORE_STATUS_CAPABILITY = "failure_store_status";
-    public static final Set<String> STREAMS_ALLOWED_PARAMS = Set.of("timeout");
+    public static final Set<String> STREAMS_ALLOWED_PARAMS = Set.of("timeout", "error_trace");
 
     private final boolean allowExplicitIndex;
     private final IncrementalBulkService bulkHandler;

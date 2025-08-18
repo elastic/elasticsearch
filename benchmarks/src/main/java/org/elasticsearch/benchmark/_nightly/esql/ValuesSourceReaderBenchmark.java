@@ -525,6 +525,7 @@ public class ValuesSourceReaderBenchmark {
                                 new DocVector(
                                     ShardRefCounted.ALWAYS_REFERENCED,
                                     blockFactory.newConstantIntBlockWith(0, end - begin).asVector(),
+                                    DocVector.NO_GLOBAL_SHARD,
                                     blockFactory.newConstantIntBlockWith(ctx.ord, end - begin).asVector(),
                                     docs.build(),
                                     true
@@ -560,9 +561,9 @@ public class ValuesSourceReaderBenchmark {
                             pages.add(
                                 new Page(
                                     new DocVector(
-
                                         ShardRefCounted.ALWAYS_REFERENCED,
                                         blockFactory.newConstantIntVector(0, size),
+                                        DocVector.NO_GLOBAL_SHARD,
                                         leafs.build(),
                                         docs.build(),
                                         null
@@ -581,6 +582,7 @@ public class ValuesSourceReaderBenchmark {
                             new DocVector(
                                 ShardRefCounted.ALWAYS_REFERENCED,
                                 blockFactory.newConstantIntBlockWith(0, size).asVector(),
+                                DocVector.NO_GLOBAL_SHARD,
                                 leafs.build().asBlock().asVector(),
                                 docs.build(),
                                 null
@@ -606,9 +608,9 @@ public class ValuesSourceReaderBenchmark {
                         pages.add(
                             new Page(
                                 new DocVector(
-
                                     ShardRefCounted.ALWAYS_REFERENCED,
                                     blockFactory.newConstantIntVector(0, 1),
+                                    DocVector.NO_GLOBAL_SHARD,
                                     blockFactory.newConstantIntVector(next.ord, 1),
                                     blockFactory.newConstantIntVector(next.itr.nextInt(), 1),
                                     true

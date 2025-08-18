@@ -86,8 +86,12 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
     }
 
     abstract CentroidIterator getCentroidIterator(
-        FieldInfo fieldInfo, int numCentroids, IndexInput centroids, float[] target, IndexInput postingListSlice)
-        throws IOException;
+        FieldInfo fieldInfo,
+        int numCentroids,
+        IndexInput centroids,
+        float[] target,
+        IndexInput postingListSlice
+    ) throws IOException;
 
     private static IndexInput openDataInput(
         SegmentReadState state,
@@ -244,7 +248,12 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
         long maxVectorVisited = (long) (2.0 * visitRatio * numVectors);
         IndexInput postListSlice = entry.postingListSlice(ivfClusters);
         CentroidIterator centroidPrefetchingIterator = getCentroidIterator(
-            fieldInfo, entry.numCentroids, entry.centroidSlice(ivfCentroids), target, postListSlice);
+            fieldInfo,
+            entry.numCentroids,
+            entry.centroidSlice(ivfCentroids),
+            target,
+            postListSlice
+        );
         PostingVisitor scorer = getPostingVisitor(fieldInfo, postListSlice, target, acceptDocs);
         long expectedDocs = 0;
         long actualDocs = 0;

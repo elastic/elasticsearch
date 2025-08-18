@@ -49,8 +49,9 @@ public class DefaultIVFVectorsReader extends IVFVectorsReader implements OffHeap
 
     CentroidIterator getPostingListPrefetchIterator(CentroidIterator centroidIterator, IndexInput postingListSlice) throws IOException {
         return new CentroidIterator() {
-            CentroidOffsetAndLength nextOffsetAndLength =
-                centroidIterator.hasNext() ? centroidIterator.nextPostingListOffsetAndLength() : null;
+            CentroidOffsetAndLength nextOffsetAndLength = centroidIterator.hasNext()
+                ? centroidIterator.nextPostingListOffsetAndLength()
+                : null;
 
             private void prefetch(CentroidOffsetAndLength offsetAndLength) throws IOException {
                 postingListSlice.prefetch(offsetAndLength.offset(), offsetAndLength.length());
@@ -78,8 +79,12 @@ public class DefaultIVFVectorsReader extends IVFVectorsReader implements OffHeap
 
     @Override
     CentroidIterator getCentroidIterator(
-        FieldInfo fieldInfo, int numCentroids, IndexInput centroids, float[] targetQuery, IndexInput postingListSlice)
-        throws IOException {
+        FieldInfo fieldInfo,
+        int numCentroids,
+        IndexInput centroids,
+        float[] targetQuery,
+        IndexInput postingListSlice
+    ) throws IOException {
         final FieldEntry fieldEntry = fields.get(fieldInfo.number);
         final float globalCentroidDp = fieldEntry.globalCentroidDp();
         final OptimizedScalarQuantizer scalarQuantizer = new OptimizedScalarQuantizer(fieldInfo.getVectorSimilarityFunction());
@@ -114,7 +119,15 @@ public class DefaultIVFVectorsReader extends IVFVectorsReader implements OffHeap
                 globalCentroidDp
             );
         } else {
-            centroidIterator = getCentroidIteratorNoParent(fieldInfo, centroids, numCentroids, scorer, quantized, queryParams, globalCentroidDp);
+            centroidIterator = getCentroidIteratorNoParent(
+                fieldInfo,
+                centroids,
+                numCentroids,
+                scorer,
+                quantized,
+                queryParams,
+                globalCentroidDp
+            );
         }
         return getPostingListPrefetchIterator(centroidIterator, postingListSlice);
     }

@@ -178,6 +178,10 @@ public final class RemoteClusterService extends RemoteClusterAware
         if (remoteClusterServerEnabled) {
             registerRemoteClusterHandshakeRequestHandler(transportService);
         }
+        /*
+         * TODO: This is not the right way to check if we're in CPS context and is more of a temporary measure since
+         *  the functionality to do it the right way is not yet ready -- replace this code when it's ready.
+         */
         this.inSkippableContext = settings.getAsBoolean("serverless.cross_project.enabled", false);
     }
 

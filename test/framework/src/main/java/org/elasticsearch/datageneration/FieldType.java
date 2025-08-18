@@ -52,7 +52,7 @@ public enum FieldType {
     IP("ip"),
     CONSTANT_KEYWORD("constant_keyword"),
     PASSTHROUGH("passthrough"), // For now this field type does not have default generators.
-    WILDCARD("wildcard");
+    WILDCARD("wildcard"),
     MATCH_ONLY_TEXT("match_only_text");
 
     private final String name;

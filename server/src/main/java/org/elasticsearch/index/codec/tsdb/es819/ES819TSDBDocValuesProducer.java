@@ -1019,7 +1019,7 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
      */
     static int primarySortFieldNumber(SegmentInfo segmentInfo, FieldInfos fieldInfos) {
         final var indexSort = segmentInfo.getIndexSort();
-        if (indexSort != null || indexSort.getSort().length > 0) {
+        if (indexSort != null && indexSort.getSort().length > 0) {
             SortField sortField = indexSort.getSort()[0];
             if (sortField.getReverse() == false) {
                 FieldInfo fieldInfo = fieldInfos.fieldInfo(sortField.getField());

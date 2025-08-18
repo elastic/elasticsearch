@@ -43,7 +43,6 @@ public class TransportUnifiedCompletionInferenceAction extends BaseTransportInfe
         InferenceServiceRegistry serviceRegistry,
         InferenceStats inferenceStats,
         StreamingTaskManager streamingTaskManager,
-        InferenceServiceRateLimitCalculator inferenceServiceNodeLocalRateLimitCalculator,
         NodeClient nodeClient,
         ThreadPool threadPool
     ) {
@@ -57,7 +56,6 @@ public class TransportUnifiedCompletionInferenceAction extends BaseTransportInfe
             inferenceStats,
             streamingTaskManager,
             UnifiedCompletionAction.Request::new,
-            inferenceServiceNodeLocalRateLimitCalculator,
             nodeClient,
             threadPool
         );

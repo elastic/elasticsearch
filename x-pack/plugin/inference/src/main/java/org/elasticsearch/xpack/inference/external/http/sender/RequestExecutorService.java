@@ -19,7 +19,6 @@ import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.inference.common.AdjustableCapacityBlockingQueue;
-import org.elasticsearch.xpack.inference.common.InferenceServiceNodeLocalRateLimitCalculator;
 import org.elasticsearch.xpack.inference.common.RateLimiter;
 import org.elasticsearch.xpack.inference.external.http.RequestExecutor;
 import org.elasticsearch.xpack.inference.external.http.retry.RequestSender;
@@ -411,7 +410,7 @@ public class RequestExecutorService implements RequestExecutor {
          *
          * @param divisor - divisor to divide the initial requests per time unit by
          */
-        public synchronized void updateTokensPerTimeUnit(Integer divisor) {
+        private synchronized void updateTokensPerTimeUnit(Integer divisor) {
             double updatedTokensPerTimeUnit = (double) originalRequestsPerTimeUnit / divisor;
             rateLimiter.setRate(ACCUMULATED_TOKENS_LIMIT, updatedTokensPerTimeUnit, rateLimitSettings.timeUnit());
         }

@@ -75,9 +75,9 @@ public record ESONFlat(List<ESONEntry> keys, ESONSource.Values values, AtomicRef
                 streamOutput.writeVInt(keys.size());
                 for (ESONEntry entry : keys) {
                     String key = entry.key() == null ? "" : entry.key();
-//                    byte[] bytes = key == null ? EMPTY_KEY : key.getBytes(StandardCharsets.UTF_8);
-//                    streamOutput.writeVInt(bytes.length);
-//                    streamOutput.writeBytes(bytes, 0, bytes.length);
+                    // byte[] bytes = key == null ? EMPTY_KEY : key.getBytes(StandardCharsets.UTF_8);
+                    // streamOutput.writeVInt(bytes.length);
+                    // streamOutput.writeBytes(bytes, 0, bytes.length);
                     streamOutput.writeUTF8String(key);
                     streamOutput.writeByte(entry.type());
                     streamOutput.writeInt(entry.offsetOrCount());

@@ -537,6 +537,54 @@ tests:
 - class: org.elasticsearch.cluster.ClusterInfoServiceIT
   method: testMaxQueueLatenciesInClusterInfo
   issue: https://github.com/elastic/elasticsearch/issues/132957
+- class: org.elasticsearch.test.rest.yaml.CcsCommonYamlTestSuiteIT
+  method: test {p0=search/400_synthetic_source/_doc_count}
+  issue: https://github.com/elastic/elasticsearch/issues/132965
+- class: org.elasticsearch.index.mapper.LongFieldMapperTests
+  method: testSyntheticSourceWithTranslogSnapshot
+  issue: https://github.com/elastic/elasticsearch/issues/132964
+- class: org.elasticsearch.test.rest.yaml.CcsCommonYamlTestSuiteIT
+  method: test {p0=search/160_exists_query/Test exists query on unmapped float field}
+  issue: https://github.com/elastic/elasticsearch/issues/132984
+- class: org.elasticsearch.xpack.esql.analysis.AnalyzerTests
+  method: testMagnitudePlanWithDenseVectorImplicitCasting
+  issue: https://github.com/elastic/elasticsearch/issues/132985
+- class: org.elasticsearch.xpack.search.AsyncSearchErrorTraceIT
+  method: testAsyncSearchFailingQueryErrorTraceDefault
+  issue: https://github.com/elastic/elasticsearch/issues/133010
+- class: org.elasticsearch.xpack.esql.plugin.IndexResolutionIT
+  method: testDoesNotResolveClosedIndex
+  issue: https://github.com/elastic/elasticsearch/issues/133011
+- class: org.elasticsearch.test.rest.yaml.CcsCommonYamlTestSuiteIT
+  method: test {p0=search/510_range_query_out_of_bounds/Test range query for float field with out of bounds lower limit}
+  issue: https://github.com/elastic/elasticsearch/issues/133012
+- class: org.elasticsearch.test.rest.yaml.CcsCommonYamlTestSuiteIT
+  method: test {p0=field_caps/10_basic/Field caps for boolean field with only doc values}
+  issue: https://github.com/elastic/elasticsearch/issues/133019
+- class: org.elasticsearch.test.rest.yaml.CcsCommonYamlTestSuiteIT
+  method: test {p0=search/160_exists_query/Test exists query on unmapped boolean field}
+  issue: https://github.com/elastic/elasticsearch/issues/133029
+- class: org.elasticsearch.xpack.remotecluster.RemoteClusterSecurityEsqlIT
+  method: testCrossClusterEnrichWithOnlyRemotePrivs
+  issue: https://github.com/elastic/elasticsearch/issues/133031
+- class: org.elasticsearch.test.rest.yaml.CcsCommonYamlTestSuiteIT
+  method: test {p0=search.vectors/45_knn_search_bit/Vector similarity with filter only}
+  issue: https://github.com/elastic/elasticsearch/issues/133037
+- class: org.elasticsearch.test.rest.yaml.CcsCommonYamlTestSuiteIT
+  method: test {p0=search.vectors/45_knn_search_bit/Vector rescoring has no effect for non-quantized vectors and provides same results as non-rescored knn}
+  issue: https://github.com/elastic/elasticsearch/issues/133039
+- class: org.elasticsearch.test.rest.yaml.CcsCommonYamlTestSuiteIT
+  method: test {p0=search.highlight/50_synthetic_source/text multi fvh source order}
+  issue: https://github.com/elastic/elasticsearch/issues/133056
+- class: org.elasticsearch.upgrades.SyntheticSourceRollingUpgradeIT
+  method: testIndexing {upgradedNodes=1}
+  issue: https://github.com/elastic/elasticsearch/issues/133060
+- class: org.elasticsearch.upgrades.SyntheticSourceRollingUpgradeIT
+  method: testIndexing {upgradedNodes=0}
+  issue: https://github.com/elastic/elasticsearch/issues/133061
+- class: org.elasticsearch.xpack.test.rest.XPackRestIT
+  method: test {p0=esql/60_usage/Basic ESQL usage output (telemetry) non-snapshot version}
+  issue: https://github.com/elastic/elasticsearch/issues/133014
 
 # Examples:
 #

@@ -241,6 +241,11 @@ public class EsqlCapabilities {
         FN_DAY_NAME,
 
         /**
+         * Support for function MONTH_NAME
+         */
+        FN_MONTH_NAME,
+
+        /**
          * Fixes for multiple functions not serializing their source, and emitting warnings with wrong line number and text.
          */
         FUNCTIONS_SOURCE_SERIALIZATION_WARNINGS,
@@ -1361,6 +1366,11 @@ public class EsqlCapabilities {
          * Support correct counting of skipped shards.
          */
         CORRECT_SKIPPED_SHARDS_COUNT,
+
+        /*
+         * Support for calculating the scalar vector magnitude.
+         */
+        MAGNITUDE_SCALAR_VECTOR_FUNCTION(Build.current().isSnapshot()),
 
         /**
          * Byte elements dense vector field type support.

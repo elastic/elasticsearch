@@ -274,7 +274,7 @@ public final class XmlProcessor extends AbstractProcessor {
      * @return the content, optionally wrapped in an array based on force_array setting
      */
     private Object applyForceArray(String elementName, Object content) {
-        if (forceArray && !(content instanceof List)) {
+        if (forceArray && (content instanceof List) == false) {
             List<Object> arrayContent = new ArrayList<>();
             arrayContent.add(content);  // Add content even if it's null (for empty elements)
             return arrayContent;
@@ -398,7 +398,7 @@ public final class XmlProcessor extends AbstractProcessor {
             String targetFieldName = entry.getValue();
 
             // Validate namespace prefixes if no namespaces are configured
-            if (!hasNamespaces && NAMESPACE_PATTERN.matcher(xpathExpression).matches()) {
+            if (hasNamespaces == false && NAMESPACE_PATTERN.matcher(xpathExpression).matches()) {
                 throw new IllegalArgumentException(
                     "Invalid XPath expression ["
                         + xpathExpression
@@ -591,7 +591,7 @@ public final class XmlProcessor extends AbstractProcessor {
         private Document domDocument = null;
         private final java.util.Deque<org.w3c.dom.Element> domElementStack = new java.util.ArrayDeque<>();
 
-        public XmlStreamingWithDomHandler(boolean buildDom) {
+        XmlStreamingWithDomHandler(boolean buildDom) {
             this.buildDom = buildDom;
         }
 
@@ -639,7 +639,7 @@ public final class XmlProcessor extends AbstractProcessor {
             // Build DOM element simultaneously if needed
             if (buildDom && domDocument != null) {
                 org.w3c.dom.Element domElement;
-                if (uri != null && !uri.isEmpty() && !removeNamespaces) {
+                if (uri != null && uri.isEmpty() == false && removeNamespaces == false) {
                     domElement = domDocument.createElementNS(uri, qName);
                 } else {
                     domElement = domDocument.createElement(removeNamespaces ? localName : qName);
@@ -652,7 +652,7 @@ public final class XmlProcessor extends AbstractProcessor {
                     String attrQName = attributes.getQName(i);
                     String attrValue = attributes.getValue(i);
 
-                    if (attrUri != null && !attrUri.isEmpty() && !removeNamespaces) {
+                    if (attrUri != null && attrUri.isEmpty() == false && removeNamespaces == false) {
                         domElement.setAttributeNS(attrUri, attrQName, attrValue);
                     } else {
                         domElement.setAttribute(removeNamespaces ? attrLocalName : attrQName, attrValue);
@@ -673,14 +673,14 @@ public final class XmlProcessor extends AbstractProcessor {
         @Override
         public void characters(char[] ch, int start, int length) throws org.xml.sax.SAXException {
             // Add to structured output text accumulator
-            if (!textStack.isEmpty()) {
+            if (textStack.isEmpty() == false) {
                 textStack.peek().append(ch, start, length);
             }
 
             // Add to DOM text node if needed
-            if (buildDom && !domElementStack.isEmpty()) {
+            if (buildDom && domElementStack.isEmpty() == false) {
                 String text = new String(ch, start, length);
-                if (!text.trim().isEmpty() || !removeEmptyValues) {
+                if (text.trim().isEmpty() == false || removeEmptyValues == false) {
                     org.w3c.dom.Text textNode = domDocument.createTextNode(text);
                     domElementStack.peek().appendChild(textNode);
                 }
@@ -778,7 +778,7 @@ public final class XmlProcessor extends AbstractProcessor {
             }
 
             // Complete DOM element if building DOM
-            if (buildDom && !domElementStack.isEmpty()) {
+            if (buildDom && domElementStack.isEmpty() == false) {
                 domElementStack.pop();
             }
         }
@@ -799,7 +799,7 @@ public final class XmlProcessor extends AbstractProcessor {
         private String getElementName(String uri, String localName, String qName) {
             String elementName;
             if (removeNamespaces) {
-                elementName = localName != null && !localName.isEmpty() ? localName : qName;
+                elementName = localName != null && localName.isEmpty() == false ? localName : qName;
             } else {
                 elementName = qName;
             }
@@ -815,7 +815,7 @@ public final class XmlProcessor extends AbstractProcessor {
         private String getAttributeName(String uri, String localName, String qName) {
             String attrName;
             if (removeNamespaces) {
-                attrName = localName != null && !localName.isEmpty() ? localName : qName;
+                attrName = localName != null && localName.isEmpty() == false ? localName : qName;
             } else {
                 attrName = qName;
             }

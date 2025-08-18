@@ -242,6 +242,7 @@ public class LinearRetrieverBuilderTests extends ESTestCase {
                 new StandardRetrieverBuilder(
                     new MultiMatchQueryBuilder(expectedQuery).type(MultiMatchQueryBuilder.Type.MOST_FIELDS)
                         .fields(expectedNonInferenceFields)
+                        .resolveInferenceFieldWildcards(false)
                 ),
                 1.0f,
                 expectedNormalizer

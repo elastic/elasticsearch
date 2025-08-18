@@ -1270,7 +1270,7 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
                 DirectMonotonicReader.getInstance(
                     entry.sortedOrdinals,
                     data.randomAccessSlice(entry.valuesOffset, entry.valuesLength),
-                    false
+                    true
                 )
             );
             if (entry.docsWithFieldOffset == -1) {

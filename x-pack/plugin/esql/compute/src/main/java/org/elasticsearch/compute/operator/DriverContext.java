@@ -214,7 +214,7 @@ public class DriverContext {
 
     public enum Phase {
         REDUCE,
-        OTHER;
+        OTHER
     }
 
     /**

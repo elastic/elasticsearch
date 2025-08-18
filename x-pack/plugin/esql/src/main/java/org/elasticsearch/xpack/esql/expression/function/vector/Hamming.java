@@ -32,7 +32,7 @@ public class Hamming extends VectorSimilarityFunction {
         preview = true,
         description = "Calculates the hamming distance between two dense_vectors.",
         examples = { @Example(file = "vector-hamming", tag = "vector-hamming") },
-        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.DEVELOPMENT) }
+        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.2.0") }
     )
     public Hamming(
         Source source,

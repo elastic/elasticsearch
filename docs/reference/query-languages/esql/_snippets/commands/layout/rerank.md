@@ -100,61 +100,17 @@ If you don't want to increase the timeout limit, try the following:
 
 Rerank search results using a simple query and a single field:
 
-```esql
-FROM books
-| WHERE MATCH(title, "science fiction")
-| SORT _score DESC
-| LIMIT 100
-| RERANK "science fiction" ON (title) WITH { "inference_id" : "my_reranker" }
-| LIMIT 3
-| KEEP title, _score
-```
 
-| title:keyword | _score:double |
-|---------------|---------------|
-| Neuromancer   | 0.98          |
-| Dune          | 0.95          |
-| Foundation    | 0.92          |
+:::{include} ../examples/rerank.csv-spec/simple-query.md
+:::
 
 Rerank search results using a query and multiple fields, and store the new score
 in a column named `rerank_score`:
 
-```esql
-FROM movies
-| WHERE MATCH(title, "dystopian future") OR MATCH(synopsis, "dystopian future")
-| SORT _score DESC
-| LIMIT 100
-| RERANK rerank_score = "dystopian future" ON (title, synopsis) WITH { "inference_id" : "my_reranker" }
-| SORT rerank_score DESC
-| LIMIT 5
-| KEEP title, _score, rerank_score
-```
-
-| title:keyword   | _score:double | rerank_score:double |
-|-----------------|---------------|---------------------|
-| Blade Runner    | 8.75          | 0.99                |
-| The Matrix      | 9.12          | 0.97                |
-| Children of Men | 8.50          | 0.96                |
-| Akira           | 8.99          | 0.94                |
-| Gattaca         | 8.65          | 0.91                |
+:::{include} ../examples/rerank.csv-spec/two-queries.md
+:::
 
 Combine the original score with the reranked score:
 
-```esql
-FROM movies
-| WHERE MATCH(title, "dystopian future") OR MATCH(synopsis, "dystopian future")
-| SORT _score DESC
-| LIMIT 100
-| RERANK rerank_score = "dystopian future" ON (title, synopsis) WITH { "inference_id" : "my_reranker" }
-| EVAL original_score = _score, _score = rerank_score + original_score
-| SORT _score DESC
-| LIMIT 2
-| KEEP title, original_score, rerank_score, _score
-```
-
-| title:keyword | original_score:double | rerank_score:double | _score:double |
-|---------------|-----------------------|---------------------|---------------|
-| The Matrix    | 9.12                  | 0.97                | 10.09         |
-| Akira         | 8.99                  | 0.94                | 9.93          |
-
-
+:::{include} ../examples/rerank.csv-spec/combine.md
+:::

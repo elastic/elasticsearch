@@ -1,0 +1,5 @@
+pr: 132546
+summary: Improve EIS auth call logs and fix revocation bug
+area: Machine Learning
+type: bug
+issues: []

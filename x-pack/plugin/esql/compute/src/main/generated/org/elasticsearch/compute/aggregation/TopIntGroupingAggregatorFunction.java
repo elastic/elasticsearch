@@ -66,9 +66,7 @@ public final class TopIntGroupingAggregatorFunction implements GroupingAggregato
     IntBlock vBlock = page.getBlock(channels.get(0));
     IntVector vVector = vBlock.asVector();
     if (vVector == null) {
-      if (vBlock.mayHaveNulls()) {
-        state.enableGroupIdTracking(seenGroupIds);
-      }
+      maybeEnableGroupIdTracking(seenGroupIds, vBlock);
       return new GroupingAggregatorFunction.AddInput() {
         @Override
         public void add(int positionOffset, IntArrayBlock groupIds) {
@@ -274,6 +272,12 @@ public final class TopIntGroupingAggregatorFunction implements GroupingAggregato
       int groupId = groups.getInt(groupPosition);
       int valuesPosition = groupPosition + positionOffset;
       TopIntAggregator.combineIntermediate(state, groupId, top, valuesPosition);
+    }
+  }
+
+  private void maybeEnableGroupIdTracking(SeenGroupIds seenGroupIds, IntBlock vBlock) {
+    if (vBlock.mayHaveNulls()) {
+      state.enableGroupIdTracking(seenGroupIds);
     }
   }
 

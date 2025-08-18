@@ -66,9 +66,7 @@ public final class SumFloatGroupingAggregatorFunction implements GroupingAggrega
     FloatBlock vBlock = page.getBlock(channels.get(0));
     FloatVector vVector = vBlock.asVector();
     if (vVector == null) {
-      if (vBlock.mayHaveNulls()) {
-        state.enableGroupIdTracking(seenGroupIds);
-      }
+      maybeEnableGroupIdTracking(seenGroupIds, vBlock);
       return new GroupingAggregatorFunction.AddInput() {
         @Override
         public void add(int positionOffset, IntArrayBlock groupIds) {
@@ -307,6 +305,12 @@ public final class SumFloatGroupingAggregatorFunction implements GroupingAggrega
       int groupId = groups.getInt(groupPosition);
       int valuesPosition = groupPosition + positionOffset;
       SumFloatAggregator.combineIntermediate(state, groupId, value.getDouble(valuesPosition), delta.getDouble(valuesPosition), seen.getBoolean(valuesPosition));
+    }
+  }
+
+  private void maybeEnableGroupIdTracking(SeenGroupIds seenGroupIds, FloatBlock vBlock) {
+    if (vBlock.mayHaveNulls()) {
+      state.enableGroupIdTracking(seenGroupIds);
     }
   }
 

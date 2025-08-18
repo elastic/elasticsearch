@@ -69,9 +69,7 @@ public final class SpatialExtentCartesianPointSourceValuesGroupingAggregatorFunc
     BytesRefBlock bytesBlock = page.getBlock(channels.get(0));
     BytesRefVector bytesVector = bytesBlock.asVector();
     if (bytesVector == null) {
-      if (bytesBlock.mayHaveNulls()) {
-        state.enableGroupIdTracking(seenGroupIds);
-      }
+      maybeEnableGroupIdTracking(seenGroupIds, bytesBlock);
       return new GroupingAggregatorFunction.AddInput() {
         @Override
         public void add(int positionOffset, IntArrayBlock groupIds) {
@@ -332,6 +330,12 @@ public final class SpatialExtentCartesianPointSourceValuesGroupingAggregatorFunc
       int groupId = groups.getInt(groupPosition);
       int valuesPosition = groupPosition + positionOffset;
       SpatialExtentCartesianPointSourceValuesAggregator.combineIntermediate(state, groupId, minX.getInt(valuesPosition), maxX.getInt(valuesPosition), maxY.getInt(valuesPosition), minY.getInt(valuesPosition));
+    }
+  }
+
+  private void maybeEnableGroupIdTracking(SeenGroupIds seenGroupIds, BytesRefBlock bytesBlock) {
+    if (bytesBlock.mayHaveNulls()) {
+      state.enableGroupIdTracking(seenGroupIds);
     }
   }
 

@@ -1,5 +1,0 @@
-pr: 132018
-summary: Fix decoding of non-ascii field names in ignored source
-area: Mapping
-type: bug
-issues: []

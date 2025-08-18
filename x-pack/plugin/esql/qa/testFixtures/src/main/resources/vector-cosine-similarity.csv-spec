@@ -75,6 +75,19 @@ similarity:double
 
 avg:double | min:double | max:double
 0.832      | 0.5        | 1.0
+; 
+
+similarityWithNull
+required_capability: cosine_vector_similarity_function
+required_capability: vector_similarity_functions_support_null
+
+from colors
+| eval similarity = v_cosine(rgb_vector, null) 
+| stats total_null = count(*) where similarity is null
+;
+
+total_null:long
+59
 ;
 
 # TODO Need to implement a conversion function to convert a non-foldable row to a dense_vector

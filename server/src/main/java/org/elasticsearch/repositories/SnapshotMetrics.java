@@ -94,7 +94,7 @@ public record SnapshotMetrics(
     }
 
     public static Map<String, Object> createAttributesMap(ProjectId projectId, RepositoryMetadata meta) {
-        assert projectId != null : "Project ID should always be set";
-        return Map.of("project_id", projectId.id(), "repo_type", meta.type(), "repo_name", meta.name());
+        // Omit project ID until we go multi-project
+        return Map.of("repo_type", meta.type(), "repo_name", meta.name());
     }
 }

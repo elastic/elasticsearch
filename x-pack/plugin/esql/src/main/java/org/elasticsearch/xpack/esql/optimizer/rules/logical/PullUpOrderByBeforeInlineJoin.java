@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.esql.optimizer.rules.logical;
 
+import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
@@ -28,31 +29,21 @@ public final class PullUpOrderByBeforeInlineJoin extends OptimizerRules.Optimize
 
     private static LogicalPlan pullUpOrderByBeforeInlineJoin(LogicalPlan plan) {
         if (plan instanceof InlineJoin inlineJoin) {
-            OrderBy orderBy = findOrderByNotPrecededByLimit(inlineJoin);
+            Holder<OrderBy> orderByHolder = new Holder<>();
+            inlineJoin.forEachDownMayReturnEarly((node, breakEarly) -> {
+                if (node instanceof OrderBy orderBy) {
+                    orderByHolder.set(orderBy);
+                    breakEarly.set(true);
+                } else {
+                    breakEarly.set(node instanceof SortAgnostic == false);
+                }
+            });
+            OrderBy orderBy = orderByHolder.get();
             if (orderBy != null) {
                 LogicalPlan newInlineJoin = inlineJoin.transformUp(OrderBy.class, ob -> ob == orderBy ? orderBy.child() : ob);
                 return new OrderBy(orderBy.source(), newInlineJoin, orderBy.order());
             }
         }
         return plan;
-    }
-
-    // Finds an OrderBy node in the subtree of the provided plan that is not preceded by a Limit
-    private static OrderBy findOrderByNotPrecededByLimit(LogicalPlan plan) {
-        if (plan instanceof Limit) {
-            return null;
-        }
-        if (plan instanceof OrderBy orderBy) {
-            return orderBy;
-        }
-        for (LogicalPlan child : plan.children()) {
-            if (child instanceof SortAgnostic) {
-                OrderBy found = findOrderByNotPrecededByLimit(child);
-                if (found != null) {
-                    return found;
-                }
-            }
-        }
-        return null;
     }
 }

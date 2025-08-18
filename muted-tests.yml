@@ -582,6 +582,9 @@ tests:
 - class: org.elasticsearch.upgrades.SyntheticSourceRollingUpgradeIT
   method: testIndexing {upgradedNodes=0}
   issue: https://github.com/elastic/elasticsearch/issues/133061
+- class: org.elasticsearch.xpack.test.rest.XPackRestIT
+  method: test {p0=esql/60_usage/Basic ESQL usage output (telemetry) non-snapshot version}
+  issue: https://github.com/elastic/elasticsearch/issues/133014
 
 # Examples:
 #

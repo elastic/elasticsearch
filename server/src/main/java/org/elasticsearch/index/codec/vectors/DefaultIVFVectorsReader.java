@@ -148,7 +148,6 @@ public class DefaultIVFVectorsReader extends IVFVectorsReader implements OffHeap
         );
         long offset = centroids.getFilePointer();
         return new CentroidIterator() {
-
             @Override
             public boolean hasNext() {
                 return neighborQueue.size() > 0;

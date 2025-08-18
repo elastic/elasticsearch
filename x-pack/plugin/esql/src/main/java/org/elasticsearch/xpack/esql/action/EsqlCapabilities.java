@@ -241,6 +241,11 @@ public class EsqlCapabilities {
         FN_DAY_NAME,
 
         /**
+         * Support for function MONTH_NAME
+         */
+        FN_MONTH_NAME,
+
+        /**
          * Fixes for multiple functions not serializing their source, and emitting warnings with wrong line number and text.
          */
         FUNCTIONS_SOURCE_SERIALIZATION_WARNINGS,

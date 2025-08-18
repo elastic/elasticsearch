@@ -591,6 +591,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.optimizer.OptimizerVerificationTests
   method: testRemoteEnrichAfterCoordinatorOnlyPlans
   issue: https://github.com/elastic/elasticsearch/issues/133015
+- class: org.elasticsearch.xpack.esql.analysis.AnalyzerTests
+  method: testNoDenseVectorFailsForMagnitude
+  issue: https://github.com/elastic/elasticsearch/issues/133013
 
 # Examples:
 #

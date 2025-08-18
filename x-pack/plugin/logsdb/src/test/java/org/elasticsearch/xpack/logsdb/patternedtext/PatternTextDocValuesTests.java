@@ -10,8 +10,6 @@ package org.elasticsearch.xpack.logsdb.patternedtext;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
-import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.test.ESTestCase;
 
@@ -119,7 +117,7 @@ public class PatternTextDocValuesTests extends ESTestCase {
         assertEquals("4 cheese", docValues.binaryValue().utf8ToString());
     }
 
-static class SimpleSortedNumericDocValues extends SortedNumericDocValues {
+    static class SimpleSortedNumericDocValues extends SortedNumericDocValues {
 
         private final Long[] docIdToValues;
         private int currDoc = -1;

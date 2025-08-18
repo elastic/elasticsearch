@@ -37,7 +37,7 @@ public class PatternedTextValueProcessor {
 
     // 2021-04-13T13:51:38.000Z
     private static final Pattern timestampPattern = Pattern.compile(
-            "^(\\d{4})[-/](\\d{2})[-/](\\d{2})[T ](\\d{2}):(\\d{2}):(\\d{2})([.,](\\d{3}|\\d{6})Z?)?[ ]?([+\\-]\\d{2}([:]?\\d{2})?)?$"
+        "^(\\d{4})[-/](\\d{2})[-/](\\d{2})[T ](\\d{2}):(\\d{2}):(\\d{2})([.,](\\d{3}|\\d{6})Z?)?[ ]?([+\\-]\\d{2}([:]?\\d{2})?)?$"
     );
 
     record Parts(String template, Long timestamp, String templateId, List<String> args) {
@@ -174,8 +174,7 @@ public class PatternedTextValueProcessor {
                 // I'm not sure if the dates in the dataset having a leading 0 if they are a single digit
                 final DateFormatter dateFormatter = DateFormatter.forPattern("MMM d, yyyy hh:mm:ss a");
                 return Tuple.tuple(dateFormatter.parseMillis(combined), 5);
-            } catch (Exception ignored) {
-            }
+            } catch (Exception ignored) {}
         }
 
         // 4 tokens left
@@ -190,26 +189,42 @@ public class PatternedTextValueProcessor {
             }
         }
 
-
         DateTimeFormatter standardBase = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss");
-        DateTimeFormatter standardFormatter = new DateTimeFormatterBuilder()
-            .append(standardBase)
+        DateTimeFormatter standardFormatter = new DateTimeFormatterBuilder().append(standardBase)
             .appendFraction(ChronoField.NANO_OF_SECOND, 0, 9, true)
-            .optionalStart().appendPattern("XX").optionalEnd()
-            .optionalStart().appendLiteral(" ").appendPattern("XX").optionalEnd()
-            .optionalStart().appendOffsetId().optionalEnd()
-            .optionalStart().appendLiteral(" ").appendPattern("z").optionalEnd()
+            .optionalStart()
+            .appendPattern("XX")
+            .optionalEnd()
+            .optionalStart()
+            .appendLiteral(" ")
+            .appendPattern("XX")
+            .optionalEnd()
+            .optionalStart()
+            .appendOffsetId()
+            .optionalEnd()
+            .optionalStart()
+            .appendLiteral(" ")
+            .appendPattern("z")
+            .optionalEnd()
             .toFormatter();
 
-
         DateTimeFormatter spaceBase = DateTimeFormatter.ofPattern("yyyy-MM-dd' 'HH:mm:ss");
-        DateTimeFormatter spaceFormatter = new DateTimeFormatterBuilder()
-            .append(spaceBase)
+        DateTimeFormatter spaceFormatter = new DateTimeFormatterBuilder().append(spaceBase)
             .appendFraction(ChronoField.NANO_OF_SECOND, 0, 9, true)
-            .optionalStart().appendPattern("XX").optionalEnd()
-            .optionalStart().appendLiteral(" ").appendPattern("XX").optionalEnd()
-            .optionalStart().appendOffsetId().optionalEnd()
-            .optionalStart().appendLiteral(" ").appendPattern("z").optionalEnd()
+            .optionalStart()
+            .appendPattern("XX")
+            .optionalEnd()
+            .optionalStart()
+            .appendLiteral(" ")
+            .appendPattern("XX")
+            .optionalEnd()
+            .optionalStart()
+            .appendOffsetId()
+            .optionalEnd()
+            .optionalStart()
+            .appendLiteral(" ")
+            .appendPattern("z")
+            .optionalEnd()
             .toFormatter();
 
         // 3 token
@@ -219,16 +234,13 @@ public class PatternedTextValueProcessor {
                 // "2020-09-06 08:29:04 +0000"
                 // "2020-09-06 08:29:04 UTC"
                 return Tuple.tuple(parseMillis(combined, spaceFormatter), 3);
-            } catch (Exception ignored) {
-            }
+            } catch (Exception ignored) {}
         }
 
         // 2 token
         if (i < tokens.length - 1) {
             String combined = String.join(" ", tokens[i], tokens[i + 1]);
-            String attempt = combined
-                .replace("/", "-")
-                .replace(",", ".");
+            String attempt = combined.replace("/", "-").replace(",", ".");
             try {
                 // "2020-09-06 08:29:04,123"
                 // "2020-09-06 08:29:04.123"
@@ -237,20 +249,17 @@ public class PatternedTextValueProcessor {
 
                 long millis = parseMillis(attempt, spaceFormatter);
                 return Tuple.tuple(millis, 2);
-            } catch (Exception ignored) {
-            }
+            } catch (Exception ignored) {}
 
             try {
                 // "06/Sep/2020:08:29:04 +0000"
                 final DateFormatter dateFormatter = DateFormatter.forPattern("dd/MMM/yyyy:HH:mm:ss XX");
                 return Tuple.tuple(dateFormatter.parseMillis(combined), 2);
-            } catch (Exception ignored) {
-            }
+            } catch (Exception ignored) {}
         }
 
         // 1 token
-        String attempt = tokens[i]
-            .replace(",", ".");
+        String attempt = tokens[i].replace(",", ".");
         try {
             // "2020-09-06T08:29:04.123456"
             // "2020-09-06T08:29:04.123Z"
@@ -260,24 +269,17 @@ public class PatternedTextValueProcessor {
             // "2020-09-06T08:29:04+0000"
             // "2020-09-06T08:29:04.123+0000"
 
-
             long millis = parseMillis(attempt, standardFormatter);
             return Tuple.tuple(millis, 1);
-        } catch (Exception ignored) {
-        }
+        } catch (Exception ignored) {}
 
         return null;
     }
 
     public static long parseMillis(String input, DateTimeFormatter formatter) {
-        TemporalAccessor temporalAccessor = formatter.parseBest(
-            input,
-            ZonedDateTime::from,
-            LocalDateTime::from
-        );
+        TemporalAccessor temporalAccessor = formatter.parseBest(input, ZonedDateTime::from, LocalDateTime::from);
 
-        if (temporalAccessor.query(TemporalQueries.zoneId()) != null ||
-            temporalAccessor.query(TemporalQueries.offset()) != null) {
+        if (temporalAccessor.query(TemporalQueries.zoneId()) != null || temporalAccessor.query(TemporalQueries.offset()) != null) {
             return Instant.from(temporalAccessor).toEpochMilli();
         } else {
             return LocalDateTime.from(temporalAccessor).atZone(ZoneId.of("UTC")).toInstant().toEpochMilli();

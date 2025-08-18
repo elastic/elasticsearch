@@ -116,13 +116,20 @@ public class PatternedTextFieldMapper extends FieldMapper {
                 true
             ).indexed(false).build(context);
 
-            var timestampMapper = NumberFieldMapper.Builder
-                .docValuesOnly(
+            var timestampMapper = NumberFieldMapper.Builder.docValuesOnly(
                 patternedTextFieldType.timestampFieldName(),
                 NumberFieldMapper.NumberType.LONG,
                 indexCreatedVersion
             ).build(context);
-            return new PatternedTextFieldMapper(leafName(), patternedTextFieldType, builderParams, this, templateIdMapper, timestampMapper, argsMapper);
+            return new PatternedTextFieldMapper(
+                leafName(),
+                patternedTextFieldType,
+                builderParams,
+                this,
+                templateIdMapper,
+                timestampMapper,
+                argsMapper
+            );
         }
     }
 
@@ -236,7 +243,12 @@ public class PatternedTextFieldMapper extends FieldMapper {
             () -> new CompositeSyntheticFieldLoader(
                 leafName(),
                 fullPath(),
-                new PatternedTextSyntheticFieldLoaderLayer(fieldType().name(), fieldType().templateFieldName(), fieldType().argsFieldName(), fieldType().timestampFieldName())
+                new PatternedTextSyntheticFieldLoaderLayer(
+                    fieldType().name(),
+                    fieldType().templateFieldName(),
+                    fieldType().argsFieldName(),
+                    fieldType().timestampFieldName()
+                )
             )
         );
     }

@@ -32,7 +32,6 @@ import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
 import org.elasticsearch.xpack.logsdb.LogsDBPlugin;
 import org.junit.Before;
-import org.xml.sax.helpers.AttributesImpl;
 
 import java.io.IOException;
 import java.time.Instant;
@@ -244,7 +243,6 @@ public class PatternedTextVsMatchOnlyTextTests extends ESIntegTestCase {
                     case 6 -> randomDouble();
                     default -> throw new IllegalStateException("Unexpected value: " + between(0, 6));
                 };
-
 
                 if (randomBoolean()) {
                     message.append("[").append(token).append("]");

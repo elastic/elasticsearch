@@ -22,16 +22,18 @@ public class PatternedTextDocValues extends BinaryDocValues {
     private final SortedSetDocValues argsDocValues;
     private final SortedNumericDocValues timestampDocValues;
 
-    PatternedTextDocValues(SortedSetDocValues templateDocValues,
-                           SortedSetDocValues argsDocValues,
-                           SortedNumericDocValues timestampDocValues
+    PatternedTextDocValues(
+        SortedSetDocValues templateDocValues,
+        SortedSetDocValues argsDocValues,
+        SortedNumericDocValues timestampDocValues
     ) {
         this.templateDocValues = templateDocValues;
         this.argsDocValues = argsDocValues;
         this.timestampDocValues = timestampDocValues;
     }
 
-    static PatternedTextDocValues from(LeafReader leafReader, String templateFieldName, String argsFieldName, String timestampFieldName) throws IOException {
+    static PatternedTextDocValues from(LeafReader leafReader, String templateFieldName, String argsFieldName, String timestampFieldName)
+        throws IOException {
         SortedSetDocValues templateDocValues = DocValues.getSortedSet(leafReader, templateFieldName);
         if (templateDocValues.getValueCount() == 0) {
             return null;

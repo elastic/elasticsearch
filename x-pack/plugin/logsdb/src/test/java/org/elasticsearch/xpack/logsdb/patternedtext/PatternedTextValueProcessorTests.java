@@ -7,10 +7,8 @@
 
 package org.elasticsearch.xpack.logsdb.patternedtext;
 
-import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.core.ml.job.config.DataDescription;
 import org.hamcrest.Matchers;
 
 import java.util.ArrayList;
@@ -40,7 +38,6 @@ public class PatternedTextValueProcessorTests extends ESTestCase {
         "06 Sep 2020 08:29:04.123"
     );
 
-
     private static final List<String> SEC_RES_DATES = List.of(
         // 1 token
         "2020-09-06T08:29:04Z",
@@ -59,7 +56,6 @@ public class PatternedTextValueProcessorTests extends ESTestCase {
         "Sep 6, 2020 08:29:04 AM"
     );
 
-
     private static final List<String> ALL_DATES = new ArrayList<>();
     static {
         ALL_DATES.addAll(MILLI_RES_DATES);
@@ -68,7 +64,6 @@ public class PatternedTextValueProcessorTests extends ESTestCase {
 
     private static final String NORMALIZED_MILLI_RES = "2020-09-06T08:29:04.123Z";
     private static final String NORMALIZED_SEC_RES = "2020-09-06T08:29:04.000Z";
-
 
     public void testEmpty() {
         String text = "";
@@ -141,10 +136,7 @@ public class PatternedTextValueProcessorTests extends ESTestCase {
         String expectedText = testTemplate.replace("%", normalized(ts));
         PatternedTextValueProcessor.Parts parts = PatternedTextValueProcessor.split(text);
         assertEquals("[%T][%W][%W][action_controller][INFO]: [%W] some text with %W and %W", parts.template());
-        assertThat(
-            parts.args(),
-            Matchers.contains("15", "2354", "18be2355-6306-4a00-9db9-f0696aa1a225", "arg1", "arg2")
-        );
+        assertThat(parts.args(), Matchers.contains("15", "2354", "18be2355-6306-4a00-9db9-f0696aa1a225", "arg1", "arg2"));
         assertThat(parts.timestamp(), equalTo(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis(normalized(ts))));
         assertEquals(expectedText, PatternedTextValueProcessor.merge(parts));
     }
@@ -170,8 +162,9 @@ public class PatternedTextValueProcessorTests extends ESTestCase {
 
         PatternedTextValueProcessor.Parts parts = PatternedTextValueProcessor.split(text);
 
-        var secondDateExpectedPlaceholders =
-            Arrays.stream(ts2.split(" ")).map(t -> PatternedTextValueProcessor.containsDigit(t) ? "%W" : t).collect(Collectors.joining(" "));
+        var secondDateExpectedPlaceholders = Arrays.stream(ts2.split(" "))
+            .map(t -> PatternedTextValueProcessor.containsDigit(t) ? "%W" : t)
+            .collect(Collectors.joining(" "));
         assertEquals("[%T][%W][%W][action_controller][INFO]: at " + secondDateExpectedPlaceholders + " and %W", parts.template());
         assertThat(parts.timestamp(), equalTo(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis(normalized(ts1))));
         assertEquals(expectedText, PatternedTextValueProcessor.merge(parts));
@@ -246,11 +239,7 @@ public class PatternedTextValueProcessorTests extends ESTestCase {
     }
 
     public void testNotTimestamp() {
-        List<String> notTimestamp = List.of(
-            "2020-12-01",
-            "2020-12",
-            "2020"
-        );
+        List<String> notTimestamp = List.of("2020-12-01", "2020-12", "2020");
         for (var ts : notTimestamp) {
             String[] split = ts.split(" ");
             var res = PatternedTextValueProcessor.parse(split, 0);

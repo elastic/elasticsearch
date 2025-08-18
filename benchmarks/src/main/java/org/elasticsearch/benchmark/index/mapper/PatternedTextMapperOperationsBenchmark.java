@@ -22,7 +22,6 @@ import org.openjdk.jmh.annotations.State;
 import org.openjdk.jmh.annotations.Warmup;
 import org.openjdk.jmh.infra.Blackhole;
 
-import java.util.List;
 import java.util.concurrent.TimeUnit;
 
 @BenchmarkMode(Mode.AverageTime)
@@ -33,25 +32,25 @@ import java.util.concurrent.TimeUnit;
 @State(Scope.Benchmark)
 public class PatternedTextMapperOperationsBenchmark {
 
-    @Param({
+    @Param(
+        {
             "2020-09-06T08:29:04.123456",
-           "2020-09-06T08:29:04.123Z",
-           "2020-09-06T08:29:04,123",
-           "2020-09-06T08:29:04.123+00:00",
-           "2020-09-06T08:29:04Z",
-           "2020-09-06T08:29:04+0000",
-           "2020-09-06T08:29:04.123+0000",
-           "2020-09-06 08:29:04,123",
-           "2020-09-06 08:29:04.123",
-           "2020-09-06 08:29:04",
-           "2020/09/06 08:29:04",
-           "06/Sep/2020:08:29:04 +0000",
-           "2020-09-06 08:29:04 +0000",
-           "2020-09-06 08:29:04 UTC",
-           "06 Sep 2020 08:29:04.123"
-        })
+            "2020-09-06T08:29:04.123Z",
+            "2020-09-06T08:29:04,123",
+            "2020-09-06T08:29:04.123+00:00",
+            "2020-09-06T08:29:04Z",
+            "2020-09-06T08:29:04+0000",
+            "2020-09-06T08:29:04.123+0000",
+            "2020-09-06 08:29:04,123",
+            "2020-09-06 08:29:04.123",
+            "2020-09-06 08:29:04",
+            "2020/09/06 08:29:04",
+            "06/Sep/2020:08:29:04 +0000",
+            "2020-09-06 08:29:04 +0000",
+            "2020-09-06 08:29:04 UTC",
+            "06 Sep 2020 08:29:04.123" }
+    )
     private String timestampStr;
-
 
     @Benchmark
     public void testParseTimestamp(Blackhole blackhole) {

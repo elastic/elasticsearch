@@ -272,9 +272,9 @@ public class PatternedTextFieldType extends StringFieldType {
     String argsFieldName() {
         return name() + ARGS_SUFFIX;
     }
+
     String timestampFieldName() {
         return name() + TIMESTAMP_SUFFIX;
     }
-
 
 }

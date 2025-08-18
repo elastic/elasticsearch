@@ -906,11 +906,11 @@ public class SparseVectorFieldMapperTests extends MapperTestCase {
     }
 
     private enum VersionRange {
-        ES_V8X_WITHOUT_SUPPORT(
+        ES_V8X_WITHOUT_INDEX_OPTIONS_SUPPORT(
             NEW_SPARSE_VECTOR,
             IndexVersionUtils.getPreviousVersion(SPARSE_VECTOR_PRUNING_INDEX_OPTIONS_SUPPORT_BACKPORT_8_X)
         ),
-        ES_V8X_WITH_SUPPORT(SPARSE_VECTOR_PRUNING_INDEX_OPTIONS_SUPPORT_BACKPORT_8_X, IndexVersion.current());
+        ES_V8X_WITH_INDEX_OPTIONS_SUPPORT(SPARSE_VECTOR_PRUNING_INDEX_OPTIONS_SUPPORT_BACKPORT_8_X, IndexVersion.current());
 
         private final IndexVersion fromVersion;
         private final IndexVersion toVersion;

@@ -83,7 +83,7 @@ public class WriteLoadConstraintMonitor {
             if (writeThreadPoolStats.maxThreadPoolQueueLatencyMillis() > writeLoadConstraintSettings.getQueueLatencyThreshold().millis()) {
                 nodeIdsExceedingLatencyThreshold.add(nodeId);
             }
-            if (writeThreadPoolStats.averageThreadPoolUtilization() < writeLoadConstraintSettings.getHighUtilizationThreshold()
+            if (writeThreadPoolStats.averageThreadPoolUtilization() <= writeLoadConstraintSettings.getHighUtilizationThreshold()
                 .getAsRatio()) {
                 nodeIdsBelowUtilizationThreshold.add(nodeId);
             }

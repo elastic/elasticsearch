@@ -2828,6 +2828,7 @@ public class InternalEngine extends Engine {
         if (engineConfig.getLeafSorter() != null) {
             iwc.setLeafSorter(engineConfig.getLeafSorter());
         }
+        iwc.setCheckPendingFlushUpdate(false);
         return iwc;
     }
 

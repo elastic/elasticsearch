@@ -114,7 +114,7 @@ public class RecyclerBytesStreamOutput extends BytesStream implements Releasable
     public void writeUTF8String(String str) throws IOException {
         final int charCount = str.length();
         if (charCount == 0) {
-            writeVInt(0);
+            writeByte((byte) 0);
             return;
         }
 

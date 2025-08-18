@@ -392,7 +392,7 @@ public class EsqlSession {
         EsqlExecutionInfo executionInfo,
         ActionListener<PreAnalysisResult> listener
     ) {
-        assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.SEARCH_COORDINATION);
+        assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.SEARCH, ThreadPool.Names.SEARCH_COORDINATION);
 
         String localPattern = lookupIndexPattern.indexPattern();
         assert RemoteClusterAware.isRemoteIndexName(localPattern) == false
@@ -597,7 +597,7 @@ public class EsqlSession {
         QueryBuilder requestFilter,
         ActionListener<PreAnalysisResult> listener
     ) {
-        assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.SEARCH_COORDINATION);
+        assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.SEARCH, ThreadPool.Names.SEARCH_COORDINATION);
         // TODO we plan to support joins in the future when possible, but for now we'll just fail early if we see one
         List<IndexPattern> indices = preAnalysis.indices;
         if (indices.size() > 1) {

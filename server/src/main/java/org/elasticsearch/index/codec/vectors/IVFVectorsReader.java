@@ -85,10 +85,8 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
         }
     }
 
-    abstract CentroidIterator getPostingListPrefetchIterator(CentroidIterator centroidIterator, IndexInput postingListSlice)
-        throws IOException;
-
-    abstract CentroidIterator getCentroidIterator(FieldInfo fieldInfo, int numCentroids, IndexInput centroids, float[] target)
+    abstract CentroidIterator getCentroidIterator(
+        FieldInfo fieldInfo, int numCentroids, IndexInput centroids, float[] target, IndexInput postingListSlice)
         throws IOException;
 
     private static IndexInput openDataInput(
@@ -245,10 +243,8 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
         // we account for soar vectors here. We can potentially visit a vector twice so we multiply by 2 here.
         long maxVectorVisited = (long) (2.0 * visitRatio * numVectors);
         IndexInput postListSlice = entry.postingListSlice(ivfClusters);
-        CentroidIterator centroidPrefetchingIterator = getPostingListPrefetchIterator(
-            getCentroidIterator(fieldInfo, entry.numCentroids, entry.centroidSlice(ivfCentroids), target),
-            postListSlice
-        );
+        CentroidIterator centroidPrefetchingIterator = getCentroidIterator(
+            fieldInfo, entry.numCentroids, entry.centroidSlice(ivfCentroids), target, postListSlice);
         PostingVisitor scorer = getPostingVisitor(fieldInfo, postListSlice, target, acceptDocs);
         long expectedDocs = 0;
         long actualDocs = 0;

@@ -47,10 +47,10 @@ public class DefaultIVFVectorsReader extends IVFVectorsReader implements OffHeap
         super(state, rawVectorsReader);
     }
 
-    @Override
     CentroidIterator getPostingListPrefetchIterator(CentroidIterator centroidIterator, IndexInput postingListSlice) throws IOException {
         return new CentroidIterator() {
-            CentroidOffsetAndLength nextOffsetAndLength = null;
+            CentroidOffsetAndLength nextOffsetAndLength =
+                centroidIterator.hasNext() ? centroidIterator.nextPostingListOffsetAndLength() : null;
 
             private void prefetch(CentroidOffsetAndLength offsetAndLength) throws IOException {
                 postingListSlice.prefetch(offsetAndLength.offset(), offsetAndLength.length());
@@ -64,22 +64,12 @@ public class DefaultIVFVectorsReader extends IVFVectorsReader implements OffHeap
 
             @Override
             public CentroidOffsetAndLength nextPostingListOffsetAndLength() throws IOException {
-                CentroidOffsetAndLength offsetAndLength;
-                // first time we need to fetch two if possible
-                if (nextOffsetAndLength == null) {
-                    offsetAndLength = centroidIterator.nextPostingListOffsetAndLength();
-                    if (centroidIterator.hasNext()) {
-                        nextOffsetAndLength = centroidIterator.nextPostingListOffsetAndLength();
-                        prefetch(nextOffsetAndLength);
-                    }
+                CentroidOffsetAndLength offsetAndLength = nextOffsetAndLength;
+                if (centroidIterator.hasNext()) {
+                    nextOffsetAndLength = centroidIterator.nextPostingListOffsetAndLength();
+                    prefetch(nextOffsetAndLength);
                 } else {
-                    offsetAndLength = nextOffsetAndLength;
-                    if (centroidIterator.hasNext()) {
-                        nextOffsetAndLength = centroidIterator.nextPostingListOffsetAndLength();
-                        prefetch(nextOffsetAndLength);
-                    } else {
-                        nextOffsetAndLength = null;  // indicate we reached the end
-                    }
+                    nextOffsetAndLength = null;  // indicate we reached the end
                 }
                 return offsetAndLength;
             }
@@ -87,7 +77,8 @@ public class DefaultIVFVectorsReader extends IVFVectorsReader implements OffHeap
     }
 
     @Override
-    CentroidIterator getCentroidIterator(FieldInfo fieldInfo, int numCentroids, IndexInput centroids, float[] targetQuery)
+    CentroidIterator getCentroidIterator(
+        FieldInfo fieldInfo, int numCentroids, IndexInput centroids, float[] targetQuery, IndexInput postingListSlice)
         throws IOException {
         final FieldEntry fieldEntry = fields.get(fieldInfo.number);
         final float globalCentroidDp = fieldEntry.globalCentroidDp();
@@ -110,8 +101,9 @@ public class DefaultIVFVectorsReader extends IVFVectorsReader implements OffHeap
         final ES92Int7VectorsScorer scorer = ESVectorUtil.getES92Int7VectorsScorer(centroids, fieldInfo.getVectorDimension());
         centroids.seek(0L);
         int numParents = centroids.readVInt();
+        CentroidIterator centroidIterator;
         if (numParents > 0) {
-            return getCentroidIteratorWithParents(
+            centroidIterator = getCentroidIteratorWithParents(
                 fieldInfo,
                 centroids,
                 numParents,
@@ -121,8 +113,10 @@ public class DefaultIVFVectorsReader extends IVFVectorsReader implements OffHeap
                 queryParams,
                 globalCentroidDp
             );
+        } else {
+            centroidIterator = getCentroidIteratorNoParent(fieldInfo, centroids, numCentroids, scorer, quantized, queryParams, globalCentroidDp);
         }
-        return getCentroidIteratorNoParent(fieldInfo, centroids, numCentroids, scorer, quantized, queryParams, globalCentroidDp);
+        return getPostingListPrefetchIterator(centroidIterator, postingListSlice);
     }
 
     private static CentroidIterator getCentroidIteratorNoParent(

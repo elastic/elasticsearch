@@ -865,16 +865,16 @@ public class SparseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase
     }
 
     private enum VersionRange {
-        ES_V8X_WITHOUT_SUPPORT(
+        ES_V8X_WITHOUT_INDEX_OPTIONS_SUPPORT(
             NEW_SPARSE_VECTOR,
             IndexVersionUtils.getPreviousVersion(SPARSE_VECTOR_PRUNING_INDEX_OPTIONS_SUPPORT_BACKPORT_8_X)
         ),
-        ES_V8X_WITH_SUPPORT(
+        ES_V8X_WITH_INDEX_OPTIONS_SUPPORT(
             SPARSE_VECTOR_PRUNING_INDEX_OPTIONS_SUPPORT_BACKPORT_8_X,
             IndexVersionUtils.getPreviousVersion(UPGRADE_TO_LUCENE_10_0_0)
         ),
-        ES_V9X_WITHOUT_SUPPORT(UPGRADE_TO_LUCENE_10_0_0, IndexVersionUtils.getPreviousVersion(SPARSE_VECTOR_PRUNING_INDEX_OPTIONS_SUPPORT)),
-        ES_V9X_WITH_SUPPORT(SPARSE_VECTOR_PRUNING_INDEX_OPTIONS_SUPPORT, IndexVersion.current());
+        ES_V9X_WITHOUT_INDEX_OPTIONS_SUPPORT(UPGRADE_TO_LUCENE_10_0_0, IndexVersionUtils.getPreviousVersion(SPARSE_VECTOR_PRUNING_INDEX_OPTIONS_SUPPORT)),
+        ES_V9X_WITH_INDEX_OPTIONS_SUPPORT(SPARSE_VECTOR_PRUNING_INDEX_OPTIONS_SUPPORT, IndexVersion.current());
 
         private final IndexVersion fromVersion;
         private final IndexVersion toVersion;

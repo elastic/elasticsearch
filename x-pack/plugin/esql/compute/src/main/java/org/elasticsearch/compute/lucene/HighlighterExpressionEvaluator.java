@@ -22,6 +22,7 @@ import org.elasticsearch.index.fieldvisitor.LeafStoredFieldLoader;
 import org.elasticsearch.index.fieldvisitor.StoredFieldLoader;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.SourceLoader;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.fetch.FetchContext;
 import org.elasticsearch.search.fetch.FetchSubPhase;
@@ -51,8 +52,9 @@ public class HighlighterExpressionEvaluator extends LuceneQueryEvaluator<BytesRe
     private final String fieldName;
     private final Integer numFragments;
     private final Integer fragmentLength;
-    private final SearchContext searchContext;
     private final Map<String, Highlighter> highlighters;
+    private final FetchContext fetchContext;
+    private final MappedFieldType fieldType;
 
     HighlighterExpressionEvaluator(
         BlockFactory blockFactory,
@@ -67,8 +69,16 @@ public class HighlighterExpressionEvaluator extends LuceneQueryEvaluator<BytesRe
         this.fieldName = fieldName;
         this.numFragments = numFragments;
         this.fragmentLength = fragmentLength;
-        this.searchContext = searchContext;
         this.highlighters = highlighters;
+
+        // Create a source loader for highlighter use
+        SourceLoader sourceLoader = searchContext.newSourceLoader(null);
+        fetchContext = new FetchContext(searchContext, sourceLoader);
+        SearchExecutionContext searchExecutionContext = searchContext.getSearchExecutionContext();
+        if (searchExecutionContext == null) {
+            throw new IllegalStateException("SearchExecutionContext not found");
+        }
+        fieldType = searchExecutionContext.getFieldType(fieldName);
     }
 
     @Override
@@ -92,10 +102,6 @@ public class HighlighterExpressionEvaluator extends LuceneQueryEvaluator<BytesRe
 
         // TODO: Can we build a custom highlighter directly here, so we don't have to rely on fetch phase classes?
 
-        // Create a source loader for highlighter use
-        SourceLoader sourceLoader = searchContext.newSourceLoader(null);
-        FetchContext fetchContext = new FetchContext(searchContext, sourceLoader);
-        MappedFieldType fieldType = searchContext.getSearchExecutionContext().getFieldType(fieldName);
         SearchHit searchHit = new SearchHit(docId, null, null, ALWAYS_REFERENCED);
         Source source = Source.lazy(lazyStoredSourceLoader(leafReaderContext, docId));
         Highlighter highlighter = highlighters.getOrDefault(fieldType.getDefaultHighlighter(), new DefaultHighlighter());

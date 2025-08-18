@@ -35,8 +35,6 @@ public class ES819TSDBDocValuesFormat extends org.apache.lucene.codecs.DocValues
     public static final int NUMERIC_BLOCK_SIZE = 1 << NUMERIC_BLOCK_SHIFT;
     static final int NUMERIC_BLOCK_MASK = NUMERIC_BLOCK_SIZE - 1;
     static final int DIRECT_MONOTONIC_BLOCK_SHIFT = 16;
-    public static final int ORDINAL_RANGE_ENCODING_MIN_DOC_PER_ORDINAL = 512;
-    public static final int ORDINAL_RANGE_ENCODING_BLOCK_SHIFT = 12;
     static final String CODEC_NAME = "ES819TSDB";
     static final String DATA_CODEC = "ES819TSDBDocValuesData";
     static final String DATA_EXTENSION = "dvd";
@@ -105,6 +103,18 @@ public class ES819TSDBDocValuesFormat extends org.apache.lucene.codecs.DocValues
     private static boolean getOptimizedMergeEnabledDefault() {
         return Boolean.parseBoolean(System.getProperty(OPTIMIZED_MERGE_ENABLED_NAME, Boolean.TRUE.toString()));
     }
+
+    /**
+     * The default minimum number of documents per ordinal required to use ordinal range encoding.
+     * If the average number of documents per ordinal is below this threshold, it is more efficient to encode doc values in blocks.
+     * A much smaller value may be used in tests to exercise ordinal range encoding more frequently.
+     */
+    public static final int ORDINAL_RANGE_ENCODING_MIN_DOC_PER_ORDINAL = 512;
+
+    /**
+     * The block shift used in DirectMonotonicWriter when encoding the start docs of each ordinal with ordinal range encoding.
+     */
+    public static final int ORDINAL_RANGE_ENCODING_BLOCK_SHIFT = 12;
 
     final int skipIndexIntervalSize;
     final int minDocsPerOrdinalForOrdinalRangeEncoding;

@@ -56,6 +56,7 @@ toc:
           children:
             - file: index-settings/preloading-data-into-file-system-cache.md
         - file: index-settings/time-series.md
+        - file: index-settings/source.md
         - file: index-settings/translog.md
         - file: index-settings/pressure.md
         - file: index-settings/path.md

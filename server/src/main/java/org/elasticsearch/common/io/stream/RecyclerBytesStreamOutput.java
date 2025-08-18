@@ -138,10 +138,6 @@ public class RecyclerBytesStreamOutput extends BytesStream implements Releasable
         }
     }
 
-    /**
-     * Fast path for writing ASCII characters. Returns true if all characters
-     * were ASCII, false if a non-ASCII character was encountered.
-     */
     private boolean writeAsciiChars(String str, int charCount) {
         int charIndex = 0;
 
@@ -157,7 +153,6 @@ public class RecyclerBytesStreamOutput extends BytesStream implements Releasable
                 bytesRefBytes[bytesRefOffset + currentPageOffset + i] = (byte) c;
             }
 
-            // Update positions for what we wrote
             currentPageOffset += charsToWrite;
             charIndex += charsToWrite;
 
@@ -166,7 +161,7 @@ public class RecyclerBytesStreamOutput extends BytesStream implements Releasable
             }
         }
 
-        return true; // All characters were ASCII
+        return true;
     }
 
     private void handleNonAsciiString(String str) throws IOException {

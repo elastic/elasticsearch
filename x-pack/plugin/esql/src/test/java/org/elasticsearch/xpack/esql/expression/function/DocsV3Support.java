@@ -678,7 +678,13 @@ public abstract class DocsV3Support {
         private static String makeAppliesToText(List<FunctionAppliesTo> functionAppliesTos, boolean preview, boolean oneLine) {
             StringBuilder appliesToText = new StringBuilder();
             if (false == functionAppliesTos.isEmpty()) {
-                appliesToText.append(oneLine ? "{applies_to}`" : "```{applies_to}\n");
+                if (oneLine) {
+                    appliesToText.append(" {applies_to}");
+                    appliesToText.append("`");
+                } else {
+                    appliesToText.append("```");
+                    appliesToText.append("{applies_to}\n");
+                }
                 StringBuilder stackEntries = new StringBuilder();
 
                 for (FunctionAppliesTo appliesTo : functionAppliesTos) {

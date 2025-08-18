@@ -224,6 +224,7 @@ public class LuceneSourceOperatorTests extends AnyOperatorTestCase {
             List.of(ctx),
             queryFunction,
             dataPartitioning,
+            DataPartitioning.AutoStrategy.DEFAULT,
             taskConcurrency,
             maxPageSize,
             limit,

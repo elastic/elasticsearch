@@ -31,6 +31,9 @@ mapped_pages:
 :::{include} ../_snippets/functions/layout/day_name.md
 :::
 
+:::{include} ../_snippets/functions/layout/month_name.md
+:::
+
 :::{include} ../_snippets/functions/layout/now.md
 :::
 

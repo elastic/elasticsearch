@@ -97,7 +97,7 @@ public final class TimeSeriesSourceOperator extends LuceneOperator {
         long startInNanos = System.nanoTime();
         try {
             if (iterator == null) {
-                var slice = sliceQueue.nextSlice();
+                var slice = sliceQueue.nextSlice(null);
                 if (slice == null) {
                     doneCollecting = true;
                     return null;

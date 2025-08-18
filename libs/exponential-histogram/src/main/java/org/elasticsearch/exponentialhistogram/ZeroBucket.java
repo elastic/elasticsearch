@@ -21,6 +21,8 @@
 
 package org.elasticsearch.exponentialhistogram;
 
+import org.apache.lucene.util.RamUsageEstimator;
+
 import static org.elasticsearch.exponentialhistogram.ExponentialHistogram.MAX_SCALE;
 import static org.elasticsearch.exponentialhistogram.ExponentialHistogram.MIN_INDEX;
 import static org.elasticsearch.exponentialhistogram.ExponentialHistogram.MIN_SCALE;
@@ -40,6 +42,8 @@ import static org.elasticsearch.exponentialhistogram.ExponentialScaleUtils.expon
  * @param count The number of values in the zero bucket.
  */
 public record ZeroBucket(long index, int scale, long count) {
+
+    public static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(ZeroBucket.class);
 
     // A singleton for an empty zero bucket with the smallest possible threshold.
     private static final ZeroBucket MINIMAL_EMPTY = new ZeroBucket(MIN_INDEX, MIN_SCALE, 0);

@@ -65,6 +65,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
 import org.elasticsearch.index.mapper.IgnoredSourceFieldMapper;
@@ -684,7 +685,9 @@ public class FieldSubsetReaderTests extends MapperServiceTestCase {
     }
 
     public void testIgnoredSourceFilteringIntegration() throws Exception {
+        IndexVersion indexVersion = randomBoolean() ? getVersion() : IndexVersions.MATCH_ONLY_TEXT_STORED_AS_BYTES;
         DocumentMapper mapper = createMapperService(
+            indexVersion,
             Settings.builder()
                 .put("index.mapping.total_fields.limit", 1)
                 .put("index.mapping.total_fields.ignore_dynamic_beyond_limit", true)
@@ -708,8 +711,14 @@ public class FieldSubsetReaderTests extends MapperServiceTestCase {
             iw.addDocuments(doc.docs());
             iw.close();
 
+            String ignoredSourceFieldPattern = IgnoredSourceFieldMapper.ignoredSourceFormat(
+                indexVersion
+            ) == IgnoredSourceFieldMapper.IgnoredSourceFormat.PER_FIELD_IGNORED_SOURCE
+                ? IgnoredSourceFieldMapper.ignoredFieldName("*")
+                : IgnoredSourceFieldMapper.NAME;
+
             {
-                Automaton automaton = Automatons.patterns(Arrays.asList("fieldA", IgnoredSourceFieldMapper.NAME));
+                Automaton automaton = Automatons.patterns(Arrays.asList("fieldA", ignoredSourceFieldPattern));
                 try (
                     DirectoryReader indexReader = FieldSubsetReader.wrap(
                         wrapInMockESDirectoryReader(DirectoryReader.open(directory)),
@@ -740,7 +749,7 @@ public class FieldSubsetReaderTests extends MapperServiceTestCase {
             }
 
             {
-                Automaton automaton = Automatons.patterns(Arrays.asList("obj.fieldC", IgnoredSourceFieldMapper.NAME));
+                Automaton automaton = Automatons.patterns(Arrays.asList("obj.fieldC", ignoredSourceFieldPattern));
                 try (
                     DirectoryReader indexReader = FieldSubsetReader.wrap(
                         wrapInMockESDirectoryReader(DirectoryReader.open(directory)),
@@ -772,7 +781,7 @@ public class FieldSubsetReaderTests extends MapperServiceTestCase {
             }
 
             {
-                Automaton automaton = Automatons.patterns(Arrays.asList("arr.fieldD", IgnoredSourceFieldMapper.NAME));
+                Automaton automaton = Automatons.patterns(Arrays.asList("arr.fieldD", ignoredSourceFieldPattern));
                 try (
                     DirectoryReader indexReader = FieldSubsetReader.wrap(
                         wrapInMockESDirectoryReader(DirectoryReader.open(directory)),

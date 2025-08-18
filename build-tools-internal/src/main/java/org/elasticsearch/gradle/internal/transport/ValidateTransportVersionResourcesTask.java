@@ -93,7 +93,7 @@ public abstract class ValidateTransportVersionResourcesTask extends DefaultTask 
     @TaskAction
     public void validateTransportVersions() throws IOException {
         Path resourcesDir = getResourcesDirectory().getAsFile().get().toPath();
-        Path definitionsDir = resourcesDir.resolve("defined");
+        Path definitionsDir = resourcesDir.resolve("definitions");
         Path latestDir = resourcesDir.resolve("latest");
 
         // first check which resource files already exist in main
@@ -107,9 +107,11 @@ public abstract class ValidateTransportVersionResourcesTask extends DefaultTask 
         // now load all definitions, do some validation and record them by various keys for later quick lookup
         // NOTE: this must run after loading referenced names and existing definitions
         // NOTE: this is sorted so that the order of cross validation is deterministic
-        try (var definitionsStream = Files.list(definitionsDir).sorted()) {
-            for (var definitionFile : definitionsStream.toList()) {
-                recordAndValidateDefinition(readDefinitionFile(definitionFile));
+        for (String subDir : List.of("initial", "named")) {
+            try (var definitionsStream = Files.list(definitionsDir.resolve(subDir)).sorted()) {
+                for (var definitionFile : definitionsStream.toList()) {
+                    recordAndValidateDefinition(readDefinitionFile(definitionFile));
+                }
             }
         }
 

@@ -151,8 +151,8 @@ public final class DocumentSubsetBitsetCache implements IndexReader.ClosedListen
     }
 
     @Override
-    public void onClose(IndexReader.CacheKey ownerCoreCacheKey) {
-        final Set<BitsetCacheKey> keys = keysByIndex.remove(ownerCoreCacheKey);
+    public void onClose(IndexReader.CacheKey indexKey) {
+        final Set<BitsetCacheKey> keys = keysByIndex.remove(indexKey);
         if (keys != null) {
             // Because this Set has been removed from the map, and the only update to the set is performed in a
             // Map#compute call, it should not be possible to get a concurrent modification here.
@@ -164,10 +164,10 @@ public final class DocumentSubsetBitsetCache implements IndexReader.ClosedListen
      * Cleanup (synchronize) the internal state when an object is removed from the primary cache
      */
     private void onCacheEviction(RemovalNotification<BitsetCacheKey, BitSet> notification) {
-        final BitsetCacheKey bitsetKey = notification.getKey();
-        final IndexReader.CacheKey indexKey = bitsetKey.index;
-        if (keysByIndex.getOrDefault(indexKey, Set.of()).contains(bitsetKey) == false) {
-            // If the bitsetKey isn't in the lookup map, then there's nothing to synchronize
+        final BitsetCacheKey cacheKey = notification.getKey();
+        final IndexReader.CacheKey indexKey = cacheKey.indexKey;
+        if (keysByIndex.getOrDefault(indexKey, Set.of()).contains(cacheKey) == false) {
+            // If the cacheKey isn't in the lookup map, then there's nothing to synchronize
             return;
         }
         // We push this to a background thread, so that it reduces the risk of blocking searches, but also so that the lock management is
@@ -177,9 +177,9 @@ public final class DocumentSubsetBitsetCache implements IndexReader.ClosedListen
         cleanupExecutor.submit(() -> {
             try (ReleasableLock ignored = cacheEvictionLock.acquire()) {
                 // it's possible for the key to be back in the cache if it was immediately repopulated after it was evicted, so check
-                if (bitsetCache.get(bitsetKey) == null) {
+                if (bitsetCache.get(cacheKey) == null) {
                     // key is no longer in the cache, make sure it is no longer in the lookup map either.
-                    Optional.ofNullable(keysByIndex.get(indexKey)).ifPresent(set -> set.remove(bitsetKey));
+                    Optional.ofNullable(keysByIndex.get(indexKey)).ifPresent(set -> set.remove(cacheKey));
                 }
             }
         });
@@ -325,12 +325,17 @@ public final class DocumentSubsetBitsetCache implements IndexReader.ClosedListen
 
     private static final class BitsetCacheKey {
 
-        final IndexReader.CacheKey index;
+        final IndexReader.CacheKey indexKey;
         final Query query;
+        final int hashCode;
 
-        private BitsetCacheKey(IndexReader.CacheKey index, Query query) {
-            this.index = index;
+        private BitsetCacheKey(IndexReader.CacheKey indexKey, Query query) {
+            this.indexKey = indexKey;
             this.query = query;
+            // compute the hashCode eagerly, since it's used multiple times in the cache implementation anyway -- the query here will
+            // be a ConstantScoreQuery around a BooleanQuery, and BooleanQuery already *lazily* caches the hashCode, so this isn't
+            // altogether that much faster in reality, but it makes it more explicit here that we're doing this
+            this.hashCode = computeHashCode();
         }
 
         @Override
@@ -342,17 +347,23 @@ public final class DocumentSubsetBitsetCache implements IndexReader.ClosedListen
                 return false;
             }
             final BitsetCacheKey that = (BitsetCacheKey) other;
-            return Objects.equals(this.index, that.index) && Objects.equals(this.query, that.query);
+            return Objects.equals(this.indexKey, that.indexKey) && Objects.equals(this.query, that.query);
+        }
+
+        private int computeHashCode() {
+            int result = indexKey.hashCode();
+            result = 31 * result + query.hashCode();
+            return result;
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(index, query);
+            return hashCode;
         }
 
         @Override
         public String toString() {
-            return getClass().getSimpleName() + "(" + index + "," + query + ")";
+            return getClass().getSimpleName() + "(" + indexKey + "," + query + ")";
         }
     }
 
@@ -362,15 +373,15 @@ public final class DocumentSubsetBitsetCache implements IndexReader.ClosedListen
      */
     void verifyInternalConsistency() {
         this.bitsetCache.keys().forEach(bck -> {
-            final Set<BitsetCacheKey> set = this.keysByIndex.get(bck.index);
+            final Set<BitsetCacheKey> set = this.keysByIndex.get(bck.indexKey);
             if (set == null) {
                 throw new IllegalStateException(
-                    "Key [" + bck + "] is in the cache, but there is no entry for [" + bck.index + "] in the lookup map"
+                    "Key [" + bck + "] is in the cache, but there is no entry for [" + bck.indexKey + "] in the lookup map"
                 );
             }
             if (set.contains(bck) == false) {
                 throw new IllegalStateException(
-                    "Key [" + bck + "] is in the cache, but the lookup entry for [" + bck.index + "] does not contain that key"
+                    "Key [" + bck + "] is in the cache, but the lookup entry for [" + bck.indexKey + "] does not contain that key"
                 );
             }
         });

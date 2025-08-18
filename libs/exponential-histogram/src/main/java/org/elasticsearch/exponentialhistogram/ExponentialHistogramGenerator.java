@@ -21,6 +21,11 @@
 
 package org.elasticsearch.exponentialhistogram;
 
+import org.apache.lucene.util.Accountable;
+import org.apache.lucene.util.RamUsageEstimator;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
+
 import java.util.Arrays;
 
 import static org.elasticsearch.exponentialhistogram.ExponentialScaleUtils.computeIndex;
@@ -32,42 +37,64 @@ import static org.elasticsearch.exponentialhistogram.ExponentialScaleUtils.compu
  * If the number of values is less than or equal to the bucket capacity, the resulting histogram is guaranteed
  * to represent the exact raw values with a relative error less than {@code 2^(2^-MAX_SCALE) - 1}.
  */
-public class ExponentialHistogramGenerator {
+public class ExponentialHistogramGenerator implements Accountable, Releasable {
+
+    private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(ExponentialHistogramGenerator.class);
 
     // Merging individual values into a histogram would be way too slow with our sparse, array-backed histogram representation.
     // Therefore, for a bucket capacity of c, we first buffer c raw values to be inserted.
     // We then turn those into an "exact" histogram, which in turn we merge with our actual result accumulator.
     // This yields an amortized runtime of O(log(c)).
     private final double[] rawValueBuffer;
-    int valueCount;
+    private int valueCount;
 
     private final ExponentialHistogramMerger resultMerger;
     private final FixedCapacityExponentialHistogram valueBuffer;
 
-    private boolean isFinished = false;
+    private final ExponentialHistogramCircuitBreaker circuitBreaker;
+    private boolean closed = false;
 
     /**
      * Creates a new instance with the specified maximum number of buckets.
      *
      * @param maxBucketCount the maximum number of buckets for the generated histogram
+     * @param circuitBreaker the circuit breaker to use to limit memory allocations
      */
-    public ExponentialHistogramGenerator(int maxBucketCount) {
+    public static ExponentialHistogramGenerator create(int maxBucketCount, ExponentialHistogramCircuitBreaker circuitBreaker) {
+        long size = estimateBaseSize(maxBucketCount);
+        circuitBreaker.adjustBreaker(size);
+        try {
+            return new ExponentialHistogramGenerator(maxBucketCount, circuitBreaker);
+        } catch (RuntimeException e) {
+            circuitBreaker.adjustBreaker(-size);
+            throw e;
+        }
+    }
+
+    private ExponentialHistogramGenerator(int maxBucketCount, ExponentialHistogramCircuitBreaker circuitBreaker) {
+        this.circuitBreaker = circuitBreaker;
         rawValueBuffer = new double[maxBucketCount];
         valueCount = 0;
-        valueBuffer = new FixedCapacityExponentialHistogram(maxBucketCount);
-        resultMerger = new ExponentialHistogramMerger(maxBucketCount);
+        FixedCapacityExponentialHistogram buffer = null;
+        ExponentialHistogramMerger merger = null;
+        try {
+            buffer = FixedCapacityExponentialHistogram.create(maxBucketCount, circuitBreaker);
+            merger = ExponentialHistogramMerger.create(maxBucketCount, circuitBreaker);
+        } catch (RuntimeException e) {
+            Releasables.close(buffer, merger);
+            throw e;
+        }
+        this.valueBuffer = buffer;
+        this.resultMerger = merger;
     }
 
     /**
      * Adds the given value to the histogram.
-     * Must not be called after {@link #get()} has been called.
      *
      * @param value the value to add
      */
     public void add(double value) {
-        if (isFinished) {
-            throw new IllegalStateException("get() has already been called");
-        }
+        assert closed == false : "ExponentialHistogramGenerator has already been closed";
         if (valueCount == rawValueBuffer.length) {
             mergeValuesToHistogram();
         }
@@ -80,10 +107,9 @@ public class ExponentialHistogramGenerator {
      *
      * @return the histogram representing the distribution of all accumulated values
      */
-    public ExponentialHistogram get() {
-        isFinished = true;
+    public ReleasableExponentialHistogram getAndClear() {
         mergeValuesToHistogram();
-        return resultMerger.get();
+        return resultMerger.getAndClear();
     }
 
     private void mergeValuesToHistogram() {
@@ -135,4 +161,24 @@ public class ExponentialHistogramGenerator {
         valueCount = 0;
     }
 
+    private static long estimateBaseSize(int numBuckets) {
+        return SHALLOW_SIZE + RamEstimationUtil.estimateDoubleArray(numBuckets);
+    };
+
+    @Override
+    public long ramBytesUsed() {
+        return estimateBaseSize(rawValueBuffer.length) + resultMerger.ramBytesUsed() + valueBuffer.ramBytesUsed();
+    }
+
+    @Override
+    public void close() {
+        if (closed) {
+            assert false : "ExponentialHistogramGenerator closed multiple times";
+        } else {
+            closed = true;
+            resultMerger.close();
+            valueBuffer.close();
+            circuitBreaker.adjustBreaker(-estimateBaseSize(rawValueBuffer.length));
+        }
+    }
 }

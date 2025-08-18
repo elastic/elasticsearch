@@ -33,7 +33,6 @@ public class DayNameErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
 
     @Override
     protected Matcher<String> expectedTypeErrorMatcher(List<Set<DataType>> validPerPosition, List<DataType> signature) {
-        // Single argument version
         String source = sourceForSignature(signature);
         String name = signature.get(0).typeName();
         return equalTo("first argument of [" + source + "] must be [datetime or date_nanos], found value [] type [" + name + "]");

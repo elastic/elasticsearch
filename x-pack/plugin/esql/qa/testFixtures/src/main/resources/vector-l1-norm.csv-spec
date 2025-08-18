@@ -27,15 +27,15 @@ gold       | 550.0
 // end::vector-l1-norm-result[] 
 ;
 
- similarityAsPartOfExpression
- required_capability: l1_norm_vector_similarity_function
- 
- from colors
- | eval score = round((1 + v_l1_norm(rgb_vector, [0, 255, 255]) / 2), 3) 
- | sort score desc, color asc 
- | limit 10
- | keep color, score
- ;
+similarityAsPartOfExpression
+required_capability: l1_norm_vector_similarity_function
+
+from colors
+| eval score = round((1 + v_l1_norm(rgb_vector, [0, 255, 255]) / 2), 3) 
+| sort score desc, color asc 
+| limit 10
+| keep color, score
+;
 
 color:text | score:double
 red        | 383.5
@@ -62,16 +62,29 @@ similarity:double
 3.0
 ;
 
- similarityWithStats
- required_capability: l1_norm_vector_similarity_function
- 
- from colors
- | eval similarity = round(v_l1_norm(rgb_vector, [0, 255, 255]), 3) 
- | stats avg = round(avg(similarity), 3), min = min(similarity), max = max(similarity)
- ;
+similarityWithStats
+required_capability: l1_norm_vector_similarity_function
+
+from colors
+| eval similarity = round(v_l1_norm(rgb_vector, [0, 255, 255]), 3) 
+| stats avg = round(avg(similarity), 3), min = min(similarity), max = max(similarity)
+;
 
 avg:double | min:double | max:double
 391.254    | 0.0        | 765.0
+;
+
+similarityWithNull
+required_capability: l1_norm_vector_similarity_function
+required_capability: vector_similarity_functions_support_null
+
+from colors
+| eval similarity = v_l1_norm(rgb_vector, null) 
+| stats total_null = count(*) where similarity is null
+;
+
+total_null:long
+59
 ;
 
 # TODO Need to implement a conversion function to convert a non-foldable row to a dense_vector

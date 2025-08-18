@@ -60,8 +60,8 @@ public class IVFVectorsFormat extends KnnVectorsFormat {
     );
 
     // This dynamically sets the cluster probe based on the `k` requested and the number of clusters.
-    // useful when searching with 'efSearch' type parameters instead of requiring a specific nprobe.
-    public static final int DYNAMIC_NPROBE = -1;
+    // useful when searching with 'efSearch' type parameters instead of requiring a specific ratio.
+    public static final float DYNAMIC_VISIT_RATIO = 0.0f;
     public static final int DEFAULT_VECTORS_PER_CLUSTER = 384;
     public static final int MIN_VECTORS_PER_CLUSTER = 64;
     public static final int MAX_VECTORS_PER_CLUSTER = 1 << 16; // 65536

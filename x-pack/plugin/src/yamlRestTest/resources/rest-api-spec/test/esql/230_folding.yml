@@ -1,8 +1,13 @@
 ---
 setup:
   - requires:
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          capabilities: [ dense_vector_field_type ]
       test_runner_features: [ capabilities, contains ]
-      reason: "make sure new functions run where supported only"
+      reason: "make sure new functions run where supported only, dense vector needed for index creation"
   - do:
       indices.create:
         index: employees

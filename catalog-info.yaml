@@ -306,7 +306,7 @@ spec:
 apiVersion: backstage.io/v1alpha1
 kind: Resource
 metadata:
-  name: buildkite-pipeline-elasticsearch-pull-request-performance-benchmark
+  name: buildkite-pipeline-elasticsearch-pull-request-perf-benchmark
   description: Elasticsearch pull request performance benchmark
   links:
     - title: Pipeline

@@ -221,9 +221,10 @@ final class GPUToHNSWVectorsWriter extends KnnVectorsWriter {
     }
 
     private void writeSortingField(FieldWriter fieldData, Sorter.DocMap sortMap) throws IOException {
-        // TODO: implement writing sorted field when we can access cagra index through MemorySegment
-        // as we need random access to neighbors in the graph.
-        throw new UnsupportedOperationException("Writing field with index sorted needs to be implemented.");
+        // The flatFieldVectorsWriter's flush method, called before this, has already sorted the vectors according to the sortMap.
+        // We can now treat them as a simple, sorted list of vectors.
+        float[][] vectors = fieldData.flatFieldVectorsWriter.getVectors().toArray(float[][]::new);
+        writeFieldInternal(fieldData.fieldInfo, DatasetOrVectors.fromArray(vectors));
     }
 
     private void writeFieldInternal(FieldInfo fieldInfo, DatasetOrVectors datasetOrVectors) throws IOException {

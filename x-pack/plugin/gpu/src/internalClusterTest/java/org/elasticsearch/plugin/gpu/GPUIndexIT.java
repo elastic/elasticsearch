@@ -12,10 +12,12 @@ import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.vectors.KnnSearchBuilder;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xpack.gpu.GPUPlugin;
 import org.elasticsearch.xpack.gpu.GPUSupport;
+import org.junit.Assert;
 
 import java.util.Collection;
 import java.util.List;
@@ -34,40 +36,102 @@ public class GPUIndexIT extends ESIntegTestCase {
 
     public void testBasic() {
         assumeTrue("cuvs not supported", GPUSupport.isSupported(false));
+        String indexName = "index1";
         final int dims = randomIntBetween(4, 128);
         final int[] numDocs = new int[] { randomIntBetween(1, 100), 1, 2, randomIntBetween(1, 100) };
-        createIndex(dims);
+        createIndex(indexName, dims, false);
         int totalDocs = 0;
         for (int i = 0; i < numDocs.length; i++) {
-            indexDocs(numDocs[i], dims, i * 100);
+            indexDocs(indexName, numDocs[i], dims, i * 100);
             totalDocs += numDocs[i];
         }
         refresh();
-        assertSearch(randomFloatVector(dims), totalDocs);
+        assertSearch(indexName, randomFloatVector(dims), totalDocs);
+    }
+
+    public void testSortedIndexReturnsSameResultsAsUnsorted() {
+        assumeTrue("cuvs not supported", GPUSupport.isSupported(false));
+        String indexName1 = "index_unsorted";
+        String indexName2 = "index_sorted";
+        final int dims = randomIntBetween(4, 128);
+        createIndex(indexName1, dims, false);
+        createIndex(indexName2, dims, true);
+
+        final int[] numDocs = new int[] { randomIntBetween(50, 100), randomIntBetween(50, 100) };
+        for (int i = 0; i < numDocs.length; i++) {
+            BulkRequestBuilder bulkRequest1 = client().prepareBulk();
+            BulkRequestBuilder bulkRequest2 = client().prepareBulk();
+            for (int j = 0; j < numDocs[i]; j++) {
+                String id = String.valueOf(i * 100 + j);
+                String keywordValue = String.valueOf(numDocs[i] - j);
+                float[] vector = randomFloatVector(dims);
+                bulkRequest1.add(prepareIndex(indexName1).setId(id).setSource("my_vector", vector, "my_keyword", keywordValue));
+                bulkRequest2.add(prepareIndex(indexName2).setId(id).setSource("my_vector", vector, "my_keyword", keywordValue));
+            }
+            BulkResponse bulkResponse1 = bulkRequest1.get();
+            assertFalse("Bulk request failed: " + bulkResponse1.buildFailureMessage(), bulkResponse1.hasFailures());
+            BulkResponse bulkResponse2 = bulkRequest2.get();
+            assertFalse("Bulk request failed: " + bulkResponse2.buildFailureMessage(), bulkResponse2.hasFailures());
+        }
+        refresh();
+
+        float[] queryVector = randomFloatVector(dims);
+        int k = 10;
+        int numCandidates = k * 10;
+
+        var searchResponse1 = prepareSearch(indexName1).setSize(k)
+            .setFetchSource(false)
+            .addFetchField("my_keyword")
+            .setKnnSearch(List.of(new KnnSearchBuilder("my_vector", queryVector, k, numCandidates, null, null)))
+            .get();
+
+        var searchResponse2 = prepareSearch(indexName2).setSize(k)
+            .setFetchSource(false)
+            .addFetchField("my_keyword")
+            .setKnnSearch(List.of(new KnnSearchBuilder("my_vector", queryVector, k, numCandidates, null, null)))
+            .get();
+
+        try {
+            SearchHit[] hits1 = searchResponse1.getHits().getHits();
+            SearchHit[] hits2 = searchResponse2.getHits().getHits();
+            Assert.assertEquals(hits1.length, hits2.length);
+            for (int i = 0; i < hits1.length; i++) {
+                Assert.assertEquals(hits1[i].getId(), hits2[i].getId());
+                Assert.assertEquals((String) hits1[i].field("my_keyword").getValue(), (String) hits2[i].field("my_keyword").getValue());
+                Assert.assertEquals(hits1[i].getScore(), hits2[i].getScore(), 0.0001f);
+            }
+        } finally {
+            searchResponse1.decRef();
+            searchResponse2.decRef();
+        }
     }
 
     public void testSearchWithoutGPU() {
         assumeTrue("cuvs not supported", GPUSupport.isSupported(false));
+        String indexName = "index1";
         final int dims = randomIntBetween(4, 128);
         final int numDocs = randomIntBetween(1, 500);
-        createIndex(dims);
+        createIndex(indexName, dims, false);
         ensureGreen();
 
-        indexDocs(numDocs, dims, 0);
+        indexDocs(indexName, numDocs, dims, 0);
         refresh();
 
         // update settings to disable GPU usage
         Settings.Builder settingsBuilder = Settings.builder().put("index.vectors.indexing.use_gpu", false);
-        assertAcked(client().admin().indices().prepareUpdateSettings("foo-index").setSettings(settingsBuilder.build()));
+        assertAcked(client().admin().indices().prepareUpdateSettings(indexName).setSettings(settingsBuilder.build()));
         ensureGreen();
-        assertSearch(randomFloatVector(dims), numDocs);
+        assertSearch(indexName, randomFloatVector(dims), numDocs);
     }
 
-    private void createIndex(int dims) {
+    private void createIndex(String indexName, int dims, boolean sorted) {
         var settings = Settings.builder().put(indexSettings());
         settings.put("index.number_of_shards", 1);
         settings.put("index.vectors.indexing.use_gpu", true);
-        assertAcked(prepareCreate("foo-index").setSettings(settings.build()).setMapping(String.format(Locale.ROOT, """
+        if (sorted) {
+            settings.put("index.sort.field", "my_keyword");
+        }
+        assertAcked(prepareCreate(indexName).setSettings(settings.build()).setMapping(String.format(Locale.ROOT, """
                 {
                   "properties": {
                     "my_vector": {
@@ -77,6 +141,9 @@ public class GPUIndexIT extends ESIntegTestCase {
                       "index_options": {
                         "type": "hnsw"
                       }
+                    },
+                    "my_keyword": {
+                      "type": "keyword"
                     }
                   }
                 }
@@ -84,21 +151,26 @@ public class GPUIndexIT extends ESIntegTestCase {
         ensureGreen();
     }
 
-    private void indexDocs(int numDocs, int dims, int startDoc) {
+    private void indexDocs(String indexName, int numDocs, int dims, int startDoc) {
         BulkRequestBuilder bulkRequest = client().prepareBulk();
         for (int i = 0; i < numDocs; i++) {
             String id = String.valueOf(startDoc + i);
-            bulkRequest.add(prepareIndex("foo-index").setId(id).setSource("my_vector", randomFloatVector(dims)));
+            String keywordValue = String.valueOf(numDocs - i);
+            var indexRequest = prepareIndex(indexName).setId(id)
+                .setSource("my_vector", randomFloatVector(dims), "my_keyword", keywordValue);
+            bulkRequest.add(indexRequest);
         }
         BulkResponse bulkResponse = bulkRequest.get();
         assertFalse("Bulk request failed: " + bulkResponse.buildFailureMessage(), bulkResponse.hasFailures());
     }
 
-    private void assertSearch(float[] queryVector, int totalDocs) {
+    private void assertSearch(String indexName, float[] queryVector, int totalDocs) {
         int k = Math.min(randomIntBetween(1, 20), totalDocs);
         int numCandidates = k * 10;
         assertNoFailuresAndResponse(
-            prepareSearch("foo-index").setSize(k)
+            prepareSearch(indexName).setSize(k)
+                .setFetchSource(false)
+                .addFetchField("my_keyword")
                 .setKnnSearch(List.of(new KnnSearchBuilder("my_vector", queryVector, k, numCandidates, null, null))),
             response -> {
                 assertEquals("Expected k hits to be returned", k, response.getHits().getHits().length);

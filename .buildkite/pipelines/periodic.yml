@@ -8,8 +8,8 @@ steps:
         matrix:
           setup:
             EA_JAVA:
-              - 25
-              - 26
+              - 25-ea
+              - 26-ea
             GRADLE_TASK:
               - checkPart1
               - checkPart2
@@ -25,5 +25,5 @@ steps:
           buildDirectory: /dev/shm/bk
           GRADLE_TASK: "{{matrix.GRADLE_TASK}}"
         env:
-          ES_RUNTIME_JAVA: "{{matrix.EA_JAVA}}"
+          EA_JAVA: "{{matrix.EA_JAVA}}"
           GRADLE_TASK: "{{matrix.GRADLE_TASK}}"

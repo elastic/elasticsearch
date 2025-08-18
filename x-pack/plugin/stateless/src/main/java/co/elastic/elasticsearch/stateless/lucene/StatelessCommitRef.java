@@ -17,6 +17,8 @@
 
 package co.elastic.elasticsearch.stateless.lucene;
 
+import co.elastic.elasticsearch.stateless.engine.IndexEngine;
+
 import org.elasticsearch.common.lucene.FilterIndexCommit;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.shard.ShardId;
@@ -49,6 +51,7 @@ public class StatelessCommitRef extends FilterIndexCommit implements Closeable {
     private final long translogRecoveryStartFile;
     // The translog release end file is used so that the {@link TranslogReplicator} can release any translog files before this one.
     private final long translogReleaseEndFile;
+    private final boolean carryOverTranslog;
 
     public StatelessCommitRef(
         ShardId shardId,
@@ -65,6 +68,12 @@ public class StatelessCommitRef extends FilterIndexCommit implements Closeable {
         this.primaryTerm = primaryTerm;
         this.translogRecoveryStartFile = translogRecoveryStartFile;
         this.translogReleaseEndFile = translogReleaseEndFile;
+        try {
+            this.carryOverTranslog = indexCommitRef.getIndexCommit().getUserData().containsKey(IndexEngine.TRANSLOG_CARRY_OVER);
+        } catch (IOException e) {
+            assert false : e; // should never happen, none of the Lucene implementations throw this.
+            throw new UncheckedIOException(e);
+        }
         this.released = new AtomicBoolean();
         assert translogReleaseEndFile < 0 || translogRecoveryStartFile == translogReleaseEndFile || isHollow()
             : "translog start file for cleaning ("
@@ -114,6 +123,14 @@ public class StatelessCommitRef extends FilterIndexCommit implements Closeable {
 
     public boolean isHollow() {
         return getTranslogRecoveryStartFile() == HOLLOW_TRANSLOG_RECOVERY_START_FILE;
+    }
+
+    /**
+     * Signals that translog data like nodeEphemeralid in this commit should be carried over from current recovered commit.
+     * This is need when performing a flush during translog replay.
+     */
+    public boolean carryOverTranslog() {
+        return carryOverTranslog;
     }
 
     @Override

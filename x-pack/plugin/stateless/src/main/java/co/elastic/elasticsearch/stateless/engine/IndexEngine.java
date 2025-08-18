@@ -97,6 +97,7 @@ public class IndexEngine extends InternalEngine {
 
     public static final String TRANSLOG_RECOVERY_START_FILE = "translog_recovery_start_file";
     public static final String TRANSLOG_RELEASE_END_FILE = "translog_release_end_file";
+    public static final String TRANSLOG_CARRY_OVER = "translog_carry_over";
     public static final Setting<Boolean> MERGE_PREWARM = Setting.boolSetting("stateless.merge.prewarm", true, Setting.Property.NodeScope);
     // If the size of a merge is greater than or equal to this, force a refresh to allow its space to be reclaimed immediately.
     public static final Setting<ByteSizeValue> MERGE_FORCE_REFRESH_SIZE = Setting.byteSizeSetting(
@@ -409,10 +410,11 @@ public class IndexEngine extends InternalEngine {
 
     @Override
     protected Map<String, String> getCommitExtraUserData(final long localCheckpoint) {
-        var accumulatorUserData = documentSizeAccumulator.getAsCommitUserData(getLastCommittedSegmentInfos());
+        SegmentInfos lastCommittedSegmentInfos = getLastCommittedSegmentInfos();
+        var accumulatorUserData = documentSizeAccumulator.getAsCommitUserData(lastCommittedSegmentInfos);
+
         final Map<String, String> commitExtraUserData;
 
-        long translogRecoveryStartFile = translogStartFileForNextCommit;
         // We check the local checkpoint to ensure that only a commit that has committed all operations is marked as hollow.
         if (hollowMaxSeqNo != SequenceNumbers.UNASSIGNED_SEQ_NO && localCheckpoint == hollowMaxSeqNo) {
             assert hollowMaxSeqNo == getMaxSeqNo()
@@ -425,15 +427,37 @@ public class IndexEngine extends InternalEngine {
                 () -> "flushing hollow commit with max seq no " + hollowMaxSeqNo + " and generation " + (getCurrentGeneration() + 1)
             );
             commitExtraUserData = Maps.newMapWithExpectedSize(2 + accumulatorUserData.size());
-            commitExtraUserData.put(TRANSLOG_RELEASE_END_FILE, Long.toString(translogRecoveryStartFile));
-            translogRecoveryStartFile = HOLLOW_TRANSLOG_RECOVERY_START_FILE;
+            commitExtraUserData.put(TRANSLOG_RECOVERY_START_FILE, Long.toString(HOLLOW_TRANSLOG_RECOVERY_START_FILE));
+            commitExtraUserData.put(TRANSLOG_RELEASE_END_FILE, Long.toString(translogStartFileForNextCommit));
         } else {
-            commitExtraUserData = Maps.newMapWithExpectedSize(1 + accumulatorUserData.size());
+            // carry over previous translog information during translog recovery.
+            boolean pendingTranslogRecovery = this.pendingTranslogRecovery();
+            if (pendingTranslogRecovery) {
+                var existingTranslogRecoveryStartFile = lastCommittedSegmentInfos.getUserData().get(TRANSLOG_RECOVERY_START_FILE);
+                if (existingTranslogRecoveryStartFile != null) {
+                    commitExtraUserData = Maps.newMapWithExpectedSize(2 + accumulatorUserData.size());
+                    commitExtraUserData.put(TRANSLOG_RECOVERY_START_FILE, existingTranslogRecoveryStartFile);
+                } else {
+                    commitExtraUserData = Maps.newMapWithExpectedSize(1 + accumulatorUserData.size());
+                }
+
+                commitExtraUserData.put(TRANSLOG_CARRY_OVER, "true");
+            } else {
+                commitExtraUserData = Maps.newMapWithExpectedSize(1 + accumulatorUserData.size());
+                commitExtraUserData.put(TRANSLOG_RECOVERY_START_FILE, Long.toString(translogStartFileForNextCommit));
+            }
         }
 
         commitExtraUserData.putAll(accumulatorUserData);
-        commitExtraUserData.put(TRANSLOG_RECOVERY_START_FILE, Long.toString(translogRecoveryStartFile));
         return Collections.unmodifiableMap(commitExtraUserData);
+    }
+
+    @Override
+    protected void ensureCanFlush() {
+        // Override to empty to always allow flush in stateless.
+        // This includes flush during translog replay which is useful to make incremental progress when recovering
+        // with a large translog.
+        // Ultimately we should do the same in stateful.
     }
 
     @Override

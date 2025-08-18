@@ -59,6 +59,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToString;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Concat;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Substring;
 import org.elasticsearch.xpack.esql.expression.function.vector.Knn;
+import org.elasticsearch.xpack.esql.expression.function.vector.Magnitude;
 import org.elasticsearch.xpack.esql.expression.function.vector.VectorSimilarityFunction;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Add;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
@@ -2429,6 +2430,30 @@ public class AnalyzerTests extends ESTestCase {
         assertThat(
             error.getMessage(),
             containsString("second argument of [" + similarityFunction + "] must be" + " [dense_vector], found value [0.342] type [double]")
+        );
+    }
+
+    public void testMagnitudePlanWithDenseVectorImplicitCasting() {
+        var plan = analyze(String.format(Locale.ROOT, """
+            from test | eval scalar = v_magnitude([1, 2, 3])
+            """), "mapping-dense_vector.json");
+
+        var limit = as(plan, Limit.class);
+        var eval = as(limit.child(), Eval.class);
+        var alias = as(eval.fields().get(0), Alias.class);
+        assertEquals("scalar", alias.name());
+        var scalar = as(alias.child(), Magnitude.class);
+        var child = as(scalar.field(), Literal.class);
+        assertThat(child.dataType(), is(DENSE_VECTOR));
+        assertThat(child.value(), equalTo(List.of(1.0f, 2.0f, 3.0f)));
+    }
+
+    public void testNoDenseVectorFailsForMagnitude() {
+        var query = String.format(Locale.ROOT, "row a = 1 |  eval scalar = v_magnitude(0.342)");
+        VerificationException error = expectThrows(VerificationException.class, () -> analyze(query));
+        assertThat(
+            error.getMessage(),
+            containsString("first argument of [v_magnitude(0.342)] must be [dense_vector], found value [0.342] type [double]")
         );
     }
 

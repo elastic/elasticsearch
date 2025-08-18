@@ -30,6 +30,7 @@ import org.elasticsearch.search.fetch.subphase.highlight.DefaultHighlighter;
 import org.elasticsearch.search.fetch.subphase.highlight.FieldHighlightContext;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightField;
+import org.elasticsearch.search.fetch.subphase.highlight.HighlightSnippetUtils;
 import org.elasticsearch.search.fetch.subphase.highlight.Highlighter;
 import org.elasticsearch.search.fetch.subphase.highlight.SearchHighlightContext;
 import org.elasticsearch.search.internal.SearchContext;
@@ -106,17 +107,13 @@ public class HighlighterExpressionEvaluator extends LuceneQueryEvaluator<BytesRe
         Source source = Source.lazy(lazyStoredSourceLoader(leafReaderContext, docId));
         Highlighter highlighter = highlighters.getOrDefault(fieldType.getDefaultHighlighter(), new DefaultHighlighter());
 
-        // TODO: Consolidate these options with the ones built in the text similarity reranker
-        SearchHighlightContext.FieldOptions.Builder optionsBuilder = new SearchHighlightContext.FieldOptions.Builder();
-        optionsBuilder.numberOfFragments(numFragments != null ? numFragments : HighlightBuilder.DEFAULT_NUMBER_OF_FRAGMENTS);
-        optionsBuilder.fragmentCharSize(fragmentLength != null ? fragmentLength : HighlightBuilder.DEFAULT_FRAGMENT_CHAR_SIZE);
-        optionsBuilder.preTags(new String[] { "" });
-        optionsBuilder.postTags(new String[] { "" });
-        optionsBuilder.requireFieldMatch(false);
-        optionsBuilder.scoreOrdered(true);
-        optionsBuilder.highlightQuery(query);
-        SearchHighlightContext.Field field = new SearchHighlightContext.Field(fieldName, optionsBuilder.build());
-
+        SearchHighlightContext.Field field = HighlightSnippetUtils.buildFieldHighlightContextForSnippets(
+            fetchContext.getSearchExecutionContext(),
+            fieldName,
+            numFragments != null ? numFragments : HighlightBuilder.DEFAULT_NUMBER_OF_FRAGMENTS,
+            fragmentLength != null ? fragmentLength : HighlightBuilder.DEFAULT_FRAGMENT_CHAR_SIZE,
+            query
+        );
         FetchSubPhase.HitContext hitContext = new FetchSubPhase.HitContext(searchHit, leafReaderContext, docId, Map.of(), source, null);
         FieldHighlightContext highlightContext = new FieldHighlightContext(
             fieldName,

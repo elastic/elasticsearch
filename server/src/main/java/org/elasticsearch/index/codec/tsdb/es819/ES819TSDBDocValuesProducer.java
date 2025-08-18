@@ -1356,10 +1356,10 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
                         valuesData.seek(indexReader.get(blockIndex));
                     }
                     currentBlockIndex = blockIndex;
-                    if (maxOrd >= 0) {
-                        decoder.decodeOrdinals(valuesData, currentBlock, bitsPerOrd);
-                    } else {
+                    if (bitsPerOrd == -1) {
                         decoder.decode(valuesData, currentBlock);
+                    } else {
+                        decoder.decodeOrdinals(valuesData, currentBlock, bitsPerOrd);
                     }
                     return currentBlock[blockInIndex];
                 }
@@ -1427,7 +1427,7 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
                         if (lookaheadBlockIndex + 1 != blockIndex) {
                             lookaheadData.seek(indexReader.get(blockIndex));
                         }
-                        if (maxOrd == -1L) {
+                        if (bitsPerOrd == -1) {
                             decoder.decode(lookaheadData, lookaheadBlock);
                         } else {
                             decoder.decodeOrdinals(lookaheadData, lookaheadBlock, bitsPerOrd);
@@ -1471,10 +1471,10 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
                             valuesData.seek(indexReader.get(blockIndex));
                         }
                         currentBlockIndex = blockIndex;
-                        if (maxOrd >= 0) {
-                            decoder.decodeOrdinals(valuesData, currentBlock, bitsPerOrd);
-                        } else {
+                        if (bitsPerOrd == -1) {
                             decoder.decode(valuesData, currentBlock);
+                        } else {
+                            decoder.decodeOrdinals(valuesData, currentBlock, bitsPerOrd);
                         }
                     }
                     return currentBlock[blockInIndex];
@@ -1506,10 +1506,10 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
                         valuesData.seek(indexReader.get(blockIndex));
                     }
                     currentBlockIndex = blockIndex;
-                    if (bitsPerOrd >= 0) {
-                        decoder.decodeOrdinals(valuesData, currentBlock, bitsPerOrd);
-                    } else {
+                    if (bitsPerOrd == -1) {
                         decoder.decode(valuesData, currentBlock);
+                    } else {
+                        decoder.decodeOrdinals(valuesData, currentBlock, bitsPerOrd);
                     }
                 }
                 return currentBlock[blockInIndex];

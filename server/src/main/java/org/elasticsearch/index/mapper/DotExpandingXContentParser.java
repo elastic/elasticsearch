@@ -10,6 +10,7 @@
 package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.core.CheckedFunction;
+import org.elasticsearch.ingest.ESONXContentParser;
 import org.elasticsearch.xcontent.FilterXContentParser;
 import org.elasticsearch.xcontent.FilterXContentParserWrapper;
 import org.elasticsearch.xcontent.XContentLocation;
@@ -73,7 +74,9 @@ class DotExpandingXContentParser extends FilterXContentParserWrapper {
         }
 
         private static Token getNextToken(XContentParser parser) throws IOException {
-            if (parser instanceof DotExpandingXContentParser dot) {
+            if (parser instanceof ESONXContentParser eson) {
+                return eson.nextToken();
+            } else if (parser instanceof DotExpandingXContentParser dot) {
                 return dot.nextToken();
             } else {
                 return parser.nextToken();

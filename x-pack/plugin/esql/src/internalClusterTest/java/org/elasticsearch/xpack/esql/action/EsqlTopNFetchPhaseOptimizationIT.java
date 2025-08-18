@@ -34,7 +34,7 @@ import static org.hamcrest.Matchers.hasSize;
 
 // Verifies that the value source reader operator is optimized into the data node instead of the worker node.
 @ESIntegTestCase.ClusterScope(numDataNodes = 3)
-public class EsqlTopNFetchPhaseOptimization extends AbstractEsqlIntegTestCase {
+public class EsqlTopNFetchPhaseOptimizationIT extends AbstractEsqlIntegTestCase {
     private static final int SHARD_COUNT = 1;
 
     @Before

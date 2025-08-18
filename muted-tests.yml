@@ -576,6 +576,9 @@ tests:
 - class: org.elasticsearch.test.rest.yaml.CcsCommonYamlTestSuiteIT
   method: test {p0=search.highlight/50_synthetic_source/text multi fvh source order}
   issue: https://github.com/elastic/elasticsearch/issues/133056
+- class: org.elasticsearch.upgrades.SyntheticSourceRollingUpgradeIT
+  method: testIndexing {upgradedNodes=1}
+  issue: https://github.com/elastic/elasticsearch/issues/133060
 
 # Examples:
 #

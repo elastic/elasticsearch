@@ -7,7 +7,7 @@ steps:
         timeout_in_minutes: 300
         matrix:
           setup:
-            ES_RUNTIME_JAVA:
+            EA_JAVA:
               - 25
               - 26
             GRADLE_TASK:

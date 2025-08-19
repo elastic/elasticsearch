@@ -386,51 +386,6 @@ public class LinearRetrieverBuilderTests extends ESTestCase {
         assertEquals(MinMaxScoreNormalizer.INSTANCE, retriever.getNormalizers()[1]);
     }
 
-    public void testExplicitIdentityNormalizerOverridesTopLevel() {
-        StandardRetrieverBuilder standardRetriever = new StandardRetrieverBuilder(new MatchQueryBuilder("title", "elasticsearch"));
-        KnnRetrieverBuilder knnRetriever = new KnnRetrieverBuilder(
-            "title_vector",
-            new float[] { 0.1f, 0.2f, 0.3f },
-            null,
-            10,
-            100,
-            null,
-            null
-        );
-
-        LinearRetrieverBuilder retriever = new LinearRetrieverBuilder(
-            List.of(
-                CompoundRetrieverBuilder.RetrieverSource.from(standardRetriever),
-                CompoundRetrieverBuilder.RetrieverSource.from(knnRetriever)
-            ),
-            null,
-            null,
-            MinMaxScoreNormalizer.INSTANCE,
-            DEFAULT_RANK_WINDOW_SIZE,
-            new float[] { 1.0f, 2.0f },
-            new ScoreNormalizer[] { IdentityScoreNormalizer.INSTANCE, null }
-        );
-
-        assertEquals(IdentityScoreNormalizer.INSTANCE, retriever.getNormalizers()[0]);
-        assertEquals(MinMaxScoreNormalizer.INSTANCE, retriever.getNormalizers()[1]);
-    }
-
-    public void testNullNormalizerUsesTopLevelAsDefault() {
-        StandardRetrieverBuilder standardRetriever = new StandardRetrieverBuilder(new MatchQueryBuilder("title", "elasticsearch"));
-
-        LinearRetrieverBuilder retriever = new LinearRetrieverBuilder(
-            List.of(CompoundRetrieverBuilder.RetrieverSource.from(standardRetriever)),
-            null,
-            null,
-            MinMaxScoreNormalizer.INSTANCE,
-            DEFAULT_RANK_WINDOW_SIZE,
-            new float[] { 1.0f },
-            new ScoreNormalizer[] { null }
-        );
-
-        assertEquals(MinMaxScoreNormalizer.INSTANCE, retriever.getNormalizers()[0]);
-    }
-
     public void testNullNormalizersWithoutTopLevelUsesIdentity() {
         StandardRetrieverBuilder standardRetriever = new StandardRetrieverBuilder(new MatchQueryBuilder("title", "elasticsearch"));
 

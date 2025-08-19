@@ -87,13 +87,13 @@ public class AnnotatedTextFieldMapper extends TextFamilyFieldMapper {
         final Parameter<String> indexOptions = TextParams.textIndexOptions(m -> builder(m).indexOptions.getValue());
         final Parameter<Boolean> norms = Parameter.normsParam(m -> builder(m).norms.getValue(), true);
         final Parameter<String> termVectors = TextParams.termVectors(m -> builder(m).termVectors.getValue());
-        private final Parameter<Boolean> store = Parameter.storeParam(m -> builder(m).store.getValue(), false);
 
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
 
         private final IndexVersion indexCreatedVersion;
         private final TextParams.Analyzers analyzers;
         private final boolean isWithinMultiField;
+        private final Parameter<Boolean> store;
 
         private boolean isSyntheticSourceEnabled;
 
@@ -107,6 +107,12 @@ public class AnnotatedTextFieldMapper extends TextFamilyFieldMapper {
                 m -> builder(m).analyzers.positionIncrementGap.getValue(),
                 indexCreatedVersion
             );
+            this.store = Parameter.storeParam(m -> builder(m).store.getValue(), () -> {
+                if (keywordMultiFieldsNotStoredWhenIgnored_indexVersionCheck(indexCreatedVersion)) {
+                    return false;
+                }
+                return isSyntheticSourceEnabled && multiFieldsBuilder.hasSyntheticSourceCompatibleKeywordField() == false;
+            });
         }
 
         @Override

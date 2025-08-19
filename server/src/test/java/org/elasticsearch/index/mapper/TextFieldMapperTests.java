@@ -52,6 +52,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.CharFilterFactory;
 import org.elasticsearch.index.analysis.CustomAnalyzer;
@@ -308,6 +309,145 @@ public class TextFieldMapperTests extends MapperTestCase {
         } else {
             assertFalse(fieldType.stored());
         }
+    }
+
+    public void test_store_parameters_defaults_to_false_with_latest_index_version_when_synthetic_source_is_enabled() throws IOException {
+        var indexSettings = getIndexSettingsBuilder().put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), "synthetic").build();
+
+        var mapping = mapping(b -> {
+            b.startObject("name");
+            b.field("type", "text");
+            b.endObject();
+        });
+
+        DocumentMapper mapper = createMapperService(indexSettings, mapping).documentMapper();
+
+        var source = source(b -> b.field("name", "quick brown fox"));
+        ParsedDocument doc = mapper.parse(source);
+        List<IndexableField> fields = doc.rootDoc().getFields("name");
+        IndexableFieldType fieldType = fields.get(0).fieldType();
+        assertThat(fieldType.stored(), is(false));
+    }
+
+    public void testStoreParameterDefaultsSyntheticSource() throws IOException {
+        var indexSettings = getIndexSettingsBuilder().put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), "synthetic").build();
+
+        var mapping = mapping(b -> {
+            b.startObject("name");
+            b.field("type", "text");
+            b.endObject();
+        });
+
+        IndexVersion bwcIndexVersion = IndexVersions.MAPPER_TEXT_MATCH_ONLY_MULTI_FIELDS_DEFAULT_NOT_STORED;
+        DocumentMapper mapper = createMapperService(bwcIndexVersion, indexSettings, mapping).documentMapper();
+
+        var source = source(b -> b.field("name", "quick brown fox"));
+        ParsedDocument doc = mapper.parse(source);
+        List<IndexableField> fields = doc.rootDoc().getFields("name");
+        IndexableFieldType fieldType = fields.get(0).fieldType();
+        assertThat(fieldType.stored(), is(true));
+    }
+
+    public void testStoreParameterDefaultsSyntheticSourceWithKeywordMultiField() throws IOException {
+        var indexSettingsBuilder = getIndexSettingsBuilder();
+        indexSettingsBuilder.put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), "synthetic");
+        var indexSettings = indexSettingsBuilder.build();
+
+        var mapping = mapping(b -> {
+            b.startObject("name");
+            b.field("type", "text");
+            b.startObject("fields");
+            b.startObject("keyword");
+            b.field("type", "keyword");
+            b.endObject();
+            b.endObject();
+            b.endObject();
+        });
+
+        IndexVersion bwcIndexVersion = IndexVersions.MAPPER_TEXT_MATCH_ONLY_MULTI_FIELDS_DEFAULT_NOT_STORED;
+        DocumentMapper mapper = createMapperService(bwcIndexVersion, indexSettings, mapping).documentMapper();
+
+        var source = source(b -> b.field("name", "quick brown fox"));
+        ParsedDocument doc = mapper.parse(source);
+        List<IndexableField> fields = doc.rootDoc().getFields("name");
+        IndexableFieldType fieldType = fields.get(0).fieldType();
+        assertThat(fieldType.stored(), is(false));
+    }
+
+    public void testStoreParameterDefaultsSyntheticSourceWithKeywordMultiFieldBwc() throws IOException {
+        var indexSettingsBuilder = getIndexSettingsBuilder();
+        indexSettingsBuilder.put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), "synthetic");
+        var indexSettings = indexSettingsBuilder.build();
+
+        var mapping = mapping(b -> {
+            b.startObject("name");
+            b.field("type", "text");
+            b.startObject("fields");
+            b.startObject("keyword");
+            b.field("type", "keyword");
+            b.endObject();
+            b.endObject();
+            b.endObject();
+        });
+        IndexVersion beforeVersion = IndexVersions.INDEX_INT_SORT_INT_TYPE;
+        DocumentMapper mapper = createMapperService(beforeVersion, indexSettings, mapping).documentMapper();
+
+        var source = source(b -> b.field("name", "quick brown fox"));
+        ParsedDocument doc = mapper.parse(source);
+        List<IndexableField> fields = doc.rootDoc().getFields("name");
+        IndexableFieldType fieldType = fields.get(0).fieldType();
+        assertThat(fieldType.stored(), is(false));
+    }
+
+    public void testStoreParameterDefaultsSyntheticSourceTextFieldIsMultiField() throws IOException {
+        var indexSettingsBuilder = getIndexSettingsBuilder();
+        indexSettingsBuilder.put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), "synthetic");
+        var indexSettings = indexSettingsBuilder.build();
+
+        var mapping = mapping(b -> {
+            b.startObject("name");
+            b.field("type", "keyword");
+            b.startObject("fields");
+            b.startObject("text");
+            b.field("type", "text");
+            b.endObject();
+            b.endObject();
+            b.endObject();
+        });
+
+        IndexVersion bwcIndexVersion = IndexVersions.MAPPER_TEXT_MATCH_ONLY_MULTI_FIELDS_DEFAULT_NOT_STORED;
+        DocumentMapper mapper = createMapperService(bwcIndexVersion, indexSettings, mapping).documentMapper();
+
+        var source = source(b -> b.field("name", "quick brown fox"));
+        ParsedDocument doc = mapper.parse(source);
+        List<IndexableField> fields = doc.rootDoc().getFields("name.text");
+        IndexableFieldType fieldType = fields.get(0).fieldType();
+        assertThat(fieldType.stored(), is(false));
+    }
+
+    public void testStoreParameterDefaultsSyntheticSourceTextFieldIsMultiFieldBwc() throws IOException {
+        var indexSettingsBuilder = getIndexSettingsBuilder();
+        indexSettingsBuilder.put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), "synthetic");
+        var indexSettings = indexSettingsBuilder.build();
+
+        var mapping = mapping(b -> {
+            b.startObject("name");
+            b.field("type", "keyword");
+            b.startObject("fields");
+            b.startObject("text");
+            b.field("type", "text");
+            b.endObject();
+            b.endObject();
+            b.endObject();
+        });
+        IndexVersion beforeVersion = IndexVersions.INDEX_INT_SORT_INT_TYPE;
+        DocumentMapper mapper = createMapperService(beforeVersion, indexSettings, mapping).documentMapper();
+
+        var source = source(b -> b.field("name", "quick brown fox"));
+        ParsedDocument doc = mapper.parse(source);
+        List<IndexableField> fields = doc.rootDoc().getFields("name.text");
+        IndexableFieldType fieldType = fields.get(0).fieldType();
+        assertThat(fieldType.stored(), is(true));
     }
 
     public void testBWCSerialization() throws IOException {

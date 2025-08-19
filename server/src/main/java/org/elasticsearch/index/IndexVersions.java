@@ -182,6 +182,7 @@ public class IndexVersions {
     public static final IndexVersion MATCH_ONLY_TEXT_STORED_AS_BYTES = def(9_033_0_00, Version.LUCENE_10_2_2);
     public static final IndexVersion IGNORED_SOURCE_FIELDS_PER_ENTRY_WITH_FF = def(9_034_0_00, Version.LUCENE_10_2_2);
     public static final IndexVersion EXCLUDE_SOURCE_VECTORS_DEFAULT = def(9_035_0_00, Version.LUCENE_10_2_2);
+    public static final IndexVersion KEYWORD_MULTI_FIELDS_NOT_STORED_WHEN_IGNORED = def(9_036_0_00, Version.LUCENE_10_2_2);
 
     /*
      * STOP! READ THIS FIRST! No, really,

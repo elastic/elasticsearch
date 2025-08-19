@@ -1207,7 +1207,7 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
         private long rangeEndExclusive = -1;
 
         SortedOrdinalReader(long maxOrd, DirectMonotonicReader startDocs) {
-            this.maxOrd = Math.toIntExact(maxOrd);
+            this.maxOrd = maxOrd;
             this.startDocs = startDocs;
         }
 

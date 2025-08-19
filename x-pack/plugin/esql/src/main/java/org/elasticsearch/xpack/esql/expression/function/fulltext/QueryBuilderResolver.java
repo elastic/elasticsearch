@@ -89,7 +89,7 @@ public final class QueryBuilderResolver {
                         ? rewriteableAware.asQuery(LucenePushdownPredicates.DEFAULT, TranslatorHandler.TRANSLATOR_HANDLER).toQueryBuilder()
                         : builder;
                     try {
-                        builder = Rewriteable.rewrite(builder, ctx);
+                        builder = builder.rewrite(ctx);
                     } catch (IOException e) {
                         exceptionHolder.setIfAbsent(e);
                     }

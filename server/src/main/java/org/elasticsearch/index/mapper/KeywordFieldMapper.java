@@ -1221,14 +1221,6 @@ public final class KeywordFieldMapper extends FieldMapper {
         return indexValue(context, new Text(value));
     }
 
-    /**
-     * Returns whether this field should be stored separately as a {@link StoredField} for supporting synthetic source.
-     */
-    private boolean storeIgnoredValuesForSyntheticSource() {
-        // skip all fields that are multi-fields
-        return fieldType().isSyntheticSourceEnabled && fieldType().isWithinMultiField == false;
-    }
-
     private boolean indexValue(DocumentParserContext context, XContentString value) {
         // nothing to index
         if (value == null) {
@@ -1240,11 +1232,12 @@ public final class KeywordFieldMapper extends FieldMapper {
             return false;
         }
 
-        // if the value's length exceeds ignore_above, then don't index it
-        if (value.stringLength() > fieldType().ignoreAbove()) {
+        // if the value's length exceeds ignore_above, then don't index it. Instead, store it in ignored source
+        // that being said, don't store multi fields in ignored source as thats the responsibility of the parent
+        if (value.stringLength() > fieldType().ignoreAbove() && isWithinMultiField == false) {
             context.addIgnoredField(fullPath());
-            // unless, synthetic source is enabled, then store a copy of the value so that synthetic source be load it
-            if (storeIgnoredValuesForSyntheticSource()) {
+            // unless synthetic source is enabled, then store a copy of the value so that synthetic source be load it
+            if (fieldType().isSyntheticSourceEnabled) {
                 var utfBytes = value.bytes();
                 var bytesRef = new BytesRef(utfBytes.bytes(), utfBytes.offset(), utfBytes.length());
                 final String fieldName = fieldType().syntheticSourceFallbackFieldName();

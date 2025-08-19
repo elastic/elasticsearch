@@ -251,7 +251,7 @@ public class ModelRegistry implements ClusterStateListener {
     public void getModelWithSecrets(String inferenceEntityId, ActionListener<UnparsedModel> listener) {
         var maybeDefault = defaultConfigIds.get(inferenceEntityId);
         if (maybeDefault != null) {
-            getDefaultConfig(true, maybeDefault, listener);
+            getDefaultConfig(false, maybeDefault, listener);
             logger.debug("Returning default inference endpoint [{}] with secrets", inferenceEntityId);
             return;
         }
@@ -293,7 +293,7 @@ public class ModelRegistry implements ClusterStateListener {
     public void getModel(String inferenceEntityId, ActionListener<UnparsedModel> listener) {
         var maybeDefault = defaultConfigIds.get(inferenceEntityId);
         if (maybeDefault != null) {
-            getDefaultConfig(true, maybeDefault, listener);
+            getDefaultConfig(false, maybeDefault, listener);
             return;
         }
 

@@ -82,7 +82,7 @@ public class SnapshotMetricsIT extends AbstractSnapshotIntegTestCase {
         final int numReplicas = randomIntBetween(0, 1);
         createIndex(indexName, numShards, numReplicas);
 
-        indexRandom(true, indexName, randomIntBetween(100, 300));
+        indexRandom(true, indexName, randomIntBetween(1000, 3000));
 
         final String repositoryName = randomIdentifier();
         createRepository(repositoryName, "mock");

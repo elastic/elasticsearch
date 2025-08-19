@@ -27,10 +27,9 @@ import org.apache.lucene.document.KnnByteVectorField;
 import org.apache.lucene.document.KnnFloatVectorField;
 import org.apache.lucene.document.StoredField;
 import org.apache.lucene.index.ConcurrentMergeScheduler;
-import org.apache.lucene.index.DirectoryReader;
-import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
+import org.apache.lucene.index.MergePolicy;
 import org.apache.lucene.index.VectorEncoding;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.store.FSDirectory;
@@ -69,6 +68,7 @@ class KnnIndexer {
     private final Codec codec;
     private final int numDocs;
     private final int numIndexThreads;
+    private final MergePolicy mergePolicy;
 
     KnnIndexer(
         List<Path> docsPath,
@@ -78,7 +78,8 @@ class KnnIndexer {
         VectorEncoding vectorEncoding,
         int dim,
         VectorSimilarityFunction similarityFunction,
-        int numDocs
+        int numDocs,
+        MergePolicy mergePolicy
     ) {
         this.docsPath = docsPath;
         this.indexPath = indexPath;
@@ -88,14 +89,7 @@ class KnnIndexer {
         this.dim = dim;
         this.similarityFunction = similarityFunction;
         this.numDocs = numDocs;
-    }
-
-    void numSegments(KnnIndexTester.Results result) {
-        try (FSDirectory dir = FSDirectory.open(indexPath); IndexReader reader = DirectoryReader.open(dir)) {
-            result.numSegments = reader.leaves().size();
-        } catch (IOException e) {
-            throw new UncheckedIOException("Failed to get segment count for index at " + indexPath, e);
-        }
+        this.mergePolicy = mergePolicy;
     }
 
     void createIndex(KnnIndexTester.Results result) throws IOException, InterruptedException, ExecutionException {
@@ -103,7 +97,9 @@ class KnnIndexer {
         iwc.setCodec(codec);
         iwc.setRAMBufferSizeMB(WRITER_BUFFER_MB);
         iwc.setUseCompoundFile(false);
-
+        if (mergePolicy != null) {
+            iwc.setMergePolicy(mergePolicy);
+        }
         iwc.setMaxFullFlushMergeWaitMillis(0);
 
         iwc.setInfoStream(new PrintStreamInfoStream(System.out) {
@@ -200,6 +196,9 @@ class KnnIndexer {
         long elapsed = System.nanoTime() - start;
         logger.debug("Indexing took {} ms for {} docs", TimeUnit.NANOSECONDS.toMillis(elapsed), numDocs);
         result.indexTimeMS = TimeUnit.NANOSECONDS.toMillis(elapsed);
+
+        // report numDocsIndexed here in case we have less than the total numDocs
+        result.numDocs = numDocsIndexed.get();
     }
 
     void forceMerge(KnnIndexTester.Results results) throws Exception {
@@ -271,9 +270,11 @@ class KnnIndexer {
 
         private void _run() throws IOException {
             while (true) {
-                int id = numDocsIndexed.getAndIncrement();
-                if (id >= numDocsToIndex) {
+                int id = numDocsIndexed.get();
+                if (id == numDocsToIndex) {
                     break;
+                } else if (numDocsIndexed.compareAndSet(id, id + 1) == false) {
+                    continue;
                 }
 
                 Document doc = new Document();

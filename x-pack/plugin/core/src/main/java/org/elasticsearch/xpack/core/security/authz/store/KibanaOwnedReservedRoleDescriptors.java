@@ -109,7 +109,7 @@ class KibanaOwnedReservedRoleDescriptors {
             new RoleDescriptor.IndicesPrivileges[] {
                 // System indices defined in KibanaPlugin
                 RoleDescriptor.IndicesPrivileges.builder()
-                    .indices(".kibana*", ".reporting-*")
+                    .indices(".kibana*", ".reporting-*", ".chat-*")
                     .privileges("all")
                     .allowRestrictedIndices(true)
                     .build(),
@@ -519,6 +519,34 @@ class KibanaOwnedReservedRoleDescriptors {
                     )
                     .privileges("read", "view_index_metadata")
                     .build(),
+                // For source indices of the Cloud Detection & Response (CDR) packages
+                // that ships a transform and has ILM policy
+                RoleDescriptor.IndicesPrivileges.builder()
+                    .indices("logs-m365_defender.vulnerability-*", "logs-microsoft_defender_endpoint.vulnerability-*")
+                    .privileges(
+                        "read",
+                        "view_index_metadata",
+                        // Require "delete_index" to perform ILM policy actions
+                        TransportDeleteIndexAction.TYPE.name()
+                    )
+                    .build(),
+                // For ExtraHop and QualysGAV specific actions. Kibana reads, writes and manages this index
+                // for configured ILM policies.
+                RoleDescriptor.IndicesPrivileges.builder()
+                    .indices("logs-extrahop.investigation-*", "logs-qualys_gav.asset-*")
+                    .privileges(
+                        "manage",
+                        "create_index",
+                        "read",
+                        "index",
+                        "write",
+                        "delete",
+                        // Require "delete_index" to perform ILM policy actions
+                        TransportDeleteIndexAction.TYPE.name(),
+                        TransportIndicesAliasesAction.NAME,
+                        TransportAutoPutMappingAction.TYPE.name()
+                    )
+                    .build(),
                 // For alias indices of the Cloud Detection & Response (CDR) packages that ships a
                 // transform
                 RoleDescriptor.IndicesPrivileges.builder()
@@ -547,7 +575,7 @@ class KibanaOwnedReservedRoleDescriptors {
                     .indices(".asset-criticality.asset-criticality-*")
                     .privileges("create_index", "manage", "read", "write")
                     .build(),
-                RoleDescriptor.IndicesPrivileges.builder().indices(".entities.v1.latest.security*").privileges("read").build(),
+                RoleDescriptor.IndicesPrivileges.builder().indices(".entities.v1.latest.security*").privileges("read", "write").build(),
                 // For cloud_defend usageCollection
                 RoleDescriptor.IndicesPrivileges.builder()
                     .indices("logs-cloud_defend.*", "metrics-cloud_defend.*")

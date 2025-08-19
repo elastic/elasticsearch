@@ -119,7 +119,7 @@ public class UnifiedCompletionRequestTests extends AbstractBWCWireSerializationT
 
             assertThat(request, is(expected));
             assertThat(
-                Strings.toString(request, UnifiedCompletionRequest.withMaxCompletionTokensTokens("gpt-4o", ToXContent.EMPTY_PARAMS)),
+                Strings.toString(request, UnifiedCompletionRequest.withMaxCompletionTokens("gpt-4o", ToXContent.EMPTY_PARAMS)),
                 is(XContentHelper.stripWhitespace(requestJson))
             );
         }

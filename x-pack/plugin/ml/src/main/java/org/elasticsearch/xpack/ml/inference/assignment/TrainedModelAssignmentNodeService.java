@@ -375,12 +375,9 @@ public class TrainedModelAssignmentNodeService implements ClusterStateListener {
         final boolean isResetMode = MlMetadata.getMlMetadata(event.state()).isResetMode();
         TrainedModelAssignmentMetadata modelAssignmentMetadata = TrainedModelAssignmentMetadata.fromState(event.state());
         final String currentNode = event.state().nodes().getLocalNodeId();
-        final boolean isNewAllocationSupported = event.state()
-            .getMinTransportVersion()
-            .onOrAfter(TrainedModelAssignmentClusterService.DISTRIBUTED_MODEL_ALLOCATION_TRANSPORT_VERSION);
         final Set<String> shuttingDownNodes = Collections.unmodifiableSet(event.state().metadata().nodeShutdowns().getAllNodeIds());
 
-        if (isResetMode == false && isNewAllocationSupported) {
+        if (isResetMode == false) {
             updateNumberOfAllocations(modelAssignmentMetadata);
         }
 
@@ -388,7 +385,7 @@ public class TrainedModelAssignmentNodeService implements ClusterStateListener {
             RoutingInfo routingInfo = trainedModelAssignment.getNodeRoutingTable().get(currentNode);
             if (routingInfo != null) {
                 // Add new models to start loading if the assignment is not stopping
-                if (isNewAllocationSupported && trainedModelAssignment.getAssignmentState() != AssignmentState.STOPPING) {
+                if (trainedModelAssignment.getAssignmentState() != AssignmentState.STOPPING) {
                     if (shouldAssignmentBeRestarted(routingInfo, trainedModelAssignment.getDeploymentId())) {
                         prepareAssignmentForRestart(trainedModelAssignment);
                     }

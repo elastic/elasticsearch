@@ -120,7 +120,7 @@ public final class GeoIpCache {
      * @return Current stats about this cache
      */
     public CacheStats getCacheStats() {
-        Cache.CacheStats stats = cache.stats();
+        Cache.Stats stats = cache.stats();
         return new CacheStats(
             cache.count(),
             stats.getHits(),

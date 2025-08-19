@@ -10,7 +10,7 @@
           "name" : "query",
           "type" : "boolean",
           "optional" : false,
-          "description" : "(combinations of) full text function(s)."
+          "description" : "Boolean expression that contains full text function(s) to be scored."
         }
       ],
       "variadic" : false,

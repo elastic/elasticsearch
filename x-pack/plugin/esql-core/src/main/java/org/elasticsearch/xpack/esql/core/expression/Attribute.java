@@ -134,4 +134,24 @@ public abstract class Attribute extends NamedExpression {
     }
 
     protected abstract String label();
+
+    /**
+     * Compares the size and datatypes of two lists of attributes for equality.
+     */
+    public static boolean dataTypeEquals(List<Attribute> left, List<Attribute> right) {
+        if (left.size() != right.size()) {
+            return false;
+        }
+        for (int i = 0; i < left.size(); i++) {
+            if (left.get(i).dataType() != right.get(i).dataType()) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /**
+     * @return true if the attribute represents a TSDB dimension type
+     */
+    public abstract boolean isDimension();
 }

@@ -68,9 +68,7 @@ public final class SpatialExtentGeoShapeDocValuesGroupingAggregatorFunction impl
     IntBlock valuesBlock = page.getBlock(channels.get(0));
     IntVector valuesVector = valuesBlock.asVector();
     if (valuesVector == null) {
-      if (valuesBlock.mayHaveNulls()) {
-        state.enableGroupIdTracking(seenGroupIds);
-      }
+      maybeEnableGroupIdTracking(seenGroupIds, valuesBlock);
       return new GroupingAggregatorFunction.AddInput() {
         @Override
         public void add(int positionOffset, IntArrayBlock groupIds) {
@@ -114,77 +112,179 @@ public final class SpatialExtentGeoShapeDocValuesGroupingAggregatorFunction impl
     };
   }
 
-  private void addRawInput(int positionOffset, IntArrayBlock groups, IntBlock values) {
+  private void addRawInput(int positionOffset, IntArrayBlock groups, IntBlock valuesBlock) {
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
-      if (groups.isNull(groupPosition) || values.isNull(groupPosition + positionOffset)) {
+      if (groups.isNull(groupPosition)) {
+        continue;
+      }
+      int valuesPosition = groupPosition + positionOffset;
+      if (valuesBlock.isNull(valuesPosition)) {
         continue;
       }
       int groupStart = groups.getFirstValueIndex(groupPosition);
       int groupEnd = groupStart + groups.getValueCount(groupPosition);
       for (int g = groupStart; g < groupEnd; g++) {
         int groupId = groups.getInt(g);
-        int valuesStart = values.getFirstValueIndex(groupPosition + positionOffset);
-        int valuesEnd = valuesStart + values.getValueCount(groupPosition + positionOffset);
+        int valuesStart = valuesBlock.getFirstValueIndex(valuesPosition);
+        int valuesEnd = valuesStart + valuesBlock.getValueCount(valuesPosition);
         int[] valuesArray = new int[valuesEnd - valuesStart];
         for (int v = valuesStart; v < valuesEnd; v++) {
-          valuesArray[v-valuesStart] = values.getInt(v);
+          valuesArray[v-valuesStart] = valuesBlock.getInt(v);
         }
         SpatialExtentGeoShapeDocValuesAggregator.combine(state, groupId, valuesArray);
       }
     }
   }
 
-  private void addRawInput(int positionOffset, IntArrayBlock groups, IntVector values) {
+  private void addRawInput(int positionOffset, IntArrayBlock groups, IntVector valuesVector) {
     // This type does not support vectors because all values are multi-valued
   }
 
-  private void addRawInput(int positionOffset, IntBigArrayBlock groups, IntBlock values) {
+  @Override
+  public void addIntermediateInput(int positionOffset, IntArrayBlock groups, Page page) {
+    state.enableGroupIdTracking(new SeenGroupIds.Empty());
+    assert channels.size() == intermediateBlockCount();
+    Block topUncast = page.getBlock(channels.get(0));
+    if (topUncast.areAllValuesNull()) {
+      return;
+    }
+    IntVector top = ((IntBlock) topUncast).asVector();
+    Block bottomUncast = page.getBlock(channels.get(1));
+    if (bottomUncast.areAllValuesNull()) {
+      return;
+    }
+    IntVector bottom = ((IntBlock) bottomUncast).asVector();
+    Block negLeftUncast = page.getBlock(channels.get(2));
+    if (negLeftUncast.areAllValuesNull()) {
+      return;
+    }
+    IntVector negLeft = ((IntBlock) negLeftUncast).asVector();
+    Block negRightUncast = page.getBlock(channels.get(3));
+    if (negRightUncast.areAllValuesNull()) {
+      return;
+    }
+    IntVector negRight = ((IntBlock) negRightUncast).asVector();
+    Block posLeftUncast = page.getBlock(channels.get(4));
+    if (posLeftUncast.areAllValuesNull()) {
+      return;
+    }
+    IntVector posLeft = ((IntBlock) posLeftUncast).asVector();
+    Block posRightUncast = page.getBlock(channels.get(5));
+    if (posRightUncast.areAllValuesNull()) {
+      return;
+    }
+    IntVector posRight = ((IntBlock) posRightUncast).asVector();
+    assert top.getPositionCount() == bottom.getPositionCount() && top.getPositionCount() == negLeft.getPositionCount() && top.getPositionCount() == negRight.getPositionCount() && top.getPositionCount() == posLeft.getPositionCount() && top.getPositionCount() == posRight.getPositionCount();
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
-      if (groups.isNull(groupPosition) || values.isNull(groupPosition + positionOffset)) {
+      if (groups.isNull(groupPosition)) {
         continue;
       }
       int groupStart = groups.getFirstValueIndex(groupPosition);
       int groupEnd = groupStart + groups.getValueCount(groupPosition);
       for (int g = groupStart; g < groupEnd; g++) {
         int groupId = groups.getInt(g);
-        int valuesStart = values.getFirstValueIndex(groupPosition + positionOffset);
-        int valuesEnd = valuesStart + values.getValueCount(groupPosition + positionOffset);
+        int valuesPosition = groupPosition + positionOffset;
+        SpatialExtentGeoShapeDocValuesAggregator.combineIntermediate(state, groupId, top.getInt(valuesPosition), bottom.getInt(valuesPosition), negLeft.getInt(valuesPosition), negRight.getInt(valuesPosition), posLeft.getInt(valuesPosition), posRight.getInt(valuesPosition));
+      }
+    }
+  }
+
+  private void addRawInput(int positionOffset, IntBigArrayBlock groups, IntBlock valuesBlock) {
+    for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
+      if (groups.isNull(groupPosition)) {
+        continue;
+      }
+      int valuesPosition = groupPosition + positionOffset;
+      if (valuesBlock.isNull(valuesPosition)) {
+        continue;
+      }
+      int groupStart = groups.getFirstValueIndex(groupPosition);
+      int groupEnd = groupStart + groups.getValueCount(groupPosition);
+      for (int g = groupStart; g < groupEnd; g++) {
+        int groupId = groups.getInt(g);
+        int valuesStart = valuesBlock.getFirstValueIndex(valuesPosition);
+        int valuesEnd = valuesStart + valuesBlock.getValueCount(valuesPosition);
         int[] valuesArray = new int[valuesEnd - valuesStart];
         for (int v = valuesStart; v < valuesEnd; v++) {
-          valuesArray[v-valuesStart] = values.getInt(v);
+          valuesArray[v-valuesStart] = valuesBlock.getInt(v);
         }
         SpatialExtentGeoShapeDocValuesAggregator.combine(state, groupId, valuesArray);
       }
     }
   }
 
-  private void addRawInput(int positionOffset, IntBigArrayBlock groups, IntVector values) {
+  private void addRawInput(int positionOffset, IntBigArrayBlock groups, IntVector valuesVector) {
     // This type does not support vectors because all values are multi-valued
   }
 
-  private void addRawInput(int positionOffset, IntVector groups, IntBlock values) {
+  @Override
+  public void addIntermediateInput(int positionOffset, IntBigArrayBlock groups, Page page) {
+    state.enableGroupIdTracking(new SeenGroupIds.Empty());
+    assert channels.size() == intermediateBlockCount();
+    Block topUncast = page.getBlock(channels.get(0));
+    if (topUncast.areAllValuesNull()) {
+      return;
+    }
+    IntVector top = ((IntBlock) topUncast).asVector();
+    Block bottomUncast = page.getBlock(channels.get(1));
+    if (bottomUncast.areAllValuesNull()) {
+      return;
+    }
+    IntVector bottom = ((IntBlock) bottomUncast).asVector();
+    Block negLeftUncast = page.getBlock(channels.get(2));
+    if (negLeftUncast.areAllValuesNull()) {
+      return;
+    }
+    IntVector negLeft = ((IntBlock) negLeftUncast).asVector();
+    Block negRightUncast = page.getBlock(channels.get(3));
+    if (negRightUncast.areAllValuesNull()) {
+      return;
+    }
+    IntVector negRight = ((IntBlock) negRightUncast).asVector();
+    Block posLeftUncast = page.getBlock(channels.get(4));
+    if (posLeftUncast.areAllValuesNull()) {
+      return;
+    }
+    IntVector posLeft = ((IntBlock) posLeftUncast).asVector();
+    Block posRightUncast = page.getBlock(channels.get(5));
+    if (posRightUncast.areAllValuesNull()) {
+      return;
+    }
+    IntVector posRight = ((IntBlock) posRightUncast).asVector();
+    assert top.getPositionCount() == bottom.getPositionCount() && top.getPositionCount() == negLeft.getPositionCount() && top.getPositionCount() == negRight.getPositionCount() && top.getPositionCount() == posLeft.getPositionCount() && top.getPositionCount() == posRight.getPositionCount();
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
-      if (values.isNull(groupPosition + positionOffset)) {
+      if (groups.isNull(groupPosition)) {
+        continue;
+      }
+      int groupStart = groups.getFirstValueIndex(groupPosition);
+      int groupEnd = groupStart + groups.getValueCount(groupPosition);
+      for (int g = groupStart; g < groupEnd; g++) {
+        int groupId = groups.getInt(g);
+        int valuesPosition = groupPosition + positionOffset;
+        SpatialExtentGeoShapeDocValuesAggregator.combineIntermediate(state, groupId, top.getInt(valuesPosition), bottom.getInt(valuesPosition), negLeft.getInt(valuesPosition), negRight.getInt(valuesPosition), posLeft.getInt(valuesPosition), posRight.getInt(valuesPosition));
+      }
+    }
+  }
+
+  private void addRawInput(int positionOffset, IntVector groups, IntBlock valuesBlock) {
+    for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
+      int valuesPosition = groupPosition + positionOffset;
+      if (valuesBlock.isNull(valuesPosition)) {
         continue;
       }
       int groupId = groups.getInt(groupPosition);
-      int valuesStart = values.getFirstValueIndex(groupPosition + positionOffset);
-      int valuesEnd = valuesStart + values.getValueCount(groupPosition + positionOffset);
+      int valuesStart = valuesBlock.getFirstValueIndex(valuesPosition);
+      int valuesEnd = valuesStart + valuesBlock.getValueCount(valuesPosition);
       int[] valuesArray = new int[valuesEnd - valuesStart];
       for (int v = valuesStart; v < valuesEnd; v++) {
-        valuesArray[v-valuesStart] = values.getInt(v);
+        valuesArray[v-valuesStart] = valuesBlock.getInt(v);
       }
       SpatialExtentGeoShapeDocValuesAggregator.combine(state, groupId, valuesArray);
     }
   }
 
-  private void addRawInput(int positionOffset, IntVector groups, IntVector values) {
+  private void addRawInput(int positionOffset, IntVector groups, IntVector valuesVector) {
     // This type does not support vectors because all values are multi-valued
-  }
-
-  @Override
-  public void selectedMayContainUnseenGroups(SeenGroupIds seenGroupIds) {
-    state.enableGroupIdTracking(seenGroupIds);
   }
 
   @Override
@@ -224,8 +324,20 @@ public final class SpatialExtentGeoShapeDocValuesGroupingAggregatorFunction impl
     assert top.getPositionCount() == bottom.getPositionCount() && top.getPositionCount() == negLeft.getPositionCount() && top.getPositionCount() == negRight.getPositionCount() && top.getPositionCount() == posLeft.getPositionCount() && top.getPositionCount() == posRight.getPositionCount();
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       int groupId = groups.getInt(groupPosition);
-      SpatialExtentGeoShapeDocValuesAggregator.combineIntermediate(state, groupId, top.getInt(groupPosition + positionOffset), bottom.getInt(groupPosition + positionOffset), negLeft.getInt(groupPosition + positionOffset), negRight.getInt(groupPosition + positionOffset), posLeft.getInt(groupPosition + positionOffset), posRight.getInt(groupPosition + positionOffset));
+      int valuesPosition = groupPosition + positionOffset;
+      SpatialExtentGeoShapeDocValuesAggregator.combineIntermediate(state, groupId, top.getInt(valuesPosition), bottom.getInt(valuesPosition), negLeft.getInt(valuesPosition), negRight.getInt(valuesPosition), posLeft.getInt(valuesPosition), posRight.getInt(valuesPosition));
     }
+  }
+
+  private void maybeEnableGroupIdTracking(SeenGroupIds seenGroupIds, IntBlock valuesBlock) {
+    if (valuesBlock.mayHaveNulls()) {
+      state.enableGroupIdTracking(seenGroupIds);
+    }
+  }
+
+  @Override
+  public void selectedMayContainUnseenGroups(SeenGroupIds seenGroupIds) {
+    state.enableGroupIdTracking(seenGroupIds);
   }
 
   @Override
@@ -235,8 +347,8 @@ public final class SpatialExtentGeoShapeDocValuesGroupingAggregatorFunction impl
 
   @Override
   public void evaluateFinal(Block[] blocks, int offset, IntVector selected,
-      GroupingAggregatorEvaluationContext evaluatorContext) {
-    blocks[offset] = SpatialExtentGeoShapeDocValuesAggregator.evaluateFinal(state, selected, evaluatorContext.driverContext());
+      GroupingAggregatorEvaluationContext ctx) {
+    blocks[offset] = SpatialExtentGeoShapeDocValuesAggregator.evaluateFinal(state, selected, ctx);
   }
 
   @Override

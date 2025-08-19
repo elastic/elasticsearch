@@ -33,6 +33,18 @@ public final class VectorWritables {
         if (EsqlCapabilities.Cap.COSINE_VECTOR_SIMILARITY_FUNCTION.isEnabled()) {
             entries.add(CosineSimilarity.ENTRY);
         }
+        if (EsqlCapabilities.Cap.DOT_PRODUCT_VECTOR_SIMILARITY_FUNCTION.isEnabled()) {
+            entries.add(DotProduct.ENTRY);
+        }
+        if (EsqlCapabilities.Cap.L1_NORM_VECTOR_SIMILARITY_FUNCTION.isEnabled()) {
+            entries.add(L1Norm.ENTRY);
+        }
+        if (EsqlCapabilities.Cap.L2_NORM_VECTOR_SIMILARITY_FUNCTION.isEnabled()) {
+            entries.add(L2Norm.ENTRY);
+        }
+        if (EsqlCapabilities.Cap.MAGNITUDE_SCALAR_VECTOR_FUNCTION.isEnabled()) {
+            entries.add(Magnitude.ENTRY);
+        }
 
         return Collections.unmodifiableList(entries);
     }

@@ -18,6 +18,7 @@ import org.elasticsearch.datageneration.TemplateGenerator;
 import org.elasticsearch.datageneration.datasource.DataSourceHandler;
 import org.elasticsearch.datageneration.datasource.DataSourceRequest;
 import org.elasticsearch.datageneration.datasource.DataSourceResponse;
+import org.elasticsearch.datageneration.datasource.MultifieldAddonHandler;
 import org.elasticsearch.datageneration.fields.PredefinedField;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.test.ESTestCase;
@@ -29,6 +30,7 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.TreeMap;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -104,7 +106,8 @@ public class DataGenerationHelper {
                         }
                     });
                 }
-            }));
+            }))
+            .withDataSourceHandlers(List.of(MultifieldAddonHandler.STRING_TYPE_HANDLER));
 
         // Customize builder if necessary
         builderConfigurator.accept(specificationBuilder);
@@ -119,6 +122,26 @@ public class DataGenerationHelper {
 
     Mapping mapping() {
         return this.mapping;
+    }
+
+    public Map<String, String> getTemplateFieldTypes() {
+        Map<String, String> allPaths = new TreeMap<>();
+        gatherFieldTypes(allPaths, "", template.template());
+        return allPaths;
+    }
+
+    private static void gatherFieldTypes(Map<String, String> paths, String pathToHere, Map<String, Template.Entry> template) {
+        for (var entry : template.entrySet()) {
+            var field = entry.getKey();
+            var child = entry.getValue();
+            var pathToChild = pathToHere.isEmpty() ? field : pathToHere + "." + field;
+            if (child instanceof Template.Object object) {
+                gatherFieldTypes(paths, pathToChild, object.children());
+            } else {
+                var leaf = (Template.Leaf) child;
+                paths.put(pathToChild, leaf.type());
+            }
+        }
     }
 
     void writeLogsDbMapping(XContentBuilder builder) throws IOException {

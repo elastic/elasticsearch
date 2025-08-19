@@ -262,7 +262,7 @@ public class TopTests extends AbstractAggregationTestCase {
                             new TestCaseSupplier.TypedData(null, DataType.INTEGER, "limit").forceLiteral(),
                             new TestCaseSupplier.TypedData(new BytesRef("desc"), DataType.KEYWORD, "order").forceLiteral()
                         ),
-                        "second argument of [source] cannot be null, received [limit]"
+                        "Limit must be a constant integer in [source], found [null]"
                     )
                 ),
                 new TestCaseSupplier(
@@ -273,7 +273,7 @@ public class TopTests extends AbstractAggregationTestCase {
                             new TestCaseSupplier.TypedData(1, DataType.INTEGER, "limit").forceLiteral(),
                             new TestCaseSupplier.TypedData(null, DataType.KEYWORD, "order").forceLiteral()
                         ),
-                        "third argument of [source] cannot be null, received [order]"
+                        "Invalid order value in [source], expected [ASC, DESC] but got [null]"
                     )
                 )
             )

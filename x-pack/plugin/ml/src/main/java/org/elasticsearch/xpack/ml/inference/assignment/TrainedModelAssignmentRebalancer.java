@@ -130,19 +130,15 @@ class TrainedModelAssignmentRebalancer {
         return finalPlanBuilder.build();
     }
 
-    private static void copyAssignments(
-        AssignmentPlan source,
-        AssignmentPlan.Builder dest,
-        Map<String, AssignmentPlan.Node> originalNodeById
-    ) {
-        for (AssignmentPlan.Deployment m : source.deployments()) {
-            Map<AssignmentPlan.Node, Integer> nodeAssignments = source.assignments(m).orElse(Map.of());
-            for (Map.Entry<AssignmentPlan.Node, Integer> assignment : nodeAssignments.entrySet()) {
-                AssignmentPlan.Node originalNode = originalNodeById.get(assignment.getKey().id());
-                dest.assignModelToNode(m, originalNode, assignment.getValue());
-                // As the node has all its available memory we need to manually account memory of models with
-                // current allocations.
-                dest.accountMemory(m, originalNode);
+    /**
+     *  Transfers assignments from the source AssignmentPlan to the destination AssignmentPlan.Builder.
+     */
+    static void copyAssignments(AssignmentPlan source, AssignmentPlan.Builder dest, Map<String, AssignmentPlan.Node> originalNodeById) {
+        for (AssignmentPlan.Deployment deployment : source.deployments()) {
+            Map<AssignmentPlan.Node, Integer> sourceNodeAssignments = source.assignments(deployment).orElse(Map.of());
+            for (Map.Entry<AssignmentPlan.Node, Integer> sourceAssignment : sourceNodeAssignments.entrySet()) {
+                AssignmentPlan.Node node = originalNodeById.get(sourceAssignment.getKey().id());
+                dest.assignModelToNode(deployment, node, sourceAssignment.getValue());
             }
         }
     }
@@ -169,6 +165,7 @@ class TrainedModelAssignmentRebalancer {
                     .collect(Collectors.toMap(Map.Entry::getKey, e -> e.getValue().getTargetAllocations()));
                 return new AssignmentPlan.Deployment(
                     assignment.getDeploymentId(),
+                    assignment.getModelId(),
                     assignment.getTaskParams().getModelBytes(),
                     assignment.getTaskParams().getNumberOfAllocations(),
                     assignment.getTaskParams().getThreadsPerAllocation(),
@@ -185,6 +182,7 @@ class TrainedModelAssignmentRebalancer {
             planDeployments.add(
                 new AssignmentPlan.Deployment(
                     taskParams.getDeploymentId(),
+                    taskParams.getModelId(),
                     taskParams.getModelBytes(),
                     taskParams.getNumberOfAllocations(),
                     taskParams.getThreadsPerAllocation(),
@@ -225,6 +223,7 @@ class TrainedModelAssignmentRebalancer {
             .map(
                 assignment -> new AssignmentPlan.Deployment(
                     assignment.getDeploymentId(),
+                    assignment.getModelId(),
                     assignment.getTaskParams().getModelBytes(),
                     assignment.getTaskParams().getNumberOfAllocations(),
                     assignment.getTaskParams().getThreadsPerAllocation(),
@@ -242,6 +241,7 @@ class TrainedModelAssignmentRebalancer {
             planDeployments.add(
                 new AssignmentPlan.Deployment(
                     taskParams.getDeploymentId(),
+                    taskParams.getModelId(),
                     taskParams.getModelBytes(),
                     taskParams.getNumberOfAllocations(),
                     taskParams.getThreadsPerAllocation(),

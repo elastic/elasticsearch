@@ -1081,7 +1081,7 @@ public class VerifierTests extends ESTestCase {
             error("FROM tests | STATS min(network.bytes_in)", tsdb),
             equalTo(
                 "1:20: argument of [min(network.bytes_in)] must be"
-                    + " [representable except unsigned_long and spatial types],"
+                    + " [boolean, date, ip, string, version, aggregate_metric_double or numeric except counter types],"
                     + " found value [network.bytes_in] type [counter_long]"
             )
         );
@@ -1090,7 +1090,7 @@ public class VerifierTests extends ESTestCase {
             error("FROM tests | STATS max(network.bytes_in)", tsdb),
             equalTo(
                 "1:20: argument of [max(network.bytes_in)] must be"
-                    + " [representable except unsigned_long and spatial types],"
+                    + " [boolean, date, ip, string, version, aggregate_metric_double or numeric except counter types],"
                     + " found value [network.bytes_in] type [counter_long]"
             )
         );
@@ -2244,31 +2244,6 @@ public class VerifierTests extends ESTestCase {
         );
     }
 
-    public void testFullTextFunctionsConstantArg() throws Exception {
-        checkFullTextFunctionsConstantArg("match(title, category)", "second");
-        checkFullTextFunctionsConstantArg("qstr(title)", "");
-        checkFullTextFunctionsConstantArg("kql(title)", "");
-        checkFullTextFunctionsConstantArg("match_phrase(title, tags)", "second");
-        if (EsqlCapabilities.Cap.MULTI_MATCH_FUNCTION.isEnabled()) {
-            checkFullTextFunctionsConstantArg("multi_match(category, body)", "first");
-            checkFullTextFunctionsConstantArg("multi_match(concat(title, \"world\"), title)", "first");
-        }
-        if (EsqlCapabilities.Cap.TERM_FUNCTION.isEnabled()) {
-            checkFullTextFunctionsConstantArg("term(title, tags)", "second");
-        }
-        if (EsqlCapabilities.Cap.KNN_FUNCTION_V3.isEnabled()) {
-            checkFullTextFunctionsConstantArg("knn(vector, vector, 10)", "second");
-            checkFullTextFunctionsConstantArg("knn(vector, [0, 1, 2], category)", "third");
-        }
-    }
-
-    private void checkFullTextFunctionsConstantArg(String functionInvocation, String argOrdinal) throws Exception {
-        assertThat(
-            error("from test | where " + functionInvocation, fullTextAnalyzer),
-            containsString(argOrdinal + " argument of [" + functionInvocation + "] must be a constant")
-        );
-    }
-
     public void testInsistNotOnTopOfFrom() {
         assumeTrue("requires snapshot builds", Build.current().isSnapshot());
 
@@ -2292,43 +2267,6 @@ public class VerifierTests extends ESTestCase {
         }
     }
 
-    public void testRemoteLookupJoinWithPipelineBreaker() {
-        assumeTrue("Remote LOOKUP JOIN not enabled", EsqlCapabilities.Cap.ENABLE_LOOKUP_JOIN_ON_REMOTE.isEnabled());
-        var analyzer = AnalyzerTestUtils.analyzer(loadMapping("mapping-default.json", "test,remote:test"));
-        assertEquals(
-            "1:92: LOOKUP JOIN with remote indices can't be executed after [STATS c = COUNT(*) by languages]@1:25",
-            error(
-                "FROM test,remote:test | STATS c = COUNT(*) by languages "
-                    + "| EVAL language_code = languages | LOOKUP JOIN languages_lookup ON language_code",
-                analyzer
-            )
-        );
-
-        assertEquals(
-            "1:72: LOOKUP JOIN with remote indices can't be executed after [SORT emp_no]@1:25",
-            error(
-                "FROM test,remote:test | SORT emp_no | EVAL language_code = languages | LOOKUP JOIN languages_lookup ON language_code",
-                analyzer
-            )
-        );
-
-        assertEquals(
-            "1:68: LOOKUP JOIN with remote indices can't be executed after [LIMIT 2]@1:25",
-            error(
-                "FROM test,remote:test | LIMIT 2 | EVAL language_code = languages | LOOKUP JOIN languages_lookup ON language_code",
-                analyzer
-            )
-        );
-        assertEquals(
-            "1:96: LOOKUP JOIN with remote indices can't be executed after [ENRICH _coordinator:languages_coord]@1:58",
-            error(
-                "FROM test,remote:test | EVAL language_code = languages | ENRICH _coordinator:languages_coord "
-                    + "| LOOKUP JOIN languages_lookup ON language_code",
-                analyzer
-            )
-        );
-    }
-
     public void testRemoteLookupJoinIsSnapshot() {
         // TODO: remove when we allow remote joins in release builds
         assumeTrue("Remote LOOKUP JOIN not enabled", EsqlCapabilities.Cap.ENABLE_LOOKUP_JOIN_ON_REMOTE.isEnabled());
@@ -2343,7 +2281,6 @@ public class VerifierTests extends ESTestCase {
             () -> query("FROM test,remote:test | EVAL language_code = languages | LOOKUP JOIN languages_lookup ON language_code")
         );
         assertThat(e.getMessage(), containsString("remote clusters are not supported with LOOKUP JOIN"));
-
     }
 
     private void checkFullTextFunctionsInStats(String functionInvocation) {
@@ -2363,16 +2300,28 @@ public class VerifierTests extends ESTestCase {
 
     public void testVectorSimilarityFunctionsNullArgs() throws Exception {
         if (EsqlCapabilities.Cap.COSINE_VECTOR_SIMILARITY_FUNCTION.isEnabled()) {
-            checkVectorSimilarityFunctionsNullArgs("v_cosine(null, vector)", "first");
-            checkVectorSimilarityFunctionsNullArgs("v_cosine(vector, null)", "second");
+            checkVectorFunctionsNullArgs("v_cosine(null, vector)");
+            checkVectorFunctionsNullArgs("v_cosine(vector, null)");
+        }
+        if (EsqlCapabilities.Cap.DOT_PRODUCT_VECTOR_SIMILARITY_FUNCTION.isEnabled()) {
+            checkVectorFunctionsNullArgs("v_dot_product(null, vector)");
+            checkVectorFunctionsNullArgs("v_dot_product(vector, null)");
+        }
+        if (EsqlCapabilities.Cap.L1_NORM_VECTOR_SIMILARITY_FUNCTION.isEnabled()) {
+            checkVectorFunctionsNullArgs("v_l1_norm(null, vector)");
+            checkVectorFunctionsNullArgs("v_l1_norm(vector, null)");
+        }
+        if (EsqlCapabilities.Cap.L2_NORM_VECTOR_SIMILARITY_FUNCTION.isEnabled()) {
+            checkVectorFunctionsNullArgs("v_l2_norm(null, vector)");
+            checkVectorFunctionsNullArgs("v_l2_norm(vector, null)");
+        }
+        if (EsqlCapabilities.Cap.MAGNITUDE_SCALAR_VECTOR_FUNCTION.isEnabled()) {
+            checkVectorFunctionsNullArgs("v_magnitude(null)");
         }
     }
 
-    private void checkVectorSimilarityFunctionsNullArgs(String functionInvocation, String argOrdinal) throws Exception {
-        assertThat(
-            error("from test | eval similarity = " + functionInvocation, fullTextAnalyzer),
-            containsString(argOrdinal + " argument of [" + functionInvocation + "] cannot be null, received [null]")
-        );
+    private void checkVectorFunctionsNullArgs(String functionInvocation) throws Exception {
+        query("from test | eval similarity = " + functionInvocation, fullTextAnalyzer);
     }
 
     private void query(String query) {

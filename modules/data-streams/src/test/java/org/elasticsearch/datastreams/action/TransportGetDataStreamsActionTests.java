@@ -644,6 +644,8 @@ public class TransportGetDataStreamsActionTests extends ESTestCase {
             Template.builder().settings(componentTemplateSettings).build(),
             null,
             null,
+            null,
+            null,
             null
         );
         builder.componentTemplates(Map.of("component_template_1", componentTemplate));

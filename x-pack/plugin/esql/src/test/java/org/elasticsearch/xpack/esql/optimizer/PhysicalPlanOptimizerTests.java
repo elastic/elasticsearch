@@ -14,6 +14,7 @@ import org.elasticsearch.Build;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.compute.aggregation.AggregatorMode;
@@ -64,11 +65,13 @@ import org.elasticsearch.xpack.esql.core.tree.Node;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
+import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.enrich.ResolvedEnrichPolicy;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Min;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.SpatialAggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.SpatialCentroid;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.SpatialExtent;
@@ -135,6 +138,7 @@ import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
 import org.elasticsearch.xpack.esql.plan.physical.UnaryExec;
 import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner;
+import org.elasticsearch.xpack.esql.planner.PhysicalSettings;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.planner.mapper.Mapper;
 import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
@@ -142,6 +146,7 @@ import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.querydsl.query.EqualsSyntheticSourceDelegate;
 import org.elasticsearch.xpack.esql.querydsl.query.SingleValueQuery;
 import org.elasticsearch.xpack.esql.querydsl.query.SpatialRelatesQuery;
+import org.elasticsearch.xpack.esql.rule.RuleExecutor;
 import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.stats.SearchStats;
 import org.junit.Before;
@@ -187,9 +192,11 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.CARTESIAN_POINT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.CARTESIAN_SHAPE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_POINT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_SHAPE;
+import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
 import static org.elasticsearch.xpack.esql.core.util.TestUtils.stripThrough;
 import static org.elasticsearch.xpack.esql.parser.ExpressionBuilder.MAX_EXPRESSION_DEPTH;
 import static org.elasticsearch.xpack.esql.parser.LogicalPlanBuilder.MAX_QUERY_DEPTH;
+import static org.elasticsearch.xpack.esql.plan.physical.AbstractPhysicalPlanSerializationTests.randomEstimatedRowSize;
 import static org.elasticsearch.xpack.esql.planner.mapper.MapperUtils.hasScoreAttribute;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.contains;
@@ -404,8 +411,8 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
                 List.of("a", "b"),
                 Map.of("", "idx"),
                 Map.ofEntries(
-                    Map.entry("a", new EsField("a", DataType.INTEGER, Map.of(), true)),
-                    Map.entry("b", new EsField("b", DataType.LONG, Map.of(), true))
+                    Map.entry("a", new EsField("a", DataType.INTEGER, Map.of(), true, EsField.TimeSeriesFieldType.NONE)),
+                    Map.entry("b", new EsField("b", DataType.LONG, Map.of(), true, EsField.TimeSeriesFieldType.NONE))
                 )
             )
         );
@@ -418,10 +425,13 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
                 List.of("city", "airport", "region", "city_boundary"),
                 Map.of("", "airport_city_boundaries"),
                 Map.ofEntries(
-                    Map.entry("city", new EsField("city", DataType.KEYWORD, Map.of(), true)),
-                    Map.entry("airport", new EsField("airport", DataType.TEXT, Map.of(), false)),
-                    Map.entry("region", new EsField("region", DataType.TEXT, Map.of(), false)),
-                    Map.entry("city_boundary", new EsField("city_boundary", DataType.GEO_SHAPE, Map.of(), false))
+                    Map.entry("city", new EsField("city", DataType.KEYWORD, Map.of(), true, EsField.TimeSeriesFieldType.NONE)),
+                    Map.entry("airport", new EsField("airport", DataType.TEXT, Map.of(), false, EsField.TimeSeriesFieldType.NONE)),
+                    Map.entry("region", new EsField("region", DataType.TEXT, Map.of(), false, EsField.TimeSeriesFieldType.NONE)),
+                    Map.entry(
+                        "city_boundary",
+                        new EsField("city_boundary", DataType.GEO_SHAPE, Map.of(), false, EsField.TimeSeriesFieldType.NONE)
+                    )
                 )
             )
         );
@@ -433,7 +443,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
                 EnrichPolicy.MATCH_TYPE,
                 List.of("department"),
                 Map.of("", ".enrich-departments-1", "cluster_1", ".enrich-departments-2"),
-                Map.of("department", new EsField("department", DataType.KEYWORD, Map.of(), true))
+                Map.of("department", new EsField("department", DataType.KEYWORD, Map.of(), true, EsField.TimeSeriesFieldType.NONE))
             )
         );
         enrichResolution.addResolvedPolicy(
@@ -444,7 +454,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
                 EnrichPolicy.MATCH_TYPE,
                 List.of("department"),
                 Map.of("", ".enrich-departments-3"),
-                Map.of("department", new EsField("department", DataType.KEYWORD, Map.of(), true))
+                Map.of("department", new EsField("department", DataType.KEYWORD, Map.of(), true, EsField.TimeSeriesFieldType.NONE))
             )
         );
         enrichResolution.addResolvedPolicy(
@@ -455,7 +465,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
                 EnrichPolicy.MATCH_TYPE,
                 List.of("department"),
                 Map.of("cluster_1", ".enrich-departments-2"),
-                Map.of("department", new EsField("department", DataType.KEYWORD, Map.of(), true))
+                Map.of("department", new EsField("department", DataType.KEYWORD, Map.of(), true, EsField.TimeSeriesFieldType.NONE))
             )
         );
         enrichResolution.addResolvedPolicy(
@@ -466,7 +476,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
                 EnrichPolicy.MATCH_TYPE,
                 List.of("supervisor"),
                 Map.of("", ".enrich-supervisors-a", "cluster_1", ".enrich-supervisors-b"),
-                Map.of("supervisor", new EsField("supervisor", DataType.KEYWORD, Map.of(), true))
+                Map.of("supervisor", new EsField("supervisor", DataType.KEYWORD, Map.of(), true, EsField.TimeSeriesFieldType.NONE))
             )
         );
         enrichResolution.addResolvedPolicy(
@@ -477,7 +487,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
                 EnrichPolicy.MATCH_TYPE,
                 List.of("supervisor"),
                 Map.of("", ".enrich-supervisors-c"),
-                Map.of("supervisor", new EsField("supervisor", DataType.KEYWORD, Map.of(), true))
+                Map.of("supervisor", new EsField("supervisor", DataType.KEYWORD, Map.of(), true, EsField.TimeSeriesFieldType.NONE))
             )
         );
         enrichResolution.addResolvedPolicy(
@@ -488,7 +498,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
                 EnrichPolicy.MATCH_TYPE,
                 List.of("supervisor"),
                 Map.of("cluster_1", ".enrich-supervisors-b"),
-                Map.of("supervisor", new EsField("supervisor", DataType.KEYWORD, Map.of(), true))
+                Map.of("supervisor", new EsField("supervisor", DataType.KEYWORD, Map.of(), true, EsField.TimeSeriesFieldType.NONE))
             )
         );
         return enrichResolution;
@@ -2873,7 +2883,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             )
         );
 
-        var e = expectThrows(VerificationException.class, () -> physicalPlanOptimizer.verify(badPlan));
+        var e = expectThrows(VerificationException.class, () -> physicalPlanOptimizer.verify(badPlan, verifiedPlan.output()));
         assertThat(
             e.getMessage(),
             containsString(
@@ -2888,7 +2898,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             | stats s = sum(salary) by emp_no
             | where emp_no > 10
             """);
-
+        final var planBeforeModification = plan;
         plan = plan.transformUp(
             AggregateExec.class,
             a -> new AggregateExec(
@@ -2902,7 +2912,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             )
         );
         final var finalPlan = plan;
-        var e = expectThrows(IllegalStateException.class, () -> physicalPlanOptimizer.verify(finalPlan));
+        var e = expectThrows(IllegalStateException.class, () -> physicalPlanOptimizer.verify(finalPlan, planBeforeModification.output()));
         assertThat(e.getMessage(), containsString(" > 10[INTEGER]]] optimized incorrectly due to missing references [emp_no{f}#"));
     }
 
@@ -2920,7 +2930,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
 
         var planWithInvalidJoinLeftSide = plan.transformUp(LookupJoinExec.class, join -> join.replaceChildren(join.right(), join.right()));
 
-        var e = expectThrows(IllegalStateException.class, () -> physicalPlanOptimizer.verify(planWithInvalidJoinLeftSide));
+        var e = expectThrows(IllegalStateException.class, () -> physicalPlanOptimizer.verify(planWithInvalidJoinLeftSide, plan.output()));
         assertThat(e.getMessage(), containsString(" optimized incorrectly due to missing references from left hand side [languages"));
 
         var planWithInvalidJoinRightSide = plan.transformUp(
@@ -2937,7 +2947,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             )
         );
 
-        e = expectThrows(IllegalStateException.class, () -> physicalPlanOptimizer.verify(planWithInvalidJoinRightSide));
+        e = expectThrows(IllegalStateException.class, () -> physicalPlanOptimizer.verify(planWithInvalidJoinRightSide, plan.output()));
         assertThat(e.getMessage(), containsString(" optimized incorrectly due to missing references from right hand side [language_code"));
     }
 
@@ -2947,7 +2957,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             | stats s = sum(salary) by emp_no
             | where emp_no > 10
             """);
-
+        final var planBeforeModification = plan;
         plan = plan.transformUp(AggregateExec.class, a -> {
             List<Attribute> intermediates = new ArrayList<>(a.intermediateAttributes());
             intermediates.add(intermediates.get(0));
@@ -2962,7 +2972,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             );
         });
         final var finalPlan = plan;
-        var e = expectThrows(IllegalStateException.class, () -> physicalPlanOptimizer.verify(finalPlan));
+        var e = expectThrows(IllegalStateException.class, () -> physicalPlanOptimizer.verify(finalPlan, planBeforeModification.output()));
         assertThat(
             e.getMessage(),
             containsString("Plan [LimitExec[1000[INTEGER],null]] optimized incorrectly due to duplicate output attribute emp_no{f}#")
@@ -2987,9 +2997,9 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
                 "test",
                 Map.of(
                     "some_field1",
-                    new EsField("some_field1", DataType.KEYWORD, Map.of(), true),
+                    new EsField("some_field1", DataType.KEYWORD, Map.of(), true, EsField.TimeSeriesFieldType.NONE),
                     "some_field2",
-                    new EsField("some_field2", DataType.KEYWORD, Map.of(), true)
+                    new EsField("some_field2", DataType.KEYWORD, Map.of(), true, EsField.TimeSeriesFieldType.NONE)
                 )
             ),
             IndexMode.STANDARD
@@ -6997,7 +7007,10 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             | eval employee_id = to_str(emp_no)
             | ENRICH _remote:departments
             """));
-        assertThat(error.getMessage(), containsString("line 4:3: ENRICH with remote policy can't be executed after STATS"));
+        assertThat(
+            error.getMessage(),
+            containsString("line 4:3: ENRICH with remote policy can't be executed after [STATS size=count(*) BY emp_no]@2:3")
+        );
     }
 
     public void testEnrichBeforeLimit() {
@@ -7347,7 +7360,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             """));
         assertThat(
             error.getMessage(),
-            containsString("ENRICH with remote policy can't be executed after another ENRICH with coordinator policy")
+            containsString("ENRICH with remote policy can't be executed after [ENRICH _coordinator:departments]@3:3")
         );
     }
 
@@ -7752,7 +7765,6 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         assertLookupJoinFieldNames(query, data, List.of(Set.of("bar", "baz"), Set.of("foo", "bar2", "baz2")));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/119082")
     public void testLookupJoinFieldLoadingTwoLookupsProjectInBetween() throws Exception {
         assumeTrue("Requires LOOKUP JOIN", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
 
@@ -7781,7 +7793,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             | LOOKUP JOIN lookup_index2 ON first_name
             | DROP b*
             """;
-        assertLookupJoinFieldNames(query, data, List.of(Set.of("foo"), Set.of("foo")));
+        assertLookupJoinFieldNames(query, data, List.of(Set.of(), Set.of("foo")));
 
         query = """
               FROM test
@@ -7793,7 +7805,6 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         assertLookupJoinFieldNames(query, data, List.of(Set.of("baz"), Set.of("foo", "baz2")));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/118778")
     public void testLookupJoinFieldLoadingDropAllFields() throws Exception {
         assumeTrue("Requires LOOKUP JOIN", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
 
@@ -7834,7 +7845,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
 
         assertEquals(expectedFieldNames.size(), fields.size());
         for (int i = 0; i < expectedFieldNames.size(); i++) {
-            assertEquals(expectedFieldNames.get(i), fields.get(i));
+            assertThat(fields.get(i), equalTo(expectedFieldNames.get(i)));
         }
     }
 
@@ -7863,7 +7874,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         Map<String, EsField> fields = new HashMap<>();
 
         for (String fieldName : fieldNames) {
-            fields.put(fieldName, new EsField(fieldName, DataType.KEYWORD, Map.of(), false));
+            fields.put(fieldName, new EsField(fieldName, DataType.KEYWORD, Map.of(), false, EsField.TimeSeriesFieldType.NONE));
         }
 
         return fields;
@@ -7888,7 +7899,12 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             null,
             null,
             null,
-            new EsPhysicalOperationProviders(FoldContext.small(), List.of(), null, DataPartitioning.AUTO),
+            new EsPhysicalOperationProviders(
+                FoldContext.small(),
+                List.of(),
+                null,
+                new PhysicalSettings(DataPartitioning.AUTO, ByteSizeValue.ofMb(1))
+            ),
             List.of()
         );
 
@@ -7908,10 +7924,14 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             var matcher = expected.matcher(line);
             if (matcher.find()) {
                 String allFields = matcher.group(1);
-                Set<String> loadedFields = Arrays.stream(allFields.split(","))
-                    .map(name -> name.trim().split("\\{f}#")[0])
-                    .collect(Collectors.toSet());
-                results.add(loadedFields);
+                if (allFields.isEmpty()) {
+                    results.add(Set.of());
+                } else {
+                    Set<String> loadedFields = Arrays.stream(allFields.split(","))
+                        .map(name -> name.trim().split("\\{f}#")[0])
+                        .collect(Collectors.toSet());
+                    results.add(loadedFields);
+                }
             }
         }
 
@@ -8306,6 +8326,107 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         SingleValueQuery.Builder sv = as(builder, SingleValueQuery.Builder.class);
         assertThat(sv.field(), equalTo(fieldName));
         return sv.next();
+    }
+
+    private PhysicalPlanOptimizer getCustomRulesPhysicalPlanOptimizer(List<RuleExecutor.Batch<PhysicalPlan>> batches) {
+        PhysicalOptimizerContext context = new PhysicalOptimizerContext(config);
+        PhysicalPlanOptimizer PhysicalPlanOptimizer = new PhysicalPlanOptimizer(context) {
+            @Override
+            protected List<Batch<PhysicalPlan>> batches() {
+                return batches;
+            }
+        };
+        return PhysicalPlanOptimizer;
+    }
+
+    public void testVerifierOnAdditionalAttributeAdded() throws Exception {
+
+        PhysicalPlan plan = physicalPlan("""
+            from test
+            | stats a = min(salary) by emp_no
+            """);
+
+        var limit = as(plan, LimitExec.class);
+        var aggregate = as(limit.child(), AggregateExec.class);
+        var min = as(Alias.unwrap(aggregate.aggregates().get(0)), Min.class);
+        var salary = as(min.field(), NamedExpression.class);
+        assertThat(salary.name(), is("salary"));
+        Holder<Integer> appliedCount = new Holder<>(0);
+        // use a custom rule that adds another output attribute
+        var customRuleBatch = new RuleExecutor.Batch<>(
+            "CustomRuleBatch",
+            RuleExecutor.Limiter.ONCE,
+            new PhysicalOptimizerRules.ParameterizedOptimizerRule<PhysicalPlan, PhysicalOptimizerContext>() {
+                @Override
+                public PhysicalPlan rule(PhysicalPlan plan, PhysicalOptimizerContext context) {
+                    // This rule adds a missing attribute to the plan output
+                    // We only want to apply it once, so we use a static counter
+                    if (appliedCount.get() == 0) {
+                        appliedCount.set(appliedCount.get() + 1);
+                        Literal additionalLiteral = new Literal(Source.EMPTY, "additional literal", INTEGER);
+                        return new EvalExec(
+                            plan.source(),
+                            plan,
+                            List.of(new Alias(Source.EMPTY, "additionalAttribute", additionalLiteral))
+                        );
+                    }
+                    return plan;
+                }
+            }
+        );
+        PhysicalPlanOptimizer customRulesPhysicalPlanOptimizer = getCustomRulesPhysicalPlanOptimizer(List.of(customRuleBatch));
+        Exception e = expectThrows(VerificationException.class, () -> customRulesPhysicalPlanOptimizer.optimize(plan));
+        assertThat(e.getMessage(), containsString("Output has changed from"));
+        assertThat(e.getMessage(), containsString("additionalAttribute"));
+    }
+
+    public void testVerifierOnAttributeDatatypeChanged() throws Exception {
+
+        PhysicalPlan plan = physicalPlan("""
+            from test
+            | stats a = min(salary) by emp_no
+            """);
+
+        var limit = as(plan, LimitExec.class);
+        var aggregate = as(limit.child(), AggregateExec.class);
+        var min = as(Alias.unwrap(aggregate.aggregates().get(0)), Min.class);
+        var salary = as(min.field(), NamedExpression.class);
+        assertThat(salary.name(), is("salary"));
+        Holder<Integer> appliedCount = new Holder<>(0);
+        // use a custom rule that changes the datatype of an output attribute
+        var customRuleBatch = new RuleExecutor.Batch<>(
+            "CustomRuleBatch",
+            RuleExecutor.Limiter.ONCE,
+            new PhysicalOptimizerRules.ParameterizedOptimizerRule<PhysicalPlan, PhysicalOptimizerContext>() {
+                @Override
+                public PhysicalPlan rule(PhysicalPlan plan, PhysicalOptimizerContext context) {
+                    // We only want to apply it once, so we use a static counter
+                    if (appliedCount.get() == 0) {
+                        appliedCount.set(appliedCount.get() + 1);
+                        LimitExec limit = as(plan, LimitExec.class);
+                        LimitExec newLimit = new LimitExec(
+                            plan.source(),
+                            limit.child(),
+                            new Literal(Source.EMPTY, 1000, INTEGER),
+                            randomEstimatedRowSize()
+                        ) {
+                            @Override
+                            public List<Attribute> output() {
+                                List<Attribute> oldOutput = super.output();
+                                List<Attribute> newOutput = new ArrayList<>(oldOutput);
+                                newOutput.set(0, oldOutput.get(0).withDataType(DataType.DATETIME));
+                                return newOutput;
+                            }
+                        };
+                        return newLimit;
+                    }
+                    return plan;
+                }
+            }
+        );
+        PhysicalPlanOptimizer customRulesPhysicalPlanOptimizer = getCustomRulesPhysicalPlanOptimizer(List.of(customRuleBatch));
+        Exception e = expectThrows(VerificationException.class, () -> customRulesPhysicalPlanOptimizer.optimize(plan));
+        assertThat(e.getMessage(), containsString("Output has changed from"));
     }
 
     @Override

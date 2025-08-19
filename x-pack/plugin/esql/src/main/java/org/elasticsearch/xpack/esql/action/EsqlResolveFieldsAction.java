@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.esql.action;
 
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.RemoteClusterActionType;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
@@ -15,10 +16,11 @@ import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.action.fieldcaps.TransportFieldCapabilitiesAction;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
-import org.elasticsearch.client.internal.RemoteClusterClient;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.transport.Transport;
+import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
 
 /**
@@ -49,19 +51,18 @@ public class EsqlResolveFieldsAction extends HandledTransportAction<FieldCapabil
 
     @Override
     protected void doExecute(Task task, FieldCapabilitiesRequest request, final ActionListener<FieldCapabilitiesResponse> listener) {
-        fieldCapsAction.executeRequest(task, request, this::executeRemoteRequest, listener);
+        fieldCapsAction.executeRequest(task, request, this::executeLinkedRequest, listener);
     }
 
-    void executeRemoteRequest(
-        RemoteClusterClient remoteClient,
-        FieldCapabilitiesRequest remoteRequest,
-        ActionListener<FieldCapabilitiesResponse> remoteListener
+    void executeLinkedRequest(
+        TransportService transportService,
+        Transport.Connection conn,
+        FieldCapabilitiesRequest request,
+        ActionListenerResponseHandler<FieldCapabilitiesResponse> responseHandler
     ) {
-        remoteClient.getConnection(remoteRequest, remoteListener.delegateFailure((l, conn) -> {
-            var remoteAction = conn.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)
-                ? RESOLVE_REMOTE_TYPE
-                : TransportFieldCapabilitiesAction.REMOTE_TYPE;
-            remoteClient.execute(conn, remoteAction, remoteRequest, l);
-        }));
+        var remoteAction = conn.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)
+            ? RESOLVE_REMOTE_TYPE
+            : TransportFieldCapabilitiesAction.REMOTE_TYPE;
+        transportService.sendRequest(conn, remoteAction.name(), request, TransportRequestOptions.EMPTY, responseHandler);
     }
 }

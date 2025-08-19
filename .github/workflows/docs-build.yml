@@ -12,6 +12,7 @@ jobs:
     uses: elastic/docs-builder/.github/workflows/preview-build.yml@main
     with:
       path-pattern: docs/**
+      path-pattern-ignore: docs/changelog/**/*.yaml
     permissions:
       deployments: write
       id-token: write

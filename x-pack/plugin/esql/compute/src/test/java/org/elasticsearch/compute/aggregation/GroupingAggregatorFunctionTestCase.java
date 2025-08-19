@@ -61,6 +61,7 @@ import static java.util.stream.IntStream.range;
 import static org.elasticsearch.compute.test.BlockTestUtils.append;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.in;
 
 /**
  * Shared tests for testing grouped aggregations.
@@ -96,7 +97,13 @@ public abstract class GroupingAggregatorFunctionTestCase extends ForkingOperator
     }
 
     protected List<Integer> channels(AggregatorMode mode) {
-        return mode.isInputPartial() ? range(1, 1 + aggregatorIntermediateBlockCount()).boxed().toList() : List.of(1);
+        return mode.isInputPartial()
+            ? range(1, 1 + aggregatorIntermediateBlockCount()).boxed().toList()
+            : range(1, inputCount() + 1).boxed().toList();
+    }
+
+    protected int inputCount() {
+        return 1;
     }
 
     private Operator.OperatorFactory simpleWithMode(
@@ -149,7 +156,7 @@ public abstract class GroupingAggregatorFunctionTestCase extends ForkingOperator
 
     protected String expectedToStringOfSimpleAggregator() {
         String type = getClass().getSimpleName().replace("Tests", "");
-        return type + "[channels=[1]]";
+        return type + "[channels=" + IntStream.range(1, inputCount() + 1).boxed().toList() + "]";
     }
 
     private SeenGroups seenGroups(List<Page> input) {
@@ -479,7 +486,12 @@ public abstract class GroupingAggregatorFunctionTestCase extends ForkingOperator
             } else {
                 groupBuilder.appendNull();
             }
-            List<Page> source = List.of(new Page(groupBuilder.build(), blockFactory.newConstantNullBlock(1)));
+            Block[] blocks = new Block[1 + inputCount()];
+            blocks[0] = groupBuilder.build();
+            for (int i = 1; i < blocks.length; i++) {
+                blocks[i] = blockFactory.newConstantNullBlock(1);
+            }
+            List<Page> source = List.of(new Page(blocks));
             List<Page> results = drive(operators, source.iterator(), driverContext);
 
             assertThat(results, hasSize(1));
@@ -524,17 +536,25 @@ public abstract class GroupingAggregatorFunctionTestCase extends ForkingOperator
         List<Page> source = new ArrayList<>(inputData.size());
         for (Page page : inputData) {
             LongVector groups = page.<LongBlock>getBlock(0).asVector();
-            Block values = page.getBlock(1);
-            Block.Builder copiedValues = values.elementType().newBlockBuilder(page.getPositionCount(), driverContext.blockFactory());
+            Block[] values = new Block[inputCount()];
+            Block.Builder[] copiedValues = new Block.Builder[inputCount()];
+            for (int b = 0; b < values.length; b++) {
+                values[b] = page.getBlock(1 + b);
+                copiedValues[b] = values[b].elementType().newBlockBuilder(page.getPositionCount(), driverContext.blockFactory());
+            }
             for (int p = 0; p < page.getPositionCount(); p++) {
                 if (groups.getLong(p) == nullGroup) {
-                    copiedValues.appendNull();
+                    for (int b = 0; b < values.length; b++) {
+                        copiedValues[b].appendNull();
+                    }
                 } else {
-                    copiedValues.copyFrom(values, p, p + 1);
+                    for (int b = 0; b < values.length; b++) {
+                        copiedValues[b].copyFrom(values[b], p, p + 1);
+                    }
                 }
             }
             Releasables.closeWhileHandlingException(values);
-            source.add(new Page(groups.asBlock(), copiedValues.build()));
+            source.add(new Page(groups.asBlock()).appendBlocks(Block.Builder.buildAll(copiedValues)));
         }
 
         List<Page> results = drive(operators, source.iterator(), driverContext);
@@ -589,30 +609,31 @@ public abstract class GroupingAggregatorFunctionTestCase extends ForkingOperator
         };
     }
 
-    protected static IntStream allValueOffsets(Page page, Long group) {
-        Block groupBlock = page.getBlock(0);
-        Block valueBlock = page.getBlock(1);
+    protected static IntStream matchingGroups(Page page, Long group) {
+        LongBlock groupBlock = page.getBlock(0);
         return IntStream.range(0, page.getPositionCount()).flatMap(p -> {
-            if (valueBlock.isNull(p)) {
+            if (group == null) {
+                if (groupBlock.isNull(p)) {
+                    return IntStream.of(p);
+                }
                 return IntStream.of();
             }
-            if (group == null) {
-                if (false == groupBlock.isNull(p)) {
-                    return IntStream.of();
+            int groupStart = groupBlock.getFirstValueIndex(p);
+            int groupEnd = groupStart + groupBlock.getValueCount(p);
+            for (int i = groupStart; i < groupEnd; i++) {
+                if (groupBlock.getLong(i) == group) {
+                    return IntStream.of(p);
                 }
-            } else {
-                int groupStart = groupBlock.getFirstValueIndex(p);
-                int groupEnd = groupStart + groupBlock.getValueCount(p);
-                boolean matched = false;
-                for (int i = groupStart; i < groupEnd; i++) {
-                    if (((LongBlock) groupBlock).getLong(i) == group) {
-                        matched = true;
-                        break;
-                    }
-                }
-                if (matched == false) {
-                    return IntStream.of();
-                }
+            }
+            return IntStream.of();
+        });
+    }
+
+    protected static IntStream allValueOffsets(Page page, Long group) {
+        Block valueBlock = page.getBlock(1);
+        return matchingGroups(page, group).flatMap(p -> {
+            if (valueBlock.isNull(p)) {
+                return IntStream.of();
             }
             int start = valueBlock.getFirstValueIndex(p);
             int end = start + valueBlock.getValueCount(p);
@@ -760,15 +781,51 @@ public abstract class GroupingAggregatorFunctionTestCase extends ForkingOperator
                     }
 
                     @Override
+                    public void addIntermediateInput(int positionOffset, IntArrayBlock groupIds, Page page) {
+                        addIntermediateInputInternal(positionOffset, groupIds, page);
+                    }
+
+                    @Override
+                    public void addIntermediateInput(int positionOffset, IntBigArrayBlock groupIds, Page page) {
+                        addIntermediateInputInternal(positionOffset, groupIds, page);
+                    }
+
+                    @Override
                     public void addIntermediateInput(int positionOffset, IntVector groupIds, Page page) {
+                        addIntermediateInputInternal(positionOffset, groupIds.asBlock(), page);
+                    }
+
+                    public void addIntermediateInputInternal(int positionOffset, IntBlock groupIds, Page page) {
+                        BlockFactory blockFactory = TestBlockFactory.getNonBreakingInstance();
                         int[] chunk = new int[emitChunkSize];
-                        for (int offset = 0; offset < groupIds.getPositionCount(); offset += emitChunkSize) {
-                            int count = 0;
-                            for (int i = offset; i < Math.min(groupIds.getPositionCount(), offset + emitChunkSize); i++) {
-                                chunk[count++] = groupIds.getInt(i);
+                        int chunkPosition = 0;
+                        int offset = 0;
+                        for (int position = 0; position < groupIds.getPositionCount(); position++) {
+                            if (groupIds.isNull(position)) {
+                                continue;
                             }
-                            BlockFactory blockFactory = TestBlockFactory.getNonBreakingInstance(); // TODO: just for compile
-                            delegate.addIntermediateInput(positionOffset + offset, blockFactory.newIntArrayVector(chunk, count), page);
+                            int firstValueIndex = groupIds.getFirstValueIndex(position);
+                            int valueCount = groupIds.getValueCount(position);
+                            assert valueCount == 1; // Multi-values make chunking more complex, and it's not a real case yet
+
+                            int groupId = groupIds.getInt(firstValueIndex);
+                            chunk[chunkPosition++] = groupId;
+                            if (chunkPosition == emitChunkSize) {
+                                delegate.addIntermediateInput(
+                                    positionOffset + offset,
+                                    blockFactory.newIntArrayVector(chunk, chunkPosition),
+                                    page
+                                );
+                                chunkPosition = 0;
+                                offset = position + 1;
+                            }
+                        }
+                        if (chunkPosition > 0) {
+                            delegate.addIntermediateInput(
+                                positionOffset + offset,
+                                blockFactory.newIntArrayVector(chunk, chunkPosition),
+                                page
+                            );
                         }
                     }
 
@@ -846,9 +903,7 @@ public abstract class GroupingAggregatorFunctionTestCase extends ForkingOperator
                         blockHash.add(page, new GroupingAggregatorFunction.AddInput() {
                             @Override
                             public void add(int positionOffset, IntBlock groupIds) {
-                                IntBlock newGroupIds = aggregatorMode.isInputPartial()
-                                    ? groupIds
-                                    : BlockTypeRandomizer.randomizeBlockType(groupIds);
+                                IntBlock newGroupIds = BlockTypeRandomizer.randomizeBlockType(groupIds);
                                 addInput.add(positionOffset, newGroupIds);
                             }
 

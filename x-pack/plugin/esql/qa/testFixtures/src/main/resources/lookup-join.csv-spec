@@ -4871,3 +4871,281 @@ Connected to 10.1.0.1 | English                      | English               | U
 Connected to 10.1.0.1 | English                      | English               | null
 Connected to 10.1.0.1 | English                      | null                  | United Kingdom
 ;
+
+lookupJoinOnTwoFields
+required_capability: join_lookup_v12
+required_capability: lookup_join_on_multiple_fields
+
+FROM multi_column_joinable
+| LOOKUP JOIN multi_column_joinable_lookup ON id_int, name_str
+| KEEP id_int, name_str, extra1, other1, other2
+| SORT id_int, name_str, extra1, other1, other2
+;
+
+warning:Line 2:3: evaluation of [LOOKUP JOIN multi_column_joinable_lookup ON id_int, name_str] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:3: java.lang.IllegalArgumentException: LOOKUP JOIN encountered multi-value
+
+id_int:integer | name_str:keyword | extra1:keyword | other1:keyword | other2:integer
+1              | Alice            | foo            | alpha          | 1000
+1              | Alice            | foo            | beta           | 2000
+[1, 19, 21]    | Sophia           | zyx            | null           | null
+2              | Bob              | bar            | gamma          | 3000
+3              | Charlie          | baz            | delta          | 4000
+3              | Charlie          | baz            | epsilon        | 5000
+4              | David            | qux            | zeta           | 6000
+5              | Eve              | quux           | eta            | 7000
+5              | Eve              | quux           | theta          | 8000
+6              | null             | corge          | null           | null
+7              | Grace            | grault         | kappa          | 10000
+8              | Hank             | garply         | lambda         | 11000
+9              | Ivy              | waldo          | null           | null
+10             | John             | fred           | null           | null
+12             | Liam             | xyzzy          | nu             | 13000
+13             | Mia              | thud           | xi             | 14000
+14             | Nina             | foo2           | omicron        | 15000
+15             | Oscar            | bar2           | null           | null
+[17, 18]       | Olivia           | xyz            | null           | null
+null           | Kate             | plugh          | null           | null
+;
+
+lookupJoinOnTwoFieldsSelfJoin
+required_capability: join_lookup_v12
+required_capability: lookup_join_on_multiple_fields
+
+FROM multi_column_joinable_lookup
+| LOOKUP JOIN multi_column_joinable_lookup ON id_int, name_str
+| KEEP id_int, name_str, other1, other2
+| SORT id_int, name_str, other1, other2
+;
+
+warning:Line 2:3: evaluation of [LOOKUP JOIN multi_column_joinable_lookup ON id_int, name_str] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:3: java.lang.IllegalArgumentException: LOOKUP JOIN encountered multi-value
+
+id_int:integer | name_str:keyword | other1:keyword | other2:integer
+1              | Alice            | alpha          | 1000
+1              | Alice            | alpha          | 1000
+1              | Alice            | beta           | 2000
+1              | Alice            | beta           | 2000
+[1, 19, 20]    | Sophia           | null           | null
+2              | Bob              | gamma          | 3000
+3              | Charlie          | delta          | 4000
+3              | Charlie          | delta          | 4000
+3              | Charlie          | epsilon        | 5000
+3              | Charlie          | epsilon        | 5000
+4              | David            | zeta           | 6000
+5              | Eve              | eta            | 7000
+5              | Eve              | eta            | 7000
+5              | Eve              | theta          | 8000
+5              | Eve              | theta          | 8000
+6              | null             | null           | null
+7              | Grace            | kappa          | 10000
+8              | Hank             | lambda         | 11000
+12             | Liam             | nu             | 13000
+13             | Mia              | xi             | 14000
+14             | Nina             | omicron        | 15000
+16             | Paul             | pi             | 16000
+[17, 18]       | Olivia           | null           | null
+null           | Kate             | null           | null
+;
+
+lookupJoinOnThreeFields
+required_capability: join_lookup_v12
+required_capability: lookup_join_on_multiple_fields
+
+FROM multi_column_joinable
+| LOOKUP JOIN multi_column_joinable_lookup ON id_int, name_str, is_active_bool
+| KEEP id_int, name_str, extra1, other1, other2
+| SORT id_int, name_str, extra1, other1, other2
+;
+
+warning:Line 2:3: evaluation of [LOOKUP JOIN multi_column_joinable_lookup ON id_int, name_str, is_active_bool] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:3: java.lang.IllegalArgumentException: LOOKUP JOIN encountered multi-value
+
+id_int:integer | name_str:keyword | extra1:keyword | other1:keyword | other2:integer
+1              | Alice            | foo            | alpha          | 1000
+1              | Alice            | foo            | beta           | 2000
+[1, 19, 21]    | Sophia           | zyx            | null           | null
+2              | Bob              | bar            | gamma          | 3000
+3              | Charlie          | baz            | delta          | 4000
+4              | David            | qux            | zeta           | 6000
+5              | Eve              | quux           | eta            | 7000
+5              | Eve              | quux           | theta          | 8000
+6              | null             | corge          | null           | null
+7              | Grace            | grault         | kappa          | 10000
+8              | Hank             | garply         | lambda         | 11000
+9              | Ivy              | waldo          | null           | null
+10             | John             | fred           | null           | null
+12             | Liam             | xyzzy          | nu             | 13000
+13             | Mia              | thud           | xi             | 14000
+14             | Nina             | foo2           | omicron        | 15000
+15             | Oscar            | bar2           | null           | null
+[17, 18]       | Olivia           | xyz            | null           | null
+null           | Kate             | plugh          | null           | null
+;
+
+
+lookupJoinOnFourFields
+required_capability: join_lookup_v12
+required_capability: lookup_join_on_multiple_fields
+
+FROM multi_column_joinable
+| LOOKUP JOIN multi_column_joinable_lookup ON id_int, name_str, is_active_bool, ip_addr
+| KEEP id_int, name_str, extra1, other1, other2
+| SORT id_int, name_str, extra1, other1, other2
+;
+
+warning:Line 2:3: evaluation of [LOOKUP JOIN multi_column_joinable_lookup ON id_int, name_str, is_active_bool, ip_addr] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:3: java.lang.IllegalArgumentException: LOOKUP JOIN encountered multi-value
+
+id_int:integer | name_str:keyword | extra1:keyword | other1:keyword | other2:integer
+1              | Alice            | foo            | alpha          | 1000
+[1, 19, 21]    | Sophia           | zyx            | null           | null
+2              | Bob              | bar            | null           | null
+3              | Charlie          | baz            | delta          | 4000
+4              | David            | qux            | zeta           | 6000
+5              | Eve              | quux           | eta            | 7000
+5              | Eve              | quux           | theta          | 8000
+6              | null             | corge          | null           | null
+7              | Grace            | grault         | null           | null
+8              | Hank             | garply         | lambda         | 11000
+9              | Ivy              | waldo          | null           | null
+10             | John             | fred           | null           | null
+12             | Liam             | xyzzy          | nu             | 13000
+13             | Mia              | thud           | xi             | 14000
+14             | Nina             | foo2           | omicron        | 15000
+15             | Oscar            | bar2           | null           | null
+[17, 18]       | Olivia           | xyz            | null           | null
+null           | Kate             | plugh          | null           | null
+;
+
+
+lookupJoinOnTwoOtherFields
+required_capability: join_lookup_v12
+required_capability: lookup_join_on_multiple_fields
+
+FROM multi_column_joinable
+| LOOKUP JOIN multi_column_joinable_lookup ON is_active_bool, ip_addr
+| KEEP id_int, name_str, extra1, other1, other2, is_active_bool, ip_addr
+| SORT id_int, name_str, extra1, other1, other2, is_active_bool, ip_addr
+;
+
+id_int:integer | name_str:keyword | extra1:keyword | other1:keyword | other2:integer | is_active_bool:boolean | ip_addr:ip
+1              | Alice            | foo            | alpha          | 1000           | true                   | 192.168.1.1
+[1, 19, 20]    | Sophia           | zyx            | sigma          | 21000          | true                   | 192.168.1.21
+3              | Charlie          | baz            | delta          | 4000           | true                   | 192.168.1.3
+4              | David            | qux            | zeta           | 6000           | false                  | 192.168.1.4
+5              | Eve              | quux           | eta            | 7000           | true                   | 192.168.1.5
+5              | Eve              | quux           | theta          | 8000           | true                   | 192.168.1.5
+6              | null             | corge          | iota           | 9000           | true                   | 192.168.1.6
+8              | Hank             | garply         | lambda         | 11000          | true                   | 192.168.1.8
+12             | Liam             | xyzzy          | nu             | 13000          | true                   | 192.168.1.12
+13             | Mia              | thud           | xi             | 14000          | false                  | 192.168.1.13
+14             | Nina             | foo2           | omicron        | 15000          | true                   | 192.168.1.14
+[17, 18]       | Olivia           | xyz            | rho            | 17000          | true                   | 192.168.1.17
+null           | Kate             | plugh          | mu             | 12000          | false                  | 192.168.1.11
+null           | null             | bar            | null           | null           | false                  | 192.168.1.2
+null           | null             | bar2           | null           | null           | false                  | 192.168.1.15
+null           | null             | fred           | null           | null           | true                   | 192.168.1.10
+null           | null             | grault         | null           | null           | false                  | null
+null           | null             | waldo          | null           | null           | false                  | 192.168.1.9
+;
+
+lookupJoinOnTwoFieldsWithEval
+required_capability: join_lookup_v12
+required_capability: lookup_join_on_multiple_fields
+
+FROM multi_column_joinable
+| eval id_int = id_int + 5
+| LOOKUP JOIN multi_column_joinable_lookup ON id_int, is_active_bool
+| KEEP id_int, name_str, extra1, other1, other2
+| SORT id_int, name_str, extra1, other1, other2
+;
+
+warning:Line 2:17: evaluation of [id_int + 5] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:17: java.lang.IllegalArgumentException: single-value function encountered multi-value
+warning:Line 3:3: evaluation of [LOOKUP JOIN multi_column_joinable_lookup ON id_int, is_active_bool] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 3:3: java.lang.IllegalArgumentException: LOOKUP JOIN encountered multi-value
+
+id_int:integer | name_str:keyword | extra1:keyword | other1:keyword | other2:integer
+6              | null             | foo            | iota           | 9000
+7              | Grace            | bar            | kappa          | 10000
+8              | Hank             | baz            | lambda         | 11000
+9              | null             | qux            | null           | null
+10             | null             | quux           | null           | null
+11             | null             | corge          | null           | null
+12             | null             | grault         | null           | null
+13             | null             | garply         | null           | null
+14             | null             | waldo          | null           | null
+15             | null             | fred           | null           | null
+17             | null             | xyzzy          | null           | null
+18             | null             | thud           | null           | null
+19             | null             | foo2           | null           | null
+20             | null             | bar2           | null           | null
+null           | null             | plugh          | null           | null
+null           | null             | xyz            | null           | null
+null           | null             | zyx            | null           | null
+;
+
+
+
+
+lookupJoinOnTwoFieldsAfterTop
+required_capability: join_lookup_v12
+required_capability: lookup_join_on_multiple_fields
+
+FROM multi_column_joinable
+| SORT extra1
+| LIMIT 10
+| LOOKUP JOIN multi_column_joinable_lookup ON id_int, is_active_bool
+| KEEP id_int, name_str, extra1, other1, other2
+| SORT id_int, name_str, extra1, other1, other2
+;
+
+warning:Line 4:3: evaluation of [LOOKUP JOIN multi_column_joinable_lookup ON id_int, is_active_bool] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 4:3: java.lang.IllegalArgumentException: LOOKUP JOIN encountered multi-value
+
+id_int:integer | name_str:keyword | extra1:keyword | other1:keyword | other2:integer
+1              | Alice            | foo            | alpha          | 1000
+1              | Alice            | foo            | beta           | 2000
+2              | Bob              | bar            | gamma          | 3000
+3              | Charlie          | baz            | delta          | 4000
+6              | null             | corge          | iota           | 9000
+7              | Grace            | grault         | kappa          | 10000
+8              | Hank             | garply         | lambda         | 11000
+10             | null             | fred           | null           | null
+14             | Nina             | foo2           | omicron        | 15000
+15             | null             | bar2           | null           | null
+null           | null             | plugh          | null           | null
+;
+
+
+lookupJoinOnTwoFieldsMultipleTimes
+required_capability: join_lookup_v12
+required_capability: lookup_join_on_multiple_fields
+
+FROM multi_column_joinable
+| LOOKUP JOIN multi_column_joinable_lookup ON id_int, is_active_bool
+| SORT extra1
+| LIMIT 10
+| LOOKUP JOIN multi_column_joinable_lookup ON name_str, is_active_bool
+| KEEP id_int, name_str, extra1, other1, other2
+| SORT id_int, name_str, extra1, other1, other2
+;
+
+warning:Line 2:3: evaluation of [LOOKUP JOIN multi_column_joinable_lookup ON id_int, is_active_bool] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:3: java.lang.IllegalArgumentException: LOOKUP JOIN encountered multi-value
+
+id_int:integer | name_str:keyword | extra1:keyword | other1:keyword | other2:integer
+1              | Alice            | foo            | alpha          | 1000
+1              | Alice            | foo            | alpha          | 1000
+1              | Alice            | foo            | beta           | 2000
+1              | Alice            | foo            | beta           | 2000
+2              | Bob              | bar            | gamma          | 3000
+3              | Charlie          | baz            | delta          | 4000
+7              | Grace            | grault         | kappa          | 10000
+8              | Hank             | garply         | lambda         | 11000
+14             | Nina             | foo2           | omicron        | 15000
+null           | null             | bar2           | null           | null
+null           | null             | corge          | null           | null
+null           | null             | fred           | null           | null
+;

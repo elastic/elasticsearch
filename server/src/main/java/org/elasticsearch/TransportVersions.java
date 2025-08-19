@@ -366,6 +366,7 @@ public class TransportVersions {
     public static final TransportVersion SIMULATE_INGEST_EFFECTIVE_MAPPING = def(9_140_0_00);
     public static final TransportVersion RESOLVE_INDEX_MODE_ADDED = def(9_141_0_00);
     public static final TransportVersion SEMANTIC_QUERY_MULTIPLE_INFERENCE_IDS = def(9_142_0_00);
+    public static final TransportVersion CCS_COMPATIBLE_QUERY_INTERCEPTORS = def(9_143_0_00);
 
     /*
      * STOP! READ THIS FIRST! No, really,

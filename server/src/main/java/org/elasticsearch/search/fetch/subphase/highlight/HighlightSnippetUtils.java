@@ -48,6 +48,9 @@ public class HighlightSnippetUtils {
         SearchHighlightContext.FieldOptions.Builder optionsBuilder = new SearchHighlightContext.FieldOptions.Builder();
         optionsBuilder.numberOfFragments(numSnippets);
         optionsBuilder.fragmentCharSize(snippetCharLength);
+        // Note: The default SENTENCE boundary scanner used by the DefaultHighlighter will return fragments larger than the specified
+        // snippetLength. This has implications when appending and calculating ByteArrays, so we specify WORD.
+        optionsBuilder.boundaryScannerType(HighlightBuilder.BoundaryScannerType.WORD);
         optionsBuilder.noMatchSize(snippetCharLength);
         optionsBuilder.preTags(new String[] { "" });
         optionsBuilder.postTags(new String[] { "" });

@@ -52,7 +52,7 @@ public class MvContainsAll extends BinaryScalarFunction implements EvaluatorMapp
 
     @FunctionInfo(
         returnType = "boolean",
-        description = "Checks if the values yielded by multivalue value expression are all also present in the values yielded by another"
+        description = "Checks if the values yielded by multivalue value expression are all present in the values yielded by the other "
             + "multivalue expression. The result is a boolean representing the outcome or null if either of the expressions where null.",
         examples = {
             @Example(file = "string", tag = "mv_contains_all"),

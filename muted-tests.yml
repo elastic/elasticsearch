@@ -431,6 +431,9 @@ tests:
 - class: org.elasticsearch.gradle.LoggedExecFuncTest
   method: failed tasks output logged to console when spooling true
   issue: https://github.com/elastic/elasticsearch/issues/119509
+- class: org.elasticsearch.core.GlobTests
+  method: testInfixAsteriskMatch
+  issue: https://github.com/elastic/elasticsearch/issues/133129
 
 # Examples:
 #

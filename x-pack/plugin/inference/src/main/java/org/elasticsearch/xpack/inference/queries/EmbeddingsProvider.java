@@ -11,5 +11,5 @@ import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.inference.InferenceResults;
 
 public interface EmbeddingsProvider extends NamedWriteable {
-    InferenceResults getEmbeddings(InferenceEndpointKey key);
+    InferenceResults getEmbeddings(String inferenceId);
 }

@@ -38,7 +38,7 @@ public class SingleEmbeddingsProvider implements EmbeddingsProvider {
     }
 
     @Override
-    public InferenceResults getEmbeddings(InferenceEndpointKey key) {
+    public InferenceResults getEmbeddings(String inferenceId) {
         return embeddings;
     }
 

@@ -224,9 +224,7 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
             }
 
             String inferenceId = semanticTextFieldType.getSearchInferenceId();
-            MinimalServiceSettings serviceSettings = modelRegistry.getMinimalServiceSettings(inferenceId);
-            InferenceEndpointKey inferenceEndpointKey = new InferenceEndpointKey(inferenceId, serviceSettings);
-            InferenceResults inferenceResults = embeddingsProvider.getEmbeddings(inferenceEndpointKey);
+            InferenceResults inferenceResults = embeddingsProvider.getEmbeddings(inferenceId);
 
             // TODO: Handle ErrorInferenceResults and WarningInferenceResults
             if (inferenceResults == null) {
@@ -289,10 +287,7 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
 
             Set<String> inferenceIds = getInferenceIdsForForField(resolvedIndices.getConcreteLocalIndicesMetadata().values(), fieldName);
             for (String inferenceId : inferenceIds) {
-                MinimalServiceSettings serviceSettings = modelRegistry.getMinimalServiceSettings(inferenceId);
-                InferenceEndpointKey inferenceEndpointKey = new InferenceEndpointKey(inferenceId, serviceSettings);
-
-                if (currentEmbeddingsProvider.getEmbeddings(inferenceEndpointKey) == null) {
+                if (currentEmbeddingsProvider.getEmbeddings(inferenceId) == null) {
                     InferenceAction.Request inferenceRequest = new InferenceAction.Request(
                         TaskType.ANY,
                         inferenceId,
@@ -314,7 +309,7 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
                             inferenceRequest,
                             listener.delegateFailureAndWrap((l, inferenceResponse) -> {
                                 currentEmbeddingsProvider.addEmbeddings(
-                                    inferenceEndpointKey,
+                                    inferenceId,
                                     validateAndConvertInferenceResults(inferenceResponse.getResults(), fieldName, inferenceId)
                                 );
                                 l.onResponse(null);

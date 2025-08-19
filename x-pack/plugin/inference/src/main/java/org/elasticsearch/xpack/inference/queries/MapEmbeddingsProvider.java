@@ -19,14 +19,14 @@ import java.util.Objects;
 public class MapEmbeddingsProvider implements EmbeddingsProvider {
     public static final String NAME = "map_embeddings_provider";
 
-    private final Map<InferenceEndpointKey, InferenceResults> embeddings;
+    private final Map<String, InferenceResults> embeddings;
 
     public MapEmbeddingsProvider() {
         this.embeddings = new HashMap<>();
     }
 
     public MapEmbeddingsProvider(StreamInput in) throws IOException {
-        this.embeddings = in.readMap(InferenceEndpointKey::new, i -> i.readNamedWriteable(InferenceResults.class));
+        this.embeddings = in.readMap(i -> i.readNamedWriteable(InferenceResults.class));
     }
 
     @Override
@@ -36,16 +36,16 @@ public class MapEmbeddingsProvider implements EmbeddingsProvider {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeMap(embeddings, StreamOutput::writeWriteable, StreamOutput::writeNamedWriteable);
+        out.writeMap(embeddings, StreamOutput::writeNamedWriteable);
     }
 
     @Override
-    public InferenceResults getEmbeddings(InferenceEndpointKey key) {
-        return embeddings.get(key);
+    public InferenceResults getEmbeddings(String inferenceId) {
+        return embeddings.get(inferenceId);
     }
 
-    public void addEmbeddings(InferenceEndpointKey key, InferenceResults embeddings) {
-        this.embeddings.put(key, embeddings);
+    public void addEmbeddings(String inferenceId, InferenceResults embeddings) {
+        this.embeddings.put(inferenceId, embeddings);
     }
 
     @Override

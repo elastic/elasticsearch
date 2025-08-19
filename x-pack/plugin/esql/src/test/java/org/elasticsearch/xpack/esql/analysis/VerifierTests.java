@@ -1139,7 +1139,7 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testNotAllowRateOutsideMetrics() {
-        assumeTrue("requires snapshot builds", Build.current().isSnapshot());
+        assumeTrue("requires metric command", EsqlCapabilities.Cap.METRICS_COMMAND.isEnabled());
         assertThat(
             error("FROM tests | STATS avg(rate(network.bytes_in))", tsdb),
             equalTo("1:24: time_series aggregate[rate(network.bytes_in)] can only be used with the TS command")
@@ -1159,7 +1159,7 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testRateNotEnclosedInAggregate() {
-        assumeTrue("requires snapshot builds", Build.current().isSnapshot());
+        assumeTrue("requires metric command", EsqlCapabilities.Cap.METRICS_COMMAND.isEnabled());
         assertThat(
             error("TS tests | STATS rate(network.bytes_in)", tsdb),
             equalTo("1:18: the rate aggregate [rate(network.bytes_in)] can only be used with the TS command and inside another aggregate")

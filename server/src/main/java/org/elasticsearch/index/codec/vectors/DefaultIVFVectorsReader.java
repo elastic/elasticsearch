@@ -53,14 +53,20 @@ public class DefaultIVFVectorsReader extends IVFVectorsReader implements OffHeap
                 ? centroidIterator.nextPostingListOffsetAndLength()
                 : null;
 
-            private void prefetch(CentroidOffsetAndLength offsetAndLength) throws IOException {
+            {
+                // prefetch the first one
+                if (nextOffsetAndLength != null) {
+                    prefetch(nextOffsetAndLength);
+                }
+            }
+
+            void prefetch(CentroidOffsetAndLength offsetAndLength) throws IOException {
                 postingListSlice.prefetch(offsetAndLength.offset(), offsetAndLength.length());
             }
 
             @Override
             public boolean hasNext() {
-                // none left or we have a one already fetched to return
-                return centroidIterator.hasNext() || nextOffsetAndLength != null;
+                return nextOffsetAndLength != null;
             }
 
             @Override

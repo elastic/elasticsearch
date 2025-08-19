@@ -68,7 +68,11 @@ class ResultBuilderForDoc implements ResultBuilder {
                 if (this.globalShard == DocVector.NO_GLOBAL_SHARD) {
                     this.globalShard = globalShard;
                 } else {
-                    assert globalShard == this.globalShard : "global shard must be the same for all rows";
+                    if (globalShard != this.globalShard) {
+                        throw new IllegalStateException(
+                            "global shard must be the same for all rows, but got " + globalShard + " != " + this.globalShard
+                        );
+                    }
                 }
             }
             // Swap the local index with the global one, so it can be used by later field extractors.

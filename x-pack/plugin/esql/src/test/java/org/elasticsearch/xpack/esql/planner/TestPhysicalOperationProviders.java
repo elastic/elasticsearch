@@ -165,7 +165,7 @@ public class TestPhysicalOperationProviders extends AbstractPhysicalOperationPro
                 ShardRefCounted.ALWAYS_REFERENCED,
                 // The shard ID is used to encode the index ID.
                 blockFactory.newConstantIntVector(index, page.getPositionCount()),
-                index,
+                DocVector.NO_GLOBAL_SHARD,
                 blockFactory.newConstantIntVector(0, page.getPositionCount()),
                 blockFactory.newIntArrayVector(IntStream.range(0, page.getPositionCount()).toArray(), page.getPositionCount()),
                 true

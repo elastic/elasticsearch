@@ -353,11 +353,13 @@ public class SnapshotStressTestsIT extends AbstractSnapshotIntegTestCase {
                 startCleaner();
             }
 
-            if (randomBoolean()) {
+            final int shardMovingVariant = between(0, 2);
+            if (shardMovingVariant == 0) {
                 startNodeShutdownMarker();
-            } else {
+            } else if (shardMovingVariant == 1) {
                 startAllocationFiltering();
             }
+            // Intentionally have neither node shutdown marker nor allocation filtering in some tests
 
             if (randomBoolean()) {
                 startUpdateShardSnapshotPerNodeLimit();

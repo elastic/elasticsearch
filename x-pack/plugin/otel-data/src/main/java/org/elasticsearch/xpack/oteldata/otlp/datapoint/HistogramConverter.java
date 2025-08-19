@@ -29,10 +29,9 @@ class HistogramConverter {
 
         for (int i = negative.getBucketCountsCount() - 1; i >= 0; i--) {
             long count = negative.getBucketCounts(i);
-            if (count == 0) {
-                continue;
+            if (count != 0) {
+                counts.accept(count);
             }
-            counts.accept(count);
         }
 
         long zeroCount = dp.getZeroCount();
@@ -43,10 +42,9 @@ class HistogramConverter {
         ExponentialHistogramDataPoint.Buckets positive = dp.getPositive();
         for (int i = 0; i < positive.getBucketCountsCount(); i++) {
             long count = positive.getBucketCounts(i);
-            if (count == 0) {
-                continue;
+            if (count != 0) {
+                counts.accept(count);
             }
-            counts.accept(count);
         }
     }
 
@@ -63,12 +61,11 @@ class HistogramConverter {
         int offset = negative.getOffset();
         for (int i = negative.getBucketCountsCount() - 1; i >= 0; i--) {
             long count = negative.getBucketCounts(i);
-            if (count == 0) {
-                continue;
+            if (count != 0) {
+                double lb = -ExponentialScaleUtils.getUpperBucketBoundary(offset + i, scale);
+                double ub = -ExponentialScaleUtils.getLowerBucketBoundary(offset + i, scale);
+                values.accept(lb + (ub - lb) / 2);
             }
-            double lb = -ExponentialScaleUtils.getLowerBucketBoundary(offset + i, scale);
-            double ub = -ExponentialScaleUtils.getUpperBucketBoundary(offset + i, scale);
-            values.accept(lb + (ub - lb) / 2);
         }
 
         long zeroCount = dp.getZeroCount();
@@ -80,22 +77,20 @@ class HistogramConverter {
         offset = positive.getOffset();
         for (int i = 0; i < positive.getBucketCountsCount(); i++) {
             long count = positive.getBucketCounts(i);
-            if (count == 0) {
-                continue;
+            if (count != 0) {
+                double lb = ExponentialScaleUtils.getLowerBucketBoundary(offset + i, scale);
+                double ub = ExponentialScaleUtils.getUpperBucketBoundary(offset + i, scale);
+                values.accept(lb + (ub - lb) / 2);
             }
-            double lb = ExponentialScaleUtils.getLowerBucketBoundary(offset + i, scale);
-            double ub = ExponentialScaleUtils.getUpperBucketBoundary(offset + i, scale);
-            values.accept(lb + (ub - lb) / 2);
         }
     }
 
     static <E extends Exception> void counts(HistogramDataPoint dp, CheckedLongConsumer<E> counts) throws E {
         for (int i = 0; i < dp.getBucketCountsCount(); i++) {
             long count = dp.getBucketCounts(i);
-            if (count == 0) {
-                continue;
+            if (count != 0) {
+                counts.accept(count);
             }
-            counts.accept(count);
         }
     }
 
@@ -109,25 +104,24 @@ class HistogramConverter {
         int size = dp.getBucketCountsCount();
         for (int i = 0; i < size; i++) {
             long count = dp.getBucketCounts(i);
-            if (count == 0) {
-                continue;
-            }
-            double value;
-            if (i == 0) {
-                // (-infinity, explicit_bounds[i]]
-                value = dp.getExplicitBounds(i);
-                if (value > 0) {
-                    value /= 2;
+            if (count != 0) {
+                double value;
+                if (i == 0) {
+                    // (-infinity, explicit_bounds[i]]
+                    value = dp.getExplicitBounds(i);
+                    if (value > 0) {
+                        value /= 2;
+                    }
+                } else if (i == size - 1) {
+                    // (explicit_bounds[i], +infinity)
+                    value = dp.getExplicitBounds(i - 1);
+                } else {
+                    // [explicit_bounds[i-1], explicit_bounds[i])
+                    // Use the midpoint between the boundaries.
+                    value = dp.getExplicitBounds(i - 1) + (dp.getExplicitBounds(i) - dp.getExplicitBounds(i - 1)) / 2.0;
                 }
-            } else if (i == size - 1) {
-                // (explicit_bounds[i], +infinity)
-                value = dp.getExplicitBounds(i - 1);
-            } else {
-                // [explicit_bounds[i-1], explicit_bounds[i])
-                // Use the midpoint between the boundaries.
-                value = dp.getExplicitBounds(i - 1) + (dp.getExplicitBounds(i) - dp.getExplicitBounds(i - 1)) / 2.0;
+                values.accept(value);
             }
-            values.accept(value);
         }
     }
 

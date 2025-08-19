@@ -233,12 +233,12 @@ public interface DataPoint {
 
         @Override
         public boolean isValid(Set<String> messages) {
-            boolean valid = metric.getExponentialHistogram()
-                .getAggregationTemporality() == AggregationTemporality.AGGREGATION_TEMPORALITY_DELTA;
-            if (valid == false) {
+            if (metric.getExponentialHistogram()
+                .getAggregationTemporality() == AggregationTemporality.AGGREGATION_TEMPORALITY_DELTA == false) {
                 messages.add("cumulative exponential histogram metrics are not supported, ignoring " + metric.getName());
+                return false;
             }
-            return valid;
+            return true;
         }
     }
 
@@ -303,11 +303,15 @@ public interface DataPoint {
 
         @Override
         public boolean isValid(Set<String> messages) {
-            boolean valid = metric.getHistogram().getAggregationTemporality() == AggregationTemporality.AGGREGATION_TEMPORALITY_DELTA;
-            if (valid == false) {
+            if (metric.getHistogram().getAggregationTemporality() == AggregationTemporality.AGGREGATION_TEMPORALITY_DELTA == false) {
                 messages.add("cumulative histogram metrics are not supported, ignoring " + metric.getName());
+                return false;
             }
-            return valid;
+            if (dataPoint.getBucketCountsCount() == 1 && dataPoint.getExplicitBoundsCount() == 0) {
+                messages.add("histogram with a single bucket and no explicit bounds is not supported, ignoring " + metric.getName());
+                return false;
+            }
+            return true;
         }
     }
 

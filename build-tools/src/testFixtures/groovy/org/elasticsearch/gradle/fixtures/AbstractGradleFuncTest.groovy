@@ -83,7 +83,8 @@ abstract class AbstractGradleFuncTest extends Specification {
         if (subProjectBuild.exists() == false) {
             settingsFile << "include \"${subProjectPath}\"\n"
         }
-        subProjectBuild
+        subProjectBuild.parentFile.mkdirs()
+        return subProjectBuild
     }
 
     File subProject(String subProjectPath, Closure configAction) {

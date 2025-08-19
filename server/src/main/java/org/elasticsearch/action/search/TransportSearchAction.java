@@ -65,6 +65,7 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.index.query.FilteredCCSQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.index.shard.ShardId;
@@ -700,12 +701,12 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             String clusterAlias = entry.getKey();
             boolean skipUnavailable = remoteClusterService.isSkipUnavailable(clusterAlias);
             OriginalIndices indices = entry.getValue();
-            SearchRequest ccsSearchRequest = SearchRequest.subSearchRequest(
+            SearchRequest ccsSearchRequest = createCCSSearchRequest(
                 parentTaskId,
                 searchRequest,
-                indices.indices(),
+                indices,
                 clusterAlias,
-                timeProvider.absoluteStartMillis(),
+                timeProvider,
                 true
             );
 
@@ -789,12 +790,12 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 boolean skipUnavailable = remoteClusterService.isSkipUnavailable(clusterAlias);
                 OriginalIndices indices = entry.getValue();
 
-                SearchRequest ccsSearchRequest = SearchRequest.subSearchRequest(
+                SearchRequest ccsSearchRequest = createCCSSearchRequest(
                     parentTaskId,
                     searchRequest,
-                    indices.indices(),
+                    indices,
                     clusterAlias,
-                    timeProvider.absoluteStartMillis(),
+                    timeProvider,
                     false
                 );
                 ActionListener<SearchResponse> ccsListener = createCCSListener(
@@ -1021,6 +1022,30 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 searchResponse.decRef();
             }
         };
+    }
+
+    private static SearchRequest createCCSSearchRequest(
+        TaskId parentTaskId,
+        SearchRequest searchRequest,
+        OriginalIndices indices,
+        String clusterAlias,
+        SearchTimeProvider timeProvider,
+        boolean finalReduce) {
+
+        SearchRequest ccsSearchRequest = SearchRequest.subSearchRequest(
+            parentTaskId,
+            searchRequest,
+            indices.indices(),
+            clusterAlias,
+            timeProvider.absoluteStartMillis(),
+            finalReduce
+        );
+
+        if (ccsSearchRequest.source().query() instanceof FilteredCCSQueryBuilder<?> filteredCCSQueryBuilder) {
+            ccsSearchRequest.source().query(filteredCCSQueryBuilder.filter());
+        }
+
+        return ccsSearchRequest;
     }
 
     /**

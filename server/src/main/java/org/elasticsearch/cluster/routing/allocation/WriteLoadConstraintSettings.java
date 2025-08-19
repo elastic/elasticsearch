@@ -92,7 +92,7 @@ public class WriteLoadConstraintSettings {
      */
     public static final Setting<TimeValue> WRITE_LOAD_DECIDER_QUEUE_LATENCY_THRESHOLD_SETTING = Setting.timeSetting(
         SETTING_PREFIX + "queue_latency_threshold",
-        TimeValue.timeValueSeconds(30),
+        TimeValue.timeValueSeconds(5),
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );

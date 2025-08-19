@@ -837,15 +837,9 @@ public class LinearRetrieverIT extends ESIntegTestCase {
     }
 
     public void testMixedNormalizerInheritance() throws IOException {
-        client().prepareIndex(INDEX)
-            .setId("1")
-            .setSource("field1", "elasticsearch search", "field2", "database technology", "score", 10)
-            .get();
-        client().prepareIndex(INDEX).setId("2").setSource("field1", "lucene engine", "field2", "search technology", "score", 5).get();
-        client().prepareIndex(INDEX)
-            .setId("3")
-            .setSource("field1", "information retrieval", "field2", "database search", "score", 15)
-            .get();
+        client().prepareIndex(INDEX).setId("1").setSource("field1", "elasticsearch only", "field2", "no technology here").get();
+        client().prepareIndex(INDEX).setId("2").setSource("field1", "no elasticsearch", "field2", "technology only").get();
+        client().prepareIndex(INDEX).setId("3").setSource("field1", "search term", "field2", "no technology").get();
         refresh(INDEX);
 
         LinearRetrieverBuilder linearRetriever = new LinearRetrieverBuilder(
@@ -871,7 +865,7 @@ public class LinearRetrieverIT extends ESIntegTestCase {
         assertThat(linearRetriever.getNormalizers()[2], equalTo(MinMaxScoreNormalizer.INSTANCE));
 
         assertResponse(client().prepareSearch(INDEX).setSource(new SearchSourceBuilder().retriever(linearRetriever)), searchResponse -> {
-            assertThat(searchResponse.getHits().getTotalHits().value() > 0L, is(true));
+            assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(3L));
         });
     }
 }

@@ -8,7 +8,8 @@
 package org.elasticsearch.xpack.inference.services.mistral;
 
 import org.elasticsearch.xpack.inference.external.http.retry.ResponseParser;
-import org.elasticsearch.xpack.inference.services.mistral.response.MistralErrorResponseHelper;
+import org.elasticsearch.xpack.inference.external.http.retry.UnifiedChatCompletionErrorParserContract;
+import org.elasticsearch.xpack.inference.external.http.retry.UnifiedChatCompletionErrorResponseUtils;
 import org.elasticsearch.xpack.inference.services.openai.OpenAiUnifiedChatCompletionResponseHandler;
 
 /**
@@ -17,6 +18,11 @@ import org.elasticsearch.xpack.inference.services.openai.OpenAiUnifiedChatComple
  */
 public class MistralUnifiedChatCompletionResponseHandler extends OpenAiUnifiedChatCompletionResponseHandler {
 
+    private static final String MISTRAL_ERROR = "mistral_error";
+
+    private static final UnifiedChatCompletionErrorParserContract ERROR_PARSER = UnifiedChatCompletionErrorResponseUtils
+        .createErrorParserWithStringify(MISTRAL_ERROR);
+
     /**
      * Constructs a MistralUnifiedChatCompletionResponseHandler with the specified request type and response parser.
      *
@@ -24,6 +30,6 @@ public class MistralUnifiedChatCompletionResponseHandler extends OpenAiUnifiedCh
      * @param parseFunction The function to parse the response.
      */
     public MistralUnifiedChatCompletionResponseHandler(String requestType, ResponseParser parseFunction) {
-        super(requestType, parseFunction, MistralErrorResponseHelper::fromResponse, MistralErrorResponseHelper.ERROR_PARSER);
+        super(requestType, parseFunction, ERROR_PARSER::parse, ERROR_PARSER);
     }
 }

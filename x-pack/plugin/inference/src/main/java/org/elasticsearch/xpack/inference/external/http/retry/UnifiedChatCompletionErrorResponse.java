@@ -17,7 +17,8 @@ import java.util.Optional;
 
 public class UnifiedChatCompletionErrorResponse extends ErrorResponse {
 
-    private static final ConstructingObjectParser<Optional<UnifiedChatCompletionErrorResponse>, Void> CONSTRUCTING_OBJECT_PARSER =
+    // Default for testing
+    static final ConstructingObjectParser<Optional<UnifiedChatCompletionErrorResponse>, Void> ERROR_OBJECT_PARSER =
         new ConstructingObjectParser<>("streaming_error", true, args -> Optional.ofNullable((UnifiedChatCompletionErrorResponse) args[0]));
     private static final ConstructingObjectParser<UnifiedChatCompletionErrorResponse, Void> ERROR_BODY_PARSER =
         new ConstructingObjectParser<>(
@@ -32,7 +33,7 @@ public class UnifiedChatCompletionErrorResponse extends ErrorResponse {
         ERROR_BODY_PARSER.declareStringOrNull(ConstructingObjectParser.optionalConstructorArg(), new ParseField("code"));
         ERROR_BODY_PARSER.declareStringOrNull(ConstructingObjectParser.optionalConstructorArg(), new ParseField("param"));
 
-        CONSTRUCTING_OBJECT_PARSER.declareObjectOrNull(
+        ERROR_OBJECT_PARSER.declareObjectOrNull(
             ConstructingObjectParser.optionalConstructorArg(),
             ERROR_BODY_PARSER,
             null,
@@ -41,12 +42,11 @@ public class UnifiedChatCompletionErrorResponse extends ErrorResponse {
     }
 
     public static final UnifiedChatCompletionErrorParserContract ERROR_PARSER = UnifiedChatCompletionErrorResponseUtils
-        .createErrorParserWithObjectParser(CONSTRUCTING_OBJECT_PARSER);
+        .createErrorParserWithObjectParser(ERROR_OBJECT_PARSER);
     public static final UnifiedChatCompletionErrorResponse UNDEFINED_ERROR = new UnifiedChatCompletionErrorResponse();
 
     /**
-     * Standard error response parser. This can be overridden for those subclasses that
-     * have a different error response structure.
+     * Standard error response parser.
      * @param response The error response as an HttpResult
      */
     public static UnifiedChatCompletionErrorResponse fromHttpResult(HttpResult response) {

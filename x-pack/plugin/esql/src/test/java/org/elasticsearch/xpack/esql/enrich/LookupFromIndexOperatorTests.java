@@ -82,7 +82,6 @@ import java.util.Set;
 import java.util.stream.LongStream;
 
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.matchesPattern;
 import static org.mockito.Mockito.mock;
 
@@ -307,12 +306,11 @@ public class LookupFromIndexOperatorTests extends AsyncOperatorTestCase {
 
     @Override
     protected MapMatcher extendStatusMatcher(MapMatcher mapMatcher, List<Page> input, List<Page> output) {
-        var totalPages = input.size();
         var totalInputRows = input.stream().mapToInt(Page::getPositionCount).sum();
         var totalOutputRows = output.stream().mapToInt(Page::getPositionCount).sum();
 
         return mapMatcher.entry("total_rows", totalInputRows)
-            .entry("pages_emitted", greaterThanOrEqualTo(totalPages))
-            .entry("rows_emitted", greaterThanOrEqualTo(totalOutputRows));
+            .entry("pages_emitted", output.size())
+            .entry("rows_emitted", totalOutputRows);
     }
 }

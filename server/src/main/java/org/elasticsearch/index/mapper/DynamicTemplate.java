@@ -23,7 +23,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Optional;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.function.Predicate;
@@ -451,14 +450,14 @@ public class DynamicTemplate implements ToXContentObject {
     }
 
     public boolean isTimeSeriesDimension() {
-        return Optional.of(mapping)
-            .flatMap(m -> Optional.ofNullable(m.get(TIME_SERIES_DIMENSION_PARAM)))
-            .filter(Boolean.class::isInstance)
-            .map(Boolean.class::cast)
-            .orElse(false);
+        if (mapping != null) {
+            Object value = mapping.get(TIME_SERIES_DIMENSION_PARAM);
+            if (value instanceof Boolean bool) return bool;
+        }
+        return false;
     }
 
-    public boolean isSimplePathMath() {
+    public boolean isSimplePathMatch() {
         return pathMatch.isEmpty() == false
             && pathUnmatch.isEmpty()
             && match.isEmpty()

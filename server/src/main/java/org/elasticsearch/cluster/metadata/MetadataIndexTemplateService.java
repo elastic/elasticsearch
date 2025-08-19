@@ -2047,8 +2047,8 @@ public class MetadataIndexTemplateService {
         validate(name, template.template(), Collections.emptyList(), null);
     }
 
-    private void validate(String name, ComposableIndexTemplate template, Settings additionalSettings) {
-        validate(name, template.template(), template.indexPatterns(), additionalSettings);
+    private void validate(String name, ComposableIndexTemplate template, Settings systemProvided) {
+        validate(name, template.template(), template.indexPatterns(), systemProvided);
     }
 
     private void validate(String name, Template template, List<String> indexPatterns, @Nullable Settings systemProvided) {

@@ -331,7 +331,7 @@ public class TSDBIndexingIT extends ESSingleNodeTestCase {
                 .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate(false, false))
                 .build()
         );
-        assertResponse(client().execute(TransportPutComposableIndexTemplateAction.TYPE, request), ElasticsearchAssertions::assertAcked);
+        assertAcked(client().execute(TransportPutComposableIndexTemplateAction.TYPE, request));
     }
 
     public void testInvalidTsdbTemplatesMissingSettings() throws Exception {
@@ -676,7 +676,6 @@ public class TSDBIndexingIT extends ESSingleNodeTestCase {
             ComposableIndexTemplate.builder()
                 .indexPatterns(List.of(dataStreamName))
                 .template(new Template(Settings.builder().put("index.mode", "time_series").build(), new CompressedXContent("""
-
                         {
                       "_doc": {
                         "dynamic_templates": [

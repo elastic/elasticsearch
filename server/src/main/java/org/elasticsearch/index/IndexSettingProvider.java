@@ -53,7 +53,17 @@ public interface IndexSettingProvider {
         List<CompressedXContent> combinedTemplateMappings
     );
 
-    default Settings onUpdateMappings(IndexMetadata indexMetadata, DocumentMapper indexMetadataBuilder) {
+    /**
+     * Called when the mappings for an index are updated.
+     * This method can be used to update index settings based on the new mappings.
+     *
+     * @param indexMetadata the index metadata for the index being updated
+     * @param documentMapper the document mapper containing the updated mappings
+     * @return additional settings to be applied to the index
+     *         or {@link Settings#EMPTY}/{@code null} if no additional settings are needed
+     */
+    @Nullable
+    default Settings onUpdateMappings(IndexMetadata indexMetadata, DocumentMapper documentMapper) {
         return Settings.EMPTY;
     }
 

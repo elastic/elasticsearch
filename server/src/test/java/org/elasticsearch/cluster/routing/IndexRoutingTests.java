@@ -15,11 +15,11 @@ import org.elasticsearch.action.RoutingMissingException;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
-import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
@@ -582,7 +582,7 @@ public class IndexRoutingTests extends ESTestCase {
 
     public void testRoutingPathNumbersInSource() throws IOException {
         int shards = between(2, 1000);
-        IndexRouting routing = indexRoutingForPath(IndexVersions.MATCH_ONLY_TEXT_STORED_AS_BYTES, shards, "foo");
+        IndexRouting routing = indexRoutingForPath(shards, "foo");
         long randomLong = randomLong();
         assertIndexShard(routing, Map.of("foo", randomLong), List.of("foo", randomLong), shards);
         double randomDouble = randomDouble();
@@ -625,7 +625,7 @@ public class IndexRoutingTests extends ESTestCase {
     }
 
     public void testRoutingPathBwc() throws IOException {
-        IndexRouting routing = indexRoutingForRoutingPath(IndexVersion.current(), 8, "dim.*,other.*,top");
+        IndexRouting routing = indexRoutingForDimensions(IndexVersion.current(), 8, "dim.*,other.*,top", IndexMetadata.INDEX_ROUTING_PATH);
         /*
          * These are the expected shards when we first added routing_path. If these values change
          * time series will be routed to unexpected shards. You may modify
@@ -644,7 +644,7 @@ public class IndexRoutingTests extends ESTestCase {
     }
 
     public void testRoutingPathBwcAfterTsidBasedRouting() throws IOException {
-        IndexRouting routing = indexRoutingForDimensions(IndexVersion.current(), 8, "dim.*,other.*,top");
+        IndexRouting routing = indexRoutingForDimensions(IndexVersion.current(), 8, "dim.*,other.*,top", IndexMetadata.INDEX_DIMENSIONS);
         /*
          * These are the expected shards after tsid based routing. If these values change
          * time series will be routed to unexpected shards. You may modify
@@ -662,7 +662,7 @@ public class IndexRoutingTests extends ESTestCase {
         assertIndexShard(routing, Map.of("dim.a", "a"), 6);
         assertIndexShard(routing, Map.of("dim.a", 1), 7);
         assertIndexShard(routing, Map.of("dim.a", "1"), 5);
-        assertIndexShard(routing, Map.of("dim.a", true), 3);
+        assertIndexShard(routing, Map.of("dim.a", true), 1);
         assertIndexShard(routing, Map.of("dim.a", "true"), 6);
     }
 
@@ -722,34 +722,18 @@ public class IndexRoutingTests extends ESTestCase {
     }
 
     private IndexRouting indexRoutingForPath(IndexVersion indexVersion, int shards, String path) {
+        // old way of routing paths created during routing
+        // current way of routing paths created during routing via tsid
         return randomBoolean()
-            // old way of routing paths created during routing
-            ? indexRoutingForRoutingPath(indexVersion, shards, path)
-            // current way of routing paths created during routing via tsid
-            : indexRoutingForDimensions(indexVersion, shards, path);
+            ? indexRoutingForDimensions(indexVersion, shards, path, IndexMetadata.INDEX_ROUTING_PATH)
+            : indexRoutingForDimensions(indexVersion, shards, path, IndexMetadata.INDEX_DIMENSIONS);
     }
 
-    private IndexRouting indexRoutingForRoutingPath(IndexVersion createdVersion, int shards, String path) {
+    private IndexRouting indexRoutingForDimensions(IndexVersion createdVersion, int shards, String path, Setting<List<String>> setting) {
         return IndexRouting.fromIndexMetadata(
             IndexMetadata.builder("test")
                 .settings(
-                    settings(createdVersion).put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), path)
-                        .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)
-                        .build()
-                )
-                .numberOfShards(shards)
-                .numberOfReplicas(1)
-                .build()
-        );
-    }
-
-    private IndexRouting indexRoutingForDimensions(IndexVersion createdVersion, int shards, String path) {
-        return IndexRouting.fromIndexMetadata(
-            IndexMetadata.builder("test")
-                .settings(
-                    settings(createdVersion).put(IndexMetadata.INDEX_DIMENSIONS.getKey(), path)
-                        .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)
-                        .build()
+                    settings(createdVersion).put(setting.getKey(), path).put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES).build()
                 )
                 .numberOfShards(shards)
                 .numberOfReplicas(1)

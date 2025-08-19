@@ -107,7 +107,7 @@ public class MetadataMappingService {
         private final IndexSettingProviders indexSettingProviders;
 
         PutMappingExecutor() {
-            this(new IndexSettingProviders(Set.of()));
+            this(IndexSettingProviders.EMPTY);
         }
 
         PutMappingExecutor(IndexSettingProviders indexSettingProviders) {

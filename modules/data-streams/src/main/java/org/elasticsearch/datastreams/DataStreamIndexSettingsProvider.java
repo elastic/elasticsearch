@@ -127,8 +127,6 @@ public class DataStreamIndexSettingsProvider implements IndexSettingProvider {
                             dimensions
                         );
                         if (dimensions.isEmpty() == false) {
-                            // TODO handle the case when adding a dimension field to the mappings of an existing index
-                            // at the moment, the index.dimensions setting is only set when an index is created
                             builder.putList(matchesAllDimensions ? INDEX_DIMENSIONS.getKey() : INDEX_ROUTING_PATH.getKey(), dimensions);
                         }
                     }
@@ -174,6 +172,13 @@ public class DataStreamIndexSettingsProvider implements IndexSettingProvider {
      * Alternatively this method can instead parse mappings into map of maps and merge that and
      * iterate over all values to find the field that can serve as routing value. But this requires
      * mapping specific logic to exist here.
+     *
+     * @param indexName the name of the index for which the dimension fields are being found
+     * @param allSettings the settings of the index
+     * @param combinedTemplateMappings the combined mappings from index templates
+     *                                 (if any) that are applied to the index
+     * @param dimensions a list to which the found dimension fields will be added
+     * @return true if all potential dimension fields can be matched via the dimensions in the list, false otherwise
      */
     private boolean findDimensionFields(
         String indexName,
@@ -211,6 +216,13 @@ public class DataStreamIndexSettingsProvider implements IndexSettingProvider {
         }
     }
 
+    /**
+     * Finds the dimension fields in the provided document mapper and adds them to the provided list.
+     *
+     * @param dimensions the list to which the found dimension fields will be added
+     * @param documentMapper the document mapper from which to extract the dimension fields
+     * @return true if all potential dimension fields can be matched via the dimensions in the list, false otherwise
+     */
     private static boolean findDimensionFields(List<String> dimensions, DocumentMapper documentMapper) {
         for (var objectMapper : documentMapper.mappers().objectMappers().values()) {
             if (objectMapper instanceof PassThroughObjectMapper passThroughObjectMapper) {
@@ -224,7 +236,11 @@ public class DataStreamIndexSettingsProvider implements IndexSettingProvider {
             if (template.isTimeSeriesDimension() == false) {
                 continue;
             }
-            if (template.isSimplePathMath() == false) {
+            if (template.isSimplePathMatch() == false) {
+                // If the template is not using a simple path match, the dimensions list can't match all potential dimensions.
+                // For example, if the dynamic template matches by mapping type (all strings are mapped as dimensions),
+                // the coordinating node can't rely on the dimensions list to match all dimensions.
+                // In this case, the index.routing_path setting will be used instead.
                 matchesAllDimensions = false;
             }
             if (template.pathMatch().isEmpty() == false) {
@@ -242,14 +258,12 @@ public class DataStreamIndexSettingsProvider implements IndexSettingProvider {
      * Helper method that adds the name of the mapper to the provided list.
      */
     private static void extractPath(List<String> dimensions, Mapper mapper) {
-        if (mapper instanceof FieldMapper fieldMapper) {
-            if (fieldMapper.fieldType().isDimension()) {
-                String path = mapper.fullPath();
-                // don't add if the path already matches via a wildcard pattern in the list
-                // e.g. if "path.*" is already added, "path.foo" should not be added
-                if (Regex.simpleMatch(dimensions, path) == false) {
-                    dimensions.add(path);
-                }
+        if (mapper instanceof FieldMapper fieldMapper && fieldMapper.fieldType().isDimension()) {
+            String path = mapper.fullPath();
+            // don't add if the path already matches via a wildcard pattern in the list
+            // e.g. if "path.*" is already added, "path.foo" should not be added
+            if (Regex.simpleMatch(dimensions, path) == false) {
+                dimensions.add(path);
             }
         }
     }

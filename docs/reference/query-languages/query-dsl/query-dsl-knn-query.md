@@ -104,7 +104,7 @@ The filter is a pre-filter, meaning that it is applied **during** the approximat
     Rescoring only makes sense for quantized vectors; when [quantization](/reference/elasticsearch/mapping-reference/dense-vector.md#dense-vector-quantization) is not used, the original vectors are used for scoring. Rescore option will be ignored for non-quantized `dense_vector` fields.
     ::::
 
-    Parameter for `rescore_vector`:
+    **Parameters for `rescore_vector`**:
     
     `oversample`
     :   (Required, float)

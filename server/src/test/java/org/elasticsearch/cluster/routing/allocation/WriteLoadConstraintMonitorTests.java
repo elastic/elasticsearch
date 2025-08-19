@@ -129,7 +129,7 @@ public class WriteLoadConstraintMonitorTests extends ESTestCase {
                     "don't reroute due to decider being disabled",
                     WriteLoadConstraintMonitor.class.getCanonicalName(),
                     Level.DEBUG,
-                    "skipping monitor because the write load decider is disabled"
+                    "skipping monitor because the write load decider is not fully enabled"
                 )
             );
 

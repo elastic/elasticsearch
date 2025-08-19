@@ -239,7 +239,7 @@ public class TransformSurvivesUpgradeIT extends AbstractUpgradeTestCase {
         final Request upgradeTransformRequest = new Request("POST", getTransformEndpoint() + "_upgrade");
 
         Exception ex = expectThrows(Exception.class, () -> client().performRequest(upgradeTransformRequest));
-        assertThat(ex.getMessage(), containsString("All nodes must be the same version"));
+        assertThat(ex.getMessage(), containsString("Cannot upgrade transforms while cluster upgrade is in progress"));
     }
 
     private void verifyUpgrade() throws IOException {

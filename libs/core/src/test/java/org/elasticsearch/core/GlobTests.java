@@ -177,7 +177,7 @@ public class GlobTests extends ESTestCase {
     }
 
     private String randomAsciiString(int length) {
-        return randomAsciiString(length, ch -> ch >= ' ' && ch <= '~');
+        return randomAsciiString(length, ch -> ch >= ' ' && ch <= '~' && ch != '*');
     }
 
     private String randomAsciiString(int length, CharPredicate validCharacters) {

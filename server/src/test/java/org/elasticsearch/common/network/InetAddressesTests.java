@@ -25,6 +25,7 @@ import org.hamcrest.Matchers;
 import java.net.InetAddress;
 import java.net.NetworkInterface;
 import java.net.UnknownHostException;
+import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.Enumeration;
 import java.util.stream.IntStream;
@@ -261,10 +262,16 @@ public class InetAddressesTests extends ESTestCase {
         );
     }
 
-    public void testToHexBytes() {
-        IntStream.generate(ESTestCase::randomInt).limit(256).forEach(i -> {
-            byte[] bytes = InetAddresses.toHexBytes(i);
-            assertArrayEquals(Integer.toHexString(i).getBytes(StandardCharsets.US_ASCII), bytes);
-        });
+    public void testAppendHexBytes() {
+        for (int i = 0; i < 256; i++) {
+            byte b1 = randomByte();
+            byte b2 = randomByte();
+            // The expected string is the hex representation of the two bytes, padded to 4 characters
+            String expected = String.format("%1$04x", (b1 & 0xFF) << 8 | b2 & 0xFF);
+            byte[] hex = new byte[4];
+            InetAddresses.appendHexBytes(hex, 0, b1, b2);
+            String actual = new String(hex, StandardCharsets.US_ASCII);
+            assertEquals(expected, actual);
+        }
     }
 }

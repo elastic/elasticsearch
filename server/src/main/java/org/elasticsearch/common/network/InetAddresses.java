@@ -126,26 +126,20 @@ public class InetAddresses {
         if (quad == null) {
             return null;
         }
-        byte[] penultimate = toHexBytes(((quad[0] & 0xff) << 8) | (quad[1] & 0xff));
-        byte[] ultimate = toHexBytes(((quad[2] & 0xff) << 8) | (quad[3] & 0xff));
-        // initialPart + penultimate + ":" + ultimate
-        byte[] result = new byte[quadOffset + penultimate.length + 1 + ultimate.length];
+        // initialPart(quadOffset) + penultimate(4) + ":"(1) + ultimate(4)
+        byte[] result = new byte[quadOffset + 9];
         System.arraycopy(ipUtf8, offset, result, 0, quadOffset);
-        System.arraycopy(penultimate, 0, result, quadOffset, penultimate.length);
-        result[quadOffset + penultimate.length] = ':';
-        System.arraycopy(ultimate, 0, result, quadOffset + penultimate.length + 1, ultimate.length);
+        appendHexBytes(result, quadOffset, quad[0], quad[1]); // penultimate part
+        result[quadOffset + 4] = ':';
+        appendHexBytes(result, quadOffset + 5, quad[2], quad[3]); // ultimate part
         return result;
     }
 
-    static byte[] toHexBytes(int val) {
-        int mag = Integer.SIZE - Integer.numberOfLeadingZeros(val);
-        int length = Math.max(((mag + 3) / 4), 1);
-        byte[] result = new byte[length];
-        for (int i = length - 1; i >= 0; i--) {
-            result[i] = (byte) HEX_DIGITS[val & 0xf];
-            val >>>= 4;
-        }
-        return result;
+    static void appendHexBytes(byte[] result, int offset, byte b1, byte b2) {
+        result[offset] = (byte) HEX_DIGITS[((b1 & 0xf0) >> 4)];
+        result[offset + 1] = (byte) HEX_DIGITS[(b1 & 0x0f)];
+        result[offset + 2] = (byte) HEX_DIGITS[((b2 & 0xf0) >> 4)];
+        result[offset + 3] = (byte) HEX_DIGITS[(b2 & 0x0f)];
     }
 
     private static byte[] textToNumericFormatV4(byte[] ipUtf8, int offset, int length, boolean asIpv6) {

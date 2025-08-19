@@ -2458,7 +2458,7 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testRateRequiresCounterTypes() {
-        assumeTrue("rate requires snapshot builds", Build.current().isSnapshot());
+        assumeTrue("rate requires snapshot builds", EsqlCapabilities.Cap.METRICS_COMMAND.isEnabled());
         Analyzer analyzer = analyzer(tsdbIndexResolution());
         var query = "TS test | STATS avg(rate(network.connections))";
         VerificationException error = expectThrows(VerificationException.class, () -> analyze(query, analyzer));

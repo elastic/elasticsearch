@@ -36,7 +36,6 @@ You can learn how to:
 - [Reindex from remote](#reindex-from-remote)
 
 **Troubleshooting**
-- [Monitor reindex tasks](#monitor-reindex-tasks)
 - [Diagnose node failures](#diagnose-node-failures)
 - [Version conflicts](#version-conflicts)
 
@@ -737,24 +736,6 @@ Reindex from remote supports configurable SSL settings.
 These must be specified in the `elasticsearch.yml` file, with the exception of the secure settings, which you add in the {{es}} keystore.
 It is not possible to configure SSL in the body of the reindex API request.
 Refer to [Reindex settings](/reference/elasticsearch/configuration-reference/index-management-settings.md#reindex-settings).
-
-## Monitor reindex tasks [monitor-reindex-tasks]
-
-When run asynchronously with `wait_for_completion=false`, a reindex task can be monitored with the task management API:
-```console
-GET _tasks/r1A2WoRbTwKZ516z6NEs5A:36619
-```
-% TEST[catch:missing]
-
-To view all currently running reindex tasks:
-```console
-GET _tasks?actions=*reindex
-```
-
-You can also cancel a running reindex task:
-```console
-POST _tasks/r1A2WoRbTwKZ516z6NEs5A:36619/_cancel
-```
 
 ## Diagnose node failures [diagnose-node-failures]
 

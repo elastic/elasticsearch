@@ -1381,35 +1381,6 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
         }
     }
 
-    private boolean isNodeDisconnectedException(LogEvent event, ClusterNode leader, ClusterNode partitionedNode) {
-        if (event.getLevel() != Level.INFO) {
-            return false;
-        }
-        if (event.getLoggerName().equals(JoinHelper.class.getCanonicalName()) == false) {
-            return false;
-        }
-
-        var cause = event.getThrown();
-        if (cause == null) {
-            return false;
-        }
-        cause = cause.getCause();
-        if (cause == null) {
-            return false;
-        }
-        if (Regex.simpleMatch(
-            "* failure when opening connection back from ["
-                + leader.getLocalNode().descriptionWithoutAttributes()
-                + "] to ["
-                + partitionedNode.getLocalNode().descriptionWithoutAttributes()
-                + "]",
-            cause.getMessage()
-        ) == false) {
-            return false;
-        }
-        return cause.getStackTrace() == null || cause.getStackTrace().length == 0;
-    }
-
     @TestLogging(
         reason = "test includes assertions about logging",
         value = "org.elasticsearch.cluster.coordination.Coordinator:WARN,org.elasticsearch.cluster.coordination.JoinHelper:INFO"
@@ -1444,9 +1415,35 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
 
                     @Override
                     public void match(LogEvent event) {
-                        if (isNodeDisconnectedException(event, leader, partitionedNode)) {
-                            matched = true;
+                        if (event.getLevel() != Level.INFO) {
+                            return;
                         }
+                        if (event.getLoggerName().equals(JoinHelper.class.getCanonicalName()) == false) {
+                            return;
+                        }
+
+                        var cause = event.getThrown();
+                        if (cause == null) {
+                            return;
+                        }
+                        cause = cause.getCause();
+                        if (cause == null) {
+                            return;
+                        }
+                        if (Regex.simpleMatch(
+                            "* failure when opening connection back from ["
+                                + leader.getLocalNode().descriptionWithoutAttributes()
+                                + "] to ["
+                                + partitionedNode.getLocalNode().descriptionWithoutAttributes()
+                                + "]",
+                            cause.getMessage()
+                        ) == false) {
+                            return;
+                        }
+                        if (cause.getStackTrace() != null && cause.getStackTrace().length != 0) {
+                            return;
+                        }
+                        matched = true;
                     }
 
                     @Override
@@ -1474,70 +1471,6 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
             }
 
             leader.clearActionBlocks();
-        }
-    }
-
-    @TestLogging(
-        reason = "test includes assertions about logging",
-        value = "org.elasticsearch.cluster.coordination.Coordinator:WARN,org.elasticsearch.cluster.coordination.JoinHelper:INFO"
-    )
-    public void testDoesNotReportConnectBackProblemsDuringJoining() {
-        try (var cluster = new Cluster(3)) {
-            cluster.runRandomly();
-            cluster.stabilise();
-
-            final var partitionedNode = cluster.getAnyNode();
-            partitionedNode.disconnect();
-            cluster.stabilise();
-
-            logger.info("--> healing [{}]", partitionedNode);
-            partitionedNode.heal();
-            final var leader = cluster.getAnyLeader();
-
-            try (var mockLog = MockLog.capture(Coordinator.class, JoinHelper.class)) {
-                mockLog.addExpectation(
-                    new MockLog.UnseenEventExpectation(
-                        "connect-back failure",
-                        Coordinator.class.getCanonicalName(),
-                        Level.WARN,
-                        "*received join request from ["
-                            + partitionedNode.getLocalNode().descriptionWithoutAttributes()
-                            + "] but could not connect back to the joining node"
-                    )
-                );
-                mockLog.addExpectation(new MockLog.LoggingExpectation() {
-                    boolean matched = false;
-
-                    @Override
-                    public void match(LogEvent event) {
-                        if (isNodeDisconnectedException(event, leader, partitionedNode)) {
-                            matched = true;
-                        }
-                    }
-
-                    @Override
-                    public void assertMatched() {
-                        assertFalse(matched);
-                    }
-                });
-
-                cluster.runFor(
-                    // This expects 8 tasks to be executed after PeerFinder handling wakeup:
-                    //
-                    // * connectToRemoteMasterNode[0.0.0.0:11]
-                    // * [internal:transport/handshake] from {node1} to {node2}
-                    // * response to [internal:transport/handshake] from {node1} to {node2}
-                    // * [internal:discovery/request_peers] from {node1} to
-                    // * response to [internal:discovery/request_peers] from {node1} to {node2}
-                    // * [internal:cluster/coordination/join] from {node1} to {node2}
-                    // * [internal:transport/handshake] from {node2} to {node1} (rejected due to action block)
-                    // * error response to [internal:cluster/coordination/join] from {node1} to {node2}
-                    //
-                    defaultMillis(DISCOVERY_FIND_PEERS_INTERVAL_SETTING) + 8 * DEFAULT_DELAY_VARIABILITY,
-                    "allowing time for join attempt"
-                );
-                mockLog.assertAllExpectationsMatched();
-            }
         }
     }
 

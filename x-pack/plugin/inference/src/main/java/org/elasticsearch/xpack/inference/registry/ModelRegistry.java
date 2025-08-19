@@ -249,15 +249,17 @@ public class ModelRegistry implements ClusterStateListener {
      * @param listener Model listener
      */
     public void getModelWithSecrets(String inferenceEntityId, ActionListener<UnparsedModel> listener) {
+        var maybeDefault = defaultConfigIds.get(inferenceEntityId);
+        if (maybeDefault != null) {
+            getDefaultConfig(true, maybeDefault, listener);
+            logger.debug("Returning default inference endpoint [{}] with secrets", inferenceEntityId);
+            return;
+        }
+
         ActionListener<SearchResponse> searchListener = ActionListener.wrap((searchResponse) -> {
             // There should be a hit for the configurations
             if (searchResponse.getHits().getHits().length == 0) {
-                var maybeDefault = defaultConfigIds.get(inferenceEntityId);
-                if (maybeDefault != null) {
-                    getDefaultConfig(true, maybeDefault, listener);
-                } else {
-                    listener.onFailure(inferenceNotFoundException(inferenceEntityId));
-                }
+                listener.onFailure(inferenceNotFoundException(inferenceEntityId));
                 return;
             }
 
@@ -289,15 +291,16 @@ public class ModelRegistry implements ClusterStateListener {
      * @param listener Model listener
      */
     public void getModel(String inferenceEntityId, ActionListener<UnparsedModel> listener) {
+        var maybeDefault = defaultConfigIds.get(inferenceEntityId);
+        if (maybeDefault != null) {
+            getDefaultConfig(true, maybeDefault, listener);
+            return;
+        }
+
         ActionListener<SearchResponse> searchListener = ActionListener.wrap((searchResponse) -> {
             // There should be a hit for the configurations
             if (searchResponse.getHits().getHits().length == 0) {
-                var maybeDefault = defaultConfigIds.get(inferenceEntityId);
-                if (maybeDefault != null) {
-                    getDefaultConfig(true, maybeDefault, listener);
-                } else {
-                    listener.onFailure(inferenceNotFoundException(inferenceEntityId));
-                }
+                listener.onFailure(inferenceNotFoundException(inferenceEntityId));
                 return;
             }
 

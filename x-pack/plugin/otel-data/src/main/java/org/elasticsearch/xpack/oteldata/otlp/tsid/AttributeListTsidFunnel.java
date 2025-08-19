@@ -12,9 +12,9 @@ import io.opentelemetry.proto.common.v1.KeyValue;
 
 import org.elasticsearch.cluster.routing.TsidBuilder;
 import org.elasticsearch.cluster.routing.TsidBuilder.TsidFunnel;
+import org.elasticsearch.xpack.oteldata.otlp.datapoint.TargetIndex;
 import org.elasticsearch.xpack.oteldata.otlp.docbuilder.MappingHints;
 import org.elasticsearch.xpack.oteldata.otlp.proto.BufferedByteStringAccessor;
-import org.elasticsearch.xpack.oteldata.otlp.datapoint.TargetIndex;
 
 import java.util.List;
 
@@ -63,10 +63,7 @@ class AttributeListTsidFunnel implements TsidFunnel<List<KeyValue>> {
                 tsidBuilder.addLongDimension(key, value.getIntValue());
                 break;
             case KVLIST_VALUE:
-                tsidBuilder.add(
-                    value.getKvlistValue().getValuesList(),
-                    AttributeListTsidFunnel.get(byteStringAccessor, key + ".")
-                );
+                tsidBuilder.add(value.getKvlistValue().getValuesList(), AttributeListTsidFunnel.get(byteStringAccessor, key + "."));
                 break;
             case ARRAY_VALUE:
                 List<AnyValue> valuesList = value.getArrayValue().getValuesList();

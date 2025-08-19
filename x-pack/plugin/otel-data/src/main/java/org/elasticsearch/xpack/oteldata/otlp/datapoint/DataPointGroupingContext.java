@@ -7,11 +7,6 @@
 
 package org.elasticsearch.xpack.oteldata.otlp.datapoint;
 
-import com.dynatrace.hash4j.hashing.HashStream32;
-import com.dynatrace.hash4j.hashing.HashValue128;
-import com.dynatrace.hash4j.hashing.Hasher32;
-import com.dynatrace.hash4j.hashing.Hashing;
-import com.google.protobuf.ByteString;
 import io.opentelemetry.proto.collector.metrics.v1.ExportMetricsServiceRequest;
 import io.opentelemetry.proto.common.v1.InstrumentationScope;
 import io.opentelemetry.proto.common.v1.KeyValue;
@@ -19,6 +14,13 @@ import io.opentelemetry.proto.metrics.v1.Metric;
 import io.opentelemetry.proto.metrics.v1.ResourceMetrics;
 import io.opentelemetry.proto.metrics.v1.ScopeMetrics;
 import io.opentelemetry.proto.resource.v1.Resource;
+
+import com.dynatrace.hash4j.hashing.HashStream32;
+import com.dynatrace.hash4j.hashing.HashValue128;
+import com.dynatrace.hash4j.hashing.Hasher32;
+import com.dynatrace.hash4j.hashing.Hashing;
+import com.google.protobuf.ByteString;
+
 import org.elasticsearch.cluster.routing.TsidBuilder;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.xpack.oteldata.otlp.proto.BufferedByteStringAccessor;
@@ -99,7 +101,7 @@ public class DataPointGroupingContext {
      * @throws E if the consumer throws an exception
      */
     public <E extends Exception> void consume(CheckedConsumer<DataPointGroup, E> consumer) throws E {
-        for (Iterator<ResourceGroup> iterator = resourceGroups.values().iterator(); iterator.hasNext(); ) {
+        for (Iterator<ResourceGroup> iterator = resourceGroups.values().iterator(); iterator.hasNext();) {
             ResourceGroup resourceGroup = iterator.next();
             // Remove the resource group from the map can help to significantly reduce GC overhead.
             // This avoids that the resource groups are promoted to survivor space when the context is kept alive for a while,

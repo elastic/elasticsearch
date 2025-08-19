@@ -13,7 +13,6 @@ import org.gradle.api.DefaultTask;
 import org.gradle.api.Project;
 import org.gradle.api.file.ConfigurableFileCollection;
 import org.gradle.api.file.DirectoryProperty;
-import org.gradle.api.provider.ListProperty;
 import org.gradle.api.provider.Property;
 import org.gradle.api.tasks.Input;
 import org.gradle.api.tasks.InputDirectory;
@@ -33,6 +32,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
@@ -86,11 +86,11 @@ public abstract class GenerateTransportVersionDefinitionTask extends DefaultTask
     @Optional // In CI we find these from the github PR labels
     @Input
     @Option(option = "branches", description = "The branches for which to generate IDs, e.g. --branches=\"main,9.1\"")
-    public abstract ListProperty<String> getBranches();
+    public abstract Property<String> getBranches();
 
     @Input
     @Optional
-    @Option(option = "increment", description = "TBD")
+    @Option(option = "increment", description = "The amount to increment the primary id for the main branch")
     public abstract Property<Integer> getPrimaryIncrement();
 
     @Input
@@ -161,13 +161,13 @@ public abstract class GenerateTransportVersionDefinitionTask extends DefaultTask
             }
         }
 
+        Collections.sort(ids);
         return ids;
     }
 
     private Set<String> getTargetReleaseBranches() {
         if (getBranches().get().isEmpty() == false) {
-            return getBranches().get()
-                .stream()
+            return Arrays.stream(getBranches().get().split(","))
                 .map(branch -> branch.equals("main") ? getMainReleaseBranch().get() : branch)
                 .collect(Collectors.toSet());
         } else {

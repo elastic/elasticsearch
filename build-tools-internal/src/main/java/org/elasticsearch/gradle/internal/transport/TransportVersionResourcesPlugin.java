@@ -73,10 +73,13 @@ public class TransportVersionResourcesPlugin implements Plugin<Project> {
                 t.setDescription("(Re)generates a transport version definition file");
                 t.getResourcesDirectory().set(getResourcesDirectory(project));
                 t.getReferencesFiles().setFrom(tvReferencesConfig);
+                t.getPrimaryIncrement().convention(1000);
                 Version esVersion = VersionProperties.getElasticsearchVersion();
                 t.getMainReleaseBranch().set(esVersion.getMajor() + "." + esVersion.getMinor());
                 t.getResourcesProjectDir()
                     .set(project.getRootProject().getProjectDir().toPath().relativize(project.getProjectDir().toPath()).toString());
             });
+
+        validateTask.configure(t -> t.mustRunAfter(generateDefinitionsTask));
     }
 }

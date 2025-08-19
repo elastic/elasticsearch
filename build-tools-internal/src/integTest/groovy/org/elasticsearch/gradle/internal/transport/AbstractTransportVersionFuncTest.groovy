@@ -55,10 +55,18 @@ class AbstractTransportVersionFuncTest extends AbstractGradleFuncTest {
     }
 
     def definedAndUsedTransportVersion(String name, String ids, String classname) {
+        referencedTransportVersion(name, classname);
+        namedTransportVersion(name, ids)
+    }
+
+    def referencedTransportVersion(String name, String classname) {
         javaSource("myserver", "org.elasticsearch", classname, "", """
             static final TransportVersion usage = TransportVersion.fromName("${name}");
         """)
-        namedTransportVersion(name, ids)
+    }
+
+    def referencedTransportVersion(String name) {
+        return referencedTransportVersion(name, "Test${name.capitalize()}")
     }
 
     def latestTransportVersion(String branch, String name, String id) {

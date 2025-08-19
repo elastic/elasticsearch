@@ -36,7 +36,7 @@ class TransportVersionUtils {
     static void writeDefinitionFile(Path resourcesDir, TransportVersionDefinition definition) throws IOException {
         Files.writeString(
             resourcesDir.resolve("definitions/named").resolve(definition.name() + ".csv"),
-            definition.ids().stream().map(id -> String.valueOf(id.complete())).collect(Collectors.joining(",")) + "\n",
+            definition.ids().stream().map(Object::toString).collect(Collectors.joining(",")) + "\n",
             StandardCharsets.UTF_8
         );
     }

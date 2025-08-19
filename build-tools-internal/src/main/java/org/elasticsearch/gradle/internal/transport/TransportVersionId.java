@@ -62,7 +62,7 @@ record TransportVersionId(int complete, int major, int server, int subsidiary, i
 
     @Override
     public int compareTo(TransportVersionId o) {
-        return Integer.compare(complete, o.complete);
+        return Integer.compare(o.complete, complete);
     }
 
     @Override

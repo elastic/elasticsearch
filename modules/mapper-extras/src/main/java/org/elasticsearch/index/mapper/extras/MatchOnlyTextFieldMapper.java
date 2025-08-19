@@ -688,7 +688,6 @@ public class MatchOnlyTextFieldMapper extends TextFamilyFieldMapper {
                     final var bytesRef = new BytesRef(utfBytes.bytes(), utfBytes.offset(), utfBytes.length());
                     context.doc().add(new StoredField(fieldName, bytesRef));
                 } else {
-
                     context.doc().add(new StoredField(fieldName, value.string()));
                 }
             }
@@ -735,7 +734,7 @@ public class MatchOnlyTextFieldMapper extends TextFamilyFieldMapper {
         var kwd = TextFieldMapper.SyntheticSourceHelper.getKeywordFieldMapperForSyntheticSource(this);
         if (kwd != null) {
             // merge the two field loaders into one
-            return fieldLoader.mergedWith(kwd.syntheticFieldLoader(fullPath(), leafName()));
+            return kwd.syntheticFieldLoader(fullPath(), leafName()).mergedWith(fieldLoader);
         }
 
         return fieldLoader;

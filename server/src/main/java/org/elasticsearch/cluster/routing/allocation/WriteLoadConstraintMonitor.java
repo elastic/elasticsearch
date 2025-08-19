@@ -36,6 +36,7 @@ import java.util.function.Supplier;
  */
 public class WriteLoadConstraintMonitor {
     private static final Logger logger = LogManager.getLogger(WriteLoadConstraintMonitor.class);
+    private static final int MAX_NODE_IDS_IN_MESSAGE = 3;
     private final WriteLoadConstraintSettings writeLoadConstraintSettings;
     private final Supplier<ClusterState> clusterStateSupplier;
     private final LongSupplier currentTimeMillisSupplier;
@@ -116,26 +117,33 @@ public class WriteLoadConstraintMonitor {
 
         if (haveCalledRerouteRecently == false
             || Sets.difference(nodeIdsExceedingLatencyThreshold, lastSetOfHotSpottedNodes).isEmpty() == false) {
-            callReroute(nodeIdsExceedingLatencyThreshold);
+            final String reason = Strings.format(
+                "write load constraint monitor: "
+                    + "Found %s exceeding the write thread pool queue latency threshold (%s below utilization threshold, %d total)",
+                nodeSummary(nodeIdsExceedingLatencyThreshold),
+                nodeSummary(nodeIdsBelowUtilizationThreshold),
+                state.nodes().size()
+            );
+            rerouteService.reroute(
+                reason,
+                Priority.NORMAL,
+                ActionListener.wrap(
+                    ignored -> logger.trace("{} reroute successful", reason),
+                    e -> logger.debug(() -> Strings.format("reroute failed, reason: %s", reason), e)
+                )
+            );
+            lastRerouteTimeMillis = currentTimeMillisSupplier.getAsLong();
+            lastSetOfHotSpottedNodes = nodeIdsExceedingLatencyThreshold;
         } else {
             logger.debug("Not calling reroute because we called reroute recently and there are no new hot spots");
         }
     }
 
-    private void callReroute(Set<String> hotSpottedNodes) {
-        final String reason = Strings.format(
-            "write load constraint monitor: Found %d node(s) exceeding the write thread pool queue latency threshold",
-            hotSpottedNodes.size()
-        );
-        rerouteService.reroute(
-            reason,
-            Priority.NORMAL,
-            ActionListener.wrap(
-                ignored -> logger.trace("{} reroute successful", reason),
-                e -> logger.debug(() -> Strings.format("reroute failed, reason: %s", reason), e)
-            )
-        );
-        lastRerouteTimeMillis = currentTimeMillisSupplier.getAsLong();
-        lastSetOfHotSpottedNodes = hotSpottedNodes;
+    private static String nodeSummary(Set<String> nodeIds) {
+        if (nodeIds.size() < MAX_NODE_IDS_IN_MESSAGE) {
+            return "[" + String.join(", ", nodeIds) + "]";
+        } else {
+            return nodeIds.size() + " nodes";
+        }
     }
 }

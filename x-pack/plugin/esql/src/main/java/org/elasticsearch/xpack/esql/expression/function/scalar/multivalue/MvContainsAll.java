@@ -54,8 +54,10 @@ public class MvContainsAll extends BinaryScalarFunction implements EvaluatorMapp
         returnType = "boolean",
         description = "Checks if the values yielded by multivalue value expression are all also present in the values yielded by another"
             + "multivalue expression. The result is a boolean representing the outcome or null if either of the expressions where null.",
-        examples = { @Example(file = "string", tag = "mv_contains_all"), @Example(file = "string", tag = "mv_contains_all_bothsides"),
-            @Example(file = "string", tag = "mv_contains_all_where"),}
+        examples = {
+            @Example(file = "string", tag = "mv_contains_all"),
+            @Example(file = "string", tag = "mv_contains_all_bothsides"),
+            @Example(file = "string", tag = "mv_contains_all_where"), }
     )
     public MvContainsAll(
         Source source,
@@ -204,7 +206,7 @@ public class MvContainsAll extends BinaryScalarFunction implements EvaluatorMapp
             // we pass in a reference, but sometimes we only get a return value, see ConstantBytesRefVector.getBytesRef
             ref = block.getBytesRef(index, ref);
             // pass empty ref as null
-            if(ref.length == 0) {
+            if (ref.length == 0) {
                 return null;
             }
             return ref;

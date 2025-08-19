@@ -35,7 +35,6 @@ public class RestGetSnapshotLifecycleStatsAction extends BaseRestHandler {
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) {
-        // final var req = new AcknowledgedRequest.Plain(getMasterNodeTimeout(request), getAckTimeout(request));
         final var req = new GetSnapshotLifecycleStatsAction.Request(getMasterNodeTimeout(request));
         return channel -> client.execute(GetSnapshotLifecycleStatsAction.INSTANCE, req, new RestToXContentListener<>(channel));
     }

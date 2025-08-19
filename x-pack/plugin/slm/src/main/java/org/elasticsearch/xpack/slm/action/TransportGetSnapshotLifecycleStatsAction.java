@@ -49,20 +49,6 @@ public class TransportGetSnapshotLifecycleStatsAction extends TransportLocalProj
             clusterService,
             EsExecutors.DIRECT_EXECUTOR_SERVICE,
             projectResolver
-            // threadPool,
-            // actionFilters,
-            // (input) -> {
-            // if (input.getTransportVersion().onOrAfter(SLM_GET_STATS_READ_REQUEST)) {
-            // return new GetSnapshotLifecycleStatsAction.Request(input);
-            // } else {
-            // var requestBwc = new AcknowledgedRequest.Plain(input);
-            // return new GetSnapshotLifecycleStatsAction.Request(requestBwc.masterNodeTimeout());
-            // }
-            // },
-            // GetSnapshotLifecycleStatsAction.Request::read,
-            // projectResolver,
-            // GetSnapshotLifecycleStatsAction.Response::new,
-            // EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
 
         transportService.registerRequestHandler(

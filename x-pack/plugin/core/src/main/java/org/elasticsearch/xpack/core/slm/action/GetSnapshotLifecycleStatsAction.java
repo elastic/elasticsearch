@@ -16,8 +16,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.UpdateForV10;
-import org.elasticsearch.logging.LogManager;
-import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecycleStats;
@@ -41,29 +39,15 @@ public class GetSnapshotLifecycleStatsAction extends ActionType<GetSnapshotLifec
     }
 
     public static class Request extends LocalClusterStateRequest {
-        // TODO: remove
-        private static final Logger logger = LogManager.getLogger(GetSnapshotLifecycleStatsAction.Request.class);
-
-        // // for backwards compatibility, store the ack timeout to maintain compatibility with AcknowledgedRequest used in previous
-        // versions
-        // private final TimeValue ackTimeout;
 
         public Request(TimeValue masterNodeTimeout) {
             super(masterNodeTimeout);
-            // this.ackTimeout = null;
         }
 
         // private, to avoid non-backwards compatible use
         private Request(StreamInput input) throws IOException {
             super(input);
-            // this.ackTimeout = null;
         }
-
-        // private, should not be used directly
-        // private Request(TimeValue masterNodeTimeout, TimeValue ackTimeout) {
-        // super(masterNodeTimeout);
-        // this.ackTimeout = ackTimeout;
-        // }
 
         /**
          * Previously this request was an AcknowledgedRequest, which had an ack timeout, and the action was an MasterNodeAction.
@@ -71,15 +55,10 @@ public class GetSnapshotLifecycleStatsAction extends ActionType<GetSnapshotLifec
          */
         @UpdateForV10(owner = UpdateForV10.Owner.DATA_MANAGEMENT)
         public static Request read(StreamInput input) throws IOException {
-            // TODO: remove logs
-            logger.info("Reading GetSnapshotLifecycleStatsAction.Request from stream input");
             if (input.getTransportVersion().onOrAfter(SLM_GET_STATS_CHANGE_REQUEST_TYPE)) {
-                logger.info("Reading new GetSnapshotLifecycleStatsAction.Request format");
                 return new Request(input);
             } else {
-                logger.info("Reading old GetSnapshotLifecycleStatsAction.Request format");
                 var requestBwc = new AcknowledgedRequest.Plain(input);
-                // return new Request(requestBwc.masterNodeTimeout(), requestBwc.ackTimeout());
                 return new Request(requestBwc.masterNodeTimeout());
             }
         }

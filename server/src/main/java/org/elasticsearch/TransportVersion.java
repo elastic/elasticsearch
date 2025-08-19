@@ -165,20 +165,20 @@ public record TransportVersion(String name, int id, TransportVersion nextPatchVe
 
     public static List<TransportVersion> collectFromResources(
         String component,
+        String resourceRoot,
         Function<String, InputStream> resourceLoader,
-        String manifestFileName,
         String latestFileName
     ) {
         TransportVersion latest = parseFromBufferedReader(
             component,
-            "/transport/latest/" + latestFileName,
+            resourceRoot + "/latest/" + latestFileName,
             resourceLoader,
             (c, p, br) -> fromBufferedReader(c, p, true, false, br, Integer.MAX_VALUE)
         );
         if (latest != null) {
             List<String> versionRelativePaths = parseFromBufferedReader(
                 component,
-                "/transport/definitions/" + manifestFileName,
+                resourceRoot + "/definitions/manifest.txt",
                 resourceLoader,
                 (c, p, br) -> br.lines().filter(line -> line.isBlank() == false).toList()
             );
@@ -187,7 +187,7 @@ public record TransportVersion(String name, int id, TransportVersion nextPatchVe
                 for (String versionRelativePath : versionRelativePaths) {
                     TransportVersion transportVersion = parseFromBufferedReader(
                         component,
-                        "/transport/definitions/" + versionRelativePath,
+                        resourceRoot + "/definitions/" + versionRelativePath,
                         resourceLoader,
                         (c, p, br) -> fromBufferedReader(c, p, false, versionRelativePath.startsWith("named/"), br, latest.id())
                     );
@@ -429,8 +429,8 @@ public record TransportVersion(String name, int id, TransportVersion nextPatchVe
             List<TransportVersion> allVersions = new ArrayList<>(TransportVersions.DEFINED_VERSIONS);
             List<TransportVersion> streamVersions = collectFromResources(
                 "<server>",
+                "/transport",
                 TransportVersion.class::getResourceAsStream,
-                "manifest.txt",
                 Version.CURRENT.major + "." + Version.CURRENT.minor + ".csv"
             );
             Map<String, TransportVersion> allVersionsByName = streamVersions.stream()

@@ -201,7 +201,7 @@ import org.elasticsearch.xpack.core.security.authc.Realm;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 import org.elasticsearch.xpack.core.security.authc.Subject;
-import org.elasticsearch.xpack.core.security.authc.apikey.CustomApiKeyAuthenticator;
+import org.elasticsearch.xpack.core.security.authc.apikey.CustomTokenAuthenticator;
 import org.elasticsearch.xpack.core.security.authc.service.NodeLocalServiceAccountTokenStore;
 import org.elasticsearch.xpack.core.security.authc.service.ServiceAccountTokenStore;
 import org.elasticsearch.xpack.core.security.authc.support.UserRoleMapper;
@@ -1068,9 +1068,9 @@ public class Security extends Plugin
             operatorPrivilegesService.set(OperatorPrivileges.NOOP_OPERATOR_PRIVILEGES_SERVICE);
         }
 
-        final CustomApiKeyAuthenticator customApiKeyAuthenticator = createCustomApiKeyAuthenticator(extensionComponents);
+        final Collection<CustomTokenAuthenticator> customTokenAuthenticator = createCustomApiKeyAuthenticator(extensionComponents);
 
-        components.add(customApiKeyAuthenticator);
+        components.add(customTokenAuthenticator);
 
         authcService.set(
             new AuthenticationService(
@@ -1084,7 +1084,7 @@ public class Security extends Plugin
                 apiKeyService,
                 serviceAccountService,
                 operatorPrivilegesService.get(),
-                customApiKeyAuthenticator,
+                customTokenAuthenticator,
                 telemetryProvider.getMeterRegistry()
             )
         );
@@ -1220,11 +1220,11 @@ public class Security extends Plugin
         return components;
     }
 
-    private CustomApiKeyAuthenticator createCustomApiKeyAuthenticator(SecurityExtension.SecurityComponents extensionComponents) {
-        final Map<String, CustomApiKeyAuthenticator> customApiKeyAuthenticatorByExtension = new HashMap<>();
+    private List<CustomTokenAuthenticator> createCustomApiKeyAuthenticator(SecurityExtension.SecurityComponents extensionComponents) {
+        final Map<String, List<CustomTokenAuthenticator>> customApiKeyAuthenticatorByExtension = new HashMap<>();
         for (final SecurityExtension extension : securityExtensions) {
-            final CustomApiKeyAuthenticator customApiKeyAuthenticator = extension.getCustomApiKeyAuthenticator(extensionComponents);
-            if (customApiKeyAuthenticator != null) {
+            final List<CustomTokenAuthenticator> customTokenAuthenticator = extension.getCustomApiKeyAuthenticator(extensionComponents);
+            if (customTokenAuthenticator != null) {
                 if (false == isInternalExtension(extension)) {
                     throw new IllegalStateException(
                         "The ["
@@ -1233,16 +1233,16 @@ public class Security extends Plugin
                             + "This functionality is not available to external extensions."
                     );
                 }
-                customApiKeyAuthenticatorByExtension.put(extension.extensionName(), customApiKeyAuthenticator);
+                customApiKeyAuthenticatorByExtension.put(extension.extensionName(), customTokenAuthenticator);
             }
         }
 
         if (customApiKeyAuthenticatorByExtension.isEmpty()) {
             logger.debug(
                 "No custom implementation for [{}]. Falling-back to noop implementation.",
-                CustomApiKeyAuthenticator.class.getCanonicalName()
+                CustomTokenAuthenticator.class.getCanonicalName()
             );
-            return new CustomApiKeyAuthenticator.Noop();
+            return List.of(new CustomTokenAuthenticator.Noop());
 
         } else if (customApiKeyAuthenticatorByExtension.size() > 1) {
             throw new IllegalStateException(
@@ -1251,14 +1251,16 @@ public class Security extends Plugin
 
         } else {
             final var authenticatorByExtensionEntry = customApiKeyAuthenticatorByExtension.entrySet().iterator().next();
-            final CustomApiKeyAuthenticator customApiKeyAuthenticator = authenticatorByExtensionEntry.getValue();
+            final List<CustomTokenAuthenticator> customTokenAuthenticators = authenticatorByExtensionEntry.getValue();
             final String extensionName = authenticatorByExtensionEntry.getKey();
-            logger.debug(
-                "CustomApiKeyAuthenticator implementation [{}] provided by extension [{}]",
-                customApiKeyAuthenticator.getClass().getCanonicalName(),
-                extensionName
-            );
-            return customApiKeyAuthenticator;
+            for (CustomTokenAuthenticator authenticator : customTokenAuthenticators) {
+                logger.debug(
+                    "CustomApiKeyAuthenticator implementation [{}] provided by extension [{}]",
+                    authenticator.getClass().getCanonicalName(),
+                    extensionName
+                );
+            }
+            return customTokenAuthenticators;
         }
     }
 

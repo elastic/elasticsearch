@@ -78,15 +78,12 @@ public final class IgnoreNullMetrics extends Rule<LogicalPlan, LogicalPlan> {
      * Scans the given {@link LogicalPlan} to see if it is a "metrics mode" query
      */
     private static boolean isMetricsQuery(LogicalPlan logicalPlan) {
-        List<LogicalPlan> tsNodes = logicalPlan.collect(n -> {
-            if (n instanceof EsRelation r) {
-                return r.indexMode() == IndexMode.TIME_SERIES;
-            }
-            if (n instanceof UnresolvedRelation r) {
-                return r.indexMode() == IndexMode.TIME_SERIES;
-            }
-            return false;
-        });
-        return tsNodes.isEmpty() == false;
+        if (logicalPlan instanceof EsRelation r) {
+            return r.indexMode() == IndexMode.TIME_SERIES;
+        }
+        if (logicalPlan instanceof UnresolvedRelation r) {
+            return r.indexMode() == IndexMode.TIME_SERIES;
+        }
+        return false;
     }
 }

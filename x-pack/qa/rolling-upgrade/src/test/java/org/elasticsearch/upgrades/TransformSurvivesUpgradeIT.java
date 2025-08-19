@@ -10,6 +10,7 @@ import org.apache.http.HttpHost;
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
 import org.elasticsearch.Build;
+import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
@@ -235,13 +236,14 @@ public class TransformSurvivesUpgradeIT extends AbstractUpgradeTestCase {
     private void verifyUpgradeFailsIfMixedCluster() {
         // upgrade tests by design are also executed with the same version, this check must be skipped in this case, see gh#39102.
         if (isOriginalClusterCurrent()) {
-            Build.current().v
             return;
         }
-        final Request upgradeTransformRequest = new Request("POST", getTransformEndpoint() + "_upgrade");
-
-        Exception ex = expectThrows(Exception.class, () -> client().performRequest(upgradeTransformRequest));
-        assertThat(ex.getMessage(), containsString("Cannot upgrade transforms while cluster upgrade is in progress"));
+        var oldestVersion = Version.fromString(UPGRADE_FROM_VERSION);
+        if (oldestVersion.onOrAfter(Version.V_9_2_0)) {
+            final Request upgradeTransformRequest = new Request("POST", getTransformEndpoint() + "_upgrade");
+            Exception ex = expectThrows(Exception.class, () -> client().performRequest(upgradeTransformRequest));
+            assertThat(ex.getMessage(), containsString("Cannot upgrade transforms while cluster upgrade is in progress"));
+        }
     }
 
     private void verifyUpgrade() throws IOException {

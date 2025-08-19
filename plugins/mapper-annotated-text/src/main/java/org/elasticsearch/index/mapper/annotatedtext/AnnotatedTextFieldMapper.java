@@ -621,7 +621,8 @@ public class AnnotatedTextFieldMapper extends TextFamilyFieldMapper {
         var kwd = TextFieldMapper.SyntheticSourceHelper.getKeywordFieldMapperForSyntheticSource(this);
         if (kwd != null) {
             // merge the two field loaders into one
-            return kwd.syntheticFieldLoader(fullPath(), leafName()).mergedWith(fieldLoader);
+            var kwdFieldLoader = kwd.syntheticFieldLoader(fullPath(), leafName());
+            return fieldLoader.mergedWith(kwdFieldLoader);
         }
 
         return fieldLoader;

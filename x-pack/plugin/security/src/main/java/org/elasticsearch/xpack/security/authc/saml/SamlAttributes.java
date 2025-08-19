@@ -30,10 +30,6 @@ public class SamlAttributes implements Releasable {
     private final List<SamlAttribute> attributes;
     private final List<SamlSecureAttribute> secureAttributes;
 
-    SamlAttributes(SamlNameId name, String session, List<SamlAttribute> attributes) {
-        this(name, session, attributes, List.of());
-    }
-
     SamlAttributes(SamlNameId name, String session, List<SamlAttribute> attributes, List<SamlSecureAttribute> secureAttributes) {
         this.name = name;
         this.session = session;
@@ -103,10 +99,32 @@ public class SamlAttributes implements Releasable {
         IOUtils.closeWhileHandlingException(secureAttributes);
     }
 
-    static class SamlAttribute {
+    abstract static class AbstractSamlAttribute<T> {
+
         final String name;
         final String friendlyName;
-        final List<String> values;
+        final List<T> values;
+
+        protected AbstractSamlAttribute(String name, @Nullable String friendlyName, List<T> values) {
+            this.name = Objects.requireNonNull(name, "Attribute name cannot be null");
+            this.friendlyName = friendlyName;
+            this.values = values;
+        }
+
+        String name() {
+            return name;
+        }
+
+        String friendlyName() {
+            return friendlyName;
+        }
+
+        List<T> values() {
+            return values;
+        }
+    }
+
+    static class SamlAttribute extends AbstractSamlAttribute<String> {
 
         SamlAttribute(Attribute attribute) {
             this(
@@ -117,9 +135,7 @@ public class SamlAttributes implements Releasable {
         }
 
         SamlAttribute(String name, @Nullable String friendlyName, List<String> values) {
-            this.name = Objects.requireNonNull(name, "Attribute name cannot be null");
-            this.friendlyName = friendlyName;
-            this.values = values;
+            super(name, friendlyName, values);
         }
 
         @Override
@@ -135,14 +151,10 @@ public class SamlAttributes implements Releasable {
         }
     }
 
-    static class SamlSecureAttribute implements Releasable {
-
-        final String name;
-        final String friendlyName;
-        final List<SecureString> values;
+    static class SamlSecureAttribute extends AbstractSamlAttribute<SecureString> implements Releasable {
 
         SamlSecureAttribute(Attribute attribute) {
-            this(
+            super(
                 attribute.getName(),
                 attribute.getFriendlyName(),
                 attribute.getAttributeValues()
@@ -156,21 +168,7 @@ public class SamlAttributes implements Releasable {
         }
 
         SamlSecureAttribute(String name, @Nullable String friendlyName, List<SecureString> values) {
-            this.name = Objects.requireNonNull(name, "Attribute name cannot be null");
-            this.friendlyName = friendlyName;
-            this.values = values;
-        }
-
-        String name() {
-            return name;
-        }
-
-        String friendlyName() {
-            return friendlyName;
-        }
-
-        List<SecureString> values() {
-            return values;
+            super(name, friendlyName, values);
         }
 
         @Override
@@ -181,7 +179,7 @@ public class SamlAttributes implements Releasable {
             } else {
                 str.append(friendlyName).append('(').append(name).append(')');
             }
-            str.append("=").append("::es_redacted::").append("(len=").append(values.size()).append(')');
+            str.append("=").append("[::es_redacted::]").append("(len=").append(values.size()).append(')');
             return str.toString();
         }
 

@@ -372,7 +372,10 @@ public class SecurityMigrations {
         }
 
         private void decrementAttemptCount(ProjectId project) {
-            taskSubmissionAttemptCounter.computeIfAbsent(project, ignore -> new AtomicInteger(0)).decrementAndGet();
+            final AtomicInteger counter = taskSubmissionAttemptCounter.get(project);
+            if (counter != null) {
+                counter.decrementAndGet();
+            }
         }
 
     }

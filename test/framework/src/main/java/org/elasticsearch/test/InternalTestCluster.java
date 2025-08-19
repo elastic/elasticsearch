@@ -179,6 +179,14 @@ import static org.junit.Assert.fail;
  */
 public final class InternalTestCluster extends TestCluster {
 
+    /**
+     * Temporarily adds node paths based entitlements based on a node's {@code settings} and {@code configPath}
+     * until the returned handle is closed.
+     */
+    public interface EntitledNodePathsProvider {
+        Closeable addEntitledNodePaths(Settings settings, Path configPath);
+    }
+
     private static final Logger logger = LogManager.getLogger(InternalTestCluster.class);
 
     private static final Predicate<NodeAndClient> DATA_NODE_PREDICATE = new Predicate<>() {
@@ -278,6 +286,8 @@ public final class InternalTestCluster extends TestCluster {
     // index of node to bootstrap as master, or BOOTSTRAP_MASTER_NODE_INDEX_AUTO or BOOTSTRAP_MASTER_NODE_INDEX_DONE
     private int bootstrapMasterNodeIndex = BOOTSTRAP_MASTER_NODE_INDEX_AUTO;
 
+    private final EntitledNodePathsProvider entitledNodePathsProvider;
+
     public InternalTestCluster(
         final long clusterSeed,
         final Path baseDir,
@@ -290,7 +300,8 @@ public final class InternalTestCluster extends TestCluster {
         final int numClientNodes,
         final String nodePrefix,
         final Collection<Class<? extends Plugin>> mockPlugins,
-        final Function<Client, Client> clientWrapper
+        final Function<Client, Client> clientWrapper,
+        EntitledNodePathsProvider entitledNodePathsProvider
     ) {
         this(
             clusterSeed,
@@ -307,7 +318,8 @@ public final class InternalTestCluster extends TestCluster {
             clientWrapper,
             true,
             false,
-            true
+            true,
+            entitledNodePathsProvider
         );
     }
 
@@ -326,7 +338,8 @@ public final class InternalTestCluster extends TestCluster {
         final Function<Client, Client> clientWrapper,
         final boolean forbidPrivateIndexSettings,
         final boolean forceSingleDataPath,
-        final boolean autoManageVotingExclusions
+        final boolean autoManageVotingExclusions,
+        final EntitledNodePathsProvider entitledNodePathsProvider
     ) {
         super(clusterSeed);
         this.autoManageMasterNodes = autoManageMasterNodes;
@@ -335,6 +348,7 @@ public final class InternalTestCluster extends TestCluster {
         this.baseDir = baseDir;
         this.clusterName = clusterName;
         this.autoManageVotingExclusions = autoManageVotingExclusions;
+        this.entitledNodePathsProvider = entitledNodePathsProvider;
         if (minNumDataNodes < 0 || maxNumDataNodes < 0) {
             throw new IllegalArgumentException("minimum and maximum number of data nodes must be >= 0");
         }
@@ -783,7 +797,14 @@ public final class InternalTestCluster extends TestCluster {
             // we clone this here since in the case of a node restart we might need it again
             secureSettings = ((MockSecureSettings) secureSettings).clone();
         }
-        MockNode node = new MockNode(settings, plugins, nodeConfigurationSource.nodeConfigPath(nodeId), forbidPrivateIndexSettings);
+        Path configPath = nodeConfigurationSource.nodeConfigPath(nodeId);
+        MockNode node = new MockNode(
+            settings,
+            plugins,
+            configPath,
+            forbidPrivateIndexSettings,
+            entitledNodePathsProvider.addEntitledNodePaths(settings, configPath)
+        );
         node.injector().getInstance(TransportService.class).addLifecycleListener(new LifecycleListener() {
             @Override
             public void afterStart() {
@@ -1058,7 +1079,12 @@ public final class InternalTestCluster extends TestCluster {
                 .put(NodeEnvironment.NODE_ID_SEED_SETTING.getKey(), newIdSeed)
                 .build();
             Collection<Class<? extends Plugin>> plugins = node.getClasspathPlugins();
-            node = new MockNode(finalSettings, plugins, forbidPrivateIndexSettings);
+            node = new MockNode(
+                finalSettings,
+                plugins,
+                forbidPrivateIndexSettings,
+                entitledNodePathsProvider.addEntitledNodePaths(finalSettings, null)
+            );
             node.injector().getInstance(TransportService.class).addLifecycleListener(new LifecycleListener() {
                 @Override
                 public void afterStart() {

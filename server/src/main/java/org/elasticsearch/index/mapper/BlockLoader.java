@@ -13,6 +13,7 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.search.fetch.StoredFieldsSpec;
 import org.elasticsearch.search.lookup.Source;
@@ -44,6 +45,22 @@ public interface BlockLoader {
          * Reads the values of all documents in {@code docs}.
          */
         BlockLoader.Block read(BlockFactory factory, Docs docs, int offset) throws IOException;
+    }
+
+    /**
+     * An interface for readers that attempt to load all document values in a column-at-a-time fashion.
+     * <p>
+     * Unlike {@link ColumnAtATimeReader}, implementations may return {@code null} if they are unable
+     * to load the requested values, for example due to unsupported underlying data.
+     * This allows callers to optimistically try optimized loading strategies first, and fall back if necessary.
+     */
+    interface OptionalColumnAtATimeReader {
+        /**
+         * Attempts to read the values of all documents in {@code docs}
+         * Returns {@code null} if unable to load the values.
+         */
+        @Nullable
+        BlockLoader.Block tryRead(BlockFactory factory, Docs docs, int offset) throws IOException;
     }
 
     interface RowStrideReader extends Reader {
@@ -401,6 +418,17 @@ public interface BlockLoader {
         LongBuilder longs(int expectedCount);
 
         /**
+         * Build a specialized builder for singleton dense long based fields with the following constraints:
+         * <ul>
+         *     <li>Only one value per document can be collected</li>
+         *     <li>No more than expectedCount values can be collected</li>
+         * </ul>
+         *
+         * @param expectedCount The maximum number of values to be collected.
+         */
+        SingletonLongBuilder singletonLongs(int expectedCount);
+
+        /**
          * Build a builder to load only {@code null}s.
          */
         Builder nulls(int expectedCount);
@@ -419,7 +447,7 @@ public interface BlockLoader {
         /**
          * Build a reader for reading {@link SortedDocValues}
          */
-        SingletonOrdinalsBuilder singletonOrdinalsBuilder(SortedDocValues ordinals, int count);
+        SingletonOrdinalsBuilder singletonOrdinalsBuilder(SortedDocValues ordinals, int count, boolean isDense);
 
         /**
          * Build a reader for reading {@link SortedSetDocValues}
@@ -498,6 +526,16 @@ public interface BlockLoader {
         IntBuilder appendInt(int value);
     }
 
+    /**
+     * Specialized builder for collecting dense arrays of long values.
+     */
+    interface SingletonLongBuilder extends Builder {
+
+        SingletonLongBuilder appendLong(long value);
+
+        SingletonLongBuilder appendLongs(long[] values, int from, int length);
+    }
+
     interface LongBuilder extends Builder {
         /**
          * Appends a long to the current entry.
@@ -510,6 +548,8 @@ public interface BlockLoader {
          * Appends an ordinal to the builder.
          */
         SingletonOrdinalsBuilder appendOrd(int value);
+
+        SingletonOrdinalsBuilder appendOrds(int[] values, int from, int length, int minOrd, int maxOrd);
     }
 
     interface SortedSetOrdinalsBuilder extends Builder {
@@ -528,6 +568,5 @@ public interface BlockLoader {
         DoubleBuilder sum();
 
         IntBuilder count();
-
     }
 }

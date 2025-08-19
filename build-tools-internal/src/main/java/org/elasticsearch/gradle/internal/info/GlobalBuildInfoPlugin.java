@@ -12,8 +12,12 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 import org.apache.commons.io.IOUtils;
+import org.elasticsearch.gradle.Architecture;
+import org.elasticsearch.gradle.OS;
 import org.elasticsearch.gradle.VersionProperties;
 import org.elasticsearch.gradle.internal.BwcVersions;
+import org.elasticsearch.gradle.internal.Jdk;
+import org.elasticsearch.gradle.internal.JdkDownloadPlugin;
 import org.elasticsearch.gradle.internal.conventions.GitInfoPlugin;
 import org.elasticsearch.gradle.internal.conventions.info.GitInfo;
 import org.elasticsearch.gradle.internal.conventions.info.ParallelDetector;
@@ -22,6 +26,7 @@ import org.elasticsearch.gradle.util.GradleUtils;
 import org.gradle.api.Action;
 import org.gradle.api.GradleException;
 import org.gradle.api.JavaVersion;
+import org.gradle.api.NamedDomainObjectContainer;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
 import org.gradle.api.logging.Logger;
@@ -63,6 +68,7 @@ import java.util.stream.Stream;
 import javax.inject.Inject;
 
 import static org.elasticsearch.gradle.internal.conventions.GUtils.elvis;
+import static org.elasticsearch.gradle.internal.toolchain.EarlyAccessCatalogJdkToolchainResolver.findLatestEABuildNumber;
 
 public class GlobalBuildInfoPlugin implements Plugin<Project> {
     private static final Logger LOGGER = Logging.getLogger(GlobalBuildInfoPlugin.class);
@@ -92,11 +98,13 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
 
     @Override
     public void apply(Project project) {
+
         if (project != project.getRootProject()) {
             throw new IllegalStateException(this.getClass().getName() + " can only be applied to the root project.");
         }
         this.project = project;
         project.getPlugins().apply(JvmToolchainsPlugin.class);
+        project.getPlugins().apply(JdkDownloadPlugin.class);
         Provider<GitInfo> gitInfo = project.getPlugins().apply(GitInfoPlugin.class).getGitInfo();
 
         toolChainService = project.getExtensions().getByType(JavaToolchainService.class);
@@ -270,7 +278,9 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
     private InstallationLocation getJavaInstallation(File javaHome) {
         return getAvailableJavaInstallationLocationSteam().filter(installationLocation -> isSameFile(javaHome, installationLocation))
             .findFirst()
-            .orElseThrow(() -> new GradleException("Could not locate available Java installation in Gradle registry at: " + javaHome));
+            .orElse(
+                InstallationLocation.userDefined(javaHome, "Manually resolved JavaHome (not auto-detected by Gradle toolchain service)")
+            );
     }
 
     private boolean isSameFile(File javaHome, InstallationLocation installationLocation) {
@@ -338,7 +348,14 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
         String runtimeJavaProperty = System.getProperty("runtime.java");
 
         if (runtimeJavaProperty != null) {
-            return resolveJavaHomeFromToolChainService(runtimeJavaProperty);
+            if (runtimeJavaProperty.toLowerCase().endsWith("-ea")) {
+                // handle EA builds differently due to lack of support in Gradle toolchain service
+                // we resolve them using JdkDownloadPlugin for now.
+                Integer major = Integer.parseInt(runtimeJavaProperty.substring(0, runtimeJavaProperty.length() - 3));
+                return resolveEarlyAccessJavaHome(major);
+            } else {
+                return resolveJavaHomeFromToolChainService(runtimeJavaProperty);
+            }
         }
         if (System.getenv("RUNTIME_JAVA_HOME") != null) {
             return providers.provider(() -> new File(System.getenv("RUNTIME_JAVA_HOME")));
@@ -351,6 +368,23 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
             }
             return new File(env);
         });
+    }
+
+    private Provider<File> resolveEarlyAccessJavaHome(Integer runtimeJavaProperty) {
+        NamedDomainObjectContainer<Jdk> container = (NamedDomainObjectContainer<Jdk>) project.getExtensions().getByName("jdks");
+        Integer buildNumber = Integer.getInteger("runtime.java.build");
+        if (buildNumber == null) {
+            buildNumber = findLatestEABuildNumber(runtimeJavaProperty);
+        }
+        String eaVersionString = String.format("%d-ea+%d", runtimeJavaProperty, buildNumber);
+        Jdk jdk = container.create("ea_jdk_" + runtimeJavaProperty, j -> {
+            j.setVersion(eaVersionString);
+            j.setVendor("openjdk");
+            j.setPlatform(OS.current().javaOsReference);
+            j.setArchitecture(Architecture.current().javaClassifier);
+            j.setDistributionVersion("ea");
+        });
+        return providers.provider(() -> new File(jdk.getJavaHomePath().toString()));
     }
 
     @NotNull

@@ -110,6 +110,18 @@ public final class DocVector extends AbstractVector implements Vector {
         return docs;
     }
 
+    /**
+     * Does this vector contain only documents from a single segment.
+     */
+    public boolean singleSegment() {
+        return shards.isConstant() && segments.isConstant();
+    }
+
+    /**
+     * Does this vector contain only documents from a single segment <strong>and</strong>
+     * are the documents always non-decreasing? Non-decreasing here means almost monotonically
+     * increasing.
+     */
     public boolean singleSegmentNonDecreasing() {
         if (singleSegmentNonDecreasing == null) {
             singleSegmentNonDecreasing = checkIfSingleSegmentNonDecreasing();
@@ -117,15 +129,11 @@ public final class DocVector extends AbstractVector implements Vector {
         return singleSegmentNonDecreasing;
     }
 
-    public boolean singleSegment() {
-        return shards.isConstant() && segments.isConstant();
-    }
-
     private boolean checkIfSingleSegmentNonDecreasing() {
         if (getPositionCount() < 2) {
             return true;
         }
-        if (shards.isConstant() == false || segments.isConstant() == false) {
+        if (singleSegment() == false) {
             return false;
         }
         int prev = docs.getInt(0);
@@ -167,10 +175,9 @@ public final class DocVector extends AbstractVector implements Vector {
         boolean success = false;
         long estimatedSize = sizeOfSegmentDocMap();
         blockFactory().adjustBreaker(estimatedSize);
-        int[] forwards = null;
-        int[] backwards = null;
+        int[] forwards;
         try {
-            int[] finalForwards = forwards = new int[shards.getPositionCount()];
+            forwards = new int[shards.getPositionCount()];
             for (int p = 0; p < forwards.length; p++) {
                 forwards[p] = p;
             }
@@ -180,19 +187,19 @@ public final class DocVector extends AbstractVector implements Vector {
 
                     @Override
                     protected void setPivot(int i) {
-                        pivot = finalForwards[i];
+                        pivot = forwards[i];
                     }
 
                     @Override
                     protected int comparePivot(int j) {
-                        return Integer.compare(docs.getInt(pivot), docs.getInt(finalForwards[j]));
+                        return Integer.compare(docs.getInt(pivot), docs.getInt(forwards[j]));
                     }
 
                     @Override
                     protected void swap(int i, int j) {
-                        int tmp = finalForwards[i];
-                        finalForwards[i] = finalForwards[j];
-                        finalForwards[j] = tmp;
+                        int tmp = forwards[i];
+                        forwards[i] = forwards[j];
+                        forwards[j] = tmp;
                     }
                 }.sort(0, forwards.length);
             } else {
@@ -201,31 +208,31 @@ public final class DocVector extends AbstractVector implements Vector {
 
                     @Override
                     protected void setPivot(int i) {
-                        pivot = finalForwards[i];
+                        pivot = forwards[i];
                     }
 
                     @Override
                     protected int comparePivot(int j) {
-                        int cmp = Integer.compare(shards.getInt(pivot), shards.getInt(finalForwards[j]));
+                        int cmp = Integer.compare(shards.getInt(pivot), shards.getInt(forwards[j]));
                         if (cmp != 0) {
                             return cmp;
                         }
-                        cmp = Integer.compare(segments.getInt(pivot), segments.getInt(finalForwards[j]));
+                        cmp = Integer.compare(segments.getInt(pivot), segments.getInt(forwards[j]));
                         if (cmp != 0) {
                             return cmp;
                         }
-                        return Integer.compare(docs.getInt(pivot), docs.getInt(finalForwards[j]));
+                        return Integer.compare(docs.getInt(pivot), docs.getInt(forwards[j]));
                     }
 
                     @Override
                     protected void swap(int i, int j) {
-                        int tmp = finalForwards[i];
-                        finalForwards[i] = finalForwards[j];
-                        finalForwards[j] = tmp;
+                        int tmp = forwards[i];
+                        forwards[i] = forwards[j];
+                        forwards[j] = tmp;
                     }
                 }.sort(0, forwards.length);
             }
-            backwards = new int[forwards.length];
+            int[] backwards = new int[forwards.length];
             for (int p = 0; p < forwards.length; p++) {
                 backwards[forwards[p]] = p;
             }

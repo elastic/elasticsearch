@@ -65,11 +65,6 @@ public class GoogleVertexAiUnifiedChatCompletionResponseHandler extends GoogleVe
         return chatCompletionErrorResponseHandler.buildChatCompletionError(message, request, result);
     }
 
-    @Override
-    protected void checkForErrorObject(Request request, HttpResult result) {
-        chatCompletionErrorResponseHandler.checkForErrorObject(request, result);
-    }
-
     private static class GoogleVertexAiErrorParser implements UnifiedChatCompletionErrorParser {
 
         @Override
@@ -124,7 +119,7 @@ public class GoogleVertexAiUnifiedChatCompletionResponseHandler extends GoogleVe
             }
         }
 
-        static UnifiedChatCompletionErrorResponse fromString(String response) {
+        public static UnifiedChatCompletionErrorResponse fromString(String response) {
             try (
                 XContentParser parser = XContentFactory.xContent(XContentType.JSON)
                     .createParser(XContentParserConfiguration.EMPTY, response)

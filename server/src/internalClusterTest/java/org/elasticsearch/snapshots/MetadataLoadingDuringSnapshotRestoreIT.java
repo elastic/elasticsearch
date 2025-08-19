@@ -26,6 +26,7 @@ import org.elasticsearch.repositories.RepositoriesMetrics;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.RepositoryData;
+import org.elasticsearch.repositories.SnapshotMetrics;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.snapshots.mockstore.MockRepository;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -183,9 +184,10 @@ public class MetadataLoadingDuringSnapshotRestoreIT extends AbstractSnapshotInte
             final NamedXContentRegistry namedXContentRegistry,
             ClusterService clusterService,
             BigArrays bigArrays,
-            RecoverySettings recoverySettings
+            RecoverySettings recoverySettings,
+            SnapshotMetrics snapshotMetrics
         ) {
-            super(projectId, metadata, environment, namedXContentRegistry, clusterService, bigArrays, recoverySettings);
+            super(projectId, metadata, environment, namedXContentRegistry, clusterService, bigArrays, recoverySettings, snapshotMetrics);
         }
 
         @Override
@@ -214,7 +216,8 @@ public class MetadataLoadingDuringSnapshotRestoreIT extends AbstractSnapshotInte
             ClusterService clusterService,
             BigArrays bigArrays,
             RecoverySettings recoverySettings,
-            RepositoriesMetrics repositoriesMetrics
+            RepositoriesMetrics repositoriesMetrics,
+            SnapshotMetrics snapshotMetrics
         ) {
             return Collections.singletonMap(
                 TYPE,
@@ -225,7 +228,8 @@ public class MetadataLoadingDuringSnapshotRestoreIT extends AbstractSnapshotInte
                     namedXContentRegistry,
                     clusterService,
                     bigArrays,
-                    recoverySettings
+                    recoverySettings,
+                    snapshotMetrics
                 )
             );
         }

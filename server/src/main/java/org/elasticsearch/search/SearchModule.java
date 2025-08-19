@@ -66,6 +66,7 @@ import org.elasticsearch.index.query.SpanWithinQueryBuilder;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.query.TermsQueryBuilder;
 import org.elasticsearch.index.query.TermsSetQueryBuilder;
+import org.elasticsearch.index.query.ToChildBlockJoinQueryBuilder;
 import org.elasticsearch.index.query.WildcardQueryBuilder;
 import org.elasticsearch.index.query.WrapperQueryBuilder;
 import org.elasticsearch.index.query.functionscore.ExponentialDecayFunctionBuilder;
@@ -1186,6 +1187,9 @@ public class SearchModule {
         }));
         registerQuery(new QuerySpec<>(ExactKnnQueryBuilder.NAME, ExactKnnQueryBuilder::new, parser -> {
             throw new IllegalArgumentException("[exact_knn] queries cannot be provided directly");
+        }));
+        registerQuery(new QuerySpec<>(ToChildBlockJoinQueryBuilder.NAME, ToChildBlockJoinQueryBuilder::new, parser -> {
+            throw new IllegalArgumentException("[to_child_block_join] queries cannot be provided directly");
         }));
         registerQuery(
             new QuerySpec<>(RandomSamplingQueryBuilder.NAME, RandomSamplingQueryBuilder::new, RandomSamplingQueryBuilder::fromXContent)

@@ -579,7 +579,6 @@ public class ValuesSourceReaderBenchmark {
                     pages.add(
                         new Page(
                             new DocVector(
-
                                 ShardRefCounted.ALWAYS_REFERENCED,
                                 blockFactory.newConstantIntBlockWith(0, size).asVector(),
                                 leafs.build().asBlock().asVector(),

@@ -31,10 +31,6 @@ public class GrammarInDevelopmentParsingTests extends ESTestCase {
         parse("row a = 1 | match foo", "match");
     }
 
-    public void testDevelopmentRerank() {
-        parse("row a = 1 | rerank \"foo\" on title with reranker", "rerank");
-    }
-
     void parse(String query, String errorMessage) {
         ParsingException pe = expectThrows(ParsingException.class, () -> parser().createStatement(query, EsqlTestUtils.TEST_CFG));
         assertThat(pe.getMessage(), containsString("mismatched input '" + errorMessage + "'"));

@@ -54,7 +54,11 @@ public class TransportUpdateDataStreamSettingsAction extends TransportMasterNode
     UpdateDataStreamSettingsAction.Request,
     UpdateDataStreamSettingsAction.Response> {
     private static final Logger logger = LogManager.getLogger(TransportUpdateDataStreamSettingsAction.class);
-    private static final Set<String> APPLY_TO_BACKING_INDICES = Set.of("index.lifecycle.name", IndexSettings.PREFER_ILM);
+    private static final Set<String> APPLY_TO_BACKING_INDICES = Set.of(
+        "index.lifecycle.name",
+        IndexSettings.PREFER_ILM,
+        "index.refresh_interval"
+    );
     private static final Set<String> APPLY_TO_DATA_STREAM_ONLY = Set.of("index.number_of_shards");
     private final MetadataDataStreamsService metadataDataStreamsService;
     private final MetadataUpdateSettingsService updateSettingsService;

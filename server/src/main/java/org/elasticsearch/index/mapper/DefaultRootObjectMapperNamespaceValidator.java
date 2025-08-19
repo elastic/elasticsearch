@@ -10,12 +10,15 @@
 package org.elasticsearch.index.mapper;
 
 /**
- * SPI to inject additional rules around namespaces that are prohibited
- * in Elasticsearch mappings.
+ * No-op Default of RootObjectMapperNamespaceValidator used in non-serverless Elasticsearch envs.
  */
-public interface RootObjectMapperNamespaceValidator {
-    /**
-     * If the namespace in the mapper is not allowed, an Exception should be thrown.
-     */
-    void validateNamespace(ObjectMapper.Subobjects subobjects, Mapper mapper);
+public class DefaultRootObjectMapperNamespaceValidator implements RootObjectMapperNamespaceValidator {
+    @Override
+    public void validateNamespace(ObjectMapper.Subobjects subobjects, Mapper mapper) {}
+
+    // MP FIXME remove
+    @Override
+    public String toString() {
+        return "I'm the DefaultRootObjectMapperNamespaceValidator{}";
+    }
 }

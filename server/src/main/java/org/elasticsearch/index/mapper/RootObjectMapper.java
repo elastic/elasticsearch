@@ -470,7 +470,7 @@ public class RootObjectMapper extends ObjectMapper {
             String fieldName = entry.getKey();
             Object fieldNode = entry.getValue();
             if (parseObjectOrDocumentTypeProperties(fieldName, fieldNode, parserContext, builder)
-                || processField(builder, fieldName, fieldNode, parserContext)) {
+                || processField(builder, fieldName, fieldNode, parserContext, parserContext.getNamespaceValidator())) {
                 iterator.remove();
             }
         }
@@ -482,7 +482,8 @@ public class RootObjectMapper extends ObjectMapper {
         RootObjectMapper.Builder builder,
         String fieldName,
         Object fieldNode,
-        MappingParserContext parserContext
+        MappingParserContext parserContext,
+        RootObjectMapperNamespaceValidator namespaceValidator
     ) {
         if (fieldName.equals("date_formats") || fieldName.equals("dynamic_date_formats")) {
             if (fieldNode instanceof List) {
@@ -540,6 +541,16 @@ public class RootObjectMapper extends ObjectMapper {
         } else if (fieldName.equals("runtime")) {
             if (fieldNode instanceof Map) {
                 Map<String, RuntimeField> fields = RuntimeField.parseRuntimeFields((Map<String, Object>) fieldNode, parserContext, true);
+                if (namespaceValidator != null) {
+                    for (String runtimeField : fields.keySet()) {
+                        if ("_project".equals(runtimeField) || runtimeField.startsWith("_project.")) {
+                            throw new IllegalArgumentException(
+                                "Runtime mapping rejected. No mappings of [_project] are allowed in order "
+                                    + "to avoid conflicts with project metadata tags in serverless."
+                            );
+                        }
+                    }
+                }
                 builder.addRuntimeFields(fields);
                 return true;
             } else {

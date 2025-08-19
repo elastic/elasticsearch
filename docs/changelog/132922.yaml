@@ -1,5 +1,5 @@
 pr: 132922
-summary: '`GeoIpCache` and `EnrichCache` improvements'
+summary: 'Change GeoIpCache and EnrichCache to LongAdder'
 area: Authorization
 type: enhancement
 issues: []

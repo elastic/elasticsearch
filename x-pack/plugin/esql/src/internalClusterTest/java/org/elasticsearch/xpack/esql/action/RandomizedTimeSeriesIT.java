@@ -216,9 +216,14 @@ public class RandomizedTimeSeriesIT extends AbstractEsqlIntegTestCase {
             for (List<Object> row : rows) {
                 var rowKey = getRowKey(row, dimensions, 6);
                 var docValues = valuesInWindow(groups.get(rowKey), "gauge_hdd.bytes.used");
-                // Max of int is always int, so we can safely round the result.
-                var valuesAsInts = docValues.stream().toList();
-                assertThat(valuesAsInts, containsInAnyOrder(docValues.toArray()));
+                if (row.get(0) instanceof List) {
+                    assertThat(
+                        (Collection<Long>) row.get(0),
+                        containsInAnyOrder(docValues.stream().mapToLong(Integer::longValue).boxed().toArray(Long[]::new))
+                    );
+                } else {
+                    assertThat(row.get(0), equalTo(docValues.getFirst().longValue()));
+                }
                 assertThat(row.get(1), equalTo(Math.round(aggregateValuesInWindow(docValues, Agg.MAX))));
                 assertThat(row.get(2), equalTo(Math.round(aggregateValuesInWindow(docValues, Agg.MIN))));
                 assertThat(row.get(3), equalTo((long) docValues.size()));
@@ -252,10 +257,15 @@ public class RandomizedTimeSeriesIT extends AbstractEsqlIntegTestCase {
             var groups = groupedRows(documents, List.of(), 60);
             for (List<Object> row : rows) {
                 var windowStart = windowStart(row.get(6), 60);
-                var docValues = valuesInWindow(groups.get(List.of(Long.toString(windowStart))), "gauge_hdd.bytes.used");
-                // Make sure that expected timestamps and values are present
-                var valuesAsInts = docValues.stream().toList();
-                assertThat(valuesAsInts, containsInAnyOrder(docValues.toArray()));
+                List<Integer> docValues = valuesInWindow(groups.get(List.of(Long.toString(windowStart))), "gauge_hdd.bytes.used");
+                if (row.get(0) instanceof List) {
+                    assertThat(
+                        (Collection<Long>) row.get(0),
+                        containsInAnyOrder(docValues.stream().mapToLong(Integer::longValue).boxed().toArray(Long[]::new))
+                    );
+                } else {
+                    assertThat(row.get(0), equalTo(docValues.getFirst().longValue()));
+                }
                 assertThat(row.get(1), equalTo(Math.round(aggregateValuesInWindow(docValues, Agg.MAX))));
                 assertThat(row.get(2), equalTo(Math.round(aggregateValuesInWindow(docValues, Agg.MIN))));
                 assertThat(row.get(3), equalTo((long) docValues.size()));

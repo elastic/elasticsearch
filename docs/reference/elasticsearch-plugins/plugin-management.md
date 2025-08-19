@@ -116,7 +116,7 @@ If Elasticsearch was installed using the deb or rpm package then run `/usr/share
 
 For detailed instructions on installing, managing, and configuring plugins, see the following:
 
-* [Intalling Plugings](./installation.md)
+* [Installing Plugins](./installation.md)
 * [Custom URL or file system](./plugin-management-custom-url.md)
 * [Installing multiple plugins](./installing-multiple-plugins.md)
 * [Mandatory plugins](./mandatory-plugins.md)

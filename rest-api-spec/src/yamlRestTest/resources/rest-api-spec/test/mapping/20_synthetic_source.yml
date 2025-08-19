@@ -160,6 +160,28 @@ synthetic_source text with ignored multi-field and multiple values in the same d
             match_phrase:
               foo: this value is
 
-  - match: { "hits.total.value": 1 }
-  - match: { hits.hits.0._source.foo.0: "This value is short" }
-  - match: { hits.hits.0._source.foo.1: "This value is too long and will be ignored" }
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._source.foo.0: "This value is too long and will be ignored" }
+  - match: { hits.hits.0._source.foo.1: "This value is short" }
+
+  # flip around the two values, now short first followed by a long one
+  - do:
+      index:
+        index: synthetic_source_test
+        id:    "1"
+        refresh: true
+        body:
+          foo: [ "a short potato", "a very looooooooooooooong potato" ]
+
+  - do:
+      search:
+        index: synthetic_source_test
+        body:
+          query:
+            match_phrase:
+              foo: potato
+
+  - match: { hits.total.value: 1 }
+  # the order is flipped because the keyword field loader is added after the parent field loader
+  - match: { hits.hits.0._source.foo.0: "a very looooooooooooooong potato" }
+  - match: { hits.hits.0._source.foo.1: "a short potato" }

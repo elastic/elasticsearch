@@ -76,7 +76,6 @@ import org.elasticsearch.script.field.TextDocValuesField;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -1030,9 +1029,8 @@ public final class TextFieldMapper extends TextFamilyFieldMapper {
          */
         public boolean canUseSyntheticSourceDelegateForSyntheticSource(final String value) {
             if (syntheticSourceDelegate.isPresent()) {
-                KeywordFieldMapper.KeywordFieldType kwdFieldType = syntheticSourceDelegate.get();
                 // if the keyword field is going to be ignored, then we can't rely on it for synthetic source
-                return kwdFieldType.isIgnored(value) == false;
+                return syntheticSourceDelegate.get().isIgnored(value) == false;
             }
             return false;
         }
@@ -1086,58 +1084,8 @@ public final class TextFieldMapper extends TextFamilyFieldMapper {
                 return new BlockStoredFieldsReader.BytesFromStringsBlockLoader(name());
             }
 
-            // _ignored_source field will contain entries for this field if it is not stored
-            // and there is no syntheticSourceDelegate.
-            // See #syntheticSourceSupport().
-            // But if a text field is a multi field it won't have an entry in _ignored_source.
-            // The parent might, but we don't have enough context here to figure this out.
-            // So we bail.
-            if (isSyntheticSourceEnabled && syntheticSourceDelegate.isEmpty() && parentField == null) {
-                return fallbackSyntheticSourceBlockLoader(blContext);
-            }
-
             SourceValueFetcher fetcher = SourceValueFetcher.toString(blContext.sourcePaths(name()));
             return new BlockSourceReader.BytesRefsBlockLoader(fetcher, blockReaderDisiLookup(blContext));
-        }
-
-        FallbackSyntheticSourceBlockLoader fallbackSyntheticSourceBlockLoader(BlockLoaderContext blContext) {
-            var reader = new FallbackSyntheticSourceBlockLoader.SingleValueReader<BytesRef>(null) {
-                @Override
-                public void convertValue(Object value, List<BytesRef> accumulator) {
-                    if (value != null) {
-                        accumulator.add(new BytesRef(value.toString()));
-                    }
-                }
-
-                @Override
-                protected void parseNonNullValue(XContentParser parser, List<BytesRef> accumulator) throws IOException {
-                    var text = parser.textOrNull();
-
-                    if (text != null) {
-                        accumulator.add(new BytesRef(text));
-                    }
-                }
-
-                @Override
-                public void writeToBlock(List<BytesRef> values, BlockLoader.Builder blockBuilder) {
-                    var bytesRefBuilder = (BlockLoader.BytesRefBuilder) blockBuilder;
-
-                    for (var value : values) {
-                        bytesRefBuilder.appendBytesRef(value);
-                    }
-                }
-            };
-
-            return new FallbackSyntheticSourceBlockLoader(
-                reader,
-                name(),
-                IgnoredSourceFieldMapper.ignoredSourceFormat(blContext.indexSettings().getIndexVersionCreated())
-            ) {
-                @Override
-                public Builder builder(BlockFactory factory, int expectedCount) {
-                    return factory.bytesRefs(expectedCount);
-                }
-            };
         }
 
         /**

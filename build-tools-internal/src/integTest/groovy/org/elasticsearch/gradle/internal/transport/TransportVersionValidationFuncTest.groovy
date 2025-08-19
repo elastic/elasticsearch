@@ -198,4 +198,35 @@ class TransportVersionValidationFuncTest extends AbstractTransportVersionFuncTes
         then:
         result.task(":myserver:validateTransportVersionDefinitions").outcome == TaskOutcome.SUCCESS
     }
+
+    def "latest can refer to an unreferenced definition"() {
+        given:
+        unreferencedTransportVersion("initial_10.0.0", "10000000")
+        latestTransportVersion("10.0", "initial_10.0.0", "10000000")
+        when:
+        def result = gradleRunner(":myserver:validateTransportVersionDefinitions").build()
+        then:
+        result.task(":myserver:validateTransportVersionDefinitions").outcome == TaskOutcome.SUCCESS
+    }
+
+    def "named and unreferenced definitions cannot have the same name"() {
+        given:
+        unreferencedTransportVersion("existing_92", "10000000")
+        when:
+        def result = validateDefinitionsFails()
+        then:
+        assertDefinitionsFailure(result, "Transport version definition file " +
+                "[myserver/src/main/resources/transport/definitions/named/existing_92.csv] " +
+                "has same name as unreferenced definition " +
+                "[myserver/src/main/resources/transport/definitions/unreferenced/existing_92.csv]")
+    }
+
+    def "unreferenced definitions can have primary ids that are patches"() {
+        given:
+        unreferencedTransportVersion("initial_10.0.1", "10000001")
+        when:
+        def result = gradleRunner(":myserver:validateTransportVersionDefinitions").build()
+        then:
+        result.task(":myserver:validateTransportVersionDefinitions").outcome == TaskOutcome.SUCCESS
+    }
 }

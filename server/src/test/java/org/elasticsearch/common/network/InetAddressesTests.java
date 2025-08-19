@@ -25,10 +25,8 @@ import org.hamcrest.Matchers;
 import java.net.InetAddress;
 import java.net.NetworkInterface;
 import java.net.UnknownHostException;
-import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.Enumeration;
-import java.util.stream.IntStream;
 
 import static org.hamcrest.Matchers.equalTo;
 

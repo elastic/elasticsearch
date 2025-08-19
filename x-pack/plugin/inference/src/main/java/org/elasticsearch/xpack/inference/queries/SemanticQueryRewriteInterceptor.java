@@ -116,7 +116,7 @@ public abstract class SemanticQueryRewriteInterceptor implements QueryRewriteInt
 
     protected QueryBuilder createSemanticSubQuery(Collection<String> indices, String fieldName, String value) {
         BoolQueryBuilder boolQueryBuilder = new BoolQueryBuilder();
-        boolQueryBuilder.must(new SemanticQueryBuilder(fieldName, value, true));
+        boolQueryBuilder.must(new SemanticQueryBuilder(fieldName, value, true, null));
         boolQueryBuilder.filter(new TermsQueryBuilder(IndexFieldMapper.NAME, indices));
         return boolQueryBuilder;
     }

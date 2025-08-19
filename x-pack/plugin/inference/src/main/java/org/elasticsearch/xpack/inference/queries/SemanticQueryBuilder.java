@@ -64,7 +64,7 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
     private static final ConstructingObjectParser<SemanticQueryBuilder, Void> PARSER = new ConstructingObjectParser<>(
         NAME,
         false,
-        args -> new SemanticQueryBuilder((String) args[0], (String) args[1], (Boolean) args[2])
+        args -> new SemanticQueryBuilder((String) args[0], (String) args[1], (Boolean) args[2], null)
     );
 
     static {
@@ -81,10 +81,10 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
     private final Boolean lenient;
 
     public SemanticQueryBuilder(String fieldName, String query) {
-        this(fieldName, query, null);
+        this(fieldName, query, null, null);
     }
 
-    public SemanticQueryBuilder(String fieldName, String query, Boolean lenient) {
+    public SemanticQueryBuilder(String fieldName, String query, Boolean lenient, EmbeddingsProvider embeddingsProvider) {
         if (fieldName == null) {
             throw new IllegalArgumentException("[" + NAME + "] requires a " + FIELD_FIELD.getPreferredName() + " value");
         }
@@ -93,7 +93,7 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
         }
         this.fieldName = fieldName;
         this.query = query;
-        this.embeddingsProvider = null;
+        this.embeddingsProvider = embeddingsProvider;
         this.noInferenceResults = false;
         this.lenient = lenient;
     }

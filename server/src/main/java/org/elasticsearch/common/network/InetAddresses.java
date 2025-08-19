@@ -64,7 +64,7 @@ public class InetAddresses {
         if (address == null) {
             throw new IllegalArgumentException(String.format(Locale.ROOT, "'%s' is not an IP string literal.", ipString.string()));
         }
-        return CIDRUtils.encode(address);
+        return address;
     }
 
     /**

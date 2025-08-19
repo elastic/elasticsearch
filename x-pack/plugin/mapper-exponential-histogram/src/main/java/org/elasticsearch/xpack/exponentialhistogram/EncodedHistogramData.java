@@ -27,31 +27,34 @@ import static org.elasticsearch.exponentialhistogram.ExponentialHistogram.MIN_SC
  **/
 final class EncodedHistogramData {
 
-    // The encoding has the following format:
-    //  - 1 byte: scale + flags
-    //     scale has a range of less than 64, so we can use the two remaining bits for flags
-    // Currently the only flag is HAS_NEGATIVE_BUCKETS_FLAG, which indicates that there are negative buckets
-    // If this flag is not set, we can skip encoding the length of the negative buckets and therefore save a
-    // bit of space for this typical case.
-    // VInt: (optional) length of encoded negative buckets in bytes, if HAS_NEGATIVE_BUCKETS_FLAG is set
-    // byte[]: encoded negative buckets, details on the encoding below
-    // byte[]: encoded positive buckets, details on the encoding below
-    // There is no end marker for the encoded buckets, therefore the total length of the encoded data needs to be known when decoding
-    // The following scheme is used to encode the negative and positive buckets:
-    // - if there are no buckets, the result is an empty array (byte[0])
-    // - write the index of the first bucket as ZigZag-VLong
-    // - write the count of the first bucket as ZigZag-VLong
-    // - for each remaining bucket:
-    // - if the index of the bucket is exactly previousBucketIndex+1, write the count for the bucket as ZigZag-VLong
-    // - Otherwise there is at least one empty bucket between this one and the previous one.
-    // We compute that number as n=currentBucketIndex-previousIndex-1 and then write -n out as
-    // ZigZag-VLong followed by the count for the bucket as ZigZag-VLong. The negation is performed to allow to
-    // distinguish the cases when decoding.
-    //
-    // While this decoding is designed for sparse histograms, it compresses well for dense histograms too.
-    // For fully dense histograms it effectively results in encoding the index of the first bucket, followed by just an array of counts.
-    // For sparse histograms it corresponds to an interleaved encoding of the bucket indices with delta compression and the bucket counts.
-    // Even partially dense histograms profit from this encoding.
+    /*
+     The encoding has the following format:
+        - 1 byte: scale + flags
+                  scale has a range of less than 64, so we can use the two remaining bits for flags
+                  Currently the only flag is HAS_NEGATIVE_BUCKETS_FLAG, which indicates that there are negative buckets
+                  If this flag is not set, we can skip encoding the length of the negative buckets and therefore save a
+                  bit of space for this typical case.
+        - VInt: (optional) length of encoded negative buckets in bytes, if HAS_NEGATIVE_BUCKETS_FLAG is set
+        - byte[]: encoded negative buckets, details on the encoding below
+        - byte[]: encoded positive buckets, details on the encoding below
+     There is no end marker for the encoded buckets, therefore the total length of the encoded data needs to be known when decoding
+
+     The following scheme is used to encode the negative and positive buckets:
+        - if there are no buckets, the result is an empty array (byte[0])
+        - write the index of the first bucket as ZigZag-VLong
+        - write the count of the first bucket as ZigZag-VLong
+        - for each remaining bucket:
+           - if the index of the bucket is exactly previousBucketIndex+1, write the count for the bucket as ZigZag-VLong
+           - Otherwise there is at least one empty bucket between this one and the previous one.
+     We compute that number as n=currentBucketIndex-previousIndex-1 and then write -n out as
+     ZigZag-VLong followed by the count for the bucket as ZigZag-VLong. The negation is performed to allow to
+     distinguish the cases when decoding.
+
+     While this decoding is designed for sparse histograms, it compresses well for dense histograms too.
+     For fully dense histograms it effectively results in encoding the index of the first bucket, followed by just an array of counts.
+     For sparse histograms it corresponds to an interleaved encoding of the bucket indices with delta compression and the bucket counts.
+     Even partially dense histograms profit from this encoding.
+     */
 
     static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(EncodedHistogramData.class);
 

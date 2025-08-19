@@ -17,7 +17,7 @@ import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.index.query.SearchExecutionContext;
-import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder;
+import org.elasticsearch.search.fetch.subphase.highlight.HighlightSnippetUtils;
 import org.elasticsearch.search.fetch.subphase.highlight.Highlighter;
 import org.elasticsearch.search.fetch.subphase.highlight.SearchHighlightContext;
 import org.elasticsearch.search.internal.SearchContext;
@@ -68,10 +68,9 @@ public class ExtractSnippets extends EsqlScalarFunction implements OptionalArgum
     );
 
     private static final int DEFAULT_NUM_SNIPPETS = 1;
-    // TODO: This default should be in line with the text similarity reranker. Set artificially low here for POC purposes.
+    // TODO: Determine good default, set artificially low for POC purposes
     private static final int DEFAULT_SNIPPET_LENGTH = 10;
 
-    // TODO: better names?
     private final Expression field, str, numSnippets, snippetLength;
     private final QueryBuilder queryBuilder;
 
@@ -206,8 +205,8 @@ public class ExtractSnippets extends EsqlScalarFunction implements OptionalArgum
         List<EsPhysicalOperationProviders.ShardContext> shardContexts = toEvaluator.shardContexts();
         LuceneQueryEvaluator.ShardConfig[] shardConfigs = new LuceneQueryEvaluator.ShardConfig[shardContexts.size()];
 
-        Integer numSnippets = this.numSnippets == null ? DEFAULT_NUM_SNIPPETS : (Integer) this.numSnippets.fold(FoldContext.small());
-        Integer snippedSize = this.snippetLength == null ? DEFAULT_SNIPPET_LENGTH : (Integer) this.snippetLength.fold(FoldContext.small());
+        int numSnippets = this.numSnippets == null ? DEFAULT_NUM_SNIPPETS : (Integer) this.numSnippets.fold(FoldContext.small());
+        int snippetSize = this.snippetLength == null ? DEFAULT_SNIPPET_LENGTH : (Integer) this.snippetLength.fold(FoldContext.small());
 
         int i = 0;
         for (EsPhysicalOperationProviders.ShardContext shardContext : shardContexts) {
@@ -218,22 +217,16 @@ public class ExtractSnippets extends EsqlScalarFunction implements OptionalArgum
             }
 
             try {
-                // TODO: Reduce duplication between this method and TextSimilarityRerankingRankFeaturePhaseRankShardContext#prepareForFetch
-                HighlightBuilder highlightBuilder = new HighlightBuilder();
-                if (queryBuilder != null) {
-                    // TODO: Ideally we'd only need to rewrite in the QueryBuilderResolver, but we need semantic rewrites to happen
-                    // on both coordinator and data nodes.
-                    QueryBuilder rewritten = Rewriteable.rewrite(queryBuilder, searchExecutionContext);
-                    highlightBuilder.highlightQuery(rewritten);
-                }
-                highlightBuilder.field(fieldName()).preTags("").postTags("");
-                highlightBuilder.order(HighlightBuilder.Order.SCORE);
-
-                highlightBuilder.numOfFragments(numSnippets);
-                highlightBuilder.fragmentSize(snippedSize);
-                highlightBuilder.noMatchSize(snippedSize);
-
-                SearchHighlightContext highlightContext = highlightBuilder.build(searchExecutionContext);
+                // We need to call rewrite here, to ensure we rewrite on both coordinator and data nodes.
+                assert queryBuilder != null : "ExtractSnippets missing required state";
+                QueryBuilder rewritten = Rewriteable.rewrite(queryBuilder, searchExecutionContext);
+                SearchHighlightContext highlightContext = HighlightSnippetUtils.buildSearchHighlightContextForSnippets(
+                    searchExecutionContext,
+                    fieldName(),
+                    numSnippets,
+                    snippetSize,
+                    rewritten
+                );
                 searchContext.highlight(highlightContext);
 
             } catch (IOException e) {
@@ -260,7 +253,7 @@ public class ExtractSnippets extends EsqlScalarFunction implements OptionalArgum
             shardConfigs,
             fieldName(),
             numSnippets,
-            snippedSize,
+            snippetSize,
             firstSearchContext,
             highlighters
         );

@@ -82,10 +82,19 @@ public class SnapshotMetricsIT extends AbstractSnapshotIntegTestCase {
         final int numReplicas = randomIntBetween(0, 1);
         createIndex(indexName, numShards, numReplicas);
 
-        indexRandom(true, indexName, randomIntBetween(1000, 3000));
+        indexRandom(true, indexName, randomIntBetween(3000, 5000));
 
         final String repositoryName = randomIdentifier();
-        createRepository(repositoryName, "mock");
+        createRepository(
+            repositoryName,
+            "mock",
+            Settings.builder()
+                .put(randomRepositorySettings().build())
+                // Making chunk size small and adding throttling increases the likelihood of upload duration being non-zero
+                .put("chunk_size", ByteSizeValue.ofKb(1))
+                .put(BlobStoreRepository.MAX_SNAPSHOT_BYTES_PER_SEC.getKey(), ByteSizeValue.ofMb(1))
+                .put(BlobStoreRepository.MAX_RESTORE_BYTES_PER_SEC.getKey(), ByteSizeValue.ofMb(1))
+        );
 
         // Block the snapshot to test "snapshot shards in progress"
         blockAllDataNodes(repositoryName);
@@ -144,8 +153,6 @@ public class SnapshotMetricsIT extends AbstractSnapshotIntegTestCase {
             getTotalClusterLongCounterValue(SnapshotMetrics.SNAPSHOT_UPLOAD_DURATION),
             allOf(greaterThan(0L), lessThan(upperBoundTimeSpentOnSnapshotThingsMillis))
         );
-        assertThat(getTotalClusterLongCounterValue(SnapshotMetrics.SNAPSHOT_CREATE_THROTTLE_DURATION), equalTo(0L));
-        assertThat(getTotalClusterLongCounterValue(SnapshotMetrics.SNAPSHOT_RESTORE_THROTTLE_DURATION), equalTo(0L));
 
         assertThat(getTotalClusterLongCounterValue(SnapshotMetrics.SNAPSHOT_SHARDS_STARTED), equalTo((long) numShards));
         assertThat(getTotalClusterLongCounterValue(SnapshotMetrics.SNAPSHOT_SHARDS_COMPLETED), equalTo((long) numShards));

@@ -22,6 +22,8 @@ import org.gradle.plugins.ide.eclipse.model.AccessRule
 import org.gradle.plugins.ide.eclipse.model.ProjectDependency
 import org.elasticsearch.gradle.DistributionDownloadPlugin
 
+import groovy.xml.XmlParser;
+import groovy.xml.XmlNodePrinter;
 import java.nio.file.Files
 
 import static java.nio.file.StandardCopyOption.REPLACE_EXISTING

@@ -26,6 +26,8 @@ import org.elasticsearch.gradle.Version;
 import org.elasticsearch.gradle.VersionProperties;
 import org.elasticsearch.gradle.internal.test.rest.transform.RestTestTransform;
 import org.elasticsearch.gradle.internal.test.rest.transform.RestTestTransformer;
+import org.elasticsearch.gradle.internal.test.rest.transform.SerializableJsonNode;
+import org.elasticsearch.gradle.internal.test.rest.transform.close_to.ReplaceValueInCloseTo;
 import org.elasticsearch.gradle.internal.test.rest.transform.do_.ReplaceKeyInDo;
 import org.elasticsearch.gradle.internal.test.rest.transform.headers.InjectHeaders;
 import org.elasticsearch.gradle.internal.test.rest.transform.length.ReplaceKeyInLength;
@@ -168,7 +170,7 @@ public abstract class RestCompatTestTransformTask extends DefaultTask {
      * @param value  the value used in the replacement. For example "bar"
      */
     public void replaceValueInMatch(String subKey, Object value) {
-        getTransformations().add(new ReplaceValueInMatch(subKey, MAPPER.convertValue(value, JsonNode.class)));
+        getTransformations().add(new ReplaceValueInMatch(subKey, SerializableJsonNode.of(value, JsonNode.class)));
     }
 
     /**
@@ -179,7 +181,7 @@ public abstract class RestCompatTestTransformTask extends DefaultTask {
      * @param testName the testName to apply replacement
      */
     public void replaceValueInMatch(String subKey, Object value, String testName) {
-        getTransformations().add(new ReplaceValueInMatch(subKey, MAPPER.convertValue(value, JsonNode.class), testName));
+        getTransformations().add(new ReplaceValueInMatch(subKey, SerializableJsonNode.of(value, JsonNode.class), testName));
     }
 
     /**
@@ -224,7 +226,7 @@ public abstract class RestCompatTestTransformTask extends DefaultTask {
      * @param value  the value used in the replacement. For example 99
      */
     public void replaceValueInLength(String subKey, int value) {
-        getTransformations().add(new ReplaceValueInLength(subKey, MAPPER.convertValue(value, NumericNode.class)));
+        getTransformations().add(new ReplaceValueInLength(subKey, SerializableJsonNode.of(value, NumericNode.class)));
     }
 
     /**
@@ -236,7 +238,7 @@ public abstract class RestCompatTestTransformTask extends DefaultTask {
      * @param testName the testName to apply replacement
      */
     public void replaceValueInLength(String subKey, int value, String testName) {
-        getTransformations().add(new ReplaceValueInLength(subKey, MAPPER.convertValue(value, NumericNode.class), testName));
+        getTransformations().add(new ReplaceValueInLength(subKey, SerializableJsonNode.of(value, NumericNode.class), testName));
     }
 
     /**
@@ -258,7 +260,7 @@ public abstract class RestCompatTestTransformTask extends DefaultTask {
      * @param newValue the value used in the replacement
      */
     public void replaceIsTrue(String oldValue, Object newValue) {
-        getTransformations().add(new ReplaceIsTrue(oldValue, MAPPER.convertValue(newValue, TextNode.class)));
+        getTransformations().add(new ReplaceIsTrue(oldValue, SerializableJsonNode.of(newValue, TextNode.class)));
     }
 
     /**
@@ -269,7 +271,7 @@ public abstract class RestCompatTestTransformTask extends DefaultTask {
      * @param newValue the value used in the replacement
      */
     public void replaceIsFalse(String oldValue, Object newValue) {
-        getTransformations().add(new ReplaceIsFalse(oldValue, MAPPER.convertValue(newValue, TextNode.class)));
+        getTransformations().add(new ReplaceIsFalse(oldValue, SerializableJsonNode.of(newValue, TextNode.class)));
     }
 
     /**
@@ -281,7 +283,7 @@ public abstract class RestCompatTestTransformTask extends DefaultTask {
      * @param testName the testName to apply replacement
      */
     public void replaceIsFalse(String oldValue, Object newValue, String testName) {
-        getTransformations().add(new ReplaceIsFalse(oldValue, MAPPER.convertValue(newValue, TextNode.class), testName));
+        getTransformations().add(new ReplaceIsFalse(oldValue, SerializableJsonNode.of(newValue, TextNode.class), testName));
     }
 
     /**
@@ -293,7 +295,7 @@ public abstract class RestCompatTestTransformTask extends DefaultTask {
      * @param newValue the value used in the replacement
      */
     public void replaceValueTextByKeyValue(String key, String oldValue, Object newValue) {
-        getTransformations().add(new ReplaceTextual(key, oldValue, MAPPER.convertValue(newValue, TextNode.class)));
+        getTransformations().add(new ReplaceTextual(key, oldValue, SerializableJsonNode.of(newValue, TextNode.class)));
     }
 
     /**
@@ -306,7 +308,7 @@ public abstract class RestCompatTestTransformTask extends DefaultTask {
      * @param testName the testName to apply replacement
      */
     public void replaceValueTextByKeyValue(String key, String oldValue, Object newValue, String testName) {
-        getTransformations().add(new ReplaceTextual(key, oldValue, MAPPER.convertValue(newValue, TextNode.class), testName));
+        getTransformations().add(new ReplaceTextual(key, oldValue, SerializableJsonNode.of(newValue, TextNode.class), testName));
     }
 
     /**
@@ -340,7 +342,7 @@ public abstract class RestCompatTestTransformTask extends DefaultTask {
      * @param testName the testName to apply addition
      */
     public void addMatch(String subKey, Object value, String testName) {
-        getTransformations().add(new AddMatch(subKey, MAPPER.convertValue(value, JsonNode.class), testName));
+        getTransformations().add(new AddMatch(subKey, SerializableJsonNode.of(value, JsonNode.class), testName));
     }
 
     /**

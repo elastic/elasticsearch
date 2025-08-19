@@ -182,7 +182,7 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
             } catch (Exception e) {
                 // In case the collecting fails, e.g. because of a formatting error, we log the error and continue
                 logger.debug(
-                    "failed to consume top docs for shard [{}] with sort fields [{}]",
+                    "failed to consume top docs for shard [{}] with sort fields [{}]: {}",
                     result.getShardIndex(),
                     Arrays.toString(topDocs.fields),
                     e

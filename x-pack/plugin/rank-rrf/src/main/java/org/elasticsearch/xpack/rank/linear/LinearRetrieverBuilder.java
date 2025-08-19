@@ -75,16 +75,6 @@ public final class LinearRetrieverBuilder extends CompoundRetrieverBuilder<Linea
     private final String query;
     private final ScoreNormalizer normalizer;
 
-    private static ScoreNormalizer resolveNormalizer(ScoreNormalizer componentNormalizer, ScoreNormalizer topLevelNormalizer) {
-        if (componentNormalizer != null) {
-            return componentNormalizer;
-        }
-        if (topLevelNormalizer != null) {
-            return topLevelNormalizer;
-        }
-        return DEFAULT_NORMALIZER;
-    }
-
     @SuppressWarnings("unchecked")
     static final ConstructingObjectParser<LinearRetrieverBuilder, RetrieverParserContext> PARSER = new ConstructingObjectParser<>(
         NAME,
@@ -131,6 +121,16 @@ public final class LinearRetrieverBuilder extends CompoundRetrieverBuilder<Linea
         ScoreNormalizer[] normalizers = new ScoreNormalizer[size];
         Arrays.fill(normalizers, DEFAULT_NORMALIZER);
         return normalizers;
+    }
+
+    private static ScoreNormalizer resolveNormalizer(ScoreNormalizer componentNormalizer, ScoreNormalizer topLevelNormalizer) {
+        if (componentNormalizer != null) {
+            return componentNormalizer;
+        }
+        if (topLevelNormalizer != null) {
+            return topLevelNormalizer;
+        }
+        return DEFAULT_NORMALIZER;
     }
 
     public static LinearRetrieverBuilder fromXContent(XContentParser parser, RetrieverParserContext context) throws IOException {
@@ -341,7 +341,7 @@ public final class LinearRetrieverBuilder extends CompoundRetrieverBuilder<Linea
                     for (var weightedRetriever : r) {
                         retrievers.add(weightedRetriever.retrieverSource());
                         weights[index] = weightedRetriever.weight();
-                        normalizers[index] = resolveNormalizer(null, normalizer);
+                        normalizers[index] = normalizer;
                         index++;
                     }
 
@@ -359,7 +359,7 @@ public final class LinearRetrieverBuilder extends CompoundRetrieverBuilder<Linea
                 Arrays.fill(weights, DEFAULT_WEIGHT);
 
                 ScoreNormalizer[] normalizers = new ScoreNormalizer[fieldsInnerRetrievers.size()];
-                Arrays.fill(normalizers, resolveNormalizer(null, normalizer));
+                Arrays.fill(normalizers, normalizer);
 
                 // TODO: This is a incomplete solution as it does not address other incomplete copy issues
                 // (such as dropping the retriever name and min score)

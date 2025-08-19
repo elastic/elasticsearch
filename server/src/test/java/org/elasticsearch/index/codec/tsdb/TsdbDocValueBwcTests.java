@@ -13,6 +13,7 @@ import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.codecs.DocValuesFormat;
 import org.apache.lucene.codecs.DocValuesProducer;
 import org.apache.lucene.document.Document;
+import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.SortedDocValuesField;
 import org.apache.lucene.document.SortedNumericDocValuesField;
@@ -299,10 +300,16 @@ public class TsdbDocValueBwcTests extends ESTestCase {
                     for (int d = 0; d < numDocs; d++) {
                         Document doc = new Document();
                         int hostId = random().nextInt(100);
-                        String hostName = String.format(Locale.ROOT, "host-%02d", hostId);
-                        doc.add(new SortedDocValuesField(hostNameField, new BytesRef(hostName)));
-                        doc.add(new NumericDocValuesField(hostIdField, hostId));
-                        writer.addDocument(doc);
+                        if (random().nextInt(100) <= 10) {
+                            writer.deleteDocuments(LongPoint.newExactQuery(hostIdField, hostId));
+                        } else {
+                            String hostName = String.format(Locale.ROOT, "host-%02d", hostId);
+                            doc.add(new LongPoint("host.id", hostId));
+                            doc.add(new SortedDocValuesField(hostNameField, new BytesRef(hostName)));
+                            doc.add(new NumericDocValuesField(hostIdField, hostId));
+                            writer.addDocument(doc);
+                        }
+
                         if (random().nextInt(100) <= 5) {
                             Document dummy = new Document();
                             dummy.add(new SortedDocValuesField("dummy", new BytesRef("dummy")));
@@ -321,6 +328,10 @@ public class TsdbDocValueBwcTests extends ESTestCase {
                         // sequential
                         NumericDocValues hostIdDv = leaf.reader().getNumericDocValues(hostIdField);
                         SortedDocValues hostNameDv = leaf.reader().getSortedDocValues(hostNameField);
+                        if (hostIdDv == null) {
+                            assertNull(hostNameDv);
+                            continue;
+                        }
                         {
                             int docId;
                             while ((docId = hostIdDv.nextDoc()) != DocIdSetIterator.NO_MORE_DOCS) {

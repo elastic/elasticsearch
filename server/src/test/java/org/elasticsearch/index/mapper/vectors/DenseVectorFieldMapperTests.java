@@ -2229,7 +2229,7 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
             )
         );
     }
-    
+
     public void testSetIndexed() {
         final MapperBuilderContext context = MapperBuilderContext.root(false, false);
 

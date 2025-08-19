@@ -2,5 +2,5 @@
 
 **Description**
 
-Checks if the values yielded by multivalue value expression are all also present in the values yielded by anothermultivalue expression. The result is a boolean representing the outcome or null if either of the expressions where null.
+Checks if the values yielded by multivalue value expression are all present in the values yielded by the other multivalue expression. The result is a boolean representing the outcome or null if either of the expressions where null.
 

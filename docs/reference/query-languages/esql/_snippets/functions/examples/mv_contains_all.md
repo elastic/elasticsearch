@@ -28,6 +28,6 @@ FROM airports
 
 | scalerank:integer | name:text | country:keyword |
 | --- | --- | --- |
-| 8 | Chandigarh Int'l | India |
+| 9 | Chandigarh Int'l | India |
 
 

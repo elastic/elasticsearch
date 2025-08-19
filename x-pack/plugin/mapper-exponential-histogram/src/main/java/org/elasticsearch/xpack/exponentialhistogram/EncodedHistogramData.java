@@ -74,7 +74,7 @@ final class EncodedHistogramData {
     private int negativeBucketsLength;
     private int positiveBucketsLength;
 
-    void load(BytesRef data) throws IOException {
+    void decode(BytesRef data) throws IOException {
         this.encodedData = data.bytes;
         ByteArrayStreamInput input = new ByteArrayStreamInput();
         input.reset(data.bytes, data.offset, data.length);

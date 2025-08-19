@@ -75,7 +75,7 @@ public class CompressedExponentialHistogram implements ExponentialHistogram {
         lazyZeroBucket = null;
         this.zeroThreshold = zeroThreshold;
         this.valueCount = valueCount;
-        encodedData.load(encodedHistogramData);
+        encodedData.decode(encodedHistogramData);
         negativeBuckets.resetCachedData();
         positiveBuckets.resetCachedData();
     }

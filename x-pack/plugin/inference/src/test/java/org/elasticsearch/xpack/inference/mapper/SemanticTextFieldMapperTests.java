@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.inference.mapper;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
-import org.apache.logging.log4j.Level;
 import org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsFormat;
 import org.apache.lucene.document.FeatureField;
 import org.apache.lucene.index.FieldInfo;
@@ -28,23 +27,15 @@ import org.apache.lucene.search.join.QueryBitSetProducer;
 import org.apache.lucene.search.join.ScoreMode;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.cluster.ClusterChangedEvent;
-import org.elasticsearch.cluster.metadata.DataStreamGlobalRetention;
-import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.CheckedBiFunction;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
-import org.elasticsearch.common.logging.DeprecatedMessage;
-import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.logging.ESLogMessage;
-import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.CheckedConsumer;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.DocumentMapper;
@@ -427,9 +418,7 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
 
     @Override
     protected String[] getParseMinimalWarnings() {
-        return new String[] {
-            WARNING_MESSAGE_8X
-        };
+        return new String[] { WARNING_MESSAGE_8X };
     }
 
     public void testOldIndexSemanticTextDenseVectorCreation() throws IOException {
@@ -449,7 +438,8 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
             fieldMapping,
             true,
             IndexVersions.V_8_0_0,
-            IndexVersionUtils.getPreviousVersion(IndexVersions.FIRST_DETACHED_INDEX_VERSION));
+            IndexVersionUtils.getPreviousVersion(IndexVersions.FIRST_DETACHED_INDEX_VERSION)
+        );
         assertParseMinimalWarnings();
         assertSemanticTextField(mapperService, fieldName, true, null, null);
     }
@@ -463,11 +453,15 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
             b.endObject();
         });
 
-        MapperParsingException exception = assertThrows(MapperParsingException.class, () -> createMapperService(
-            fieldMapping,
-            true,
-            IndexVersions.V_8_0_0,
-            IndexVersionUtils.getPreviousVersion(IndexVersions.NEW_SPARSE_VECTOR)));
+        MapperParsingException exception = assertThrows(
+            MapperParsingException.class,
+            () -> createMapperService(
+                fieldMapping,
+                true,
+                IndexVersions.V_8_0_0,
+                IndexVersionUtils.getPreviousVersion(IndexVersions.NEW_SPARSE_VECTOR)
+            )
+        );
         assertTrue(exception.getMessage().contains(ERROR_MESSAGE_UNSUPPORTED_SPARSE_VECTOR));
         assertTrue(exception.getRootCause() instanceof IllegalArgumentException);
     }

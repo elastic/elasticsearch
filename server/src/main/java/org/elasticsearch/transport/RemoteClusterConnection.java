@@ -37,7 +37,7 @@ import static org.elasticsearch.transport.RemoteClusterPortSettings.REMOTE_CLUST
  * remote case we only connect to a subset of the nodes in the cluster in an uni-directional fashion.
  *
  * This class also handles the discovery of nodes from the remote cluster. The initial list of seed nodes is only used to discover all nodes
- * in the remote cluster and connects to all eligible nodes, for details see {@link RemoteClusterService#REMOTE_NODE_ATTRIBUTE}.
+ * in the remote cluster and connects to all eligible nodes, for details see {@link RemoteClusterSettings#REMOTE_NODE_ATTRIBUTE}.
  *
  * In the case of a disconnection, this class will issue a re-connect task to establish at most
  * {@link SniffConnectionStrategy#REMOTE_CONNECTIONS_PER_CLUSTER} until either all eligible nodes are exhausted or the maximum number of
@@ -83,10 +83,10 @@ public final class RemoteClusterConnection implements Closeable {
         this.connectionStrategy = RemoteConnectionStrategy.buildStrategy(clusterAlias, transportService, remoteConnectionManager, settings);
         // we register the transport service here as a listener to make sure we notify handlers on disconnect etc.
         this.remoteConnectionManager.addListener(transportService);
-        this.skipUnavailable = RemoteClusterService.REMOTE_CLUSTER_SKIP_UNAVAILABLE.getConcreteSettingForNamespace(clusterAlias)
+        this.skipUnavailable = RemoteClusterSettings.REMOTE_CLUSTER_SKIP_UNAVAILABLE.getConcreteSettingForNamespace(clusterAlias)
             .get(settings);
         this.threadPool = transportService.threadPool;
-        initialConnectionTimeout = RemoteClusterService.REMOTE_INITIAL_CONNECTION_TIMEOUT_SETTING.get(settings);
+        initialConnectionTimeout = RemoteClusterSettings.REMOTE_INITIAL_CONNECTION_TIMEOUT_SETTING.get(settings);
     }
 
     /**

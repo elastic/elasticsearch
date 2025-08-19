@@ -36,7 +36,6 @@ import org.elasticsearch.xpack.core.ml.inference.results.MlTextEmbeddingResults;
 import org.elasticsearch.xpack.core.ml.inference.results.TextExpansionResults;
 import org.elasticsearch.xpack.core.ml.inference.results.WarningInferenceResults;
 import org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper;
-import org.elasticsearch.xpack.inference.registry.ModelRegistry;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -45,7 +44,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.function.Supplier;
 
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
@@ -81,8 +79,6 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
     private final EmbeddingsProvider embeddingsProvider;
     private final boolean noInferenceResults;
     private final Boolean lenient;
-
-    private Supplier<ModelRegistry> modelRegistrySupplier = () -> null;
 
     public SemanticQueryBuilder(String fieldName, String query) {
         this(fieldName, query, null);
@@ -124,10 +120,6 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
         }
     }
 
-    public void setModelRegistrySupplier(Supplier<ModelRegistry> supplier) {
-        modelRegistrySupplier = supplier;
-    }
-
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
         out.writeString(fieldName);
@@ -152,7 +144,6 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
         this.embeddingsProvider = embeddingsProvider;
         this.noInferenceResults = noInferenceResults;
         this.lenient = other.lenient;
-        this.modelRegistrySupplier = other.modelRegistrySupplier;
     }
 
     @Override
@@ -217,11 +208,6 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
                 );
             }
 
-            ModelRegistry modelRegistry = modelRegistrySupplier.get();
-            if (modelRegistry == null) {
-                throw new IllegalStateException("Model registry has not been set");
-            }
-
             String inferenceId = semanticTextFieldType.getSearchInferenceId();
             InferenceResults inferenceResults = embeddingsProvider.getEmbeddings(inferenceId);
 
@@ -279,11 +265,6 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
 
         boolean modified = false;
         if (queryRewriteContext.hasAsyncActions() == false) {
-            ModelRegistry modelRegistry = modelRegistrySupplier.get();
-            if (modelRegistry == null) {
-                throw new IllegalStateException("Model registry has not been set");
-            }
-
             Set<String> inferenceIds = getInferenceIdsForForField(resolvedIndices.getConcreteLocalIndicesMetadata().values(), fieldName);
             for (String inferenceId : inferenceIds) {
                 if (currentEmbeddingsProvider.getEmbeddings(inferenceId) == null) {

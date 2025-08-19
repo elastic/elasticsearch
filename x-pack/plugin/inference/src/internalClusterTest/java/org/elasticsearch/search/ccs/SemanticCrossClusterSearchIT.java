@@ -36,7 +36,6 @@ import org.elasticsearch.xpack.inference.mock.TestDenseInferenceServiceExtension
 import org.elasticsearch.xpack.inference.mock.TestInferenceServicePlugin;
 import org.elasticsearch.xpack.inference.mock.TestSparseInferenceServiceExtension;
 import org.elasticsearch.xpack.inference.queries.SemanticQueryBuilder;
-import org.elasticsearch.xpack.inference.registry.ModelRegistry;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -105,10 +104,7 @@ public class SemanticCrossClusterSearchIT extends AbstractMultiClustersTestCase 
         String localIndex = (String) testClusterInfo.get("local.index");
         String remoteIndex = (String) testClusterInfo.get("remote.index");
 
-        ModelRegistry modelRegistry = cluster(LOCAL_CLUSTER).getCurrentMasterNodeInstance(ModelRegistry.class);
         SemanticQueryBuilder queryBuilder = new SemanticQueryBuilder(INFERENCE_FIELD, "foo");
-        queryBuilder.setModelRegistrySupplier(() -> modelRegistry);
-
         SearchRequest searchRequest = new SearchRequest(localIndex, REMOTE_CLUSTER + ":" + remoteIndex);
         searchRequest.source(new SearchSourceBuilder().query(queryBuilder).size(10));
         searchRequest.setCcsMinimizeRoundtrips(true);
@@ -129,10 +125,7 @@ public class SemanticCrossClusterSearchIT extends AbstractMultiClustersTestCase 
             TimeValue.timeValueMinutes(2)
         );
 
-        ModelRegistry modelRegistry = cluster(LOCAL_CLUSTER).getCurrentMasterNodeInstance(ModelRegistry.class);
         SemanticQueryBuilder queryBuilder = new SemanticQueryBuilder(INFERENCE_FIELD, "foo");
-        queryBuilder.setModelRegistrySupplier(() -> modelRegistry);
-
         SearchRequest searchRequest = new SearchRequest();
         searchRequest.source(new SearchSourceBuilder().query(queryBuilder).pointInTimeBuilder(new PointInTimeBuilder(pitId)).size(10));
 

@@ -580,15 +580,7 @@ public class InferencePlugin extends Plugin
     }
 
     public List<QuerySpec<?>> getQueries() {
-        return List.of(new QuerySpec<>(SemanticQueryBuilder.NAME, i -> {
-            SemanticQueryBuilder queryBuilder = new SemanticQueryBuilder(i);
-            queryBuilder.setModelRegistrySupplier(getModelRegistry());
-            return queryBuilder;
-        }, p -> {
-            SemanticQueryBuilder queryBuilder = SemanticQueryBuilder.fromXContent(p);
-            queryBuilder.setModelRegistrySupplier(getModelRegistry());
-            return queryBuilder;
-        }));
+        return List.of(new QuerySpec<>(SemanticQueryBuilder.NAME, SemanticQueryBuilder::new, SemanticQueryBuilder::fromXContent));
     }
 
     @Override

@@ -188,4 +188,14 @@ class TransportVersionValidationFuncTest extends AbstractTransportVersionFuncTes
         assertDefinitionsFailure(result, "Transport version definition file " +
             "[myserver/src/main/resources/transport/definitions/named/patch.csv] has patch version 8015001 as primary id")
     }
+
+    def "unreferenced directory is optional"() {
+        given:
+        file("myserver/src/main/resources/transport/unreferenced/initial_9_0_0.csv").delete()
+        file("myserver/src/main/resources/transport/unreferenced").deleteDir()
+        when:
+        def result = gradleRunner(":myserver:validateTransportVersionDefinitions").build()
+        then:
+        result.task(":myserver:validateTransportVersionDefinitions").outcome == TaskOutcome.SUCCESS
+    }
 }

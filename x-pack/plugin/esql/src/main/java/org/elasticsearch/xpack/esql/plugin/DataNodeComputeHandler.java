@@ -26,6 +26,7 @@ import org.elasticsearch.compute.operator.exchange.ExchangeSourceHandler;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
@@ -288,7 +289,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
 
                 @Override
                 public void onFailure(Exception e) {
-                    LOGGER.fatal("Error in batch service", e);
+                    LOGGER.fatal(Strings.format("Error running batch numbers %d-%d", startBatchIndex, endBatchIndex), e);
                     if (pagesProduced.get() == 0 && failFastOnShardFailure == false) {
                         for (ShardId shardId : shardIds) {
                             addShardLevelFailure(shardId, e);

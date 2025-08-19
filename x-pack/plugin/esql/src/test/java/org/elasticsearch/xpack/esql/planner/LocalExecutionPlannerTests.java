@@ -21,6 +21,7 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.compute.data.DocVector;
 import org.elasticsearch.compute.lucene.DataPartitioning;
 import org.elasticsearch.compute.lucene.LuceneSourceOperator;
 import org.elasticsearch.compute.lucene.LuceneTopNSourceOperator;
@@ -383,7 +384,13 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
                 b.startObject("point").field("type", "geo_point").endObject();
             })), searcher);
             shardContexts.add(
-                new EsPhysicalOperationProviders.DefaultShardContext(i, i, new NoOpReleasable(), searchExecutionContext, AliasFilter.EMPTY)
+                new EsPhysicalOperationProviders.DefaultShardContext(
+                    i,
+                    DocVector.NO_GLOBAL_SHARD,
+                    new NoOpReleasable(),
+                    searchExecutionContext,
+                    AliasFilter.EMPTY
+                )
             );
         }
         releasables.add(searcher);

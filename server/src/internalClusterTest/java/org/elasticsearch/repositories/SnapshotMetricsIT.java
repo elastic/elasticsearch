@@ -196,9 +196,9 @@ public class SnapshotMetricsIT extends AbstractSnapshotIntegTestCase {
         final String repositoryName = randomIdentifier();
         final Settings.Builder repositorySettings = randomRepositorySettings().put(
             BlobStoreRepository.MAX_SNAPSHOT_BYTES_PER_SEC.getKey(),
-            ByteSizeValue.ofBytes(2048)
+            ByteSizeValue.ofKb(2)
         )
-            .put(BlobStoreRepository.MAX_RESTORE_BYTES_PER_SEC.getKey(), ByteSizeValue.ofBytes(2048))
+            .put(BlobStoreRepository.MAX_RESTORE_BYTES_PER_SEC.getKey(), ByteSizeValue.ofKb(2))
             // Small chunk size ensures we don't get stuck throttling for too long
             .put("chunk_size", ByteSizeValue.ofBytes(100));
         createRepository(repositoryName, "mock", repositorySettings, false);

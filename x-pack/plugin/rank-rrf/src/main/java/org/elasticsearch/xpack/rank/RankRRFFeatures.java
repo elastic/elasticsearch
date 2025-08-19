@@ -22,10 +22,11 @@ import static org.elasticsearch.xpack.rank.linear.MinMaxScoreNormalizer.LINEAR_R
 public class RankRRFFeatures implements FeatureSpecification {
 
     public static final NodeFeature LINEAR_RETRIEVER_SUPPORTED = new NodeFeature("linear_retriever_supported");
+    public static final NodeFeature LINEAR_RETRIEVER_TOP_LEVEL_NORMALIZER = new NodeFeature("linear_retriever.top_level_normalizer");
 
     @Override
     public Set<NodeFeature> getFeatures() {
-        return Set.of(LINEAR_RETRIEVER_SUPPORTED);
+        return Set.of(LINEAR_RETRIEVER_SUPPORTED, LINEAR_RETRIEVER_TOP_LEVEL_NORMALIZER);
     }
 
     @Override

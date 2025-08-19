@@ -361,12 +361,12 @@ public class SnapshotMetricsIT extends AbstractSnapshotIntegTestCase {
         assertMetricsHaveAttributes(
             InstrumentType.LONG_GAUGE,
             SnapshotMetrics.SNAPSHOT_SHARDS_BY_STATE,
-            Map.of("project_id", ProjectId.DEFAULT.id(), "repo_name", repositoryName, "repo_type", "mock")
+            Map.of("repo_name", repositoryName, "repo_type", "mock")
         );
         assertMetricsHaveAttributes(
             InstrumentType.LONG_GAUGE,
             SnapshotMetrics.SNAPSHOTS_BY_STATE,
-            Map.of("project_id", ProjectId.DEFAULT.id(), "repo_name", repositoryName, "repo_type", "mock")
+            Map.of("repo_name", repositoryName, "repo_type", "mock")
         );
     }
 
@@ -431,12 +431,12 @@ public class SnapshotMetricsIT extends AbstractSnapshotIntegTestCase {
         assertMetricsHaveAttributes(
             InstrumentType.LONG_GAUGE,
             SnapshotMetrics.SNAPSHOT_SHARDS_BY_STATE,
-            Map.of("project_id", ProjectId.DEFAULT.id(), "repo_name", repositoryName, "repo_type", "mock")
+            Map.of("repo_name", repositoryName, "repo_type", "mock")
         );
         assertMetricsHaveAttributes(
             InstrumentType.LONG_GAUGE,
             SnapshotMetrics.SNAPSHOTS_BY_STATE,
-            Map.of("project_id", ProjectId.DEFAULT.id(), "repo_name", repositoryName, "repo_type", "mock")
+            Map.of("repo_name", repositoryName, "repo_type", "mock")
         );
     }
 
@@ -511,12 +511,12 @@ public class SnapshotMetricsIT extends AbstractSnapshotIntegTestCase {
         assertMetricsHaveAttributes(
             InstrumentType.LONG_GAUGE,
             SnapshotMetrics.SNAPSHOT_SHARDS_BY_STATE,
-            Map.of("project_id", ProjectId.DEFAULT.id(), "repo_name", repositoryName, "repo_type", "mock")
+            Map.of("repo_name", repositoryName, "repo_type", "mock")
         );
         assertMetricsHaveAttributes(
             InstrumentType.LONG_GAUGE,
             SnapshotMetrics.SNAPSHOTS_BY_STATE,
-            Map.of("project_id", ProjectId.DEFAULT.id(), "repo_name", repositoryName, "repo_type", "mock")
+            Map.of("repo_name", repositoryName, "repo_type", "mock")
         );
     }
 

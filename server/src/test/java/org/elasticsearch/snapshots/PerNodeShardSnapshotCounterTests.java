@@ -124,12 +124,7 @@ public class PerNodeShardSnapshotCounterTests extends ESTestCase {
             // aborted assigned-queued shard
             shards.put(
                 randomShardId(),
-                new ShardSnapshotStatus(
-                    snapshotNodeId,
-                    SnapshotsInProgress.ShardState.ABORTED,
-                    new ShardGeneration(1L),
-                    "assigned-queued aborted"
-                )
+                new ShardSnapshotStatus(null, SnapshotsInProgress.ShardState.ABORTED, new ShardGeneration(1L), "assigned-queued aborted")
             );
             // assigned-queued shard
             shards.put(randomShardId(), ShardSnapshotStatus.assignedQueued(snapshotNodeId, randomFrom(new ShardGeneration(1L), null)));

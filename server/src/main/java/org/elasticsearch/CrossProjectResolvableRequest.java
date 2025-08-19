@@ -11,9 +11,11 @@ package org.elasticsearch;
 
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.transport.RemoteClusterAware;
 
 import java.util.List;
 
+// Extend indices.replaceable instead?
 public interface CrossProjectResolvableRequest extends IndicesRequest {
     /**
      * Only called if cross-project rewriting was applied
@@ -23,10 +25,22 @@ public interface CrossProjectResolvableRequest extends IndicesRequest {
     @Nullable
     List<RewrittenExpression> getRewrittenExpressions();
 
+    default boolean isCrossProjectModeEnabled() {
+        return getRewrittenExpressions() != null;
+    }
+
     /**
      * Used to track a mapping from original expression (potentially flat) to canonical CCS expressions.
      */
     record RewrittenExpression(String original, List<CanonicalExpression> canonicalExpressions) {}
 
-    record CanonicalExpression(String expression) {}
+    record CanonicalExpression(String expression) {
+        public boolean isQualified() {
+            return RemoteClusterAware.isRemoteIndexName(expression);
+        }
+
+        public boolean isUnqualified() {
+            return false == isQualified();
+        }
+    }
 }

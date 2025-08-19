@@ -122,7 +122,7 @@ class ServerTransportFilter {
                     });
                 } else {
                     if (SystemUser.is(authentication.getEffectiveSubject().getUser()) == false) {
-                        logger.info(
+                        logger.debug(
                             "Authenticated request [{}] for action [{}] from [{}]",
                             authentication.getEffectiveSubject().getUser(),
                             securityAction,

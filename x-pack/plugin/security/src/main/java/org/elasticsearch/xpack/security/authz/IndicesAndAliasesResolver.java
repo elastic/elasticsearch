@@ -174,8 +174,9 @@ public class IndicesAndAliasesResolver {
         for (String indexExpression : indices) {
             boolean isQualified = RemoteClusterAware.isRemoteIndexName(indexExpression);
             if (isQualified) {
+                // TODO handle empty case here -- empty means "search all" in ES which is _not_ what we want
                 List<CrossProjectResolvableRequest.CanonicalExpression> canonicalExpressions = rewriteQualified(indexExpression, projects);
-                // could fail early here in ignore_unavailable_indices and allow_no_indices strict mode if things are empty
+                // could fail early here in ignore_unavailable and allow_no_indices strict mode if things are empty
                 rewrittenExpressions.add(new CrossProjectResolvableRequest.RewrittenExpression(indexExpression, canonicalExpressions));
                 logger.info("Rewrote qualified expression [{}] to [{}]", indexExpression, canonicalExpressions);
             } else {
@@ -444,13 +445,30 @@ public class IndicesAndAliasesResolver {
                 // if we cannot replace wildcards the indices list stays empty. Same if there are no authorized indices.
                 // we honour allow_no_indices like es core does.
             } else {
+                if (indicesRequest instanceof CrossProjectResolvableRequest crossProjectResolvableRequest
+                    && crossProjectResolvableRequest.isCrossProjectModeEnabled()) {
+                    assert crossProjectResolvableRequest.getRewrittenExpressions() != null;
+                    List<CrossProjectResolvableRequest.RewrittenExpression> rewrittenExpressions = indexAbstractionResolver
+                        .resolveIndexAbstractionsForOrigin(
+                            crossProjectResolvableRequest.getRewrittenExpressions(),
+                            indicesOptions,
+                            projectMetadata,
+                            authorizedIndices::all,
+                            authorizedIndices::check,
+                            indicesRequest.includeDataStreams()
+                        );
+                    crossProjectResolvableRequest.setRewrittenExpressions(rewrittenExpressions);
+                    assert ((IndicesRequest.Replaceable) indicesRequest).allowsRemoteIndices();
+                    return remoteClusterResolver.splitLocalAndRemoteIndexNames(indicesRequest.indices());
+                }
+
                 final ResolvedIndices split;
                 if (replaceable.allowsRemoteIndices()) {
                     split = remoteClusterResolver.splitLocalAndRemoteIndexNames(indicesRequest.indices());
                 } else {
                     split = new ResolvedIndices(Arrays.asList(indicesRequest.indices()), Collections.emptyList());
                 }
-                List<String> replaced = indexAbstractionResolver.resolveIndexAbstractions(
+                List<String> resolved = indexAbstractionResolver.resolveIndexAbstractions(
                     split.getLocal(),
                     indicesOptions,
                     projectMetadata,
@@ -458,7 +476,7 @@ public class IndicesAndAliasesResolver {
                     authorizedIndices::check,
                     indicesRequest.includeDataStreams()
                 );
-                resolvedIndicesBuilder.addLocal(replaced);
+                resolvedIndicesBuilder.addLocal(resolved);
                 resolvedIndicesBuilder.addRemote(split.getRemote());
             }
 

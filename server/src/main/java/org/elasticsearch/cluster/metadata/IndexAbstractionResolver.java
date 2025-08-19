@@ -9,6 +9,9 @@
 
 package org.elasticsearch.cluster.metadata;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.elasticsearch.CrossProjectResolvableRequest;
 import org.elasticsearch.action.support.IndexComponentSelector;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.UnsupportedSelectorException;
@@ -18,6 +21,7 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.indices.SystemIndices.SystemIndexAccessLevel;
+import org.elasticsearch.transport.RemoteClusterAware;
 
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -28,10 +32,116 @@ import java.util.function.Function;
 
 public class IndexAbstractionResolver {
 
+    private static final Logger logger = LogManager.getLogger(IndexAbstractionResolver.class);
+
     private final IndexNameExpressionResolver indexNameExpressionResolver;
 
     public IndexAbstractionResolver(IndexNameExpressionResolver indexNameExpressionResolver) {
         this.indexNameExpressionResolver = indexNameExpressionResolver;
+    }
+
+    public List<CrossProjectResolvableRequest.RewrittenExpression> resolveIndexAbstractionsForOrigin(
+        Iterable<CrossProjectResolvableRequest.RewrittenExpression> rewrittenExpressions,
+        IndicesOptions indicesOptions,
+        ProjectMetadata projectMetadata,
+        Function<IndexComponentSelector, Set<String>> allAuthorizedAndAvailableBySelector,
+        BiPredicate<String, IndexComponentSelector> isAuthorized,
+        boolean includeDataStreams
+    ) {
+        // TODO handle exclusions and consolidate with `resolveIndexAbstractions` somehow, maybe?
+        List<CrossProjectResolvableRequest.RewrittenExpression> finalRewrittenExpressions = new ArrayList<>();
+        for (CrossProjectResolvableRequest.RewrittenExpression rewrittenExpression : rewrittenExpressions) {
+            // qualified original expression, nothing to rewrite (TODO handle origin)
+            if (RemoteClusterAware.isRemoteIndexName(rewrittenExpression.original())) {
+                logger.info("Skipping rewriting of qualified expression [{}] for origin", rewrittenExpression.original());
+                finalRewrittenExpressions.add(rewrittenExpression);
+                continue;
+            }
+            // no expressions targeting origin, also nothing to rewrite
+            if (rewrittenExpression.canonicalExpressions()
+                .stream()
+                .noneMatch(CrossProjectResolvableRequest.CanonicalExpression::isUnqualified)) {
+                logger.info(
+                    "Skipping rewriting of qualified expression [{}] because there are no origin expressions",
+                    rewrittenExpression.original()
+                );
+                finalRewrittenExpressions.add(rewrittenExpression);
+                continue;
+            }
+
+            String indexAbstraction = rewrittenExpression.original();
+
+            // Always check to see if there's a selector on the index expression
+            Tuple<String, String> expressionAndSelector = IndexNameExpressionResolver.splitSelectorExpression(indexAbstraction);
+            String selectorString = expressionAndSelector.v2();
+            if (indicesOptions.allowSelectors() == false && selectorString != null) {
+                throw new UnsupportedSelectorException(indexAbstraction);
+            }
+            indexAbstraction = expressionAndSelector.v1();
+            IndexComponentSelector selector = IndexComponentSelector.getByKeyOrThrow(selectorString);
+
+            // we always need to check for date math expressions
+            indexAbstraction = IndexNameExpressionResolver.resolveDateMathExpression(indexAbstraction);
+
+            if (indicesOptions.expandWildcardExpressions() && Regex.isSimpleMatchPattern(indexAbstraction)) {
+                Set<String> resolvedIndices = new HashSet<>();
+                for (String authorizedIndex : allAuthorizedAndAvailableBySelector.apply(selector)) {
+                    if (Regex.simpleMatch(indexAbstraction, authorizedIndex)
+                        && isIndexVisible(
+                            indexAbstraction,
+                            selectorString,
+                            authorizedIndex,
+                            indicesOptions,
+                            projectMetadata,
+                            indexNameExpressionResolver,
+                            includeDataStreams
+                        )) {
+                        resolveSelectorsAndCollect(authorizedIndex, selectorString, indicesOptions, resolvedIndices, projectMetadata);
+                    }
+                }
+                if (resolvedIndices.isEmpty()) {
+                    // es core honours allow_no_indices for each wildcard expression, we do the same here by throwing index not found.
+                    if (indicesOptions.allowNoIndices() == false) {
+                        // TODO gotta do something here
+                    }
+                    finalRewrittenExpressions.add(replaceOriginIndices(rewrittenExpression, Set.of()));
+                } else {
+                    finalRewrittenExpressions.add(replaceOriginIndices(rewrittenExpression, resolvedIndices));
+                }
+            } else {
+                Set<String> resolvedIndices = new HashSet<>();
+                resolveSelectorsAndCollect(indexAbstraction, selectorString, indicesOptions, resolvedIndices, projectMetadata);
+
+                // TODO this is probably not right?
+                if (indicesOptions.ignoreUnavailable() == false) {
+                    finalRewrittenExpressions.add(replaceOriginIndices(rewrittenExpression, resolvedIndices));
+                } else if (isAuthorized.test(indexAbstraction, selector)) {
+                    finalRewrittenExpressions.add(replaceOriginIndices(rewrittenExpression, resolvedIndices));
+                } else {
+                    finalRewrittenExpressions.add(replaceOriginIndices(rewrittenExpression, Set.of()));
+                }
+            }
+        }
+        // TODO assert size is the same
+        return finalRewrittenExpressions;
+    }
+
+    private static CrossProjectResolvableRequest.RewrittenExpression replaceOriginIndices(
+        CrossProjectResolvableRequest.RewrittenExpression rewrittenExpression,
+        Set<String> resolvedIndices
+    ) {
+        List<CrossProjectResolvableRequest.CanonicalExpression> resolvedOriginalExpressions = resolvedIndices.stream()
+            .map(CrossProjectResolvableRequest.CanonicalExpression::new)
+            .toList();
+        List<CrossProjectResolvableRequest.CanonicalExpression> qualifiedExpressions = rewrittenExpression.canonicalExpressions()
+            .stream()
+            .filter(CrossProjectResolvableRequest.CanonicalExpression::isQualified)
+            .toList();
+        List<CrossProjectResolvableRequest.CanonicalExpression> combined = new ArrayList<>(resolvedOriginalExpressions);
+        combined.addAll(qualifiedExpressions);
+        var e = new CrossProjectResolvableRequest.RewrittenExpression(rewrittenExpression.original(), combined);
+        logger.info("Replaced origin indices for expression [{}] with [{}]", rewrittenExpression, e);
+        return e;
     }
 
     public List<String> resolveIndexAbstractions(
@@ -105,6 +215,7 @@ public class IndexAbstractionResolver {
                     // discarded from the `finalIndices` list. Other "ways of unavailable" must be handled by the action
                     // handler, see: https://github.com/elastic/elasticsearch/issues/90215
                     finalIndices.addAll(resolvedIndices);
+
                 }
             }
         }

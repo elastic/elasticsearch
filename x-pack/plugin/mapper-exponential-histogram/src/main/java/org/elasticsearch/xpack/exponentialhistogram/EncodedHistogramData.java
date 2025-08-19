@@ -28,8 +28,8 @@ import static org.elasticsearch.exponentialhistogram.ExponentialHistogram.MIN_SC
 final class EncodedHistogramData {
 
     // The encoding has the following format:
-    //  - 1 byte: scale + flags
-    //     scale has a range of less than 64, so we can use the two remaining bits for flags
+    // - 1 byte: scale + flags
+    // scale has a range of less than 64, so we can use the two remaining bits for flags
     // Currently the only flag is HAS_NEGATIVE_BUCKETS_FLAG, which indicates that there are negative buckets
     // If this flag is not set, we can skip encoding the length of the negative buckets and therefore save a
     // bit of space for this typical case.

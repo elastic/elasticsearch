@@ -32,14 +32,9 @@ import java.nio.file.Path;
 import java.util.Locale;
 import java.util.OptionalLong;
 
-import static org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsFormat.DEFAULT_BEAM_WIDTH;
-import static org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsFormat.DEFAULT_MAX_CONN;
+public class DirectIOES818BinaryQuantizedVectorsFormatTests extends ES818BinaryQuantizedVectorsFormatTests {
 
-public class ES818DirectIOHnswBinaryQuantizedVectorsFormatTests extends ES818HnswBinaryQuantizedVectorsFormatTests {
-
-    static final Codec codec = TestUtil.alwaysKnnVectorsFormat(
-        new ES818HnswBinaryQuantizedVectorsFormat(DEFAULT_MAX_CONN, DEFAULT_BEAM_WIDTH, true)
-    );
+    static final Codec codec = TestUtil.alwaysKnnVectorsFormat(new DirectIOES818BinaryQuantizedVectorsFormat());
 
     @Override
     protected Codec getCodec() {

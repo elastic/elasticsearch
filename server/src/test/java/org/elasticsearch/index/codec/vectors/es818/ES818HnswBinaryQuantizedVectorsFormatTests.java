@@ -73,7 +73,7 @@ public class ES818HnswBinaryQuantizedVectorsFormatTests extends BaseKnnVectorsFo
         FilterCodec customCodec = new FilterCodec("foo", Codec.getDefault()) {
             @Override
             public KnnVectorsFormat knnVectorsFormat() {
-                return new ES818HnswBinaryQuantizedVectorsFormat(10, 20, 1, false, null);
+                return new ES818HnswBinaryQuantizedVectorsFormat(10, 20, 1, null);
             }
         };
         String expectedPattern =
@@ -123,7 +123,7 @@ public class ES818HnswBinaryQuantizedVectorsFormatTests extends BaseKnnVectorsFo
         expectThrows(IllegalArgumentException.class, () -> new ES818HnswBinaryQuantizedVectorsFormat(20, 3201));
         expectThrows(
             IllegalArgumentException.class,
-            () -> new ES818HnswBinaryQuantizedVectorsFormat(20, 100, 1, false, new SameThreadExecutorService())
+            () -> new ES818HnswBinaryQuantizedVectorsFormat(20, 100, 1, new SameThreadExecutorService())
         );
     }
 

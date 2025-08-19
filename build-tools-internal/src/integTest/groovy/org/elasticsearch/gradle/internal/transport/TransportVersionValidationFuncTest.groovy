@@ -16,9 +16,9 @@ class TransportVersionValidationFuncTest extends AbstractTransportVersionFuncTes
 
     def "test setup works"() {
         when:
-        def result = gradleRunner("validateTransportVersionDefinitions", "validateTransportVersionReferences").build()
+        def result = gradleRunner("validateTransportVersionResources", "validateTransportVersionReferences").build()
         then:
-        result.task(":myserver:validateTransportVersionDefinitions").outcome == TaskOutcome.SUCCESS
+        result.task(":myserver:validateTransportVersionResources").outcome == TaskOutcome.SUCCESS
         result.task(":myserver:validateTransportVersionReferences").outcome == TaskOutcome.SUCCESS
         result.task(":myplugin:validateTransportVersionReferences").outcome == TaskOutcome.SUCCESS
     }
@@ -194,8 +194,8 @@ class TransportVersionValidationFuncTest extends AbstractTransportVersionFuncTes
         file("myserver/src/main/resources/transport/unreferenced/initial_9_0_0.csv").delete()
         file("myserver/src/main/resources/transport/unreferenced").deleteDir()
         when:
-        def result = gradleRunner(":myserver:validateTransportVersionDefinitions").build()
+        def result = gradleRunner(":myserver:validateTransportVersionResources").build()
         then:
-        result.task(":myserver:validateTransportVersionDefinitions").outcome == TaskOutcome.SUCCESS
+        result.task(":myserver:validateTransportVersionResources").outcome == TaskOutcome.SUCCESS
     }
 }

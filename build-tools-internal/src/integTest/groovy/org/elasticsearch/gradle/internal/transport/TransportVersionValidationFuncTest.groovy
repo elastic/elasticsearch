@@ -10,124 +10,9 @@
 package org.elasticsearch.gradle.internal.transport
 
 
-import org.elasticsearch.gradle.fixtures.AbstractGradleFuncTest
-import org.gradle.testkit.runner.BuildResult
 import org.gradle.testkit.runner.TaskOutcome
 
-class TransportVersionManagementPluginFuncTest extends AbstractGradleFuncTest {
-
-    /**
-     *
-     * @param project
-     * @param path
-     * @param content
-     * @return
-     */
-    def javaResource(String project, String path, String content) {
-        file("${project}/src/main/resources/${path}").withWriter { writer ->
-            writer << content
-        }
-    }
-
-    def javaSource(String project, String packageName, String className, String imports, String content) {
-        String packageSlashes = packageName.replace('.', '/')
-        file("${project}/src/main/java/${packageSlashes}/${className}.java").withWriter { writer ->
-            writer << """
-                package ${packageName};
-                ${imports}
-                public class ${className} {
-                    ${content}
-                }
-            """
-        }
-    }
-
-    def namedTransportVersion(String name, String ids) {
-        javaResource("myserver", "transport/definitions/named/" + name + ".csv", ids)
-    }
-
-    def initialTransportVersion(String name, String id) {
-        javaResource("myserver", "transport/definitions/initial/" + name + ".csv", id)
-    }
-
-    def definedAndUsedTransportVersion(String name, String ids) {
-        return definedAndUsedTransportVersion(name, ids, "Test${name.capitalize()}")
-    }
-
-    def definedAndUsedTransportVersion(String name, String ids, String classname) {
-        javaSource("myserver", "org.elasticsearch", classname, "", """
-            static final TransportVersion usage = TransportVersion.fromName("${name}");
-        """)
-        namedTransportVersion(name, ids)
-    }
-
-    def latestTransportVersion(String branch, String name, String id) {
-        javaResource("myserver", "transport/latest/" + branch + ".csv","${name},${id}")
-    }
-
-    def validateReferencesFails(String project) {
-        return gradleRunner(":${project}:validateTransportVersionReferences").buildAndFail()
-    }
-
-    def validateDefinitionsFails() {
-        return gradleRunner(":myserver:validateTransportVersionDefinitions").buildAndFail()
-    }
-
-    def assertReferencesFailure(BuildResult result, String project, String expectedOutput) {
-        result.task(":${project}:validateTransportVersionReferences").outcome == TaskOutcome.FAILED
-        assertOutputContains(result.output, expectedOutput)
-    }
-
-    def assertDefinitionsFailure(BuildResult result, String expectedOutput) {
-        result.task(":myserver:validateTransportVersionDefinitions").outcome == TaskOutcome.FAILED
-        assertOutputContains(result.output, expectedOutput)
-    }
-
-    def setup() {
-        configurationCacheCompatible = false
-        internalBuild()
-        settingsFile << """
-            include ':myserver'
-            include ':myplugin'
-        """
-        file("gradle.properties") << """
-            org.elasticsearch.transport.definitionsProject=:myserver
-        """
-
-        file("myserver/build.gradle") << """
-            apply plugin: 'java-library'
-            apply plugin: 'elasticsearch.transport-version-references'
-            apply plugin: 'elasticsearch.transport-version-resources'
-        """
-        namedTransportVersion("existing_91", "8012000")
-        namedTransportVersion("existing_92", "8123000,8012001")
-        initialTransportVersion("initial_9_0_0", "8000000")
-        latestTransportVersion("9.2", "existing_92", "8123000")
-        latestTransportVersion("9.1", "existing_92", "8012001")
-        // a mock version of TransportVersion, just here so we can compile Dummy.java et al
-        javaSource("myserver", "org.elasticsearch", "TransportVersion", "", """
-            public static TransportVersion fromName(String name) {
-                return null;
-            }
-        """)
-        javaSource("myserver", "org.elasticsearch", "Dummy", "", """
-            static final TransportVersion existing91 = TransportVersion.fromName("existing_91");
-            static final TransportVersion existing92 = TransportVersion.fromName("existing_92");
-        """)
-
-        file("myplugin/build.gradle") << """
-            apply plugin: 'java-library'
-            apply plugin: 'elasticsearch.transport-version-references'
-
-            dependencies {
-                implementation project(":myserver")
-            }
-        """
-
-        setupLocalGitRepo()
-        execute("git checkout -b main")
-        execute("git checkout -b test")
-    }
+class TransportVersionValidationFuncTest extends AbstractTransportVersionFuncTest {
 
     def "test setup works"() {
         when:
@@ -302,5 +187,15 @@ class TransportVersionManagementPluginFuncTest extends AbstractGradleFuncTest {
         then:
         assertDefinitionsFailure(result, "Transport version definition file " +
             "[myserver/src/main/resources/transport/definitions/named/patch.csv] has patch version 8015001 as primary id")
+    }
+
+    def "unreferenced directory is optional"() {
+        given:
+        file("myserver/src/main/resources/transport/unreferenced/initial_9_0_0.csv").delete()
+        file("myserver/src/main/resources/transport/unreferenced").deleteDir()
+        when:
+        def result = gradleRunner(":myserver:validateTransportVersionDefinitions").build()
+        then:
+        result.task(":myserver:validateTransportVersionDefinitions").outcome == TaskOutcome.SUCCESS
     }
 }

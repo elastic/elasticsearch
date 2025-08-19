@@ -40,19 +40,34 @@ public abstract class TextFamilyFieldMapper extends FieldMapper {
      * Returns whether this field mapper needs to support synthetic source.
      */
     protected boolean needsToSupportSyntheticSource() {
-        if (multiFieldsNotStoredByDefaultIndexVersionCheck()) {
+        if (multiFieldsNotStoredByDefault_indexVersionCheck()) {
             // if we're within a multi field, then supporting synthetic source isn't necessary as that's the responsibility of the parent
             return isSyntheticSourceEnabled && isWithinMultiField == false;
         }
         return isSyntheticSourceEnabled;
     }
 
-    private boolean multiFieldsNotStoredByDefaultIndexVersionCheck() {
+    private boolean multiFieldsNotStoredByDefault_indexVersionCheck() {
+        return TextFamilyFieldMapper.multiFieldsNotStoredByDefault_indexVersionCheck(indexCreatedVersion);
+    }
+
+    /**
+     * Returns whether the current index version supports not storing fields by default when they're multi fields.
+     */
+    protected static boolean multiFieldsNotStoredByDefault_indexVersionCheck(final IndexVersion indexCreatedVersion) {
         return indexCreatedVersion.onOrAfter(IndexVersions.MAPPER_TEXT_MATCH_ONLY_MULTI_FIELDS_DEFAULT_NOT_STORED)
             || indexCreatedVersion.between(
                 IndexVersions.MAPPER_TEXT_MATCH_ONLY_MULTI_FIELDS_DEFAULT_NOT_STORED_8_19,
                 IndexVersions.UPGRADE_TO_LUCENE_10_0_0
             );
+    }
+
+    /**
+     * Returns whether the current index version supports not storing keyword multi fields when they trip ignore_above. The consequence
+     * of this check is that the store parameter will be simplified and defaulted to false.
+     */
+    protected static boolean keywordMultiFieldsNotStoredWhenIgnored_indexVersionCheck(final IndexVersion indexCreatedVersion) {
+        return indexCreatedVersion.onOrAfter(IndexVersions.KEYWORD_MULTI_FIELDS_NOT_STORED_WHEN_IGNORED);
     }
 
 }

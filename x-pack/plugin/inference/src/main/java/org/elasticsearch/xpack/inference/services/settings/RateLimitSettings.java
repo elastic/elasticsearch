@@ -53,6 +53,10 @@ public class RateLimitSettings implements Writeable, ToXContentFragment {
         return requestsPerMinute == null ? defaultValue : new RateLimitSettings(requestsPerMinute);
     }
 
+    // public static RateLimitSettings disabledRateLimiting() {
+    //
+    // }
+
     public static Map<String, SettingsConfiguration> toSettingsConfigurationWithDescription(
         String description,
         EnumSet<TaskType> supportedTaskTypes
@@ -84,6 +88,8 @@ public class RateLimitSettings implements Writeable, ToXContentFragment {
     }
 
     /**
+     * This should only be used for testing.
+     *
      * Defines the settings in requests per the time unit provided
      * @param requestsPerTimeUnit number of requests
      * @param timeUnit _
@@ -96,6 +102,12 @@ public class RateLimitSettings implements Writeable, ToXContentFragment {
         }
         this.requestsPerTimeUnit = requestsPerTimeUnit;
         this.timeUnit = Objects.requireNonNull(timeUnit);
+    }
+
+    private RateLimitSettings(long requestsPerTimeUnit, TimeUnit timeUnit, boolean disableRateLimiting) {
+        this.requestsPerTimeUnit = 0;
+        this.timeUnit = Objects.requireNonNull(timeUnit);
+
     }
 
     public RateLimitSettings(StreamInput in) throws IOException {

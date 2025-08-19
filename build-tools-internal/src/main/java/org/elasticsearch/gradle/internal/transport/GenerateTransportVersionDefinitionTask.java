@@ -165,7 +165,7 @@ public abstract class GenerateTransportVersionDefinitionTask extends DefaultTask
     }
 
     private Set<String> getTargetReleaseBranches() {
-        if (getBranches().isPresent()) {
+        if (getBranches().get().isEmpty() == false) {
             return getBranches().get()
                 .stream()
                 .map(branch -> branch.equals("main") ? getMainReleaseBranch().get() : branch)

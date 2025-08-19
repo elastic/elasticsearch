@@ -9,11 +9,7 @@
 
 package org.elasticsearch.gradle.internal.transport
 
-import org.elasticsearch.gradle.util.Pair
-import org.gradle.internal.impldep.com.google.common.collect.Streams
 import org.gradle.testkit.runner.TaskOutcome
-
-import java.util.stream.Stream
 
 class TransportVersionGenerationFuncTest extends AbstractTransportVersionFuncTest {
     def "test setup works"() {
@@ -27,34 +23,45 @@ class TransportVersionGenerationFuncTest extends AbstractTransportVersionFuncTes
         given:
         String tvName = "potato_tv"
         when:
-        def result = gradleRunner("generateTransportVersionDefinition", "--name=" + tvName, "--increment=1").build()
+        def result = gradleRunner(
+                "generateTransportVersionDefinition",
+                "--name=" + tvName,
+                "--increment=1",
+                "--branches=main"
+        ).build()
         then:
         result.task(":myserver:generateTransportVersionDefinition").outcome == TaskOutcome.SUCCESS
         validateDefinitionFile(tvName, List.of("9.2"))
     }
 
-    void validateDefinitionFile(String name, List<String> branches) { // TODO add primary increment
-        String filename = "myserver/src/main/resources/transport/definitions/named/" + name + ".csv"
+    def "Missing required arguments should fail, state should remain unaltered"() {
+        // TODO
+    }
+
+    // TODO add a check for the increment, primary and patch
+    void validateDefinitionFile(String definitionName, List<String> branches) {
+        String filename = "myserver/src/main/resources/transport/definitions/named/" + definitionName + ".csv"
         assert file(filename).exists()
 
-        String contents = file(filename).text
-        assert contents.strip().isEmpty() == false
-        String[] x = contents.strip().split(",")
-        Stream<Integer> ids = Arrays.stream(x).map(Integer::valueOf)
-        assert branches.size() == ids.count(): "The definition file does not have the correct number of ids"
+        String definitionFileText = file(filename).text.strip()
+        assert definitionFileText.isEmpty() == false: "The definition file must not be empty"
+        List<Integer> definitionIDs = Arrays.stream(definitionFileText.split(",")).map(Integer::valueOf).toList()
+        assert branches.size() == definitionIDs.size(): "The definition file does not have an id for each branch"
 
-        def latestInfo = branches.stream()
+        def latestNamesToIds = branches.stream()
                 .map { file("myserver/src/main/resources/transport/latest/${it}.csv").text }
-                .map { contents.strip().split(",") }
-                .map { Pair<String, Integer>.of(it.first(), Integer.valueOf(it.last())) }
+                .map { it.strip().split(",") }
+                .map { new Tuple2(it.first(), Integer.valueOf(it.last())) }
+                .toList()
 
-        Streams.zip(ids, latestInfo, { (id, latest) -> Pair.of(id, latest) })
-                .forEach {
-                    (id, Pair latest) -> {
-                        assert name == latest.left(): "The latest file should contain the same name as the new transport version"
-                        assert id == latest.right(): "The latest file should contain the same id as the new transport version"
-                    }
-                }
+        for (int i = 0; i < definitionIDs.size(); i++) {
+            int definitionID = definitionIDs[i]
+            String nameInLatest = latestNamesToIds[i].getV1()
+            def idInLatest = latestNamesToIds[i].getV2()
+
+            assert definitionName.equals(nameInLatest): "The latest and definition names must match"
+            assert definitionID == idInLatest: "The latest and definition ids must match"
+        }
     }
 
     /*

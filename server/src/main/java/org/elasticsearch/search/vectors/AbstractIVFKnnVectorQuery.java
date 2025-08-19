@@ -138,13 +138,21 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
 
         int totalDocsWVectors = 0;
         assert this instanceof IVFKnnFloatVectorQuery;
+        int[] costs = new int[leafReaderContexts.size()];
+        int i = 0;
         for (LeafReaderContext leafReaderContext : leafReaderContexts) {
             LeafReader leafReader = leafReaderContext.reader();
             FieldInfo fieldInfo = leafReader.getFieldInfos().fieldInfo(field);
             VectorScorer scorer = createVectorScorer(leafReaderContext, fieldInfo);
+            int cost;
             if (scorer != null) {
-                totalDocsWVectors += (int) scorer.iterator().cost();
+                cost = (int) scorer.iterator().cost();
+                totalDocsWVectors += cost;
+            } else {
+                cost = 0;
             }
+            costs[i] = cost;
+            i++;
         }
 
         final float visitRatio;
@@ -165,7 +173,7 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
         if (leafReaderContexts.isEmpty() == false) {
             // calculate the affinity of each segment to the query vector
             // (need information from each segment: no. of clusters, global centroid, density, parent centroids' scores, etc.)
-            List<SegmentAffinity> segmentAffinities = calculateSegmentAffinities(leafReaderContexts, getQueryVector());
+            List<SegmentAffinity> segmentAffinities = calculateSegmentAffinities(leafReaderContexts, getQueryVector(), costs);
 
             // TODO: sort segments by affinity score in descending order, and cut the long tail ?
             double[] affinityScores = segmentAffinities.stream()
@@ -182,9 +190,22 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
                 / filteredAffinityScores.length;
             double stdDev = Math.sqrt(variance);
 
-            double maxAffinity = averageAffinity + 50 * stdDev;
-            double cutoffAffinity = averageAffinity - 50 * stdDev;
-            double affinityThreshold = averageAffinity + stdDev;
+            double maxAffinity;
+            double cutoffAffinity;
+            double affinityThreshold;
+
+            if (stdDev > averageAffinity) {
+                // adjust calculation when distribution is very skewed (e.g., if (stdDev > averageAffinity) )
+                double minAffinity = Arrays.stream(affinityScores).min().orElse(Double.NaN);
+                maxAffinity = Arrays.stream(affinityScores).max().orElse(Double.NaN);
+                double lowerAffinity = (minAffinity + averageAffinity) * 0.5;
+                cutoffAffinity = lowerAffinity * 0.1;
+                affinityThreshold = (minAffinity + lowerAffinity) * 0.66;
+            } else {
+                maxAffinity = averageAffinity + 50 * stdDev;
+                cutoffAffinity = averageAffinity - 50 * stdDev;
+                affinityThreshold = averageAffinity + stdDev;
+            }
 
             float maxAdjustments = visitRatio * 1.5f;
 
@@ -198,7 +219,7 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
                 double scoreVectorsSum = segmentAffinities.stream().map(segmentAffinity -> {
                     double affinity = Double.isNaN(segmentAffinity.affinityScore) ? maxAffinity : segmentAffinity.affinityScore;
                     affinity = Math.clamp(affinity, 0.0, maxAffinity);
-                    return affinity * segmentAffinity.context.reader().numDocs();
+                    return affinity * segmentAffinity.numVectors;
                 }).mapToDouble(Double::doubleValue).sum();
 
                 for (SegmentAffinity segmentAffinity : segmentAffinities) {
@@ -210,8 +231,12 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
                     LeafReaderContext context = segmentAffinity.context();
 
                     // distribute the budget according to : budgetᵢ = total_budget × (affinityᵢ × |vectors|ᵢ) / ∑ (affinityⱼ × |vectors|ⱼ)
-                    int segmentBudget = (int) (totalBudget * (score * context.reader().numDocs()) / scoreVectorsSum);
-                    tasks.add(() -> searchLeaf(context, filterWeight, knnCollectorManager, adjustedVisitRatio, Math.max(1, segmentBudget)));
+                    int segmentBudget = (int) (totalBudget * (score * segmentAffinity.numVectors) / scoreVectorsSum);
+                    if (segmentBudget > 0) {
+                        tasks.add(
+                            () -> searchLeaf(context, filterWeight, knnCollectorManager, adjustedVisitRatio, Math.max(1, segmentBudget))
+                        );
+                    }
                 }
             }
         } else {
@@ -260,10 +285,11 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
         return result;
     }
 
-    private List<SegmentAffinity> calculateSegmentAffinities(List<LeafReaderContext> leafReaderContexts, float[] queryVector)
+    private List<SegmentAffinity> calculateSegmentAffinities(List<LeafReaderContext> leafReaderContexts, float[] queryVector, int[] costs)
         throws IOException {
         List<SegmentAffinity> segmentAffinities = new ArrayList<>(leafReaderContexts.size());
 
+        int i = 0;
         for (LeafReaderContext context : leafReaderContexts) {
             LeafReader leafReader = context.reader();
             FieldInfo fieldInfo = leafReader.getFieldInfos().fieldInfo(field);
@@ -293,8 +319,9 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
                     float centroidsScore = similarityFunction.compare(queryVector, globalCentroid);
 
                     // clusters per vector (< 1), higher is better (better coverage)
+                    int numVectors = costs[i];
                     int numCentroids = reader.getNumCentroids(fieldInfo);
-                    double centroidDensity = (double) numCentroids / leafReader.numDocs();
+                    double centroidDensity = (double) numCentroids / numVectors;
 
                     // with larger clusters, global centroid might not be a good representative,
                     // so we want to include "some" centroids' scores for higher quality estimate
@@ -315,17 +342,18 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
 
                     double affinityScore = centroidsScore * (1 + centroidDensity);
 
-                    segmentAffinities.add(new SegmentAffinity(context, affinityScore));
+                    segmentAffinities.add(new SegmentAffinity(context, affinityScore, numVectors));
                 } else {
-                    segmentAffinities.add(new SegmentAffinity(context, 0.5));
+                    segmentAffinities.add(new SegmentAffinity(context, Float.NaN, 0));
                 }
             }
+            i++;
         }
 
         return segmentAffinities;
     }
 
-    private record SegmentAffinity(LeafReaderContext context, double affinityScore) {}
+    private record SegmentAffinity(LeafReaderContext context, double affinityScore, int numVectors) {}
 
     private TopDocs searchLeaf(
         LeafReaderContext ctx,

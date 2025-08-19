@@ -70,8 +70,9 @@ public class IgnoreNullMetricsTests extends ESTestCase {
             | STATS max(max_over_time(metric_1))
             | LIMIT 10
             """);
-        Limit limit = as(actual, Limit.class);
-        Aggregate agg = as(limit.child(), Aggregate.class);
+        Limit limit_10000 = as(actual, Limit.class);
+        Limit limit_10 = as(limit_10000.child(), Limit.class);
+        Aggregate agg = as(limit_10.child(), Aggregate.class);
         Filter filter = as(agg.child(), Filter.class);
         IsNotNull condition = as(filter.condition(), IsNotNull.class);
 

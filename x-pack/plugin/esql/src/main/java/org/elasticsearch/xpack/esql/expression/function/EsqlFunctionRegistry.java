@@ -186,6 +186,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.string.Trim;
 import org.elasticsearch.xpack.esql.expression.function.scalar.util.Delay;
 import org.elasticsearch.xpack.esql.expression.function.vector.CosineSimilarity;
 import org.elasticsearch.xpack.esql.expression.function.vector.DotProduct;
+import org.elasticsearch.xpack.esql.expression.function.vector.Hamming;
 import org.elasticsearch.xpack.esql.expression.function.vector.Knn;
 import org.elasticsearch.xpack.esql.expression.function.vector.L1Norm;
 import org.elasticsearch.xpack.esql.expression.function.vector.L2Norm;
@@ -507,7 +508,8 @@ public class EsqlFunctionRegistry {
                 def(DotProduct.class, DotProduct::new, "v_dot_product"),
                 def(L1Norm.class, L1Norm::new, "v_l1_norm"),
                 def(L2Norm.class, L2Norm::new, "v_l2_norm"),
-                def(Magnitude.class, Magnitude::new, "v_magnitude") } };
+                def(Magnitude.class, Magnitude::new, "v_magnitude"),
+                def(Hamming.class, Hamming::new, "v_hamming") } };
     }
 
     public EsqlFunctionRegistry snapshotRegistry() {

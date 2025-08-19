@@ -17,5 +17,5 @@ public interface RootObjectMapperNamespaceValidator {
     /**
      * If the namespace in the mapper is not allowed, an Exception should be thrown.
      */
-    void validateNamespace(ObjectMapper.Subobjects subobjects, Mapper mapper);
+    void validateNamespace(ObjectMapper.Subobjects subobjects, String name);
 }

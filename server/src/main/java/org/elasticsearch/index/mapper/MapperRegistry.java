@@ -43,7 +43,7 @@ public final class MapperRegistry {
         // MP TODO: remove this no-op RootObjectMapperNamespaceValidator once we know how all this is going to work
         this(mapperParsers, runtimeFieldParsers, metadataMapperParsers, fieldFilter, new RootObjectMapperNamespaceValidator() {
             @Override
-            public void validateNamespace(ObjectMapper.Subobjects subobjects, Mapper mapper) {}
+            public void validateNamespace(ObjectMapper.Subobjects subobjects, String name) {}
         });
     }
 

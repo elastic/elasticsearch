@@ -2207,6 +2207,29 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
         assertEquals(VectorSimilarity.COSINE, denseVectorFieldType.getSimilarity());
     }
 
+    public void testValidateOnBuild() {
+        final MapperBuilderContext context = MapperBuilderContext.root(false, false);
+
+        int dimensions = randomIntBetween(64, 1024);
+        // Build a dense vector field mapper with float element type, which will trigger int8 HNSW index options
+        DenseVectorFieldMapper mapper = new DenseVectorFieldMapper.Builder("test", IndexVersion.current(), false).elementType(
+            ElementType.FLOAT
+        ).dimensions(dimensions).build(context);
+
+        // Change the element type to byte, which is incompatible with int8 HNSW index options
+        DenseVectorFieldMapper.Builder builder = (DenseVectorFieldMapper.Builder) mapper.getMergeBuilder();
+        builder.elementType(ElementType.BYTE);
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> builder.build(context));
+        assertThat(
+            e.getMessage(),
+            containsString(
+                dimensions >= DenseVectorFieldMapper.BBQ_DIMS_DEFAULT_THRESHOLD
+                    ? "[element_type] cannot be [byte] when using index type [bbq_hnsw]"
+                    : "[element_type] cannot be [byte] when using index type [int8_hnsw]"
+            )
+        );
+    }
+    
     public void testSetIndexed() {
         final MapperBuilderContext context = MapperBuilderContext.root(false, false);
 

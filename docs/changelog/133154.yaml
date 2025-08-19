@@ -1,0 +1,5 @@
+pr: 133154
+summary: Allow cofiguring SAML secure attributes
+area: Authentication
+type: enhancement
+issues: []

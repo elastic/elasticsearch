@@ -365,7 +365,15 @@ public final class ObjectMapperMergeTests extends ESTestCase {
     private static ObjectMapper.Builder createObjectSubobjectsFalseLeafWithDots() {
         KeywordFieldMapper.Builder fieldBuilder = new KeywordFieldMapper.Builder("host.name", IndexVersion.current());
         KeywordFieldMapper fieldMapper = fieldBuilder.build(
-            MapperBuilderContext.builder().path("foo.metrics").isSourceSynthetic(false).isDataStream(false).build()
+            new MapperBuilderContext(
+                "foo.metrics",
+                false,
+                false,
+                false,
+                ObjectMapper.Defaults.DYNAMIC,
+                MapperService.MergeReason.MAPPING_UPDATE,
+                false
+            )
         );
         assertEquals("host.name", fieldMapper.leafName());
         assertEquals("foo.metrics.host.name", fieldMapper.fullPath());
@@ -377,7 +385,15 @@ public final class ObjectMapperMergeTests extends ESTestCase {
     private ObjectMapper.Builder createObjectSubobjectsFalseLeafWithMultiField() {
         TextFieldMapper.Builder fieldBuilder = createTextKeywordMultiField("host.name");
         TextFieldMapper textKeywordMultiField = fieldBuilder.build(
-            MapperBuilderContext.builder().path("foo.metrics").isSourceSynthetic(false).isDataStream(false).build()
+            new MapperBuilderContext(
+                "foo.metrics",
+                false,
+                false,
+                false,
+                ObjectMapper.Defaults.DYNAMIC,
+                MapperService.MergeReason.MAPPING_UPDATE,
+                false
+            )
         );
         assertEquals("host.name", textKeywordMultiField.leafName());
         assertEquals("foo.metrics.host.name", textKeywordMultiField.fullPath());

@@ -26,12 +26,15 @@ public class TransportVersionResourcesPlugin implements Plugin<Project> {
     public void apply(Project project) {
         project.getPluginManager().apply(LifecycleBasePlugin.class);
 
+        String resourceRoot = getResourceRoot(project);
+
         project.getGradle()
             .getSharedServices()
             .registerIfAbsent("transportVersionResources", TransportVersionResourcesService.class, spec -> {
                 Directory transportResources = project.getLayout().getProjectDirectory().dir("src/main/resources/transport");
                 spec.getParameters().getResourcesDirectory().set(transportResources);
                 spec.getParameters().getRootDirectory().set(project.getRootProject().getRootDir());
+                spec.getParameters().getResourceRoot().set(resourceRoot);
             });
 
         DependencyHandler depsHandler = project.getDependencies();
@@ -62,7 +65,15 @@ public class TransportVersionResourcesPlugin implements Plugin<Project> {
                 t.getManifestFile().set(project.getLayout().getBuildDirectory().file("generated-resources/manifest.txt"));
             });
         project.getTasks().named(JavaPlugin.PROCESS_RESOURCES_TASK_NAME, Copy.class).configure(t -> {
-            t.into("transport/definitions", c -> c.from(generateManifestTask));
+            t.into(resourceRoot + "/definitions", c -> c.from(generateManifestTask));
         });
+    }
+
+    private static String getResourceRoot(Project project) {
+        var resourceRoot = project.findProperty("org.elasticsearch.transport.resourceRoot");
+        if (resourceRoot == null) {
+            resourceRoot = "transport";
+        }
+        return resourceRoot.toString();
     }
 }

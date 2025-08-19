@@ -10,6 +10,7 @@
 package org.elasticsearch.gradle.internal.transport;
 
 import org.gradle.api.file.DirectoryProperty;
+import org.gradle.api.provider.Property;
 import org.gradle.api.services.BuildService;
 import org.gradle.api.services.BuildServiceParameters;
 import org.gradle.process.ExecOperations;
@@ -54,6 +55,8 @@ public abstract class TransportVersionResourcesService implements BuildService<T
         DirectoryProperty getResourcesDirectory();
 
         DirectoryProperty getRootDirectory();
+
+        Property<String> getResourceRoot();
     }
 
     @Inject

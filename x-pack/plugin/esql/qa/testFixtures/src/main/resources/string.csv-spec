@@ -389,7 +389,7 @@ emp_no:integer | name:keyword
 ;
 
 
-contains#[skip:-9.2.99,reason:new string function added in 9.3]
+contains
 // tag::contains[]
 ROW a = "hello"
 | EVAL has_ll = CONTAINS(a, "ll")
@@ -402,28 +402,28 @@ hello     | true
 // end::contains-result[]
 ;
 
-containsFail#[skip:-9.2.99,reason:new string function added in 9.3]
+containsFail
 row a = "hello" | eval a_ll = contains(a, "int");
 
 a:keyword | a_ll:boolean
 hello | false
 ;
 
-containsLongerSubstr#[skip:-9.2.99,reason:new string function added in 9.3]
+containsLongerSubstr
 row a = "hello" | eval a_ll = contains(a, "farewell");
 
 a:keyword | a_ll:boolean
 hello | false
 ;
 
-containsSame#[skip:-9.2.99,reason:new string function added in 9.3]
+containsSame
 row a = "hello" | eval a_ll = contains(a, "hello");
 
 a:keyword | a_ll:boolean
 hello | true
 ;
 
-containsWithSubstring#[skip:-9.2.99,reason:new string function added in 9.3]
+containsWithSubstring
 from employees | where emp_no <= 10010 | eval f_s = substring(last_name, 2) | eval f_l = contains(last_name, f_s) | keep emp_no, last_name, f_s, f_l;
 ignoreOrder:true
 
@@ -440,33 +440,33 @@ emp_no:integer | last_name:keyword | f_s:keyword | f_l:boolean
 10010 | Piveteau  | iveteau | true
 ;
 
-containsUtf16Emoji#[skip:-9.2.99,reason:new string function added in 9.3]
+containsUtf16Emoji
 row a = "🐱Meow!🐶Woof!" | eval f_s = substring(a, 2) | eval f_l = contains(a, f_s);
 
 a:keyword | f_s:keyword | f_l:boolean
 🐱Meow!🐶Woof! | Meow!🐶Woof! | true
 ;
 
-containsNestedCase#[skip:-9.2.99,reason:new string function added in 9.3]
+containsNestedCase
 row a = "hello" | eval a_ll = CASE(contains(a, "ll"), "success","fail");
 
 a:keyword | a_ll:keyword
 hello | success
 ;
 
-containsNestSubstring#[skip:-9.2.99,reason:new string function added in 9.3]
+containsNestSubstring
 row a = "hello" | eval a_ll = contains(substring(a, 2), "ll");
 
 a:keyword | a_ll:boolean
 hello | true
 ;
 
-containsWarnings#[skip:-9.2.99,reason:new string function added in 9.3]
+containsWarnings
 
 from hosts | where host=="epsilon" | eval l1 = contains(host_group, "ate"), l2 = contains(description, "ate") | keep l1, l2;
 ignoreOrder:true
-warning:Line 1:80: evaluation of [contains(description, \"ate\")] failed, treating result as null. Only first 20 failures recorded.
-warning:Line 1:80: java.lang.IllegalArgumentException: single-value function encountered multi-value
+warning:Line 1:82: evaluation of [contains(description, \"ate\")] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 1:82: java.lang.IllegalArgumentException: single-value function encountered multi-value
 
 l1:boolean | l2:boolean
 true          | null

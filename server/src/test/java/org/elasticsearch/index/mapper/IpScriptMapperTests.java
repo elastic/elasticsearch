@@ -75,16 +75,16 @@ public class IpScriptMapperTests extends MapperScriptTestCase<IpFieldScript.Fact
     @Override
     protected void assertMultipleValues(List<IndexableField> fields) {
         assertEquals(4, fields.size());
-        assertEquals("InetAddressPoint <field:[0:0:0:0:0:0:0:1]>", fields.get(0).toString());
+        assertEquals("ESInetAddressPoint <field:[::1]>", fields.get(0).toString());
         assertEquals("docValuesType=SORTED_SET<field:[0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1]>", fields.get(1).toString());
-        assertEquals("InetAddressPoint <field:[0:0:0:0:0:0:0:2]>", fields.get(2).toString());
+        assertEquals("ESInetAddressPoint <field:[::2]>", fields.get(2).toString());
         assertEquals("docValuesType=SORTED_SET<field:[0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 2]>", fields.get(3).toString());
     }
 
     @Override
     protected void assertDocValuesDisabled(List<IndexableField> fields) {
         assertEquals(1, fields.size());
-        assertEquals("InetAddressPoint <field:[0:0:0:0:0:0:0:1]>", fields.get(0).toString());
+        assertEquals("ESInetAddressPoint <field:[::1]>", fields.get(0).toString());
     }
 
     @Override

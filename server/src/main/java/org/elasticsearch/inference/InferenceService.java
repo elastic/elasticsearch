@@ -108,7 +108,9 @@ public interface InferenceService extends Closeable {
      * @param stream          Stream inference results
      * @param taskSettings    Settings in the request to override the model's defaults
      * @param inputType       For search, ingest etc
-     * @param timeout         The timeout for the request
+     * @param timeout         The timeout for the request. Callers should normally pass in a timeout.
+     *                        Passing in null is specifically for query-time inference, when the timeout is managed by the
+     *                        xpack.inference.query_timeout cluster setting.
      * @param listener        Inference result listener
      */
     void infer(
@@ -120,7 +122,7 @@ public interface InferenceService extends Closeable {
         boolean stream,
         Map<String, Object> taskSettings,
         InputType inputType,
-        TimeValue timeout,
+        @Nullable TimeValue timeout,
         ActionListener<InferenceServiceResults> listener
     );
 

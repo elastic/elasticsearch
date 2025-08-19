@@ -110,6 +110,8 @@ tasks.named("test").configure {
   File snippetsFolder = file("build/testrun/test/temp/esql/_snippets")
   File kibanaFolder = file("build/testrun/test/temp/esql/kibana")
 
+  // BuildParams isn't available inside doFirst with --configuration-cache
+  def buildParams = buildParams
   doFirst {
     injected.fs.delete {
       it.delete(tempDir)

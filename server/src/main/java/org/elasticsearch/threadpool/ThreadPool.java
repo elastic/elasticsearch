@@ -1024,6 +1024,23 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler, 
             return builder;
         }
 
+        @Override
+        public String toString() {
+            return "Info[name="
+                + name
+                + ",type="
+                + type
+                + ",min="
+                + min
+                + ",max="
+                + max
+                + ",keepAlive="
+                + keepAlive
+                + ",queueSize="
+                + queueSize
+                + "]";
+        }
+
     }
 
     /**

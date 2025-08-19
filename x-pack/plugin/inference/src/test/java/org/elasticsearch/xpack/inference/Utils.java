@@ -26,25 +26,16 @@ import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.inference.results.ChatCompletionResults;
-import org.elasticsearch.xpack.inference.common.Truncator;
-import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
-import org.elasticsearch.xpack.inference.external.http.HttpSettings;
-import org.elasticsearch.xpack.inference.external.http.retry.RetrySettings;
-import org.elasticsearch.xpack.inference.external.http.sender.RequestExecutorServiceSettings;
-import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
 import org.elasticsearch.xpack.inference.mock.TestDenseInferenceServiceExtension;
 import org.elasticsearch.xpack.inference.mock.TestSparseInferenceServiceExtension;
 import org.elasticsearch.xpack.inference.registry.ModelRegistry;
-import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceSettings;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
-import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import static org.elasticsearch.test.ESTestCase.randomFrom;
 import static org.elasticsearch.xpack.inference.InferencePlugin.UTILITY_THREAD_POOL_NAME;
@@ -71,15 +62,7 @@ public final class Utils {
     public static ClusterService mockClusterService(Settings settings) {
         var clusterService = mock(ClusterService.class);
 
-        var registeredSettings = Stream.of(
-            HttpSettings.getSettingsDefinitions(),
-            HttpClientManager.getSettingsDefinitions(),
-            ThrottlerManager.getSettingsDefinitions(),
-            RetrySettings.getSettingsDefinitions(),
-            Truncator.getSettingsDefinitions(),
-            RequestExecutorServiceSettings.getSettingsDefinitions(),
-            ElasticInferenceServiceSettings.getSettingsDefinitions()
-        ).flatMap(Collection::stream).collect(Collectors.toSet());
+        var registeredSettings = InferencePlugin.getInferenceSettings();
 
         var cSettings = new ClusterSettings(settings, registeredSettings);
         when(clusterService.getClusterSettings()).thenReturn(cSettings);

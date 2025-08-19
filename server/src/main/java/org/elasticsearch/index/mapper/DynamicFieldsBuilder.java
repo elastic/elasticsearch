@@ -341,7 +341,6 @@ final class DynamicFieldsBuilder {
                         indexSettings.getIndexVersionCreated(),
                         indexSettings.getMode(),
                         context.indexAnalyzers(),
-                        SourceFieldMapper.isSynthetic(indexSettings),
                         false
                     ).addMultiField(
                         new KeywordFieldMapper.Builder("keyword", context.indexSettings().getIndexVersionCreated()).ignoreAbove(256)

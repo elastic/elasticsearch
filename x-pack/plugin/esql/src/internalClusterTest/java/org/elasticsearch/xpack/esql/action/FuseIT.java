@@ -39,7 +39,7 @@ public class FuseIT extends AbstractEsqlIntegTestCase {
             | FORK
                ( WHERE content:"fox" | SORT _score, _id DESC )
                ( WHERE content:"dog" | SORT _score, _id DESC )
-            | FUSE RRF OPTIONS {"weights": { "fork1": 0.4, "fork2": 0.6}}
+            | FUSE RRF WITH {"weights": { "fork1": 0.4, "fork2": 0.6}}
             | SORT _score DESC, _id, _index
             | EVAL _fork = mv_sort(_fork)
             | EVAL _score = round(_score, 4)
@@ -65,7 +65,7 @@ public class FuseIT extends AbstractEsqlIntegTestCase {
             | FORK
                ( WHERE content:"fox" | SORT _score, _id DESC )
                ( WHERE content:"dog" | SORT _score, _id DESC )
-            | FUSE LINEAR OPTIONS {"weights": { "fork1": 0.4, "fork2": 0.6}, "normalizer": "l2_norm"}
+            | FUSE LINEAR WITH {"weights": { "fork1": 0.4, "fork2": 0.6}, "normalizer": "l2_norm"}
             | SORT _score DESC
             | EVAL _fork = mv_sort(_fork)
             | EVAL _score = round(_score, 4)

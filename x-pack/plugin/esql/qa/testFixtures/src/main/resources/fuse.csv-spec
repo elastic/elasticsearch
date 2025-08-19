@@ -168,7 +168,7 @@ required_capability: metadata_score
 FROM books METADATA _id, _index, _score
 | FORK ( WHERE title:"Tolkien" | SORT _score, _id DESC | LIMIT 3 )
        ( WHERE author:"Tolkien" | SORT _score, _id DESC | LIMIT 3 )
-| FUSE rrf OPTIONS {"rank_constant": 50 }
+| FUSE rrf WITH {"rank_constant": 50 }
 | SORT _score DESC, _id, _index
 | EVAL _fork = mv_sort(_fork)
 | EVAL _score = round(_score, 5)
@@ -192,7 +192,7 @@ required_capability: metadata_score
 FROM books METADATA _id, _index, _score
 | FORK ( WHERE title:"Tolkien" | SORT _score, _id DESC | LIMIT 3 )
        ( WHERE author:"Tolkien" | SORT _score, _id DESC | LIMIT 3 )
-| FUSE rrf OPTIONS {"weights": { "fork1": 0.3, "fork2": 0.7 } }
+| FUSE rrf WITH {"weights": { "fork1": 0.3, "fork2": 0.7 } }
 | SORT _score DESC, _id, _index
 | EVAL _fork = mv_sort(_fork)
 | EVAL _score = round(_score, 5)
@@ -219,7 +219,7 @@ FROM books METADATA _id, _score
        ( WHERE author:"Tolkien" | SORT _score, _id DESC | LIMIT 3
         | EVAL new_id = CONCAT(_id, _id), new_score = _score + 1, new_fork = "B")
 | DROP _id, _score
-| FUSE rrf KEY new_fork GROUP new_id SCORE new_score OPTIONS {"rank_constant": 60, "weights": { "fork1": 0.3, "fork2": 0.7 } }
+| FUSE rrf KEY new_fork GROUP new_id SCORE new_score WITH {"rank_constant": 60, "weights": { "fork1": 0.3, "fork2": 0.7 } }
 | SORT new_score DESC, new_id
 | EVAL new_fork = mv_sort(new_fork)
 | EVAL new_score = round(new_score, 5)
@@ -322,7 +322,7 @@ FROM books METADATA _id, _score
 | EVAL new_fork = CASE (_fork == "fork1", "A", "B")
 | EVAL new_score = _score * 2
 | DROP _fork, _score
-| FUSE rrf KEY new_fork GROUP new_id SCORE new_score OPTIONS {"rank_constant": 60, "weights": { "fork1": 0.3, "fork2": 0.7 } }
+| FUSE rrf KEY new_fork GROUP new_id SCORE new_score WITH {"rank_constant": 60, "weights": { "fork1": 0.3, "fork2": 0.7 } }
 | SORT new_score DESC, new_id
 | EVAL new_fork = mv_sort(new_fork)
 | EVAL new_score = round(new_score, 5)
@@ -371,7 +371,7 @@ required_capability: metadata_score
 FROM books METADATA _id, _index, _score
 | FORK ( WHERE title:"Tolkien" | SORT _score, _id DESC | LIMIT 3 )
        ( WHERE author:"Tolkien" | SORT _score, _id DESC | LIMIT 3 )
-| FUSE linear OPTIONS {"normalizer": "l2_norm"}
+| FUSE linear WITH {"normalizer": "l2_norm"}
 | SORT _score DESC, _id, _index
 | EVAL _fork = mv_sort(_fork)
 | EVAL _score = round(_score, 5)
@@ -396,7 +396,7 @@ required_capability: metadata_score
 FROM books METADATA _id, _index, _score
 | FORK ( WHERE title:"Tolkien" | SORT _score, _id DESC | LIMIT 3 )
        ( WHERE author:"Tolkien" | SORT _score, _id DESC | LIMIT 3 )
-| FUSE linear OPTIONS {"normalizer": "minmax"}
+| FUSE linear WITH {"normalizer": "minmax"}
 | SORT _score DESC, _id, _index
 | EVAL _fork = mv_sort(_fork)
 | EVAL _score = round(_score, 5)
@@ -420,7 +420,7 @@ required_capability: metadata_score
 FROM books METADATA _id, _index, _score
 | FORK ( WHERE title:"Tolkien" | SORT _score, _id DESC | LIMIT 3 )
        ( WHERE author:"Tolkien" | SORT _score, _id DESC | LIMIT 3 )
-| FUSE linear OPTIONS {"weights": { "fork1": 0.3, "fork2": 0.7 }}
+| FUSE linear WITH {"weights": { "fork1": 0.3, "fork2": 0.7 }}
 | SORT _score DESC, _id, _index
 | EVAL _fork = mv_sort(_fork)
 | EVAL _score = round(_score, 5)
@@ -445,7 +445,7 @@ required_capability: metadata_score
 FROM books METADATA _id, _index, _score
 | FORK ( WHERE title:"Tolkien" | SORT _score, _id DESC | LIMIT 3 )
        ( WHERE author:"Tolkien" | SORT _score, _id DESC | LIMIT 3 )
-| FUSE linear OPTIONS {"weights": { "fork1": 0.3, "inexistent": 0.7 }}
+| FUSE linear WITH {"weights": { "fork1": 0.3, "inexistent": 0.7 }}
 | SORT _score DESC, _id, _index
 | EVAL _fork = mv_sort(_fork)
 | EVAL _score = round(_score, 5)
@@ -470,7 +470,7 @@ required_capability: metadata_score
 FROM books METADATA _id, _index, _score
 | FORK ( WHERE title:"Tolkien" | SORT _score, _id DESC | LIMIT 3 )
        ( WHERE author:"Tolkien" | SORT _score, _id DESC | LIMIT 3 )
-| FUSE linear OPTIONS {"normalizer": "minmax", "weights": { "fork1": 0.3, "fork2": 0.7 }}
+| FUSE linear WITH {"normalizer": "minmax", "weights": { "fork1": 0.3, "fork2": 0.7 }}
 | SORT _score DESC, _id, _index
 | EVAL _fork = mv_sort(_fork)
 | EVAL _score = round(_score, 5)
@@ -575,7 +575,7 @@ FROM books METADATA _id, _score
 | EVAL new_fork = CASE (_fork == "fork1", "A", "B")
 | EVAL new_score = _score * 2
 | DROP _fork, _score
-| FUSE LINEAR KEY new_fork GROUP new_id SCORE new_score OPTIONS {"normalizer": "minmax", "weights": { "fork1": 0.3, "fork2": 0.7 }}
+| FUSE LINEAR KEY new_fork GROUP new_id SCORE new_score WITH {"normalizer": "minmax", "weights": { "fork1": 0.3, "fork2": 0.7 }}
 | SORT new_score DESC, new_id
 | EVAL new_fork = mv_sort(new_fork)
 | EVAL new_score = round(new_score, 5)

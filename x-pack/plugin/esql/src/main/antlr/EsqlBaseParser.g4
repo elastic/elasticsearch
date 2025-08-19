@@ -321,7 +321,7 @@ insistCommand
     ;
 
 fuseCommand
-    : DEV_FUSE (fuseType=fuseMethod)? (KEY key=qualifiedName)? (GROUP group=fields)? (SCORE score=qualifiedName)? (OPTIONS fuseOptions=mapExpression)?
+    : DEV_FUSE (fuseType=fuseMethod)? (KEY key=qualifiedName)? (GROUP group=fields)? (SCORE score=qualifiedName)? fuseOptions=commandNamedParameters
     ;
 
 fuseMethod

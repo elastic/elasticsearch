@@ -753,7 +753,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             Attribute idAttr = new UnresolvedAttribute(source, IdFieldMapper.NAME);
             Attribute indexAttr = new UnresolvedAttribute(source, MetadataAttribute.INDEX);
             List<NamedExpression> groupings = ctx.group == null ? List.of(idAttr, indexAttr) : visitGrouping(ctx.group);
-            MapExpression options = ctx.fuseOptions == null ? null : visitMapExpression(ctx.fuseOptions);
+            MapExpression options = ctx.fuseOptions == null ? null : visitCommandNamedParameters(ctx.fuseOptions);
             Fuse.FuseType fuseType = ctx.fuseType != null && ctx.fuseType.LINEAR() != null ? Fuse.FuseType.LINEAR : Fuse.FuseType.RRF;
 
             return new Fuse(source, input, scoreAttr, discriminatorAttr, groupings, fuseType, options);

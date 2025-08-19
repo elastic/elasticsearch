@@ -46,8 +46,8 @@ class TransportVersionManagementPluginFuncTest extends AbstractGradleFuncTest {
         javaResource("myserver", "transport/definitions/named/" + name + ".csv", ids)
     }
 
-    def initialTransportVersion(String name, String id) {
-        javaResource("myserver", "transport/definitions/initial/" + name + ".csv", id)
+    def unreferencedTransportVersion(String name, String id) {
+        javaResource("myserver", "transport/definitions/unreferenced/" + name + ".csv", id)
     }
 
     def definedAndUsedTransportVersion(String name, String ids) {
@@ -101,7 +101,7 @@ class TransportVersionManagementPluginFuncTest extends AbstractGradleFuncTest {
         """
         namedTransportVersion("existing_91", "8012000")
         namedTransportVersion("existing_92", "8123000,8012001")
-        initialTransportVersion("initial_9_0_0", "8000000")
+        unreferencedTransportVersion("initial_9_0_0", "8000000")
         latestTransportVersion("9.2", "existing_92", "8123000")
         latestTransportVersion("9.1", "existing_92", "8012001")
         // a mock version of TransportVersion, just here so we can compile Dummy.java et al
@@ -302,5 +302,15 @@ class TransportVersionManagementPluginFuncTest extends AbstractGradleFuncTest {
         then:
         assertDefinitionsFailure(result, "Transport version definition file " +
             "[myserver/src/main/resources/transport/definitions/named/patch.csv] has patch version 8015001 as primary id")
+    }
+
+    def "unreferenced directory is optional"() {
+        given:
+        file("myserver/src/main/resources/transport/unreferenced/initial_9_0_0.csv").delete()
+        file("myserver/src/main/resources/transport/unreferenced").deleteDir()
+        when:
+        def result = gradleRunner(":myserver:validateTransportVersionDefinitions").build()
+        then:
+        result.task(":myserver:validateTransportVersionDefinitions").outcome == TaskOutcome.SUCCESS
     }
 }

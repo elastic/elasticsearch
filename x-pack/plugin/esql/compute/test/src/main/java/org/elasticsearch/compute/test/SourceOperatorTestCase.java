@@ -22,7 +22,7 @@ public abstract class SourceOperatorTestCase extends AnyOperatorTestCase {
             map,
             matchesMap().extraOk()
                 .entry("pages_emitted", output.size())
-                .entry("rows_emitted", output.stream().mapToLong(Page::getPositionCount).sum())
+                .entry("rows_emitted", output.stream().mapToInt(Page::getPositionCount).sum())
         );
     }
 }

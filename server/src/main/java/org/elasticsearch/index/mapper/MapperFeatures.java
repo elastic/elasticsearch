@@ -47,7 +47,7 @@ public class MapperFeatures implements FeatureSpecification {
     static final NodeFeature BBQ_DISK_SUPPORT = new NodeFeature("mapper.bbq_disk_support");
     static final NodeFeature SEARCH_LOAD_PER_SHARD = new NodeFeature("mapper.search_load_per_shard");
     static final NodeFeature PATTERNED_TEXT = new NodeFeature("mapper.patterned_text");
-    static final NodeFeature BBQ_OFFHEAP_RESCORING = new NodeFeature("mapper.vectors.bbq_offheap_rescoring");
+    public static final NodeFeature BBQ_OFFHEAP_RESCORING = new NodeFeature("mapper.vectors.bbq_offheap_rescoring");
 
     @Override
     public Set<NodeFeature> getTestFeatures() {

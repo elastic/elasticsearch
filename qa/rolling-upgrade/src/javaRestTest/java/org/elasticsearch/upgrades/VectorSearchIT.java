@@ -16,7 +16,7 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
-import org.elasticsearch.search.SearchFeatures;
+import org.elasticsearch.index.mapper.MapperFeatures;
 
 import java.io.IOException;
 import java.util.List;
@@ -510,7 +510,7 @@ public class VectorSearchIT extends AbstractRollingUpgradeTestCase {
     }
 
     public void testBBQVectorSearchOffheapRescoring() throws Exception {
-        assumeTrue("Disabling off-heap rescoring is not supported", oldClusterHasFeature(SearchFeatures.BBQ_OFFHEAP_RESCORING));
+        assumeTrue("Disabling off-heap rescoring is not supported", oldClusterHasFeature(MapperFeatures.BBQ_OFFHEAP_RESCORING));
         if (isOldCluster()) {
             String mapping = """
                 {

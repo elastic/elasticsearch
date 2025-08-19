@@ -2210,17 +2210,19 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
     public void testSetIndexed() {
         final MapperBuilderContext context = MapperBuilderContext.root(false, false);
 
-        DenseVectorFieldMapper mapper = new DenseVectorFieldMapper.Builder("test",
-            IndexVersionUtils.getPreviousVersion(INDEXED_BY_DEFAULT_INDEX_VERSION), false)
-            .elementType(ElementType.FLOAT)
-            .build(context);
+        DenseVectorFieldMapper mapper = new DenseVectorFieldMapper.Builder(
+            "test",
+            IndexVersionUtils.getPreviousVersion(INDEXED_BY_DEFAULT_INDEX_VERSION),
+            false
+        ).elementType(ElementType.FLOAT).build(context);
         DenseVectorFieldType denseVectorFieldType = mapper.fieldType();
         assertFalse(denseVectorFieldType.isIndexed());
 
-        mapper = new DenseVectorFieldMapper.Builder("test",
-            IndexVersionUtils.getPreviousVersion(INDEXED_BY_DEFAULT_INDEX_VERSION), false)
+        mapper = new DenseVectorFieldMapper.Builder("test", IndexVersionUtils.getPreviousVersion(INDEXED_BY_DEFAULT_INDEX_VERSION), false)
             .elementType(ElementType.FLOAT)
-            .indexed(true).similarity(VectorSimilarity.COSINE).build(context);
+            .indexed(true)
+            .similarity(VectorSimilarity.COSINE)
+            .build(context);
 
         denseVectorFieldType = mapper.fieldType();
         assertTrue(denseVectorFieldType.isIndexed());

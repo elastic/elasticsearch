@@ -140,7 +140,7 @@ public class EnrichCacheTests extends ESTestCase {
             assertThat(cacheStats.misses(), equalTo(++expectedMisses));
             assertThat(cacheStats.evictions(), equalTo(0L));
             assertThat(cacheStats.hitsTimeInMillis(), equalTo(0L));
-            assertThat(cacheStats.missesTimeInMillis(), equalTo(1L));
+            assertThat(cacheStats.missesTimeInMillis(), equalTo(2L)); // cache query and enrich query + cache put
         }
 
         {
@@ -156,7 +156,7 @@ public class EnrichCacheTests extends ESTestCase {
             assertThat(cacheStats.misses(), equalTo(expectedMisses));
             assertThat(cacheStats.evictions(), equalTo(0L));
             assertThat(cacheStats.hitsTimeInMillis(), equalTo(1L));
-            assertThat(cacheStats.missesTimeInMillis(), equalTo(1L));
+            assertThat(cacheStats.missesTimeInMillis(), equalTo(2L));
         }
 
         {

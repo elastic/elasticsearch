@@ -133,8 +133,8 @@ public class GeoIpCacheTests extends ESTestCase {
         assertThat(cacheStats.evictions(), equalTo(2L));
         // There are 3 hits, each taking 1ms:
         assertThat(cacheStats.hitsTimeInMillis(), equalTo(3L));
-        // There are 4 misses. each taking 1ms:
-        assertThat(cacheStats.missesTimeInMillis(), equalTo(4L));
+        // There are 4 misses. Each is made up of a cache query, and a database query, each being 1ms:
+        assertThat(cacheStats.missesTimeInMillis(), equalTo(8L));
     }
 
     public void testPurgeCacheEntriesForDatabase() {

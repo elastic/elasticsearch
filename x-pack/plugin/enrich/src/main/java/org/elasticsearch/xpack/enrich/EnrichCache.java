@@ -103,15 +103,18 @@ public final class EnrichCache {
         long cacheStart = relativeNanoTimeProvider.getAsLong();
         var cacheKey = new CacheKey(projectId, enrichIndex, lookupValue, maxMatches);
         List<Map<?, ?>> response = get(cacheKey);
+        long cacheRequestTime = relativeNanoTimeProvider.getAsLong() - cacheStart;
         if (response != null) {
-            hitsTimeInNanos.add(relativeNanoTimeProvider.getAsLong() - cacheStart);
+            hitsTimeInNanos.add(cacheRequestTime);
             listener.onResponse(response);
         } else {
+            final long retrieveStart = relativeNanoTimeProvider.getAsLong();
             searchResponseFetcher.accept(ActionListener.wrap(resp -> {
                 CacheValue cacheValue = toCacheValue(resp);
                 put(cacheKey, cacheValue);
                 List<Map<?, ?>> copy = deepCopy(cacheValue.hits, false);
-                missesTimeInNanos.add(relativeNanoTimeProvider.getAsLong() - cacheStart);
+                long databaseQueryAndCachePutTime = relativeNanoTimeProvider.getAsLong() - retrieveStart;
+                missesTimeInNanos.add(cacheRequestTime + databaseQueryAndCachePutTime);
                 listener.onResponse(copy);
             }, listener::onFailure));
         }

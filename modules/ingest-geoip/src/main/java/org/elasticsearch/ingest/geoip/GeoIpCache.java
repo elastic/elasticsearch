@@ -62,14 +62,16 @@ public final class GeoIpCache {
 
     @SuppressWarnings("unchecked")
     <RESPONSE> RESPONSE putIfAbsent(ProjectId projectId, String ip, String databasePath, Function<String, RESPONSE> retrieveFunction) {
-        long cacheStart = relativeNanoTimeProvider.getAsLong();
         // can't use cache.computeIfAbsent due to the elevated permissions for the jackson (run via the cache loader)
         CacheKey cacheKey = new CacheKey(projectId, ip, databasePath);
+        long cacheStart = relativeNanoTimeProvider.getAsLong();
         // intentionally non-locking for simplicity...it's OK if we re-put the same key/value in the cache during a race condition.
         Object response = cache.get(cacheKey);
+        long cacheRequestTime = relativeNanoTimeProvider.getAsLong() - cacheStart;
 
         // populate the cache for this key, if necessary
         if (response == null) {
+            long retrieveStart = relativeNanoTimeProvider.getAsLong();
             response = retrieveFunction.apply(ip);
             // if the response from the database was null, then use the no-result sentinel value
             if (response == null) {
@@ -77,9 +79,10 @@ public final class GeoIpCache {
             }
             // store the result or no-result in the cache
             cache.put(cacheKey, response);
-            missesTimeInNanos.add(relativeNanoTimeProvider.getAsLong() - cacheStart);
+            long databaseRequestAndCachePutTime = relativeNanoTimeProvider.getAsLong() - retrieveStart;
+            missesTimeInNanos.add(cacheRequestTime + databaseRequestAndCachePutTime);
         } else {
-            hitsTimeInNanos.add(relativeNanoTimeProvider.getAsLong() - cacheStart);
+            hitsTimeInNanos.add(cacheRequestTime);
         }
 
         if (response == NO_RESULT) {

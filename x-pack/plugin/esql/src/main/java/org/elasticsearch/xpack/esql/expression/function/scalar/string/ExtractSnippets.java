@@ -33,8 +33,8 @@ import org.elasticsearch.xpack.esql.core.util.Check;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
-import org.elasticsearch.xpack.esql.expression.function.OptionalArgument;
 import org.elasticsearch.xpack.esql.expression.function.Param;
+import org.elasticsearch.xpack.esql.expression.function.TwoOptionalArguments;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdownPredicates;
@@ -44,6 +44,7 @@ import org.elasticsearch.xpack.esql.querydsl.query.MatchQuery;
 import org.elasticsearch.xpack.esql.querydsl.query.TranslationAwareExpressionQuery;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -60,7 +61,12 @@ import static org.elasticsearch.xpack.esql.expression.function.fulltext.FullText
 /**
  * Extract snippets function, that extracts the most relevant snippets from a given input string
  */
-public class ExtractSnippets extends EsqlScalarFunction implements OptionalArgument, RewriteableAware, TranslationAware, EvaluatorMapper {
+public class ExtractSnippets extends EsqlScalarFunction
+    implements
+        TwoOptionalArguments,
+        RewriteableAware,
+        TranslationAware,
+        EvaluatorMapper {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
         "ExtractSnippets",
@@ -108,7 +114,7 @@ public class ExtractSnippets extends EsqlScalarFunction implements OptionalArgum
         Expression snippetLength,
         QueryBuilder queryBuilder
     ) {
-        super(source, List.of(field, str, numSnippets, snippetLength));
+        super(source, fields(field, str, numSnippets, snippetLength));
         this.field = field;
         this.str = str;
         this.numSnippets = numSnippets;
@@ -330,5 +336,18 @@ public class ExtractSnippets extends EsqlScalarFunction implements OptionalArgum
     @Override
     public int hashCode() {
         return Objects.hash(field(), str(), numSnippets(), snippetLength(), queryBuilder());
+    }
+
+    private static List<Expression> fields(Expression field, Expression str, Expression numSnippets, Expression snippetLength) {
+        List<Expression> list = new ArrayList<>(4);
+        list.add(field);
+        list.add(str);
+        if (numSnippets != null) {
+            list.add(numSnippets);
+            if (snippetLength != null) {
+                list.add(snippetLength);
+            }
+        }
+        return list;
     }
 }

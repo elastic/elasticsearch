@@ -11,6 +11,7 @@ package org.elasticsearch.repositories;
 
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
+import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.telemetry.metric.DoubleHistogram;
 import org.elasticsearch.telemetry.metric.LongCounter;
 import org.elasticsearch.telemetry.metric.LongWithAttributes;
@@ -93,8 +94,8 @@ public record SnapshotMetrics(
         meterRegistry.registerLongsGauge(SNAPSHOTS_BY_STATE, "snapshots by state", "unit", snapshotsByStatusObserver);
     }
 
+    @FixForMultiProject(description = "When multi-project arrives we should add project ID to the labels")
     public static Map<String, Object> createAttributesMap(ProjectId projectId, RepositoryMetadata meta) {
-        assert projectId != null : "Project ID should always be set";
-        return Map.of("project_id", projectId.id(), "repo_type", meta.type(), "repo_name", meta.name());
+        return Map.of("repo_type", meta.type(), "repo_name", meta.name());
     }
 }

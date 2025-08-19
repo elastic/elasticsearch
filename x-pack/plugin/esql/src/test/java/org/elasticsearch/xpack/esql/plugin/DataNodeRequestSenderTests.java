@@ -306,13 +306,16 @@ public class DataNodeRequestSenderTests extends ComputeTestCase {
     }
 
     public void testLimitConcurrentNodes() {
-        var targetShards = List.of(
-            targetShard(shard1, node1),
-            targetShard(shard2, node2),
-            targetShard(shard3, node3),
-            targetShard(shard4, node4),
-            targetShard(shard5, node5)
-        );
+        final int shards = 10;
+        var targetShards = new ArrayList<DataNodeRequestSender.TargetShard>(shards);
+        for (int i = 0; i < shards; i++) {
+            targetShards.add(
+                targetShard(
+                    new ShardId("index", "n/a", i),
+                    DiscoveryNodeUtils.builder("node-" + i).roles(Set.of(DATA_HOT_NODE_ROLE)).build()
+                )
+            );
+        }
 
         var concurrency = randomIntBetween(1, 2);
         AtomicInteger maxConcurrentRequests = new AtomicInteger(0);
@@ -335,10 +338,10 @@ public class DataNodeRequestSenderTests extends ComputeTestCase {
                 listener.onResponse(new DataNodeComputeResponse(DriverCompletionInfo.EMPTY, Map.of()));
             });
         }));
-        assertThat(sent.size(), equalTo(5));
+        assertThat(sent.size(), equalTo(shards));
         assertThat(maxConcurrentRequests.get(), equalTo(concurrency));
-        assertThat(response.totalShards, equalTo(5));
-        assertThat(response.successfulShards, equalTo(5));
+        assertThat(response.totalShards, equalTo(shards));
+        assertThat(response.successfulShards, equalTo(shards));
         assertThat(response.failedShards, equalTo(0));
     }
 

@@ -33,11 +33,6 @@ public class MultiTypeEsField extends EsField {
 
     private final Map<String, Expression> indexToConversionExpressions;
 
-    public MultiTypeEsField(String name, DataType dataType, boolean aggregatable, Map<String, Expression> indexToConversionExpressions) {
-        super(name, dataType, Map.of(), aggregatable);
-        this.indexToConversionExpressions = indexToConversionExpressions;
-    }
-
     public MultiTypeEsField(
         String name,
         DataType dataType,
@@ -99,7 +94,13 @@ public class MultiTypeEsField extends EsField {
                 indexToConversionExpressions.put(indexName, convertExpr);
             }
         }
-        return new MultiTypeEsField(invalidMappedField.getName(), resolvedDataType, false, indexToConversionExpressions);
+        return new MultiTypeEsField(
+            invalidMappedField.getName(),
+            resolvedDataType,
+            false,
+            indexToConversionExpressions,
+            invalidMappedField.getTimeSeriesFieldType()
+        );
     }
 
     @Override

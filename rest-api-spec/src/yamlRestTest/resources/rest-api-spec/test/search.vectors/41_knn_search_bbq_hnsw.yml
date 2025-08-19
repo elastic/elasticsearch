@@ -340,7 +340,7 @@ setup:
 ---
 "Test index configured rescore vector with no off-heap scoring":
   - requires:
-      cluster_features: ["search.vectors.bbq_offheap_rescoring"]
+      cluster_features: ["mapper.vectors.bbq_offheap_rescoring"]
       reason: Needs bbq_offheap_rescoring feature
   - skip:
       features: "headers"

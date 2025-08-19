@@ -756,7 +756,7 @@ public abstract class BlockDocValuesReader implements BlockLoader.AllReader {
                     return block;
                 }
             }
-            try (var builder = factory.singletonOrdinalsBuilder(ordinals, docs.count() - offset)) {
+            try (var builder = factory.singletonOrdinalsBuilder(ordinals, docs.count() - offset, false)) {
                 for (int i = offset; i < docs.count(); i++) {
                     int doc = docs.get(i);
                     if (doc < ordinals.docID()) {

@@ -10,119 +10,9 @@
 package org.elasticsearch.gradle.internal.transport
 
 
-import org.elasticsearch.gradle.fixtures.AbstractGradleFuncTest
-import org.gradle.testkit.runner.BuildResult
 import org.gradle.testkit.runner.TaskOutcome
 
-class TransportVersionManagementPluginFuncTest extends AbstractGradleFuncTest {
-
-    /**
-     *
-     * @param project
-     * @param path
-     * @param content
-     * @return
-     */
-    def javaResource(String project, String path, String content) {
-        file("${project}/src/main/resources/${path}").withWriter { writer ->
-            writer << content
-        }
-    }
-
-    def javaSource(String project, String packageName, String className, String imports, String content) {
-        String packageSlashes = packageName.replace('.', '/')
-        file("${project}/src/main/java/${packageSlashes}/${className}.java").withWriter { writer ->
-            writer << """
-                package ${packageName};
-                ${imports}
-                public class ${className} {
-                    ${content}
-                }
-            """
-        }
-    }
-
-    def definedTransportVersion(String name, String ids) {
-        javaResource("myserver", "transport/defined/" + name + ".csv", ids)
-    }
-
-    def definedAndUsedTransportVersion(String name, String ids) {
-        return definedAndUsedTransportVersion(name, ids, "Test${name.capitalize()}")
-    }
-
-    def definedAndUsedTransportVersion(String name, String ids, String classname) {
-        javaSource("myserver", "org.elasticsearch", classname, "", """
-            static final TransportVersion usage = TransportVersion.fromName("${name}");
-        """)
-        definedTransportVersion(name, ids)
-    }
-
-    def latestTransportVersion(String branch, String name, String id) {
-        javaResource("myserver", "transport/latest/" + branch + ".csv","${name},${id}")
-    }
-
-    def validateReferencesFails(String project) {
-        return gradleRunner(":${project}:validateTransportVersionReferences").buildAndFail()
-    }
-
-    def validateDefinitionsFails() {
-        return gradleRunner(":myserver:validateTransportVersionDefinitions").buildAndFail()
-    }
-
-    def assertReferencesFailure(BuildResult result, String project, String expectedOutput) {
-        result.task(":${project}:validateTransportVersionReferences").outcome == TaskOutcome.FAILED
-        assertOutputContains(result.output, expectedOutput)
-    }
-
-    def assertDefinitionsFailure(BuildResult result, String expectedOutput) {
-        result.task(":myserver:validateTransportVersionDefinitions").outcome == TaskOutcome.FAILED
-        assertOutputContains(result.output, expectedOutput)
-    }
-
-    def setup() {
-        configurationCacheCompatible = false
-        internalBuild()
-        settingsFile << """
-            include ':myserver'
-            include ':myplugin'
-        """
-        file("gradle.properties") << """
-            org.elasticsearch.transport.definitionsProject=:myserver
-        """
-
-        file("myserver/build.gradle") << """
-            apply plugin: 'java-library'
-            apply plugin: 'elasticsearch.transport-version-references'
-            apply plugin: 'elasticsearch.transport-version-resources'
-        """
-        definedTransportVersion("existing_91", "8012000")
-        definedTransportVersion("existing_92", "8123000,8012001")
-        latestTransportVersion("9.2", "existing_92", "8123000")
-        latestTransportVersion("9.1", "existing_92", "8012001")
-        // a mock version of TransportVersion, just here so we can compile Dummy.java et al
-        javaSource("myserver", "org.elasticsearch", "TransportVersion", "", """
-            public static TransportVersion fromName(String name) {
-                return null;
-            }
-        """)
-        javaSource("myserver", "org.elasticsearch", "Dummy", "", """
-            static final TransportVersion existing91 = TransportVersion.fromName("existing_91");
-            static final TransportVersion existing92 = TransportVersion.fromName("existing_92");
-        """)
-
-        file("myplugin/build.gradle") << """
-            apply plugin: 'java-library'
-            apply plugin: 'elasticsearch.transport-version-references'
-
-            dependencies {
-                implementation project(":myserver")
-            }
-        """
-
-        setupLocalGitRepo()
-        execute("git checkout -b main")
-        execute("git checkout -b test")
-    }
+class TransportVersionValidationFuncTest extends AbstractTransportVersionFuncTest {
 
     def "test setup works"() {
         when:
@@ -148,12 +38,12 @@ class TransportVersionManagementPluginFuncTest extends AbstractGradleFuncTest {
 
     def "references must be defined"() {
         given:
-        definedTransportVersion("not_used", "1000000")
+        namedTransportVersion("not_used", "1000000")
         when:
         def result = validateDefinitionsFails()
         then:
         assertDefinitionsFailure(result, "Transport version definition file " +
-            "[myserver/src/main/resources/transport/defined/not_used.csv] is not referenced")
+            "[myserver/src/main/resources/transport/definitions/named/not_used.csv] is not referenced")
     }
 
     def "names must be lowercase alphanum or underscore"() {
@@ -163,7 +53,7 @@ class TransportVersionManagementPluginFuncTest extends AbstractGradleFuncTest {
         def result = validateDefinitionsFails()
         then:
         assertDefinitionsFailure(result, "Transport version definition file " +
-            "[myserver/src/main/resources/transport/defined/${name}.csv] does not have a valid name, " +
+            "[myserver/src/main/resources/transport/definitions/named/${name}.csv] does not have a valid name, " +
             "must be lowercase alphanumeric and underscore")
 
         where:
@@ -177,7 +67,7 @@ class TransportVersionManagementPluginFuncTest extends AbstractGradleFuncTest {
         def result = validateDefinitionsFails()
         then:
         assertDefinitionsFailure(result, "Transport version definition file " +
-            "[myserver/src/main/resources/transport/defined/empty.csv] does not contain any ids")
+            "[myserver/src/main/resources/transport/definitions/named/empty.csv] does not contain any ids")
     }
 
     def "definitions have ids in descending order"() {
@@ -187,7 +77,7 @@ class TransportVersionManagementPluginFuncTest extends AbstractGradleFuncTest {
         def result = validateDefinitionsFails()
         then:
         assertDefinitionsFailure(result, "Transport version definition file " +
-            "[myserver/src/main/resources/transport/defined/out_of_order.csv] does not have ordered ids")
+            "[myserver/src/main/resources/transport/definitions/named/out_of_order.csv] does not have ordered ids")
     }
 
     def "definition ids are unique"() {
@@ -197,8 +87,8 @@ class TransportVersionManagementPluginFuncTest extends AbstractGradleFuncTest {
         def result = validateDefinitionsFails()
         then:
         assertDefinitionsFailure(result, "Transport version definition file " +
-            "[myserver/src/main/resources/transport/defined/existing_92.csv] contains id 8123000 already defined in " +
-            "[myserver/src/main/resources/transport/defined/duplicate.csv]")
+            "[myserver/src/main/resources/transport/definitions/named/existing_92.csv] contains id 8123000 already defined in " +
+            "[myserver/src/main/resources/transport/definitions/named/duplicate.csv]")
     }
 
     def "definitions have bwc ids with non-zero patch part"() {
@@ -208,27 +98,27 @@ class TransportVersionManagementPluginFuncTest extends AbstractGradleFuncTest {
         def result = validateDefinitionsFails()
         then:
         assertDefinitionsFailure(result, "Transport version definition file " +
-            "[myserver/src/main/resources/transport/defined/patched.csv] contains bwc id [8100000] with a patch part of 0")
+            "[myserver/src/main/resources/transport/definitions/named/patched.csv] contains bwc id [8100000] with a patch part of 0")
     }
 
     def "definitions have primary ids which cannot change"() {
         given:
-        definedTransportVersion("existing_92", "8500000")
+        namedTransportVersion("existing_92", "8500000")
         when:
         def result = validateDefinitionsFails()
         then:
         assertDefinitionsFailure(result, "Transport version definition file " +
-            "[myserver/src/main/resources/transport/defined/existing_92.csv] has modified primary id from 8123000 to 8500000")
+            "[myserver/src/main/resources/transport/definitions/named/existing_92.csv] has modified primary id from 8123000 to 8500000")
     }
 
     def "cannot change committed ids to a branch"() {
         given:
-        definedTransportVersion("existing_92", "8123000,8012002")
+        namedTransportVersion("existing_92", "8123000,8012002")
         when:
         def result = validateDefinitionsFails()
         then:
         assertDefinitionsFailure(result, "Transport version definition file " +
-            "[myserver/src/main/resources/transport/defined/existing_92.csv] modifies existing patch id from 8012001 to 8012002")
+            "[myserver/src/main/resources/transport/definitions/named/existing_92.csv] modifies existing patch id from 8012001 to 8012002")
     }
 
     def "latest files must reference defined name"() {
@@ -249,7 +139,7 @@ class TransportVersionManagementPluginFuncTest extends AbstractGradleFuncTest {
         then:
         assertDefinitionsFailure(result, "Latest transport version file " +
             "[myserver/src/main/resources/transport/latest/9.2.csv] has id 8124000 which is not in definition " +
-            "[myserver/src/main/resources/transport/defined/existing_92.csv]")
+            "[myserver/src/main/resources/transport/definitions/named/existing_92.csv]")
     }
 
     def "latest files have latest id within base"() {
@@ -296,6 +186,16 @@ class TransportVersionManagementPluginFuncTest extends AbstractGradleFuncTest {
         def result = validateDefinitionsFails()
         then:
         assertDefinitionsFailure(result, "Transport version definition file " +
-            "[myserver/src/main/resources/transport/defined/patch.csv] has patch version 8015001 as primary id")
+            "[myserver/src/main/resources/transport/definitions/named/patch.csv] has patch version 8015001 as primary id")
+    }
+
+    def "unreferenced directory is optional"() {
+        given:
+        file("myserver/src/main/resources/transport/unreferenced/initial_9_0_0.csv").delete()
+        file("myserver/src/main/resources/transport/unreferenced").deleteDir()
+        when:
+        def result = gradleRunner(":myserver:validateTransportVersionDefinitions").build()
+        then:
+        result.task(":myserver:validateTransportVersionDefinitions").outcome == TaskOutcome.SUCCESS
     }
 }

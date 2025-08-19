@@ -20,7 +20,7 @@ import java.nio.file.Path;
 class TransportVersionUtils {
 
     static Path definitionFilePath(Directory resourcesDirectory, String name) {
-        return getDefinitionsDirectory(resourcesDirectory).getAsFile().toPath().resolve(name + ".csv");
+        return getDefinitionsDirectory(resourcesDirectory).getAsFile().toPath().resolve("named/" + name + ".csv");
     }
 
     static Path latestFilePath(Directory resourcesDirectory, String name) {
@@ -38,7 +38,7 @@ class TransportVersionUtils {
     }
 
     static Directory getDefinitionsDirectory(Directory resourcesDirectory) {
-        return resourcesDirectory.dir("defined");
+        return resourcesDirectory.dir("definitions");
     }
 
     static Directory getLatestDirectory(Directory resourcesDirectory) {
@@ -50,7 +50,16 @@ class TransportVersionUtils {
         if (projectName == null) {
             projectName = ":server";
         }
+        var resourceRoot = getResourceRoot(project);
         Directory projectDir = project.project(projectName.toString()).getLayout().getProjectDirectory();
-        return projectDir.dir("src/main/resources/transport");
+        return projectDir.dir("src/main/resources/" + resourceRoot);
+    }
+
+    static String getResourceRoot(Project project) {
+        var resourceRoot = project.findProperty("org.elasticsearch.transport.resourceRoot");
+        if (resourceRoot == null) {
+            resourceRoot = "transport";
+        }
+        return resourceRoot.toString();
     }
 }

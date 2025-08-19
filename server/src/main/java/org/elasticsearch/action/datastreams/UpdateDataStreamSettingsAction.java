@@ -253,7 +253,7 @@ public class UpdateDataStreamSettingsAction extends ActionType<UpdateDataStreamS
             @Override
             public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
                 builder.field("applied_to_data_stream_only", appliedToDataStreamOnly);
-                builder.field("applied_to_data_stream_and_write_index", appliedToDataStreamAndWriteIndex);
+                builder.field("applied_to_data_stream_and_write_indices", appliedToDataStreamAndWriteIndex);
                 builder.field("applied_to_data_stream_and_backing_indices", appliedToDataStreamAndBackingIndices);
                 if (indexSettingErrors.isEmpty() == false) {
                     builder.field("errors", indexSettingErrors);

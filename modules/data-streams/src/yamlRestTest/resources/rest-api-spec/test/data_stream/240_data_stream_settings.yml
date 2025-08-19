@@ -550,7 +550,7 @@ setup:
   - match: { data_streams.0.applied_to_data_stream: true }
   - match: { data_streams.0.index_settings_results.applied_to_data_stream_only: []}
   - match: { data_streams.0.index_settings_results.applied_to_data_stream_and_backing_indices: []}
-  - length: { data_streams.0.index_settings_results.applied_to_data_stream_and_write_index: 1  }
+  - length: { data_streams.0.index_settings_results.applied_to_data_stream_and_write_indices: 1  }
   - match: { data_streams.0.effective_settings.index.number_of_replicas: "1" }
 
   - do:

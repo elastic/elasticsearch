@@ -156,7 +156,7 @@ public class UpdateDataStreamSettingsActionResponseTests extends AbstractWireSer
         result.put("effective_settings", effectiveSettings);
         Map<String, Object> indexSettingsResults = new HashMap<>();
         indexSettingsResults.put("applied_to_data_stream_only", appliedToDataStreamOnly);
-        indexSettingsResults.put("applied_to_data_stream_and_write_index", appliedToWriteIndexOnly);
+        indexSettingsResults.put("applied_to_data_stream_and_write_indices", appliedToWriteIndexOnly);
         indexSettingsResults.put("applied_to_data_stream_and_backing_indices", appliedToIndices);
         if (indexErrors.isEmpty() == false) {
             indexSettingsResults.put(

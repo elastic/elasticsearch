@@ -1309,10 +1309,10 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
         MinimalServiceSettings modelSettings,
         SemanticTextIndexOptions indexOptions
     ) {
-       if (indexVersionCreated.before(INDEXED_BY_DEFAULT_INDEX_VERSION)) {
-           deprecationLogger.warn(DeprecationCategory.MAPPINGS, "semantic_text", WARNING_MESSAGE_8X);
-           denseVectorMapperBuilder.indexed(true);
-       }
+        if (indexVersionCreated.before(INDEXED_BY_DEFAULT_INDEX_VERSION)) {
+            deprecationLogger.warn(DeprecationCategory.MAPPINGS, "semantic_text", WARNING_MESSAGE_8X);
+        }
+        denseVectorMapperBuilder.indexed(true);
 
         SimilarityMeasure similarity = modelSettings.similarity();
         if (similarity != null) {

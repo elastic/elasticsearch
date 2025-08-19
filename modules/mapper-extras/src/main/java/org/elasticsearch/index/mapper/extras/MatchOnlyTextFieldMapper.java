@@ -680,16 +680,18 @@ public class MatchOnlyTextFieldMapper extends TextFamilyFieldMapper {
 
         // match_only_text isn't stored, so if synthetic source needs to be supported, we must do something about it
         if (needsToSupportSyntheticSource()) {
-            // if the delegate can't support synthetic source for the given value, then store a copy of said value so
-            // that synthetic source can load it
-            if (fieldType().textFieldType.canUseSyntheticSourceDelegateForSyntheticSource(value.string()) == false) {
-                final String fieldName = fieldType().syntheticSourceFallbackFieldName();
-                if (storedFieldInBinaryFormat) {
-                    final var bytesRef = new BytesRef(utfBytes.bytes(), utfBytes.offset(), utfBytes.length());
-                    context.doc().add(new StoredField(fieldName, bytesRef));
-                } else {
-                    context.doc().add(new StoredField(fieldName, value.string()));
-                }
+            // check if we can use the delegate
+            if (fieldType().textFieldType.canUseSyntheticSourceDelegateForSyntheticSource(value.string())) {
+                return;
+            }
+
+            // if not, then store this field explicitly so that synthetic source can load it
+            final String fieldName = fieldType().syntheticSourceFallbackFieldName();
+            if (storedFieldInBinaryFormat) {
+                final var bytesRef = new BytesRef(utfBytes.bytes(), utfBytes.offset(), utfBytes.length());
+                context.doc().add(new StoredField(fieldName, bytesRef));
+            } else {
+                context.doc().add(new StoredField(fieldName, value.string()));
             }
         }
     }

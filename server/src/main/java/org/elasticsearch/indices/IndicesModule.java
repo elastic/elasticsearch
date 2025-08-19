@@ -95,31 +95,35 @@ import java.util.function.Function;
 public class IndicesModule extends AbstractModule {
     private final MapperRegistry mapperRegistry;
 
-    // TODO: this needs to be loaded from serverless somehow
-    private static final String RESERVED_NAMESPACE = "_project";
-
-    public IndicesModule(List<MapperPlugin> mapperPlugins) {
+    public IndicesModule(List<MapperPlugin> mapperPlugins, RootObjectMapperNamespaceValidator namespaceValidator) {
+        // this is the only place that the MapperRegistry is created
         this.mapperRegistry = new MapperRegistry(
             getMappers(mapperPlugins),
             getRuntimeFields(mapperPlugins),
             getMetadataMappers(mapperPlugins),
             getFieldFilter(mapperPlugins),
-            new RootObjectMapperNamespaceValidator() {
-                @Override
-                public void validateNamespace(ObjectMapper.Subobjects subobjects, Mapper mapper) {
-                    // TODO: in the future, this will be a no-op on stateful and loaded somehow dynamically in serverless
-                    if (subobjects == ObjectMapper.Subobjects.ENABLED) {
-                        if (mapper.leafName().equals(RESERVED_NAMESPACE)) {
-                            throw new IllegalArgumentException("xx reserved namespace: [" + RESERVED_NAMESPACE + ']');
-                        }
-                    } else {
-                        if (mapper.leafName().startsWith(RESERVED_NAMESPACE)) {
-                            throw new IllegalArgumentException("xx reserved namespace: [" + RESERVED_NAMESPACE + ']');
-                        }
-                    }
-                }
-            }
+            namespaceValidator
+            // new RootObjectMapperNamespaceValidator() {
+            // @Override
+            // public void validateNamespace(ObjectMapper.Subobjects subobjects, Mapper mapper) {
+            // // TODO: in the future, this will be a no-op on stateful and loaded somehow dynamically in serverless
+            // if (subobjects == ObjectMapper.Subobjects.ENABLED) {
+            // if (mapper.leafName().equals(RESERVED_NAMESPACE)) {
+            // throw new IllegalArgumentException("xx reserved namespace: [" + RESERVED_NAMESPACE + ']');
+            // }
+            // } else {
+            // if (mapper.leafName().startsWith(RESERVED_NAMESPACE)) {
+            // throw new IllegalArgumentException("xx reserved namespace: [" + RESERVED_NAMESPACE + ']');
+            // }
+            // }
+            // }
+            // }
         );
+    }
+
+    // MP TODO: remove this constructor once all tests have been updated
+    public IndicesModule(List<MapperPlugin> mapperPlugins) {
+        this(mapperPlugins, null);
     }
 
     public static List<NamedWriteableRegistry.Entry> getNamedWriteables() {

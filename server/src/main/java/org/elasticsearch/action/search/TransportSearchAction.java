@@ -701,14 +701,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             String clusterAlias = entry.getKey();
             boolean skipUnavailable = remoteClusterService.isSkipUnavailable(clusterAlias);
             OriginalIndices indices = entry.getValue();
-            SearchRequest ccsSearchRequest = createCCSSearchRequest(
-                parentTaskId,
-                searchRequest,
-                indices,
-                clusterAlias,
-                timeProvider,
-                true
-            );
+            SearchRequest ccsSearchRequest = createCCSSearchRequest(parentTaskId, searchRequest, indices, clusterAlias, timeProvider, true);
 
             var connectionListener = getListenerWithOptionalTimeout(forceConnectTimeoutSecs, threadPool, remoteClientResponseExecutor);
             var searchListener = new ActionListener<SearchResponse>() {
@@ -1030,7 +1023,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         OriginalIndices indices,
         String clusterAlias,
         SearchTimeProvider timeProvider,
-        boolean finalReduce) {
+        boolean finalReduce
+    ) {
 
         SearchRequest ccsSearchRequest = SearchRequest.subSearchRequest(
             parentTaskId,

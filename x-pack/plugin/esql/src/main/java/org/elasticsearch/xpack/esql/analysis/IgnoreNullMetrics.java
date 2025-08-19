@@ -21,7 +21,6 @@ import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.rule.Rule;
 
 import java.util.HashSet;
-import java.util.List;
 import java.util.Set;
 
 /**

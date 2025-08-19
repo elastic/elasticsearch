@@ -10,6 +10,7 @@
 package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.core.Nullable;
 
 /**
  * In serverless, prohibits mappings that start with _project, including subfields such as _project.foo.
@@ -19,24 +20,14 @@ import org.elasticsearch.common.Strings;
 public class ServerlessRootObjectMapperNamespaceValidator implements RootObjectMapperNamespaceValidator {
     private static final String SERVERLESS_RESERVED_NAMESPACE = "_project";
 
-    // MP TODO: we can also pass in a MappingLookup - would that help here?
     @Override
-    public void validateNamespace(ObjectMapper.Subobjects subobjects, Mapper mapper) {   // TODO: stop passing in Mapper and pass in String
-                                                                                         // fieldName
-        if (mapper.leafName().equals(SERVERLESS_RESERVED_NAMESPACE)) {
-            System.err.println("XX: 1A: " + mapper.leafName());
-            System.err.println("XX: 1B: " + mapper.fullPath());
-            System.err.println("XX: 1C: " + mapper.typeName());
-            System.err.println("XX: 1D: " + mapper);
+    public void validateNamespace(@Nullable ObjectMapper.Subobjects subobjects, String name) {
+        if (name.equals(SERVERLESS_RESERVED_NAMESPACE)) {
             throw new IllegalArgumentException(generateErrorMessage());
         } else if (subobjects != ObjectMapper.Subobjects.ENABLED) {
-            System.err.println("YYY: 2A: " + mapper.leafName());
-            System.err.println("YYY: 2B: " + mapper.fullPath());
-            System.err.println("YYY: 2C: " + mapper.typeName());
-            System.err.println("YYY: 2D: " + mapper);
-            // leafName here will be something like _project.myfield, rather than just _project
-            if (mapper.leafName().startsWith(SERVERLESS_RESERVED_NAMESPACE + ".")) {
-                throw new IllegalArgumentException(generateErrorMessage(mapper.leafName()));
+            // name here will be something like _project.my_field, rather than just _project
+            if (name.startsWith(SERVERLESS_RESERVED_NAMESPACE + ".")) {
+                throw new IllegalArgumentException(generateErrorMessage(name));
             }
         }
     }

@@ -543,12 +543,7 @@ public class RootObjectMapper extends ObjectMapper {
                 Map<String, RuntimeField> fields = RuntimeField.parseRuntimeFields((Map<String, Object>) fieldNode, parserContext, true);
                 if (namespaceValidator != null) {
                     for (String runtimeField : fields.keySet()) {
-                        if ("_project".equals(runtimeField) || runtimeField.startsWith("_project.")) {
-                            throw new IllegalArgumentException(
-                                "Runtime mapping rejected. No mappings of [_project] are allowed in order "
-                                    + "to avoid conflicts with project metadata tags in serverless."
-                            );
-                        }
+                        namespaceValidator.validateNamespace(null, runtimeField);
                     }
                 }
                 builder.addRuntimeFields(fields);
@@ -568,7 +563,7 @@ public class RootObjectMapper extends ObjectMapper {
     @Override
     protected void validateSubField(Mapper mapper, MappingLookup mappers) {
         if (namespaceValidator != null) {
-            namespaceValidator.validateNamespace(subobjects(), mapper);
+            namespaceValidator.validateNamespace(subobjects(), mapper.leafName());
         }
         super.validateSubField(mapper, mappers);
     }

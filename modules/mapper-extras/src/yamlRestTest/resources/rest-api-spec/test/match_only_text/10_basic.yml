@@ -689,8 +689,8 @@ synthetic_source match_only_text with ignored multi-field and multiple values in
               foo: this value is
 
   - match: { "hits.total.value": 1 }
-  - match: { hits.hits.0._source.foo.0: "This value is short" }
-  - match: { hits.hits.0._source.foo.1: "This value is too long and will be ignored" }
+  - match: { hits.hits.0._source.foo.0: "This value is too long and will be ignored" }
+  - match: { hits.hits.0._source.foo.1: "This value is short" }
 
 ---
 synthetic_source match_only_text with stored multi-field:

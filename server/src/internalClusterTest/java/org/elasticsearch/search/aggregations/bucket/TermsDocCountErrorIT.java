@@ -9,10 +9,13 @@
 
 package org.elasticsearch.search.aggregations.bucket;
 
+import com.carrotsearch.randomizedtesting.annotations.Repeat;
+
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.aggregations.Aggregator.SubAggCollectionMode;
 import org.elasticsearch.search.aggregations.BucketOrder;
@@ -41,6 +44,8 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.core.IsNull.notNullValue;
 
 @ESIntegTestCase.SuiteScopeTestCase
+@SuppressForbidden(reason = "testing")
+@Repeat(iterations = 100)
 public class TermsDocCountErrorIT extends ESIntegTestCase {
 
     private static final String STRING_FIELD_NAME = "s_value";
@@ -53,17 +58,17 @@ public class TermsDocCountErrorIT extends ESIntegTestCase {
 
     private static int numRoutingValues;
 
-    @Before
-    public void disableBatchedExecution() {
-        // TODO: it's practically impossible to get a 100% deterministic test with batched execution unfortunately, adjust this test to
-        // still do something useful with batched execution (i.e. use somewhat relaxed assertions)
-        updateClusterSettings(Settings.builder().put(SearchService.BATCHED_QUERY_PHASE.getKey(), false));
-    }
-
-    @After
-    public void resetSettings() {
-        updateClusterSettings(Settings.builder().putNull(SearchService.BATCHED_QUERY_PHASE.getKey()));
-    }
+    // @Before
+    // public void disableBatchedExecution() {
+    // // TODO: it's practically impossible to get a 100% deterministic test with batched execution unfortunately, adjust this test to
+    // // still do something useful with batched execution (i.e. use somewhat relaxed assertions)
+    // updateClusterSettings(Settings.builder().put(SearchService.BATCHED_QUERY_PHASE.getKey(), false));
+    // }
+    //
+    // @After
+    // public void resetSettings() {
+    // updateClusterSettings(Settings.builder().putNull(SearchService.BATCHED_QUERY_PHASE.getKey()));
+    // }
 
     @Override
     public void setupSuiteScopeCluster() throws Exception {

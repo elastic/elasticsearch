@@ -459,7 +459,7 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
         final FieldCapabilitiesIndexResponse[] indexResponses = indexResponsesMap.values().toArray(new FieldCapabilitiesIndexResponse[0]);
         Arrays.sort(indexResponses, Comparator.comparing(FieldCapabilitiesIndexResponse::getIndexName));
         final String[] indices = Arrays.stream(indexResponses).map(FieldCapabilitiesIndexResponse::getIndexName).toArray(String[]::new);
-        final Map<String, Map<String, FieldCapabilities.Builder>> responseMapBuilder = new HashMap<>();
+        final Map<String, Map<String, FieldCapabilities.Builder>> fieldsBuilder = new HashMap<>();
         int lastPendingIndex = 0;
         for (int i = 1; i <= indexResponses.length; i++) {
             if (i == indexResponses.length || hasSameMappingHash(indexResponses[lastPendingIndex], indexResponses[i]) == false) {
@@ -469,17 +469,17 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
                 } else {
                     subIndices = ArrayUtil.copyOfSubArray(indices, lastPendingIndex, i);
                 }
-                innerMerge(subIndices, responseMapBuilder, request, indexResponses[lastPendingIndex]);
+                innerMerge(subIndices, fieldsBuilder, request, indexResponses[lastPendingIndex]);
                 lastPendingIndex = i;
             }
         }
 
         task.ensureNotCancelled();
-        Map<String, Map<String, FieldCapabilities>> responseMap = Maps.newMapWithExpectedSize(responseMapBuilder.size());
+        Map<String, Map<String, FieldCapabilities>> fields = Maps.newMapWithExpectedSize(fieldsBuilder.size());
         if (request.includeUnmapped()) {
-            collectResponseMapIncludingUnmapped(indices, responseMapBuilder, responseMap);
+            collectFieldsIncludingUnmapped(indices, fieldsBuilder, fields);
         } else {
-            collectResponseMap(responseMapBuilder, responseMap);
+            collectFields(fieldsBuilder, fields);
         }
 
         // The merge method is only called on the primary coordinator for cross-cluster field caps, so we
@@ -493,7 +493,7 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
                 );
             }
         }
-        return new FieldCapabilitiesResponse(indices, Collections.unmodifiableMap(responseMap), failures);
+        return new FieldCapabilitiesResponse(indices, Collections.unmodifiableMap(fields), failures);
     }
 
     private static boolean shouldLogException(Exception e) {
@@ -506,13 +506,13 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
             && ExceptionsHelper.isNodeOrShardUnavailableTypeException(e) == false;
     }
 
-    private static void collectResponseMapIncludingUnmapped(
+    private static void collectFieldsIncludingUnmapped(
         String[] indices,
-        Map<String, Map<String, FieldCapabilities.Builder>> responseMapBuilder,
-        Map<String, Map<String, FieldCapabilities>> responseMap
+        Map<String, Map<String, FieldCapabilities.Builder>> fieldsBuilder,
+        Map<String, Map<String, FieldCapabilities>> fieldsMap
     ) {
         final Set<String> mappedScratch = new HashSet<>();
-        for (Map.Entry<String, Map<String, FieldCapabilities.Builder>> entry : responseMapBuilder.entrySet()) {
+        for (Map.Entry<String, Map<String, FieldCapabilities.Builder>> entry : fieldsBuilder.entrySet()) {
             var typeMapBuilder = entry.getValue().entrySet();
 
             // do this directly, rather than using the builder, to save creating a whole lot of objects we don't need
@@ -527,17 +527,17 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
             if (unmapped != null) {
                 res.put("unmapped", unmapped.apply(resSize > 1));
             }
-            responseMap.put(entry.getKey(), Collections.unmodifiableMap(res));
+            fieldsMap.put(entry.getKey(), Collections.unmodifiableMap(res));
         }
     }
 
-    private static void collectResponseMap(
-        Map<String, Map<String, FieldCapabilities.Builder>> responseMapBuilder,
-        Map<String, Map<String, FieldCapabilities>> responseMap
+    private static void collectFields(
+        Map<String, Map<String, FieldCapabilities.Builder>> fieldsBuilder,
+        Map<String, Map<String, FieldCapabilities>> fields
     ) {
-        for (Map.Entry<String, Map<String, FieldCapabilities.Builder>> entry : responseMapBuilder.entrySet()) {
+        for (Map.Entry<String, Map<String, FieldCapabilities.Builder>> entry : fieldsBuilder.entrySet()) {
             var typeMapBuilder = entry.getValue().entrySet();
-            responseMap.put(entry.getKey(), Collections.unmodifiableMap(capabilities(typeMapBuilder.size(), typeMapBuilder)));
+            fields.put(entry.getKey(), Collections.unmodifiableMap(capabilities(typeMapBuilder.size(), typeMapBuilder)));
         }
     }
 

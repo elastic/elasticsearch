@@ -54,6 +54,7 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.Min;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Percentile;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Rate;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.SummationMode;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.ToPartial;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Values;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.Match;
@@ -232,10 +233,12 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     /**
      * Expects
      *
+     * <pre>{@code
      * EsqlProject[[x{r}#6]]
      * \_Eval[[1[INTEGER] AS x]]
      *   \_Limit[1000[INTEGER]]
      *     \_LocalRelation[[{e}#18],[ConstantNullBlock[positions=1]]]
+     * }</pre>
      */
     public void testEmptyProjectInStatWithEval() {
         var plan = plan("""
@@ -263,13 +266,14 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
 
     /**
      * Expects
-     *
+     * <pre>{@code
      * EsqlProject[[x{r}#8]]
      * \_Eval[[1[INTEGER] AS x]]
      *   \_Limit[1000[INTEGER]]
      *     \_Aggregate[[emp_no{f}#15],[emp_no{f}#15]]
      *       \_Filter[languages{f}#18 > 1[INTEGER]]
      *         \_EsRelation[test][_meta_field{f}#21, emp_no{f}#15, first_name{f}#16, ..]
+     * }</pre>
      */
     public void testEmptyProjectInStatWithGroupAndEval() {
         var plan = plan("""
@@ -316,9 +320,11 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
 
     /**
      * Expects
+     * <pre>{@code
      * Project[[languages{f}#12 AS f2]]
      * \_Limit[1000[INTEGER]]
      *   \_EsRelation[test][_meta_field{f}#15, emp_no{f}#9, first_name{f}#10, g..]
+     * }</pre>
      */
     public void testCombineProjectionsWithEvalAndDrop() {
         var plan = plan("""
@@ -337,10 +343,12 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
 
     /**
      * Expects
+     * <pre>{@code
      * Project[[last_name{f}#26, languages{f}#25 AS f2, f4{r}#13]]
      * \_Eval[[languages{f}#25 + 3[INTEGER] AS f4]]
      *   \_Limit[1000[INTEGER]]
      *     \_EsRelation[test][_meta_field{f}#28, emp_no{f}#22, first_name{f}#23, ..]
+     * }</pre>
      */
     public void testCombineProjectionsWithEval() {
         var plan = plan("""
@@ -404,10 +412,12 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
 
     /**
      * Expects
+     * <pre>{@code
      * Limit[1000[INTEGER]]
      * \_Aggregate[[last_name{f}#23, first_name{f}#20],[SUM(salary{f}#24) AS s, last_name{f}#23, first_name{f}#20, first_name{f}#2
      * 0 AS k]]
      *   \_EsRelation[test][_meta_field{f}#25, emp_no{f}#19, first_name{f}#20, ..]
+     * }</pre>
      */
     public void testCombineProjectionWithAggregationAndEval() {
         var plan = plan("""
@@ -425,9 +435,11 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
 
     /**
      * Expects
+     * <pre>{@code
      * TopN[[Order[x{r}#10,ASC,LAST]],1000[INTEGER]]
      * \_Aggregate[[languages{f}#16],[MAX(emp_no{f}#13) AS x, languages{f}#16]]
      *   \_EsRelation[test][_meta_field{f}#19, emp_no{f}#13, first_name{f}#14, ..]
+     * }</pre>
      */
     public void testRemoveOverridesInAggregate() throws Exception {
         var plan = plan("""
@@ -455,9 +467,11 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
 
     /**
      * Expects
+     * <pre>{@code
      * TopN[[Order[b{r}#10,ASC,LAST]],1000[INTEGER]]
      * \_Aggregate[[b{r}#10],[languages{f}#16 AS b]]
      *   \_EsRelation[test][_meta_field{f}#19, emp_no{f}#13, first_name{f}#14, ..]
+     * }</pre>
      */
     public void testAggsWithOverridingInputAndGrouping() throws Exception {
         var plan = plan("""
@@ -479,10 +493,12 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     }
 
     /**
+     * <pre>{@code
      * Project[[s{r}#4 AS d, s{r}#4, last_name{f}#21, first_name{f}#18]]
      * \_Limit[1000[INTEGER]]
      *   \_Aggregate[[last_name{f}#21, first_name{f}#18],[SUM(salary{f}#22) AS s, last_name{f}#21, first_name{f}#18]]
      *     \_EsRelation[test][_meta_field{f}#23, emp_no{f}#17, first_name{f}#18, ..]
+     * }</pre>
      */
     public void testCombineProjectionWithDuplicateAggregation() {
         var plan = plan("""
@@ -501,10 +517,12 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     }
 
     /**
+     * <pre>{@code
      * Limit[1000[INTEGER]]
      * \_Aggregate[STANDARD,[],[SUM(salary{f}#12,true[BOOLEAN]) AS sum(salary), SUM(salary{f}#12,last_name{f}#11 == [44 6f 65][KEYW
      * ORD]) AS sum(salary) WheRe last_name ==   "Doe"]]
      *   \_EsRelation[test][_meta_field{f}#13, emp_no{f}#7, first_name{f}#8, ge..]
+     * }</pre>
      */
     public void testStatsWithFilteringDefaultAliasing() {
         var plan = plan("""
@@ -518,9 +536,11 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         assertThat(Expressions.names(agg.aggregates()), contains("sum(salary)", "sum(salary) WheRe last_name ==   \"Doe\""));
     }
 
-    /*
+    /**
+     * <pre>{@code
      * Limit[1000[INTEGER]]
      * \_LocalRelation[[sum(salary) where false{r}#26],[ConstantNullBlock[positions=1]]]
+     * }</pre>
      */
     public void testReplaceStatsFilteredAggWithEvalSingleAgg() {
         var plan = plan("""
@@ -537,11 +557,13 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         assertTrue(blocks[0].areAllValuesNull());
     }
 
-    /*
+    /**
+     * <pre>{@code
      * Project[[sum(salary) + 1 where false{r}#68]]
      * \_Eval[[$$SUM$sum(salary)_+_1$0{r$}#79 + 1[INTEGER] AS sum(salary) + 1 where false]]
      *   \_Limit[1000[INTEGER]]
      *     \_LocalRelation[[$$SUM$sum(salary)_+_1$0{r$}#79],[ConstantNullBlock[positions=1]]]
+     * }</pre>
      */
     public void testReplaceStatsFilteredAggWithEvalSingleAggWithExpression() {
         var plan = plan("""
@@ -569,12 +591,14 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         assertTrue(blocks[0].areAllValuesNull());
     }
 
-    /*
+    /**
+     * <pre>{@code
      * Project[[sum(salary) + 1 where false{r}#4, sum(salary) + 2{r}#6, emp_no{f}#7]]
      * \_Eval[[null[LONG] AS sum(salary) + 1 where false, $$SUM$sum(salary)_+_2$1{r$}#18 + 2[INTEGER] AS sum(salary) + 2]]
      *   \_Limit[1000[INTEGER]]
      *     \_Aggregate[STANDARD,[emp_no{f}#7],[SUM(salary{f}#12,true[BOOLEAN]) AS $$SUM$sum(salary)_+_2$1, emp_no{f}#7]]
      *       \_EsRelation[test][_meta_field{f}#13, emp_no{f}#7, first_name{f}#8, ge..]
+     * }</pre>
      */
     public void testReplaceStatsFilteredAggWithEvalMixedFilterAndNoFilter() {
         var plan = plan("""
@@ -602,37 +626,51 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         var source = as(aggregate.child(), EsRelation.class);
     }
 
-    /*
-     * Project[[sum(salary) + 1 where false{r}#3, sum(salary) + 3{r}#5, sum(salary) + 2 where false{r}#7]]
-     * \_Eval[[null[LONG] AS sum(salary) + 1 where false, $$SUM$sum(salary)_+_3$1{r$}#19 + 3[INTEGER] AS sum(salary) + 3, nu
-     * ll[LONG] AS sum(salary) + 2 where false]]
-     *   \_Limit[1000[INTEGER]]
-     *     \_Aggregate[STANDARD,[],[SUM(salary{f}#13,true[BOOLEAN]) AS $$SUM$sum(salary)_+_3$1]]
-     *       \_EsRelation[test][_meta_field{f}#14, emp_no{f}#8, first_name{f}#9, ge..]
+    /**
+     * <pre>{@code
+     * Project[[sum(salary) + 1 where false{r}#3, sum(salary) + 3{r}#5, sum(salary) + 2 where null{r}#7,
+     * sum(salary) + 4 where not true{r}#9]]
+     * \_Eval[[null[LONG] AS sum(salary) + 1 where false#3, $$SUM$sum(salary)_+_3$1{r$}#22 + 3[INTEGER] AS sum(salary) + 3#5
+     * , null[LONG] AS sum(salary) + 2 where null#7, null[LONG] AS sum(salary) + 4 where not true#9]]
+     *   \_Limit[1000[INTEGER],false]
+     *     \_Aggregate[[],[SUM(salary{f}#15,true[BOOLEAN],compensated[KEYWORD]) AS $$SUM$sum(salary)_+_3$1#22]]
+     *       \_EsRelation[test][_meta_field{f}#16, emp_no{f}#10, first_name{f}#11, ..]
+     * }</pre>
+     *
      */
     public void testReplaceStatsFilteredAggWithEvalFilterFalseAndNull() {
         var plan = plan("""
             from test
             | stats sum(salary) + 1 where false,
                     sum(salary) + 3,
-                    sum(salary) + 2 where null
+                    sum(salary) + 2 where null,
+                    sum(salary) + 4 where not true
             """);
 
         var project = as(plan, Project.class);
         assertThat(
             Expressions.names(project.projections()),
-            contains("sum(salary) + 1 where false", "sum(salary) + 3", "sum(salary) + 2 where null")
+            contains("sum(salary) + 1 where false", "sum(salary) + 3", "sum(salary) + 2 where null", "sum(salary) + 4 where not true")
         );
         var eval = as(project.child(), Eval.class);
-        assertThat(eval.fields().size(), is(3));
+        assertThat(eval.fields().size(), is(4));
 
         var alias = as(eval.fields().getFirst(), Alias.class);
         assertTrue(alias.child().foldable());
         assertThat(alias.child().fold(FoldContext.small()), nullValue());
         assertThat(alias.child().dataType(), is(LONG));
 
+        alias = as(eval.fields().get(0), Alias.class);
+        assertThat(Expressions.name(alias.child()), containsString("sum(salary) + 1"));
+
         alias = as(eval.fields().get(1), Alias.class);
         assertThat(Expressions.name(alias.child()), containsString("sum(salary) + 3"));
+
+        alias = as(eval.fields().get(2), Alias.class);
+        assertThat(Expressions.name(alias.child()), containsString("sum(salary) + 2"));
+
+        alias = as(eval.fields().get(3), Alias.class);
+        assertThat(Expressions.name(alias.child()), containsString("sum(salary) + 4"));
 
         alias = as(eval.fields().getLast(), Alias.class);
         assertTrue(alias.child().foldable());
@@ -647,6 +685,48 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     /*
      * Limit[1000[INTEGER]]
      * \_LocalRelation[[count(salary) where false{r}#3],[LongVectorBlock[vector=ConstantLongVector[positions=1, value=0]]]]
+     */
+    public void testReplaceStatsFilteredAggWithEvalNotTrue() {
+        var plan = plan("""
+            from test
+            | stats count(salary) where not true
+            """);
+
+        var limit = as(plan, Limit.class);
+        var source = as(limit.child(), LocalRelation.class);
+        assertThat(Expressions.names(source.output()), contains("count(salary) where not true"));
+        Block[] blocks = source.supplier().get();
+        assertThat(blocks.length, is(1));
+        var block = as(blocks[0], LongVectorBlock.class);
+        assertThat(block.getPositionCount(), is(1));
+        assertThat(block.asVector().getLong(0), is(0L));
+    }
+
+    /*
+     * Limit[1000[INTEGER],false]
+     * \_Aggregate[[],[COUNT(salary{f}#10,true[BOOLEAN]) AS m1#4]]
+     * \_EsRelation[test][_meta_field{f}#11, emp_no{f}#5, first_name{f}#6, ge..]
+     */
+    public void testReplaceStatsFilteredAggWithEvalNotFalse() {
+        var plan = plan("""
+            from test
+            | stats m1 = count(salary) where not false
+            """);
+        var limit = as(plan, Limit.class);
+        var aggregate = as(limit.child(), Aggregate.class);
+        assertEquals(1, aggregate.aggregates().size());
+        assertEquals(1, aggregate.aggregates().get(0).children().size());
+        assertTrue(aggregate.aggregates().get(0).children().get(0) instanceof Count);
+        assertEquals("true", (((Count) aggregate.aggregates().get(0).children().get(0)).filter().toString()));
+        assertThat(Expressions.names(aggregate.aggregates()), contains("m1"));
+        var source = as(aggregate.child(), EsRelation.class);
+    }
+
+    /**
+     * <pre>{@code
+     * Limit[1000[INTEGER]]
+     * \_LocalRelation[[count(salary) where false{r}#3],[LongVectorBlock[vector=ConstantLongVector[positions=1, value=0]]]]
+     * }</pre>
      */
     public void testReplaceStatsFilteredAggWithEvalCount() {
         var plan = plan("""
@@ -664,11 +744,13 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         assertThat(block.asVector().getLong(0), is(0L));
     }
 
-    /*
+    /**
+     * <pre>{@code
      * Project[[count_distinct(salary + 2) + 3 where false{r}#3]]
      * \_Eval[[$$COUNTDISTINCT$count_distinct(>$0{r$}#15 + 3[INTEGER] AS count_distinct(salary + 2) + 3 where false]]
      *   \_Limit[1000[INTEGER]]
      *     \_LocalRelation[[$$COUNTDISTINCT$count_distinct(>$0{r$}#15],[LongVectorBlock[vector=ConstantLongVector[positions=1, value=0]]]]
+     * }</pre>
      */
     public void testReplaceStatsFilteredAggWithEvalCountDistinctInExpression() {
         var plan = plan("""
@@ -697,13 +779,15 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         assertThat(block.asVector().getLong(0), is(0L));
     }
 
-    /*
+    /**
+     * <pre>{@code
      * Project[[max{r}#91, max_a{r}#94, min{r}#97, min_a{r}#100, emp_no{f}#101]]
      * \_Eval[[null[INTEGER] AS max_a, null[INTEGER] AS min_a]]
      *   \_Limit[1000[INTEGER]]
      *     \_Aggregate[STANDARD,[emp_no{f}#101],[MAX(salary{f}#106,true[BOOLEAN]) AS max, MIN(salary{f}#106,true[BOOLEAN]) AS min, emp_
      * no{f}#101]]
      *       \_EsRelation[test][_meta_field{f}#107, emp_no{f}#101, first_name{f}#10..]
+     * }</pre>
      */
     public void testReplaceStatsFilteredAggWithEvalSameAggWithAndWithoutFilter() {
         var plan = plan("""
@@ -738,9 +822,11 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         var source = as(aggregate.child(), EsRelation.class);
     }
 
-    /*
+    /**
+     * <pre>{@code
      * Limit[1000[INTEGER]]
      * \_LocalRelation[[count{r}#7],[LongVectorBlock[vector=ConstantLongVector[positions=1, value=0]]]]
+     * }</pre>
      */
     @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/100634") // i.e. PropagateEvalFoldables applicability to Aggs
     public void testReplaceStatsFilteredAggWithEvalFilterUsingEvaledValue() {
@@ -760,12 +846,15 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         assertThat(block.asVector().getLong(0), is(0L));
     }
 
-    /*
+    /**
+     *
+     * <pre>{@code
      * Project[[c{r}#67, emp_no{f}#68]]
      * \_Eval[[0[LONG] AS c]]
      *   \_Limit[1000[INTEGER]]
      *     \_Aggregate[STANDARD,[emp_no{f}#68],[emp_no{f}#68]]
      *       \_EsRelation[test][_meta_field{f}#74, emp_no{f}#68, first_name{f}#69, ..]
+     * }</pre>
      */
     public void testReplaceStatsFilteredAggWithEvalSingleAggWithGroup() {
         var plan = plan("""
@@ -795,6 +884,39 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             from test
             | stats m = min(salary) where emp_no > 1,
                     max(salary) where emp_no > 1
+            """);
+
+        var limit = as(plan, Limit.class);
+        var agg = as(limit.child(), Aggregate.class);
+        assertThat(agg.aggregates().size(), is(2));
+
+        var alias = as(agg.aggregates().get(0), Alias.class);
+        var aggFunc = as(alias.child(), AggregateFunction.class);
+        assertThat(aggFunc.filter(), is(Literal.TRUE));
+
+        alias = as(agg.aggregates().get(1), Alias.class);
+        aggFunc = as(alias.child(), AggregateFunction.class);
+        assertThat(aggFunc.filter(), is(Literal.TRUE));
+
+        var filter = as(agg.child(), Filter.class);
+        assertThat(Expressions.name(filter.condition()), is("emp_no > 1"));
+
+        var source = as(filter.child(), EsRelation.class);
+    }
+
+    /**
+     * <pre>{@code
+     * Limit[1000[INTEGER],false]
+     * \_Aggregate[[],[MIN(salary{f}#15,true[BOOLEAN]) AS m1#4, MAX(salary{f}#15,true[BOOLEAN]) AS m2#8]]
+     * \_Filter[emp_no{f}#10 > 1[INTEGER]]
+     * \_EsRelation[test][_meta_field{f}#16, emp_no{f}#10, first_name{f}#11, ..]
+     * }</pre>
+     */
+    public void testExtractStatsCommonAlwaysTruePlusOtherFilter() {
+        var plan = plan("""
+            from test
+            | stats m1 = min(salary) where (true and emp_no > 1),
+                    m2 = max(salary) where (1==1 and emp_no > 1)
             """);
 
         var limit = as(plan, Limit.class);
@@ -1101,9 +1223,11 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
 
     /**
      * Expects
+     * <pre>{@code
      * Limit[1000[INTEGER]]
      * \_Aggregate[[first_name{f}#12],[COUNT(salary{f}#16) AS count(salary), first_name{f}#12 AS x]]
      *   \_EsRelation[test][_meta_field{f}#17, emp_no{f}#11, first_name{f}#12, ..]
+     * }</pre>
      */
     public void testCombineProjectionWithPruning() {
         var plan = plan("""
@@ -1125,9 +1249,11 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
 
     /**
      * Expects
+     * <pre>{@code
      * Limit[1000[INTEGER]]
      * \_Aggregate[[first_name{f}#16],[SUM(emp_no{f}#15) AS s, COUNT(first_name{f}#16) AS c, first_name{f}#16 AS f]]
      *   \_EsRelation[test][_meta_field{f}#21, emp_no{f}#15, first_name{f}#16, ..]
+     * }</pre>
      */
     public void testCombineProjectionWithAggregationFirstAndAliasedGroupingUsedInAgg() {
         var plan = plan("""
@@ -1155,9 +1281,11 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
 
     /**
      * Expects
+     * <pre>{@code
      * Limit[1000[INTEGER]]
      * \_Aggregate[STANDARD,[CATEGORIZE(first_name{f}#18) AS cat],[SUM(salary{f}#22,true[BOOLEAN]) AS s, cat{r}#10]]
      *   \_EsRelation[test][_meta_field{f}#23, emp_no{f}#17, first_name{f}#18, ..]
+     * }</pre>
      */
     public void testCombineProjectionWithCategorizeGrouping() {
         var plan = plan("""
@@ -1182,9 +1310,11 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
 
     /**
      * Expects
+     * <pre>{@code
      * Limit[1000[INTEGER]]
      * \_Aggregate[[first_name{f}#16],[SUM(emp_no{f}#15) AS s, first_name{f}#16 AS f]]
      *   \_EsRelation[test][_meta_field{f}#21, emp_no{f}#15, first_name{f}#16, ..]
+     * }</pre>
      */
     public void testCombineProjectionWithAggregationFirstAndAliasedGroupingUnused() {
         var plan = plan("""
@@ -1208,10 +1338,12 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
 
     /**
      * Expects
+     * <pre>{@code
      * EsqlProject[[x{r}#3, y{r}#6]]
      * \_Eval[[emp_no{f}#9 + 2[INTEGER] AS x, salary{f}#14 + 3[INTEGER] AS y]]
      *   \_Limit[10000[INTEGER]]
      *     \_EsRelation[test][_meta_field{f}#15, emp_no{f}#9, first_name{f}#10, g..]
+     * }</pre>
      */
     public void testCombineEvals() {
         var plan = plan("""
@@ -1764,9 +1896,11 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
 
     /**
      * Expected
+     * <pre>{@code
      * TopN[[Order[first_name{r}#5575,ASC,LAST]],1000[INTEGER]]
      * \_MvExpand[first_name{f}#5565,first_name{r}#5575,null]
      *   \_EsRelation[test][_meta_field{f}#5570, emp_no{f}#5564, first_name{f}#..]
+     * }</pre>
      */
     public void testDontCombineOrderByThroughMvExpand() {
         LogicalPlan plan = optimizedPlan("""
@@ -1783,11 +1917,13 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
 
     /**
      * Expected
+     * <pre>{@code
      * Limit[1000[INTEGER],true]
      * \_MvExpand[x{r}#4,x{r}#19]
      *   \_EsqlProject[[first_name{f}#9 AS x]]
      *     \_Limit[1000[INTEGER],false]
      *       \_EsRelation[test][_meta_field{f}#14, emp_no{f}#8, first_name{f}#9, ge..]
+     * }</pre>
      */
     public void testCopyDefaultLimitPastMvExpand() {
         LogicalPlan plan = optimizedPlan("""
@@ -1806,13 +1942,14 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
 
     /**
      * Expected
-     *
+     * <pre>{@code
      * Project[[languages{f}#10 AS language_code#4, language_name{f}#19]]
      * \_Limit[1000[INTEGER],true]
      *   \_Join[LEFT,[languages{f}#10],[languages{f}#10],[language_code{f}#18]]
      *     |_Limit[1000[INTEGER],false]
      *     | \_EsRelation[test][_meta_field{f}#13, emp_no{f}#7, first_name{f}#8, ge..]
      *     \_EsRelation[languages_lookup][LOOKUP][language_code{f}#18, language_name{f}#19]
+     * }</pre>
      */
     public void testCopyDefaultLimitPastLookupJoin() {
         LogicalPlan plan = optimizedPlan("""
@@ -1831,11 +1968,13 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
 
     /**
      * Expected
+     * <pre>{@code
      * Limit[10[INTEGER],true]
      * \_MvExpand[first_name{f}#7,first_name{r}#17]
      *   \_EsqlProject[[first_name{f}#7, last_name{f}#10]]
      *     \_Limit[1[INTEGER],false]
      *       \_EsRelation[test][_meta_field{f}#12, emp_no{f}#6, first_name{f}#7, ge..]
+     * }</pre>
      */
     public void testDontPushDownLimitPastMvExpand() {
         LogicalPlan plan = optimizedPlan("""
@@ -1855,13 +1994,14 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
 
     /**
      * Expected
-     *
+     * <pre>{@code
      * Project[[languages{f}#11 AS language_code#4, last_name{f}#12, language_name{f}#20]]
      * \_Limit[10[INTEGER],true]
      *   \_Join[LEFT,[languages{f}#11],[languages{f}#11],[language_code{f}#19]]
      *     |_Limit[1[INTEGER],false]
      *     | \_EsRelation[test][_meta_field{f}#14, emp_no{f}#8, first_name{f}#9, ge..]
      *     \_EsRelation[languages_lookup][LOOKUP][language_code{f}#19, language_name{f}#20]
+     * }</pre>
      */
     public void testDontPushDownLimitPastLookupJoin() {
         LogicalPlan plan = optimizedPlan("""
@@ -1882,6 +2022,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
 
     /**
      * Expected
+     * <pre>{@code
      * EsqlProject[[emp_no{f}#19, first_name{r}#30, languages{f}#22, lll{r}#9, salary{r}#31]]
      * \_TopN[[Order[salary{r}#31,DESC,FIRST]],5[INTEGER]]
      *   \_Limit[5[INTEGER],true]
@@ -1894,6 +2035,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      *                 \_TopN[[Order[emp_no{f}#19,DESC,FIRST]],10[INTEGER]]
      *                   \_Filter[emp_no{f}#19 &leq; 10006[INTEGER]]
      *                     \_EsRelation[test][_meta_field{f}#25, emp_no{f}#19, first_name{f}#20, ..]
+     * }</pre>
      */
     public void testMultipleMvExpandWithSortAndLimit() {
         LogicalPlan plan = optimizedPlan("""
@@ -1931,6 +2073,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     /**
      * Expected
      *
+     * <pre>{@code
      * Project[[emp_no{f}#24, first_name{f}#25, languages{f}#27, lll{r}#11, salary{f}#29, language_name{f}#38]]
      * \_TopN[[Order[salary{f}#29,DESC,FIRST]],5[INTEGER]]
      *   \_Limit[5[INTEGER],true]
@@ -1945,6 +2088,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      *       |         |   \_EsRelation[test][_meta_field{f}#30, emp_no{f}#24, first_name{f}#25, ..]
      *       |         \_EsRelation[languages_lookup][LOOKUP][language_code{f}#35]
      *       \_EsRelation[languages_lookup][LOOKUP][language_code{f}#37, language_name{f}#38]
+     * }</pre>
      */
     public void testMultipleLookupJoinWithSortAndLimit() {
         LogicalPlan plan = optimizedPlan("""
@@ -1983,10 +2127,12 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     }
 
     /**
+     * <pre>{@code
      * EsqlProject[[emp_no{f}#10, first_name{r}#21, salary{f}#15]]
      * \_TopN[[Order[salary{f}#15,ASC,LAST], Order[first_name{r}#21,ASC,LAST]],5[INTEGER]]
      *   \_MvExpand[first_name{f}#11,first_name{r}#21,null]
      *     \_EsRelation[test][_meta_field{f}#16, emp_no{f}#10, first_name{f}#11, ..]
+     * }</pre>
      */
     public void testPushDownLimitThroughMultipleSort_AfterMvExpand() {
         LogicalPlan plan = optimizedPlan("""
@@ -2007,11 +2153,13 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
 
     /**
      * Expected
+     * <pre>{@code
      * EsqlProject[[emp_no{f}#2560, first_name{r}#2571, salary{f}#2565]]
      * \_TopN[[Order[first_name{r}#2571,ASC,LAST]],5[INTEGER]]
      *   \_TopN[[Order[salary{f}#2565,ASC,LAST]],5[INTEGER]]
      *     \_MvExpand[first_name{f}#2561,first_name{r}#2571,null]
      *       \_EsRelation[test][_meta_field{f}#2566, emp_no{f}#2560, first_name{f}#..]
+     * }</pre>
      */
     public void testPushDownLimitThroughMultipleSort_AfterMvExpand2() {
         LogicalPlan plan = optimizedPlan("""
@@ -2038,12 +2186,14 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      * TODO: Push down the filter correctly https://github.com/elastic/elasticsearch/issues/115311
      *
      * Expected
+     * <pre>{@code
      * Limit[5[INTEGER]]
      * \_Filter[ISNOTNULL(first_name{r}#23)]
      *   \_Aggregate[STANDARD,[first_name{r}#23],[MAX(salary{f}#18,true[BOOLEAN]) AS max_s, first_name{r}#23]]
      *     \_MvExpand[first_name{f}#14,first_name{r}#23]
      *       \_TopN[[Order[emp_no{f}#13,ASC,LAST]],50[INTEGER]]
      *         \_EsRelation[test][_meta_field{f}#19, emp_no{f}#13, first_name{f}#14, ..]
+     * }</pre>
      */
     public void testDontPushDownLimitPastAggregate_AndMvExpand() {
         LogicalPlan plan = optimizedPlan("""
@@ -2071,6 +2221,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      * TODO: Push down the filter correctly https://github.com/elastic/elasticsearch/issues/115311
      *
      * Expected
+     *
      * Limit[5[INTEGER],false]
      * \_Filter[ISNOTNULL(first_name{r}#23)]
      *   \_Aggregate[STANDARD,[first_name{r}#23],[MAX(salary{f}#17,true[BOOLEAN]) AS max_s, first_name{r}#23]]
@@ -2103,6 +2254,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      *
      * Expected
      *
+     * <pre>{@code
      * Limit[5[INTEGER],false]
      * \_Filter[ISNOTNULL(first_name{f}#15)]
      *   \_Aggregate[[first_name{f}#15],[MAX(salary{f}#19,true[BOOLEAN]) AS max_s#12, first_name{f}#15]]
@@ -2111,6 +2263,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      *         |_Limit[50[INTEGER],false]
      *         | \_EsRelation[test][_meta_field{f}#20, emp_no{f}#14, first_name{f}#15, ..]
      *         \_EsRelation[languages_lookup][LOOKUP][language_code{f}#25]
+     * }</pre>
      */
     public void testPushDown_TheRightLimit_PastLookupJoin() {
         LogicalPlan plan = optimizedPlan("""
@@ -2134,11 +2287,13 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
 
     /**
      * Expected
+     * <pre>{@code
      * EsqlProject[[first_name{f}#11, emp_no{f}#10, salary{f}#12, b{r}#4]]
      *  \_TopN[[Order[salary{f}#12,ASC,LAST]],5[INTEGER]]
      *    \_Eval[[100[INTEGER] AS b]]
      *      \_MvExpand[first_name{f}#11]
      *        \_EsRelation[employees][emp_no{f}#10, first_name{f}#11, salary{f}#12]
+     * }</pre>
      */
     public void testPushDownLimit_PastEvalAndMvExpand() {
         LogicalPlan plan = optimizedPlan("""
@@ -2161,11 +2316,13 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
 
     /**
      * Expected
+     * <pre>{@code
      * EsqlProject[[emp_no{f}#5885, first_name{r}#5896, salary{f}#5890]]
      * \_TopN[[Order[salary{f}#5890,ASC,LAST], Order[first_name{r}#5896,ASC,LAST]],1000[INTEGER]]
      *   \_Filter[gender{f}#5887 == [46][KEYWORD] AND WILDCARDLIKE(first_name{r}#5896)]
      *     \_MvExpand[first_name{f}#5886,first_name{r}#5896,null]
      *       \_EsRelation[test][_meta_field{f}#5891, emp_no{f}#5885, first_name{f}#..]
+     * }</pre>
      */
     public void testRedundantSort_BeforeMvExpand_WithFilterOnExpandedField_ResultTruncationDefaultSize() {
         LogicalPlan plan = optimizedPlan("""
@@ -2190,11 +2347,13 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     /**
      * Expected
      *
+     * <pre>{@code
      * Limit[10[INTEGER],true]
      * \_MvExpand[first_name{f}#7,first_name{r}#17]
      *   \_TopN[[Order[emp_no{f}#6,DESC,FIRST]],10[INTEGER]]
      *     \_Filter[emp_no{f}#6 &leq; 10006[INTEGER]]
      *       \_EsRelation[test][_meta_field{f}#12, emp_no{f}#6, first_name{f}#7, ge..]
+     * }</pre>
      */
     public void testFilterWithSortBeforeMvExpand() {
         LogicalPlan plan = optimizedPlan("""
@@ -2216,6 +2375,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     /**
      * Expected
      *
+     * <pre>{@code
      * Project[[_meta_field{f}#14, emp_no{f}#8, first_name{f}#9, gender{f}#10, hire_date{f}#15, job{f}#16, job.raw{f}#17,
      *          languages{f}#11 AS language_code#6, last_name{f}#12, long_noidx{f}#18, salary{f}#13, language_name{f}#20]]
      * \_Limit[10[INTEGER],true]
@@ -2224,6 +2384,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      *     | \_Filter[emp_no{f}#8 &leq; 10006[INTEGER]]
      *     |   \_EsRelation[test][_meta_field{f}#14, emp_no{f}#8, first_name{f}#9, ge..]
      *     \_EsRelation[languages_lookup][LOOKUP][language_code{f}#19, language_name{f}#20]
+     * }</pre>
      */
     public void testFilterWithSortBeforeLookupJoin() {
         LogicalPlan plan = optimizedPlan("""
@@ -2247,11 +2408,13 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     /**
      * Expected
      *
+     * <pre>{@code
      * TopN[[Order[first_name{f}#10,ASC,LAST]],500[INTEGER]]
      * \_MvExpand[last_name{f}#13,last_name{r}#20,null]
      *   \_Filter[emp_no{r}#19 > 10050[INTEGER]]
      *     \_MvExpand[emp_no{f}#9,emp_no{r}#19,null]
      *       \_EsRelation[test][_meta_field{f}#15, emp_no{f}#9, first_name{f}#10, g..]
+     * }</pre>
      */
     public void testMultiMvExpand_SortDownBelow() {
         LogicalPlan plan = optimizedPlan("""
@@ -2274,6 +2437,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     /**
      * Expected
      *
+     * <pre>{@code
      * Limit[10000[INTEGER],true]
      * \_MvExpand[c{r}#7,c{r}#16]
      *   \_EsqlProject[[c{r}#7, a{r}#3]]
@@ -2284,7 +2448,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      *             \_LocalRelation[[a{r}#3, b{r}#5, c{r}#7],[ConstantNullBlock[positions=1],
      *               IntVectorBlock[vector=ConstantIntVector[positions=1, value=123]],
      *               IntVectorBlock[vector=ConstantIntVector[positions=1, value=234]]]]
-     *
+     * }</pre>
      */
     public void testLimitThenSortBeforeMvExpand() {
         LogicalPlan plan = optimizedPlan("""
@@ -2310,6 +2474,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     /**
      * Expects
      *
+     * <pre>{@code
      * Project[[c{r}#7 AS language_code#14, a{r}#3, language_name{f}#19]]
      * \_Limit[10000[INTEGER],true]
      *   \_Join[LEFT,[c{r}#7],[c{r}#7],[language_code{f}#18]]
@@ -2322,6 +2487,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      *                                                                   IntVectorBlock[vector=ConstantIntVector[positions=1, value=234]]]]
      *     |     \_EsRelation[languages_lookup][LOOKUP][language_code{f}#16]
      *     \_EsRelation[languages_lookup][LOOKUP][language_code{f}#18, language_name{f}#19]
+     * }</pre>
      */
     public void testLimitThenSortBeforeLookupJoin() {
         LogicalPlan plan = optimizedPlan("""
@@ -2348,9 +2514,11 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
 
     /**
      * Expected
+     * <pre>{@code
      * TopN[[Order[first_name{r}#16,ASC,LAST]],10000[INTEGER]]
      * \_MvExpand[first_name{f}#7,first_name{r}#16]
      *   \_EsRelation[test][_meta_field{f}#12, emp_no{f}#6, first_name{f}#7, ge..]
+     * }</pre>
      */
     public void testRemoveUnusedSortBeforeMvExpand_DefaultLimit10000() {
         LogicalPlan plan = optimizedPlan("""
@@ -2369,11 +2537,13 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
 
     /**
      * Expected
+     * <pre>{@code
      * EsqlProject[[emp_no{f}#3517, first_name{r}#3528, salary{f}#3522]]
      * \_TopN[[Order[salary{f}#3522,ASC,LAST], Order[first_name{r}#3528,ASC,LAST]],15[INTEGER]]
      *   \_Filter[gender{f}#3519 == [46][KEYWORD] AND WILDCARDLIKE(first_name{r}#3528)]
      *     \_MvExpand[first_name{f}#3518,first_name{r}#3528,null]
      *       \_EsRelation[test][_meta_field{f}#3523, emp_no{f}#3517, first_name{f}#..]
+     * }</pre>
      */
     public void testRedundantSort_BeforeMvExpand_WithFilterOnExpandedField() {
         LogicalPlan plan = optimizedPlan("""
@@ -2398,11 +2568,13 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
 
     /**
      * Expected
+     * <pre>{@code
      * EsqlProject[[emp_no{f}#3421, first_name{r}#3432, salary{f}#3426]]
      * \_TopN[[Order[salary{f}#3426,ASC,LAST], Order[first_name{r}#3432,ASC,LAST]],15[INTEGER]]
      *   \_Filter[gender{f}#3423 == [46][KEYWORD] AND salary{f}#3426 > 60000[INTEGER]]
      *     \_MvExpand[first_name{f}#3422,first_name{r}#3432,null]
      *       \_EsRelation[test][_meta_field{f}#3427, emp_no{f}#3421, first_name{f}#..]
+     * }</pre>
      */
     public void testRedundantSort_BeforeMvExpand_WithFilter_NOT_OnExpandedField() {
         LogicalPlan plan = optimizedPlan("""
@@ -2427,11 +2599,13 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
 
     /**
      * Expected
+     * <pre>{@code
      * EsqlProject[[emp_no{f}#2085, first_name{r}#2096 AS x, salary{f}#2090]]
      * \_TopN[[Order[salary{f}#2090,ASC,LAST], Order[first_name{r}#2096,ASC,LAST]],15[INTEGER]]
      *   \_Filter[gender{f}#2087 == [46][KEYWORD] AND WILDCARDLIKE(first_name{r}#2096)]
      *     \_MvExpand[first_name{f}#2086,first_name{r}#2096,null]
      *       \_EsRelation[test][_meta_field{f}#2091, emp_no{f}#2085, first_name{f}#..]
+     * }</pre>
      */
     public void testRedundantSort_BeforeMvExpand_WithFilterOnExpandedFieldAlias() {
         LogicalPlan plan = optimizedPlan("""
@@ -2457,10 +2631,12 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
 
     /**
      * Expected:
+     * <pre>{@code
      * Limit[1000[INTEGER],true]
      * \_MvExpand[a{r}#3,a{r}#7]
      *   \_TopN[[Order[a{r}#3,ASC,LAST]],1000[INTEGER]]
      *     \_LocalRelation[[a{r}#3],[IntVectorBlock[vector=ConstantIntVector[positions=1, value=1]]]]
+     * }</pre>
      */
     public void testSortMvExpand() {
         LogicalPlan plan = optimizedPlan("""
@@ -2477,11 +2653,13 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
 
     /**
      * Expected:
+     * <pre>{@code
      * Limit[1000[INTEGER],true]
      * \_Join[LEFT,[language_code{r}#3],[language_code{r}#3],[language_code{f}#6]]
      *   |_TopN[[Order[language_code{r}#3,ASC,LAST]],1000[INTEGER]]
      *   | \_LocalRelation[[language_code{r}#3],[IntVectorBlock[vector=ConstantIntVector[positions=1, value=1]]]]
      *   \_EsRelation[languages_lookup][LOOKUP][language_code{f}#6, language_name{f}#7]
+     * }</pre>
      */
     public void testSortLookupJoin() {
         LogicalPlan plan = optimizedPlan("""
@@ -2498,10 +2676,12 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
 
     /**
      * Expected:
+     * <pre>{@code
      * Limit[20[INTEGER],true]
      * \_MvExpand[emp_no{f}#5,emp_no{r}#16]
      *   \_TopN[[Order[emp_no{f}#5,ASC,LAST]],20[INTEGER]]
      *     \_EsRelation[test][_meta_field{f}#11, emp_no{f}#5, first_name{f}#6, ge..]
+     * }</pre>
      */
     public void testSortMvExpandLimit() {
         LogicalPlan plan = optimizedPlan("""
@@ -2520,6 +2700,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     /**
      * Expected:
      *
+     * <pre>{@code
      * Project[[_meta_field{f}#13, emp_no{f}#7 AS language_code#5, first_name{f}#8, gender{f}#9, hire_date{f}#14, job{f}#15,
      *          job.raw{f}#16, languages{f}#10, last_name{f}#11, long_noidx{f}#17, salary{f}#12, language_name{f}#19]]
      * \_Limit[20[INTEGER],true]
@@ -2527,6 +2708,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      *     |_TopN[[Order[emp_no{f}#7,ASC,LAST]],20[INTEGER]]
      *     | \_EsRelation[test][_meta_field{f}#13, emp_no{f}#7, first_name{f}#8, ge..]
      *     \_EsRelation[languages_lookup][LOOKUP][language_code{f}#18, language_name{f}#19]
+     * }</pre>
      */
     public void testSortLookupJoinLimit() {
         LogicalPlan plan = optimizedPlan("""
@@ -2546,13 +2728,15 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
 
     /**
      * Expected:
+     * <pre>{@code
      * Limit[1000[INTEGER],true]
      * \_MvExpand[b{r}#5,b{r}#9]
      *   \_Limit[1000[INTEGER],false]
      *     \_LocalRelation[[a{r}#3, b{r}#5],[IntVectorBlock[vector=ConstantIntVector[positions=1, value=1]],
      *       IntVectorBlock[vector=ConstantIntVector[positions=1, value=-15]]]]
+     * }</pre>
      *
-     *  see https://github.com/elastic/elasticsearch/issues/102084
+     *  see <a href="https://github.com/elastic/elasticsearch/issues/102084">https://github.com/elastic/elasticsearch/issues/102084</a>
      */
     public void testWhereMvExpand() {
         LogicalPlan plan = optimizedPlan("""
@@ -2569,12 +2753,14 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
 
     /**
      * Expected:
+     * <pre>{@code
      * Limit[1000[INTEGER],true]
      * \_Join[LEFT,[language_code{r}#5],[language_code{r}#5],[language_code{f}#8]]
      *   |_Limit[1000[INTEGER],false]
      *   | \_LocalRelation[[a{r}#3, language_code{r}#5],[IntVectorBlock[vector=ConstantIntVector[positions=1, value=1]], IntVectorBlock[ve
      * ctor=ConstantIntVector[positions=1, value=-15]]]]
      *   \_EsRelation[languages_lookup][LOOKUP][language_code{f}#8, language_name{f}#9]
+     * }</pre>
      */
     public void testWhereLookupJoin() {
         LogicalPlan plan = optimizedPlan("""
@@ -2591,11 +2777,13 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
 
     /**
      * Expects
+     * <pre>{@code
      * TopN[[Order[language_code{r}#7,ASC,LAST]],1[INTEGER]]
      * \_Limit[1[INTEGER],true]
      *   \_MvExpand[language_code{r}#3,language_code{r}#7]
      *     \_Limit[1[INTEGER],false]
      *       \_LocalRelation[[language_code{r}#3],[IntVectorBlock[vector=ConstantIntVector[positions=1, value=1]]]]
+     * }</pre>
      *
      * Notice that the `TopN` at the very top has limit 1, not 3!
      */
@@ -2617,12 +2805,14 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
 
     /**
      * Expects
+     * <pre>{@code
      * TopN[[Order[language_code{r}#3,ASC,LAST]],1[INTEGER]]
      * \_Limit[1[INTEGER],true]
      *   \_Join[LEFT,[language_code{r}#3],[language_code{r}#3],[language_code{f}#6]]
      *     |_Limit[1[INTEGER],false]
      *     | \_LocalRelation[[language_code{r}#3],[IntVectorBlock[vector=ConstantIntVector[positions=1, value=1]]]]
      *     \_EsRelation[languages_lookup][LOOKUP][language_code{f}#6, language_name{f}#7]
+     * }</pre>
      *
      * Notice that the `TopN` at the very top has limit 1, not 3!
      */
@@ -2642,11 +2832,13 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         var localRelation = as(limitBefore.child(), LocalRelation.class);
     }
 
-    /*
+    /**
+     * <pre>{@code
      * EsqlProject[[emp_no{f}#9, first_name{f}#10, languages{f}#12, language_code{r}#3, language_name{r}#22]]
      * \_Eval[[null[INTEGER] AS language_code#3, null[KEYWORD] AS language_name#22]]
      *   \_Limit[1000[INTEGER],false]
      *     \_EsRelation[test][_meta_field{f}#15, emp_no{f}#9, first_name{f}#10, g..]
+     * }</pre>
      */
     public void testPruneJoinOnNullMatchingField() {
         var plan = optimizedPlan("""
@@ -2663,11 +2855,13 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         var source = as(limit.child(), EsRelation.class);
     }
 
-    /*
+    /**
+     * <pre>{@code
      * Project[[emp_no{f}#15, first_name{f}#16, my_null{r}#3 AS language_code#9, language_name{r}#27]]
      * \_Eval[[null[INTEGER] AS my_null#3, null[KEYWORD] AS language_name#27]]
      *   \_Limit[1000[INTEGER],false]
      *     \_EsRelation[test][_meta_field{f}#21, emp_no{f}#15, first_name{f}#16, ..]
+     * }</pre>
      */
     public void testPruneJoinOnNullAssignedMatchingField() {
         var plan = optimizedPlan("""
@@ -2692,9 +2886,11 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
 
     /**
      * Expects
+     * <pre>{@code
      * Eval[[2[INTEGER] AS x]]
      * \_Limit[1000[INTEGER],false]
      *   \_LocalRelation[[{e}#9],[ConstantNullBlock[positions=1]]]
+     * }</pre>
      */
     public void testEvalAfterStats() {
         var plan = optimizedPlan("""
@@ -2710,10 +2906,12 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
 
     /**
      * Expects
+     * <pre>{@code
      * Eval[[2[INTEGER] AS x]]
      * \_Limit[1000[INTEGER],false]
      *   \_Aggregate[[foo{r}#3],[foo{r}#3 AS x]]
      *     \_LocalRelation[[foo{r}#3],[IntVectorBlock[vector=ConstantIntVector[positions=1, value=1]]]]
+     * }</pre>
      */
     public void testEvalAfterGroupBy() {
         var plan = optimizedPlan("""
@@ -3196,12 +3394,14 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
 
     /**
      * Expects
+     * <pre>{@code
      * EsqlProject[[a{r}#3, last_name{f}#9]]
      * \_Eval[[__a_SUM_123{r}#12 / __a_COUNT_150{r}#13 AS a]]
      *   \_Limit[10000[INTEGER]]
      *     \_Aggregate[[last_name{f}#9],[SUM(salary{f}#10) AS __a_SUM_123, COUNT(salary{f}#10) AS __a_COUNT_150, last_nam
      * e{f}#9]]
      *       \_EsRelation[test][_meta_field{f}#11, emp_no{f}#5, first_name{f}#6, !g..]
+     * }</pre>
      */
     public void testSimpleAvgReplacement() {
         var plan = plan("""
@@ -3231,11 +3431,13 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
 
     /**
      * Expects
+     * <pre>{@code
      * EsqlProject[[a{r}#3, c{r}#6, s{r}#9, last_name{f}#15]]
      * \_Eval[[s{r}#9 / c{r}#6 AS a]]
      *   \_Limit[10000[INTEGER]]
      *     \_Aggregate[[last_name{f}#15],[COUNT(salary{f}#16) AS c, SUM(salary{f}#16) AS s, last_name{f}#15]]
      *       \_EsRelation[test][_meta_field{f}#17, emp_no{f}#11, first_name{f}#12, ..]
+     * }</pre>
      */
     public void testClashingAggAvgReplacement() {
         var plan = plan("""
@@ -3257,12 +3459,14 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
 
     /**
      * Expects
+     * <pre>{@code
      * EsqlProject[[a{r}#3, c{r}#6, s{r}#9, last_name{f}#15]]
      * \_Eval[[s{r}#9 / __a_COUNT@xxx{r}#18 AS a]]
      *   \_Limit[10000[INTEGER]]
      *     \_Aggregate[[last_name{f}#15],[COUNT(salary{f}#16) AS __a_COUNT@xxx, COUNT(languages{f}#14) AS c, SUM(salary{f}#16) AS
      *  s, last_name{f}#15]]
      *       \_EsRelation[test][_meta_field{f}#17, emp_no{f}#11, first_name{f}#12, ..]
+     * }</pre>
      */
     public void testSemiClashingAvgReplacement() {
         var plan = plan("""
@@ -3293,9 +3497,11 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
 
     /**
      * Expected
+     * <pre>{@code
      * Limit[10000[INTEGER]]
      * \_Aggregate[[last_name{f}#9],[PERCENTILE(salary{f}#10,50[INTEGER]) AS m, last_name{f}#9]]
      *   \_EsRelation[test][_meta_field{f}#11, emp_no{f}#5, first_name{f}#6, !g..]
+     * }</pre>
      */
     public void testMedianReplacement() {
         var plan = plan("""
@@ -3404,9 +3610,11 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
 
     /**
      * Expects
+     * <pre>{@code
      * Limit[1000[INTEGER]]
      * \_Aggregate[[],[COUNT(salary{f}#1345) AS c]]
      *   \_EsRelation[test][_meta_field{f}#1346, emp_no{f}#1340, first_name{f}#..]
+     * }</pre>
      */
     public void testPruneEvalDueToStats() {
         var plan = plan("""
@@ -3443,9 +3651,11 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
 
     /**
      * Expects
+     * <pre>{@code
      * Limit[1000[INTEGER]]
      * \_Aggregate[[],[COUNT(salary{f}#19) AS x]]
      *   \_EsRelation[test][_meta_field{f}#20, emp_no{f}#14, first_name{f}#15, ..]
+     * }</pre>
      */
     public void testPruneUnusedAggMixedWithEval() {
         var plan = plan("""
@@ -3487,11 +3697,13 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
 
     /**
      * Expects
+     * <pre>{@code
      * Project[[c{r}#342]]
      * \_Limit[1000[INTEGER]]
      *   \_Filter[min{r}#348 > 10[INTEGER]]
      *     \_Aggregate[[],[COUNT(salary{f}#367) AS c, MIN(salary{f}#367) AS min]]
      *       \_EsRelation[test][_meta_field{f}#368, emp_no{f}#362, first_name{f}#36..]
+     * }</pre>
      */
     public void testPruneMixedAggInsideUnusedEval() {
         var plan = plan("""
@@ -3518,10 +3730,12 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
 
     /**
      * Expects
+     * <pre>{@code
      * Eval[[max{r}#6 + min{r}#9 + c{r}#3 AS x, min{r}#9 AS y, c{r}#3 AS z]]
      * \_Limit[1000[INTEGER]]
      *   \_Aggregate[[],[COUNT(salary{f}#26) AS c, MAX(salary{f}#26) AS max, MIN(salary{f}#26) AS min]]
      *     \_EsRelation[test][_meta_field{f}#27, emp_no{f}#21, first_name{f}#22, ..]
+     * }</pre>
      */
     public void testNoPruningWhenDealingJustWithEvals() {
         var plan = plan("""
@@ -3539,10 +3753,12 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
 
     /**
      * Expects
+     * <pre>{@code
      * Project[[y{r}#6 AS z]]
      * \_Eval[[emp_no{f}#11 + 1[INTEGER] AS y]]
      *   \_Limit[1000[INTEGER]]
      *     \_EsRelation[test][_meta_field{f}#17, emp_no{f}#11, first_name{f}#12, ..]
+     * }</pre>
      */
     public void testNoPruningWhenChainedEvals() {
         var plan = plan("""
@@ -3561,9 +3777,11 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
 
     /**
      * Expects
+     * <pre>{@code
      * Project[[salary{f}#20 AS x, emp_no{f}#15 AS y]]
      * \_Limit[1000[INTEGER]]
      *   \_EsRelation[test][_meta_field{f}#21, emp_no{f}#15, first_name{f}#16, ..]
+     * }</pre>
      */
     public void testPruningDuplicateEvals() {
         var plan = plan("""
@@ -3588,9 +3806,11 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
 
     /**
      * Expects
+     * <pre>{@code
      * Limit[1000[INTEGER]]
      * \_Aggregate[[],[COUNT(salary{f}#24) AS cx, COUNT(emp_no{f}#19) AS cy]]
      *   \_EsRelation[test][_meta_field{f}#25, emp_no{f}#19, first_name{f}#20, ..]
+     * }</pre>
      */
     public void testPruneEvalAliasOnAggUngrouped() {
         var plan = plan("""
@@ -3612,9 +3832,11 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
 
     /**
      * Expects
+     * <pre>{@code
      * Limit[1000[INTEGER]]
      * \_Aggregate[[x{r}#6],[COUNT(emp_no{f}#17) AS cy, salary{f}#22 AS x]]
      *   \_EsRelation[test][_meta_field{f}#23, emp_no{f}#17, first_name{f}#18, ..]
+     * }</pre>
      */
     public void testPruneEvalAliasOnAggGroupedByAlias() {
         var plan = plan("""
@@ -3637,9 +3859,11 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
 
     /**
      * Expects
+     * <pre>{@code
      * Limit[1000[INTEGER]]
      * \_Aggregate[[gender{f}#22],[COUNT(emp_no{f}#20) AS cy, MIN(salary{f}#25) AS cx, gender{f}#22]]
      *   \_EsRelation[test][_meta_field{f}#26, emp_no{f}#20, first_name{f}#21, ..]
+     * }</pre>
      */
     public void testPruneEvalAliasOnAggGrouped() {
         var plan = plan("""
@@ -3663,9 +3887,11 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
 
     /**
      * Expects
+     * <pre>{@code
      * Limit[1000[INTEGER]]
      * \_Aggregate[[gender{f}#21],[COUNT(emp_no{f}#19) AS cy, MIN(salary{f}#24) AS cx, gender{f}#21]]
      *   \_EsRelation[test][_meta_field{f}#25, emp_no{f}#19, first_name{f}#20, ..]
+     * }</pre>
      */
     public void testPruneEvalAliasMixedWithRenameOnAggGrouped() {
         var plan = plan("""
@@ -3689,10 +3915,12 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
 
     /**
      * Expects
+     * <pre>{@code
      * Limit[1000[INTEGER]]
      * \_Aggregate[[gender{f}#19],[COUNT(x{r}#3) AS cy, MIN(x{r}#3) AS cx, gender{f}#19]]
      *   \_Eval[[emp_no{f}#17 + 1[INTEGER] AS x]]
      *     \_EsRelation[test][_meta_field{f}#23, emp_no{f}#17, first_name{f}#18, ..]
+     * }</pre>
      */
     public void testEvalAliasingAcrossCommands() {
         var plan = plan("""
@@ -3718,10 +3946,12 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
 
     /**
      * Expects
+     * <pre>{@code
      * Limit[1000[INTEGER]]
      * \_Aggregate[[gender{f}#19],[COUNT(x{r}#3) AS cy, MIN(x{r}#3) AS cx, gender{f}#19]]
      *   \_Eval[[emp_no{f}#17 + 1[INTEGER] AS x]]
      *     \_EsRelation[test][_meta_field{f}#23, emp_no{f}#17, first_name{f}#18, ..]
+     * }</pre>
      */
     public void testEvalAliasingInsideSameCommand() {
         var plan = plan("""
@@ -3745,10 +3975,12 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
 
     /**
      * Expects
+     * <pre>{@code
      * Limit[1000[INTEGER]]
      * \_Aggregate[[gender{f}#22],[COUNT(z{r}#9) AS cy, MIN(x{r}#3) AS cx, gender{f}#22]]
      *   \_Eval[[emp_no{f}#20 + 1[INTEGER] AS x, x{r}#3 + 1[INTEGER] AS z]]
      *     \_EsRelation[test][_meta_field{f}#26, emp_no{f}#20, first_name{f}#21, ..]
+     * }</pre>
      */
     public void testEvalAliasingInsideSameCommandWithShadowing() {
         var plan = plan("""
@@ -3790,9 +4022,11 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
 
     /**
      * Expects
+     * <pre>{@code
      * Limit[1000[INTEGER]]
      * \_Aggregate[[gender{f}#14],[COUNT(salary{f}#17) AS cy, MIN(emp_no{f}#12) AS cx, gender{f}#14]]
      *   \_EsRelation[test][_meta_field{f}#18, emp_no{f}#12, first_name{f}#13, ..]
+     * }</pre>
      */
     public void testPruneRenameOnAggBy() {
         var plan = plan("""
@@ -3816,11 +4050,13 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
 
     /**
      * Expects
+     * <pre>{@code
      * Project[[c1{r}#2, c2{r}#4, cs{r}#6, cm{r}#8, cexp{r}#10]]
      * \_Eval[[c1{r}#2 AS c2, c1{r}#2 AS cs, c1{r}#2 AS cm, c1{r}#2 AS cexp]]
      *   \_Limit[1000[INTEGER]]
      *     \_Aggregate[[],[COUNT([2a][KEYWORD]) AS c1]]
      *       \_EsRelation[test][_meta_field{f}#17, emp_no{f}#11, first_name{f}#12, ..]
+     * }</pre>
      */
     @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/100634")
     public void testEliminateDuplicateAggsCountAll() {
@@ -3847,11 +4083,13 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
 
     /**
      * Expects
+     * <pre>{@code
      * Project[[c1{r}#7, cx{r}#10, cs{r}#12, cy{r}#15]]
      * \_Eval[[c1{r}#7 AS cx, c1{r}#7 AS cs, c1{r}#7 AS cy]]
      *   \_Limit[1000[INTEGER]]
      *     \_Aggregate[[],[COUNT([2a][KEYWORD]) AS c1]]
      *       \_EsRelation[test][_meta_field{f}#22, emp_no{f}#16, first_name{f}#17, ..]
+     * }</pre>
      */
     @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/100634")
     public void testEliminateDuplicateAggsWithAliasedFields() {
@@ -3880,10 +4118,12 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
 
     /**
      * Expects
+     * <pre>{@code
      * Project[[min{r}#1385, max{r}#1388, min{r}#1385 AS min2, max{r}#1388 AS max2, gender{f}#1398]]
      * \_Limit[1000[INTEGER]]
      *   \_Aggregate[[gender{f}#1398],[MIN(salary{f}#1401) AS min, MAX(salary{f}#1401) AS max, gender{f}#1398]]
      *     \_EsRelation[test][_meta_field{f}#1402, emp_no{f}#1396, first_name{f}#..]
+     * }</pre>
      */
     public void testEliminateDuplicateAggsMixed() {
         var plan = plan("""
@@ -3910,9 +4150,11 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
 
     /**
      * Expects
+     * <pre>{@code
      * EsqlProject[[a{r}#5, c{r}#8]]
      * \_Eval[[null[INTEGER] AS x]]
      *   \_EsRelation[test][_meta_field{f}#15, emp_no{f}#9, first_name{f}#10, g..]
+     * }</pre>
      */
     @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/100634")
     public void testEliminateDuplicateAggWithNull() {
@@ -3926,10 +4168,12 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
 
     /**
      * Expects
+     * <pre>{@code
      * Project[[max(x){r}#11, max(x){r}#11 AS max(y), max(x){r}#11 AS max(z)]]
      * \_Limit[1000[INTEGER]]
      *   \_Aggregate[[],[MAX(salary{f}#21) AS max(x)]]
      *     \_EsRelation[test][_meta_field{f}#22, emp_no{f}#16, first_name{f}#17, ..]
+     * }</pre>
      */
     public void testEliminateDuplicateAggsNonCount() {
         var plan = plan("""
@@ -3957,9 +4201,11 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
 
     /**
      * Expects
+     * <pre>{@code
      * Limit[1000[INTEGER]]
      * \_Aggregate[[salary{f}#12],[salary{f}#12, salary{f}#12 AS x]]
      *   \_EsRelation[test][_meta_field{f}#13, emp_no{f}#7, first_name{f}#8, ge..]
+     * }</pre>
      */
     public void testEliminateDuplicateRenamedGroupings() {
         var plan = plan("""
@@ -3978,10 +4224,12 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
 
     /**
      * Expected
+     * <pre>{@code
      * Limit[2[INTEGER]]
      * \_Filter[a{r}#6 > 2[INTEGER]]
      *   \_MvExpand[a{r}#2,a{r}#6]
      *     \_Row[[[1, 2, 3][INTEGER] AS a]]
+     * }</pre>
      */
     public void testMvExpandFoldable() {
         LogicalPlan plan = optimizedPlan("""
@@ -4002,9 +4250,11 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
 
     /**
      * Expected
+     * <pre>{@code
      * Limit[1000[INTEGER]]
      * \_Aggregate[[a{r}#2],[COUNT([2a][KEYWORD]) AS bar]]
      *   \_Row[[1[INTEGER] AS a]]
+     * }</pre>
      */
     public void testRenameStatsDropGroup() {
         LogicalPlan plan = optimizedPlan("""
@@ -4021,9 +4271,11 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
 
     /**
      * Expected
+     * <pre>{@code
      * Limit[1000[INTEGER]]
      * \_Aggregate[[a{r}#3, b{r}#5],[COUNT([2a][KEYWORD]) AS baz, b{r}#5 AS bar]]
      *   \_Row[[1[INTEGER] AS a, 2[INTEGER] AS b]]
+     * }</pre>
      */
     public void testMultipleRenameStatsDropGroup() {
         LogicalPlan plan = optimizedPlan("""
@@ -4040,9 +4292,11 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
 
     /**
      * Expected
+     * <pre>{@code
      * Limit[1000[INTEGER]]
      * \_Aggregate[[emp_no{f}#14, gender{f}#16],[MAX(salary{f}#19) AS baz, gender{f}#16 AS bar]]
      *   \_EsRelation[test][_meta_field{f}#20, emp_no{f}#14, first_name{f}#15, ..]
+     * }</pre>
      */
     public void testMultipleRenameStatsDropGroupMultirow() {
         LogicalPlan plan = optimizedPlan("""
@@ -4082,9 +4336,11 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
 
     /**
      * Expects
+     * <pre>{@code
      * Limit[1000[INTEGER]]
      * \_Aggregate[[],[SUM(emp_no{f}#4) AS sum(emp_no)]]
      *   \_EsRelation[test][_meta_field{f}#10, emp_no{f}#4, first_name{f}#5, ge..]
+     * }</pre>
      */
     public void testIsNotNullConstraintForStatsWithoutGrouping() {
         var plan = optimizedPlan("""
@@ -4114,9 +4370,11 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
 
     /**
      * Expected
+     * <pre>{@code
      * Limit[1000[INTEGER]]
      * \_Aggregate[[salary{f}#1185],[SUM(salary{f}#1185) AS sum(salary), salary{f}#1185]]
      *   \_EsRelation[test][_meta_field{f}#1186, emp_no{f}#1180, first_name{f}#..]
+     * }</pre>
      */
     public void testIsNotNullConstraintForStatsWithAndOnGrouping() {
         var plan = optimizedPlan("""
@@ -4133,9 +4391,11 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
 
     /**
      * Expects
+     * <pre>{@code
      * Limit[1000[INTEGER]]
      * \_Aggregate[[salary{f}#13],[SUM(salary{f}#13) AS sum(salary), salary{f}#13 AS x]]
      *   \_EsRelation[test][_meta_field{f}#14, emp_no{f}#8, first_name{f}#9, ge..]
+     * }</pre>
      */
     public void testIsNotNullConstraintForStatsWithAndOnGroupingAlias() {
         var plan = optimizedPlan("""
@@ -4153,9 +4413,11 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
 
     /**
      * Expects
+     * <pre>{@code
      * Limit[1000[INTEGER]]
      * \_Aggregate[[salary{f}#13],[SUM(emp_no{f}#8) AS sum(x), salary{f}#13]]
      *   \_EsRelation[test][_meta_field{f}#14, emp_no{f}#8, first_name{f}#9, ge..]
+     * }</pre>
      */
     public void testIsNotNullConstraintSkippedForStatsWithAlias() {
         var plan = optimizedPlan("""
@@ -4175,9 +4437,11 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
 
     /**
      * Expects
+     * <pre>{@code
      * Limit[1000[INTEGER]]
      * \_Aggregate[[],[SUM(emp_no{f}#8) AS a, MIN(salary{f}#13) AS b]]
      *   \_EsRelation[test][_meta_field{f}#14, emp_no{f}#8, first_name{f}#9, ge..]
+     * }</pre>
      */
     public void testIsNotNullConstraintForStatsWithMultiAggWithoutGrouping() {
         var plan = optimizedPlan("""
@@ -4194,9 +4458,11 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
 
     /**
      * Expects
+     * <pre>{@code
      * Limit[1000[INTEGER]]
      * \_Aggregate[[gender{f}#11],[SUM(emp_no{f}#9) AS a, MIN(salary{f}#14) AS b, gender{f}#11]]
      *   \_EsRelation[test][_meta_field{f}#15, emp_no{f}#9, first_name{f}#10, g..]
+     * }</pre>
      */
     public void testIsNotNullConstraintForStatsWithMultiAggWithGrouping() {
         var plan = optimizedPlan("""
@@ -4213,9 +4479,11 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
 
     /**
      * Expects
+     * <pre>{@code
      * Limit[1000[INTEGER]]
      * \_Aggregate[[emp_no{f}#9],[SUM(emp_no{f}#9) AS a, MIN(salary{f}#14) AS b, emp_no{f}#9]]
      *   \_EsRelation[test][_meta_field{f}#15, emp_no{f}#9, first_name{f}#10, g..]
+     * }</pre>
      */
     public void testIsNotNullConstraintForStatsWithMultiAggWithAndOnGrouping() {
         var plan = optimizedPlan("""
@@ -4232,11 +4500,13 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
 
     /**
      * Expects
+     * <pre>{@code
      * Limit[1000[INTEGER]]
      * \_Aggregate[[w{r}#14, g{r}#16],[COUNT(b{r}#24) AS c, w{r}#14, gender{f}#32 AS g]]
      *   \_Eval[[emp_no{f}#30 / 10[INTEGER] AS x, x{r}#4 + salary{f}#35 AS y, y{r}#8 / 4[INTEGER] AS z, z{r}#11 * 2[INTEGER] +
      *  3[INTEGER] AS w, salary{f}#35 + 4[INTEGER] / 2[INTEGER] AS a, a{r}#21 + 3[INTEGER] AS b]]
      *     \_EsRelation[test][_meta_field{f}#36, emp_no{f}#30, first_name{f}#31, ..]
+     * }</pre>
      */
     public void testIsNotNullConstraintForAliasedExpressions() {
         var plan = optimizedPlan("""
@@ -4260,9 +4530,11 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
 
     /**
      * Expects
+     * <pre>{@code
      * Limit[1000[INTEGER]]
      * \_Aggregate[[],[SPATIALCENTROID(location{f}#9) AS centroid]]
      *   \_EsRelation[airports][abbrev{f}#5, location{f}#9, name{f}#6, scalerank{f}..]
+     * }</pre>
      */
     public void testSpatialTypesAndStatsUseDocValues() {
         var plan = planAirports("""
@@ -4285,9 +4557,11 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
 
     /**
      * Expects
+     * <pre>{@code
      * Limit[1000[INTEGER]]
      * \_Aggregate[[],[SPATIALCENTROID(location{f}#9) AS centroid]]
      *   \_EsRelation[airports][abbrev{f}#5, location{f}#9, name{f}#6, scalerank{f}..]
+     * }</pre>
      */
     public void testSpatialTypesAndStatsUseDocValuesWithEval() {
         var plan = planAirports("""
@@ -4310,9 +4584,11 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
 
     /**
      * Expects:
+     * <pre>{@code
      * Eval[[types.type{f}#5 AS new_types.type]]
      * \_Limit[1000[INTEGER]]
      *   \_EsRelation[test][_meta_field{f}#11, emp_no{f}#5, first_name{f}#6, ge..]
+     * }</pre>
      * NOTE: The convert function to_type is removed, since the types match
      * This does not work for to_string(text) since that converts text to keyword
      */
@@ -4338,10 +4614,12 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
 
     /**
      * Expects
+     * <pre>{@code
      * Limit[1000[INTEGER]]
      * \_Aggregate[[emp_no%2{r}#6],[COUNT(salary{f}#12) AS c, emp_no%2{r}#6]]
      *   \_Eval[[emp_no{f}#7 % 2[INTEGER] AS emp_no%2]]
      *     \_EsRelation[test][_meta_field{f}#13, emp_no{f}#7, first_name{f}#8, ge..]
+     * }</pre>
      */
     public void testNestedExpressionsInGroups() {
         var plan = optimizedPlan("""
@@ -4363,11 +4641,13 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
 
     /**
      * Expects
+     * <pre>{@code
      * Limit[1000[INTEGER],false]
      * \_Aggregate[[CATEGORIZE($$CONCAT(first_na>$CATEGORIZE(CONC>$0{r$}#1590) AS CATEGORIZE(CONCAT(first_name, "abc"))],[COUNT(sa
      * lary{f}#1584,true[BOOLEAN]) AS c, CATEGORIZE(CONCAT(first_name, "abc")){r}#1574]]
      *   \_Eval[[CONCAT(first_name{f}#1580,[61 62 63][KEYWORD]) AS $$CONCAT(first_na>$CATEGORIZE(CONC>$0]]
      *     \_EsRelation[test][_meta_field{f}#1585, emp_no{f}#1579, first_name{f}#..]
+     * }</pre>
      */
     public void testNestedExpressionsInGroupsWithCategorize() {
         var plan = optimizedPlan("""
@@ -4396,10 +4676,12 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
 
     /**
      * Expects
+     * <pre>{@code
      * Limit[1000[INTEGER]]
      * \_Aggregate[[emp_no{f}#6],[COUNT(__c_COUNT@1bd45f36{r}#16) AS c, emp_no{f}#6]]
      *   \_Eval[[salary{f}#11 + 1[INTEGER] AS __c_COUNT@1bd45f36]]
      *     \_EsRelation[test][_meta_field{f}#12, emp_no{f}#6, first_name{f}#7, ge..]
+     * }</pre>
      */
     public void testNestedExpressionsInAggs() {
         var plan = optimizedPlan("""
@@ -4421,11 +4703,13 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     }
 
     /**
+     * <pre>{@code
      * Limit[1000[INTEGER]]
      * \_Aggregate[[emp_no%2{r}#7],[COUNT(__c_COUNT@fb7855b0{r}#18) AS c, emp_no%2{r}#7]]
      *   \_Eval[[emp_no{f}#8 % 2[INTEGER] AS emp_no%2, 100[INTEGER] / languages{f}#11 + salary{f}#13 + 1[INTEGER] AS __c_COUNT
      * @fb7855b0]]
      *     \_EsRelation[test][_meta_field{f}#14, emp_no{f}#8, first_name{f}#9, ge..]
+     * }</pre>
      */
     public void testNestedExpressionsInBothAggsAndGroups() {
         var plan = optimizedPlan("""
@@ -4467,10 +4751,12 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
 
     /**
      * Expects
+     * <pre>{@code
      * Limit[1000[INTEGER]]
      * \_Aggregate[[g{r}#8],[COUNT($$emp_no_%_2_+_la>$COUNT$0{r}#20) AS c, g{r}#8]]
      *   \_Eval[[emp_no{f}#10 % 2[INTEGER] AS g, languages{f}#13 + emp_no{f}#10 % 2[INTEGER] AS $$emp_no_%_2_+_la>$COUNT$0]]
      *     \_EsRelation[test][_meta_field{f}#16, emp_no{f}#10, first_name{f}#11, ..]
+     * }</pre>
      */
     public void testNestedExpressionsWithGroupingKeyInAggs() {
         var plan = optimizedPlan("""
@@ -4502,12 +4788,14 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
 
     /**
      * Expects
+     * <pre>{@code
      * Limit[1000[INTEGER]]
      * \_Aggregate[[emp_no % 2{r}#12, languages + salary{r}#15],[MAX(languages + salary{r}#15) AS m, COUNT($$languages_+_sal>$COUN
      * T$0{r}#28) AS c, emp_no % 2{r}#12, languages + salary{r}#15]]
      *   \_Eval[[emp_no{f}#18 % 2[INTEGER] AS emp_no % 2, languages{f}#21 + salary{f}#23 AS languages + salary, languages{f}#2
      * 1 + salary{f}#23 + emp_no{f}#18 % 2[INTEGER] AS $$languages_+_sal>$COUNT$0]]
      *     \_EsRelation[test][_meta_field{f}#24, emp_no{f}#18, first_name{f}#19, ..]
+     * }</pre>
      */
     @AwaitsFix(bugUrl = "disabled since canonical representation relies on hashing which is runtime defined")
     public void testNestedExpressionsWithMultiGrouping() {
@@ -4548,6 +4836,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
 
     /**
      * Expects
+     * <pre>{@code
      * Project[[e{r}#5, languages + emp_no{r}#8]]
      * \_Eval[[$$MAX$max(languages_+>$0{r}#20 + 1[INTEGER] AS e]]
      *   \_Limit[1000[INTEGER]]
@@ -4555,6 +4844,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      * r}#8]]
      *       \_Eval[[languages{f}#13 + emp_no{f}#10 AS languages + emp_no]]
      *         \_EsRelation[test][_meta_field{f}#16, emp_no{f}#10, first_name{f}#11, ..]
+     * }</pre>
      */
     public void testNestedExpressionsInStatsWithExpression() {
         var plan = optimizedPlan("""
@@ -4599,13 +4889,15 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         );
     }
 
-    /*
+    /**
+     * <pre>{@code
      * Project[[bucket(salary, 1000.) + 1{r}#3, bucket(salary, 1000.){r}#5]]
-        \_Eval[[bucket(salary, 1000.){r}#5 + 1[INTEGER] AS bucket(salary, 1000.) + 1]]
-          \_Limit[1000[INTEGER]]
-            \_Aggregate[[bucket(salary, 1000.){r}#5],[bucket(salary, 1000.){r}#5]]
-              \_Eval[[BUCKET(salary{f}#12,1000.0[DOUBLE]) AS bucket(salary, 1000.)]]
-                \_EsRelation[test][_meta_field{f}#13, emp_no{f}#7, first_name{f}#8, ge..]
+     *  \_Eval[[bucket(salary, 1000.){r}#5 + 1[INTEGER] AS bucket(salary, 1000.) + 1]]
+     *    \_Limit[1000[INTEGER]]
+     *      \_Aggregate[[bucket(salary, 1000.){r}#5],[bucket(salary, 1000.){r}#5]]
+     *        \_Eval[[BUCKET(salary{f}#12,1000.0[DOUBLE]) AS bucket(salary, 1000.)]]
+     *          \_EsRelation[test][_meta_field{f}#13, emp_no{f}#7, first_name{f}#8, ge..]
+     * }</pre>
      */
     public void testBucketWithAggExpression() {
         var plan = plan("""
@@ -4682,6 +4974,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
 
     /**
      * Expects
+     * <pre>{@code
      * Project[[x{r}#5]]
      * \_Eval[[____x_AVG@9efc3cf3_SUM@daf9f221{r}#18 / ____x_AVG@9efc3cf3_COUNT@53cd08ed{r}#19 AS __x_AVG@9efc3cf3, __x_AVG@
      * 9efc3cf3{r}#16 / 2[INTEGER] + __x_MAX@475d0e4d{r}#17 AS x]]
@@ -4689,6 +4982,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      *     \_Aggregate[[],[SUM(salary{f}#11) AS ____x_AVG@9efc3cf3_SUM@daf9f221, COUNT(salary{f}#11) AS ____x_AVG@9efc3cf3_COUNT@53cd0
      * 8ed, MAX(salary{f}#11) AS __x_MAX@475d0e4d]]
      *       \_EsRelation[test][_meta_field{f}#12, emp_no{f}#6, first_name{f}#7, ge..]
+     * }</pre>
      */
     public void testStatsExpOverAggs() {
         var plan = optimizedPlan("""
@@ -4719,6 +5013,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
 
     /**
      * Expects
+     * <pre>{@code
      * Project[[x{r}#5, y{r}#9, z{r}#12]]
      * \_Eval[[$$SUM$$$AVG$avg(salary_%_3)>$0$0{r}#29 / $$COUNT$$$AVG$avg(salary_%_3)>$0$1{r}#30 AS $$AVG$avg(salary_%_3)>$0,
      *   $$AVG$avg(salary_%_3)>$0{r}#23 + $$MAX$avg(salary_%_3)>$1{r}#24 AS x,
@@ -4733,6 +5028,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      *       salary{f}#18 % 3[INTEGER] AS $$salary_%_3$AVG$0,
      *       emp_no{f}#13 / 3[INTEGER] AS $$emp_no_/_3$MIN$1]]
      *         \_EsRelation[test][_meta_field{f}#19, emp_no{f}#13, first_name{f}#14, ..]
+     * }</pre>
      */
     public void testStatsExpOverAggsMulti() {
         var plan = optimizedPlan("""
@@ -4775,6 +5071,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
 
     /**
      * Expects
+     * <pre>{@code
      * Project[[x{r}#5, y{r}#9, z{r}#12]]
      * \_Eval[[$$SUM$$$AVG$CONCAT(TO_STRIN>$0$0{r}#29 / $$COUNT$$$AVG$CONCAT(TO_STRIN>$0$1{r}#30 AS $$AVG$CONCAT(TO_STRIN>$0,
      *        CONCAT(TOSTRING($$AVG$CONCAT(TO_STRIN>$0{r}#23),TOSTRING($$MAX$CONCAT(TO_STRIN>$1{r}#24)) AS x,
@@ -4790,6 +5087,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      *       salary{f}#18 % 3[INTEGER] AS $$salary_%_3$AVG$0,
      *       emp_no{f}#13 / 3[INTEGER] AS $$emp_no_/_3$MIN$1]]
      *         \_EsRelation[test][_meta_field{f}#19, emp_no{f}#13, first_name{f}#14, ..]
+     * }</pre>
      */
     public void testStatsExpOverAggsWithScalars() {
         var plan = optimizedPlan("""
@@ -4837,6 +5135,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
 
     /**
      * Expects
+     * <pre>{@code
      * Project[[a{r}#5, b{r}#9, $$max(salary)_+_3>$COUNT$2{r}#46 AS d, $$count(salary)_->$MIN$3{r}#47 AS e, $$avg(salary)_+_m
      * >$MAX$1{r}#45 AS g]]
      * \_Eval[[$$$$avg(salary)_+_m>$AVG$0$SUM$0{r}#48 / $$max(salary)_+_3>$COUNT$2{r}#46 AS $$avg(salary)_+_m>$AVG$0, $$avg(
@@ -4847,6 +5146,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      * , COUNT(salary{f}#39) AS $$max(salary)_+_3>$COUNT$2, MIN(salary{f}#39) AS $$count(salary)_->$MIN$3]]
      *       \_Eval[[languages{f}#37 % 2[INTEGER] AS w]]
      *         \_EsRelation[test][_meta_field{f}#40, emp_no{f}#34, first_name{f}#35, ..]
+     * }</pre>
      */
     public void testStatsExpOverAggsWithScalarAndDuplicateAggs() {
         var plan = optimizedPlan("""
@@ -4908,11 +5208,13 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
 
     /**
      * Expects
+     * <pre>{@code
      * Project[[a{r}#5, a{r}#5 AS b, w{r}#12]]
      * \_Limit[1000[INTEGER]]
      *   \_Aggregate[[w{r}#12],[SUM($$salary_/_2_+_la>$SUM$0{r}#26) AS a, w{r}#12]]
      *     \_Eval[[emp_no{f}#16 % 2[INTEGER] AS w, salary{f}#21 / 2[INTEGER] + languages{f}#19 AS $$salary_/_2_+_la>$SUM$0]]
      *       \_EsRelation[test][_meta_field{f}#22, emp_no{f}#16, first_name{f}#17, ..]
+     * }</pre>
      */
     public void testStatsWithCanonicalAggregate() throws Exception {
         var plan = optimizedPlan("""
@@ -4944,6 +5246,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     /**
      * Expects after running the {@link LogicalPlanOptimizer#substitutions()}:
      *
+     * <pre>{@code
      * Limit[1000[INTEGER]]
      * \_EsqlProject[[s{r}#3, s_expr{r}#5, s_null{r}#7, w{r}#10]]
      *   \_Project[[s{r}#3, s_expr{r}#5, s_null{r}#7, w{r}#10]]
@@ -4952,6 +5255,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      *       \_Aggregate[[w{r}#10],[COUNT(*[KEYWORD]) AS $$COUNT$s$0, w{r}#10]]
      *         \_Eval[[emp_no{f}#16 % 2[INTEGER] AS w]]
      *           \_EsRelation[test][_meta_field{f}#22, emp_no{f}#16, first_name{f}#17, ..]
+     * }</pre>
      */
     public void testCountOfLiteral() {
         var plan = plan("""
@@ -5014,6 +5318,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     /**
      * Expects after running the {@link LogicalPlanOptimizer#substitutions()}:
      *
+     * <pre>{@code
      * Limit[1000[INTEGER]]
      * \_EsqlProject[[s{r}#3, s_expr{r}#5, s_null{r}#7, w{r}#10]]
      *   \_Project[[s{r}#3, s_expr{r}#5, s_null{r}#7, w{r}#10]]
@@ -5022,6 +5327,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      *       \_Aggregate[[w{r}#10],[COUNT(*[KEYWORD]) AS $$COUNT$s$0, w{r}#10]]
      *         \_Eval[[emp_no{f}#15 % 2[INTEGER] AS w]]
      *           \_EsRelation[test][_meta_field{f}#21, emp_no{f}#15, first_name{f}#16, ..]
+     * }</pre>
      */
     public void testSumOfLiteral() {
         var plan = plan("""
@@ -5109,14 +5415,16 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     /**
      * Aggs of literals in case that the agg can be simply replaced by a corresponding mv-function;
      * e.g. avg([1,2,3]) which is equivalent to mv_avg([1,2,3]).
-     *
+     * <p>
      * Expects after running the {@link LogicalPlanOptimizer#substitutions()}:
      *
+     * <pre>{@code
      * Limit[1000[INTEGER]]
      * \_EsqlProject[[s{r}#3, s_expr{r}#5, s_null{r}#7]]
      *   \_Project[[s{r}#3, s_expr{r}#5, s_null{r}#7]]
      *     \_Eval[[MVAVG([1, 2][INTEGER]) AS s, MVAVG(314.0[DOUBLE] / 100[INTEGER]) AS s_expr, MVAVG(null[NULL]) AS s_null]]
      *       \_LocalRelation[[{e}#21],[ConstantNullBlock[positions=1]]]
+     * }</pre>
      */
     public void testAggOfLiteral() {
         for (AggOfLiteralTestCase testCase : AGG_OF_CONST_CASES) {
@@ -5153,15 +5461,17 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
 
     /**
      * Like {@link LogicalPlanOptimizerTests#testAggOfLiteral()} but with a grouping key.
-     *
+     * <p>
      * Expects after running the {@link LogicalPlanOptimizer#substitutions()}:
      *
+     * <pre>{@code
      * Limit[1000[INTEGER]]
      * \_EsqlProject[[s{r}#3, s_expr{r}#5, s_null{r}#7, emp_no{f}#13]]
      *   \_Project[[s{r}#3, s_expr{r}#5, s_null{r}#7, emp_no{f}#13]]
      *     \_Eval[[MVAVG([1, 2][INTEGER]) AS s, MVAVG(314.0[DOUBLE] / 100[INTEGER]) AS s_expr, MVAVG(null[NULL]) AS s_null]]
      *       \_Aggregate[[emp_no{f}#13],[emp_no{f}#13]]
      *         \_EsRelation[test][_meta_field{f}#19, emp_no{f}#13, first_name{f}#14, ..]
+     * }</pre>
      */
     public void testAggOfLiteralGrouped() {
         for (AggOfLiteralTestCase testCase : AGG_OF_CONST_CASES) {
@@ -5311,6 +5621,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     /**
      * Before we alter the plan to make it invalid, we expect
      *
+     * <pre>{@code
      * Project[[_meta_field{f}#12, emp_no{f}#6, first_name{f}#7, gender{f}#8, hire_date{f}#13, job{f}#14, job.raw{f}#15,
      *          languages{f}#9 AS language_code#4, last_name{f}#10, long_noidx{f}#16, salary{f}#11, language_name{f}#18]]
      * \_Limit[1000[INTEGER],true]
@@ -5318,7 +5629,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      *     |_Limit[1000[INTEGER],false]
      *     | \_EsRelation[test][_meta_field{f}#12, emp_no{f}#6, first_name{f}#7, ge..]
      *     \_EsRelation[languages_lookup][LOOKUP][language_code{f}#17, language_name{f}#18]
-     *
+     * }</pre>
      */
     public void testPlanSanityCheckWithBinaryPlans() {
         assumeTrue("Requires LOOKUP JOIN", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
@@ -5361,15 +5672,17 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
 
     /**
      * Pushing down EVAL/GROK/DISSECT/ENRICH must not accidentally shadow attributes required by SORT.
-     *
+     * <p>
      * For DISSECT expects the following; the others are similar.
      *
+     * <pre>{@code
      * Project[[first_name{f}#37, emp_no{r}#30, salary{r}#31]]
      * \_TopN[[Order[$$order_by$temp_name$0{r}#46,ASC,LAST], Order[$$order_by$temp_name$1{r}#47,DESC,FIRST]],3[INTEGER]]
      *   \_Dissect[first_name{f}#37,Parser[pattern=%{emp_no} %{salary}, appendSeparator=,
      *   parser=org.elasticsearch.dissect.DissectParser@87f460f],[emp_no{r}#30, salary{r}#31]]
      *     \_Eval[[emp_no{f}#36 + salary{f}#41 * 13[INTEGER] AS $$order_by$temp_name$0, NEG(salary{f}#41) AS $$order_by$temp_name$1]]
      *       \_EsRelation[test][_meta_field{f}#42, emp_no{f}#36, first_name{f}#37, ..]
+     * }</pre>
      */
     public void testPushdownWithOverwrittenName() {
         List<String> overwritingCommands = List.of(
@@ -5515,7 +5828,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             ),
             new PushDownEnrich()
         ),
-        // | COMPLETION y=CONCAT(some text, x) WITH inferenceID
+        // | COMPLETION y =CONCAT(some text, x) WITH { "inference_id" : "inferenceID" }
         new PushdownShadowingGeneratingPlanTestCase(
             (plan, attr) -> new Completion(
                 EMPTY,
@@ -5526,7 +5839,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             ),
             new PushDownInferencePlan()
         ),
-        // | RERANK "some text" ON x WITH inferenceID=inferenceID, scoreColumn=y
+        // | RERANK "some text" ON x INTO y WITH { "inference_id" : "inferenceID" }
         new PushdownShadowingGeneratingPlanTestCase(
             (plan, attr) -> new Rerank(
                 EMPTY,
@@ -5542,15 +5855,19 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     /**
      * Consider
      *
+     * <pre>{@code
      * Eval[[TO_INTEGER(x{r}#2) AS y, y{r}#4 + 1[INTEGER] AS y]]
      * \_Project[[y{r}#3, x{r}#2]]
      * \_Row[[1[INTEGER] AS x, 2[INTEGER] AS y]]
+     * }</pre>
      *
      * We can freely push down the Eval without renaming, but need to update the Project's references.
      *
+     * <pre>{@code
      * Project[[x{r}#2, y{r}#6 AS y]]
      * \_Eval[[TO_INTEGER(x{r}#2) AS y, y{r}#4 + 1[INTEGER] AS y]]
      * \_Row[[1[INTEGER] AS x, 2[INTEGER] AS y]]
+     * }</pre>
      *
      * And similarly for dissect, grok and enrich.
      */
@@ -5589,15 +5906,19 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     /**
      * Consider
      *
+     * <pre>{@code
      * Eval[[TO_INTEGER(x{r}#2) AS y, y{r}#4 + 1[INTEGER] AS y]]
      * \_Project[[x{r}#2, y{r}#3, y{r}#3 AS z]]
      * \_Row[[1[INTEGER] AS x, 2[INTEGER] AS y]]
+     * }</pre>
      *
      * To push down the Eval, we must not shadow the reference y{r}#3, so we rename.
      *
+     * <pre>{@code
      * Project[[x{r}#2, y{r}#3 AS z, $$y$temp_name$10{r}#12 AS y]]
      * Eval[[TO_INTEGER(x{r}#2) AS $$y$temp_name$10, $$y$temp_name$10{r}#11 + 1[INTEGER] AS $$y$temp_name$10]]
      * \_Row[[1[INTEGER] AS x, 2[INTEGER] AS y]]
+     * }</pre>
      *
      * And similarly for dissect, grok and enrich.
      */
@@ -5646,16 +5967,20 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     /**
      * Consider
      *
+     * <pre>{@code
      * Eval[[TO_INTEGER(x{r}#2) AS y, y{r}#3 + 1[INTEGER] AS y]]
      * \_Project[[y{r}#1, y{r}#1 AS x]]
      * \_Row[[2[INTEGER] AS y]]
+     * }</pre>
      *
      * To push down the Eval, we must not shadow the reference y{r}#1, so we rename.
      * Additionally, the rename "y AS x" needs to be propagated into the Eval.
      *
+     * <pre>{@code
      * Project[[y{r}#1 AS x, $$y$temp_name$10{r}#12 AS y]]
      * Eval[[TO_INTEGER(y{r}#1) AS $$y$temp_name$10, $$y$temp_name$10{r}#11 + 1[INTEGER] AS $$y$temp_name$10]]
      * \_Row[[2[INTEGER] AS y]]
+     * }</pre>
      *
      * And similarly for dissect, grok and enrich.
      */
@@ -5699,11 +6024,13 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
 
     /**
      * Expects
+     * <pre>{@code
      * Project[[min{r}#4, languages{f}#11]]
      * \_TopN[[Order[$$order_by$temp_name$0{r}#18,ASC,LAST]],1000[INTEGER]]
      *   \_Eval[[min{r}#4 + languages{f}#11 AS $$order_by$temp_name$0]]
      *     \_Aggregate[[languages{f}#11],[MIN(salary{f}#13) AS min, languages{f}#11]]
      *       \_EsRelation[test][_meta_field{f}#14, emp_no{f}#8, first_name{f}#9, ge..]
+     * }</pre>
      */
     public void testReplaceSortByExpressionsWithStats() {
         var plan = optimizedPlan("""
@@ -5734,7 +6061,8 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         as(aggregate.child(), EsRelation.class);
     }
 
-    /*
+    /**
+     * <pre>{@code
      * Limit[1000[INTEGER],true]
      * \_InlineJoin[LEFT,[emp_no % 2{r}#6],[emp_no % 2{r}#6],[emp_no % 2{r}#6]]
      *   |_Eval[[emp_no{f}#7 % 2[INTEGER] AS emp_no % 2#6]]
@@ -5743,6 +6071,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      *   \_Aggregate[[emp_no % 2{r}#6],[COUNT(salary{f}#12,true[BOOLEAN]) AS c#4, emp_no % 2{r}#6]]
      *     \_StubRelation[[_meta_field{f}#13, emp_no{f}#7, first_name{f}#8, gender{f}#9, hire_date{f}#14, job{f}#15, job.raw{f}#16, lang
      *          uages{f}#10, last_name{f}#11, long_noidx{f}#17, salary{f}#12, emp_no % 2{r}#6]]
+     * }</pre>
      */
     public void testInlinestatsNestedExpressionsInGroups() {
         var query = """
@@ -5777,10 +6106,12 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         return false;
     }
 
-    /*
+    /**
+     * <pre>{@code
      * Project[[emp_no{f}#12 AS x#8, emp_no{f}#12]]
      * \_TopN[[Order[emp_no{f}#12,ASC,LAST]],1[INTEGER]]
      *   \_EsRelation[test][_meta_field{f}#18, emp_no{f}#12, first_name{f}#13, ..]
+     * }</pre>
      */
     public void testInlinestatsGetsPrunedEntirely() {
         var query = """
@@ -5827,7 +6158,8 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         var relation = as(topN.child(), EsRelation.class);
     }
 
-    /*
+    /**
+     * <pre>{@code
      * Project[[emp_no{f}#15 AS x#11, a{r}#7, emp_no{f}#15]]
      * \_Limit[1[INTEGER],true]
      *   \_InlineJoin[LEFT,[emp_no{f}#15],[emp_no{f}#15],[emp_no{r}#15]]
@@ -5836,6 +6168,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      *     \_Aggregate[[emp_no{f}#15],[COUNTDISTINCT(languages{f}#18,true[BOOLEAN]) AS a#7, emp_no{f}#15]]
      *       \_StubRelation[[_meta_field{f}#21, emp_no{f}#15, first_name{f}#16, gender{f}#17, hire_date{f}#22, job{f}#23, job.raw{f}#24, l
      *          anguages{f}#18, last_name{f}#19, long_noidx{f}#25, salary{f}#20]]
+     * }</pre>
      */
     public void testInlinestatsGetsPrunedPartially() {
         var query = """
@@ -5896,12 +6229,14 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         var stub = as(agg.child(), StubRelation.class);
     }
 
-    /*
+    /**
+     * <pre>{@code
      * Project[[abbrev{f}#19, scalerank{f}#21 AS backup_scalerank#4, language_name{f}#28 AS scalerank#11]]
      * \_TopN[[Order[abbrev{f}#19,DESC,FIRST]],5[INTEGER]]
      *   \_Join[LEFT,[scalerank{f}#21],[scalerank{f}#21],[language_code{f}#27]]
      *     |_EsRelation[airports][abbrev{f}#19, city{f}#25, city_location{f}#26, coun..]
      *     \_EsRelation[languages_lookup][LOOKUP][language_code{f}#27, language_name{f}#28]
+     * }</pre>
      */
     public void testInlinestatsWithLookupJoin() {
         var query = """
@@ -5938,7 +6273,8 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         assertThat(right.concreteIndices(), is(Set.of("languages_lookup")));
     }
 
-    /*
+    /**
+     * <pre>{@code
      * EsqlProject[[avg{r}#4, emp_no{f}#9, first_name{f}#10]]
      * \_Limit[10[INTEGER],true]
      *   \_InlineJoin[LEFT,[emp_no{f}#9],[emp_no{f}#9],[emp_no{r}#9]]
@@ -5950,6 +6286,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      *              avg$1#21, emp_no{f}#9]]
      *           \_StubRelation[[_meta_field{f}#15, emp_no{f}#9, first_name{f}#10, gender{f}#11, hire_date{f}#16, job{f}#17, job.raw{f}#18,
      *              languages{f}#12, last_name{f}#13, long_noidx{f}#19, salary{f}#14]]
+     * }</pre>
      */
     public void testInlinestatsWithAvg() {
         var query = """
@@ -5981,11 +6318,13 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         var stub = as(agg.child(), StubRelation.class);
     }
 
-    /*
+    /**
+     * <pre>{@code
      * EsqlProject[[emp_no{r}#5]]
      * \_Limit[1000[INTEGER],false]
      *   \_LocalRelation[[salary{r}#3, emp_no{r}#5, gender{r}#7],
      *      org.elasticsearch.xpack.esql.plan.logical.local.CopyingLocalSupplier@9d5b596d]
+     * }</pre>
      */
     public void testInlinestatsWithRow() {
         var query = """
@@ -6016,10 +6355,12 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     /**
      * Expects
      *
+     * <pre>{@code
      * Project[[salary{f}#19, languages{f}#17, emp_no{f}#14]]
      * \_TopN[[Order[$$order_by$0$0{r}#24,ASC,LAST], Order[emp_no{f}#14,DESC,FIRST]],1000[INTEGER]]
      *   \_Eval[[salary{f}#19 / 10000[INTEGER] + languages{f}#17 AS $$order_by$0$0]]
      *     \_EsRelation[test][_meta_field{f}#20, emp_no{f}#14, first_name{f}#15, ..]
+     * }</pre>
      */
     public void testReplaceSortByExpressionsMultipleSorts() {
         var plan = optimizedPlan("""
@@ -6067,12 +6408,14 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     /**
      * For DISSECT expects the following; the others are similar.
      *
+     * <pre>{@code
      * Project[[first_name{f}#37, emp_no{r}#30, salary{r}#31]]
      * \_TopN[[Order[$$order_by$temp_name$0{r}#46,ASC,LAST], Order[$$order_by$temp_name$1{r}#47,DESC,FIRST]],3[INTEGER]]
      *   \_Dissect[first_name{f}#37,Parser[pattern=%{emp_no} %{salary}, appendSeparator=,
      *   parser=org.elasticsearch.dissect.DissectParser@87f460f],[emp_no{r}#30, salary{r}#31]]
      *     \_Eval[[emp_no{f}#36 + salary{f}#41 * 13[INTEGER] AS $$order_by$temp_name$0, NEG(salary{f}#41) AS $$order_by$temp_name$1]]
      *       \_EsRelation[test][_meta_field{f}#42, emp_no{f}#36, first_name{f}#37, ..]
+     * }</pre>
      */
     public void testReplaceSortByExpressions() {
         List<String> overwritingCommands = List.of(
@@ -6299,7 +6642,6 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         doTestSimplifyComparisonArithmetics("12 * (-integer - 5) >= -120 OR integer < 5", "integer", LTE, 5);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/108388")
     public void testSimplifyComparisonArithmeticWithFloatsAndDirectionChange() {
         doTestSimplifyComparisonArithmetics("float / -2 < 4", "float", GT, -8d);
         doTestSimplifyComparisonArithmetics("float * -2 < 4", "float", GT, -2d);
@@ -6443,7 +6785,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
 
     /**
      * Expects
-     * {@code
+     * <pre>{@code
      * Join[JoinConfig[type=LEFT OUTER, matchFields=[int{r}#4], conditions=[LOOKUP int_number_names ON int]]]
      * |_EsqlProject[[_meta_field{f}#12, emp_no{f}#6, first_name{f}#7, gender{f}#8, job{f}#13, job.raw{f}#14, languages{f}#9 AS int
      * , last_name{f}#10, long_noidx{f}#15, salary{f}#11]]
@@ -6451,7 +6793,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      * |   \_EsRelation[test][_meta_field{f}#12, emp_no{f}#6, first_name{f}#7, ge..]
      * \_LocalRelation[[int{f}#16, name{f}#17],[IntVectorBlock[vector=IntArrayVector[positions=10, values=[0, 1, 2, 3, 4, 5, 6, 7, 8,
      * 9]]], BytesRefVectorBlock[vector=BytesRefArrayVector[positions=10]]]]
-     * }
+     * }</pre>
      */
     @AwaitsFix(bugUrl = "lookup functionality is not yet implemented")
     public void testLookupSimple() {
@@ -6522,7 +6864,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
 
     /**
      * Expects
-     * {@code
+     * <pre>{@code
      * Limit[1000[INTEGER]]
      * \_Aggregate[[name{r}#20],[MIN(emp_no{f}#9) AS MIN(emp_no), name{r}#20]]
      *   \_Join[JoinConfig[type=LEFT OUTER, matchFields=[int{r}#4], conditions=[LOOKUP int_number_names ON int]]]
@@ -6531,7 +6873,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      *     | \_EsRelation[test][_meta_field{f}#15, emp_no{f}#9, first_name{f}#10, g..]
      *     \_LocalRelation[[int{f}#19, name{f}#20],[IntVectorBlock[vector=IntArrayVector[positions=10, values=[0, 1, 2, 3, 4, 5, 6, 7, 8,
      * 9]]], BytesRefVectorBlock[vector=BytesRefArrayVector[positions=10]]]]
-     * }
+     * }</pre>
      */
     @AwaitsFix(bugUrl = "lookup functionality is not yet implemented")
     public void testLookupStats() {
@@ -6613,9 +6955,10 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
 
     /**
      * Filter on join keys should be pushed down
-     *
+     * <p>
      * Expects
      *
+     * <pre>{@code
      * Project[[_meta_field{f}#13, emp_no{f}#7, first_name{f}#8, gender{f}#9, hire_date{f}#14, job{f}#15, job.raw{f}#16,
      *          languages{f}#10 AS language_code#4, last_name{f}#11, long_noidx{f}#17, salary{f}#12, language_name{f}#19]]
      * \_Limit[1000[INTEGER],true]
@@ -6624,6 +6967,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      *     | \_Filter[languages{f}#10 &gt; 1[INTEGER]]
      *     |   \_EsRelation[test][_meta_field{f}#13, emp_no{f}#7, first_name{f}#8, ge..]
      *     \_EsRelation[languages_lookup][LOOKUP][language_code{f}#18, language_name{f}#19]
+     * }</pre>
      */
     public void testLookupJoinPushDownFilterOnJoinKeyWithRename() {
         assumeTrue("Requires LOOKUP JOIN", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
@@ -6658,6 +7002,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      * Filter on on left side fields (outside the join key) should be pushed down
      * Expects
      *
+     * <pre>{@code
      * Project[[_meta_field{f}#13, emp_no{f}#7, first_name{f}#8, gender{f}#9, hire_date{f}#14, job{f}#15, job.raw{f}#16,
      *          languages{f}#10 AS language_code#4, last_name{f}#11, long_noidx{f}#17, salary{f}#12, language_name{f}#19]]
      * \_Limit[1000[INTEGER],true]
@@ -6667,6 +7012,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      *     |   \_EsRelation[test][_meta_field{f}#13, emp_no{f}#7, first_name{f}#8, ge..]
      *     \_EsRelation[languages_lookup][LOOKUP][language_code{f}#18, language_name{f}#19]
      *
+     * }</pre>
      */
     public void testLookupJoinPushDownFilterOnLeftSideField() {
         assumeTrue("Requires LOOKUP JOIN", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
@@ -6700,9 +7046,10 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
 
     /**
      * Filter works on the right side fields and thus cannot be pushed down
-     *
+     * <p>
      * Expects
      *
+     * <pre>{@code
      * Project[[_meta_field{f}#13, emp_no{f}#7, first_name{f}#8, gender{f}#9, hire_date{f}#14, job{f}#15, job.raw{f}#16,
      *          languages{f}#10 AS language_code#4, last_name{f}#11, long_noidx{f}#17, salary{f}#12, language_name{f}#19]]
      * \_Limit[1000[INTEGER],false]
@@ -6710,6 +7057,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      *     \_Join[LEFT,[languages{f}#10],[languages{f}#10],[language_code{f}#18]]
      *       |_EsRelation[test][_meta_field{f}#13, emp_no{f}#7, first_name{f}#8, ge..]
      *       \_EsRelation[languages_lookup][LOOKUP][language_code{f}#18, language_name{f}#19]
+     * }</pre>
      */
     public void testLookupJoinPushDownDisabledForLookupField() {
         assumeTrue("Requires LOOKUP JOIN", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
@@ -6742,9 +7090,10 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
 
     /**
      * Split the conjunction into pushable and non pushable filters.
-     *
+     * <p>
      * Expects
      *
+     * <pre>{@code
      * Project[[_meta_field{f}#14, emp_no{f}#8, first_name{f}#9, gender{f}#10, hire_date{f}#15, job{f}#16, job.raw{f}#17,
      *          languages{f}#11 AS language_code#4, last_name{f}#12, long_noidx{f}#18, salary{f}#13, language_name{f}#20]]
      * \_Limit[1000[INTEGER],false]
@@ -6753,6 +7102,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      *       |_Filter[emp_no{f}#8 > 1[INTEGER]]
      *       | \_EsRelation[test][_meta_field{f}#14, emp_no{f}#8, first_name{f}#9, ge..]
      *       \_EsRelation[languages_lookup][LOOKUP][language_code{f}#19, language_name{f}#20]
+     * }</pre>
      */
     public void testLookupJoinPushDownSeparatedForConjunctionBetweenLeftAndRightField() {
         assumeTrue("Requires LOOKUP JOIN", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
@@ -6793,9 +7143,10 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
 
     /**
      * Disjunctions however keep the filter in place, even on pushable fields
-     *
+     * <p>
      * Expects
      *
+     * <pre>{@code
      * Project[[_meta_field{f}#14, emp_no{f}#8, first_name{f}#9, gender{f}#10, hire_date{f}#15, job{f}#16, job.raw{f}#17,
      *          languages{f}#11 AS language_code#4, last_name{f}#12, long_noidx{f}#18, salary{f}#13, language_name{f}#20]]
      * \_Limit[1000[INTEGER],false]
@@ -6803,6 +7154,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      *     \_Join[LEFT,[languages{f}#11],[languages{f}#11],[language_code{f}#19]]
      *       |_EsRelation[test][_meta_field{f}#14, emp_no{f}#8, first_name{f}#9, ge..]
      *       \_EsRelation[languages_lookup][LOOKUP][language_code{f}#19, language_name{f}#20]
+     * }</pre>
      */
     public void testLookupJoinPushDownDisabledForDisjunctionBetweenLeftAndRightField() {
         assumeTrue("Requires LOOKUP JOIN", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
@@ -6845,8 +7197,9 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     /**
      * When dropping lookup fields, the lookup relation shouldn't include them.
      * At least until we can implement InsertFieldExtract there.
-     *
+     * <p>
      * Expects
+     * <pre>{@code
      * EsqlProject[[languages{f}#21]]
      * \_Limit[1000[INTEGER],true]
      *   \_Join[LEFT,[language_code{r}#4],[language_code{r}#4],[language_code{f}#29]]
@@ -6855,6 +7208,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      *     | \_Limit[1000[INTEGER],false]
      *     |   \_EsRelation[test][_meta_field{f}#24, emp_no{f}#18, first_name{f}#19, ..]
      *     \_EsRelation[languages_lookup][LOOKUP][language_code{f}#29]
+     * }</pre>
      */
     public void testLookupJoinKeepNoLookupFields() {
         assumeTrue("Requires LOOKUP JOIN", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
@@ -6887,8 +7241,9 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
 
     /**
      * Ensure a JOIN shadowed by another JOIN doesn't request the shadowed fields.
-     *
+     * <p>
      * Expected
+     * <pre>{@code
      * Limit[1000[INTEGER],true]
      * \_Join[LEFT,[language_code{r}#4],[language_code{r}#4],[language_code{f}#20]]
      *   |_Limit[1000[INTEGER],true]
@@ -6898,6 +7253,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      *   |   |   \_EsRelation[test][_meta_field{f}#13, emp_no{f}#7, first_name{f}#8, ge..]
      *   |   \_EsRelation[languages_lookup][LOOKUP][language_code{f}#18]
      *   \_EsRelation[languages_lookup][LOOKUP][language_code{f}#20, language_name{f}#21]
+     * }</pre>
      */
     public void testMultipleLookupShadowing() {
         assumeTrue("Requires LOOKUP JOIN", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
@@ -6931,10 +7287,6 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         var eval = as(initialJoin.left(), Eval.class);
         var limit3 = asLimit(eval.child(), 1000, false);
     }
-
-    //
-    //
-    //
 
     public void testTranslateMetricsWithoutGrouping() {
         assumeTrue("requires snapshot builds", Build.current().isSnapshot());
@@ -7340,6 +7692,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         assertThat(Expressions.attribute(finalAgg.groupings().get(0)).id(), equalTo(aggsByTsid.aggregates().get(2).id()));
 
         Sum sumTs = as(Alias.unwrap(aggsByTsid.aggregates().get(0)), Sum.class);
+        assertThat(sumTs.summationMode(), equalTo(SummationMode.LOSSY_LITERAL));
         assertThat(Expressions.attribute(sumTs.field()).name(), equalTo("network.bytes_in"));
         Count countTs = as(Alias.unwrap(aggsByTsid.aggregates().get(1)), Count.class);
         assertThat(Expressions.attribute(countTs.field()).name(), equalTo("network.bytes_in"));
@@ -7614,6 +7967,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     }
 
     /**
+     * <pre>{@code
      * Project[[_meta_field{f}#17, emp_no{f}#11, first_name{f}#12, gender{f}#13, hire_date{f}#18, job{f}#19, job.raw{f}#20,
      *          languages{f}#14 AS language_code#5, last_name{f}#15, long_noidx{f}#21, salary{f}#16, foo{r}#7, language_name{f}#23]]
      * \_TopN[[Order[emp_no{f}#11,ASC,LAST]],1000[INTEGER]]
@@ -7622,6 +7976,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      *     | \_Filter[languages{f}#14 > 1[INTEGER]]
      *     |   \_EsRelation[test][_meta_field{f}#17, emp_no{f}#11, first_name{f}#12, ..]
      *     \_EsRelation[languages_lookup][LOOKUP][language_code{f}#22, language_name{f}#23]
+     * }</pre>
      */
     public void testRedundantSortOnJoin() {
         assumeTrue("Requires LOOKUP JOIN", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
@@ -7647,11 +8002,13 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     }
 
     /**
+     * <pre>{@code
      * TopN[[Order[emp_no{f}#9,ASC,LAST]],1000[INTEGER]]
      * \_Filter[emp_no{f}#9 > 1[INTEGER]]
      *   \_MvExpand[languages{f}#12,languages{r}#20,null]
      *     \_Eval[[[62 61 72][KEYWORD] AS foo]]
      *       \_EsRelation[test][_meta_field{f}#15, emp_no{f}#9, first_name{f}#10, g..]
+     * }</pre>
      */
     public void testRedundantSortOnMvExpand() {
         var plan = optimizedPlan("""
@@ -7671,6 +8028,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     }
 
     /**
+     * <pre>{@code
      * TopN[[Order[emp_no{f}#11,ASC,LAST]],1000[INTEGER]]
      * \_Join[LEFT,[language_code{r}#5],[language_code{r}#5],[language_code{f}#22]]
      *   |_Filter[emp_no{f}#11 > 1[INTEGER]]
@@ -7678,6 +8036,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      *   |   \_Eval[[languages{f}#14 AS language_code]]
      *   |     \_EsRelation[test][_meta_field{f}#17, emp_no{f}#11, first_name{f}#12, ..]
      *   \_EsRelation[languages_lookup][LOOKUP][language_code{f}#22, language_name{f}#23]
+     * }</pre>
      */
     public void testRedundantSortOnMvExpandAndJoin() {
         var plan = optimizedPlan("""
@@ -7699,6 +8058,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     }
 
     /**
+     * <pre>{@code
      * TopN[[Order[emp_no{f}#12,ASC,LAST]],1000[INTEGER]]
      * \_Join[LEFT,[language_code{r}#5],[language_code{r}#5],[language_code{f}#23]]
      *   |_Filter[emp_no{f}#12 > 1[INTEGER]]
@@ -7706,6 +8066,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      *   |   \_Eval[[languages{f}#15 AS language_code]]
      *   |     \_EsRelation[test][_meta_field{f}#18, emp_no{f}#12, first_name{f}#13, ..]
      *   \_EsRelation[languages_lookup][LOOKUP][language_code{f}#23, language_name{f}#24]
+     * }</pre>
      */
     public void testMultlipleRedundantSortOnMvExpandAndJoin() {
         var plan = optimizedPlan("""
@@ -7728,6 +8089,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     }
 
     /**
+     * <pre>{@code
      * TopN[[Order[emp_no{f}#16,ASC,LAST]],1000[INTEGER]]
      * \_Filter[emp_no{f}#16 > 1[INTEGER]]
      *   \_MvExpand[languages{f}#19,languages{r}#31]
@@ -7738,6 +8100,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      * fields":["language_code","language_name"]}},{=languages_idx},[language_code{r}#29, language_name{r}#30]]
      *           \_Eval[[TOSTRING(languages{f}#19) AS foo]]
      *             \_EsRelation[test][_meta_field{f}#22, emp_no{f}#16, first_name{f}#17, ..]
+     * }</pre>
      */
     public void testRedundantSortOnMvExpandEnrichGrokDissect() {
         var plan = optimizedPlan("""
@@ -7763,6 +8126,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     }
 
     /**
+     * <pre>{@code
      * TopN[[Order[emp_no{f}#20,ASC,LAST]],1000[INTEGER]]
      * \_Filter[emp_no{f}#20 > 1[INTEGER]]
      *   \_MvExpand[languages{f}#23,languages{r}#37]
@@ -7775,6 +8139,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      *             |_Eval[[TOSTRING(languages{f}#23) AS foo, languages{f}#23 AS language_code]]
      *             | \_EsRelation[test][_meta_field{f}#26, emp_no{f}#20, first_name{f}#21, ..]
      *             \_EsRelation[languages_lookup][LOOKUP][language_code{f}#31]
+     * }</pre>
      */
     public void testRedundantSortOnMvExpandJoinEnrichGrokDissect() {
         var plan = optimizedPlan("""
@@ -7804,6 +8169,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     /**
      * Expects
      *
+     * <pre>{@code
      * TopN[[Order[emp_no{f}#23,ASC,LAST]],1000[INTEGER]]
      * \_Filter[emp_no{f}#23 > 1[INTEGER]]
      *   \_MvExpand[languages{f}#26,languages{r}#36]
@@ -7812,6 +8178,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      *         |_Eval[[TOSTRING(languages{f}#26) AS foo#5]]
      *         | \_EsRelation[test][_meta_field{f}#29, emp_no{f}#23, first_name{f}#24, ..]
      *         \_EsRelation[languages_lookup][LOOKUP][language_code{f}#34, language_name{f}#35]
+     * }</pre>
      */
     public void testRedundantSortOnMvExpandJoinKeepDropRename() {
         var plan = optimizedPlan("""
@@ -7839,6 +8206,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     }
 
     /**
+     * <pre>{@code
      * TopN[[Order[emp_no{f}#15,ASC,LAST]],1000[INTEGER]]
      * \_Filter[emp_no{f}#15 > 1[INTEGER]]
      *   \_MvExpand[foo{r}#10,foo{r}#29]
@@ -7848,6 +8216,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      *           |_Eval[[1[INTEGER] AS language_code]]
      *           | \_EsRelation[test][_meta_field{f}#21, emp_no{f}#15, first_name{f}#16, ..]
      *           \_EsRelation[languages_lookup][LOOKUP][language_code{f}#26, language_name{f}#27]
+     * }</pre>
      */
     public void testEvalLookupMultipleSorts() {
         var plan = optimizedPlan("""
@@ -7962,10 +8331,12 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     }
 
     /**
+     * <pre>{@code
      * Eval[[1[INTEGER] AS irrelevant1, 2[INTEGER] AS irrelevant2]]
      *    \_Limit[1000[INTEGER],false]
      *      \_Sample[0.015[DOUBLE],15[INTEGER]]
      *        \_EsRelation[test][_meta_field{f}#12, emp_no{f}#6, first_name{f}#7, ge..]
+     * }</pre>
      */
     public void testSampleMerged() {
         assumeTrue("sample must be enabled", EsqlCapabilities.Cap.SAMPLE_V3.isEnabled());
@@ -8055,12 +8426,14 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     }
 
     /**
+     * <pre>{@code
      *    Limit[1000[INTEGER],false]
      *    \_Sample[0.5[DOUBLE],null]
      *      \_Join[LEFT,[language_code{r}#4],[language_code{r}#4],[language_code{f}#17]]
      *        |_Eval[[emp_no{f}#6 AS language_code]]
      *        | \_EsRelation[test][_meta_field{f}#12, emp_no{f}#6, first_name{f}#7, ge..]
      *        \_EsRelation[languages_lookup][LOOKUP][language_code{f}#17, language_name{f}#18]
+     * }</pre>
      */
     public void testSampleNoPushDownLookupJoin() {
         assumeTrue("sample must be enabled", EsqlCapabilities.Cap.SAMPLE_V3.isEnabled());
@@ -8081,12 +8454,14 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     }
 
     /**
+     * <pre>{@code
      *    Limit[1000[INTEGER],false]
      *    \_Sample[0.5[DOUBLE],null]
      *      \_Limit[1000[INTEGER],false]
      *        \_ChangePoint[emp_no{f}#6,hire_date{f}#13,type{r}#4,pvalue{r}#5]
      *          \_TopN[[Order[hire_date{f}#13,ASC,ANY]],1001[INTEGER]]
      *            \_EsRelation[test][_meta_field{f}#12, emp_no{f}#6, first_name{f}#7, ge..]
+     * }</pre>
      */
     public void testSampleNoPushDownChangePoint() {
         assumeTrue("sample must be enabled", EsqlCapabilities.Cap.SAMPLE_V3.isEnabled());

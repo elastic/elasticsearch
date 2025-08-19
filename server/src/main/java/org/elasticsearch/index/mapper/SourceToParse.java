@@ -80,6 +80,10 @@ public class SourceToParse {
         this(id, source, xContentType, routing, Map.of(), true, XContentMeteringParserDecorator.NOOP);
     }
 
+    public SourceToParse(String id, ModernSource source, XContentType xContentType, String routing) {
+        this(id, source, xContentType, routing, Map.of(), true, XContentMeteringParserDecorator.NOOP);
+    }
+
     public SourceToParse(
         String id,
         BytesReference source,

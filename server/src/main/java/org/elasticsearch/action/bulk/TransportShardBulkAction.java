@@ -741,7 +741,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                 final IndexRequest indexRequest = (IndexRequest) docWriteRequest;
                 final SourceToParse sourceToParse = new SourceToParse(
                     indexRequest.id(),
-                    indexRequest.source(),
+                    indexRequest.modernSource(),
                     indexRequest.getContentType(),
                     indexRequest.routing()
                 );

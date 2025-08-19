@@ -31,10 +31,9 @@ public class TransportVersionResourcesPlugin implements Plugin<Project> {
         project.getGradle()
             .getSharedServices()
             .registerIfAbsent("transportVersionResources", TransportVersionResourcesService.class, spec -> {
-                Directory transportResources = project.getLayout().getProjectDirectory().dir("src/main/resources/transport");
-                spec.getParameters().getResourcesDirectory().set(transportResources);
+                Directory transportResources = project.getLayout().getProjectDirectory().dir("src/main/resources/" + resourceRoot);
+                spec.getParameters().getTransportResourcesDirectory().set(transportResources);
                 spec.getParameters().getRootDirectory().set(project.getRootProject().getRootDir());
-                spec.getParameters().getResourceRoot().set(resourceRoot);
             });
 
         DependencyHandler depsHandler = project.getDependencies();

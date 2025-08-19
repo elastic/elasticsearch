@@ -10,7 +10,6 @@
 package org.elasticsearch.gradle.internal.transport;
 
 import org.gradle.api.file.DirectoryProperty;
-import org.gradle.api.provider.Property;
 import org.gradle.api.services.BuildService;
 import org.gradle.api.services.BuildServiceParameters;
 import org.gradle.process.ExecOperations;
@@ -52,11 +51,9 @@ import javax.inject.Inject;
 public abstract class TransportVersionResourcesService implements BuildService<TransportVersionResourcesService.Parameters> {
 
     public interface Parameters extends BuildServiceParameters {
-        DirectoryProperty getResourcesDirectory();
+        DirectoryProperty getTransportResourcesDirectory();
 
         DirectoryProperty getRootDirectory();
-
-        Property<String> getResourceRoot();
     }
 
     @Inject
@@ -67,14 +64,14 @@ public abstract class TransportVersionResourcesService implements BuildService<T
     private static final Path UNREFERENCED_DIR = DEFINITIONS_DIR.resolve("unreferenced");
     private static final Path LATEST_DIR = Path.of("latest");
 
-    private final Path resourcesDir;
+    private final Path transportResourcesDir;
     private final Path rootDir;
     private final AtomicReference<Set<String>> mainResources = new AtomicReference<>(null);
     private final AtomicReference<Set<String>> changedResources = new AtomicReference<>(null);
 
     @Inject
     public TransportVersionResourcesService(Parameters params) {
-        this.resourcesDir = params.getResourcesDirectory().get().getAsFile().toPath();
+        this.transportResourcesDir = params.getTransportResourcesDirectory().get().getAsFile().toPath();
         this.rootDir = params.getRootDirectory().get().getAsFile().toPath();
     }
 
@@ -82,8 +79,8 @@ public abstract class TransportVersionResourcesService implements BuildService<T
      * Return the directory for this repository which contains transport version resources.
      * This should be an input to any tasks reading resources from this service.
      */
-    Path getResourcesDir() {
-        return resourcesDir;
+    Path getTransportResourcesDir() {
+        return transportResourcesDir;
     }
 
     /**
@@ -91,7 +88,7 @@ public abstract class TransportVersionResourcesService implements BuildService<T
      * This should be an input to any tasks that only read definitions from this service.
      */
     Path getDefinitionsDir() {
-        return resourcesDir.resolve(DEFINITIONS_DIR);
+        return transportResourcesDir.resolve(DEFINITIONS_DIR);
     }
 
     // return the path, relative to the resources dir, of a named definition
@@ -104,7 +101,7 @@ public abstract class TransportVersionResourcesService implements BuildService<T
         Map<String, TransportVersionDefinition> definitions = new HashMap<>();
         // temporarily include unreferenced in named until validation understands the distinction
         for (var dir : List.of(NAMED_DIR, UNREFERENCED_DIR)) {
-            try (var definitionsStream = Files.list(resourcesDir.resolve(dir))) {
+            try (var definitionsStream = Files.list(transportResourcesDir.resolve(dir))) {
                 for (var definitionFile : definitionsStream.toList()) {
                     String contents = Files.readString(definitionFile, StandardCharsets.UTF_8).strip();
                     var definition = TransportVersionDefinition.fromString(definitionFile.getFileName().toString(), contents);
@@ -123,18 +120,18 @@ public abstract class TransportVersionResourcesService implements BuildService<T
 
     /** Test whether the given named definition exists */
     boolean namedDefinitionExists(String name) {
-        return Files.exists(resourcesDir.resolve(getNamedDefinitionRelativePath(name)));
+        return Files.exists(transportResourcesDir.resolve(getNamedDefinitionRelativePath(name)));
     }
 
     /** Return the path within the repository of the given named definition */
     Path getRepositoryPath(TransportVersionDefinition definition) {
-        return rootDir.relativize(resourcesDir.resolve(getNamedDefinitionRelativePath(definition.name())));
+        return rootDir.relativize(transportResourcesDir.resolve(getNamedDefinitionRelativePath(definition.name())));
     }
 
     /** Read all latest files and return them mapped by their release branch */
     Map<String, TransportVersionLatest> getLatestByReleaseBranch() throws IOException {
         Map<String, TransportVersionLatest> latests = new HashMap<>();
-        try (var stream = Files.list(resourcesDir.resolve(LATEST_DIR))) {
+        try (var stream = Files.list(transportResourcesDir.resolve(LATEST_DIR))) {
             for (var latestFile : stream.toList()) {
                 String contents = Files.readString(latestFile, StandardCharsets.UTF_8).strip();
                 var latest = TransportVersionLatest.fromString(latestFile.getFileName().toString(), contents);
@@ -152,7 +149,7 @@ public abstract class TransportVersionResourcesService implements BuildService<T
 
     /** Return the path within the repository of the given latest */
     Path getRepositoryPath(TransportVersionLatest latest) {
-        return rootDir.relativize(resourcesDir.resolve(getLatestRelativePath(latest.branch())));
+        return rootDir.relativize(transportResourcesDir.resolve(getLatestRelativePath(latest.branch())));
     }
 
     private Path getLatestRelativePath(String releaseBranch) {
@@ -201,7 +198,7 @@ public abstract class TransportVersionResourcesService implements BuildService<T
         ByteArrayOutputStream stdout = new ByteArrayOutputStream();
 
         List<String> command = new ArrayList<>();
-        Collections.addAll(command, "git", "-C", getResourcesDir().toString());
+        Collections.addAll(command, "git", "-C", getTransportResourcesDir().toString());
         Collections.addAll(command, args);
 
         ExecResult result = getExecOperations().exec(spec -> {

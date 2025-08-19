@@ -44,7 +44,7 @@ public abstract class ValidateTransportVersionResourcesTask extends DefaultTask 
     @Optional
     @PathSensitive(PathSensitivity.RELATIVE)
     public Path getResourcesDir() {
-        return getResources().get().getResourcesDir();
+        return getResources().get().getTransportResourcesDir();
     }
 
     @InputFiles

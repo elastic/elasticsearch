@@ -1036,7 +1036,10 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         );
 
         if (ccsSearchRequest.source().query() instanceof FilteredCCSQueryBuilder<?> filteredCCSQueryBuilder) {
-            ccsSearchRequest.source().query(filteredCCSQueryBuilder.filter());
+            // Modify a shallow copy of the source so that we do not modify the source used by the local cluster
+            SearchSourceBuilder modifiedSource = ccsSearchRequest.source().shallowCopy();
+            modifiedSource.query(filteredCCSQueryBuilder.filter());
+            ccsSearchRequest.source(modifiedSource);
         }
 
         return ccsSearchRequest;

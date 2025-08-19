@@ -17,8 +17,6 @@
 
 package co.elastic.elasticsearch.stateless.autoscaling.memory;
 
-import co.elastic.elasticsearch.serverless.constants.ServerlessTransportVersions;
-
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionResponse;
@@ -62,6 +60,10 @@ public class IndexingOperationsMemoryRequirementsSampler implements IndexingPres
     public static final double SIZE_INCREASE_DELTA_TO_RECORD_SAMPLE = 1.25;
 
     private final Logger logger = LogManager.getLogger(IndexingOperationsMemoryRequirementsSampler.class);
+
+    private static final TransportVersion INDEXING_OPERATIONS_MEMORY_REQUIREMENTS = TransportVersion.fromName(
+        "indexing_operations_memory_requirements"
+    );
 
     private final long sampleValidityInNanos;
     /**
@@ -154,7 +156,7 @@ public class IndexingOperationsMemoryRequirementsSampler implements IndexingPres
     }
 
     private void publishLatestSample() {
-        if (minTransportVersionSupplier.get().onOrAfter(ServerlessTransportVersions.INDEXING_OPERATIONS_MEMORY_REQUIREMENTS)) {
+        if (minTransportVersionSupplier.get().supports(INDEXING_OPERATIONS_MEMORY_REQUIREMENTS)) {
             publishExecutor.execute(() -> {
                 MaxOperationSize maxOperationSize = maxOperationSizeRef.get();
                 ThreadContext threadContext = client.threadPool().getThreadContext();

@@ -17,8 +17,7 @@
 
 package co.elastic.elasticsearch.stateless.autoscaling.memory;
 
-import co.elastic.elasticsearch.serverless.constants.ServerlessTransportVersions;
-
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
@@ -59,7 +58,7 @@ public class IndexingOperationsMemoryRequirementsSamplerTests extends ESTestCase
                 new FakeTimeProvider(),
                 null,
                 null,
-                () -> ServerlessTransportVersions.INDEXING_OPERATIONS_MEMORY_REQUIREMENTS
+                () -> TransportVersion.fromName("indexing_operations_memory_requirements")
             );
 
             assertThat(
@@ -102,7 +101,7 @@ public class IndexingOperationsMemoryRequirementsSamplerTests extends ESTestCase
             timeProvider,
             DIRECT_EXECUTOR_SERVICE,
             fakeClient,
-            () -> ServerlessTransportVersions.INDEXING_OPERATIONS_MEMORY_REQUIREMENTS
+            () -> TransportVersion.fromName("indexing_operations_memory_requirements")
         );
 
         // The sampler stores and publishes the largest operation size

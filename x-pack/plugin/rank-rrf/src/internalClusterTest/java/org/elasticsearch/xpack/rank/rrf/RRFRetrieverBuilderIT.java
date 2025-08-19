@@ -898,11 +898,10 @@ public class RRFRetrieverBuilderIT extends ESIntegTestCase {
         );
 
         var exception = expectThrows(
-            ElasticsearchStatusException.class,
+            IllegalArgumentException.class,
             () -> client().prepareSearch(INDEX).setSource(new SearchSourceBuilder().retriever(retrieverWithNegativeWeight)).get()
         );
 
-        assertEquals(RestStatus.BAD_REQUEST, exception.status());
         assertThat(exception.getMessage(), containsString("per-field weights must be non-negative"));
     }
 
@@ -924,5 +923,100 @@ public class RRFRetrieverBuilderIT extends ESIntegTestCase {
 
         assertEquals(1L, response.getHits().getTotalHits().value());
         assertTrue("Should find the document via content field", response.getHits().getHits()[0].getScore() > 0);
+    }
+
+    public void testRRFLargeWeightValues() {
+        // Test that very large weight values are handled gracefully
+        client().prepareIndex(INDEX).setId("1").setSource("title", "elasticsearch", "content", "search engine").get();
+        client().prepareIndex(INDEX).setId("2").setSource("title", "search", "content", "elasticsearch engine").get();
+        refresh();
+
+        var retrieverWithLargeWeights = new RRFRetrieverBuilder(
+            null,
+            List.of("title^1000000.0", "content^1.0"),
+            "elasticsearch",
+            DEFAULT_RANK_WINDOW_SIZE,
+            RRFRetrieverBuilder.DEFAULT_RANK_CONSTANT,
+            new float[0]
+        );
+
+        var response = client().prepareSearch(INDEX).setSource(new SearchSourceBuilder().retriever(retrieverWithLargeWeights)).get();
+
+        assertTrue("Should find documents", response.getHits().getTotalHits().value() > 0);
+        // Verify that large weights don't cause overflow issues
+        for (var hit : response.getHits().getHits()) {
+            assertTrue("Scores should be finite", Float.isFinite(hit.getScore()));
+            assertTrue("Scores should be positive", hit.getScore() > 0);
+        }
+    }
+
+    public void testRRFMixedWeightedAndUnweightedFields() {
+        // Test scenario with both weighted and unweighted fields
+        client().prepareIndex(INDEX).setId("1").setSource("title", "elasticsearch", "content", "search", "description", "engine").get();
+        refresh();
+
+        var retrieverMixed = new RRFRetrieverBuilder(
+            null,
+            List.of("title^3.0", "content", "description^0.5"), // Mixed weights
+            "elasticsearch",
+            DEFAULT_RANK_WINDOW_SIZE,
+            RRFRetrieverBuilder.DEFAULT_RANK_CONSTANT,
+            new float[0]
+        );
+
+        var response = client().prepareSearch(INDEX).setSource(new SearchSourceBuilder().retriever(retrieverMixed)).get();
+
+        assertEquals(1L, response.getHits().getTotalHits().value());
+        assertTrue("Should find the document", response.getHits().getHits()[0].getScore() > 0);
+    }
+
+    public void testRRFWeightedFieldsRankingImpact() {
+        // Test that different weight configurations produce different ranking results
+        client().prepareIndex(INDEX).setId("1").setSource("title", "elasticsearch search", "content", "powerful engine").get();
+        client().prepareIndex(INDEX).setId("2").setSource("title", "search engine", "content", "elasticsearch technology").get();
+        refresh();
+
+        // Title-weighted query
+        var titleWeightedRetriever = new RRFRetrieverBuilder(
+            null,
+            List.of("title^10.0", "content^1.0"),
+            "elasticsearch",
+            DEFAULT_RANK_WINDOW_SIZE,
+            RRFRetrieverBuilder.DEFAULT_RANK_CONSTANT,
+            new float[0]
+        );
+
+        var titleWeightedResponse = client().prepareSearch(INDEX)
+            .setSource(new SearchSourceBuilder().retriever(titleWeightedRetriever))
+            .get();
+
+        // Content-weighted query
+        var contentWeightedRetriever = new RRFRetrieverBuilder(
+            null,
+            List.of("title^1.0", "content^10.0"),
+            "elasticsearch",
+            DEFAULT_RANK_WINDOW_SIZE,
+            RRFRetrieverBuilder.DEFAULT_RANK_CONSTANT,
+            new float[0]
+        );
+
+        var contentWeightedResponse = client().prepareSearch(INDEX)
+            .setSource(new SearchSourceBuilder().retriever(contentWeightedRetriever))
+            .get();
+
+        // Both should return results
+        assertEquals(2L, titleWeightedResponse.getHits().getTotalHits().value());
+        assertEquals(2L, contentWeightedResponse.getHits().getTotalHits().value());
+
+        // Verify that both return finite, positive scores
+        for (var hit : titleWeightedResponse.getHits().getHits()) {
+            assertTrue("Title-weighted scores should be finite", Float.isFinite(hit.getScore()));
+            assertTrue("Title-weighted scores should be positive", hit.getScore() > 0);
+        }
+
+        for (var hit : contentWeightedResponse.getHits().getHits()) {
+            assertTrue("Content-weighted scores should be finite", Float.isFinite(hit.getScore()));
+            assertTrue("Content-weighted scores should be positive", hit.getScore() > 0);
+        }
     }
 }

@@ -517,6 +517,63 @@ public class RRFRetrieverBuilderTests extends ESTestCase {
         assertTrue(rewritten instanceof RRFRetrieverBuilder);
     }
 
+    public void testLargeWeightValues() {
+        final String indexName = "test-index";
+        final ResolvedIndices resolvedIndices = createMockResolvedIndices(indexName, List.of(), null);
+        final QueryRewriteContext queryRewriteContext = new QueryRewriteContext(
+            parserConfig(),
+            null,
+            null,
+            resolvedIndices,
+            new PointInTimeBuilder(new BytesArray("pitid")),
+            null
+        );
+
+        // Test very large weight values
+        RRFRetrieverBuilder rrfRetrieverBuilder = new RRFRetrieverBuilder(
+            null,
+            List.of("field_1^1000000", "field_2^1.0"),
+            "test query",
+            DEFAULT_RANK_WINDOW_SIZE,
+            RRFRetrieverBuilder.DEFAULT_RANK_CONSTANT,
+            new float[0]
+        );
+
+        // This should not throw an exception
+        RetrieverBuilder rewritten = rrfRetrieverBuilder.doRewrite(queryRewriteContext);
+        assertNotSame(rrfRetrieverBuilder, rewritten);
+        assertTrue(rewritten instanceof RRFRetrieverBuilder);
+    }
+
+    public void testExtremelyLargeWeights() {
+        final String indexName = "test-index";
+        final ResolvedIndices resolvedIndices = createMockResolvedIndices(indexName, List.of(), null);
+        final QueryRewriteContext queryRewriteContext = new QueryRewriteContext(
+            parserConfig(),
+            null,
+            null,
+            resolvedIndices,
+            new PointInTimeBuilder(new BytesArray("pitid")),
+            null
+        );
+
+        // Test potential overflow scenarios with very large float values
+        float largeWeight = 1e20f;
+        RRFRetrieverBuilder rrfRetrieverBuilder = new RRFRetrieverBuilder(
+            null,
+            List.of("field_1^" + largeWeight, "field_2^1.0"),
+            "test query",
+            DEFAULT_RANK_WINDOW_SIZE,
+            RRFRetrieverBuilder.DEFAULT_RANK_CONSTANT,
+            new float[0]
+        );
+
+        // This should not throw an exception - large weights should be handled gracefully
+        RetrieverBuilder rewritten = rrfRetrieverBuilder.doRewrite(queryRewriteContext);
+        assertNotSame(rrfRetrieverBuilder, rewritten);
+        assertTrue(rewritten instanceof RRFRetrieverBuilder);
+    }
+
     @Override
     protected NamedXContentRegistry xContentRegistry() {
         List<NamedXContentRegistry.Entry> entries = new SearchModule(Settings.EMPTY, List.of()).getNamedXContents();

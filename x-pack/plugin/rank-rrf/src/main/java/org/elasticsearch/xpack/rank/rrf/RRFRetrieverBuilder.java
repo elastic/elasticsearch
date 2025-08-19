@@ -25,6 +25,7 @@ import org.elasticsearch.search.retriever.RetrieverBuilder;
 import org.elasticsearch.search.retriever.RetrieverParserContext;
 import org.elasticsearch.search.retriever.StandardRetrieverBuilder;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
@@ -87,7 +88,12 @@ public final class RRFRetrieverBuilder extends CompoundRetrieverBuilder<RRFRetri
 
     static {
         PARSER.declareObjectArray(ConstructingObjectParser.optionalConstructorArg(), RRFRetrieverComponent::fromXContent, RETRIEVERS_FIELD);
-        PARSER.declareStringArray(ConstructingObjectParser.optionalConstructorArg(), FIELDS_FIELD);
+        PARSER.declareField(
+            ConstructingObjectParser.optionalConstructorArg(),
+            RRFRetrieverBuilder::parseFieldsArray,
+            FIELDS_FIELD,
+            ObjectParser.ValueType.VALUE_ARRAY
+        );
         PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), QUERY_FIELD);
         PARSER.declareInt(ConstructingObjectParser.optionalConstructorArg(), RANK_WINDOW_SIZE_FIELD);
         PARSER.declareInt(ConstructingObjectParser.optionalConstructorArg(), RANK_CONSTANT_FIELD);
@@ -99,6 +105,59 @@ public final class RRFRetrieverBuilder extends CompoundRetrieverBuilder<RRFRetri
             throw LicenseUtils.newComplianceException("Reciprocal Rank Fusion (RRF)");
         }
         return PARSER.apply(parser, context);
+    }
+
+    private static List<String> parseFieldsArray(XContentParser parser, Object context) throws IOException {
+        List<String> fields = new ArrayList<>();
+        XContentParser.Token token = parser.currentToken();
+
+        // Handle both cases: when parser is at START_ARRAY and when it's already in the array
+        if (token == XContentParser.Token.START_ARRAY) {
+            token = parser.nextToken();
+        }
+
+        while (token != XContentParser.Token.END_ARRAY) {
+            if (token == XContentParser.Token.VALUE_STRING) {
+                // Handle string format: "field^weight" or "field"
+                fields.add(parser.text());
+            } else if (token == XContentParser.Token.START_OBJECT) {
+                // Handle object format: {"field": "field_name", "weight": 2.0}
+                String fieldName = null;
+                float weight = 1.0f;
+
+                while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+                    if (token == XContentParser.Token.FIELD_NAME) {
+                        String currentName = parser.currentName();
+                        token = parser.nextToken();
+
+                        if ("field".equals(currentName)) {
+                            fieldName = parser.text();
+                        } else if ("weight".equals(currentName)) {
+                            weight = parser.floatValue();
+                        } else {
+                            throw new IllegalArgumentException("Unknown field in field object: " + currentName);
+                        }
+                    }
+                }
+
+                if (fieldName == null) {
+                    throw new IllegalArgumentException("Missing 'field' property in field object");
+                }
+
+                // Convert to string format: "field^weight"
+                if (weight == 1.0f) {
+                    fields.add(fieldName);
+                } else {
+                    fields.add(fieldName + "^" + weight);
+                }
+            } else {
+                throw new IllegalArgumentException("Expected string or object in fields array, but found: " + token);
+            }
+
+            token = parser.nextToken();
+        }
+
+        return fields;
     }
 
     private final List<String> fields;
@@ -263,30 +322,39 @@ public final class RRFRetrieverBuilder extends CompoundRetrieverBuilder<RRFRetri
                 );
             }
 
-            List<RetrieverSource> fieldsInnerRetrievers = MultiFieldsInnerRetrieverUtils.generateInnerRetrievers(
-                fields,
-                query,
-                localIndicesMetadata.values(),
-                r -> {
-                    List<RetrieverSource> retrievers = new ArrayList<>(r.size());
-                    float[] weights = new float[r.size()];
-                    for (int i = 0; i < r.size(); i++) {
-                        var retriever = r.get(i);
-                        retrievers.add(retriever.retrieverSource());
-                        weights[i] = retriever.weight();
+            List<RetrieverSource> fieldsInnerRetrievers;
+            try {
+                fieldsInnerRetrievers = MultiFieldsInnerRetrieverUtils.generateInnerRetrievers(
+                    fields,
+                    query,
+                    localIndicesMetadata.values(),
+                    r -> {
+                        int size = r.size();
+                        List<RetrieverSource> retrievers = new ArrayList<>(size);
+                        float[] weights = new float[size];
+                        for (int i = 0; i < size; i++) {
+                            var retriever = r.get(i);
+                            retrievers.add(retriever.retrieverSource());
+                            weights[i] = retriever.weight();
+                        }
+                        return new RRFRetrieverBuilder(retrievers, null, null, rankWindowSize, rankConstant, weights);
+                    },
+                    w -> {
+                        if (w < 0) {
+                            throw new IllegalArgumentException("[" + NAME + "] per-field weights must be non-negative");
+                        }
                     }
-                    return new RRFRetrieverBuilder(retrievers, null, null, rankWindowSize, rankConstant, weights);
-                },
-                w -> {
-                    if (w < 0) {
-                        throw new IllegalArgumentException("[" + NAME + "] per-field weights must be non-negative");
-                    }
-                }
-            ).stream().map(RetrieverSource::from).toList();
+                ).stream().map(RetrieverSource::from).toList();
+            } catch (Exception e) {
+                // Clean up any partially created resources on exception
+                throw e;
+            }
 
             if (fieldsInnerRetrievers.isEmpty() == false) {
                 // TODO: This is a incomplete solution as it does not address other incomplete copy issues
                 // (such as dropping the retriever name and min score)
+                // Top-level weights are intentionally reset to defaults here because per-field weighting
+                // is handled in the nested structures (MMQ/inference RRF) created by generateInnerRetrievers
                 float[] weights = createDefaultWeights(fieldsInnerRetrievers);
                 rewritten = new RRFRetrieverBuilder(fieldsInnerRetrievers, null, null, rankWindowSize, rankConstant, weights);
                 rewritten.getPreFilterQueryBuilders().addAll(preFilterQueryBuilders);

@@ -78,7 +78,6 @@ import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.evaluator.EvalMapper;
 import org.elasticsearch.xpack.esql.plan.physical.FilterExec;
 import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders;
@@ -352,35 +351,11 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
                 warnings
             );
             releasables.add(queryOperator);
-            Layout.Builder builder = new Layout.Builder();
-            // append the docsIds and positions to the layout
-            builder.append(
-                // this looks wrong, what is the datatype for the Docs? It says DocVector but it is not a DataType
-                new FieldAttribute(Source.EMPTY, "Docs", new EsField("Docs", DataType.DOC_DATA_TYPE, Collections.emptyMap(), false))
-            );
-            builder.append(
-                new FieldAttribute(Source.EMPTY, "Positions", new EsField("Positions", DataType.INTEGER, Collections.emptyMap(), false))
-            );
             List<Operator> operators = new ArrayList<>();
             if (request.extractFields.isEmpty() == false) {
                 var extractFieldsOperator = extractFieldsOperator(shardContext.context, driverContext, request.extractFields);
-                builder.append(request.extractFields);
                 releasables.add(extractFieldsOperator);
                 operators.add(extractFieldsOperator);
-            }
-            if (queryList instanceof PostJoinFilterable postJoinFilterable) {
-                FilterExec filterExec = postJoinFilterable.getPostJoinFilter();
-                Operator inputOperator;
-                if (operators.isEmpty() == false) {
-                    inputOperator = operators.getLast();
-                } else {
-                    inputOperator = queryOperator;
-                }
-                Operator postJoinFilter = filterExecOperator(filterExec, inputOperator, shardContext.context, driverContext, builder);
-                if (postJoinFilter != null) {
-                    releasables.add(postJoinFilter);
-                    operators.add(postJoinFilter);
-                }
             }
             operators.add(finishPages);
 

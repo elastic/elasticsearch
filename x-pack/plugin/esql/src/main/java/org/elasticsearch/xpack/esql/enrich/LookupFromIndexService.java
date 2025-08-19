@@ -31,14 +31,13 @@ import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.action.EsqlQueryAction;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
-import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
-import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -90,7 +89,7 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
             request.extractFields,
             request.matchFields,
             request.source,
-            request.rightPreJoinPlan
+            request.optionalFilter
         );
     }
 
@@ -115,12 +114,10 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
             ).onlySingleValues(warnings, "LOOKUP JOIN encountered multi-value");
             queryLists.add(q);
         }
-        if (queryLists.size() == 1
-            && (request.rightPreJoinPlan == null
-                || request.rightPreJoinPlan instanceof EsQueryExec esQueryExec && esQueryExec.query() == null)) {
+        if (queryLists.size() == 1 && request.optionalFilter == null) {
             return queryLists.getFirst();
         }
-        return new ExpressionQueryList(queryLists, context, request.rightPreJoinPlan, clusterService);
+        return new ExpressionQueryList(queryLists, context, request.optionalFilter, clusterService);
 
     }
 
@@ -136,7 +133,7 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
 
     public static class Request extends AbstractLookupService.Request {
         private final List<MatchConfig> matchFields;
-        private final PhysicalPlan rightPreJoinPlan;
+        private final Expression optionalFilter;
 
         Request(
             String sessionId,
@@ -146,17 +143,17 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
             Page inputPage,
             List<NamedExpression> extractFields,
             Source source,
-            PhysicalPlan rightPreJoinPlan
+            Expression optionalFilter
         ) {
             super(sessionId, index, indexPattern, matchFields.get(0).type(), inputPage, extractFields, source);
             this.matchFields = matchFields;
-            this.rightPreJoinPlan = rightPreJoinPlan;
+            this.optionalFilter = optionalFilter;
         }
     }
 
     protected static class TransportRequest extends AbstractLookupService.TransportRequest {
         private final List<MatchConfig> matchFields;
-        private final PhysicalPlan rightPreJoinPlan;
+        private final Expression optionalFilter;
 
         // Right now we assume that the page contains the same number of blocks as matchFields and that the blocks are in the same order
         // The channel information inside the MatchConfig, should say the same thing
@@ -169,11 +166,11 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
             List<NamedExpression> extractFields,
             List<MatchConfig> matchFields,
             Source source,
-            PhysicalPlan rightPreJoinPlan
+            Expression optionalFilter
         ) {
             super(sessionId, shardId, indexPattern, inputPage, toRelease, extractFields, source);
             this.matchFields = matchFields;
-            this.rightPreJoinPlan = rightPreJoinPlan;
+            this.optionalFilter = optionalFilter;
         }
 
         static TransportRequest readFrom(StreamInput in, BlockFactory blockFactory) throws IOException {
@@ -219,9 +216,9 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
                 String sourceText = in.readString();
                 source = new Source(source.source(), sourceText);
             }
-            PhysicalPlan rightPreJoinPlan = null;
+            Expression optionalFilter = null;
             if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_LOOKUP_JOIN_PRE_JOIN_FILTER)) {
-                rightPreJoinPlan = planIn.readOptionalNamedWriteable(PhysicalPlan.class);
+                optionalFilter = planIn.readOptionalNamedWriteable(Expression.class);
             }
             TransportRequest result = new TransportRequest(
                 sessionId,
@@ -232,7 +229,7 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
                 extractFields,
                 matchFields,
                 source,
-                rightPreJoinPlan
+                optionalFilter
             );
             result.setParentTask(parentTaskId);
             return result;
@@ -276,20 +273,17 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
                 out.writeString(source.text());
             }
             if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_LOOKUP_JOIN_PRE_JOIN_FILTER)) {
-                planOut.writeOptionalNamedWriteable(rightPreJoinPlan);
+                planOut.writeOptionalNamedWriteable(optionalFilter);
             }
-            // JULIAN TODO: need a better way to indicate that the filter does not need to be applied here
-            /*else if (rightPreJoinPlan != null) {
-                throw new EsqlIllegalArgumentException("LOOKUP JOIN with pre-join filter is not supported on remote node");
-            }*/
+            // otherwise we will not send the optionalFilter, as it is optional that is OK
         }
 
         @Override
         protected String extraDescription() {
             return " ,match_fields="
                 + matchFields.stream().map(x -> x.fieldName().string()).collect(Collectors.joining(", "))
-                + ", rightPreJoinPlan="
-                + rightPreJoinPlan;
+                + ", optional_filter="
+                + optionalFilter;
         }
     }
 

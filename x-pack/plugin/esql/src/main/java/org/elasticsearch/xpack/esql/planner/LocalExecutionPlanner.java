@@ -780,11 +780,6 @@ public class LocalExecutionPlanner {
             }
             matchFields.add(new MatchConfig(right, input));
         }
-        PhysicalPlan rightPreJoinPlan = join.right();
-        if (join.getOptionalRightHandFilters() != null) {
-            // If there are filters on the right side, we need to apply them before the join
-            rightPreJoinPlan = new FilterExec(Source.EMPTY, rightPreJoinPlan, join.getOptionalRightHandFilters());
-        }
         return source.with(
             new LookupFromIndexOperator.Factory(
                 matchFields,
@@ -796,7 +791,7 @@ public class LocalExecutionPlanner {
                 indexName,
                 join.addedFields().stream().map(f -> (NamedExpression) f).toList(),
                 join.source(),
-                rightPreJoinPlan
+                join.getOptionalRightHandFilters()
             ),
             layout
         );

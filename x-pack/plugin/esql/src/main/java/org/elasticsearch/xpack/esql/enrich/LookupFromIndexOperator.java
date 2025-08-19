@@ -23,9 +23,9 @@ import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -48,7 +48,7 @@ public final class LookupFromIndexOperator extends AsyncOperator<LookupFromIndex
         String lookupIndex,
         List<NamedExpression> loadFields,
         Source source,
-        PhysicalPlan rightPreJoinPlan
+        Expression optionalFilter
     ) implements OperatorFactory {
         @Override
         public String describe() {
@@ -62,7 +62,7 @@ public final class LookupFromIndexOperator extends AsyncOperator<LookupFromIndex
                     .append(" inputChannel=")
                     .append(matchField.channel());
             }
-            stringBuilder.append(" right_pre_join_plan=").append(rightPreJoinPlan);
+            stringBuilder.append(" optional_filter=").append(optionalFilter);
             stringBuilder.append("]");
             return stringBuilder.toString();
         }
@@ -80,7 +80,7 @@ public final class LookupFromIndexOperator extends AsyncOperator<LookupFromIndex
                 lookupIndex,
                 loadFields,
                 source,
-                rightPreJoinPlan
+                optionalFilter
             );
         }
     }
@@ -94,7 +94,7 @@ public final class LookupFromIndexOperator extends AsyncOperator<LookupFromIndex
     private final Source source;
     private long totalRows = 0L;
     private final List<MatchConfig> matchFields;
-    private final PhysicalPlan rightPreJoinPlan;
+    private final Expression optionalFilter;
     /**
      * Total number of pages emitted by this {@link Operator}.
      */
@@ -115,7 +115,7 @@ public final class LookupFromIndexOperator extends AsyncOperator<LookupFromIndex
         String lookupIndex,
         List<NamedExpression> loadFields,
         Source source,
-        PhysicalPlan rightPreJoinPlan
+        Expression optionalFilter
     ) {
         super(driverContext, lookupService.getThreadContext(), maxOutstandingRequests);
         this.matchFields = matchFields;
@@ -126,7 +126,7 @@ public final class LookupFromIndexOperator extends AsyncOperator<LookupFromIndex
         this.lookupIndex = lookupIndex;
         this.loadFields = loadFields;
         this.source = source;
-        this.rightPreJoinPlan = rightPreJoinPlan;
+        this.optionalFilter = optionalFilter;
     }
 
     @Override
@@ -154,7 +154,7 @@ public final class LookupFromIndexOperator extends AsyncOperator<LookupFromIndex
             new Page(inputBlockArray),
             loadFields,
             source,
-            rightPreJoinPlan
+            optionalFilter
         );
         lookupService.lookupAsync(
             request,
@@ -211,7 +211,7 @@ public final class LookupFromIndexOperator extends AsyncOperator<LookupFromIndex
                 .append(" inputChannel=")
                 .append(matchField.channel());
         }
-        stringBuilder.append(" right_pre_join_plan=").append(rightPreJoinPlan);
+        stringBuilder.append(" optional_filter=").append(optionalFilter);
         stringBuilder.append("]");
         return stringBuilder.toString();
     }

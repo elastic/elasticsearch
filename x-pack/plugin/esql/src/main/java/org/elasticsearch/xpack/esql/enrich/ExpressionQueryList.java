@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.esql.enrich;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.Query;
@@ -15,10 +17,8 @@ import org.elasticsearch.compute.operator.lookup.LookupEnrichQueryGenerator;
 import org.elasticsearch.compute.operator.lookup.QueryList;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.xpack.esql.capabilities.TranslationAware;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdownPredicates;
-import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
-import org.elasticsearch.xpack.esql.plan.physical.FilterExec;
-import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 import org.elasticsearch.xpack.esql.stats.SearchContextStats;
 
@@ -33,66 +33,55 @@ import static org.elasticsearch.xpack.esql.planner.TranslatorHandler.TRANSLATOR_
  * Each query in the resulting query will be a conjunction of all queries from the input lists at the same position.
  * In the future we can extend this to support more complex expressions, such as disjunctions or negations.
  */
-public class ExpressionQueryList implements LookupEnrichQueryGenerator, PostJoinFilterable {
+public class ExpressionQueryList implements LookupEnrichQueryGenerator {
+    private static final Logger logger = LogManager.getLogger(ExpressionQueryList.class);
     private final List<QueryList> queryLists;
     private final List<Query> preJoinFilters = new ArrayList<>();
-    private FilterExec postJoinFilter;
     private final SearchExecutionContext context;
 
     public ExpressionQueryList(
         List<QueryList> queryLists,
         SearchExecutionContext context,
-        PhysicalPlan rightPreJoinPlan,
+        Expression optionalFilter,
         ClusterService clusterService
     ) {
-        if (queryLists.size() < 2 && rightPreJoinPlan == null) {
+        if (queryLists.size() < 2 && optionalFilter == null) {
             throw new IllegalArgumentException("ExpressionQueryList must have at least two QueryLists");
         }
         this.queryLists = queryLists;
         this.context = context;
-        buildPrePostJoinFilter(rightPreJoinPlan, clusterService);
+        buildPrePostJoinFilter(optionalFilter, clusterService);
     }
 
-    private void buildPrePostJoinFilter(PhysicalPlan rightPreJoinPlan, ClusterService clusterService) {
+    private void buildPrePostJoinFilter(Expression optionalFilter, ClusterService clusterService) {
         // we support a FilterExec as the pre-join filter
         // if the filter Exec is not translatable to a QueryBuilder, we will apply it after the join
-        if (rightPreJoinPlan instanceof FilterExec filterExec) {
-            try {
+        try {
+            // If the pre-join filter is a FilterExec, we can convert it to a QueryBuilder
+            // try to convert it to a QueryBuilder, if not possible apply it after the join
+            if (optionalFilter instanceof TranslationAware translationAware) {
                 LucenePushdownPredicates lucenePushdownPredicates = LucenePushdownPredicates.from(
                     SearchContextStats.from(List.of(context)),
                     new EsqlFlags(clusterService.getClusterSettings())
                 );
-                // If the pre-join filter is a FilterExec, we can convert it to a QueryBuilder
-                // try to convert it to a QueryBuilder, if not possible apply it after the join
-                if (filterExec.condition() instanceof TranslationAware translationAware
-                    && TranslationAware.Translatable.YES.equals(translationAware.translatable(lucenePushdownPredicates))) {
+                if (TranslationAware.Translatable.YES.equals(translationAware.translatable(lucenePushdownPredicates))) {
                     preJoinFilters.add(
                         translationAware.asQuery(lucenePushdownPredicates, TRANSLATOR_HANDLER).toQueryBuilder().toQuery(context)
                     );
-                } else {
-                    // if the filter is not translatable, we will apply it after the join
-                    postJoinFilter = filterExec;
                 }
-            } catch (IOException e) {
-                throw new IllegalArgumentException("Failed to translate pre-join filter: " + filterExec, e);
             }
-
-        } else if (rightPreJoinPlan instanceof EsQueryExec esQueryExec) {
-            try {
-                // check the EsQueryExec for a pre-join filter
-                if (esQueryExec.query() != null) {
-                    preJoinFilters.add(esQueryExec.query().toQuery(context));
-                }
-            } catch (IOException e) {
-                throw new IllegalArgumentException("Failed to translate pre-join filter: " + esQueryExec, e);
-            }
-        } else if (rightPreJoinPlan != null) {
-            throw new IllegalArgumentException("Unsupported pre-join filter type: " + rightPreJoinPlan.getClass().getName());
+            // If the filter is not translatable we will not apply it for now
+            // as performance testing showed no significant difference in performance.
+            // We can revisit this in the future if needed.
+            // The filter is optional, so that is OK
+        } catch (IOException e) {
+            // as the filter is optional an error in its application will be ignored
+            logger.error(() -> "Failed to translate optional pre-join filter: [" + optionalFilter + "]", e);
         }
     }
 
     @Override
-    public Query getQuery(int position) throws IOException {
+    public Query getQuery(int position) {
         BooleanQuery.Builder builder = new BooleanQuery.Builder();
         for (QueryList queryList : queryLists) {
             Query q = queryList.getQuery(position);
@@ -124,10 +113,5 @@ public class ExpressionQueryList implements LookupEnrichQueryGenerator, PostJoin
             }
         }
         return positionCount;
-    }
-
-    @Override
-    public FilterExec getPostJoinFilter() {
-        return postJoinFilter;
     }
 }

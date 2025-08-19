@@ -131,10 +131,11 @@ import static org.elasticsearch.xpack.inference.services.elasticsearch.Elasticse
 public class SemanticTextFieldMapper extends FieldMapper implements InferenceFieldMapper {
     private static final Logger logger = LogManager.getLogger(SemanticTextFieldMapper.class);
     // TODO: rewrite the warning and error messages below, just placeholders for now
-    static final String WARNING_MESSAGE_8X = "The [dense_vector] field type created by `semantic_text` uses default index settings which may not be optimal. " +
-        "Consider creating a new index ....";
-    private static final String ERROR_MESSAGE_UNSUPPORTED_SPARSE_VECTOR = "The [sparse_vector] field type created by `semantic_text` is not supported on indices created on versions 8.0 to 8.10." +
-        "Try using a `dense_vector` model or upgrade your index to 8.11 or later. ...";
+    public static final String WARNING_MESSAGE_8X = "Creating a `semantic_text` field on this index version may not include" +
+        " optimized default settings. Consider creating a new index for a better performance.";
+    public static final String ERROR_MESSAGE_UNSUPPORTED_SPARSE_VECTOR = "Creating a `semantic_text` field with `sparse_vector` models" +
+        " is not supported on indices created with versions 8.0-8.10." +
+        " Try using a `dense_vector` model or create a new index with version 8.11+.";
     public static final NodeFeature SEMANTIC_TEXT_IN_OBJECT_FIELD_FIX = new NodeFeature("semantic_text.in_object_field_fix");
     public static final NodeFeature SEMANTIC_TEXT_SINGLE_FIELD_UPDATE_FIX = new NodeFeature("semantic_text.single_field_update_fix");
     public static final NodeFeature SEMANTIC_TEXT_DELETE_FIX = new NodeFeature("semantic_text.delete_fix");
@@ -1308,12 +1309,10 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
         MinimalServiceSettings modelSettings,
         SemanticTextIndexOptions indexOptions
     ) {
-        if (indexVersionCreated.onOrAfter(IndexVersions.V_8_0_0)){
-            if (indexVersionCreated.before(INDEXED_BY_DEFAULT_INDEX_VERSION)) {
-                deprecationLogger.warn(DeprecationCategory.MAPPINGS, "semantic_text", WARNING_MESSAGE_8X);
-            }
-            denseVectorMapperBuilder.indexed(true);
-        }
+       if (indexVersionCreated.before(INDEXED_BY_DEFAULT_INDEX_VERSION)) {
+           deprecationLogger.warn(DeprecationCategory.MAPPINGS, "semantic_text", WARNING_MESSAGE_8X);
+           denseVectorMapperBuilder.indexed(true);
+       }
 
         SimilarityMeasure similarity = modelSettings.similarity();
         if (similarity != null) {

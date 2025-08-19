@@ -116,6 +116,7 @@ import org.elasticsearch.xpack.inference.rest.RestPutInferenceModelAction;
 import org.elasticsearch.xpack.inference.rest.RestStreamInferenceAction;
 import org.elasticsearch.xpack.inference.rest.RestUpdateInferenceModelAction;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
+import org.elasticsearch.xpack.inference.services.ai21.Ai21Service;
 import org.elasticsearch.xpack.inference.services.alibabacloudsearch.AlibabaCloudSearchService;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockService;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.client.AmazonBedrockRequestSender;
@@ -416,6 +417,7 @@ public class InferencePlugin extends Plugin
             context -> new VoyageAIService(httpFactory.get(), serviceComponents.get(), context),
             context -> new DeepSeekService(httpFactory.get(), serviceComponents.get(), context),
             context -> new LlamaService(httpFactory.get(), serviceComponents.get(), context),
+            context -> new Ai21Service(httpFactory.get(), serviceComponents.get(), context),
             ElasticsearchInternalService::new,
             context -> new CustomService(httpFactory.get(), serviceComponents.get(), context)
         );
@@ -471,7 +473,7 @@ public class InferencePlugin extends Plugin
                 .setPrimaryIndex(InferenceIndex.INDEX_NAME)
                 .setDescription("Contains inference service and model configuration")
                 .setMappings(InferenceIndex.mappings())
-                .setSettings(InferenceIndex.settings())
+                .setSettings(getIndexSettings())
                 .setOrigin(ClientHelper.INFERENCE_ORIGIN)
                 .setPriorSystemIndexDescriptors(List.of(inferenceIndexV1Descriptor))
                 .build(),
@@ -481,11 +483,21 @@ public class InferencePlugin extends Plugin
                 .setPrimaryIndex(InferenceSecretsIndex.INDEX_NAME)
                 .setDescription("Contains inference service secrets")
                 .setMappings(InferenceSecretsIndex.mappings())
-                .setSettings(InferenceSecretsIndex.settings())
+                .setSettings(getSecretsIndexSettings())
                 .setOrigin(ClientHelper.INFERENCE_ORIGIN)
                 .setNetNew()
                 .build()
         );
+    }
+
+    // Overridable for tests
+    protected Settings getIndexSettings() {
+        return InferenceIndex.settings();
+    }
+
+    // Overridable for tests
+    protected Settings getSecretsIndexSettings() {
+        return InferenceSecretsIndex.settings();
     }
 
     @Override

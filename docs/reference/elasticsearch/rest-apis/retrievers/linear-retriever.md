@@ -91,3 +91,37 @@ The `linear` retriever supports the following normalizers:
     score = (score - min) / (max - min)
     ```
 * `l2_norm`: Normalizes scores using the L2 norm of the score values {applies_to}`stack: ga 9.1`
+
+## Example
+
+This example of a hybrid search weights KNN results five times more heavily than BM25 results in the final ranking.
+
+```console
+GET my_index/_search
+{
+  "retriever": {
+    "linear": {
+      "retrievers": [
+        {
+          "retriever": {
+            "knn": {
+              ...
+            }
+          },
+          "weight": 5 # KNN query weighted 5x
+        },
+        {
+          "retriever": {
+            "standard": {
+              ...
+            }
+          },
+          "weight": 1.5 # BM25 query weighted 1.5x
+        }
+      ]
+    }
+  }
+}
+```
+
+See also [this hybrid search example](retrievers-examples.md#retrievers-examples-linear-retriever).

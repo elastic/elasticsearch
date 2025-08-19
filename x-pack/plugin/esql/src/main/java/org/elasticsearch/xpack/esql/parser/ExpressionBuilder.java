@@ -637,9 +637,25 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
 
     @Override
     public String visitFunctionName(EsqlBaseParser.FunctionNameContext ctx) {
-        var name = visitIdentifierOrParameter(ctx.identifierOrParameter());
+        String name = functionName(ctx);
         context.telemetry().function(name);
         return name;
+    }
+
+    private String functionName(EsqlBaseParser.FunctionNameContext ctx) {
+        /*
+         * FIRST and LAST are valid function names AND tokens used in `NULLS LAST`.
+         * So we have to have special handling for them here.
+         */
+        TerminalNode first = ctx.FIRST();
+        if (first != null) {
+            return first.getText();
+        }
+        TerminalNode last = ctx.LAST();
+        if (last != null) {
+            return last.getText();
+        }
+        return visitIdentifierOrParameter(ctx.identifierOrParameter());
     }
 
     @Override

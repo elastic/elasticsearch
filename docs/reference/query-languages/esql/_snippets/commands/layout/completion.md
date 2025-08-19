@@ -1,4 +1,3 @@
-## `COMPLETION` [esql-completion]
 
 ```yaml {applies_to}
 serverless: preview
@@ -136,7 +135,6 @@ FROM movies
 | COMPLETION summary = prompt WITH { "inference_id" : "my_inference_endpoint" }
 | KEEP title, summary, rating
 ```
-
 
 | title:keyword | summary:keyword | rating:double |
 | --- | --- | --- |

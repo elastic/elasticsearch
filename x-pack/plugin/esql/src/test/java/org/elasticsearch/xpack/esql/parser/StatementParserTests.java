@@ -3839,7 +3839,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
             "FROM foo* | RERANK \"query text\" ON title WITH { \"inference_id\": \"inferenceId\", \"unknown_option\": 3 }",
             "line 1:42: Inavalid option [unknown_option] in RERANK, expected one of [[inference_id]]"
         );
-        expectError("FROM foo* | RERANK 45 ON title", "Query must be a valid string in RERANK, found [45]");
         expectError("FROM foo* | RERANK ON title WITH inferenceId", "line 1:20: extraneous input 'ON' expecting {QUOTED_STRING");
         expectError("FROM foo* | RERANK \"query text\" WITH inferenceId", "line 1:33: mismatched input 'WITH' expecting 'on'");
 

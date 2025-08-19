@@ -64,7 +64,7 @@ public class TransportVersionResourcesPlugin implements Plugin<Project> {
                 t.getManifestFile().set(project.getLayout().getBuildDirectory().file("generated-resources/manifest.txt"));
             });
         project.getTasks().named(JavaPlugin.PROCESS_RESOURCES_TASK_NAME, Copy.class).configure(t -> {
-            t.into("transport/defined", c -> c.from(generateManifestTask));
+            t.into("transport/definitions", c -> c.from(generateManifestTask));
         });
     }
 }

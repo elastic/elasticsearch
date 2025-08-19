@@ -32,8 +32,8 @@ import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.PageConsumerOperator;
 import org.elasticsearch.compute.operator.SinkOperator;
 import org.elasticsearch.compute.operator.SourceOperator;
-import org.elasticsearch.compute.test.AnyOperatorTestCase;
 import org.elasticsearch.compute.test.OperatorTestCase;
+import org.elasticsearch.compute.test.SourceOperatorTestCase;
 import org.elasticsearch.compute.test.TestDriverFactory;
 import org.elasticsearch.compute.test.TestResultPageSinkOperator;
 import org.elasticsearch.core.IOUtils;
@@ -65,7 +65,7 @@ import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.matchesRegex;
 
-public class LuceneSourceOperatorTests extends AnyOperatorTestCase {
+public class LuceneSourceOperatorTests extends SourceOperatorTestCase {
     private static final MappedFieldType S_FIELD = new NumberFieldMapper.NumberFieldType("s", NumberFieldMapper.NumberType.LONG);
 
     @ParametersFactory(argumentFormatting = "%s %s")

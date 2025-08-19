@@ -130,7 +130,6 @@ import static org.elasticsearch.xpack.inference.services.elasticsearch.Elasticse
  */
 public class SemanticTextFieldMapper extends FieldMapper implements InferenceFieldMapper {
     private static final Logger logger = LogManager.getLogger(SemanticTextFieldMapper.class);
-    // TODO: rewrite the warning and error messages below, just placeholders for now
     public static final String WARNING_MESSAGE_8X = "Creating a `semantic_text` field on this index version may not include" +
         " optimized default settings. Consider creating a new index for a better performance.";
     public static final String ERROR_MESSAGE_UNSUPPORTED_SPARSE_VECTOR = "Creating a `semantic_text` field with `sparse_vector` models" +

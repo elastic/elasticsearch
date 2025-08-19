@@ -488,6 +488,7 @@ public class ExponentialHistogramFieldMapperTests extends MapperTestCase {
 
             @Override
             public List<SyntheticSourceInvalidExample> invalidExample() {
+                // We always support synthetic source independent of the configured mapping, so this test does not apply
                 return List.of();
             }
         };

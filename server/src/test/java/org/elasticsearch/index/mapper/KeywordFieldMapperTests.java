@@ -1006,7 +1006,10 @@ public class KeywordFieldMapperTests extends MapperTestCase {
         KeywordFieldMapper mapper = (KeywordFieldMapper) mapperService.documentMapper().mappers().getMapper("potato");
 
         // then
-        assertFalse(mapper.fieldType().isIgnored("this value will trip ignore_above, but bc keyword is not a multi field this value will not be ignored"));
+        assertFalse(
+            mapper.fieldType()
+                .isIgnored("this value will trip ignore_above, but bc keyword is not a multi field this value will not be ignored")
+        );
     }
 
     public void test_value_is_ignored_when_it_exceeds_ignore_above_and_field_is_a_multi_field() throws IOException {
@@ -1054,7 +1057,7 @@ public class KeywordFieldMapperTests extends MapperTestCase {
         // then
         assertFalse(mapper.fieldType().isIgnored("this value is too short to be ignored"));
     }
-    
+
     public void test_value_exceeds_ignore_above_and_field_is_not_a_multi_field() throws IOException {
         // given
         MapperService mapperService = createSytheticSourceMapperService(mapping(b -> {
@@ -1063,12 +1066,10 @@ public class KeywordFieldMapperTests extends MapperTestCase {
             b.field("ignore_above", 1);
             b.endObject();
         }));
-        
+
         // when
         KeywordFieldMapper mapper = (KeywordFieldMapper) mapperService.documentMapper().mappers().getMapper("potato");
-        ParsedDocument doc = mapperService.documentMapper().parse(source(b -> {
-            b.field("potato", "this value is too long");
-        }));
+        ParsedDocument doc = mapperService.documentMapper().parse(source(b -> { b.field("potato", "this value is too long"); }));
 
         // then
 
@@ -1094,9 +1095,7 @@ public class KeywordFieldMapperTests extends MapperTestCase {
 
         // when
         KeywordFieldMapper mapper = (KeywordFieldMapper) mapperService.documentMapper().mappers().getMapper("potato.tomato");
-        ParsedDocument doc = mapperService.documentMapper().parse(source(b -> {
-            b.field("potato", "this value is too long");
-        }));
+        ParsedDocument doc = mapperService.documentMapper().parse(source(b -> { b.field("potato", "this value is too long"); }));
 
         // then
 
@@ -1123,9 +1122,7 @@ public class KeywordFieldMapperTests extends MapperTestCase {
 
         // when
         KeywordFieldMapper mapper = (KeywordFieldMapper) mapperService.documentMapper().mappers().getMapper("potato.tomato");
-        ParsedDocument doc = mapperService.documentMapper().parse(source(b -> {
-            b.field("potato", "this value is too long");
-        }));
+        ParsedDocument doc = mapperService.documentMapper().parse(source(b -> { b.field("potato", "this value is too long"); }));
 
         // then
 
@@ -1145,9 +1142,7 @@ public class KeywordFieldMapperTests extends MapperTestCase {
 
         // when
         KeywordFieldMapper mapper = (KeywordFieldMapper) mapperService.documentMapper().mappers().getMapper("potato");
-        ParsedDocument doc = mapperService.documentMapper().parse(source(b -> {
-            b.field("potato", "this value is too long");
-        }));
+        ParsedDocument doc = mapperService.documentMapper().parse(source(b -> { b.field("potato", "this value is too long"); }));
 
         // then
 

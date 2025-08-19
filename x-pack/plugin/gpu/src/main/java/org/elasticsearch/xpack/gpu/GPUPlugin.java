@@ -6,6 +6,8 @@
  */
 package org.elasticsearch.xpack.gpu;
 
+import org.apache.lucene.codecs.KnnVectorsFormat;
+import org.apache.lucene.util.hnsw.HnswGraphBuilder;
 import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
@@ -37,12 +39,12 @@ public class GPUPlugin extends Plugin implements MapperPlugin {
                             "[index.vectors.indexing.use_gpu] was set to [true], but GPU resources are not accessible on the node."
                         );
                     }
-                    return new GPUVectorsFormat();
+                    return getVectorsFormat(indexOptions);
                 }
                 if (gpuMode == IndexSettings.GpuMode.AUTO
                     && vectorIndexTypeSupported(indexOptions.getType())
                     && GPUSupport.isSupported(false)) {
-                    return new GPUVectorsFormat();
+                    return getVectorsFormat(indexOptions);
                 }
             }
             return null;
@@ -51,5 +53,20 @@ public class GPUPlugin extends Plugin implements MapperPlugin {
 
     private boolean vectorIndexTypeSupported(DenseVectorFieldMapper.VectorIndexType type) {
         return type == DenseVectorFieldMapper.VectorIndexType.HNSW;
+    }
+
+    private static KnnVectorsFormat getVectorsFormat(DenseVectorFieldMapper.DenseVectorIndexOptions indexOptions) {
+        if (indexOptions.getType() == DenseVectorFieldMapper.VectorIndexType.HNSW) {
+            DenseVectorFieldMapper.HnswIndexOptions hnswIndexOptions = (DenseVectorFieldMapper.HnswIndexOptions) indexOptions;
+            int efConstruction = hnswIndexOptions.efConstruction();
+            if (efConstruction == HnswGraphBuilder.DEFAULT_BEAM_WIDTH) {
+                efConstruction = GPUVectorsFormat.DEFAULT_BEAM_WIDTH; // default value for GPU graph construction is 128
+            }
+            return new GPUVectorsFormat(hnswIndexOptions.m(), efConstruction);
+        } else {
+            throw new IllegalArgumentException(
+                "GPU vector indexing is not supported on this vector type: [" + indexOptions.getType() + "]"
+            );
+        }
     }
 }

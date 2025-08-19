@@ -76,21 +76,6 @@ public class GPUVectorsFormatTests extends BaseKnnVectorsFormatTestCase {
         // No bytes support
     }
 
-    @Override
-    public void testSortedIndex() throws Exception {
-        // TODO: implement sorted index
-    }
-
-    @Override
-    public void testFloatVectorScorerIteration() throws Exception {
-        // TODO: implement sorted index
-    }
-
-    @Override
-    public void testRandom() throws Exception {
-        // TODO: implement sorted index
-    }
-
     public void testToString() {
         FilterCodec customCodec = new FilterCodec("foo", Codec.getDefault()) {
             @Override
@@ -98,7 +83,7 @@ public class GPUVectorsFormatTests extends BaseKnnVectorsFormatTestCase {
                 return new GPUVectorsFormat();
             }
         };
-        String expectedPattern = "GPUVectorsFormat()";
+        String expectedPattern = "GPUVectorsFormat(maxConn=16, beamWidth=128, flatVectorFormat=Lucene99FlatVectorsFormat)";
         assertEquals(expectedPattern, customCodec.knnVectorsFormat().toString());
     }
 

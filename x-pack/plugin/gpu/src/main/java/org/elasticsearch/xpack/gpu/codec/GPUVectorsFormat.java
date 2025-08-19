@@ -16,8 +16,6 @@ import org.apache.lucene.codecs.lucene99.Lucene99FlatVectorsFormat;
 import org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsReader;
 import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.index.SegmentWriteState;
-import org.elasticsearch.logging.LogManager;
-import org.elasticsearch.logging.Logger;
 
 import java.io.IOException;
 
@@ -26,9 +24,6 @@ import java.io.IOException;
  * leverage GPU processing capabilities for vector search operations.
  */
 public class GPUVectorsFormat extends KnnVectorsFormat {
-
-    private static final Logger LOG = LogManager.getLogger(GPUVectorsFormat.class);
-
     public static final String NAME = "GPUVectorsFormat";
     public static final int VERSION_START = 0;
 
@@ -38,34 +33,38 @@ public class GPUVectorsFormat extends KnnVectorsFormat {
     static final String LUCENE99_HNSW_VECTOR_INDEX_EXTENSION = "vex";
     static final int LUCENE99_VERSION_CURRENT = VERSION_START;
 
-    static final int DEFAULT_MAX_CONN = 16;
-    static final int DEFAULT_BEAM_WIDTH = 100;
+    static final int DEFAULT_MAX_CONN = 16; // graph degree
+    public static final int DEFAULT_BEAM_WIDTH = 128; // intermediate graph degree
     static final int MIN_NUM_VECTORS_FOR_GPU_BUILD = 2;
 
     private static final FlatVectorsFormat flatVectorsFormat = new Lucene99FlatVectorsFormat(
         FlatVectorScorerUtil.getLucene99FlatVectorsScorer()
     );
 
+    // How many nodes each node in the graph is connected to in the final graph
+    private final int maxConn;
+    // Intermediate graph degree, the number of connections for each node before pruning
+    private final int beamWidth;
     final CuVSResourceManager cuVSResourceManager;
 
     public GPUVectorsFormat() {
-        this(CuVSResourceManager.pooling());
+        this(CuVSResourceManager.pooling(), DEFAULT_MAX_CONN, DEFAULT_BEAM_WIDTH);
     }
 
-    public GPUVectorsFormat(CuVSResourceManager cuVSResourceManager) {
+    public GPUVectorsFormat(int maxConn, int beamWidth) {
+        this(CuVSResourceManager.pooling(), maxConn, beamWidth);
+    };
+
+    public GPUVectorsFormat(CuVSResourceManager cuVSResourceManager, int maxConn, int beamWidth) {
         super(NAME);
         this.cuVSResourceManager = cuVSResourceManager;
+        this.maxConn = maxConn;
+        this.beamWidth = beamWidth;
     }
 
     @Override
     public KnnVectorsWriter fieldsWriter(SegmentWriteState state) throws IOException {
-        return new GPUToHNSWVectorsWriter(
-            cuVSResourceManager,
-            state,
-            DEFAULT_MAX_CONN,
-            DEFAULT_BEAM_WIDTH,
-            flatVectorsFormat.fieldsWriter(state)
-        );
+        return new GPUToHNSWVectorsWriter(cuVSResourceManager, state, maxConn, beamWidth, flatVectorsFormat.fieldsWriter(state));
     }
 
     @Override
@@ -80,6 +79,6 @@ public class GPUVectorsFormat extends KnnVectorsFormat {
 
     @Override
     public String toString() {
-        return NAME + "()";
+        return NAME + "(maxConn=" + maxConn + ", beamWidth=" + beamWidth + ", flatVectorFormat=" + flatVectorsFormat.getName() + ")";
     }
 }

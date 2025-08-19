@@ -86,8 +86,8 @@ final class GPUToHNSWVectorsWriter extends KnnVectorsWriter {
         assert cuVSResourceManager != null : "CuVSResources must not be null";
         this.cuVSResourceManager = cuVSResourceManager;
         this.M = M;
-        this.flatVectorWriter = flatVectorWriter;
         this.beamWidth = beamWidth;
+        this.flatVectorWriter = flatVectorWriter;
         this.segmentWriteState = state;
         String metaFileName = IndexFileNames.segmentFileName(state.segmentInfo.name, state.segmentSuffix, LUCENE99_HNSW_META_EXTENSION);
         String indexDataFileName = IndexFileNames.segmentFileName(
@@ -274,10 +274,11 @@ final class GPUToHNSWVectorsWriter extends KnnVectorsWriter {
             case COSINE -> CagraIndexParams.CuvsDistanceType.CosineExpanded;
         };
 
-        // TODO: expose cagra index params of intermediate graph degree, graph degree, algorithm, NNDescentNumIterations
+        // TODO: expose cagra index params for algorithm, NNDescentNumIterations
         CagraIndexParams params = new CagraIndexParams.Builder().withNumWriterThreads(1) // TODO: how many CPU threads we can use?
             .withCagraGraphBuildAlgo(CagraIndexParams.CagraGraphBuildAlgo.NN_DESCENT)
-            .withGraphDegree(16)
+            .withGraphDegree(M)
+            .withIntermediateGraphDegree(beamWidth)
             .withMetric(distanceType)
             .build();
 

@@ -139,6 +139,16 @@ public class SamlRealmSettings {
         key -> Setting.positiveTimeSetting(key, TimeValue.timeValueMinutes(3), Setting.Property.NodeScope)
     );
 
+    /**
+     * The names of attributes that should be treated as secure and never populated as part of user metadata
+     * (even when {@code #POPULATE_USER_METADATA} is configured).
+     */
+    public static final Function<String, Setting.AffixSetting<List<String>>> SECURE_ATTRIBUTES = (type) -> Setting.affixKeySetting(
+        RealmSettings.realmSettingPrefix(type),
+        "secure_attributes",
+        (key) -> Setting.stringListSetting(key, attributes -> verifyNonNullNotEmpty(key, attributes), Setting.Property.NodeScope)
+    );
+
     public static final Function<String, Setting.AffixSetting<List<String>>> EXCLUDE_ROLES = (type) -> Setting.affixKeySetting(
         RealmSettings.realmSettingPrefix(type),
         "exclude_roles",
@@ -201,7 +211,8 @@ public class SamlRealmSettings {
             ENCRYPTION_KEY_ALIAS.apply(type),
             SIGNING_KEY_ALIAS.apply(type),
             SIGNING_MESSAGE_TYPES.apply(type),
-            REQUESTED_AUTHN_CONTEXT_CLASS_REF.apply(type)
+            REQUESTED_AUTHN_CONTEXT_CLASS_REF.apply(type),
+            SECURE_ATTRIBUTES.apply(type)
         );
 
         set.addAll(X509KeyPairSettings.affix(RealmSettings.realmSettingPrefix(type), ENCRYPTION_SETTING_KEY, false));

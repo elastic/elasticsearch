@@ -7,7 +7,10 @@
 package org.elasticsearch.xpack.security.authc.saml;
 
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.settings.SecureString;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Releasable;
 import org.opensaml.saml.saml2.core.Attribute;
 import org.opensaml.saml.saml2.core.NameIDType;
 
@@ -17,7 +20,7 @@ import java.util.Objects;
 /**
  * An lightweight collection of SAML attributes
  */
-public class SamlAttributes {
+public class SamlAttributes implements Releasable {
 
     public static final String NAMEID_SYNTHENTIC_ATTRIBUTE = "nameid";
     public static final String PERSISTENT_NAMEID_SYNTHENTIC_ATTRIBUTE = "nameid:persistent";
@@ -25,11 +28,17 @@ public class SamlAttributes {
     private final SamlNameId name;
     private final String session;
     private final List<SamlAttribute> attributes;
+    private final List<SamlSecureAttribute> secureAttributes;
 
     SamlAttributes(SamlNameId name, String session, List<SamlAttribute> attributes) {
+        this(name, session, attributes, List.of());
+    }
+
+    SamlAttributes(SamlNameId name, String session, List<SamlAttribute> attributes, List<SamlSecureAttribute> secureAttributes) {
         this.name = name;
         this.session = session;
         this.attributes = attributes;
+        this.secureAttributes = secureAttributes;
     }
 
     /**
@@ -54,8 +63,26 @@ public class SamlAttributes {
             .toList();
     }
 
+    List<SecureString> getSecureAttributeValues(String attributeId) {
+        if (Strings.isNullOrEmpty(attributeId)) {
+            return List.of();
+        }
+        return secureAttributes.stream()
+            .filter(attr -> attributeId.equals(attr.name) || attributeId.equals(attr.friendlyName))
+            .flatMap(attr -> attr.values.stream())
+            .toList();
+    }
+
     List<SamlAttribute> attributes() {
         return attributes;
+    }
+
+    List<SamlSecureAttribute> secureAttributes() {
+        return secureAttributes;
+    }
+
+    boolean isEmpty() {
+        return attributes.isEmpty() && secureAttributes.isEmpty();
     }
 
     SamlNameId name() {
@@ -68,7 +95,12 @@ public class SamlAttributes {
 
     @Override
     public String toString() {
-        return getClass().getSimpleName() + "(" + name + ")[" + session + "]{" + attributes + "}";
+        return getClass().getSimpleName() + "(" + name + ")[" + session + "]{" + attributes + "}{" + secureAttributes + "}";
+    }
+
+    @Override
+    public void close() {
+        IOUtils.closeWhileHandlingException(secureAttributes);
     }
 
     static class SamlAttribute {
@@ -103,4 +135,59 @@ public class SamlAttributes {
         }
     }
 
+    static class SamlSecureAttribute implements Releasable {
+
+        final String name;
+        final String friendlyName;
+        final List<SecureString> values;
+
+        SamlSecureAttribute(Attribute attribute) {
+            this(
+                attribute.getName(),
+                attribute.getFriendlyName(),
+                attribute.getAttributeValues()
+                    .stream()
+                    .map(x -> x.getDOM().getTextContent())
+                    .filter(Objects::nonNull)
+                    .map(String::toCharArray)
+                    .map(SecureString::new)
+                    .toList()
+            );
+        }
+
+        SamlSecureAttribute(String name, @Nullable String friendlyName, List<SecureString> values) {
+            this.name = Objects.requireNonNull(name, "Attribute name cannot be null");
+            this.friendlyName = friendlyName;
+            this.values = values;
+        }
+
+        String name() {
+            return name;
+        }
+
+        String friendlyName() {
+            return friendlyName;
+        }
+
+        List<SecureString> values() {
+            return values;
+        }
+
+        @Override
+        public String toString() {
+            StringBuilder str = new StringBuilder();
+            if (Strings.isNullOrEmpty(friendlyName)) {
+                str.append(name);
+            } else {
+                str.append(friendlyName).append('(').append(name).append(')');
+            }
+            str.append("=").append("::es_redacted::").append("(len=").append(values.size()).append(')');
+            return str.toString();
+        }
+
+        @Override
+        public void close() {
+            IOUtils.closeWhileHandlingException(values);
+        }
+    }
 }

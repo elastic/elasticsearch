@@ -310,6 +310,7 @@ import org.elasticsearch.xpack.security.authc.TokenService;
 import org.elasticsearch.xpack.security.authc.esnative.NativeUsersStore;
 import org.elasticsearch.xpack.security.authc.esnative.ReservedRealm;
 import org.elasticsearch.xpack.security.authc.jwt.JwtRealm;
+import org.elasticsearch.xpack.security.authc.saml.SamlAuthenticateResponseHandler;
 import org.elasticsearch.xpack.security.authc.service.CachingServiceAccountTokenStore;
 import org.elasticsearch.xpack.security.authc.service.CompositeServiceAccountTokenStore;
 import org.elasticsearch.xpack.security.authc.service.FileServiceAccountTokenStore;
@@ -641,6 +642,7 @@ public class Security extends Plugin
     private final SetOnce<SecondaryAuthActions> secondaryAuthActions = new SetOnce<>();
     private final SetOnce<QueryableBuiltInRolesProviderFactory> queryableRolesProviderFactory = new SetOnce<>();
     private final SetOnce<SecurityMigrationExecutor> securityMigrationExecutor = new SetOnce<>();
+    private final SetOnce<SamlAuthenticateResponseHandler.Factory> samlAuthenticateResponseHandlerFactory = new SetOnce<>();
 
     // Node local retry count for migration jobs that's checked only on the master node to make sure
     // submit migration jobs doesn't get out of hand and retries forever if they fail. Reset by a
@@ -990,6 +992,15 @@ public class Security extends Plugin
         if (fileRoleValidator.get() == null) {
             fileRoleValidator.set(new FileRoleValidator.Default());
         }
+        if (samlAuthenticateResponseHandlerFactory.get() == null) {
+            samlAuthenticateResponseHandlerFactory.set(new SamlAuthenticateResponseHandler.DefaultFactory());
+        }
+        components.add(
+            new PluginComponentBinding<>(
+                SamlAuthenticateResponseHandler.class,
+                samlAuthenticateResponseHandlerFactory.get().create(tokenService, getClock())
+            )
+        );
         this.fileRolesStore.set(
             new FileRolesStore(settings, environment, resourceWatcherService, getLicenseState(), xContentRegistry, fileRoleValidator.get())
         );
@@ -2477,6 +2488,7 @@ public class Security extends Plugin
         loadSingletonExtensionAndSetOnce(loader, fileRoleValidator, FileRoleValidator.class);
         loadSingletonExtensionAndSetOnce(loader, secondaryAuthActions, SecondaryAuthActions.class);
         loadSingletonExtensionAndSetOnce(loader, queryableRolesProviderFactory, QueryableBuiltInRolesProviderFactory.class);
+        loadSingletonExtensionAndSetOnce(loader, samlAuthenticateResponseHandlerFactory, SamlAuthenticateResponseHandler.Factory.class);
     }
 
     private <T> void loadSingletonExtensionAndSetOnce(ExtensionLoader loader, SetOnce<T> setOnce, Class<T> clazz) {

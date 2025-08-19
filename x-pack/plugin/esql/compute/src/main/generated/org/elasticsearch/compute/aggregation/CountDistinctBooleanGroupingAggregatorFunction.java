@@ -61,9 +61,7 @@ public final class CountDistinctBooleanGroupingAggregatorFunction implements Gro
     BooleanBlock vBlock = page.getBlock(channels.get(0));
     BooleanVector vVector = vBlock.asVector();
     if (vVector == null) {
-      if (vBlock.mayHaveNulls()) {
-        state.enableGroupIdTracking(seenGroupIds);
-      }
+      maybeEnableGroupIdTracking(seenGroupIds, vBlock);
       return new GroupingAggregatorFunction.AddInput() {
         @Override
         public void add(int positionOffset, IntArrayBlock groupIds) {
@@ -287,6 +285,12 @@ public final class CountDistinctBooleanGroupingAggregatorFunction implements Gro
       int groupId = groups.getInt(groupPosition);
       int valuesPosition = groupPosition + positionOffset;
       CountDistinctBooleanAggregator.combineIntermediate(state, groupId, fbit.getBoolean(valuesPosition), tbit.getBoolean(valuesPosition));
+    }
+  }
+
+  private void maybeEnableGroupIdTracking(SeenGroupIds seenGroupIds, BooleanBlock vBlock) {
+    if (vBlock.mayHaveNulls()) {
+      state.enableGroupIdTracking(seenGroupIds);
     }
   }
 

@@ -20,7 +20,7 @@ public final class FirstDoubleByTimestampAggregatorFunctionSupplier implements A
 
   @Override
   public List<IntermediateStateDesc> nonGroupingIntermediateStateDesc() {
-    throw new UnsupportedOperationException("non-grouping aggregator is not supported");
+    return FirstDoubleByTimestampAggregatorFunction.intermediateStateDesc();
   }
 
   @Override
@@ -29,8 +29,9 @@ public final class FirstDoubleByTimestampAggregatorFunctionSupplier implements A
   }
 
   @Override
-  public AggregatorFunction aggregator(DriverContext driverContext, List<Integer> channels) {
-    throw new UnsupportedOperationException("non-grouping aggregator is not supported");
+  public FirstDoubleByTimestampAggregatorFunction aggregator(DriverContext driverContext,
+      List<Integer> channels) {
+    return FirstDoubleByTimestampAggregatorFunction.create(driverContext, channels);
   }
 
   @Override
@@ -41,6 +42,6 @@ public final class FirstDoubleByTimestampAggregatorFunctionSupplier implements A
 
   @Override
   public String describe() {
-    return "first_double_by of timestamps";
+    return FirstDoubleByTimestampAggregator.describe();
   }
 }

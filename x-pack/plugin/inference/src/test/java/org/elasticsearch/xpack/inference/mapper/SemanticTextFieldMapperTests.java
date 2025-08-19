@@ -416,11 +416,6 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
         }
     }
 
-    @Override
-    protected String[] getParseMinimalWarnings() {
-        return new String[] { WARNING_MESSAGE_8X };
-    }
-
     public void testOldIndexSemanticTextDenseVectorCreation() throws IOException {
         final String fieldName = "field";
         final XContentBuilder fieldMapping = fieldMapping(b -> {
@@ -440,6 +435,7 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
             IndexVersions.V_8_0_0,
             IndexVersionUtils.getPreviousVersion(IndexVersions.FIRST_DETACHED_INDEX_VERSION)
         );
+        assertWarnings(WARNING_MESSAGE_8X);
         assertParseMinimalWarnings();
         assertSemanticTextField(mapperService, fieldName, true, null, null);
     }

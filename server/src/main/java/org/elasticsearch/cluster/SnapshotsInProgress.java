@@ -881,7 +881,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
         }
 
         public boolean isAbortedAssignedQueued() {
-            return state == ShardState.ABORTED && reason != null && reason.startsWith("assigned-queued aborted");
+            return state == ShardState.ABORTED && nodeId == null;
         }
 
         @Override
@@ -1296,14 +1296,14 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
                         assert isClone() == false
                             : "The state queued with generation should not be possible for a clone entry [" + this + "]";
                         final String reason = "assigned-queued aborted by snapshot deletion";
+                        // Assigned QUEUED transitions to ABORTED (incomplete) and is completed by a separate cluster state update
                         status = new ShardSnapshotStatus(
-                            nodeId,
-                            // Assigned QUEUED transitions to ABORTED (incomplete) and is completed by a separate cluster state update
+                            null, // use null nodeId to differentiate it from aborted INIT shard snapshot
                             ShardState.ABORTED,
                             status.generation(),
                             reason
                         );
-                        // Accumulate the updates needed to complete the aborted QUEUED with generation shard snapshots
+                        // Accumulate the updates needed to complete the aborted assigned-queued shard snapshots
                         abortedAssignedQueuedShardConsumer.accept(
                             shardEntry.getKey(),
                             new ShardSnapshotStatus(localNodeId, ShardState.FAILED, status.generation, reason)

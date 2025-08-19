@@ -48,7 +48,7 @@ public final class QueryBuilderResolver {
         });
         if (hasRewriteableAwareFunctions) {
             Rewriteable.rewriteAndFetch(
-                new FunctionsRewritable(plan),
+                new FunctionsRewriteable(plan),
                 queryRewriteContext(services, indexNames(plan)),
                 listener.delegateFailureAndWrap((l, r) -> l.onResponse(r.plan))
             );
@@ -76,9 +76,9 @@ public final class QueryBuilderResolver {
         return indexNames;
     }
 
-    private record FunctionsRewritable(LogicalPlan plan) implements Rewriteable<QueryBuilderResolver.FunctionsRewritable> {
+    private record FunctionsRewriteable(LogicalPlan plan) implements Rewriteable<FunctionsRewriteable> {
         @Override
-        public FunctionsRewritable rewrite(QueryRewriteContext ctx) throws IOException {
+        public FunctionsRewriteable rewrite(QueryRewriteContext ctx) throws IOException {
             Holder<IOException> exceptionHolder = new Holder<>();
             Holder<Boolean> updated = new Holder<>(false);
             LogicalPlan newPlan = plan.transformExpressionsDown(Expression.class, expr -> {
@@ -102,7 +102,7 @@ public final class QueryBuilderResolver {
             if (exceptionHolder.get() != null) {
                 throw exceptionHolder.get();
             }
-            return updated.get() ? new FunctionsRewritable(newPlan) : this;
+            return updated.get() ? new FunctionsRewriteable(newPlan) : this;
         }
     }
 }

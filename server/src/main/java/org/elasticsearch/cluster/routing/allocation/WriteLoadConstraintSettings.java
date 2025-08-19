@@ -119,7 +119,7 @@ public class WriteLoadConstraintSettings {
 
     private volatile WriteLoadDeciderStatus writeLoadDeciderStatus;
     private volatile TimeValue minimumRerouteInterval;
-    private volatile RatioValue highUtilizationThreshold;
+    private volatile double highUtilizationThreshold;
     private volatile TimeValue queueLatencyThreshold;
 
     public WriteLoadConstraintSettings(ClusterSettings clusterSettings) {
@@ -130,7 +130,7 @@ public class WriteLoadConstraintSettings {
         );
         clusterSettings.initializeAndWatch(
             WRITE_LOAD_DECIDER_HIGH_UTILIZATION_THRESHOLD_SETTING,
-            value -> highUtilizationThreshold = value
+            value -> highUtilizationThreshold = value.getAsRatio()
         );
         clusterSettings.initializeAndWatch(WRITE_LOAD_DECIDER_QUEUE_LATENCY_THRESHOLD_SETTING, value -> queueLatencyThreshold = value);
     }
@@ -147,7 +147,10 @@ public class WriteLoadConstraintSettings {
         return this.queueLatencyThreshold;
     }
 
-    public RatioValue getHighUtilizationThreshold() {
+    /**
+     * @return The threshold as a ratio - i.e. in [0, 1]
+     */
+    public double getHighUtilizationThreshold() {
         return this.highUtilizationThreshold;
     }
 }

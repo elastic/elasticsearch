@@ -101,10 +101,11 @@ public abstract class TransportVersionResourcesService implements BuildService<T
         Map<String, TransportVersionDefinition> definitions = new HashMap<>();
         // temporarily include unreferenced in named until validation understands the distinction
         for (var dir : List.of(NAMED_DIR, UNREFERENCED_DIR)) {
-            if (Files.exists(dir) == false) {
+            Path path = transportResourcesDir.resolve(dir);
+            if (Files.isDirectory(path) == false) {
                 continue;
             }
-            try (var definitionsStream = Files.list(transportResourcesDir.resolve(dir))) {
+            try (var definitionsStream = Files.list(path)) {
                 for (var definitionFile : definitionsStream.toList()) {
                     String contents = Files.readString(definitionFile, StandardCharsets.UTF_8).strip();
                     var definition = TransportVersionDefinition.fromString(definitionFile.getFileName().toString(), contents);

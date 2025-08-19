@@ -2544,7 +2544,11 @@ public class SnapshotResiliencyTests extends ESTestCase {
                     VerifyNodeRepositoryCoordinationAction.TYPE,
                     new VerifyNodeRepositoryCoordinationAction.LocalAction(actionFilters, transportService, clusterService, client)
                 );
-                final MetadataMappingService metadataMappingService = new MetadataMappingService(clusterService, indicesService);
+                final MetadataMappingService metadataMappingService = new MetadataMappingService(
+                    clusterService,
+                    indicesService,
+                    new IndexSettingProviders(Set.of())
+                );
 
                 peerRecoverySourceService = new PeerRecoverySourceService(
                     transportService,

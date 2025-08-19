@@ -46,11 +46,11 @@ final class EncodedHistogramData {
         - for each remaining bucket:
            - if the index of the bucket is exactly previousBucketIndex+1, write the count for the bucket as ZigZag-VLong
            - Otherwise there is at least one empty bucket between this one and the previous one.
-     We compute that number as n=currentBucketIndex-previousIndex-1 and then write -n out as
-     ZigZag-VLong followed by the count for the bucket as ZigZag-VLong. The negation is performed to allow to
-     distinguish the cases when decoding.
+             We compute that number as n=currentBucketIndex-previousIndex-1 and then write -n out as
+             ZigZag-VLong followed by the count for the bucket as ZigZag-VLong. The negation is performed to allow to
+             distinguish the cases when decoding.
 
-     While this decoding is designed for sparse histograms, it compresses well for dense histograms too.
+     While this encoding is designed for sparse histograms, it compresses well for dense histograms too.
      For fully dense histograms it effectively results in encoding the index of the first bucket, followed by just an array of counts.
      For sparse histograms it corresponds to an interleaved encoding of the bucket indices with delta compression and the bucket counts.
      Even partially dense histograms profit from this encoding.
@@ -211,21 +211,26 @@ final class EncodedHistogramData {
             if (buckets.isEmpty()) {
                 return; // no buckets, therefore nothing to write
             }
-            long minIndex = buckets.getFirst().index();
-            out.writeZLong(minIndex);
-            long prevIndex = minIndex - 1;
-            for (IndexWithCount indexWithCount : buckets) {
-                long indexDelta = indexWithCount.index() - prevIndex;
+
+            IndexWithCount firstBucket = buckets.getFirst();
+            out.writeZLong(firstBucket.index());
+            out.writeZLong(firstBucket.count());
+            long prevIndex = firstBucket.index();
+
+            for (int i = 1; i < buckets.size(); i++) {
+                IndexWithCount bucket = buckets.get(i);
+
+                long indexDelta = bucket.index() - prevIndex;
                 assert indexDelta > 0; // values must be sorted and unique
-                assert indexWithCount.count() > 0;
+                assert bucket.count() > 0;
 
                 long numEmptyBucketsInBetween = indexDelta - 1;
                 if (numEmptyBucketsInBetween > 0) {
                     out.writeZLong(-numEmptyBucketsInBetween);
                 }
-                out.writeZLong(indexWithCount.count());
+                out.writeZLong(bucket.count());
 
-                prevIndex = indexWithCount.index();
+                prevIndex = bucket.index();
             }
         }
     }

@@ -1,5 +1,5 @@
 pr: 133099
 summary: Add MV_CONTAINS_ALL ES:QL function
 area: ES|QL
-type: enhancement
+type: "enhancement, feature"
 issues: []

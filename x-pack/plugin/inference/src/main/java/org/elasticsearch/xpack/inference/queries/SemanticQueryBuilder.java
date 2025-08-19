@@ -17,6 +17,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
+import org.elasticsearch.index.query.FilteredCCSQueryBuilder;
 import org.elasticsearch.index.query.MatchNoneQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
@@ -54,7 +55,9 @@ import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 
 // TODO: Remove noInferenceResults
 
-public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuilder> {
+public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuilder>
+    implements
+        FilteredCCSQueryBuilder<SemanticQueryBuilder> {
     public static final String NAME = "semantic";
 
     private static final ParseField FIELD_FIELD = new ParseField("field");
@@ -164,6 +167,12 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
 
     public String getQuery() {
         return query;
+    }
+
+    @Override
+    public SemanticQueryBuilder filter() {
+        // Clear any attached embeddings
+        return new SemanticQueryBuilder(this, null, false);
     }
 
     @Override

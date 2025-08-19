@@ -33,6 +33,12 @@ import static org.hamcrest.Matchers.instanceOf;
 public class LinearRetrieverBuilderParsingTests extends AbstractXContentTestCase<LinearRetrieverBuilder> {
     private static List<NamedXContentRegistry.Entry> xContentRegistryEntries;
 
+    private static final ScoreNormalizer[] SCORE_NORMALIZERS = new ScoreNormalizer[] {
+        null,
+        MinMaxScoreNormalizer.INSTANCE,
+        L2ScoreNormalizer.INSTANCE,
+        IdentityScoreNormalizer.INSTANCE };
+
     @BeforeClass
     public static void init() {
         xContentRegistryEntries = new SearchModule(Settings.EMPTY, emptyList()).getNamedXContents();
@@ -69,9 +75,7 @@ public class LinearRetrieverBuilderParsingTests extends AbstractXContentTestCase
                 new CompoundRetrieverBuilder.RetrieverSource(TestRetrieverBuilder.createRandomTestRetrieverBuilder(), null)
             );
             weights[i] = randomFloat();
-            normalizers[i] = randomFrom(
-                new ScoreNormalizer[] { null, MinMaxScoreNormalizer.INSTANCE, L2ScoreNormalizer.INSTANCE, IdentityScoreNormalizer.INSTANCE }
-            );
+            normalizers[i] = randomFrom(SCORE_NORMALIZERS);
         }
 
         return new LinearRetrieverBuilder(innerRetrievers, fields, query, normalizer, rankWindowSize, weights, normalizers);
@@ -112,12 +116,7 @@ public class LinearRetrieverBuilderParsingTests extends AbstractXContentTestCase
     }
 
     private static ScoreNormalizer randomScoreNormalizer() {
-        int random = randomInt(2);
-        return switch (random) {
-            case 0 -> MinMaxScoreNormalizer.INSTANCE;
-            case 1 -> L2ScoreNormalizer.INSTANCE;
-            default -> IdentityScoreNormalizer.INSTANCE;
-        };
+        return randomFrom(SCORE_NORMALIZERS);
     }
 
     public void testTopLevelNormalizer() throws IOException {

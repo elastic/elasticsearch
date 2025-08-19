@@ -100,7 +100,7 @@ synthetic_source text with ignored multi-field:
                 fields:
                   raw:
                     type: keyword
-                    ignored: 5
+                    ignore_above: 5
 
   - do:
       index:
@@ -142,7 +142,7 @@ synthetic_source text with ignored multi-field and multiple values in the same d
                 fields:
                   raw:
                     type: keyword
-                    ignored: 20
+                    ignore_above: 20
 
   - do:
       index:

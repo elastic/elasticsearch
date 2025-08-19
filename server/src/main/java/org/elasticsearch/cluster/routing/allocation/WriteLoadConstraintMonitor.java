@@ -140,7 +140,7 @@ public class WriteLoadConstraintMonitor {
     }
 
     private static String nodeSummary(Set<String> nodeIds) {
-        if (nodeIds.size() < MAX_NODE_IDS_IN_MESSAGE) {
+        if (nodeIds.size() > 0 && nodeIds.size() <= MAX_NODE_IDS_IN_MESSAGE) {
             return "[" + String.join(", ", nodeIds) + "]";
         } else {
             return nodeIds.size() + " nodes";

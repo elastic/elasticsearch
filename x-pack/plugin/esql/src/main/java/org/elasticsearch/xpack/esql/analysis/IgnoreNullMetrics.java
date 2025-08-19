@@ -33,9 +33,6 @@ import java.util.Set;
 public final class IgnoreNullMetrics extends Rule<LogicalPlan, LogicalPlan> {
     @Override
     public LogicalPlan apply(LogicalPlan logicalPlan) {
-        if (isMetricsQuery(logicalPlan) == false) {
-            return logicalPlan;
-        }
         Set<Attribute> metrics = collectMetrics(logicalPlan);
         if (metrics.isEmpty()) {
             return logicalPlan;

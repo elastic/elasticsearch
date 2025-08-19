@@ -69,6 +69,7 @@ public class IgnoreNullMetricsTests extends ESTestCase {
         LogicalPlan actual = analyze("""
             TS test
             | STATS max(max_over_time(metric_1))
+            | LIMIT 10
             """);
         Limit limit = as(actual, Limit.class);
         Aggregate agg = as(limit.child(), Aggregate.class);

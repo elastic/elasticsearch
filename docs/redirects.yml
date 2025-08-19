@@ -76,8 +76,6 @@ redirects:
         anchors: {'esql-mv_expand'}
       - to: 'reference/query-languages/esql/commands/rename.md'
         anchors: {'esql-rename'}
-      - to: 'reference/query-languages/esql/commands/rerank.md'
-        anchors: {'esql-rerank'}
       - to: 'reference/query-languages/esql/commands/sample.md'
         anchors: {'esql-sample'}
       - to: 'reference/query-languages/esql/commands/sort.md'

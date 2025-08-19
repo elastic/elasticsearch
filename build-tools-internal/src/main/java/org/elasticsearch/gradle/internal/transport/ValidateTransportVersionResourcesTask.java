@@ -96,7 +96,7 @@ public abstract class ValidateTransportVersionResourcesTask extends DefaultTask 
             return; // no definitions to validate, remove this leniency once all branches have at least one version
         }
         Path resourcesDir = getResourcesDirectory().getAsFile().get().toPath();
-        Path definitionsDir = resourcesDir.resolve("defined");
+        Path definitionsDir = resourcesDir.resolve("definitions");
         Path latestDir = resourcesDir.resolve("latest");
 
         // first check which resource files already exist in main

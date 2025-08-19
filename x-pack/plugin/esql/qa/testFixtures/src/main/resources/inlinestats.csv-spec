@@ -2325,16 +2325,16 @@ groupingByOrdinalsFilterIsAlwaysTrue
 required_capability: inlinestats_v10
 FROM employees
 | inlinestats max = max(salary) WHERE salary > 0 BY job_positions
-| SORT job_positions
+| SORT job_positions ASC, salary DESC
 | LIMIT 4
 | keep max, salary, job_positions, emp_no
 ;
 
-        max:integer         |salary:integer |                     job_positions:keyword                         |    emp_no:integer
-[74970, 74970, 65030, 71165]|61358          |[Accountant, Purchase Manager, Python Developer, Reporting Analyst]|10016          
-[74970, 74999]              |57305          |[Accountant, Senior Python Developer]                              |10001          
-[74970, 74970, 60408]       |47896          |[Accountant, Purchase Manager, Support Engineer]                   |10023          
-[74970, 58715]              |48942          |[Accountant, Head Human Resources]                                 |10012          
+        max:integer         |salary:integer |                     job_positions:keyword                                  |    emp_no:integer
+[74970, 74970, 74999, 74970]|74970          |[Accountant, Junior Developer, Principal Support Engineer, Purchase Manager]|10045          
+[74970, 74999, 74999]       |66817          |[Accountant, Principal Support Engineer, Senior Python Developer]           |10094          
+[74970, 74970, 65030, 71165]|61358          |[Accountant, Purchase Manager, Python Developer, Reporting Analyst]         |10016          
+[74970, 58121, 74970]       |58121          |[Accountant, Business Analyst, Purchase Manager]                            |10051           
 ;
 
 groupingByOrdinalsFilterIsAlwaysFalse
@@ -2342,16 +2342,16 @@ required_capability: inlinestats_v10
 
 FROM employees
 | inlinestats max = max(salary) WHERE first_name == "" BY job_positions
-| SORT job_positions
+| SORT job_positions DESC NULLS last, emp_no
 | LIMIT 4
 | keep first_name, salary, emp_no, job_positions, max
 ;
 
-first_name:keyword|salary:integer | emp_no:integer|                       job_positions:keyword                       | max:integer      
-Kazuhito          |61358          |10016          |[Accountant, Purchase Manager, Python Developer, Reporting Analyst]|null           
-Georgi            |57305          |10001          |[Accountant, Senior Python Developer]                              |null           
-Bojan             |47896          |10023          |[Accountant, Purchase Manager, Support Engineer]                   |null           
-Patricio          |48942          |10012          |[Accountant, Head Human Resources]                                 |null           
+first_name:s   |salary:i       | emp_no:i      |                       job_positions:s                                | max:i      
+Chirstian      |36174          |10004          |[Head Human Resources, Reporting Analyst, Support Engineer, Tech Lead]|null           
+Anneke         |60335          |10006          |[Principal Support Engineer, Senior Team Lead, Tech Lead]             |null           
+Duangkaew      |45797          |10010          |[Architect, Purchase Manager, Reporting Analyst, Tech Lead]           |null           
+Mary           |31120          |10011          |[Architect, Reporting Analyst, Senior Team Lead, Tech Lead]           |null           
 ;
 
 groupingByOrdinalsFilterSometimesMatches

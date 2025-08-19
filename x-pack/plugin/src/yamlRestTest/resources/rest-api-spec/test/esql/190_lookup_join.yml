@@ -276,7 +276,23 @@ lookup-no-key:
 
   - match: { error.type: "verification_exception" }
   - contains: { error.reason: "Unknown column [key] in right side of join" }
+---
+lookup-no-key-only-key:
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          capabilities: [ enable_lookup_join_on_remote ]
+      reason: "recent lookup join fix"
+  - do:
+      esql.query:
+          body:
+            query: 'FROM test | LOOKUP JOIN test-lookup-no-key ON key | KEEP key'
+      catch: "bad_request"
 
+  - match: { error.type: "verification_exception" }
+  - contains: { error.reason: "Unknown column [key] in right side of join" }
 ---
 basic join on two fields:
   - requires:

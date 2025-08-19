@@ -1237,10 +1237,10 @@ public class SnapshotStressTestsIT extends AbstractSnapshotIntegTestCase {
         private void startNodeShutdownMarker() {
             enqueueAction(() -> {
                 boolean rerun = true;
-                if (usually()) {
-                    return;
-                }
                 try (TransferableReleasables localReleasables = new TransferableReleasables()) {
+                    if (usually()) {
+                        return;
+                    }
                     if (localReleasables.add(blockFullClusterRestart()) == null) {
                         return;
                     }

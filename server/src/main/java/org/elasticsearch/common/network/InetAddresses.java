@@ -34,15 +34,16 @@ import java.util.Locale;
 public class InetAddresses {
     private static final int IPV4_PART_COUNT = 4;
     private static final int IPV6_PART_COUNT = 8;
+    private static final char[] HEX_DIGITS = "0123456789abcdef".toCharArray();
 
     public static boolean isInetAddress(String ipString) {
-        XContentString.UTF8Bytes bytes = new Text(ipString).bytes();
-        return ipStringToBytes(bytes.bytes(), bytes.offset(), bytes.length(), false) != null;
+        byte[] utf8Bytes = ipString.getBytes(StandardCharsets.UTF_8);
+        return ipStringToBytes(utf8Bytes, 0, utf8Bytes.length, false) != null;
     }
 
     public static String getIpOrHost(String ipString) {
-        XContentString.UTF8Bytes utf8Bytes = new Text(ipString).bytes();
-        byte[] bytes = ipStringToBytes(utf8Bytes.bytes(), utf8Bytes.offset(), utf8Bytes.length(), false);
+        byte[] utf8Bytes = ipString.getBytes(StandardCharsets.UTF_8);
+        byte[] bytes = ipStringToBytes(utf8Bytes, 0, utf8Bytes.length, false);
         if (bytes == null) { // is not InetAddress
             return ipString;
         }
@@ -67,13 +68,24 @@ public class InetAddresses {
         return CIDRUtils.encode(address);
     }
 
+    /**
+     * Converts an IP address string to a byte array.
+     * <p>
+     * This method supports both IPv4 and IPv6 addresses, including dotted quad notation for IPv6.
+     *
+     * @param ipUtf8  the IP address as a byte array in UTF-8 encoding
+     * @param offset  the starting index in the byte array
+     * @param length  the length of the IP address string
+     * @param asIpv6  if true, always returns a 16-byte array (IPv6 format), otherwise returns a 4-byte array for IPv4
+     * @return a byte array representing the IP address, or null if the input is invalid
+     */
     private static byte[] ipStringToBytes(byte[] ipUtf8, int offset, int length, boolean asIpv6) {
         // Make a first pass to categorize the characters in this string.
-        boolean hasColon = false;
+        int indexOfLastColon = -1;
         boolean hasDot = false;
         for (int i = offset; i < offset + length; i++) {
             byte c = ipUtf8[i];
-            if ((c & 0b10000000) != 0) {
+            if ((c & 0x80) != 0) {
                 return null;  // Only allow ASCII characters.
             } else if (c == '.') {
                 hasDot = true;
@@ -81,7 +93,7 @@ public class InetAddresses {
                 if (hasDot) {
                     return null;  // Colons must not appear after dots.
                 }
-                hasColon = true;
+                indexOfLastColon = i;
             } else if (c == '%') {
                 if (i == offset + length - 1) {
                     return null;  // Filter out strings that end in % and have an empty scope ID.
@@ -92,9 +104,9 @@ public class InetAddresses {
         }
 
         // Now decide which address family to parse.
-        if (hasColon) {
+        if (indexOfLastColon >= 0) {
             if (hasDot) {
-                ipUtf8 = convertDottedQuadToHex(ipUtf8, offset, length);
+                ipUtf8 = convertDottedQuadToHex(ipUtf8, offset, length, indexOfLastColon);
                 if (ipUtf8 == null) {
                     return null;
                 }
@@ -108,25 +120,32 @@ public class InetAddresses {
         return null;
     }
 
-    private static byte[] convertDottedQuadToHex(byte[] ipUtf8, int offset, int length) {
-        int quadOffset = -1;
-        for (int i = 0; i < length; i++) {
-            if (ipUtf8[i + offset] == ':') {
-                quadOffset = i + 1;
-            }
-        }
+    private static byte[] convertDottedQuadToHex(byte[] ipUtf8, int offset, int length, int indexOfLastColon) {
+        int quadOffset = indexOfLastColon - offset + 1; // +1 to include the colon
         assert quadOffset >= 0 : "Expected at least one colon in dotted quad IPv6 address";
         byte[] quad = textToNumericFormatV4(ipUtf8, offset + quadOffset, length - quadOffset, false);
         if (quad == null) {
             return null;
         }
-        byte[] penultimate = Integer.toHexString(((quad[0] & 0xff) << 8) | (quad[1] & 0xff)).getBytes(StandardCharsets.US_ASCII);
-        byte[] ultimate = Integer.toHexString(((quad[2] & 0xff) << 8) | (quad[3] & 0xff)).getBytes(StandardCharsets.US_ASCII);
+        byte[] penultimate = toHexBytes(((quad[0] & 0xff) << 8) | (quad[1] & 0xff));
+        byte[] ultimate = toHexBytes(((quad[2] & 0xff) << 8) | (quad[3] & 0xff));
+        // initialPart + penultimate + ":" + ultimate
         byte[] result = new byte[quadOffset + penultimate.length + 1 + ultimate.length];
         System.arraycopy(ipUtf8, offset, result, 0, quadOffset);
         System.arraycopy(penultimate, 0, result, quadOffset, penultimate.length);
         result[quadOffset + penultimate.length] = ':';
         System.arraycopy(ultimate, 0, result, quadOffset + penultimate.length + 1, ultimate.length);
+        return result;
+    }
+
+    static byte[] toHexBytes(int val) {
+        int mag = Integer.SIZE - Integer.numberOfLeadingZeros(val);
+        int length = Math.max(((mag + 3) / 4), 1);
+        byte[] result = new byte[length];
+        for (int i = length - 1; i >= 0; i--) {
+            result[i] = (byte) HEX_DIGITS[val & 0xf];
+            val >>>= 4;
+        }
         return result;
     }
 

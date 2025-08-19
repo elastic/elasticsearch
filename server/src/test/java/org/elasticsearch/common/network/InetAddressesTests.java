@@ -27,6 +27,7 @@ import java.net.NetworkInterface;
 import java.net.UnknownHostException;
 import java.nio.charset.StandardCharsets;
 import java.util.Enumeration;
+import java.util.stream.IntStream;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -258,5 +259,12 @@ public class InetAddressesTests extends ESTestCase {
             "192.168.0.0",
             InetAddresses.toAddrString(InetAddress.getByAddress(InetAddresses.encodeAsIpv6(new Text("192.168.0.0"))))
         );
+    }
+
+    public void testToHexBytes() {
+        IntStream.generate(ESTestCase::randomInt).limit(256).forEach(i -> {
+            byte[] bytes = InetAddresses.toHexBytes(i);
+            assertArrayEquals(Integer.toHexString(i).getBytes(StandardCharsets.US_ASCII), bytes);
+        });
     }
 }

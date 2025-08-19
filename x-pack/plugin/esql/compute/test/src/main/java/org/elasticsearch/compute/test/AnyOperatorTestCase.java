@@ -13,29 +13,29 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.compute.operator.AsyncOperator;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Operator;
-import org.elasticsearch.compute.operator.SinkOperator;
 import org.elasticsearch.compute.operator.SourceOperator;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.test.MapMatcher;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 import org.hamcrest.Matcher;
-import org.hamcrest.Matchers;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.test.MapMatcher.assertMap;
+import static org.elasticsearch.test.MapMatcher.matchesMap;
 import static org.hamcrest.Matchers.both;
 import static org.hamcrest.Matchers.comparesEqualTo;
 import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
-import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.instanceOf;
-import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.matchesPattern;
+import static org.hamcrest.Matchers.notNullValue;
 
 /**
  * Superclass for testing any {@link Operator}, including {@link SourceOperator}s.
@@ -124,14 +124,13 @@ public abstract class AnyOperatorTestCase extends ComputeTestCase {
     }
 
     /**
-     * Assert the operator has a status, and its values are acceptable.
-     * Delegates specific checks to {link #checkOperatorStatusFields}, which may be overridden.
+     * Extracts and asserts the operator status.
      */
-    protected void assertOperatorStatus(Operator operator, List<Page> input, List<Page> output) {
+    protected final void assertOperatorStatus(Operator operator, List<Page> input, List<Page> output) {
         Operator.Status status = operator.status();
 
         if (status == null) {
-            // Operator doesn't provide a status
+            assertStatus(null, input, output);
             return;
         }
 
@@ -142,53 +141,51 @@ public abstract class AnyOperatorTestCase extends ComputeTestCase {
             var bytesReference = BytesReference.bytes(xContentBuilder);
             var map = XContentHelper.convertToMap(bytesReference, false, xContentBuilder.contentType()).v2();
 
-            // For some operators, we don't know here if they consumed/processed all the input.
-            // That check should be done in the operator test
-            var nonNegativeMatcher = input.isEmpty() ? matchNumberEqualTo(0) : matchNumberGreaterThanOrEqualTo(0);
-            var inputPagesMatcher = matchNumberEqualTo(input.size());
-            var totalInputRows = input.stream().mapToLong(Page::getPositionCount).sum();
-            var inputRowsMatcher = matchNumberEqualTo(totalInputRows);
-            var outputPagesMatcher = matchNumberEqualTo(output.size());
-            var totalOutputRows = output.stream().mapToLong(Page::getPositionCount).sum();
-            var outputRowsMatcher = matchNumberEqualTo(totalOutputRows);
-
-            if (operator instanceof SourceOperator) {
-                assertThat(map, hasEntry(is("pages_emitted"), outputPagesMatcher));
-                assertThat(map, hasEntry(is("rows_emitted"), outputRowsMatcher));
-            } else if (operator instanceof SinkOperator) {
-                assertThat(map, hasEntry(is("pages_received"), inputPagesMatcher));
-                assertThat(map, hasEntry(is("rows_received"), inputRowsMatcher));
-            } else if (operator instanceof AsyncOperator) {
-                assertThat(map, hasEntry(is("pages_received"), nonNegativeMatcher));
-                assertThat(map, hasEntry(is("pages_completed"), nonNegativeMatcher));
-                assertThat(map, hasEntry(is("process_nanos"), nonNegativeMatcher));
-            } else {
-                assertThat(
-                    map,
-                    Matchers.<Map<String, Object>>either(hasEntry(is("pages_processed"), nonNegativeMatcher))
-                        .or(
-                            Matchers.<Map<String, Object>>both(hasEntry(is("pages_received"), nonNegativeMatcher))
-                                .and(hasEntry(is("pages_emitted"), outputPagesMatcher))
-                        )
-                );
-                assertThat(map, hasEntry(is("rows_received"), nonNegativeMatcher));
-                assertThat(map, hasEntry(is("rows_emitted"), outputRowsMatcher));
-            }
-
-            checkOperatorStatusFields(map, input, output);
+            assertStatus(map, input, output);
         } catch (IOException e) {
             fail(e, "Failed to convert operator status to XContent");
         }
     }
 
+    /**
+     * Assert that the status is sane.
+     * <p>
+     *     This method should be overridden with custom logics and for better assertions and for operators without status.
+     * </p>
+     */
+    protected void assertStatus(@Nullable Map<String, Object> map, List<Page> input, List<Page> output) {
+        assertThat(map, notNullValue());
+
+        var totalInputRows = input.stream().mapToLong(Page::getPositionCount).sum();
+        var totalOutputRows = output.stream().mapToLong(Page::getPositionCount).sum();
+
+        MapMatcher matcher = matchesMap().extraOk();
+        if (map.containsKey("pages_processed")) {
+            matcher = matcher.entry("pages_processed", greaterThanOrEqualTo(0));
+        } else {
+            matcher = matcher.entry("pages_received", input.size()).entry("pages_emitted", output.size());
+        }
+        matcher = matcher.entry("rows_received", totalInputRows).entry("rows_emitted", totalOutputRows);
+        assertMap(map, matcher);
+    }
+
+    /**
+     * EqualTo matcher that takes care of whole number types (Integers and longs).
+     */
     protected final Matcher<Object> matchNumberEqualTo(Number value) {
         return wholeMatcher(comparesEqualTo(value.intValue()), comparesEqualTo(value.longValue()));
     }
 
+    /**
+     * GreaterThanOrEqualTo matcher that takes care of whole number types (Integers and longs).
+     */
     protected final Matcher<Object> matchNumberGreaterThanOrEqualTo(Number value) {
         return wholeMatcher(greaterThanOrEqualTo(value.intValue()), greaterThanOrEqualTo(value.longValue()));
     }
 
+    /**
+     * Matcher that matches based on the number type (Integer or long).
+     */
     @SuppressWarnings("unchecked")
     protected final Matcher<Object> wholeMatcher(Matcher<Integer> integerMatcher, Matcher<Long> longMatcher) {
         return either(both(instanceOf(Integer.class)).and((Matcher<? super Object>) (Matcher<?>) integerMatcher)).or(
@@ -197,28 +194,9 @@ public abstract class AnyOperatorTestCase extends ComputeTestCase {
     }
 
     /**
-     * Tests the non-standard operator status fields.
-     * <p>
-     *     The standard fields (already tested in the generic test) are:
-     * </p>
-    *     <ul>
-    *         <li>pages_received</li>
-    *         <li>rows_received</li>
-    *         <li>pages_processed</li>
-    *         <li>pages_emitted</li>
-    *         <li>rows_emitted</li>
-    *     </ul>
-     * <p>
-     *     To be overridden by subclasses.
-     * </p>
-     * @param status The XContent map representation of the status.
-     */
-    protected void checkOperatorStatusFields(Map<String, Object> status, List<Page> input, List<Page> output) {}
-
-    /**
      * A {@link DriverContext} with a nonBreakingBigArrays.
      */
-    protected DriverContext driverContext() { // TODO make this final once all operators support memory tracking
+    protected final DriverContext driverContext() {
         BlockFactory blockFactory = blockFactory();
         return new DriverContext(blockFactory.bigArrays(), blockFactory);
     }

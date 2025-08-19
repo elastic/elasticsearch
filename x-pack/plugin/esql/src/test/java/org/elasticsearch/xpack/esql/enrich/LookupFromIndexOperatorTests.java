@@ -37,8 +37,8 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.SourceOperator;
+import org.elasticsearch.compute.test.AsyncOperatorTestCase;
 import org.elasticsearch.compute.test.NoOpReleasable;
-import org.elasticsearch.compute.test.OperatorTestCase;
 import org.elasticsearch.compute.test.SequenceLongBlockSourceOperator;
 import org.elasticsearch.compute.test.TupleLongLongBlockSourceOperator;
 import org.elasticsearch.core.IOUtils;
@@ -56,6 +56,7 @@ import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ClusterServiceUtils;
+import org.elasticsearch.test.MapMatcher;
 import org.elasticsearch.test.transport.MockTransport;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -81,12 +82,11 @@ import java.util.Set;
 import java.util.stream.LongStream;
 
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.hasEntry;
-import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.matchesPattern;
 import static org.mockito.Mockito.mock;
 
-public class LookupFromIndexOperatorTests extends OperatorTestCase {
+public class LookupFromIndexOperatorTests extends AsyncOperatorTestCase {
     private static final int LOOKUP_SIZE = 1000;
     private final ThreadPool threadPool = threadPool();
     private final Directory lookupIndexDirectory = newDirectory();
@@ -306,14 +306,13 @@ public class LookupFromIndexOperatorTests extends OperatorTestCase {
     }
 
     @Override
-    protected void checkOperatorStatusFields(Map<String, Object> status, List<Page> input, List<Page> output) {
+    protected MapMatcher extendStatusMatcher(MapMatcher mapMatcher, List<Page> input, List<Page> output) {
         var totalPages = input.size();
-        var totalInputRows = input.stream().mapToLong(p -> p.getPositionCount()).sum();
-        var totalOutputRows = output.stream().mapToLong(p -> p.getPositionCount()).sum();
+        var totalInputRows = input.stream().mapToInt(Page::getPositionCount).sum();
+        var totalOutputRows = output.stream().mapToInt(Page::getPositionCount).sum();
 
-        assertThat(status, hasEntry(is("total_rows"), matchNumberEqualTo(totalInputRows)));
-        assertThat(status, hasEntry(is("pages_completed"), matchNumberEqualTo(totalPages)));
-        assertThat(status, hasEntry(is("pages_emitted"), matchNumberGreaterThanOrEqualTo(totalPages)));
-        assertThat(status, hasEntry(is("rows_emitted"), matchNumberGreaterThanOrEqualTo(totalOutputRows)));
+        return mapMatcher.entry("total_rows", totalInputRows)
+            .entry("pages_emitted", greaterThanOrEqualTo(totalPages))
+            .entry("rows_emitted", greaterThanOrEqualTo(totalOutputRows));
     }
 }

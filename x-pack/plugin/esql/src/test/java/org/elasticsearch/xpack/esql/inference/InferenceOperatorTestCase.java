@@ -28,7 +28,7 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.compute.test.AbstractBlockSourceOperator;
-import org.elasticsearch.compute.test.OperatorTestCase;
+import org.elasticsearch.compute.test.AsyncOperatorTestCase;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.InferenceServiceResults;
@@ -46,7 +46,7 @@ import java.util.function.Consumer;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public abstract class InferenceOperatorTestCase<InferenceResultsType extends InferenceServiceResults> extends OperatorTestCase {
+public abstract class InferenceOperatorTestCase<InferenceResultsType extends InferenceServiceResults> extends AsyncOperatorTestCase {
     protected ThreadPool threadPool;
     protected int inputsCount;
 

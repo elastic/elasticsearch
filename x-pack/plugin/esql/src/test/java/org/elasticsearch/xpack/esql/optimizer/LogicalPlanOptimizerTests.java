@@ -6441,6 +6441,101 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     }
 
     /*
+     * Project[[avg{r}#14, decades{r}#10]]
+     * \_Eval[[$$SUM$avg$0{r$}#35 / $$COUNT$avg$1{r$}#36 AS avg#14]]
+     *   \_Limit[1000[INTEGER],false]
+     *     \_Aggregate[[decades{r}#10],[SUM(salary{f}#29,true[BOOLEAN],compensated[KEYWORD]) AS $$SUM$avg$0#35, COUNT(salary{f}#29,
+     *              true[BOOLEAN]) AS $$COUNT$avg$1#36, decades{r}#10]]
+     *       \_Eval[[DATEDIFF(years[KEYWORD],hire_date{f}#31,1755625790494[DATETIME]) AS age#4, age{r}#4 / 10[INTEGER] AS decades#7,
+     *                   decades{r}#7 * 10[INTEGER] AS decades#10]]
+     *         \_EsRelation[test][_meta_field{f}#30, emp_no{f}#24, first_name{f}#25, ..]
+     */
+    public void testInlineStatsWithAggGetsPrunedEntirely() {
+        var query = """
+            FROM employees
+            | EVAL age = DATE_DIFF("years", hire_date, NOW())
+            | EVAL decades = age / 10, decades = decades * 10
+            | STATS avg = AVG(salary) BY decades
+            | EVAL idecades = decades / 2
+            | INLINESTATS iavg = AVG(avg) BY idecades
+            | KEEP avg, decades
+            """;
+
+        if (releaseBuildForInlinestats(query)) {
+            return;
+        }
+        var plan = optimizedPlan(query);
+
+        var project = as(plan, Project.class);
+        assertThat(Expressions.names(project.projections()), is(List.of("avg", "decades")));
+        var eval = as(project.child(), Eval.class);
+        var limit = asLimit(eval.child(), 1000, false);
+        var aggregate = as(limit.child(), Aggregate.class);
+        eval = as(aggregate.child(), Eval.class);
+        var source = as(eval.child(), EsRelation.class);
+    }
+
+    /*
+     * EsqlProject[[avg{r}#1053, decades{r}#1049, avgavg{r}#1063]]
+     * \_Limit[1000[INTEGER],true]
+     *   \_InlineJoin[LEFT,[],[],[]]
+     *     |_Project[[avg{r}#1053, decades{r}#1049, idecades{r}#1056]]
+     *     | \_Eval[[$$SUM$avg$0{r$}#1073 / $$COUNT$avg$1{r$}#1074 AS avg#1053, decades{r}#1049 / 2[INTEGER] AS idecades#1056]]
+     *     |   \_Limit[1000[INTEGER],false]
+     *     |     \_Aggregate[[decades{r}#1049],[SUM(salary{f}#1072,true[BOOLEAN],compensated[KEYWORD]) AS $$SUM$avg$0#1073,
+     *                      COUNT(salary{f}#1072,true[BOOLEAN]) AS $$COUNT$avg$1#1074, decades{r}#1049]]
+     *     |       \_Eval[[DATEDIFF(years[KEYWORD],birth_date{f}#1071,1755626308505[DATETIME]) AS age#1043, age{r}#1043 / 10[INTEGER] AS
+     *                          decades#1046, decades{r}#1046 * 10[INTEGER] AS decades#1049]]
+     *     |         \_EsRelation[employees][birth_date{f}#1071, salary{f}#1072]
+     *     \_Project[[avgavg{r}#1063]]
+     *       \_Eval[[$$SUM$avgavg$0{r$}#1077 / $$COUNT$avgavg$1{r$}#1078 AS avgavg#1063]]
+     *         \_Aggregate[[],[SUM(avg{r}#1053,true[BOOLEAN],compensated[KEYWORD]) AS $$SUM$avgavg$0#1077,
+     *                      COUNT(avg{r}#1053,true[BOOLEAN]) AS $$COUNT$avgavg$1#1078]]
+     *           \_StubRelation[[avg{r}#1053, decades{r}#1049, iavg{r}#1059, idecades{r}#1056]]
+     */
+    public void testInlineStatsWithAggAndInlineStatsGetsPruned() {
+        var query = """
+            FROM employees
+            | EVAL age = DATE_DIFF("years", hire_date, NOW())
+            | EVAL decades = age / 10, decades = decades * 10
+            | STATS avg = AVG(salary) BY decades
+            | EVAL idecades = decades / 2
+            | INLINESTATS iavg = AVG(avg) BY idecades
+            | INLINESTATS avgavg = AVG(avg)
+            | KEEP avg, decades, avgavg
+            """;
+
+        if (releaseBuildForInlinestats(query)) {
+            return;
+        }
+        var plan = optimizedPlan(query);
+
+        var project = as(plan, EsqlProject.class);
+        assertThat(Expressions.names(project.projections()), is(List.of("avg", "decades", "avgavg")));
+        var limit = asLimit(project.child(), 1000, true);
+        var inlineJoin = as(limit.child(), InlineJoin.class);
+
+        // Left branch: Project with avg, decades, idecades
+        var leftProject = as(inlineJoin.left(), Project.class);
+        assertThat(Expressions.names(leftProject.projections()), is(List.of("avg", "decades", "idecades")));
+        var leftEval = as(leftProject.child(), Eval.class);
+        var leftLimit = asLimit(leftEval.child(), 1000, false);
+        var leftAggregate = as(leftLimit.child(), Aggregate.class);
+        assertThat(Expressions.names(leftAggregate.output()), is(List.of("$$SUM$avg$0", "$$COUNT$avg$1", "decades")));
+        var leftEval2 = as(leftAggregate.child(), Eval.class);
+        var leftRelation = as(leftEval2.child(), EsRelation.class);
+
+        // Right branch: Project with avgavg
+        var rightProject = as(inlineJoin.right(), Project.class);
+        assertThat(Expressions.names(rightProject.projections()), is(List.of("avgavg")));
+        var rightEval = as(rightProject.child(), Eval.class);
+        var rightAggregate = as(rightEval.child(), Aggregate.class);
+        assertThat(Expressions.names(rightAggregate.output()), is(List.of("$$SUM$avgavg$0", "$$COUNT$avgavg$1")));
+        assertThat(rightAggregate.groupings(), empty());
+        var rightStub = as(rightAggregate.child(), StubRelation.class);
+    }
+
+    /*
      * Project[[abbrev{f}#19, scalerank{f}#21 AS backup_scalerank#4, language_name{f}#28 AS scalerank#11]]
      * \_TopN[[Order[abbrev{f}#19,DESC,FIRST]],5[INTEGER]]
      *   \_Join[LEFT,[scalerank{f}#21],[scalerank{f}#21],[language_code{f}#27]]

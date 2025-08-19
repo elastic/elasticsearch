@@ -25,7 +25,6 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.Sample;
 import org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin;
-import org.elasticsearch.xpack.esql.plan.logical.join.StubRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.EmptyLocalSupplier;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
@@ -122,23 +121,9 @@ public final class PruneColumns extends Rule<LogicalPlan, LogicalPlan> {
         } else {
             // not expecting high groups cardinality, nested loops in lists should be fine, no need for a HashSet
             if (inlineJoin && aggregate.groupings().containsAll(remaining)) {
-                // It's an INLINEJOIN and all remaining attributes are groupings, which are already part of the IJ output (from the
-                // left-hand side).
-                // TODO: INLINESTATS: revisit condition when adding support for INLINESTATS filters
-                if (aggregate.child() instanceof StubRelation stub) {
-                    var message = "Aggregate groups references ["
-                        + remaining
-                        + "] not in child's (StubRelation) output: ["
-                        + stub.outputSet()
-                        + "]";
-                    assert stub.outputSet().containsAll(Expressions.asAttributes(remaining)) : message;
-
-                    p = emptyLocalRelation(aggregate);
-                } else {
-                    // There are no aggregates to compute, just output the groupings; these are already in the IJ output, so only
-                    // restrict the output to what remained.
-                    p = new Project(aggregate.source(), aggregate.child(), remaining);
-                }
+                // An INLINEJOIN right-hand side aggregation output had everything pruned, except for (some of the) groupings, which are
+                // already part of the IJ output (from the left-hand side): the agg can just be dropped entirely.
+                p = emptyLocalRelation(aggregate);
             } else { // not an INLINEJOIN or there are actually aggregates to compute
                 p = aggregate.with(aggregate.groupings(), remaining);
             }
@@ -183,12 +168,6 @@ public final class PruneColumns extends Rule<LogicalPlan, LogicalPlan> {
     // Note: only run when the Project is a descendent of an InlineJoin.
     private static LogicalPlan pruneColumnsInProject(Project project, AttributeSet.Builder used) {
         LogicalPlan p = project;
-
-        // A project atop a stub relation will only output attributes which are already part of the INLINEJOIN left-hand side output.
-        if (project.child() instanceof StubRelation) {
-            // Use an empty relation as a marker for a subsequent pass over the InlineJoin.
-            return emptyLocalRelation(project);
-        }
 
         var remaining = pruneUnusedAndAddReferences(project.projections(), used);
         if (remaining != null) {

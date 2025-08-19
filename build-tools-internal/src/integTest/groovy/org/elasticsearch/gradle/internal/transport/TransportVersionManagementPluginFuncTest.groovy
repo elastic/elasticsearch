@@ -158,7 +158,7 @@ class TransportVersionManagementPluginFuncTest extends AbstractGradleFuncTest {
         def result = validateDefinitionsFails()
         then:
         assertDefinitionsFailure(result, "Transport version definition file " +
-            "[myserver/src/main/resources/transport/defined/not_used.csv] is not referenced")
+            "[myserver/src/main/resources/transport/definitions/named/not_used.csv] is not referenced")
     }
 
     def "names must be lowercase alphanum or underscore"() {
@@ -168,7 +168,7 @@ class TransportVersionManagementPluginFuncTest extends AbstractGradleFuncTest {
         def result = validateDefinitionsFails()
         then:
         assertDefinitionsFailure(result, "Transport version definition file " +
-            "[myserver/src/main/resources/transport/defined/${name}.csv] does not have a valid name, " +
+            "[myserver/src/main/resources/transport/definitions/named/${name}.csv] does not have a valid name, " +
             "must be lowercase alphanumeric and underscore")
 
         where:
@@ -182,7 +182,7 @@ class TransportVersionManagementPluginFuncTest extends AbstractGradleFuncTest {
         def result = validateDefinitionsFails()
         then:
         assertDefinitionsFailure(result, "Transport version definition file " +
-            "[myserver/src/main/resources/transport/defined/empty.csv] does not contain any ids")
+            "[myserver/src/main/resources/transport/definitions/named/empty.csv] does not contain any ids")
     }
 
     def "definitions have ids in descending order"() {
@@ -192,7 +192,7 @@ class TransportVersionManagementPluginFuncTest extends AbstractGradleFuncTest {
         def result = validateDefinitionsFails()
         then:
         assertDefinitionsFailure(result, "Transport version definition file " +
-            "[myserver/src/main/resources/transport/defined/out_of_order.csv] does not have ordered ids")
+            "[myserver/src/main/resources/transport/definitions/named/out_of_order.csv] does not have ordered ids")
     }
 
     def "definition ids are unique"() {
@@ -202,8 +202,8 @@ class TransportVersionManagementPluginFuncTest extends AbstractGradleFuncTest {
         def result = validateDefinitionsFails()
         then:
         assertDefinitionsFailure(result, "Transport version definition file " +
-            "[myserver/src/main/resources/transport/defined/existing_92.csv] contains id 8123000 already defined in " +
-            "[myserver/src/main/resources/transport/defined/duplicate.csv]")
+            "[myserver/src/main/resources/transport/definitions/named/existing_92.csv] contains id 8123000 already defined in " +
+            "[myserver/src/main/resources/transport/definitions/named/duplicate.csv]")
     }
 
     def "definitions have bwc ids with non-zero patch part"() {
@@ -213,7 +213,7 @@ class TransportVersionManagementPluginFuncTest extends AbstractGradleFuncTest {
         def result = validateDefinitionsFails()
         then:
         assertDefinitionsFailure(result, "Transport version definition file " +
-            "[myserver/src/main/resources/transport/defined/patched.csv] contains bwc id [8100000] with a patch part of 0")
+            "[myserver/src/main/resources/transport/definitions/named/patched.csv] contains bwc id [8100000] with a patch part of 0")
     }
 
     def "definitions have primary ids which cannot change"() {
@@ -223,7 +223,7 @@ class TransportVersionManagementPluginFuncTest extends AbstractGradleFuncTest {
         def result = validateDefinitionsFails()
         then:
         assertDefinitionsFailure(result, "Transport version definition file " +
-            "[myserver/src/main/resources/transport/defined/existing_92.csv] has modified primary id from 8123000 to 8500000")
+            "[myserver/src/main/resources/transport/definitions/named/existing_92.csv] has modified primary id from 8123000 to 8500000")
     }
 
     def "cannot change committed ids to a branch"() {
@@ -233,7 +233,7 @@ class TransportVersionManagementPluginFuncTest extends AbstractGradleFuncTest {
         def result = validateDefinitionsFails()
         then:
         assertDefinitionsFailure(result, "Transport version definition file " +
-            "[myserver/src/main/resources/transport/defined/existing_92.csv] modifies existing patch id from 8012001 to 8012002")
+            "[myserver/src/main/resources/transport/definitions/named/existing_92.csv] modifies existing patch id from 8012001 to 8012002")
     }
 
     def "latest files must reference defined name"() {
@@ -254,7 +254,7 @@ class TransportVersionManagementPluginFuncTest extends AbstractGradleFuncTest {
         then:
         assertDefinitionsFailure(result, "Latest transport version file " +
             "[myserver/src/main/resources/transport/latest/9.2.csv] has id 8124000 which is not in definition " +
-            "[myserver/src/main/resources/transport/defined/existing_92.csv]")
+            "[myserver/src/main/resources/transport/definitions/named/existing_92.csv]")
     }
 
     def "latest files have latest id within base"() {
@@ -301,7 +301,7 @@ class TransportVersionManagementPluginFuncTest extends AbstractGradleFuncTest {
         def result = validateDefinitionsFails()
         then:
         assertDefinitionsFailure(result, "Transport version definition file " +
-            "[myserver/src/main/resources/transport/defined/patch.csv] has patch version 8015001 as primary id")
+            "[myserver/src/main/resources/transport/definitions/named/patch.csv] has patch version 8015001 as primary id")
     }
 
     def "unreferenced directory is optional"() {

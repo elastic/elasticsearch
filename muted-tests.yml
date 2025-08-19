@@ -534,3 +534,12 @@ tests:
 - class: org.elasticsearch.packaging.test.DebPreservationTests
   method: test40RestartOnUpgrade
   issue: https://github.com/elastic/elasticsearch/issues/125821
+- class: org.elasticsearch.gradle.internal.transport.TransportVersionManagementPluginFuncTest
+  method: cannot change committed ids to a branch
+  issue: https://github.com/elastic/elasticsearch/issues/132790
+- class: org.elasticsearch.gradle.internal.transport.TransportVersionManagementPluginFuncTest
+  method: latest files cannot change base id
+  issue: https://github.com/elastic/elasticsearch/issues/132789
+- class: org.elasticsearch.gradle.internal.transport.TransportVersionManagementPluginFuncTest
+  method: definitions have primary ids which cannot change
+  issue: https://github.com/elastic/elasticsearch/issues/132788

@@ -609,6 +609,9 @@ tests:
 - class: org.elasticsearch.gradle.internal.transport.TransportVersionValidationFuncTest
   method: cannot change committed ids to a branch
   issue: https://github.com/elastic/elasticsearch/issues/133133
+- class: org.elasticsearch.gradle.internal.transport.TransportVersionValidationFuncTest
+  method: latest files cannot change base id
+  issue: https://github.com/elastic/elasticsearch/issues/133132
 
 # Examples:
 #

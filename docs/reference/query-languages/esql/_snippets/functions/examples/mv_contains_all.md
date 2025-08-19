@@ -20,4 +20,14 @@ ROW a = ["a","c"], b = ["a", "b", "c"]
 | --- | --- | --- |
 | [a, c] | [a, b, c] | true |
 
+```esql
+FROM airports
+| WHERE mv_contains_all(type, ["major","military"]) AND scalerank == 9
+| KEEP scalerank, name, country
+```
+
+| scalerank:integer | name:text | country:keyword |
+| --- | --- | --- |
+| 8 | Chandigarh Int'l | India |
+
 

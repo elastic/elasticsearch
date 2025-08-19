@@ -313,7 +313,8 @@
   ],
   "examples" : [
     "ROW a = \"a\", b = [\"a\", \"b\", \"c\"]\n| EVAL a_subset_of_b = mv_contains_all(b, a)",
-    "ROW a = [\"a\",\"c\"], b = [\"a\", \"b\", \"c\"]\n| EVAL a_subset_of_b = mv_contains_all(b, a)"
+    "ROW a = [\"a\",\"c\"], b = [\"a\", \"b\", \"c\"]\n| EVAL a_subset_of_b = mv_contains_all(b, a)",
+    "FROM airports\n| WHERE mv_contains_all(type, [\"major\",\"military\"]) AND scalerank == 9\n| KEEP scalerank, name, country"
   ],
   "preview" : false,
   "snapshot_only" : false

@@ -156,8 +156,8 @@ public abstract class AnyOperatorTestCase extends ComputeTestCase {
     protected void assertStatus(@Nullable Map<String, Object> map, List<Page> input, List<Page> output) {
         assertThat(map, notNullValue());
 
-        var totalInputRows = input.stream().mapToLong(Page::getPositionCount).sum();
-        var totalOutputRows = output.stream().mapToLong(Page::getPositionCount).sum();
+        var totalInputRows = input.stream().mapToInt(Page::getPositionCount).sum();
+        var totalOutputRows = output.stream().mapToInt(Page::getPositionCount).sum();
 
         MapMatcher matcher = matchesMap().extraOk();
         if (map.containsKey("pages_processed")) {

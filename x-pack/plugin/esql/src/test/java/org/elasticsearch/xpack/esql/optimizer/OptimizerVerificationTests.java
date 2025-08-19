@@ -27,6 +27,7 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.paramAsConstant;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.defaultLookupResolution;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.loadEnrichPolicyResolution;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.loadMapping;
+import static org.elasticsearch.xpack.esql.plugin.EsqlPlugin.INLINESTATS_FEATURE_FLAG;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
 
@@ -125,16 +126,18 @@ public class OptimizerVerificationTests extends AbstractLogicalPlanOptimizerTest
             """, analyzer);
         assertThat(err, containsString("4:3: ENRICH with remote policy can't be executed after [STATS count(*) BY language_code]@3:3"));
 
-        err = error("""
-            FROM test
-            | EVAL language_code = languages
-            | INLINESTATS count(*) BY language_code
-            | ENRICH _remote:languages ON language_code
-            """, analyzer);
-        assertThat(
-            err,
-            containsString("4:3: ENRICH with remote policy can't be executed after [INLINESTATS count(*) BY language_code]@3:3")
-        );
+        if (INLINESTATS_FEATURE_FLAG) {
+            err = error("""
+                FROM test
+                | EVAL language_code = languages
+                | INLINESTATS count(*) BY language_code
+                | ENRICH _remote:languages ON language_code
+                """, analyzer);
+            assertThat(
+                err,
+                containsString("4:3: ENRICH with remote policy can't be executed after [INLINESTATS count(*) BY language_code]@3:3")
+            );
+        }
 
         err = error("""
             FROM test

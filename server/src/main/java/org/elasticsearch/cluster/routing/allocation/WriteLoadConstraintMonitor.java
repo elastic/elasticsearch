@@ -91,7 +91,7 @@ public class WriteLoadConstraintMonitor {
         });
 
         if (nodeIdsExceedingLatencyThreshold.isEmpty()) {
-            logger.debug("No nodes exceeding latency threshold");
+            logger.debug("No hot-spotting nodes detected");
             return;
         }
 

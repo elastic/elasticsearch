@@ -158,7 +158,7 @@ public class WriteLoadConstraintMonitorTests extends ESTestCase {
                     "don't reroute due to no nodes hot-spotting",
                     WriteLoadConstraintMonitor.class.getCanonicalName(),
                     Level.DEBUG,
-                    "No nodes exceeding latency threshold"
+                    "No hot-spotting nodes detected"
                 )
             );
 

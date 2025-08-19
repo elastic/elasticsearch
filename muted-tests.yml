@@ -606,6 +606,9 @@ tests:
 - class: org.elasticsearch.test.rest.yaml.CcsCommonYamlTestSuiteIT
   method: test {p0=search.vectors/45_knn_search_byte/Vector rescoring has no effect for non-quantized vectors and provides same results as non-rescored knn}
   issue: https://github.com/elastic/elasticsearch/issues/133187
+- class: org.elasticsearch.gradle.internal.transport.TransportVersionValidationFuncTest
+  method: cannot change committed ids to a branch
+  issue: https://github.com/elastic/elasticsearch/issues/133133
 
 # Examples:
 #

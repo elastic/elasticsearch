@@ -22,6 +22,7 @@ import org.elasticsearch.test.transport.MockTransportService;
 
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
@@ -153,13 +154,20 @@ public class SnapshotAndRelocationIT extends AbstractSnapshotIntegTestCase {
         // Start two snapshots and wait for both of them to appear in the cluster state
         blockDataNode(repoName, dataNode);
         final var future0 = startFullSnapshot(repoName, firstSnapshot);
+        safeAwait(ClusterServiceUtils.addMasterTemporaryStateListener(state -> {
+            final var snapshotsInProgress = SnapshotsInProgress.get(state);
+            final List<String> snapshotNames = snapshotsInProgress.asStream()
+                .map(entry -> entry.snapshot().getSnapshotId().getName())
+                .toList();
+            return snapshotNames.equals(List.of(firstSnapshot));
+        }));
         final var future1 = startFullSnapshot(repoName, secondSnapshot);
         safeAwait(ClusterServiceUtils.addMasterTemporaryStateListener(state -> {
             final var snapshotsInProgress = SnapshotsInProgress.get(state);
-            final Set<String> snapshotNames = snapshotsInProgress.asStream()
+            final List<String> snapshotNames = snapshotsInProgress.asStream()
                 .map(entry -> entry.snapshot().getSnapshotId().getName())
-                .collect(Collectors.toSet());
-            return snapshotNames.equals(Set.of(firstSnapshot, secondSnapshot));
+                .toList();
+            return snapshotNames.equals(List.of(firstSnapshot, secondSnapshot));
         }));
 
         // Ensure the first snapshot is completed first before the second one by observing a cluster state containing only the 2nd one

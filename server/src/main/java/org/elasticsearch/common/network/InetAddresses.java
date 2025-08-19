@@ -19,7 +19,6 @@ package org.elasticsearch.common.network;
 
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.xcontent.Text;
 import org.elasticsearch.xcontent.XContentString;
 
 import java.net.Inet4Address;
@@ -434,7 +433,8 @@ public class InetAddresses {
      * @throws IllegalArgumentException if the argument is not a valid IP string literal
      */
     public static InetAddress forString(String ipString) {
-        return forString(new Text(ipString).bytes());
+        byte[] utf8Bytes = ipString.getBytes(StandardCharsets.UTF_8);
+        return forString(utf8Bytes, 0, utf8Bytes.length);
     }
 
     /**

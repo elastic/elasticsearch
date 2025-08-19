@@ -77,18 +77,19 @@ public class WriteLoadConstraintMonitor {
 
         final int numberOfNodes = clusterInfo.getNodeUsageStatsForThreadPools().size();
         final Set<String> nodeIdsExceedingLatencyThreshold = Sets.newHashSetWithExpectedSize(numberOfNodes);
-        final Set<String> nodeIdsBelowUtilizationThreshold = Sets.newHashSetWithExpectedSize(numberOfNodes);
+        final Set<String> potentialRelocationTargets = Sets.newHashSetWithExpectedSize(numberOfNodes);
         clusterInfo.getNodeUsageStatsForThreadPools().forEach((nodeId, usageStats) -> {
             final NodeUsageStatsForThreadPools.ThreadPoolUsageStats writeThreadPoolStats = usageStats.threadPoolUsageStatsMap()
                 .get(ThreadPool.Names.WRITE);
             assert writeThreadPoolStats != null : "Write thread pool is not publishing usage stats for node [" + nodeId + "]";
             if (writeThreadPoolStats.maxThreadPoolQueueLatencyMillis() > writeLoadConstraintSettings.getQueueLatencyThreshold().millis()) {
                 nodeIdsExceedingLatencyThreshold.add(nodeId);
-            }
-            if (writeThreadPoolStats.averageThreadPoolUtilization() <= writeLoadConstraintSettings.getHighUtilizationThreshold()) {
-                nodeIdsBelowUtilizationThreshold.add(nodeId);
+            } else if (writeThreadPoolStats.averageThreadPoolUtilization() <= writeLoadConstraintSettings.getHighUtilizationThreshold()) {
+                potentialRelocationTargets.add(nodeId);
             }
         });
+        assert Sets.intersection(nodeIdsExceedingLatencyThreshold, potentialRelocationTargets).isEmpty()
+            : "We assume any nodes exceeding the latency threshold are not viable targets for relocation";
 
         if (nodeIdsExceedingLatencyThreshold.isEmpty()) {
             logger.debug("No hot-spotting nodes detected");
@@ -106,8 +107,8 @@ public class WriteLoadConstraintMonitor {
             return;
         }
 
-        if (Sets.difference(nodeIdsBelowUtilizationThreshold, nodeIdsExceedingLatencyThreshold).isEmpty()) {
-            logger.debug("No nodes below utilization threshold that are not exceeding latency threshold");
+        if (potentialRelocationTargets.isEmpty()) {
+            logger.debug("No nodes are suitable as relocation targets");
             return;
         }
 
@@ -120,9 +121,9 @@ public class WriteLoadConstraintMonitor {
             || Sets.difference(nodeIdsExceedingLatencyThreshold, lastSetOfHotSpottedNodes).isEmpty() == false) {
             final String reason = Strings.format(
                 "write load constraint monitor: "
-                    + "Found %s exceeding the write thread pool queue latency threshold (%s below utilization threshold, %d total)",
+                    + "Found %s exceeding the write thread pool queue latency threshold (%s with capacity, %d total)",
                 nodeSummary(nodeIdsExceedingLatencyThreshold),
-                nodeSummary(nodeIdsBelowUtilizationThreshold),
+                nodeSummary(potentialRelocationTargets),
                 state.nodes().size()
             );
             rerouteService.reroute(

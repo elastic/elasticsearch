@@ -270,7 +270,7 @@ public class WriteLoadConstraintMonitorTests extends ESTestCase {
                     "don't reroute due to all nodes exceeding utilization threshold",
                     WriteLoadConstraintMonitor.class.getCanonicalName(),
                     Level.DEBUG,
-                    "No nodes below utilization threshold that are not exceeding latency threshold"
+                    "No nodes are suitable as relocation targets"
                 )
             );
             writeLoadConstraintMonitor.onNewInfo(
@@ -308,7 +308,7 @@ public class WriteLoadConstraintMonitorTests extends ESTestCase {
                     "don't reroute due to all nodes exceeding latency threshold",
                     WriteLoadConstraintMonitor.class.getCanonicalName(),
                     Level.DEBUG,
-                    "No nodes below utilization threshold that are not exceeding latency threshold"
+                    "No nodes are suitable as relocation targets"
                 )
             );
             writeLoadConstraintMonitor.onNewInfo(clusterInfoWithAllNodesOverLatencyThreshold);

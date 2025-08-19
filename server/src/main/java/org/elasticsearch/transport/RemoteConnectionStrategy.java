@@ -153,11 +153,11 @@ public abstract class RemoteConnectionStrategy implements TransportConnectionLis
             TransportSettings.CONNECT_TIMEOUT.get(settings)
         )
             .setHandshakeTimeout(TransportSettings.CONNECT_TIMEOUT.get(settings))
-            .setCompressionEnabled(RemoteClusterService.REMOTE_CLUSTER_COMPRESS.getConcreteSettingForNamespace(clusterAlias).get(settings))
+            .setCompressionEnabled(RemoteClusterSettings.REMOTE_CLUSTER_COMPRESS.getConcreteSettingForNamespace(clusterAlias).get(settings))
             .setCompressionScheme(
-                RemoteClusterService.REMOTE_CLUSTER_COMPRESSION_SCHEME.getConcreteSettingForNamespace(clusterAlias).get(settings)
+                RemoteClusterSettings.REMOTE_CLUSTER_COMPRESSION_SCHEME.getConcreteSettingForNamespace(clusterAlias).get(settings)
             )
-            .setPingInterval(RemoteClusterService.REMOTE_CLUSTER_PING_SCHEDULE.getConcreteSettingForNamespace(clusterAlias).get(settings))
+            .setPingInterval(RemoteClusterSettings.REMOTE_CLUSTER_PING_SCHEDULE.getConcreteSettingForNamespace(clusterAlias).get(settings))
             .addConnections(
                 0,
                 TransportRequestOptions.Type.BULK,
@@ -316,13 +316,13 @@ public abstract class RemoteConnectionStrategy implements TransportConnectionLis
         if (newMode.equals(strategyType()) == false) {
             return true;
         } else {
-            Compression.Enabled compressionEnabled = RemoteClusterService.REMOTE_CLUSTER_COMPRESS.getConcreteSettingForNamespace(
+            Compression.Enabled compressionEnabled = RemoteClusterSettings.REMOTE_CLUSTER_COMPRESS.getConcreteSettingForNamespace(
                 clusterAlias
             ).get(newSettings);
-            Compression.Scheme compressionScheme = RemoteClusterService.REMOTE_CLUSTER_COMPRESSION_SCHEME.getConcreteSettingForNamespace(
+            Compression.Scheme compressionScheme = RemoteClusterSettings.REMOTE_CLUSTER_COMPRESSION_SCHEME.getConcreteSettingForNamespace(
                 clusterAlias
             ).get(newSettings);
-            TimeValue pingSchedule = RemoteClusterService.REMOTE_CLUSTER_PING_SCHEDULE.getConcreteSettingForNamespace(clusterAlias)
+            TimeValue pingSchedule = RemoteClusterSettings.REMOTE_CLUSTER_PING_SCHEDULE.getConcreteSettingForNamespace(clusterAlias)
                 .get(newSettings);
 
             ConnectionProfile oldProfile = connectionManager.getConnectionProfile();

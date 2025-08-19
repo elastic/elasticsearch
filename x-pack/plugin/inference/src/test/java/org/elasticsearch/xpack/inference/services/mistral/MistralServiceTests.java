@@ -344,7 +344,7 @@ public class MistralServiceTests extends ESTestCase {
         }
     }
 
-    public void testUnifiedCompletionNonStreamingNotFoundError() throws Exception {
+    public void testUnifiedCompletionStreamingNotFoundError() throws Exception {
         String responseJson = """
             {
                 "detail": "Not Found"

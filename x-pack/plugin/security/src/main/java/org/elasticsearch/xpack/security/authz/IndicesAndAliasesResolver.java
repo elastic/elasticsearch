@@ -157,6 +157,11 @@ public class IndicesAndAliasesResolver {
             return;
         }
 
+        if (resolvedProjects.isOriginOnly()) {
+            logger.info("Cross-project search is only for the origin project [{}], skipping rewrite...", resolvedProjects.origin());
+            return;
+        }
+
         if (resolvedProjects.projects().isEmpty()) {
             throw new ResourceNotFoundException("no target projects for cross-project search request");
         }
@@ -184,7 +189,7 @@ public class IndicesAndAliasesResolver {
             }
         }
 
-        request.rewritten(rewrittenExpressions);
+        request.setRewrittenExpressions(rewrittenExpressions);
     }
 
     private List<CrossProjectResolvableRequest.CanonicalExpression> rewriteUnqualified(String indexExpression, List<String> projects) {

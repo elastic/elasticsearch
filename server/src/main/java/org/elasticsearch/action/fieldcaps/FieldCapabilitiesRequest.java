@@ -382,12 +382,17 @@ public final class FieldCapabilitiesRequest extends LegacyActionRequest
     }
 
     @Override
-    public void rewritten(List<RewrittenExpression> rewrittenExpressions) {
+    public void setRewrittenExpressions(List<RewrittenExpression> rewrittenExpressions) {
         this.rewrittenExpressions = rewrittenExpressions;
         indices(
             rewrittenExpressions.stream()
                 .flatMap(indexExpression -> indexExpression.canonicalExpressions().stream().map(CanonicalExpression::expression))
                 .toArray(String[]::new)
         );
+    }
+
+    @Override
+    public List<RewrittenExpression> getRewrittenExpressions() {
+        return rewrittenExpressions;
     }
 }

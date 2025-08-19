@@ -10,6 +10,7 @@
 package org.elasticsearch;
 
 import org.elasticsearch.action.IndicesRequest;
+import org.elasticsearch.core.Nullable;
 
 import java.util.List;
 
@@ -17,7 +18,10 @@ public interface CrossProjectResolvableRequest extends IndicesRequest {
     /**
      * Only called if cross-project rewriting was applied
      */
-    void rewritten(List<RewrittenExpression> rewrittenExpressions);
+    void setRewrittenExpressions(List<RewrittenExpression> rewrittenExpressions);
+
+    @Nullable
+    List<RewrittenExpression> getRewrittenExpressions();
 
     /**
      * Used to track a mapping from original expression (potentially flat) to canonical CCS expressions.

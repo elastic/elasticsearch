@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.core.security.authz;
 
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 
 import java.util.List;
@@ -25,7 +26,11 @@ public interface CrossProjectTargetResolver {
         }
     }
 
-    record ResolvedProjects(List<String> projects) {
-        public static ResolvedProjects VOID = new ResolvedProjects(List.of());
+    record ResolvedProjects(@Nullable String origin, List<String> projects) {
+        public static ResolvedProjects VOID = new ResolvedProjects(null, List.of());
+
+        public boolean isOriginOnly() {
+            return origin != null && projects.isEmpty();
+        }
     }
 }

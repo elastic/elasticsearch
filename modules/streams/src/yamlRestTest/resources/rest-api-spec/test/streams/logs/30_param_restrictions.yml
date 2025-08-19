@@ -42,4 +42,4 @@ teardown:
         refresh: true
         index: logs
         body: { "foo": "bar" }
-      catch: bad_request
+      catch: '/When writing to a stream, only the following parameters are allowed: \[error_trace,timeout\]/'

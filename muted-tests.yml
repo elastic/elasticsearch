@@ -603,6 +603,9 @@ tests:
 - class: org.elasticsearch.test.rest.yaml.CcsCommonYamlTestSuiteIT
   method: test {p0=search.vectors/90_sparse_vector/Indexing and searching multi-value sparse vectors in >=8.15}
   issue: https://github.com/elastic/elasticsearch/issues/133184
+- class: org.elasticsearch.test.rest.yaml.CcsCommonYamlTestSuiteIT
+  method: test {p0=search.vectors/45_knn_search_byte/Vector rescoring has no effect for non-quantized vectors and provides same results as non-rescored knn}
+  issue: https://github.com/elastic/elasticsearch/issues/133187
 
 # Examples:
 #

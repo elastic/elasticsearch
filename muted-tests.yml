@@ -594,6 +594,9 @@ tests:
 - class: org.elasticsearch.index.mapper.blockloader.IpFieldBlockLoaderTests
   method: testBlockLoaderForFieldInObject {preference=Params[syntheticSource=true, preference=STORED]}
   issue: https://github.com/elastic/elasticsearch/issues/133178
+- class: org.elasticsearch.index.mapper.blockloader.IpFieldBlockLoaderTests
+  method: testBlockLoaderForFieldInObject {preference=Params[syntheticSource=true, preference=DOC_VALUES]}
+  issue: https://github.com/elastic/elasticsearch/issues/133179
 
 # Examples:
 #

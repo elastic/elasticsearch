@@ -50,7 +50,16 @@ class TransportVersionUtils {
         if (projectName == null) {
             projectName = ":server";
         }
+        var resourceRoot = getResourceRoot(project);
         Directory projectDir = project.project(projectName.toString()).getLayout().getProjectDirectory();
-        return projectDir.dir("src/main/resources/transport");
+        return projectDir.dir("src/main/resources/" + resourceRoot);
+    }
+
+    static String getResourceRoot(Project project) {
+        var resourceRoot = project.findProperty("org.elasticsearch.transport.resourceRoot");
+        if (resourceRoot == null) {
+            resourceRoot = "transport";
+        }
+        return resourceRoot.toString();
     }
 }

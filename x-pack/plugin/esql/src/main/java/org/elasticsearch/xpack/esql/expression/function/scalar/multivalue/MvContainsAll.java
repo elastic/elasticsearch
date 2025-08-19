@@ -43,13 +43,17 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isTyp
  * Reduce a multivalued field to a single valued field containing the count of values.
  */
 public class MvContainsAll extends BinaryScalarFunction implements EvaluatorMapper {
-    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "MvContainsAll", MvContainsAll::new);
+    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
+        Expression.class,
+        "MvContainsAll",
+        MvContainsAll::new
+    );
     private DataType dataType;
 
     @FunctionInfo(
         returnType = "boolean",
-        description = "Checks if the values yielded by multivalue value expression are all also present in the values yielded by another" +
-            "multivalue expression. The result is a boolean representing the outcome or null if either of the expressions where null.",
+        description = "Checks if the values yielded by multivalue value expression are all also present in the values yielded by another"
+            + "multivalue expression. The result is a boolean representing the outcome or null if either of the expressions where null.",
         examples = { @Example(file = "string", tag = "mv_contains_all"), @Example(file = "string", tag = "mv_contains_all_bothsides"), }
     )
     public MvContainsAll(
@@ -107,7 +111,6 @@ public class MvContainsAll extends BinaryScalarFunction implements EvaluatorMapp
         return ENTRY.name;
     }
 
-
     @Override
     protected TypeResolution resolveType() {
         if (childrenResolved() == false) {
@@ -153,11 +156,13 @@ public class MvContainsAll extends BinaryScalarFunction implements EvaluatorMapp
     public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
         var supersetType = PlannerUtils.toElementType(left().dataType());
         var subsetType = PlannerUtils.toElementType(right().dataType());
-        if( supersetType != subsetType ) {
+        if (supersetType != subsetType) {
             throw new EsqlIllegalArgumentException(
                 "Incompatible data types for MvContainsAll, superset type({}) value({}) and subset type({}) value({}) don't match.",
-                supersetType, left(),
-                subsetType, right()
+                supersetType,
+                left(),
+                subsetType,
+                right()
             );
         }
         return switch (supersetType) {
@@ -193,18 +198,15 @@ public class MvContainsAll extends BinaryScalarFunction implements EvaluatorMapp
 
     @Evaluator(extraName = "BytesRef")
     static void process(BooleanBlock.Builder builder, int position, BytesRefBlock field1, BytesRefBlock field2) {
-        appendTo(
-            builder,
-            containsAll(field1, field2, position, (block, index) -> {
-                var ref = new BytesRef();
-                block.getBytesRef(index, ref);
-                return ref;
-            })
-        );
+        appendTo(builder, containsAll(field1, field2, position, (block, index) -> {
+            var ref = new BytesRef();
+            block.getBytesRef(index, ref);
+            return ref;
+        }));
     }
 
     static void appendTo(BooleanBlock.Builder builder, Boolean bool) {
-        if(bool == null) {
+        if (bool == null) {
             builder.appendNull();
         } else {
             builder.beginPositionEntry().appendBoolean(bool).endPositionEntry();
@@ -235,7 +237,7 @@ public class MvContainsAll extends BinaryScalarFunction implements EvaluatorMapp
 
         final var subsetCount = subset.getValueCount(position);
         final var startIndex = subset.getFirstValueIndex(position);
-        for (int subsetIndex = startIndex; subsetIndex < startIndex+subsetCount; subsetIndex++) {
+        for (int subsetIndex = startIndex; subsetIndex < startIndex + subsetCount; subsetIndex++) {
             var value = valueExtractor.extractValue(subset, subsetIndex);
             if (hasValue(superset, position, value, valueExtractor) == false) {
                 return false;
@@ -258,9 +260,9 @@ public class MvContainsAll extends BinaryScalarFunction implements EvaluatorMapp
     ) {
         final var supersetCount = superset.getValueCount(position);
         final var startIndex = superset.getFirstValueIndex(position);
-        for (int supersetIndex = startIndex; supersetIndex < startIndex+supersetCount; supersetIndex++) {
+        for (int supersetIndex = startIndex; supersetIndex < startIndex + supersetCount; supersetIndex++) {
             var element = valueExtractor.extractValue(superset, supersetIndex);
-            if(element.equals(value)) {
+            if (element.equals(value)) {
                 return true;
             }
         }

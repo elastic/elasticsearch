@@ -14,7 +14,6 @@ import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotRes
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
 import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -154,14 +153,7 @@ public class SnapshotMetricsIT extends AbstractSnapshotIntegTestCase {
         assertShardsInProgressMetricIs(everyItem(equalTo(0L)));
 
         // assert appropriate attributes are present
-        final Map<String, Object> expectedAttrs = Map.of(
-            "project_id",
-            ProjectId.DEFAULT.id(),
-            "repo_name",
-            repositoryName,
-            "repo_type",
-            "mock"
-        );
+        final Map<String, Object> expectedAttrs = Map.of("repo_name", repositoryName, "repo_type", "mock");
         final Map<String, Object> expectedAttrsWithShardStage = Maps.copyMapWithAddedEntry(
             expectedAttrs,
             "stage",
@@ -290,14 +282,7 @@ public class SnapshotMetricsIT extends AbstractSnapshotIntegTestCase {
         );
 
         // assert appropriate attributes are present
-        final Map<String, Object> expectedAttrs = Map.of(
-            "project_id",
-            ProjectId.DEFAULT.id(),
-            "repo_name",
-            repositoryName,
-            "repo_type",
-            "mock"
-        );
+        final Map<String, Object> expectedAttrs = Map.of("repo_name", repositoryName, "repo_type", "mock");
         assertMetricsHaveAttributes(InstrumentType.LONG_COUNTER, SnapshotMetrics.SNAPSHOT_UPLOAD_READ_DURATION, expectedAttrs);
         assertMetricsHaveAttributes(InstrumentType.LONG_COUNTER, SnapshotMetrics.SNAPSHOT_RESTORE_THROTTLE_DURATION, expectedAttrs);
         assertMetricsHaveAttributes(InstrumentType.LONG_COUNTER, SnapshotMetrics.SNAPSHOT_CREATE_THROTTLE_DURATION, expectedAttrs);

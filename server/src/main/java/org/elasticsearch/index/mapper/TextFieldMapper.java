@@ -1450,9 +1450,10 @@ public final class TextFieldMapper extends TextFamilyFieldMapper {
             if (phraseFieldInfo != null) {
                 context.doc().add(new Field(phraseFieldInfo.field, value, phraseFieldInfo.fieldType));
             }
-        } else if (needsToSupportSyntheticSource() && fieldType.stored() == false) {
-            // if synthetic source needs to be supported, yet the field isn't stored, then we need to rely on something else
+        }
 
+        // if synthetic source needs to be supported, yet the field isn't stored, then we need to rely on something else
+        if (needsToSupportSyntheticSource() && fieldType.stored() == false) {
             // if we can rely on the synthetic source delegate for synthetic source, then exit as there is nothing to do
             if (fieldType().canUseSyntheticSourceDelegateForSyntheticSource(value)) {
                 return;
@@ -1638,10 +1639,6 @@ public final class TextFieldMapper extends TextFamilyFieldMapper {
             });
         }
 
-        if (isIndexed()) {
-            return super.syntheticSourceSupport();
-        }
-
         return new SyntheticSourceSupport.Native(() -> syntheticFieldLoader(fullPath(), leafName()));
     }
 
@@ -1664,7 +1661,7 @@ public final class TextFieldMapper extends TextFamilyFieldMapper {
         var kwd = TextFieldMapper.SyntheticSourceHelper.getKeywordFieldMapperForSyntheticSource(this);
         if (kwd != null) {
             // merge the two field loaders into one
-            return fieldLoader.mergedWith(kwd.syntheticFieldLoader(fullPath(), leafName()));
+            return kwd.syntheticFieldLoader(fullPath(), leafName()).mergedWith(fieldLoader);
         }
 
         return fieldLoader;

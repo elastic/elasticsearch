@@ -563,10 +563,10 @@ public class AnnotatedTextFieldMapper extends TextFamilyFieldMapper {
             if (fieldType.omitNorms()) {
                 context.addToFieldNames(fieldType().name());
             }
-        } else if (needsToSupportSyntheticSource() && fieldType.stored() == false) {
-            // if synthetic source needs to be supported, yet the field isn't stored, then we need to rely on something
-            // else to support synthetic source
+        }
 
+        // if synthetic source needs to be supported, yet the field isn't stored, then we need to rely on something else
+        if (needsToSupportSyntheticSource() && fieldType.stored() == false) {
             // if we can rely on the synthetic source delegate for synthetic source, then return
             if (fieldType().canUseSyntheticSourceDelegateForSyntheticSource(value)) {
                 return;
@@ -621,7 +621,7 @@ public class AnnotatedTextFieldMapper extends TextFamilyFieldMapper {
         var kwd = TextFieldMapper.SyntheticSourceHelper.getKeywordFieldMapperForSyntheticSource(this);
         if (kwd != null) {
             // merge the two field loaders into one
-            return fieldLoader.mergedWith(kwd.syntheticFieldLoader(fullPath(), leafName()));
+            return kwd.syntheticFieldLoader(fullPath(), leafName()).mergedWith(fieldLoader);
         }
 
         return fieldLoader;

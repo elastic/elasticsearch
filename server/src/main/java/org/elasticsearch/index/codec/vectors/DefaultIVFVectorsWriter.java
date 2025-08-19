@@ -17,6 +17,7 @@ import org.apache.lucene.index.SegmentWriteState;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
+import org.apache.lucene.util.IntroSorter;
 import org.apache.lucene.util.LongValues;
 import org.apache.lucene.util.VectorUtil;
 import org.apache.lucene.util.hnsw.IntToIntFunction;
@@ -101,7 +102,6 @@ public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
         postingsOutput.writeVInt(maxPostingListSize);
         // write the posting lists
         final PackedLongValues.Builder offsets = PackedLongValues.monotonicBuilder(PackedInts.COMPACT);
-        DocIdsWriter docIdsWriter = new DocIdsWriter();
         DiskBBQBulkWriter bulkWriter = new DiskBBQBulkWriter.OneBitDiskBBQBulkWriter(ES91OSQVectorsScorer.BULK_SIZE, postingsOutput);
         OnHeapQuantizedVectors onHeapQuantizedVectors = new OnHeapQuantizedVectors(
             floatVectorValues,
@@ -109,6 +109,10 @@ public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
             new OptimizedScalarQuantizer(fieldInfo.getVectorSimilarityFunction())
         );
         final ByteBuffer buffer = ByteBuffer.allocate(fieldInfo.getVectorDimension() * Float.BYTES).order(ByteOrder.LITTLE_ENDIAN);
+        final int[] docIds = new int[maxPostingListSize];
+        final int[] docDeltas = new int[maxPostingListSize];
+        final int[] clusterOrds = new int[maxPostingListSize];
+        DocIdsWriter idsWriter = new DocIdsWriter();
         for (int c = 0; c < centroidSupplier.size(); c++) {
             float[] centroid = centroidSupplier.centroid(c);
             int[] cluster = assignmentsByCluster[c];
@@ -121,11 +125,21 @@ public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
             int size = cluster.length;
             // write docIds
             postingsOutput.writeVInt(size);
-            onHeapQuantizedVectors.reset(centroid, size, ord -> cluster[ord]);
+            for (int j = 0; j < size; j++) {
+                docIds[j] = floatVectorValues.ordToDoc(cluster[j]);
+                clusterOrds[j] = j;
+            }
+            // sort cluster.buffer by docIds values, this way cluster ordinals are sorted by docIds
+            new IntSorter(clusterOrds, i -> docIds[i]).sort(0, size);
+            // encode doc deltas
+            for (int j = 0; j < size; j++) {
+                docDeltas[j] = j == 0 ? docIds[clusterOrds[j]] : docIds[clusterOrds[j]] - docIds[clusterOrds[j - 1]];
+            }
+            onHeapQuantizedVectors.reset(centroid, size, ord -> cluster[clusterOrds[ord]]);
             // TODO we might want to consider putting the docIds in a separate file
             // to aid with only having to fetch vectors from slower storage when they are required
             // keeping them in the same file indicates we pull the entire file into cache
-            docIdsWriter.writeDocIds(j -> floatVectorValues.ordToDoc(cluster[j]), size, postingsOutput);
+            idsWriter.writeDocIds(i -> docDeltas[i], size, postingsOutput);
             // write vectors
             bulkWriter.writeVectors(onHeapQuantizedVectors);
         }
@@ -233,12 +247,15 @@ public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
                 quantizedVectorsInput,
                 fieldInfo.getVectorDimension()
             );
-            DocIdsWriter docIdsWriter = new DocIdsWriter();
             DiskBBQBulkWriter bulkWriter = new DiskBBQBulkWriter.OneBitDiskBBQBulkWriter(ES91OSQVectorsScorer.BULK_SIZE, postingsOutput);
             final ByteBuffer buffer = ByteBuffer.allocate(fieldInfo.getVectorDimension() * Float.BYTES).order(ByteOrder.LITTLE_ENDIAN);
             // write the max posting list size
             postingsOutput.writeVInt(maxPostingListSize);
             // write the posting lists
+            final int[] docIds = new int[maxPostingListSize];
+            final int[] docDeltas = new int[maxPostingListSize];
+            final int[] clusterOrds = new int[maxPostingListSize];
+            DocIdsWriter idsWriter = new DocIdsWriter();
             for (int c = 0; c < centroidSupplier.size(); c++) {
                 float[] centroid = centroidSupplier.centroid(c);
                 int[] cluster = assignmentsByCluster[c];
@@ -252,11 +269,21 @@ public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
                 // write docIds
                 int size = cluster.length;
                 postingsOutput.writeVInt(size);
-                offHeapQuantizedVectors.reset(size, ord -> isOverspill[ord], ord -> cluster[ord]);
+                for (int j = 0; j < size; j++) {
+                    docIds[j] = floatVectorValues.ordToDoc(cluster[j]);
+                    clusterOrds[j] = j;
+                }
+                // sort cluster.buffer by docIds values, this way cluster ordinals are sorted by docIds
+                new IntSorter(clusterOrds, i -> docIds[i]).sort(0, size);
+                // encode doc deltas
+                for (int j = 0; j < size; j++) {
+                    docDeltas[j] = j == 0 ? docIds[clusterOrds[j]] : docIds[clusterOrds[j]] - docIds[clusterOrds[j - 1]];
+                }
+                offHeapQuantizedVectors.reset(size, ord -> isOverspill[clusterOrds[ord]], ord -> cluster[clusterOrds[ord]]);
                 // TODO we might want to consider putting the docIds in a separate file
                 // to aid with only having to fetch vectors from slower storage when they are required
                 // keeping them in the same file indicates we pull the entire file into cache
-                docIdsWriter.writeDocIds(j -> floatVectorValues.ordToDoc(cluster[j]), size, postingsOutput);
+                idsWriter.writeDocIds(i -> docDeltas[i], size, postingsOutput);
                 // write vectors
                 bulkWriter.writeVectors(offHeapQuantizedVectors);
             }
@@ -715,6 +742,39 @@ public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
             quantizedVectorsInput.readBytes(binaryScratch, 0, binaryScratch.length);
             quantizedVectorsInput.readFloats(corrections, 0, 3);
             bitSum = quantizedVectorsInput.readShort();
+        }
+    }
+
+    private static class IntSorter extends IntroSorter {
+        int pivot = -1;
+        private final int[] arr;
+        private final IntToIntFunction func;
+
+        private IntSorter(int[] arr, IntToIntFunction func) {
+            this.arr = arr;
+            this.func = func;
+        }
+
+        @Override
+        protected void setPivot(int i) {
+            pivot = func.apply(arr[i]);
+        }
+
+        @Override
+        protected int comparePivot(int j) {
+            return Integer.compare(pivot, func.apply(arr[j]));
+        }
+
+        @Override
+        protected int compare(int a, int b) {
+            return Integer.compare(func.apply(arr[a]), func.apply(arr[b]));
+        }
+
+        @Override
+        protected void swap(int i, int j) {
+            final int tmp = arr[i];
+            arr[i] = arr[j];
+            arr[j] = tmp;
         }
     }
 }

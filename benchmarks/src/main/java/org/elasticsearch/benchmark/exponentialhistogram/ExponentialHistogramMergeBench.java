@@ -11,6 +11,7 @@ package org.elasticsearch.benchmark.exponentialhistogram;
 
 import org.elasticsearch.exponentialhistogram.BucketIterator;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
+import org.elasticsearch.exponentialhistogram.ExponentialHistogramCircuitBreaker;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogramGenerator;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogramMerger;
 import org.openjdk.jmh.annotations.Benchmark;
@@ -56,13 +57,14 @@ public class ExponentialHistogramMergeBench {
     @Setup
     public void setUp() {
         random = ThreadLocalRandom.current();
-        histoMerger = new ExponentialHistogramMerger(bucketCount);
+        ExponentialHistogramCircuitBreaker breaker = ExponentialHistogramCircuitBreaker.noop();
+        histoMerger = ExponentialHistogramMerger.create(bucketCount, breaker);
 
-        ExponentialHistogramGenerator initial = new ExponentialHistogramGenerator(bucketCount);
+        ExponentialHistogramGenerator initialGenerator = ExponentialHistogramGenerator.create(bucketCount, breaker);
         for (int j = 0; j < bucketCount; j++) {
-            initial.add(Math.pow(1.001, j));
+            initialGenerator.add(Math.pow(1.001, j));
         }
-        ExponentialHistogram initialHisto = initial.get();
+        ExponentialHistogram initialHisto = initialGenerator.getAndClear();
         int cnt = getBucketCount(initialHisto);
         if (cnt < bucketCount) {
             throw new IllegalArgumentException("Expected bucket count to be " + bucketCount + ", but was " + cnt);
@@ -72,14 +74,14 @@ public class ExponentialHistogramMergeBench {
         int dataPointSize = (int) Math.round(bucketCount * mergedHistoSizeFactor);
 
         for (int i = 0; i < toMerge.length; i++) {
-            ExponentialHistogramGenerator generator = new ExponentialHistogramGenerator(dataPointSize);
+            ExponentialHistogramGenerator generator = ExponentialHistogramGenerator.create(dataPointSize, breaker);
 
             int bucketIndex = 0;
             for (int j = 0; j < dataPointSize; j++) {
                 bucketIndex += 1 + random.nextInt(bucketCount) % (Math.max(1, bucketCount / dataPointSize));
                 generator.add(Math.pow(1.001, bucketIndex));
             }
-            toMerge[i] = generator.get();
+            toMerge[i] = generator.getAndClear();
             cnt = getBucketCount(toMerge[i]);
             if (cnt < dataPointSize) {
                 throw new IllegalArgumentException("Expected bucket count to be " + dataPointSize + ", but was " + cnt);

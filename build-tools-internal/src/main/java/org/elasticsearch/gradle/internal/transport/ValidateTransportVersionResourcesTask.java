@@ -85,7 +85,10 @@ public abstract class ValidateTransportVersionResourcesTask extends DefaultTask 
         }
     }
 
-    private Map<String, TransportVersionDefinition> collectAllDefinitions(Map<String, TransportVersionDefinition> namedDefinitions, Map<String, TransportVersionDefinition> unreferencedDefinitions) {
+    private Map<String, TransportVersionDefinition> collectAllDefinitions(
+        Map<String, TransportVersionDefinition> namedDefinitions,
+        Map<String, TransportVersionDefinition> unreferencedDefinitions
+    ) {
         Map<String, TransportVersionDefinition> allDefinitions = new HashMap<>(namedDefinitions);
         for (var entry : unreferencedDefinitions.entrySet()) {
             TransportVersionDefinition existing = allDefinitions.put(entry.getKey(), entry.getValue());

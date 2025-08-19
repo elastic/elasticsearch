@@ -174,6 +174,43 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
         return PARSER.apply(parser, null);
     }
 
+    public static void registerInferenceAsyncAction(
+        QueryRewriteContext queryRewriteContext,
+        MapEmbeddingsProvider embeddingsProvider,
+        String fieldName,
+        String query,
+        String inferenceId
+    ) {
+        InferenceAction.Request inferenceRequest = new InferenceAction.Request(
+            TaskType.ANY,
+            inferenceId,
+            null,
+            null,
+            null,
+            List.of(query),
+            Map.of(),
+            InputType.INTERNAL_SEARCH,
+            null,
+            false
+        );
+
+        queryRewriteContext.registerAsyncAction(
+            (client, listener) -> executeAsyncWithOrigin(
+                client,
+                ML_ORIGIN,
+                InferenceAction.INSTANCE,
+                inferenceRequest,
+                listener.delegateFailureAndWrap((l, inferenceResponse) -> {
+                    embeddingsProvider.addEmbeddings(
+                        inferenceId,
+                        validateAndConvertInferenceResults(inferenceResponse.getResults(), fieldName, inferenceId)
+                    );
+                    l.onResponse(null);
+                })
+            )
+        );
+    }
+
     @Override
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(NAME);
@@ -268,35 +305,7 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
             Set<String> inferenceIds = getInferenceIdsForForField(resolvedIndices.getConcreteLocalIndicesMetadata().values(), fieldName);
             for (String inferenceId : inferenceIds) {
                 if (currentEmbeddingsProvider.getEmbeddings(inferenceId) == null) {
-                    InferenceAction.Request inferenceRequest = new InferenceAction.Request(
-                        TaskType.ANY,
-                        inferenceId,
-                        null,
-                        null,
-                        null,
-                        List.of(query),
-                        Map.of(),
-                        InputType.INTERNAL_SEARCH,
-                        null,
-                        false
-                    );
-
-                    queryRewriteContext.registerAsyncAction(
-                        (client, listener) -> executeAsyncWithOrigin(
-                            client,
-                            ML_ORIGIN,
-                            InferenceAction.INSTANCE,
-                            inferenceRequest,
-                            listener.delegateFailureAndWrap((l, inferenceResponse) -> {
-                                currentEmbeddingsProvider.addEmbeddings(
-                                    inferenceId,
-                                    validateAndConvertInferenceResults(inferenceResponse.getResults(), fieldName, inferenceId)
-                                );
-                                l.onResponse(null);
-                            })
-                        )
-                    );
-
+                    registerInferenceAsyncAction(queryRewriteContext, currentEmbeddingsProvider, fieldName, query, inferenceId);
                     modified = true;
                 }
             }

@@ -150,7 +150,7 @@ There is a limit of 100 rules per ruleset. This can be increased up to 1000 usin
 
 You can use the [Get query ruleset](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-query-rules-get-ruleset) call to retrieve the ruleset you just created, the [List query rulesets](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-query-rules-list-rulesets) call to retrieve a summary of all query rulesets, and the [Delete query ruleset](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-query-rules-delete-ruleset) call to delete a query ruleset.
 
-To execute these requests through the Query Rules UI, refer to [Manage query rules](https://www.elastic.co/docs/solutions/search/query-rules-ui#manage-existing-rules).
+To manage rules using the Query Rules UI, refer to [Manage query rules](https://www.elastic.co/docs/solutions/search/query-rules-ui#manage-existing-rules).
 
 
 ## Search using query rules [rule-query-search]

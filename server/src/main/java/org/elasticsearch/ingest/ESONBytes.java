@@ -24,7 +24,7 @@ public class ESONBytes {
     public ESONBytes(ESONFlat flat) {
         this.valueBytes = flat.values().data();
         try (BytesStreamOutput out = new BytesStreamOutput((int) (flat.values().data().length() * 0.5))) {
-            for (ESONEntry entry : flat.keys()) {
+            for (ESONEntry entry : flat.getKeys()) {
                 out.writeByte(entry.type());
                 String key = entry.key();
                 if (key != null) {

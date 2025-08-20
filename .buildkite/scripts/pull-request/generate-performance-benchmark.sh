@@ -1,0 +1,38 @@
+#!/bin/bash
+
+set -euo pipefail
+
+env_id_baseline=$(uuidgen | awk '{print tolower($0)}')
+env_id_contender=$(uuidgen | awk '{print tolower($0)}')
+merge_base=$(git merge-base "${GITHUB_PR_TARGET_BRANCH}" HEAD)
+
+buildkite-agent meta-data set pr_comment:custom-body:body \
+  "This build runs two ${GITHUB_PR_COMMENT_VAR_BENCHMARK} benchmarks to evaluate performance impact of this PR."
+buildkite-agent meta-data set pr_comment:custom-baseline:head \
+  "* Baseline: ${GITHUB_PR_TARGET_BRANCH}@${merge_base} (env ID ${env_id_baseline})"
+buildkite-agent meta-data set pr_comment:custom-contender:head \
+  "* Contender: ${GITHUB_PR_OWNER}:${GITHUB_PR_BRANCH}@${GITHUB_PR_TRIGGERED_SHA} (env ID ${env_id_contender})"
+
+echo "steps:"
+echo "  - label: Trigger baseline benchmark"
+echo "    trigger: elasticsearch-performance-esbench-pr"
+echo "    build:"
+echo "      message: Baseline benchmark for PR${GITHUB_PR_NUMBER}"
+echo "      branch: master"
+echo "      env:"
+echo "        CONFIGURATION_NAME: ${GITHUB_PR_COMMENT_VAR_BENCHMARK}"
+echo "        ENV_ID: ${env_id_baseline}"
+echo "        REVISION: ${merge_base}"
+echo "  - label: Trigger contender benchmark"
+echo "    trigger: elasticsearch-performance-esbench-pr"
+echo "    build:"
+echo "      message: Contender benchmark for PR${GITHUB_PR_NUMBER}"
+echo "      branch: master"
+echo "      env:"
+echo "        CONFIGURATION_NAME: ${GITHUB_PR_COMMENT_VAR_BENCHMARK}"
+echo "        ENV_ID: ${env_id_contender}"
+echo "        ES_REPO_URL: https://github.com/${GITHUB_PR_OWNER}/${GITHUB_PR_REPO}.git"
+echo "        REVISION: ${GITHUB_PR_TRIGGERED_SHA}"
+echo "  - wait: ~"
+echo "  - label: Modify PR comment"
+echo "    command: buildkite-agent meta-data set pr_comment:custom-comparison:head \"* [Benchmark results](<https://esbench-metrics.kb.us-east-2.aws.elastic-cloud.com:9243/app/dashboards#/view/d9079962-5866-49ef-b9f5-145f2141cd31?_a=(query:(language:kuery,query:'user-tags.env-id:${env_id_baseline} or user-tags.env-id:${env_id_contender}'))>)\""

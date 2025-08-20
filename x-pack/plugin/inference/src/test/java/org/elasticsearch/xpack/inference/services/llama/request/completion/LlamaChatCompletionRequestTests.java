@@ -71,12 +71,12 @@ public class LlamaChatCompletionRequestTests extends ESTestCase {
     }
 
     public static LlamaChatCompletionRequest createRequest(String modelId, String url, String apiKey, String input, boolean stream) {
-        var chatCompletionModel = LlamaChatCompletionModelTests.createChatCompletionModel(modelId, url, apiKey);
+        var chatCompletionModel = LlamaChatCompletionModelTests.createChatCompletionModel(modelId, url, apiKey, "user");
         return new LlamaChatCompletionRequest(new UnifiedChatInput(List.of(input), "user", stream), chatCompletionModel);
     }
 
     public static LlamaChatCompletionRequest createRequestWithNoAuth(String modelId, String url, String input, boolean stream) {
-        var chatCompletionModel = LlamaChatCompletionModelTests.createChatCompletionModelNoAuth(modelId, url);
+        var chatCompletionModel = LlamaChatCompletionModelTests.createChatCompletionModelNoAuth(modelId, url, "user");
         return new LlamaChatCompletionRequest(new UnifiedChatInput(List.of(input), "user", stream), chatCompletionModel);
     }
 }

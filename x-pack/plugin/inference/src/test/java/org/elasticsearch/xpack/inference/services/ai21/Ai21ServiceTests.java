@@ -40,6 +40,7 @@ import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderTests;
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
 import org.elasticsearch.xpack.inference.services.AbstractInferenceServiceTests;
+import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.InferenceEventsAssertion;
 import org.elasticsearch.xpack.inference.services.SenderService;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
@@ -95,7 +96,10 @@ public class Ai21ServiceTests extends AbstractInferenceServiceTests {
                 }
 
                 @Override
-                protected Map<String, Object> createServiceSettingsMap(TaskType taskType) {
+                protected Map<String, Object> createServiceSettingsMap(
+                    TaskType taskType,
+                    ConfigurationParseContext configurationParseContext
+                ) {
                     return Ai21ServiceTests.createServiceSettingsMap();
                 }
 

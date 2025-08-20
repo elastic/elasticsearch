@@ -120,7 +120,10 @@ public abstract class AbstractInferenceServiceTests extends ESTestCase {
 
         protected abstract SenderService createService(ThreadPool threadPool, HttpClientManager clientManager);
 
-        protected abstract Map<String, Object> createServiceSettingsMap(TaskType taskType);
+        protected abstract Map<String, Object> createServiceSettingsMap(
+            TaskType taskType,
+            ConfigurationParseContext configurationParseContext
+        );
 
         protected abstract Map<String, Object> createTaskSettingsMap();
 
@@ -160,7 +163,7 @@ public abstract class AbstractInferenceServiceTests extends ESTestCase {
 
         try (var service = parseRequestConfigTestConfig.createService(threadPool, clientManager)) {
             var config = getRequestConfigMap(
-                parseRequestConfigTestConfig.createServiceSettingsMap(TaskType.TEXT_EMBEDDING),
+                parseRequestConfigTestConfig.createServiceSettingsMap(TaskType.TEXT_EMBEDDING, ConfigurationParseContext.REQUEST),
                 parseRequestConfigTestConfig.createTaskSettingsMap(),
                 parseRequestConfigTestConfig.createSecretSettingsMap()
             );
@@ -177,7 +180,7 @@ public abstract class AbstractInferenceServiceTests extends ESTestCase {
 
         try (var service = parseRequestConfigTestConfig.createService(threadPool, clientManager)) {
             var config = getRequestConfigMap(
-                parseRequestConfigTestConfig.createServiceSettingsMap(TaskType.COMPLETION),
+                parseRequestConfigTestConfig.createServiceSettingsMap(TaskType.COMPLETION, ConfigurationParseContext.REQUEST),
                 parseRequestConfigTestConfig.createTaskSettingsMap(),
                 parseRequestConfigTestConfig.createSecretSettingsMap()
             );
@@ -194,7 +197,10 @@ public abstract class AbstractInferenceServiceTests extends ESTestCase {
 
         try (var service = parseRequestConfigTestConfig.createService(threadPool, clientManager)) {
             var config = getRequestConfigMap(
-                parseRequestConfigTestConfig.createServiceSettingsMap(parseRequestConfigTestConfig.taskType),
+                parseRequestConfigTestConfig.createServiceSettingsMap(
+                    parseRequestConfigTestConfig.taskType,
+                    ConfigurationParseContext.REQUEST
+                ),
                 parseRequestConfigTestConfig.createTaskSettingsMap(),
                 parseRequestConfigTestConfig.createSecretSettingsMap()
             );
@@ -215,7 +221,10 @@ public abstract class AbstractInferenceServiceTests extends ESTestCase {
 
         try (var service = parseRequestConfigTestConfig.createService(threadPool, clientManager)) {
             var config = getRequestConfigMap(
-                parseRequestConfigTestConfig.createServiceSettingsMap(parseRequestConfigTestConfig.taskType),
+                parseRequestConfigTestConfig.createServiceSettingsMap(
+                    parseRequestConfigTestConfig.taskType,
+                    ConfigurationParseContext.REQUEST
+                ),
                 parseRequestConfigTestConfig.createTaskSettingsMap(),
                 parseRequestConfigTestConfig.createSecretSettingsMap()
             );
@@ -232,7 +241,10 @@ public abstract class AbstractInferenceServiceTests extends ESTestCase {
     public void testParseRequestConfig_ThrowsWhenAnExtraKeyExistsInServiceSettingsMap() throws IOException {
         var parseRequestConfigTestConfig = testConfiguration.commonConfig;
         try (var service = parseRequestConfigTestConfig.createService(threadPool, clientManager)) {
-            var serviceSettings = parseRequestConfigTestConfig.createServiceSettingsMap(parseRequestConfigTestConfig.taskType);
+            var serviceSettings = parseRequestConfigTestConfig.createServiceSettingsMap(
+                parseRequestConfigTestConfig.taskType,
+                ConfigurationParseContext.REQUEST
+            );
             serviceSettings.put("extra_key", "value");
             var config = getRequestConfigMap(
                 serviceSettings,
@@ -254,7 +266,10 @@ public abstract class AbstractInferenceServiceTests extends ESTestCase {
             var taskSettings = parseRequestConfigTestConfig.createTaskSettingsMap();
             taskSettings.put("extra_key", "value");
             var config = getRequestConfigMap(
-                parseRequestConfigTestConfig.createServiceSettingsMap(parseRequestConfigTestConfig.taskType),
+                parseRequestConfigTestConfig.createServiceSettingsMap(
+                    parseRequestConfigTestConfig.taskType,
+                    ConfigurationParseContext.REQUEST
+                ),
                 taskSettings,
                 parseRequestConfigTestConfig.createSecretSettingsMap()
             );
@@ -273,7 +288,10 @@ public abstract class AbstractInferenceServiceTests extends ESTestCase {
             var secretSettingsMap = parseRequestConfigTestConfig.createSecretSettingsMap();
             secretSettingsMap.put("extra_key", "value");
             var config = getRequestConfigMap(
-                parseRequestConfigTestConfig.createServiceSettingsMap(parseRequestConfigTestConfig.taskType),
+                parseRequestConfigTestConfig.createServiceSettingsMap(
+                    parseRequestConfigTestConfig.taskType,
+                    ConfigurationParseContext.REQUEST
+                ),
                 parseRequestConfigTestConfig.createTaskSettingsMap(),
                 secretSettingsMap
             );
@@ -293,7 +311,7 @@ public abstract class AbstractInferenceServiceTests extends ESTestCase {
 
         try (var service = parseConfigTestConfig.createService(threadPool, clientManager)) {
             var persistedConfigMap = getPersistedConfigMap(
-                parseConfigTestConfig.createServiceSettingsMap(TaskType.TEXT_EMBEDDING),
+                parseConfigTestConfig.createServiceSettingsMap(TaskType.TEXT_EMBEDDING, ConfigurationParseContext.PERSISTENT),
                 parseConfigTestConfig.createTaskSettingsMap(),
                 parseConfigTestConfig.createSecretSettingsMap()
             );
@@ -313,7 +331,7 @@ public abstract class AbstractInferenceServiceTests extends ESTestCase {
 
         try (var service = parseConfigTestConfig.createService(threadPool, clientManager)) {
             var persistedConfigMap = getPersistedConfigMap(
-                parseConfigTestConfig.createServiceSettingsMap(TaskType.COMPLETION),
+                parseConfigTestConfig.createServiceSettingsMap(TaskType.COMPLETION, ConfigurationParseContext.PERSISTENT),
                 parseConfigTestConfig.createTaskSettingsMap(),
                 parseConfigTestConfig.createSecretSettingsMap()
             );
@@ -333,7 +351,7 @@ public abstract class AbstractInferenceServiceTests extends ESTestCase {
 
         try (var service = parseConfigTestConfig.createService(threadPool, clientManager)) {
             var persistedConfigMap = getPersistedConfigMap(
-                parseConfigTestConfig.createServiceSettingsMap(parseConfigTestConfig.taskType),
+                parseConfigTestConfig.createServiceSettingsMap(parseConfigTestConfig.taskType, ConfigurationParseContext.PERSISTENT),
                 parseConfigTestConfig.createTaskSettingsMap(),
                 parseConfigTestConfig.createSecretSettingsMap()
             );
@@ -366,7 +384,7 @@ public abstract class AbstractInferenceServiceTests extends ESTestCase {
 
         try (var service = parseConfigTestConfig.createService(threadPool, clientManager)) {
             var persistedConfigMap = getPersistedConfigMap(
-                parseConfigTestConfig.createServiceSettingsMap(parseConfigTestConfig.taskType),
+                parseConfigTestConfig.createServiceSettingsMap(parseConfigTestConfig.taskType, ConfigurationParseContext.PERSISTENT),
                 parseConfigTestConfig.createTaskSettingsMap(),
                 parseConfigTestConfig.createSecretSettingsMap()
             );
@@ -386,7 +404,10 @@ public abstract class AbstractInferenceServiceTests extends ESTestCase {
     public void testParsePersistedConfigWithSecrets_ThrowsWhenAnExtraKeyExistsInServiceSettingsMap() throws IOException {
         var parseConfigTestConfig = testConfiguration.commonConfig;
         try (var service = parseConfigTestConfig.createService(threadPool, clientManager)) {
-            var serviceSettings = parseConfigTestConfig.createServiceSettingsMap(parseConfigTestConfig.taskType);
+            var serviceSettings = parseConfigTestConfig.createServiceSettingsMap(
+                parseConfigTestConfig.taskType,
+                ConfigurationParseContext.PERSISTENT
+            );
             serviceSettings.put("extra_key", "value");
             var persistedConfigMap = getPersistedConfigMap(
                 serviceSettings,
@@ -411,7 +432,7 @@ public abstract class AbstractInferenceServiceTests extends ESTestCase {
             var taskSettings = parseConfigTestConfig.createTaskSettingsMap();
             taskSettings.put("extra_key", "value");
             var config = getPersistedConfigMap(
-                parseConfigTestConfig.createServiceSettingsMap(parseConfigTestConfig.taskType),
+                parseConfigTestConfig.createServiceSettingsMap(parseConfigTestConfig.taskType, ConfigurationParseContext.PERSISTENT),
                 taskSettings,
                 parseConfigTestConfig.createSecretSettingsMap()
             );
@@ -428,7 +449,7 @@ public abstract class AbstractInferenceServiceTests extends ESTestCase {
             var secretSettingsMap = parseConfigTestConfig.createSecretSettingsMap();
             secretSettingsMap.put("extra_key", "value");
             var config = getPersistedConfigMap(
-                parseConfigTestConfig.createServiceSettingsMap(parseConfigTestConfig.taskType),
+                parseConfigTestConfig.createServiceSettingsMap(parseConfigTestConfig.taskType, ConfigurationParseContext.PERSISTENT),
                 parseConfigTestConfig.createTaskSettingsMap(),
                 secretSettingsMap
             );

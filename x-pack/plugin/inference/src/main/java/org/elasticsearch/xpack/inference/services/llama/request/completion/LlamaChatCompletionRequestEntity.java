@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.inference.services.llama.request.completion;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.inference.UnifiedCompletionRequest;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -23,6 +24,7 @@ import java.util.Objects;
  */
 public class LlamaChatCompletionRequestEntity implements ToXContentObject {
 
+    private static final String USER_FIELD = "user";
     private final LlamaChatCompletionModel model;
     private final UnifiedChatCompletionRequestEntity unifiedRequestEntity;
 
@@ -41,6 +43,10 @@ public class LlamaChatCompletionRequestEntity implements ToXContentObject {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         unifiedRequestEntity.toXContent(builder, UnifiedCompletionRequest.withMaxTokens(model.getServiceSettings().modelId(), params));
+
+        if (Strings.isNullOrEmpty(model.getTaskSettings().user()) == false) {
+            builder.field(USER_FIELD, model.getTaskSettings().user());
+        }
         builder.endObject();
         return builder;
     }

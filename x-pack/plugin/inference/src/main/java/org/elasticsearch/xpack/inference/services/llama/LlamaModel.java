@@ -12,6 +12,7 @@ import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.SecretSettings;
 import org.elasticsearch.inference.ServiceSettings;
+import org.elasticsearch.inference.TaskSettings;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.services.RateLimitGroupingModel;
 import org.elasticsearch.xpack.inference.services.llama.action.LlamaActionVisitor;
@@ -46,8 +47,19 @@ public abstract class LlamaModel extends RateLimitGroupingModel {
      * @param model the model configurations
      * @param serviceSettings the settings for the inference service
      */
-    protected LlamaModel(RateLimitGroupingModel model, ServiceSettings serviceSettings) {
+    protected LlamaModel(LlamaModel model, ServiceSettings serviceSettings) {
         super(model, serviceSettings);
+    }
+
+    /**
+     * Constructor for creating a LlamaModel with specified model, service settings, and secret settings.
+     * @param model the model configurations
+     * @param taskSettings the settings for the task
+     */
+    protected LlamaModel(LlamaModel model, TaskSettings taskSettings) {
+        super(model, taskSettings);
+        this.uri = model.uri;
+        this.rateLimitSettings = model.rateLimitSettings;
     }
 
     public URI uri() {
@@ -85,5 +97,5 @@ public abstract class LlamaModel extends RateLimitGroupingModel {
         return (secrets != null && secrets.isEmpty()) ? EmptySecretSettings.INSTANCE : DefaultSecretSettings.fromMap(secrets);
     }
 
-    protected abstract ExecutableAction accept(LlamaActionVisitor creator);
+    protected abstract ExecutableAction accept(LlamaActionVisitor creator, Map<String, Object> taskSettings);
 }

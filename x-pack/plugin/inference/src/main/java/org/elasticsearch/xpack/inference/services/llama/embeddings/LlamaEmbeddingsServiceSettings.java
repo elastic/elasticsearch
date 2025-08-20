@@ -19,6 +19,7 @@ import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
+import org.elasticsearch.xpack.inference.services.ServiceUtils;
 import org.elasticsearch.xpack.inference.services.llama.LlamaService;
 import org.elasticsearch.xpack.inference.services.settings.FilteredXContentObject;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
@@ -34,6 +35,7 @@ import static org.elasticsearch.xpack.inference.services.ServiceFields.MODEL_ID;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.SIMILARITY;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.URL;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.createUri;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalBoolean;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalPositiveInteger;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractRequiredString;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractSimilarity;
@@ -45,6 +47,8 @@ import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractUri
  */
 public class LlamaEmbeddingsServiceSettings extends FilteredXContentObject implements ServiceSettings {
     public static final String NAME = "llama_embeddings_service_settings";
+
+    static final String DIMENSIONS_SET_BY_USER = "dimensions_set_by_user";
     // There is no default rate limit for Llama, so we set a reasonable default of 3000 requests per minute
     protected static final RateLimitSettings DEFAULT_RATE_LIMIT_SETTINGS = new RateLimitSettings(3000);
 
@@ -53,6 +57,7 @@ public class LlamaEmbeddingsServiceSettings extends FilteredXContentObject imple
     private final Integer dimensions;
     private final SimilarityMeasure similarity;
     private final Integer maxInputTokens;
+    private final Boolean dimensionsSetByUser;
     private final RateLimitSettings rateLimitSettings;
 
     /**
@@ -76,13 +81,35 @@ public class LlamaEmbeddingsServiceSettings extends FilteredXContentObject imple
             ModelConfigurations.SERVICE_SETTINGS,
             validationException
         );
+        var dimensionsSetByUser = extractOptionalBoolean(map, DIMENSIONS_SET_BY_USER, validationException);
+        if (context == ConfigurationParseContext.REQUEST) {
+            if (dimensionsSetByUser != null) {
+                validationException.addValidationError(
+                    ServiceUtils.invalidSettingError(DIMENSIONS_SET_BY_USER, ModelConfigurations.SERVICE_SETTINGS)
+                );
+            }
+            dimensionsSetByUser = dimensions != null;
+        } else if (context == ConfigurationParseContext.PERSISTENT && dimensionsSetByUser == null) {
+            validationException.addValidationError(
+                ServiceUtils.missingSettingErrorMsg(DIMENSIONS_SET_BY_USER, ModelConfigurations.SERVICE_SETTINGS)
+            );
+        }
+
         var rateLimitSettings = RateLimitSettings.of(map, DEFAULT_RATE_LIMIT_SETTINGS, validationException, LlamaService.NAME, context);
 
         if (validationException.validationErrors().isEmpty() == false) {
             throw validationException;
         }
 
-        return new LlamaEmbeddingsServiceSettings(model, uri, dimensions, similarity, maxInputTokens, rateLimitSettings);
+        return new LlamaEmbeddingsServiceSettings(
+            model,
+            uri,
+            dimensions,
+            similarity,
+            maxInputTokens,
+            dimensionsSetByUser,
+            rateLimitSettings
+        );
     }
 
     /**
@@ -97,6 +124,7 @@ public class LlamaEmbeddingsServiceSettings extends FilteredXContentObject imple
         this.dimensions = in.readOptionalVInt();
         this.similarity = in.readOptionalEnum(SimilarityMeasure.class);
         this.maxInputTokens = in.readOptionalVInt();
+        this.dimensionsSetByUser = in.readBoolean();
         this.rateLimitSettings = new RateLimitSettings(in);
     }
 
@@ -108,6 +136,7 @@ public class LlamaEmbeddingsServiceSettings extends FilteredXContentObject imple
      * @param dimensions the number of dimensions for the embeddings, can be null
      * @param similarity the similarity measure to use, can be null
      * @param maxInputTokens the maximum number of input tokens, can be null
+     * @param dimensionsSetByUser whether the dimensions were set by the user
      * @param rateLimitSettings the rate limit settings for the service, can be null
      */
     public LlamaEmbeddingsServiceSettings(
@@ -116,6 +145,7 @@ public class LlamaEmbeddingsServiceSettings extends FilteredXContentObject imple
         @Nullable Integer dimensions,
         @Nullable SimilarityMeasure similarity,
         @Nullable Integer maxInputTokens,
+        Boolean dimensionsSetByUser,
         @Nullable RateLimitSettings rateLimitSettings
     ) {
         this.modelId = modelId;
@@ -123,6 +153,7 @@ public class LlamaEmbeddingsServiceSettings extends FilteredXContentObject imple
         this.dimensions = dimensions;
         this.similarity = similarity;
         this.maxInputTokens = maxInputTokens;
+        this.dimensionsSetByUser = Objects.requireNonNull(dimensionsSetByUser);
         this.rateLimitSettings = Objects.requireNonNullElse(rateLimitSettings, DEFAULT_RATE_LIMIT_SETTINGS);
     }
 
@@ -134,6 +165,7 @@ public class LlamaEmbeddingsServiceSettings extends FilteredXContentObject imple
      * @param dimensions the number of dimensions for the embeddings, can be null
      * @param similarity the similarity measure to use, can be null
      * @param maxInputTokens the maximum number of input tokens, can be null
+     * @param dimensionsSetByUser whether the dimensions were set by the user
      * @param rateLimitSettings the rate limit settings for the service, can be null
      */
     public LlamaEmbeddingsServiceSettings(
@@ -142,9 +174,10 @@ public class LlamaEmbeddingsServiceSettings extends FilteredXContentObject imple
         @Nullable Integer dimensions,
         @Nullable SimilarityMeasure similarity,
         @Nullable Integer maxInputTokens,
+        Boolean dimensionsSetByUser,
         @Nullable RateLimitSettings rateLimitSettings
     ) {
-        this(modelId, createUri(url), dimensions, similarity, maxInputTokens, rateLimitSettings);
+        this(modelId, createUri(url), dimensions, similarity, maxInputTokens, dimensionsSetByUser, rateLimitSettings);
     }
 
     @Override
@@ -154,7 +187,7 @@ public class LlamaEmbeddingsServiceSettings extends FilteredXContentObject imple
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.ML_INFERENCE_LLAMA_ADDED;
+        return TransportVersions.ML_INFERENCE_LLAMA_REFACTORED;
     }
 
     @Override
@@ -169,6 +202,11 @@ public class LlamaEmbeddingsServiceSettings extends FilteredXContentObject imple
     @Override
     public Integer dimensions() {
         return this.dimensions;
+    }
+
+    @Override
+    public Boolean dimensionsSetByUser() {
+        return dimensionsSetByUser;
     }
 
     @Override
@@ -206,6 +244,7 @@ public class LlamaEmbeddingsServiceSettings extends FilteredXContentObject imple
         out.writeOptionalVInt(dimensions);
         out.writeOptionalEnum(SimilarityMeasure.translateSimilarity(similarity, out.getTransportVersion()));
         out.writeOptionalVInt(maxInputTokens);
+        out.writeBoolean(dimensionsSetByUser);
         rateLimitSettings.writeTo(out);
     }
 
@@ -213,6 +252,7 @@ public class LlamaEmbeddingsServiceSettings extends FilteredXContentObject imple
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         toXContentFragmentOfExposedFields(builder, params);
+        builder.field(DIMENSIONS_SET_BY_USER, dimensionsSetByUser);
         builder.endObject();
         return builder;
     }
@@ -246,12 +286,13 @@ public class LlamaEmbeddingsServiceSettings extends FilteredXContentObject imple
             && Objects.equals(dimensions, that.dimensions)
             && Objects.equals(maxInputTokens, that.maxInputTokens)
             && Objects.equals(similarity, that.similarity)
+            && Objects.equals(dimensionsSetByUser, that.dimensionsSetByUser)
             && Objects.equals(rateLimitSettings, that.rateLimitSettings);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(modelId, uri, dimensions, maxInputTokens, similarity, rateLimitSettings);
+        return Objects.hash(modelId, uri, dimensions, maxInputTokens, similarity, dimensionsSetByUser, rateLimitSettings);
     }
 
 }

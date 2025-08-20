@@ -116,7 +116,7 @@ public class LlamaChatCompletionServiceSettings extends FilteredXContentObject i
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.ML_INFERENCE_LLAMA_ADDED;
+        return TransportVersions.ML_INFERENCE_LLAMA_REFACTORED;
     }
 
     @Override

@@ -192,7 +192,11 @@ public abstract class GenerateTransportVersionDefinitionTask extends DefaultTask
         }
     }
 
-    private void removeUnusedNamedDefinitions(TransportVersionResourcesService resources, Set<String> referencedNames, List<TransportVersionDefinition> changedDefinitions) throws IOException {
+    private void removeUnusedNamedDefinitions(
+        TransportVersionResourcesService resources,
+        Set<String> referencedNames,
+        List<TransportVersionDefinition> changedDefinitions
+    ) throws IOException {
         for (TransportVersionDefinition definition : changedDefinitions) {
             if (referencedNames.contains(definition.name()) == false) {
                 // we added this definition file, but it's now unreferenced, so delete it
@@ -202,7 +206,11 @@ public abstract class GenerateTransportVersionDefinitionTask extends DefaultTask
         }
     }
 
-    private String findAddedTransportVersionName(TransportVersionResourcesService resources, Set<String> referencedNames, List<TransportVersionDefinition> changedDefinitions) throws IOException {
+    private String findAddedTransportVersionName(
+        TransportVersionResourcesService resources,
+        Set<String> referencedNames,
+        List<TransportVersionDefinition> changedDefinitions
+    ) throws IOException {
         // First check for unreferenced names. We only care about the first one. If there is more than one
         // validation will fail later and the developer will have to remove one. When that happens, generation
         // will re-run and we will fixup the state to use whatever new name remains.

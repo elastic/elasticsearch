@@ -15,7 +15,6 @@ import org.gradle.api.services.BuildServiceParameters;
 import org.gradle.process.ExecOperations;
 import org.gradle.process.ExecResult;
 
-import javax.inject.Inject;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -31,6 +30,8 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiFunction;
 import java.util.stream.Collectors;
+
+import javax.inject.Inject;
 
 /**
  * An encapsulation of operations on transport version resources.
@@ -147,13 +148,14 @@ public abstract class TransportVersionResourcesService implements BuildService<T
 
     void writeNamedDefinition(TransportVersionDefinition definition) throws IOException {
         Path path = transportResourcesDir.resolve(getNamedDefinitionRelativePath(definition.name()));
-        Files.writeString(path,
-                definition.ids().stream().map(Object::toString).collect(Collectors.joining(",")) + "\n",
-                StandardCharsets.UTF_8
+        Files.writeString(
+            path,
+            definition.ids().stream().map(Object::toString).collect(Collectors.joining(",")) + "\n",
+            StandardCharsets.UTF_8
         );
     }
 
-    void deleteNamedDefinition(String name) throws IOException{
+    void deleteNamedDefinition(String name) throws IOException {
         Path path = transportResourcesDir.resolve(getNamedDefinitionRelativePath(name));
         Files.deleteIfExists(path);
     }

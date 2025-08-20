@@ -13,15 +13,18 @@ import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.ValidationException;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.util.LazyInitializable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.InferenceServiceConfiguration;
 import org.elasticsearch.inference.InferenceServiceExtension;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
+import org.elasticsearch.inference.MinimalServiceSettings;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
@@ -48,6 +51,7 @@ import org.elasticsearch.xpack.inference.services.openai.action.OpenAiActionCrea
 import org.elasticsearch.xpack.inference.services.openai.completion.OpenAiChatCompletionModel;
 import org.elasticsearch.xpack.inference.services.openai.embeddings.OpenAiEmbeddingsModel;
 import org.elasticsearch.xpack.inference.services.openai.embeddings.OpenAiEmbeddingsServiceSettings;
+import org.elasticsearch.xpack.inference.services.openai.embeddings.OpenAiEmbeddingsTaskSettings;
 import org.elasticsearch.xpack.inference.services.openai.request.OpenAiUnifiedChatCompletionRequest;
 import org.elasticsearch.xpack.inference.services.openai.response.OpenAiChatCompletionResponseEntity;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
@@ -58,7 +62,9 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 
+import static org.elasticsearch.xpack.inference.chunking.ChunkingSettingsBuilder.DEFAULT_SETTINGS;
 import static org.elasticsearch.xpack.inference.external.action.ActionUtils.constructFailedToSendRequestMessage;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.DIMENSIONS;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.MODEL_ID;
@@ -76,6 +82,8 @@ import static org.elasticsearch.xpack.inference.services.openai.action.OpenAiAct
 
 public class OpenAiService extends SenderService {
     public static final String NAME = "openai";
+
+    private static final String DEFAULT_EMBEDDING_ID = ".openai_text_embedding";
 
     private static final String SERVICE_NAME = "OpenAI";
     // The task types exposed via the _inference/_services API
@@ -393,6 +401,43 @@ public class OpenAiService extends SenderService {
     @Override
     public Set<TaskType> supportedStreamingTasks() {
         return EnumSet.of(TaskType.COMPLETION, TaskType.CHAT_COMPLETION);
+    }
+
+    @Override
+    public List<DefaultConfigId> defaultConfigIds() {
+        return List.of(
+            new DefaultConfigId(
+                DEFAULT_EMBEDDING_ID,
+                MinimalServiceSettings.textEmbedding(name(), 1536, SimilarityMeasure.DOT_PRODUCT, DenseVectorFieldMapper.ElementType.FLOAT),
+                this
+            )
+        );
+    }
+
+    @Override
+    public void defaultConfigs(ActionListener<List<Model>> listener) {
+        listener.onResponse(
+            List.of(
+                new OpenAiEmbeddingsModel(
+                    ".openai_text_embedding",
+                    TaskType.TEXT_EMBEDDING,
+                    NAME,
+                    new OpenAiEmbeddingsServiceSettings(
+                        "text-embedding-3-small",
+                        null,
+                        null,
+                        null,
+                        1536,
+                        null,
+                        false,
+                        new RateLimitSettings(200000, TimeUnit.MINUTES)
+                    ),
+                    new OpenAiEmbeddingsTaskSettings((String) null),
+                    DEFAULT_SETTINGS,
+                    new DefaultSecretSettings(new SecureString(("todo").toCharArray()))
+                )
+            )
+        );
     }
 
     /**

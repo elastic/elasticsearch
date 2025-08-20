@@ -252,16 +252,19 @@ public class RequestExecutorService implements RequestExecutor {
 
     private void handleTasks() {
         try {
-            if (shutdown.get()) {
-                logger.debug("Shutdown requested while handling tasks, cleaning up");
-                cleanup();
-                return;
-            }
+            TimeValue timeToWait;
+            do {
+                if (shutdown.get()) {
+                    logger.debug("Shutdown requested while handling tasks, cleaning up");
+                    cleanup();
+                    return;
+                }
 
-            var timeToWait = settings.getTaskPollFrequency();
-            for (var endpoint : rateLimitGroupings.values()) {
-                timeToWait = TimeValue.min(endpoint.executeEnqueuedTask(), timeToWait);
-            }
+                timeToWait = settings.getTaskPollFrequency();
+                for (var endpoint : rateLimitGroupings.values()) {
+                    timeToWait = TimeValue.min(endpoint.executeEnqueuedTask(), timeToWait);
+                }
+            } while (timeToWait.compareTo(TimeValue.ZERO) <= 0);
 
             scheduleNextHandleTasks(timeToWait);
         } catch (Exception e) {

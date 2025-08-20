@@ -191,16 +191,17 @@ public class RetryingHttpSender implements RequestSender {
 
         @Override
         public boolean shouldRetry(Exception e) {
-            if (retryCount.get() >= MAX_RETIES) {
-                return false;
-            }
-
-            if (e instanceof Retryable retry) {
-                request = retry.rebuildRequest(request);
-                return retry.shouldRetry();
-            }
-
             return false;
+            // if (retryCount.get() >= MAX_RETIES) {
+            // return false;
+            // }
+            //
+            // if (e instanceof Retryable retry) {
+            // request = retry.rebuildRequest(request);
+            // return retry.shouldRetry();
+            // }
+            //
+            // return false;
         }
     }
 

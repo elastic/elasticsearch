@@ -201,6 +201,7 @@ public class InferencePlugin extends Plugin
 
     public static final String NAME = "inference";
     public static final String UTILITY_THREAD_POOL_NAME = "inference_utility";
+    public static final String UTILITY_RESPONSE_THREAD_POOL_NAME = "inference_utility_response";
 
     private static final Logger log = LogManager.getLogger(InferencePlugin.class);
 
@@ -495,17 +496,28 @@ public class InferencePlugin extends Plugin
 
     @Override
     public List<ExecutorBuilder<?>> getExecutorBuilders(Settings settingsToUse) {
-        return List.of(inferenceUtilityExecutor(settings));
+        return List.of(inferenceUtilityExecutor(settings), inferenceResponseUtilityExecutor(settings));
     }
 
     public static ExecutorBuilder<?> inferenceUtilityExecutor(Settings settings) {
         return new ScalingExecutorBuilder(
             UTILITY_THREAD_POOL_NAME,
             0,
-            10,
+            20,
             TimeValue.timeValueMinutes(10),
             false,
             "xpack.inference.utility_thread_pool"
+        );
+    }
+
+    public static ExecutorBuilder<?> inferenceResponseUtilityExecutor(Settings settings) {
+        return new ScalingExecutorBuilder(
+            UTILITY_RESPONSE_THREAD_POOL_NAME,
+            0,
+            20,
+            TimeValue.timeValueMinutes(10),
+            false,
+            "xpack.inference.utility_response_thread_pool"
         );
     }
 

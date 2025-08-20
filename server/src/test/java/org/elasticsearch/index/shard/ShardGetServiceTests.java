@@ -36,7 +36,6 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.function.LongSupplier;
 
-import static org.elasticsearch.index.IndexSettings.SYNTHETIC_VECTORS;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_PRIMARY_TERM;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 import static org.hamcrest.Matchers.equalTo;
@@ -138,11 +137,19 @@ public class ShardGetServiceTests extends IndexShardTestCase {
                 "foo": "foo"
             }
             """, Arrays.toString(vector));
-        runGetFromTranslogWithOptions(docToIndex, "\"enabled\": true", null, docToIndex, "\"text\"", "foo", "\"dense_vector\"", false);
+        runGetFromTranslogWithOptions(
+            docToIndex,
+            "\"enabled\": true",
+            Settings.builder().put(IndexSettings.INDEX_MAPPING_EXCLUDE_SOURCE_VECTORS_SETTING.getKey(), false).build(),
+            docToIndex,
+            "\"text\"",
+            "foo",
+            "\"dense_vector\"",
+            false
+        );
     }
 
     public void testGetFromTranslogWithSyntheticVector() throws IOException {
-        assumeTrue("feature flag must be enabled for synthetic vectors", SYNTHETIC_VECTORS);
         float[] vector = new float[2048];
         for (int i = 0; i < vector.length; i++) {
             vector[i] = randomByte();
@@ -156,7 +163,7 @@ public class ShardGetServiceTests extends IndexShardTestCase {
         runGetFromTranslogWithOptions(
             docToIndex,
             "\"enabled\": true",
-            Settings.builder().put(IndexSettings.INDEX_MAPPING_SOURCE_SYNTHETIC_VECTORS_SETTING.getKey(), true).build(),
+            Settings.builder().put(IndexSettings.INDEX_MAPPING_EXCLUDE_SOURCE_VECTORS_SETTING.getKey(), true).build(),
             docToIndex,
             "\"text\"",
             "foo",

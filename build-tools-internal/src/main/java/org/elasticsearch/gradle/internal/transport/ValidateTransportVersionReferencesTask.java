@@ -10,8 +10,9 @@
 package org.elasticsearch.gradle.internal.transport;
 
 import org.gradle.api.DefaultTask;
-import org.gradle.api.file.DirectoryProperty;
 import org.gradle.api.file.RegularFileProperty;
+import org.gradle.api.provider.Property;
+import org.gradle.api.services.ServiceReference;
 import org.gradle.api.tasks.CacheableTask;
 import org.gradle.api.tasks.InputDirectory;
 import org.gradle.api.tasks.InputFile;
@@ -21,9 +22,7 @@ import org.gradle.api.tasks.PathSensitivity;
 import org.gradle.api.tasks.TaskAction;
 
 import java.io.IOException;
-import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.function.Predicate;
 
 /**
  * Validates that each transport version named reference has a constant definition.
@@ -31,10 +30,15 @@ import java.util.function.Predicate;
 @CacheableTask
 public abstract class ValidateTransportVersionReferencesTask extends DefaultTask {
 
+    @ServiceReference("transportVersionResources")
+    abstract Property<TransportVersionResourcesService> getTransportResources();
+
     @InputDirectory
     @Optional
     @PathSensitive(PathSensitivity.RELATIVE)
-    public abstract DirectoryProperty getDefinitionsDirectory();
+    public Path getDefinitionsDir() {
+        return getTransportResources().get().getDefinitionsDir();
+    }
 
     @InputFile
     @PathSensitive(PathSensitivity.RELATIVE)
@@ -42,17 +46,11 @@ public abstract class ValidateTransportVersionReferencesTask extends DefaultTask
 
     @TaskAction
     public void validateTransportVersions() throws IOException {
-        final Predicate<String> referenceChecker;
-        if (getDefinitionsDirectory().isPresent()) {
-            Path definitionsDir = getDefinitionsDirectory().getAsFile().get().toPath();
-            referenceChecker = (name) -> Files.exists(definitionsDir.resolve(name + ".csv"));
-        } else {
-            referenceChecker = (name) -> false;
-        }
         Path namesFile = getReferencesFile().get().getAsFile().toPath();
+        TransportVersionResourcesService resources = getTransportResources().get();
 
         for (var tvReference : TransportVersionReference.listFromFile(namesFile)) {
-            if (referenceChecker.test(tvReference.name()) == false) {
+            if (resources.namedDefinitionExists(tvReference.name()) == false) {
                 throw new RuntimeException(
                     "TransportVersion.fromName(\""
                         + tvReference.name()

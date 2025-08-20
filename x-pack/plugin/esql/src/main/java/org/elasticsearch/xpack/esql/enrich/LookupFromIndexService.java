@@ -101,7 +101,6 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
         Block inputBlock,
         Warnings warnings
     ) {
-
         List<QueryList> queryLists = new ArrayList<>();
         for (int i = 0; i < request.matchFields.size(); i++) {
             MatchConfig matchField = request.matchFields.get(i);

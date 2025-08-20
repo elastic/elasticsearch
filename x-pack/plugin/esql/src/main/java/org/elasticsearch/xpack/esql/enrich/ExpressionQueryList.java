@@ -54,8 +54,6 @@ public class ExpressionQueryList implements LookupEnrichQueryGenerator {
     }
 
     private void buildPrePostJoinFilter(Expression optionalFilter, ClusterService clusterService) {
-        // we support a FilterExec as the pre-join filter
-        // if the filter Exec is not translatable to a QueryBuilder, we will apply it after the join
         try {
             // If the pre-join filter is a FilterExec, we can convert it to a QueryBuilder
             // try to convert it to a QueryBuilder, if not possible apply it after the join
@@ -71,9 +69,9 @@ public class ExpressionQueryList implements LookupEnrichQueryGenerator {
                 }
             }
             // If the filter is not translatable we will not apply it for now
-            // as performance testing showed no significant difference in performance.
-            // We can revisit this in the future if needed.
-            // The filter is optional, so that is OK
+            // as performance testing showed no performance improvement.
+            // We can revisit this in the future if needed, once we have more optimized workflow in place.
+            // The filter is optional, so it is OK to ignore it if it cannot be translated.
         } catch (IOException e) {
             // as the filter is optional an error in its application will be ignored
             logger.error(() -> "Failed to translate optional pre-join filter: [" + optionalFilter + "]", e);

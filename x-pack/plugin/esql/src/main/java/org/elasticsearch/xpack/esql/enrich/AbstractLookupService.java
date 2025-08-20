@@ -38,7 +38,6 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.lucene.read.ValuesSourceReaderOperator;
 import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.FilterOperator;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.OutputOperator;
 import org.elasticsearch.compute.operator.ProjectOperator;
@@ -74,14 +73,10 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
-import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.evaluator.EvalMapper;
-import org.elasticsearch.xpack.esql.plan.physical.FilterExec;
 import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders;
-import org.elasticsearch.xpack.esql.planner.Layout;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 
@@ -351,6 +346,7 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
                 warnings
             );
             releasables.add(queryOperator);
+
             List<Operator> operators = new ArrayList<>();
             if (request.extractFields.isEmpty() == false) {
                 var extractFieldsOperator = extractFieldsOperator(shardContext.context, driverContext, request.extractFields);
@@ -416,27 +412,6 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
                 Releasables.close(releasables);
             }
         }
-    }
-
-    private Operator filterExecOperator(
-        FilterExec filterExec,
-        Operator inputOperator, // not needed?
-        EsPhysicalOperationProviders.ShardContext shardContext,
-        DriverContext driverContext,
-        Layout.Builder builder
-    ) {
-        if (filterExec == null) {
-            return null;
-        }
-
-        var evaluatorFactory = EvalMapper.toEvaluator(
-            FoldContext.small()/*is this correct*/,
-            filterExec.condition(),
-            builder.build(),
-            List.of(shardContext)
-        );
-        var filterOperatorFactory = new FilterOperator.FilterOperatorFactory(evaluatorFactory);
-        return filterOperatorFactory.get(driverContext);
     }
 
     private static Operator extractFieldsOperator(

@@ -5151,7 +5151,7 @@ null           | null             | fred           | null           | null
 ;
 
 
-lookupJoinWithPushableFilterOnLeft
+lookupJoinWithPushableFilterOnRight
 required_capability: join_lookup_v12
 required_capability: lookup_join_on_multiple_fields
 
@@ -5178,7 +5178,7 @@ id_int:integer | name_str:keyword | extra1:keyword | other1:keyword | other2:int
 14             | Nina             | foo2           | omicron        | 15000
 ;
 
-lookupJoinWithTwoPushableFiltersOnLeft
+lookupJoinWithTwoPushableFiltersOnRight
 required_capability: join_lookup_v12
 required_capability: lookup_join_on_multiple_fields
 

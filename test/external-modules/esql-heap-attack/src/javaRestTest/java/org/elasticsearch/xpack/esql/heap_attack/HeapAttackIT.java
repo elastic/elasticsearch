@@ -726,7 +726,6 @@ public class HeapAttackIT extends ESRestTestCase {
         // This test will only work with the expanding join optimization
         // that pushes the filter to the right side of the lookup.
         // Without the optimization, it will fail with circuit_breaking_exception
-        // lookupEntries % reductionFactor must be 0 to ensure that the number of matches is reduced
         int sensorDataCount = 10000;
         int lookupEntries = 10000;
         int reductionFactor = 1000; // reduce the number of matches by this factor

@@ -10,8 +10,6 @@ package org.elasticsearch.compute.operator.lookup;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.core.Nullable;
 
-import java.io.IOException;
-
 /**
  * An interface to generates queries for the lookup and enrich operators.
  * This interface is used to retrieve queries based on a position index.
@@ -22,7 +20,7 @@ public interface LookupEnrichQueryGenerator {
      * Returns the query at the given position.
      */
     @Nullable
-    Query getQuery(int position) throws IOException;
+    Query getQuery(int position);
 
     /**
      * Returns the number of queries in this generator

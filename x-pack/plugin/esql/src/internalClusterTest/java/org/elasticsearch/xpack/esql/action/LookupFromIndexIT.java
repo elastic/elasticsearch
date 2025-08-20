@@ -59,6 +59,7 @@ import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.enrich.LookupFromIndexOperator;
 import org.elasticsearch.xpack.esql.enrich.MatchConfig;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
@@ -228,16 +229,11 @@ public class LookupFromIndexIT extends AbstractEsqlIntegTestCase {
         }
     }
 
-    Expression buildGreaterThanFilter(long value) {
+    private Expression buildGreaterThanFilter(long value) {
         FieldAttribute filterAttribute = new FieldAttribute(
             Source.EMPTY,
             "l",
-            new org.elasticsearch.xpack.esql.core.type.EsField(
-                "l",
-                org.elasticsearch.xpack.esql.core.type.DataType.LONG,
-                java.util.Collections.emptyMap(),
-                true
-            )
+            new EsField("l", DataType.LONG, Collections.emptyMap(), true, EsField.TimeSeriesFieldType.NONE)
         );
         return new GreaterThan(Source.EMPTY, filterAttribute, new Literal(Source.EMPTY, value, DataType.LONG));
     }

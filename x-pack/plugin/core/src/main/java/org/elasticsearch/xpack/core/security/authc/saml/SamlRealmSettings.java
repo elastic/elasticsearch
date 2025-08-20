@@ -140,12 +140,12 @@ public class SamlRealmSettings {
     );
 
     /**
-     * The names of attributes that should be treated as secure and never populated as part of user metadata
+     * The names of attributes that should be treated as private and never populated as part of the user's metadata
      * (even when {@code #POPULATE_USER_METADATA} is configured).
      */
-    public static final Function<String, Setting.AffixSetting<List<String>>> SECURE_ATTRIBUTES = (type) -> Setting.affixKeySetting(
+    public static final Function<String, Setting.AffixSetting<List<String>>> PRIVATE_ATTRIBUTES = (type) -> Setting.affixKeySetting(
         RealmSettings.realmSettingPrefix(type),
-        "secure_attributes",
+        "private_attributes",
         (key) -> Setting.stringListSetting(key, attributes -> verifyNonNullNotEmpty(key, attributes), Setting.Property.NodeScope)
     );
 
@@ -212,7 +212,7 @@ public class SamlRealmSettings {
             SIGNING_KEY_ALIAS.apply(type),
             SIGNING_MESSAGE_TYPES.apply(type),
             REQUESTED_AUTHN_CONTEXT_CLASS_REF.apply(type),
-            SECURE_ATTRIBUTES.apply(type)
+            PRIVATE_ATTRIBUTES.apply(type)
         );
 
         set.addAll(X509KeyPairSettings.affix(RealmSettings.realmSettingPrefix(type), ENCRYPTION_SETTING_KEY, false));

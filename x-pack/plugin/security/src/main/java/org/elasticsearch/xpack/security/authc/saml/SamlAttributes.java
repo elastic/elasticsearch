@@ -28,13 +28,13 @@ public class SamlAttributes implements Releasable {
     private final SamlNameId name;
     private final String session;
     private final List<SamlAttribute> attributes;
-    private final List<SamlSecureAttribute> secureAttributes;
+    private final List<SamlPrivateAttribute> privateAttributes;
 
-    SamlAttributes(SamlNameId name, String session, List<SamlAttribute> attributes, List<SamlSecureAttribute> secureAttributes) {
+    SamlAttributes(SamlNameId name, String session, List<SamlAttribute> attributes, List<SamlPrivateAttribute> privateAttributes) {
         this.name = name;
         this.session = session;
         this.attributes = attributes;
-        this.secureAttributes = secureAttributes;
+        this.privateAttributes = privateAttributes;
     }
 
     /**
@@ -59,11 +59,11 @@ public class SamlAttributes implements Releasable {
             .toList();
     }
 
-    List<SecureString> getSecureAttributeValues(String attributeId) {
+    List<SecureString> getPrivateAttributeValues(String attributeId) {
         if (Strings.isNullOrEmpty(attributeId)) {
             return List.of();
         }
-        return secureAttributes.stream()
+        return privateAttributes.stream()
             .filter(attr -> attributeId.equals(attr.name) || attributeId.equals(attr.friendlyName))
             .flatMap(attr -> attr.values.stream())
             .toList();
@@ -73,12 +73,12 @@ public class SamlAttributes implements Releasable {
         return attributes;
     }
 
-    List<SamlSecureAttribute> secureAttributes() {
-        return secureAttributes;
+    List<SamlPrivateAttribute> privateAttributes() {
+        return privateAttributes;
     }
 
     boolean isEmpty() {
-        return attributes.isEmpty() && secureAttributes.isEmpty();
+        return attributes.isEmpty() && privateAttributes.isEmpty();
     }
 
     SamlNameId name() {
@@ -91,12 +91,12 @@ public class SamlAttributes implements Releasable {
 
     @Override
     public String toString() {
-        return getClass().getSimpleName() + "(" + name + ")[" + session + "]{" + attributes + "}{" + secureAttributes + "}";
+        return getClass().getSimpleName() + "(" + name + ")[" + session + "]{" + attributes + "}{" + privateAttributes + "}";
     }
 
     @Override
     public void close() {
-        IOUtils.closeWhileHandlingException(secureAttributes);
+        IOUtils.closeWhileHandlingException(privateAttributes);
     }
 
     abstract static class AbstractSamlAttribute<T> {
@@ -151,9 +151,9 @@ public class SamlAttributes implements Releasable {
         }
     }
 
-    static class SamlSecureAttribute extends AbstractSamlAttribute<SecureString> implements Releasable {
+    static class SamlPrivateAttribute extends AbstractSamlAttribute<SecureString> implements Releasable {
 
-        SamlSecureAttribute(Attribute attribute) {
+        SamlPrivateAttribute(Attribute attribute) {
             super(
                 attribute.getName(),
                 attribute.getFriendlyName(),
@@ -167,7 +167,7 @@ public class SamlAttributes implements Releasable {
             );
         }
 
-        SamlSecureAttribute(String name, @Nullable String friendlyName, List<SecureString> values) {
+        SamlPrivateAttribute(String name, @Nullable String friendlyName, List<SecureString> values) {
             super(name, friendlyName, values);
         }
 
@@ -179,7 +179,7 @@ public class SamlAttributes implements Releasable {
             } else {
                 str.append(friendlyName).append('(').append(name).append(')');
             }
-            str.append("=").append("[::es_redacted::]").append("(len=").append(values.size()).append(')');
+            str.append("=[").append(values.size()).append(" value(s)]");
             return str.toString();
         }
 

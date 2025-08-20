@@ -32,7 +32,7 @@ public class SamlAttributesTests extends SamlTestCase {
                 )
             ),
             List.of(
-                new SamlAttributes.SamlSecureAttribute(
+                new SamlAttributes.SamlPrivateAttribute(
                     "urn:oid:0.9.2342.19200300.100.1.3",
                     "mail",
                     List.of(new SecureString("peter@ng.com".toCharArray()))
@@ -54,7 +54,7 @@ public class SamlAttributesTests extends SamlTestCase {
                     + "groups(urn:oid:1.3.6.1.4.1.5923.1.5.1.1)=[employees, engineering, managers](len=3)"
                     + "]}"
                     + "{["
-                    + "mail(urn:oid:0.9.2342.19200300.100.1.3)=[::es_redacted::](len=1)"
+                    + "mail(urn:oid:0.9.2342.19200300.100.1.3)=[1 value(s)]"
                     + "]}"
             )
         );

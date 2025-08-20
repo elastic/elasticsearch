@@ -85,7 +85,7 @@ import java.util.stream.Stream;
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.test.ActionListenerUtils.anyActionListener;
 import static org.elasticsearch.test.TestMatchers.throwableWithMessage;
-import static org.elasticsearch.xpack.security.authc.saml.SamlRealm.SECURE_ATTRIBUTES_METADATA;
+import static org.elasticsearch.xpack.security.authc.saml.SamlRealm.PRIVATE_ATTRIBUTES_METADATA;
 import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -449,13 +449,13 @@ public class SamlRealmTests extends SamlTestCase {
         }
 
         assertThat(result.getMetadata(), notNullValue());
-        assertThat(result.getMetadata().containsKey(SECURE_ATTRIBUTES_METADATA), is(true));
+        assertThat(result.getMetadata().containsKey(PRIVATE_ATTRIBUTES_METADATA), is(true));
         @SuppressWarnings("unchecked")
-        Map<String, List<SecureString>> secureAttributesMetadata = (Map<String, List<SecureString>>) result.getMetadata()
-            .get(SECURE_ATTRIBUTES_METADATA);
-        assertThat(secureAttributesMetadata, notNullValue());
-        assertThat(secureAttributesMetadata.keySet(), containsInAnyOrder("top_secret"));
-        List<SecureString> secretAttribute = secureAttributesMetadata.get("top_secret");
+        Map<String, List<SecureString>> privateAttributesMetadata = (Map<String, List<SecureString>>) result.getMetadata()
+            .get(PRIVATE_ATTRIBUTES_METADATA);
+        assertThat(privateAttributesMetadata, notNullValue());
+        assertThat(privateAttributesMetadata.keySet(), containsInAnyOrder("top_secret"));
+        List<SecureString> secretAttribute = privateAttributesMetadata.get("top_secret");
         assertThat(secretAttribute, notNullValue());
         assertThat(secretAttribute.size(), equalTo(1));
         assertEquals(
@@ -635,7 +635,7 @@ public class SamlRealmTests extends SamlTestCase {
         }
         if (secureAttributes != null) {
             settingsBuilder.put(
-                SingleSpSamlRealmSettings.getFullSettingKey(REALM_NAME, SamlRealmSettings.SECURE_ATTRIBUTES),
+                SingleSpSamlRealmSettings.getFullSettingKey(REALM_NAME, SamlRealmSettings.PRIVATE_ATTRIBUTES),
                 String.join(",", secureAttributes.keySet())
             );
         }
@@ -679,7 +679,7 @@ public class SamlRealmTests extends SamlTestCase {
                 : secureAttributes.entrySet()
                     .stream()
                     .map(
-                        a -> new SamlAttributes.SamlSecureAttribute(a.getKey(), null, a.getValue().stream().map(SecureString::new).toList())
+                        a -> new SamlAttributes.SamlPrivateAttribute(a.getKey(), null, a.getValue().stream().map(SecureString::new).toList())
                     )
                     .toList()
         );
@@ -690,9 +690,9 @@ public class SamlRealmTests extends SamlTestCase {
             public void onResponse(AuthenticationResult<User> result) {
                 if (secureAttributes != null && result.isAuthenticated()) {
                     assertThat(result.getMetadata(), notNullValue());
-                    assertThat(result.getMetadata().containsKey(SECURE_ATTRIBUTES_METADATA), is(true));
+                    assertThat(result.getMetadata().containsKey(PRIVATE_ATTRIBUTES_METADATA), is(true));
                     @SuppressWarnings("unchecked")
-                    var metadata = (Map<String, List<SecureString>>) result.getMetadata().get(SECURE_ATTRIBUTES_METADATA);
+                    var metadata = (Map<String, List<SecureString>>) result.getMetadata().get(PRIVATE_ATTRIBUTES_METADATA);
                     secureAttributes.forEach((name, value) -> assertThat(metadata.get(name), equalTo(value)));
                 }
                 super.onResponse(result);

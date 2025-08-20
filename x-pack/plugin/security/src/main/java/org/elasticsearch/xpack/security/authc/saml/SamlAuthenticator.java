@@ -51,17 +51,17 @@ class SamlAuthenticator extends SamlResponseHandler {
 
     private static final String RESPONSE_TAG_NAME = "Response";
     private static final Set<String> SPECIAL_ATTRIBUTE_NAMES = Set.of(NAMEID_SYNTHENTIC_ATTRIBUTE, PERSISTENT_NAMEID_SYNTHENTIC_ATTRIBUTE);
-    private final Predicate<Attribute> secureAttributePredicate;
+    private final Predicate<Attribute> privateAttributePredicate;
 
     SamlAuthenticator(
         Clock clock,
         IdpConfiguration idp,
         SpConfiguration sp,
         TimeValue maxSkew,
-        Predicate<Attribute> secureAttributePredicate
+        Predicate<Attribute> privateAttributePredicate
     ) {
         super(clock, idp, sp, maxSkew);
-        this.secureAttributePredicate = secureAttributePredicate;
+        this.privateAttributePredicate = privateAttributePredicate;
     }
 
     /**
@@ -124,7 +124,7 @@ class SamlAuthenticator extends SamlResponseHandler {
             for (SamlAttributes.SamlAttribute attr : samlAttributes.attributes()) {
                 sb.append(attr).append("\n");
             }
-            for (SamlAttributes.SamlSecureAttribute attr : samlAttributes.secureAttributes()) {
+            for (SamlAttributes.SamlPrivateAttribute attr : samlAttributes.privateAttributes()) {
                 sb.append(attr).append("\n");
             }
             logger.trace(sb.toString());
@@ -143,15 +143,15 @@ class SamlAuthenticator extends SamlResponseHandler {
 
     private SamlAttributes buildSamlAttributes(SamlNameId nameId, String session, List<Attribute> attributes) {
         List<SamlAttributes.SamlAttribute> samlAttributes = new ArrayList<>();
-        List<SamlAttributes.SamlSecureAttribute> samlSecureAttributes = new ArrayList<>();
+        List<SamlAttributes.SamlPrivateAttribute> samlPrivateAttributes = new ArrayList<>();
         for (Attribute attribute : attributes) {
-            if (secureAttributePredicate.test(attribute)) {
-                samlSecureAttributes.add(new SamlAttributes.SamlSecureAttribute(attribute));
+            if (privateAttributePredicate.test(attribute)) {
+                samlPrivateAttributes.add(new SamlAttributes.SamlPrivateAttribute(attribute));
             } else {
                 samlAttributes.add(new SamlAttributes.SamlAttribute(attribute));
             }
         }
-        return new SamlAttributes(nameId, session, samlAttributes, samlSecureAttributes);
+        return new SamlAttributes(nameId, session, samlAttributes, samlPrivateAttributes);
     }
 
     private static String getSessionIndex(Assertion assertion) {

@@ -330,8 +330,8 @@ public class SamlAuthenticatorTests extends SamlResponseHandlerTests {
 
         assertThat(attributes.session(), equalTo(session));
 
-        assertThat(attributes.secureAttributes(), iterableWithSize(1));
-        final List<SecureString> batmanIdentity = attributes.getSecureAttributeValues("batman");
+        assertThat(attributes.privateAttributes(), iterableWithSize(1));
+        final List<SecureString> batmanIdentity = attributes.getPrivateAttributeValues("batman");
         assertThat(batmanIdentity, iterableWithSize(1));
         assertThat(batmanIdentity.getFirst(), equalTo(new SecureString("Bruce Wayne".toCharArray())));
 
@@ -353,8 +353,8 @@ public class SamlAuthenticatorTests extends SamlResponseHandlerTests {
         assertThat(attributes.name(), notNullValue());
         assertThat(attributes.name().format, equalTo(TRANSIENT));
         assertThat(attributes.name().value, equalTo(nameId));
-        assertThat(attributes.secureAttributes(), iterableWithSize(1));
-        final List<SecureString> batmanIdentity = attributes.getSecureAttributeValues("batman");
+        assertThat(attributes.privateAttributes(), iterableWithSize(1));
+        final List<SecureString> batmanIdentity = attributes.getPrivateAttributeValues("batman");
         assertThat(batmanIdentity, iterableWithSize(1));
         assertThat(batmanIdentity.getFirst(), equalTo(new SecureString("Bruce Wayne".toCharArray())));
 
@@ -380,8 +380,8 @@ public class SamlAuthenticatorTests extends SamlResponseHandlerTests {
         assertThat(attributes.name().format, equalTo(nameIdFormat));
         assertThat(attributes.name().value, equalTo(nameId));
 
-        assertThat(attributes.secureAttributes(), iterableWithSize(1));
-        final List<SecureString> batmanIdentity = attributes.getSecureAttributeValues("batman");
+        assertThat(attributes.privateAttributes(), iterableWithSize(1));
+        final List<SecureString> batmanIdentity = attributes.getPrivateAttributeValues("batman");
         assertThat(batmanIdentity, iterableWithSize(1));
         assertThat(batmanIdentity.getFirst(), equalTo(new SecureString("Bruce Wayne".toCharArray())));
     }

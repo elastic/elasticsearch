@@ -124,7 +124,7 @@ public class SamlAuthenticationIT extends ESRestTestCase {
         .setting("xpack.security.authc.realms.saml.shibboleth.attributes.name", "urn:oid:2.5.4.3")
         .setting("xpack.security.authc.realms.saml.shibboleth.signing.key", "sp-signing.key")
         .setting("xpack.security.authc.realms.saml.shibboleth.signing.certificate", "sp-signing.crt")
-        .setting("xpack.security.authc.realms.saml.shibboleth.secure_attributes", "mail")
+        .setting("xpack.security.authc.realms.saml.shibboleth.private_attributes", "mail")
         // SAML realm 2 (uses authorization_realms)
         .setting("xpack.security.authc.realms.saml.shibboleth_native.order", "2")
         .setting("xpack.security.authc.realms.saml.shibboleth_native.idp.entity_id", "https://test.shibboleth.elastic.local/")
@@ -311,7 +311,7 @@ public class SamlAuthenticationIT extends ESRestTestCase {
             assertThat(authentication, instanceOf(Map.class));
             assertEquals("thor", ((Map) authentication).get("username"));
 
-            // "mail" attribute should be treated as secure
+            // "mail" attribute should be treated as private
             // and not returned as part of user's metadata
             final Object metadata = ((Map) authentication).get("metadata");
             assertThat(metadata, notNullValue());

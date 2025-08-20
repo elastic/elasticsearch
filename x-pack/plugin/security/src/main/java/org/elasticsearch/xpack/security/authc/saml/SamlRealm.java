@@ -53,7 +53,7 @@ import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.security.PrivilegedFileWatcher;
 import org.elasticsearch.xpack.security.authc.Realms;
 import org.elasticsearch.xpack.security.authc.TokenService;
-import org.elasticsearch.xpack.security.authc.saml.SamlAttributes.SamlSecureAttribute;
+import org.elasticsearch.xpack.security.authc.saml.SamlAttributes.SamlPrivateAttribute;
 import org.elasticsearch.xpack.security.authc.support.DelegatedAuthorizationSupport;
 import org.elasticsearch.xpack.security.authc.support.mapper.ExcludingRoleMapper;
 import org.opensaml.core.criterion.EntityIdCriterion;
@@ -136,7 +136,7 @@ import static org.elasticsearch.xpack.core.security.authc.saml.SamlRealmSettings
 import static org.elasticsearch.xpack.core.security.authc.saml.SamlRealmSettings.NAME_ATTRIBUTE;
 import static org.elasticsearch.xpack.core.security.authc.saml.SamlRealmSettings.POPULATE_USER_METADATA;
 import static org.elasticsearch.xpack.core.security.authc.saml.SamlRealmSettings.PRINCIPAL_ATTRIBUTE;
-import static org.elasticsearch.xpack.core.security.authc.saml.SamlRealmSettings.SECURE_ATTRIBUTES;
+import static org.elasticsearch.xpack.core.security.authc.saml.SamlRealmSettings.PRIVATE_ATTRIBUTES;
 import static org.elasticsearch.xpack.core.security.authc.saml.SamlRealmSettings.SIGNING_KEY_ALIAS;
 import static org.elasticsearch.xpack.core.security.authc.saml.SamlRealmSettings.SIGNING_MESSAGE_TYPES;
 import static org.elasticsearch.xpack.core.security.authc.saml.SamlRealmSettings.SIGNING_SETTING_KEY;
@@ -160,7 +160,7 @@ public final class SamlRealm extends Realm implements Releasable {
     public static final String TOKEN_METADATA_SESSION = "saml_session";
     public static final String TOKEN_METADATA_REALM = "saml_realm";
 
-    public static final String SECURE_ATTRIBUTES_METADATA = "saml_secure_attributes";
+    public static final String PRIVATE_ATTRIBUTES_METADATA = "saml_private_attributes";
     // Although we only use this for IDP metadata loading, the SSLServer only loads configurations where "ssl." is a top-level element
     // in the realm group configuration, so it has to have this name.
 
@@ -260,10 +260,10 @@ public final class SamlRealm extends Realm implements Releasable {
     }
 
     static Predicate<Attribute> secureAttributePredicate(RealmConfig config) {
-        if (false == config.hasSetting(SECURE_ATTRIBUTES)) {
+        if (false == config.hasSetting(PRIVATE_ATTRIBUTES)) {
             return attribute -> false;
         }
-        final List<String> secureAttributeNames = config.getSetting(SECURE_ATTRIBUTES);
+        final List<String> secureAttributeNames = config.getSetting(PRIVATE_ATTRIBUTES);
         if (secureAttributeNames == null || secureAttributeNames.isEmpty()) {
             return attribute -> false;
         }
@@ -602,16 +602,16 @@ public final class SamlRealm extends Realm implements Releasable {
         }
 
         final Map<String, Object> tokenMetadata = createTokenMetadata(attributes.name(), attributes.session());
-        final Map<String, List<SecureString>> secureMetadata = attributes.secureAttributes()
+        final Map<String, List<SecureString>> privateAttributesMetadata = attributes.privateAttributes()
             .stream()
-            .collect(Collectors.toMap(SamlSecureAttribute::name, SamlSecureAttribute::values));
+            .collect(Collectors.toMap(SamlPrivateAttribute::name, SamlPrivateAttribute::values));
 
         ActionListener<AuthenticationResult<User>> wrappedListener = baseListener.delegateFailureAndWrap((l, auth) -> {
             if (auth.isAuthenticated()) {
                 // Add the SAML token details as metadata on the authentication
                 Map<String, Object> metadata = new HashMap<>(auth.getMetadata());
                 metadata.put(CONTEXT_TOKEN_DATA, tokenMetadata);
-                metadata.put(SECURE_ATTRIBUTES_METADATA, secureMetadata);
+                metadata.put(PRIVATE_ATTRIBUTES_METADATA, privateAttributesMetadata);
                 auth = AuthenticationResult.success(auth.getValue(), metadata);
             }
             l.onResponse(auth);

@@ -24,7 +24,7 @@ public final class MachineLearningField {
 
     public static final Setting<Boolean> AUTODETECT_PROCESS = Setting.boolSetting(
         "xpack.ml.autodetect_process",
-        true,
+        false,
         Setting.Property.NodeScope
     );
     public static final Setting<ByteSizeValue> MAX_MODEL_MEMORY_LIMIT = Setting.memorySizeSetting(

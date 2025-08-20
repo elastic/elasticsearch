@@ -135,9 +135,9 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
         assumeFalse("can't test with _index metadata", (remoteMetadata == false) && hasIndexMetadata(testCase.query));
         Version oldVersion = Version.min(Clusters.localClusterVersion(), Clusters.remoteClusterVersion());
         assumeTrue("Test " + testName + " is skipped on " + oldVersion, isEnabled(testName, instructions, oldVersion));
-        assumeFalse("INLINESTATS not yet supported in CCS", testCase.requiredCapabilities.contains(INLINESTATS.capabilityName()));
-        assumeFalse("INLINESTATS not yet supported in CCS", testCase.requiredCapabilities.contains(JOIN_PLANNING_V1.capabilityName()));
-        assumeFalse("INLINESTATS not yet supported in CCS", testCase.requiredCapabilities.contains(INLINESTATS_V11.capabilityName()));
+        //assumeFalse("INLINESTATS not yet supported in CCS", testCase.requiredCapabilities.contains(INLINESTATS.capabilityName()));
+        //assumeFalse("INLINESTATS not yet supported in CCS", testCase.requiredCapabilities.contains(JOIN_PLANNING_V1.capabilityName()));
+        //assumeFalse("INLINESTATS not yet supported in CCS", testCase.requiredCapabilities.contains(INLINESTATS_V11.capabilityName()));
         if (testCase.requiredCapabilities.contains(JOIN_LOOKUP_V12.capabilityName())) {
             assumeTrue(
                 "LOOKUP JOIN not yet supported in CCS",

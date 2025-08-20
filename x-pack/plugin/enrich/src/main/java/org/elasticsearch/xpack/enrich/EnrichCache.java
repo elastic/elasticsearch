@@ -22,7 +22,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.LongAdder;
 import java.util.function.Consumer;
 import java.util.function.LongSupplier;
 import java.util.function.ToLongBiFunction;
@@ -46,9 +46,9 @@ public final class EnrichCache {
 
     private final Cache<CacheKey, CacheValue> cache;
     private final LongSupplier relativeNanoTimeProvider;
-    private final AtomicLong hitsTimeInNanos = new AtomicLong(0);
-    private final AtomicLong missesTimeInNanos = new AtomicLong(0);
-    private final AtomicLong sizeInBytes = new AtomicLong(0);
+    private final LongAdder hitsTimeInNanos = new LongAdder();
+    private final LongAdder missesTimeInNanos = new LongAdder();
+    private final LongAdder sizeInBytes = new LongAdder();
 
     EnrichCache(long maxSize) {
         this(maxSize, System::nanoTime);
@@ -71,7 +71,7 @@ public final class EnrichCache {
 
     private Cache<CacheKey, CacheValue> createCache(long maxWeight, ToLongBiFunction<CacheKey, CacheValue> weigher) {
         var builder = CacheBuilder.<CacheKey, CacheValue>builder().setMaximumWeight(maxWeight).removalListener(notification -> {
-            sizeInBytes.getAndAdd(-1 * notification.getValue().sizeInBytes);
+            sizeInBytes.add(-1 * notification.getValue().sizeInBytes);
         });
         if (weigher != null) {
             builder.weigher(weigher);
@@ -102,7 +102,7 @@ public final class EnrichCache {
         List<Map<?, ?>> response = get(cacheKey);
         long cacheRequestTime = relativeNanoTimeProvider.getAsLong() - cacheStart;
         if (response != null) {
-            hitsTimeInNanos.addAndGet(cacheRequestTime);
+            hitsTimeInNanos.add(cacheRequestTime);
             listener.onResponse(response);
         } else {
             final long retrieveStart = relativeNanoTimeProvider.getAsLong();
@@ -111,7 +111,7 @@ public final class EnrichCache {
                 put(cacheKey, cacheValue);
                 List<Map<?, ?>> copy = deepCopy(cacheValue.hits, false);
                 long databaseQueryAndCachePutTime = relativeNanoTimeProvider.getAsLong() - retrieveStart;
-                missesTimeInNanos.addAndGet(cacheRequestTime + databaseQueryAndCachePutTime);
+                missesTimeInNanos.add(cacheRequestTime + databaseQueryAndCachePutTime);
                 listener.onResponse(copy);
             }, listener::onFailure));
         }
@@ -130,7 +130,7 @@ public final class EnrichCache {
     // non-private for unit testing only
     void put(CacheKey cacheKey, CacheValue cacheValue) {
         cache.put(cacheKey, cacheValue);
-        sizeInBytes.addAndGet(cacheValue.sizeInBytes);
+        sizeInBytes.add(cacheValue.sizeInBytes);
     }
 
     public EnrichStatsAction.Response.CacheStats getStats(String localNodeId) {
@@ -141,9 +141,9 @@ public final class EnrichCache {
             cacheStats.getHits(),
             cacheStats.getMisses(),
             cacheStats.getEvictions(),
-            TimeValue.nsecToMSec(hitsTimeInNanos.get()),
-            TimeValue.nsecToMSec(missesTimeInNanos.get()),
-            sizeInBytes.get()
+            TimeValue.nsecToMSec(hitsTimeInNanos.sum()),
+            TimeValue.nsecToMSec(missesTimeInNanos.sum()),
+            sizeInBytes.sum()
         );
     }
 

@@ -75,7 +75,7 @@ setup:
               "category": "authentication"
               "code": "5145"
             "user":
-              "domain": "bar.baz",
+              "domain": "bar.baz"
               "name": "something"
             "source":
               "ip": "192.168.56.200"

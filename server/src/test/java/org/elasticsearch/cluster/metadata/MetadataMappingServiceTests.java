@@ -14,8 +14,12 @@ import org.elasticsearch.action.admin.indices.mapping.put.PutMappingClusterState
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.ClusterStateTaskExecutorUtils;
 import org.elasticsearch.common.compress.CompressedXContent;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.IndexSettingProvider;
+import org.elasticsearch.index.IndexSettingProviders;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
@@ -23,6 +27,7 @@ import org.elasticsearch.test.InternalSettingsPlugin;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.Set;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
@@ -133,6 +138,39 @@ public class MetadataMappingServiceTests extends ESSingleNodeTestCase {
             singleTask(request)
         );
         assertThat(resultingState.metadata().getProject().index("test").getMappingVersion(), equalTo(previousVersion));
+    }
+
+    public void testUpdateSettings() throws Exception {
+        final IndexService indexService = createIndex("test", client().admin().indices().prepareCreate("test"));
+        final long previousVersion = indexService.getMetadata().getSettingsVersion();
+        final MetadataMappingService mappingService = getInstanceFromNode(MetadataMappingService.class);
+        final MetadataMappingService.PutMappingExecutor putMappingExecutor = mappingService.new PutMappingExecutor(
+            new IndexSettingProviders(Set.of(new IndexSettingProvider() {
+                @Override
+                public Settings onUpdateMappings(IndexMetadata indexMetadata, DocumentMapper documentMapper) {
+                    return Settings.builder().put("index.mapping.total_fields.limit", 42).build();
+                }
+            }))
+        );
+        final ClusterService clusterService = getInstanceFromNode(ClusterService.class);
+        final PutMappingClusterStateUpdateRequest request = new PutMappingClusterStateUpdateRequest(
+            TEST_REQUEST_TIMEOUT,
+            TEST_REQUEST_TIMEOUT,
+            """
+                { "properties": { "field": { "type": "text" }}}""",
+            false,
+            indexService.index()
+        );
+        final var resultingState = ClusterStateTaskExecutorUtils.executeAndAssertSuccessful(
+            clusterService.state(),
+            putMappingExecutor,
+            singleTask(request)
+        );
+        assertThat(resultingState.metadata().getDefaultProject().index("test").getSettingsVersion(), equalTo(1 + previousVersion));
+        assertThat(
+            resultingState.metadata().getDefaultProject().index("test").getSettings().get("index.mapping.total_fields.limit"),
+            equalTo("42")
+        );
     }
 
     private static List<MetadataMappingService.PutMappingClusterStateUpdateTask> singleTask(PutMappingClusterStateUpdateRequest request) {

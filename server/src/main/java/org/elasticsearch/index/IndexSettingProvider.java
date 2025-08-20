@@ -16,6 +16,7 @@ import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MapperService;
 
 import java.io.IOException;
@@ -42,7 +43,7 @@ public interface IndexSettingProvider {
      *                                              defined on the create index request
      * @param combinedTemplateMappings              All the mappings resolved from the template that matches
      */
-    Settings getAdditionalIndexSettings(
+    default Settings getAdditionalIndexSettings(
         String indexName,
         @Nullable String dataStreamName,
         @Nullable IndexMode templateIndexMode,
@@ -50,7 +51,21 @@ public interface IndexSettingProvider {
         Instant resolvedAt,
         Settings indexTemplateAndCreateRequestSettings,
         List<CompressedXContent> combinedTemplateMappings
-    );
+    ) {
+        return Settings.EMPTY;
+    }
+
+    /**
+     * Called when the mappings for an index are updated.
+     * This method can be used to update index settings based on the new mappings.
+     *
+     * @param indexMetadata the index metadata for the index being updated
+     * @param documentMapper the document mapper containing the updated mappings
+     * @return additional settings to be applied to the index or {@link Settings#EMPTY} if no additional settings are needed
+     */
+    default Settings onUpdateMappings(IndexMetadata indexMetadata, DocumentMapper documentMapper) {
+        return Settings.EMPTY;
+    }
 
     /**
      * Infrastructure class that holds services that can be used by {@link IndexSettingProvider} instances.

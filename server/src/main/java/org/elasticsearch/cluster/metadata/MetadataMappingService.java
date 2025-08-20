@@ -24,9 +24,12 @@ import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexSettingProvider;
+import org.elasticsearch.index.IndexSettingProviders;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MapperService;
@@ -53,10 +56,14 @@ public class MetadataMappingService {
     private final MasterServiceTaskQueue<PutMappingClusterStateUpdateTask> taskQueue;
 
     @Inject
-    public MetadataMappingService(ClusterService clusterService, IndicesService indicesService) {
+    public MetadataMappingService(
+        ClusterService clusterService,
+        IndicesService indicesService,
+        IndexSettingProviders indexSettingProviders
+    ) {
         this.clusterService = clusterService;
         this.indicesService = indicesService;
-        this.taskQueue = clusterService.createTaskQueue("put-mapping", Priority.HIGH, new PutMappingExecutor());
+        this.taskQueue = clusterService.createTaskQueue("put-mapping", Priority.HIGH, new PutMappingExecutor(indexSettingProviders));
     }
 
     record PutMappingClusterStateUpdateTask(PutMappingClusterStateUpdateRequest request, ActionListener<AcknowledgedResponse> listener)
@@ -96,6 +103,16 @@ public class MetadataMappingService {
     }
 
     class PutMappingExecutor implements ClusterStateTaskExecutor<PutMappingClusterStateUpdateTask> {
+        private final IndexSettingProviders indexSettingProviders;
+
+        PutMappingExecutor() {
+            this(IndexSettingProviders.EMPTY);
+        }
+
+        PutMappingExecutor(IndexSettingProviders indexSettingProviders) {
+            this.indexSettingProviders = indexSettingProviders;
+        }
+
         @Override
         public ClusterState execute(BatchExecutionContext<PutMappingClusterStateUpdateTask> batchExecutionContext) throws Exception {
             Map<Index, MapperService> indexMapperServices = new HashMap<>();
@@ -126,7 +143,7 @@ public class MetadataMappingService {
             }
         }
 
-        private static ClusterState applyRequest(
+        private ClusterState applyRequest(
             ClusterState currentState,
             PutMappingClusterStateUpdateRequest request,
             Map<Index, MapperService> indexMapperServices
@@ -200,9 +217,26 @@ public class MetadataMappingService {
                     indexMetadataBuilder.putMapping(new MappingMetadata(docMapper));
                     indexMetadataBuilder.putInferenceFields(docMapper.mappers().inferenceFields());
                 }
+                boolean updatedSettings = false;
+                final Settings.Builder additionalIndexSettings = Settings.builder();
                 if (updatedMapping) {
                     indexMetadataBuilder.mappingVersion(1 + indexMetadataBuilder.mappingVersion())
                         .mappingsUpdatedVersion(IndexVersion.current());
+                    for (IndexSettingProvider provider : indexSettingProviders.getIndexSettingProviders()) {
+                        Settings newAdditionalSettings = provider.onUpdateMappings(indexMetadata, docMapper);
+                        if (newAdditionalSettings.isEmpty() == false) {
+                            MetadataCreateIndexService.validateAdditionalSettings(provider, newAdditionalSettings, additionalIndexSettings);
+                            additionalIndexSettings.put(newAdditionalSettings);
+                            updatedSettings = true;
+                        }
+                    }
+                }
+                if (updatedSettings) {
+                    final Settings.Builder indexSettingsBuilder = Settings.builder();
+                    indexSettingsBuilder.put(indexMetadata.getSettings());
+                    indexSettingsBuilder.put(additionalIndexSettings.build());
+                    indexMetadataBuilder.settings(indexSettingsBuilder.build());
+                    indexMetadataBuilder.settingsVersion(1 + indexMetadata.getSettingsVersion());
                 }
                 /*
                  * This implicitly increments the index metadata version and builds the index metadata. This means that we need to have

@@ -44,7 +44,8 @@ public class DefaultSettingsProvider implements SettingsProvider {
 
         // Limit the number of allocated processors for all nodes in the cluster by default.
         // This is to ensure that the tests run consistently across different environments.
-        settings.put("node.processors", "2");
+        // commented out to test with the default number of processors on CI
+        // settings.put("node.processors", "2");
 
         // Default the watermarks to absurdly low to prevent the tests from failing on nodes without enough disk space
         settings.put("cluster.routing.allocation.disk.watermark.low", "1b");

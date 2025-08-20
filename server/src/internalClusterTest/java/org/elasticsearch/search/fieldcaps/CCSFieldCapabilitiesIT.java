@@ -195,7 +195,7 @@ public class CCSFieldCapabilitiesIT extends AbstractMultiClustersTestCase {
         assertThat(response.getField("timestamp"), aMapWithSize(1));
         assertThat(response.getField("timestamp"), hasKey("date"));
         if (shouldAlwaysIncludeIndices) {
-            assertThat(response.getField("timestamp").get("date").indices(), arrayContainingInAnyOrder("index-1", "index-2"));
+            assertThat(response.getField("timestamp").get("date").indices(), arrayContainingInAnyOrder(localIndex, remoteIndex));
         } else {
             assertNull(response.getField("timestamp").get("date").indices());
         }
@@ -203,7 +203,7 @@ public class CCSFieldCapabilitiesIT extends AbstractMultiClustersTestCase {
         assertThat(response.getField("field1"), aMapWithSize(1));
         assertThat(response.getField("field1"), hasKey("keyword"));
         if (shouldAlwaysIncludeIndices) {
-            assertThat(response.getField("field1").get("keyword").indices(), arrayContaining("index-1"));
+            assertThat(response.getField("field1").get("keyword").indices(), arrayContaining(localIndex));
         } else {
             assertNull(response.getField("field1").get("keyword").indices());
         }
@@ -211,7 +211,7 @@ public class CCSFieldCapabilitiesIT extends AbstractMultiClustersTestCase {
         assertThat(response.getField("field2"), aMapWithSize(1));
         assertThat(response.getField("field2"), hasKey("long"));
         if (shouldAlwaysIncludeIndices) {
-            assertThat(response.getField("field2").get("long").indices(), arrayContaining("index-2"));
+            assertThat(response.getField("field2").get("long").indices(), arrayContaining(remoteIndex));
         } else {
             assertNull(response.getField("field2").get("long").indices());
         }

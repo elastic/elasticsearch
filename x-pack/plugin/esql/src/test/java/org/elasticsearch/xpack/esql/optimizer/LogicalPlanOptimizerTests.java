@@ -8744,7 +8744,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     }
 
     public void testTranslateDataGroupedByTBucket() {
-        assumeTrue("requires snapshot builds", Build.current().isSnapshot());
+        assumeTrue("requires snapshot builds", EsqlCapabilities.Cap.TBUCKET.isEnabled());
         var query = """
             FROM sample_data
             | STATS min = MIN(@timestamp), max = MAX(@timestamp) BY bucket = TBUCKET(1 hour)
@@ -8791,7 +8791,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     }
 
     public void testTranslateMetricsGroupedByTBucketInTSMode() {
-        assumeTrue("requires snapshot builds", Build.current().isSnapshot());
+        assumeTrue("requires snapshot builds", EsqlCapabilities.Cap.METRICS_COMMAND.isEnabled());
         var query = "TS k8s | STATS sum(rate(network.total_bytes_in)) BY tbucket(1h)";
         var plan = logicalOptimizer.optimize(metricsAnalyzer.analyze(parser.createStatement(query, EsqlTestUtils.TEST_CFG)));
         Limit limit = as(plan, Limit.class);

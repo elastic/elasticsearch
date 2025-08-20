@@ -46,7 +46,7 @@ converted, the processor will still process successfully and leave the field val
 will be updated with the unconverted field value.
 
 N.B. If conversions other than those provided by this processor are required, the
-[`script`](/reference/enrich-processor/script-processor.md) processor may be used to implement the desired behaviour.
+[`script`](/reference/enrich-processor/script-processor.md) processor may be used to implement the desired behavior.
 (The performance of the `script` processor should be as good or better than the `convert` processor.)
 
 $$$convert-options$$$

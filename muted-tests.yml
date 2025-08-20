@@ -612,6 +612,9 @@ tests:
 - class: org.elasticsearch.index.mapper.blockloader.IpFieldBlockLoaderTests
   method: testBlockLoader {preference=Params[syntheticSource=true, preference=NONE]}
   issue: https://github.com/elastic/elasticsearch/issues/133216
+- class: org.elasticsearch.index.mapper.blockloader.IpFieldBlockLoaderTests
+  method: testBlockLoader {preference=Params[syntheticSource=true, preference=DOC_VALUES]}
+  issue: https://github.com/elastic/elasticsearch/issues/133217
 
 # Examples:
 #

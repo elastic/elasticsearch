@@ -13,6 +13,7 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Or;
 import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
+import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
@@ -58,12 +59,12 @@ public final class IgnoreNullMetrics extends Rule<LogicalPlan, LogicalPlan> {
     private Set<Attribute> collectMetrics(LogicalPlan logicalPlan) {
         Set<Attribute> metrics = new HashSet<>();
         logicalPlan.forEachDown(p -> {
-            if (p instanceof UnaryPlan up) {
-                for (Attribute attr : up.inputSet()) {
+            if (p instanceof Aggregate) {
+                p.forEachExpression(Attribute.class, attr -> {
                     if (attr.isMetric()) {
                         metrics.add(attr);
                     }
-                }
+                });
             }
         });
         return metrics;

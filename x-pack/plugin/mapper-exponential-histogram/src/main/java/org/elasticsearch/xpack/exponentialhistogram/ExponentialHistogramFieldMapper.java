@@ -125,7 +125,7 @@ public class ExponentialHistogramFieldMapper extends FieldMapper {
      * This is done to allow access to it at query time without having to load the entire histogram.
      *
      * As a side effect, this is used to avoid storing the count for the zero bucket with the histogram data,
-     * is it can be computed from this value minus the sum of the counts of all other buckets.
+     * as it can be computed from this value minus the sum of the counts of all other buckets.
      *
      * @param fullPath the full path of the mapped field
      * @return the name for the lucene field

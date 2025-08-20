@@ -43,17 +43,17 @@ final class EncodedHistogramData {
         - if there are no buckets, the result is an empty array (byte[0])
         - write the index of the first bucket as ZigZag-VLong
         - write the count of the first bucket as ZigZag-VLong
-        - for each remaining bucket:
-           - if the index of the bucket is exactly previousBucketIndex+1, write the count for the bucket as ZigZag-VLong
+        - for each remaining (non-empty) bucket:
+           - if there was no empty bucket right before this bucket (the index of the bucket is exactly previousBucketIndex+1), write the count for the bucket as ZigZag-VLong
            - Otherwise there is at least one empty bucket between this one and the previous one.
-             We compute that number as n=currentBucketIndex-previousIndex-1 and then write -n out as
+             We compute the number of empty buckets as n=currentBucketIndex-previousIndex-1 and then write -n out as
              ZigZag-VLong followed by the count for the bucket as ZigZag-VLong. The negation is performed to allow to
-             distinguish the cases when decoding.
+             distinguish whether a value represents a bucket count (positive number) or the number of empty buckets (negative number) when decoding.
 
      While this encoding is designed for sparse histograms, it compresses well for dense histograms too.
      For fully dense histograms it effectively results in encoding the index of the first bucket, followed by just an array of counts.
      For sparse histograms it corresponds to an interleaved encoding of the bucket indices with delta compression and the bucket counts.
-     Even partially dense histograms profit from this encoding.
+     Even mostly sparse histograms that have some dense regions profit from this encoding.
      */
 
     static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(EncodedHistogramData.class);

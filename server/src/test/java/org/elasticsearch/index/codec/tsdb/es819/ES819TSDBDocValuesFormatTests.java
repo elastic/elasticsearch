@@ -66,7 +66,23 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class ES819TSDBDocValuesFormatTests extends ES87TSDBDocValuesFormatTests {
 
+<<<<<<< HEAD
     final Codec codec = TestUtil.alwaysDocValuesFormat(new ES819TSDBDocValuesFormat());
+=======
+    private final Codec codec = new Elasticsearch900Lucene101Codec() {
+
+        final ES819TSDBDocValuesFormat docValuesFormat = new ES819TSDBDocValuesFormat(
+            ESTestCase.randomIntBetween(1, 4096),
+            ESTestCase.randomIntBetween(1, 512),
+            random().nextBoolean()
+        );
+
+        @Override
+        public DocValuesFormat getDocValuesFormatForField(String field) {
+            return docValuesFormat;
+        }
+    };
+>>>>>>> origin/main
 
     @Override
     protected Codec getCodec() {

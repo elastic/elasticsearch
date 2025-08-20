@@ -14,29 +14,38 @@ import org.gradle.testkit.runner.TaskOutcome
 class TransportVersionGenerationFuncTest extends AbstractTransportVersionFuncTest {
     def "test setup works"() {
         when:
-        def result = gradleRunner("generateTransportVersionDefinition").build()
-        then:
-        result.task(":myserver:generateTransportVersionDefinition").outcome == TaskOutcome.SUCCESS
-    }
-
-    def "A definition should be generated for the given branches"(List<String> branches) {
-        given:
-        String tvName = "test_tv_patch_ids"
-        referencedTransportVersion(tvName)
-        List<LatestFile> latestBranchesToOriginalIds = readLatestFiles(branches)
-
-        when:
         def result = gradleRunner(
-                ":myserver:validateTransportVersionDefinitions",
-                "generateTransportVersionDefinition",
-                "--name=" + tvName,
-                "--branches=" + branches.join(",")
+                ":myserver:generateTransportVersionDefinition",
+                ":myserver:validateTransportVersionDefinitions"
         ).build()
 
         then:
         result.task(":myserver:generateTransportVersionDefinition").outcome == TaskOutcome.SUCCESS
         result.task(":myserver:validateTransportVersionDefinitions").outcome == TaskOutcome.SUCCESS
+    }
+
+    def "A definition should be generated when specified by an arg but no code reference exists"(List<String> branches) {
+        given:
+        String tvName = "test_tv_patch_ids"
+        List<LatestFile> latestBranchesToOriginalIds = readLatestFiles(branches)
+
+        when: "generation is run with a name specified and no code references"
+        def result = gradleRunner(
+                "generateTransportVersionDefinition",
+                "--name=" + tvName,
+                "--branches=" + branches.join(",")
+        ).build()
+
+        then: "The generation task should succeed and create the definition file"
+        result.task(":myserver:generateTransportVersionDefinition").outcome == TaskOutcome.SUCCESS
         validateDefinitionFile(tvName, latestBranchesToOriginalIds)
+
+        when: "A reference is added"
+        referencedTransportVersion(tvName)
+        def validateResult = gradleRunner("validateTransportVersionDefinitions").build()
+
+        then: "The full validation should succeed now that the reference exists"
+        validateResult.task(":myserver:validateTransportVersionDefinitions").outcome == TaskOutcome.SUCCESS
 
         where:
         branches << [
@@ -45,7 +54,7 @@ class TransportVersionGenerationFuncTest extends AbstractTransportVersionFuncTes
         ]
     }
 
-    def "A definition should be generated when the name isn't specified"() {
+    def "A definition should be generated when the name arg isn't specified but a code reference exists"() {
         given:
         String tvName = "test_tv_patch_ids"
         referencedTransportVersion(tvName)
@@ -65,7 +74,7 @@ class TransportVersionGenerationFuncTest extends AbstractTransportVersionFuncTes
         validateDefinitionFile(tvName, latestBranchesToOriginalIds)
     }
 
-    def "Should fail if branches are omitted and state should remain unaltered"() {
+    def "Generation should fail if the branches arg is omitted, the state should remain unaltered"() {
         when:
         def generateResult = gradleRunner("generateTransportVersionDefinition", "--name=no_branches").buildAndFail()
         def validateResult = gradleRunner("validateTransportVersionDefinitions").build()
@@ -75,11 +84,91 @@ class TransportVersionGenerationFuncTest extends AbstractTransportVersionFuncTes
         validateResult.task(":myserver:validateTransportVersionDefinitions").outcome == TaskOutcome.SUCCESS
     }
 
+    def "Latest file modifications should be reverted"(
+            List<String> branchesParam,
+            List<String> latestFilesModified,
+            String name
+    ) {
+        given:
+        def originalLatestFiles = latestFilesModified.stream().map { readLatestFile(it) }.toList()
+
+        when: "The latest files are modified then generation is run without a name"
+        originalLatestFiles.forEach {
+            latestTransportVersion(it.branch, it.name + "_modification", (it.id + 1).toString())
+        }
+        def args = [
+                ":myserver:validateTransportVersionDefinitions",
+                ":myserver:generateTransportVersionDefinition"
+        ]
+        if (branchesParam != null) {
+            args.add("--branches=" + branchesParam.join(","))
+        }
+        if (name != null) {
+            referencedTransportVersion(name)
+        }
+        def result = gradleRunner(args.toArray(new String[0])).build()
+
+        then: "The generation and validation tasks should succeed, and the latest files should be reverted"
+        result.task(":myserver:generateTransportVersionDefinition").outcome == TaskOutcome.SUCCESS
+        result.task(":myserver:validateTransportVersionDefinitions").outcome == TaskOutcome.SUCCESS
+        originalLatestFiles.forEach { originalLatest ->
+            def latest = readLatestFile(originalLatest.branch)
+            assert latest.branch == originalLatest.branch
+            assert latest.id == originalLatest.id
+        }
+
+        where:
+        branchesParam  | latestFilesModified | name
+        null           | ["9.2"]             | null
+        null           | ["9.2", "9.1"]      | null
+        ["9.2", "9.1"] | ["9.2"]             | null
+        ["9.2"]        | ["9.1"]             | "test_tv" // TODO legitimate bug?
+    }
+
+    // TODO this test is finding a legitimate bug
+    def "definitions that are no longer referenced should be deleted"(List<String> branches) {
+        given:
+        String definitionName = "test_tv_patch_ids"
+        referencedTransportVersion(definitionName)
+        List<LatestFile> originalLatestFiles = readLatestFiles(branches)
+
+        when: "The definition is generated"
+        def result = gradleRunner(
+                ":myserver:validateTransportVersionDefinitions",
+                ":myserver:generateTransportVersionDefinition",
+                "--name=" + definitionName,
+                "--branches=" + branches.join(",")
+        ).build()
+
+        then: "The generation task should succeed and create the definition file"
+        result.task(":myserver:generateTransportVersionDefinition").outcome == TaskOutcome.SUCCESS
+        result.task(":myserver:validateTransportVersionDefinitions").outcome == TaskOutcome.SUCCESS
+        validateDefinitionFile(definitionName, originalLatestFiles)
+
+        when: "The reference is removed and the generation is run again"
+        deleteTransportVersionReference(definitionName)
+        def secondResult = gradleRunner(
+                ":myserver:validateTransportVersionDefinitions",
+                ":myserver:generateTransportVersionDefinition",
+                "--branches=" + branches.join(",")
+        ).build()
+
+        then: "The generation task should succeed and the definition file should be deleted"
+        !file("myserver/src/main/resources/transport/definitions/named/${definitionName}.csv").exists()
+        secondResult.task(":myserver:generateTransportVersionDefinition").outcome == TaskOutcome.SUCCESS
+        secondResult.task(":myserver:validateTransportVersionDefinitions").outcome == TaskOutcome.SUCCESS
+
+        where:
+        branches << [
+                ["9.2"],
+                ["9.2", "9.1"]
+        ]
+    }
+
 
     /*
     TODO: Add tests that check that:
-        - TVs added ontop of main in git, but are no longer referenced, are deleted
-        - name without branches param should fail
+        -
         - a latest file without a corresponding definition file should be reverted to main
         - a merge conflict should be resolved, resulting in regeneration of the latest file.
         -

@@ -127,9 +127,10 @@ public abstract class TransportVersionResourcesService implements BuildService<T
         List<TransportVersionDefinition> changedDefinitions = new ArrayList<>();
         String namedPrefix = NAMED_DIR.toString();
         for (String changedPath : getChangedResources()) {
-            if (changedPath.startsWith(namedPrefix) == false) {
+            if (changedPath.contains(namedPrefix) == false) { // TODO make this more robust
                 continue;
             }
+            // TODO why are we getting the main file here? Shouldn't we just read the changed file directly?
             TransportVersionDefinition definition = getMainFile(changedPath, TransportVersionDefinition::fromString);
             changedDefinitions.add(definition);
         }
@@ -224,6 +225,7 @@ public abstract class TransportVersionResourcesService implements BuildService<T
     private Set<String> getChangedResources() {
         if (changedResources.get() == null) {
             synchronized (changedResources) {
+                // gitCommand("add", "."); // TODO this finds the files that have been added without being committed.
                 String output = gitCommand("diff", "--name-only", "main", ".");
 
                 HashSet<String> resources = new HashSet<>();

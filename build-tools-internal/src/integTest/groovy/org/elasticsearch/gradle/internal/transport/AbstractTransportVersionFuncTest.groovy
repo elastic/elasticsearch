@@ -34,6 +34,13 @@ class AbstractTransportVersionFuncTest extends AbstractGradleFuncTest {
         }
     }
 
+    def deleteJavaSource(String project, String packageName, String className) {
+        String packageSlashes = packageName.replace('.', '/')
+        def filePath = "${project}/src/main/java/${packageSlashes}/${className}.java"
+        assert file(filePath).exists(): "File does not exist: ${filePath}"
+        file(filePath).delete()
+    }
+
     def namedTransportVersion(String name, String ids) {
         javaResource("myserver", "transport/definitions/named/" + name + ".csv", ids)
     }
@@ -59,6 +66,10 @@ class AbstractTransportVersionFuncTest extends AbstractGradleFuncTest {
 
     def referencedTransportVersion(String name) {
         return referencedTransportVersion(name, "Test${name.capitalize()}")
+    }
+
+    def deleteTransportVersionReference(String name) {
+        deleteJavaSource("myserver", "org.elasticsearch", "Test${name.capitalize()}")
     }
 
     def latestTransportVersion(String branch, String name, String id) {

@@ -195,7 +195,7 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
             double affinityThreshold;
 
             if (stdDev > averageAffinity) {
-                // adjust calculation when distribution is very skewed (e.g., if (stdDev > averageAffinity) )
+                // adjust calculation when distribution is very skewed
                 double minAffinity = Arrays.stream(affinityScores).min().orElse(Double.NaN);
                 maxAffinity = Arrays.stream(affinityScores).max().orElse(Double.NaN);
                 double lowerAffinity = (minAffinity + averageAffinity) * 0.5;
@@ -232,6 +232,8 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
 
                     // distribute the budget according to : budgetᵢ = total_budget × (affinityᵢ × |vectors|ᵢ) / ∑ (affinityⱼ × |vectors|ⱼ)
                     int segmentBudget = (int) (totalBudget * (score * segmentAffinity.numVectors) / scoreVectorsSum);
+
+                    // TODO : should we always grant a min budget for each affine-enough segment
                     if (segmentBudget > 0) {
                         tasks.add(
                             () -> searchLeaf(context, filterWeight, knnCollectorManager, adjustedVisitRatio, Math.max(1, segmentBudget))

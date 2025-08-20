@@ -8744,7 +8744,6 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     }
 
     public void testTranslateDataGroupedByTBucket() {
-        assumeTrue("requires snapshot builds", EsqlCapabilities.Cap.TBUCKET.isEnabled());
         var query = """
             FROM sample_data
             | STATS min = MIN(@timestamp), max = MAX(@timestamp) BY bucket = TBUCKET(1 hour)

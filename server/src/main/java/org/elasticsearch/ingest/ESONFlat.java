@@ -34,7 +34,7 @@ public record ESONFlat(List<ESONEntry> keys, ESONSource.Values values, AtomicRef
 
     public static ESONFlat readFrom(StreamInput in) throws IOException {
         BytesReference keys = in.readBytesReference();
-        return new ESONFlat(readKeys(in), new ESONSource.Values(in.readBytesReference()), new AtomicReference<>(keys));
+        return new ESONFlat(readKeys(keys.streamInput()), new ESONSource.Values(in.readBytesReference()), new AtomicReference<>(keys));
     }
 
     public void writeTo(StreamOutput out) throws IOException {
@@ -43,8 +43,6 @@ public record ESONFlat(List<ESONEntry> keys, ESONSource.Values values, AtomicRef
     }
 
     private static List<ESONEntry> readKeys(StreamInput in) throws IOException {
-        // TODO: Because bytes reference
-        in.readVInt();
         int expected = in.readVInt();
         ArrayList<ESONEntry> keys = new ArrayList<>(expected);
         for (int i = 0; i < expected; ++i) {

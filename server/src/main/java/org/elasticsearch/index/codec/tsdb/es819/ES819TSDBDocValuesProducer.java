@@ -1304,6 +1304,11 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
                     public long longValue() throws IOException {
                         return 0L;  // Only one ordinal!
                     }
+
+                    @Override
+                    public int docIDRunEnd() throws IOException {
+                        return disi.docIDRunEnd();
+                    }
                 };
             }
         } else if (entry.sortedOrdinals != null) {
@@ -1325,6 +1330,11 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
                     @Override
                     public long longValue() {
                         return ordinalsReader.readValueAndAdvance(doc);
+                    }
+
+                    @Override
+                    public int docIDRunEnd() throws IOException {
+                        return maxDoc;
                     }
                 };
             } else {

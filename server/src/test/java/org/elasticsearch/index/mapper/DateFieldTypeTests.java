@@ -376,7 +376,7 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
         Query expected2 = SortedNumericDocValuesField.newSlowRangeQuery("field", instant1, instant2);
         assertEquals(
             expected2,
-            ft2.rangeQuery(date1, date2, true, true, null, null, null, context).rewrite(newSearcher(new MultiReader()))
+            ft2.rangeQuery(date1, date2, true, true, null, null, null, context)
         );
 
         instant1 = nowInMillis;
@@ -419,7 +419,7 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
         Query expected2 = SortedNumericDocValuesField.newSlowRangeQuery("field", instant1, instant2);
         assertEquals(
             expected2,
-            ft2.rangeQuery(date1, date2, true, true, null, null, null, context).rewrite(newSearcher(new MultiReader()))
+            ft2.rangeQuery(date1, date2, true, true, null, null, null, context)
         );
 
         instant1 = nowInMillis;
@@ -459,7 +459,7 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
 
         DateFieldType ft2 = new DateFieldType("field", false);
         Query expected2 = SortedNumericDocValuesField.newSlowRangeQuery("field", instant1, instant2);
-        assertEquals(expected2, ft2.rangeQuery(instant1, instant2, true, true, context).rewrite(newSearcher(new MultiReader())));
+        assertEquals(expected2, ft2.rangeQuery(instant1, instant2, true, true, context));
 
         assertIndexUnsearchable(
             Resolution.MILLISECONDS,
@@ -487,7 +487,7 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
         Query expected2 = SortedNumericDocValuesField.newSlowRangeQuery("field", instant1, instant2);
         assertEquals(
             expected2,
-            ft2.rangeQuery(date1, date2, true, true, null, null, null, context).rewrite(newSearcher(new MultiReader()))
+            ft2.rangeQuery(date1, date2, true, true, null, null, null, context)
         );
 
         assertIndexUnsearchable(Resolution.NANOSECONDS, (unsearchable) -> unsearchable.rangeQuery(instant1, instant2, true, true, context));

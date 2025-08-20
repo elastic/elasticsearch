@@ -34,13 +34,13 @@ import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.SortedNumericSortField;
 import org.apache.lucene.store.Directory;
-import org.apache.lucene.tests.util.TestUtil;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.index.codec.Elasticsearch900Lucene101Codec;
+import org.elasticsearch.index.codec.Elasticsearch92Lucene103Codec;
 import org.elasticsearch.index.codec.tsdb.ES87TSDBDocValuesFormatTests;
 import org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesProducer.BaseDenseNumericValues;
 import org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesProducer.BaseSortedDocValues;
@@ -66,10 +66,7 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class ES819TSDBDocValuesFormatTests extends ES87TSDBDocValuesFormatTests {
 
-<<<<<<< HEAD
-    final Codec codec = TestUtil.alwaysDocValuesFormat(new ES819TSDBDocValuesFormat());
-=======
-    private final Codec codec = new Elasticsearch900Lucene101Codec() {
+    private final Codec codec = new Elasticsearch92Lucene103Codec() {
 
         final ES819TSDBDocValuesFormat docValuesFormat = new ES819TSDBDocValuesFormat(
             ESTestCase.randomIntBetween(1, 4096),
@@ -82,7 +79,6 @@ public class ES819TSDBDocValuesFormatTests extends ES87TSDBDocValuesFormatTests 
             return docValuesFormat;
         }
     };
->>>>>>> origin/main
 
     @Override
     protected Codec getCodec() {

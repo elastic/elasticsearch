@@ -90,7 +90,30 @@ toc:
           - file: esql/esql-commands.md
             children:
               - file: esql/commands/source-commands.md
+                children:
+                  - file: esql/commands/from.md
+                  - file: esql/commands/row.md
+                  - file: esql/commands/show.md
               - file: esql/commands/processing-commands.md
+                children:
+                  - file: esql/commands/change-point.md
+                  - file: esql/commands/completion.md
+                  - file: esql/commands/dissect.md
+                  - file: esql/commands/drop.md
+                  - file: esql/commands/enrich.md
+                  - file: esql/commands/eval.md
+                  - file: esql/commands/fork.md
+                  - file: esql/commands/grok.md
+                  - file: esql/commands/keep.md
+                  - file: esql/commands/limit.md
+                  - file: esql/commands/lookup-join.md
+                  - file: esql/commands/mv_expand.md
+                  - file: esql/commands/rename.md
+                  - file: esql/commands/rerank.md
+                  - file: esql/commands/sample.md
+                  - file: esql/commands/sort.md
+                  - file: esql/commands/stats-by.md
+                  - file: esql/commands/where.md
           - file: esql/esql-functions-operators.md
             children:
               - file: esql/functions-operators/aggregation-functions.md

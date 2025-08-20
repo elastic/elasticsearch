@@ -23,3 +23,66 @@ redirects:
         anchors: {'rule-retriever'}
       - to: 'reference/elasticsearch/rest-apis/retrievers/pinned-retriever.md'
         anchors: {'pinned-retriever'}
+  
+  # ESQL command redirects - split from aggregate pages to individual pages
+  'reference/query-languages/esql/commands/source-commands.md':
+    to: 'reference/query-languages/esql/commands/source-commands.md'
+    anchors: {} # pass-through unlisted anchors in the `many` ruleset
+    many:
+      - to: 'reference/query-languages/esql/commands/from.md'
+        anchors: {'esql-from'}
+      - to: 'reference/query-languages/esql/commands/row.md'
+        anchors: {'esql-row'}
+      - to: 'reference/query-languages/esql/commands/show.md'
+        anchors: {'esql-show'}
+  
+  # Handle old anchor references to esql-commands.md
+  'reference/query-languages/esql/esql-commands.md':
+    to: 'reference/query-languages/esql/esql-commands.md'
+    anchors: {} # pass-through unlisted anchors in the `many` ruleset
+    many:
+      - to: 'reference/query-languages/esql/commands/source-commands.md'
+        anchors: {'esql-source-commands'}
+      - to: 'reference/query-languages/esql/commands/processing-commands.md'
+        anchors: {'esql-processing-commands'}
+  
+  'reference/query-languages/esql/commands/processing-commands.md':
+    to: 'reference/query-languages/esql/commands/processing-commands.md'
+    anchors: {} # pass-through unlisted anchors in the `many` ruleset
+    many:
+      - to: 'reference/query-languages/esql/commands/change-point.md'
+        anchors: {'esql-change_point'}
+      - to: 'reference/query-languages/esql/commands/completion.md'
+        anchors: {'esql-completion'}
+      - to: 'reference/query-languages/esql/commands/dissect.md'
+        anchors: {'esql-dissect'}
+      - to: 'reference/query-languages/esql/commands/drop.md'
+        anchors: {'esql-drop'}
+      - to: 'reference/query-languages/esql/commands/enrich.md'
+        anchors: {'esql-enrich'}
+      - to: 'reference/query-languages/esql/commands/eval.md'
+        anchors: {'esql-eval'}
+      - to: 'reference/query-languages/esql/commands/fork.md'
+        anchors: {'esql-fork'}
+      - to: 'reference/query-languages/esql/commands/grok.md'
+        anchors: {'esql-grok'}
+      - to: 'reference/query-languages/esql/commands/keep.md'
+        anchors: {'esql-keep'}
+      - to: 'reference/query-languages/esql/commands/limit.md'
+        anchors: {'esql-limit'}
+      - to: 'reference/query-languages/esql/commands/lookup-join.md'
+        anchors: {'esql-lookup-join'}
+      - to: 'reference/query-languages/esql/commands/mv_expand.md'
+        anchors: {'esql-mv_expand'}
+      - to: 'reference/query-languages/esql/commands/rename.md'
+        anchors: {'esql-rename'}
+      - to: 'reference/query-languages/esql/commands/rerank.md'
+        anchors: {'esql-rerank'}
+      - to: 'reference/query-languages/esql/commands/sample.md'
+        anchors: {'esql-sample'}
+      - to: 'reference/query-languages/esql/commands/sort.md'
+        anchors: {'esql-sort'}
+      - to: 'reference/query-languages/esql/commands/stats-by.md'
+        anchors: {'esql-stats-by'}
+      - to: 'reference/query-languages/esql/commands/where.md'
+        anchors: {'esql-where'}

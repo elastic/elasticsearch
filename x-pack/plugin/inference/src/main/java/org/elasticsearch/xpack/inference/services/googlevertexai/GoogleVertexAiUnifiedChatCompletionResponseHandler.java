@@ -20,7 +20,7 @@ import org.elasticsearch.xpack.core.inference.results.StreamingUnifiedChatComple
 import org.elasticsearch.xpack.core.inference.results.UnifiedChatCompletionException;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
 import org.elasticsearch.xpack.inference.external.http.retry.ChatCompletionErrorResponseHandler;
-import org.elasticsearch.xpack.inference.external.http.retry.UnifiedChatCompletionErrorParser;
+import org.elasticsearch.xpack.inference.external.http.retry.UnifiedChatCompletionErrorParserContract;
 import org.elasticsearch.xpack.inference.external.http.retry.UnifiedChatCompletionErrorResponse;
 import org.elasticsearch.xpack.inference.external.request.Request;
 import org.elasticsearch.xpack.inference.external.response.streaming.ServerSentEventParser;
@@ -65,7 +65,7 @@ public class GoogleVertexAiUnifiedChatCompletionResponseHandler extends GoogleVe
         return chatCompletionErrorResponseHandler.buildChatCompletionError(message, request, result);
     }
 
-    private static class GoogleVertexAiErrorParser implements UnifiedChatCompletionErrorParser {
+    private static class GoogleVertexAiErrorParser implements UnifiedChatCompletionErrorParserContract {
 
         @Override
         public UnifiedChatCompletionErrorResponse parse(HttpResult result) {

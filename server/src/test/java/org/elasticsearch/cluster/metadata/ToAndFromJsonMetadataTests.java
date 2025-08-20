@@ -63,7 +63,7 @@ public class ToAndFromJsonMetadataTests extends ESTestCase {
 
         ReservedStateMetadata reservedStateMetadata1 = ReservedStateMetadata.builder("namespace_two").putHandler(hmTwo).build();
 
-        Metadata metadata = Metadata.builder()
+        ProjectMetadata project = ProjectMetadata.builder(ProjectId.DEFAULT)
             .put(
                 IndexTemplateMetadata.builder("foo")
                     .patterns(Collections.singletonList("bar"))
@@ -133,7 +133,7 @@ public class ToAndFromJsonMetadataTests extends ESTestCase {
 
         XContentBuilder builder = JsonXContent.contentBuilder();
         builder.startObject();
-        ChunkedToXContent.wrapAsToXContent(metadata)
+        ChunkedToXContent.wrapAsToXContent(Metadata.builder().put(project).build())
             .toXContent(
                 builder,
                 new ToXContent.MapParams(Map.of("binary", "true", Metadata.CONTEXT_MODE_PARAM, Metadata.CONTEXT_MODE_GATEWAY))
@@ -146,30 +146,31 @@ public class ToAndFromJsonMetadataTests extends ESTestCase {
         }
 
         // templates
-        assertThat(parsedMetadata.getProject().templates().get("foo").name(), is("foo"));
-        assertThat(parsedMetadata.getProject().templates().get("foo").patterns(), is(Collections.singletonList("bar")));
-        assertThat(parsedMetadata.getProject().templates().get("foo").settings().get("index.setting1"), is("value1"));
-        assertThat(parsedMetadata.getProject().templates().get("foo").settings().getByPrefix("index.").get("setting2"), is("value2"));
-        assertThat(parsedMetadata.getProject().templates().get("foo").aliases().size(), equalTo(3));
-        assertThat(parsedMetadata.getProject().templates().get("foo").aliases().get("alias-bar1").alias(), equalTo("alias-bar1"));
-        assertThat(parsedMetadata.getProject().templates().get("foo").aliases().get("alias-bar2").alias(), equalTo("alias-bar2"));
+        final var parsedProject = parsedMetadata.getProject(ProjectId.DEFAULT);
+        assertThat(parsedProject.templates().get("foo").name(), is("foo"));
+        assertThat(parsedProject.templates().get("foo").patterns(), is(Collections.singletonList("bar")));
+        assertThat(parsedProject.templates().get("foo").settings().get("index.setting1"), is("value1"));
+        assertThat(parsedProject.templates().get("foo").settings().getByPrefix("index.").get("setting2"), is("value2"));
+        assertThat(parsedProject.templates().get("foo").aliases().size(), equalTo(3));
+        assertThat(parsedProject.templates().get("foo").aliases().get("alias-bar1").alias(), equalTo("alias-bar1"));
+        assertThat(parsedProject.templates().get("foo").aliases().get("alias-bar2").alias(), equalTo("alias-bar2"));
         assertThat(
-            parsedMetadata.getProject().templates().get("foo").aliases().get("alias-bar2").filter().string(),
+            parsedProject.templates().get("foo").aliases().get("alias-bar2").filter().string(),
             equalTo("{\"term\":{\"user\":\"kimchy\"}}")
         );
-        assertThat(parsedMetadata.getProject().templates().get("foo").aliases().get("alias-bar3").alias(), equalTo("alias-bar3"));
-        assertThat(parsedMetadata.getProject().templates().get("foo").aliases().get("alias-bar3").indexRouting(), equalTo("routing-bar"));
-        assertThat(parsedMetadata.getProject().templates().get("foo").aliases().get("alias-bar3").searchRouting(), equalTo("routing-bar"));
+        assertThat(parsedProject.templates().get("foo").aliases().get("alias-bar3").alias(), equalTo("alias-bar3"));
+        assertThat(parsedProject.templates().get("foo").aliases().get("alias-bar3").indexRouting(), equalTo("routing-bar"));
+        assertThat(parsedProject.templates().get("foo").aliases().get("alias-bar3").searchRouting(), equalTo("routing-bar"));
 
         // component template
-        assertNotNull(parsedMetadata.getProject().componentTemplates().get("component_template"));
-        assertThat(parsedMetadata.getProject().componentTemplates().get("component_template").version(), is(5L));
+        assertNotNull(parsedProject.componentTemplates().get("component_template"));
+        assertThat(parsedProject.componentTemplates().get("component_template").version(), is(5L));
         assertThat(
-            parsedMetadata.getProject().componentTemplates().get("component_template").metadata(),
+            parsedProject.componentTemplates().get("component_template").metadata(),
             equalTo(Collections.singletonMap("my_meta", Collections.singletonMap("foo", "bar")))
         );
         assertThat(
-            parsedMetadata.getProject().componentTemplates().get("component_template").template(),
+            parsedProject.componentTemplates().get("component_template").template(),
             equalTo(
                 new Template(
                     Settings.builder().put("setting", "value").build(),
@@ -180,20 +181,17 @@ public class ToAndFromJsonMetadataTests extends ESTestCase {
         );
 
         // index template v2
-        assertNotNull(parsedMetadata.getProject().templatesV2().get("index_templatev2"));
-        assertThat(parsedMetadata.getProject().templatesV2().get("index_templatev2").priority(), is(5L));
-        assertThat(parsedMetadata.getProject().templatesV2().get("index_templatev2").version(), is(4L));
-        assertThat(parsedMetadata.getProject().templatesV2().get("index_templatev2").indexPatterns(), is(Arrays.asList("foo", "bar*")));
+        assertNotNull(parsedProject.templatesV2().get("index_templatev2"));
+        assertThat(parsedProject.templatesV2().get("index_templatev2").priority(), is(5L));
+        assertThat(parsedProject.templatesV2().get("index_templatev2").version(), is(4L));
+        assertThat(parsedProject.templatesV2().get("index_templatev2").indexPatterns(), is(Arrays.asList("foo", "bar*")));
+        assertThat(parsedProject.templatesV2().get("index_templatev2").composedOf(), is(Collections.singletonList("component_template")));
         assertThat(
-            parsedMetadata.getProject().templatesV2().get("index_templatev2").composedOf(),
-            is(Collections.singletonList("component_template"))
-        );
-        assertThat(
-            parsedMetadata.getProject().templatesV2().get("index_templatev2").metadata(),
+            parsedProject.templatesV2().get("index_templatev2").metadata(),
             equalTo(Collections.singletonMap("my_meta", Collections.singletonMap("potato", "chicken")))
         );
         assertThat(
-            parsedMetadata.getProject().templatesV2().get("index_templatev2").template(),
+            parsedProject.templatesV2().get("index_templatev2").template(),
             equalTo(
                 new Template(
                     Settings.builder().put("setting", "value").build(),
@@ -204,12 +202,12 @@ public class ToAndFromJsonMetadataTests extends ESTestCase {
         );
 
         // data streams
-        assertNotNull(parsedMetadata.getProject().dataStreams().get("data-stream1"));
-        assertThat(parsedMetadata.getProject().dataStreams().get("data-stream1").getName(), is("data-stream1"));
-        assertThat(parsedMetadata.getProject().dataStreams().get("data-stream1").getIndices(), contains(idx1.getIndex()));
-        assertNotNull(parsedMetadata.getProject().dataStreams().get("data-stream2"));
-        assertThat(parsedMetadata.getProject().dataStreams().get("data-stream2").getName(), is("data-stream2"));
-        assertThat(parsedMetadata.getProject().dataStreams().get("data-stream2").getIndices(), contains(idx2.getIndex()));
+        assertNotNull(parsedProject.dataStreams().get("data-stream1"));
+        assertThat(parsedProject.dataStreams().get("data-stream1").getName(), is("data-stream1"));
+        assertThat(parsedProject.dataStreams().get("data-stream1").getIndices(), contains(idx1.getIndex()));
+        assertNotNull(parsedProject.dataStreams().get("data-stream2"));
+        assertThat(parsedProject.dataStreams().get("data-stream2").getName(), is("data-stream2"));
+        assertThat(parsedProject.dataStreams().get("data-stream2").getIndices(), contains(idx2.getIndex()));
 
         // reserved 'operator' metadata
         assertEquals(reservedStateMetadata, parsedMetadata.reservedStateMetadata().get(reservedStateMetadata.namespace()));
@@ -364,20 +362,23 @@ public class ToAndFromJsonMetadataTests extends ESTestCase {
             .clusterUUID("clusterUUID")
             .coordinationMetadata(CoordinationMetadata.builder().build())
             .put(
-                IndexMetadata.builder("index")
-                    .state(IndexMetadata.State.OPEN)
-                    .settings(Settings.builder().put(SETTING_VERSION_CREATED, IndexVersion.current()))
-                    .putMapping(
-                        new MappingMetadata(
-                            "type",
-                            // the type name is the root value,
-                            // the original logic in ClusterState.toXContent will reduce
-                            Map.of("type", Map.of("key", "value"))
-                        )
+                ProjectMetadata.builder(ProjectId.DEFAULT)
+                    .put(
+                        IndexMetadata.builder("index")
+                            .state(IndexMetadata.State.OPEN)
+                            .settings(Settings.builder().put(SETTING_VERSION_CREATED, IndexVersion.current()))
+                            .putMapping(
+                                new MappingMetadata(
+                                    "type",
+                                    // the type name is the root value,
+                                    // the original logic in ClusterState.toXContent will reduce
+                                    Map.of("type", Map.of("key", "value"))
+                                )
+                            )
+                            .numberOfShards(1)
+                            .primaryTerm(0, 1L)
+                            .numberOfReplicas(2)
                     )
-                    .numberOfShards(1)
-                    .primaryTerm(0, 1L)
-                    .numberOfReplicas(2)
             )
             .build();
         XContentBuilder builder = JsonXContent.contentBuilder().prettyPrint();
@@ -932,24 +933,27 @@ public class ToAndFromJsonMetadataTests extends ESTestCase {
             .persistentSettings(Settings.builder().put(SETTING_VERSION_CREATED, IndexVersion.current()).build())
             .transientSettings(Settings.builder().put(SETTING_VERSION_CREATED, IndexVersion.current()).build())
             .put(
-                IndexMetadata.builder("index")
-                    .state(IndexMetadata.State.OPEN)
-                    .settings(Settings.builder().put(SETTING_VERSION_CREATED, IndexVersion.current()))
-                    .putMapping(new MappingMetadata("type", Map.of("type1", Map.of("key", "value"))))
-                    .putAlias(AliasMetadata.builder("alias").indexRouting("indexRouting").build())
-                    .numberOfShards(1)
-                    .primaryTerm(0, 1L)
-                    .putInSyncAllocationIds(0, Set.of("allocationId"))
-                    .numberOfReplicas(2)
-                    .putRolloverInfo(new RolloverInfo("rolloveAlias", List.of(), 1L))
-            )
-            .put(
-                IndexTemplateMetadata.builder("template")
-                    .patterns(List.of("pattern1", "pattern2"))
-                    .order(0)
-                    .settings(Settings.builder().put(SETTING_VERSION_CREATED, IndexVersion.current()))
-                    .putMapping("type", "{ \"key1\": {} }")
-                    .build()
+                ProjectMetadata.builder(ProjectId.DEFAULT)
+                    .put(
+                        IndexMetadata.builder("index")
+                            .state(IndexMetadata.State.OPEN)
+                            .settings(Settings.builder().put(SETTING_VERSION_CREATED, IndexVersion.current()))
+                            .putMapping(new MappingMetadata("type", Map.of("type1", Map.of("key", "value"))))
+                            .putAlias(AliasMetadata.builder("alias").indexRouting("indexRouting").build())
+                            .numberOfShards(1)
+                            .primaryTerm(0, 1L)
+                            .putInSyncAllocationIds(0, Set.of("allocationId"))
+                            .numberOfReplicas(2)
+                            .putRolloverInfo(new RolloverInfo("rolloveAlias", List.of(), 1L))
+                    )
+                    .put(
+                        IndexTemplateMetadata.builder("template")
+                            .patterns(List.of("pattern1", "pattern2"))
+                            .order(0)
+                            .settings(Settings.builder().put(SETTING_VERSION_CREATED, IndexVersion.current()))
+                            .putMapping("type", "{ \"key1\": {} }")
+                            .build()
+                    )
             )
             .build();
     }

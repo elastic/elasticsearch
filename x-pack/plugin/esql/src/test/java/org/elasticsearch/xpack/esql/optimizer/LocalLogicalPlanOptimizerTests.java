@@ -13,6 +13,7 @@ import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
+import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
@@ -30,6 +31,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.type.InvalidMappedField;
+import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Min;
@@ -37,12 +39,15 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Case;
 import org.elasticsearch.xpack.esql.expression.function.scalar.nulls.Coalesce;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.StartsWith;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.RLike;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.RLikeList;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.WildcardLike;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.WildcardLikeList;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Add;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.OptimizerRules;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.local.InferIsNotNull;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
@@ -59,10 +64,12 @@ import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.local.EmptyLocalSupplier;
 import org.elasticsearch.xpack.esql.plan.logical.local.EsqlProject;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
+import org.elasticsearch.xpack.esql.rule.RuleExecutor;
 import org.elasticsearch.xpack.esql.stats.SearchStats;
 import org.hamcrest.Matchers;
 import org.junit.BeforeClass;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -88,6 +95,9 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.statsForMissingField;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.unboundLogicalOptimizerContext;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
 import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
+import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
+import static org.elasticsearch.xpack.esql.optimizer.rules.logical.OptimizerRules.TransformDirection.DOWN;
+import static org.elasticsearch.xpack.esql.optimizer.rules.logical.OptimizerRules.TransformDirection.UP;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -340,7 +350,11 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
             new MockFieldAttributeCommand(
                 EMPTY,
                 new Row(EMPTY, List.of()),
-                new FieldAttribute(EMPTY, "last_name", new EsField("last_name", DataType.KEYWORD, Map.of(), true))
+                new FieldAttribute(
+                    EMPTY,
+                    "last_name",
+                    new EsField("last_name", DataType.KEYWORD, Map.of(), true, EsField.TimeSeriesFieldType.NONE)
+                )
             ),
             testStats
         );
@@ -494,7 +508,7 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
         Map<String, EsField> large = Maps.newLinkedHashMapWithExpectedSize(size);
         for (int i = 0; i < size; i++) {
             var name = String.format(Locale.ROOT, "field%03d", i);
-            large.put(name, new EsField(name, DataType.INTEGER, emptyMap(), true, false));
+            large.put(name, new EsField(name, DataType.INTEGER, emptyMap(), true, false, EsField.TimeSeriesFieldType.NONE));
         }
 
         SearchStats searchStats = statsForExistingField("field000", "field001", "field002", "field003", "field004");
@@ -665,6 +679,26 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
         var source = as(filter.child(), EsRelation.class);
     }
 
+    /*
+     *Limit[1000[INTEGER],false]
+     * \_Filter[RLikeList(first_name{f}#4, "("VALÜ*", "TEST*")", true)]
+     *  \_EsRelation[test][_meta_field{f}#9, emp_no{f}#3, first_name{f}#4, gen..]
+     */
+    public void testReplaceUpperStringCasinqWithInsensitiveRLikeList() {
+        var plan = localPlan("FROM test | WHERE TO_UPPER(TO_LOWER(TO_UPPER(first_name))) RLIKE (\"VALÜ*\", \"TEST*\")");
+
+        var limit = as(plan, Limit.class);
+        var filter = as(limit.child(), Filter.class);
+        var rLikeList = as(filter.condition(), RLikeList.class);
+        var field = as(rLikeList.field(), FieldAttribute.class);
+        assertThat(field.fieldName().string(), is("first_name"));
+        assertEquals(2, rLikeList.pattern().patternList().size());
+        assertThat(rLikeList.pattern().patternList().get(0).pattern(), is("VALÜ*"));
+        assertThat(rLikeList.pattern().patternList().get(1).pattern(), is("TEST*"));
+        assertThat(rLikeList.caseInsensitive(), is(true));
+        var source = as(filter.child(), EsRelation.class);
+    }
+
     // same plan as above, but lower case pattern
     public void testReplaceLowerStringCasingWithInsensitiveRLike() {
         var plan = localPlan("FROM test | WHERE TO_LOWER(TO_UPPER(first_name)) RLIKE \"valü*\"");
@@ -676,6 +710,35 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
         assertThat(field.fieldName().string(), is("first_name"));
         assertThat(rlike.pattern().pattern(), is("valü*"));
         assertThat(rlike.caseInsensitive(), is(true));
+        var source = as(filter.child(), EsRelation.class);
+    }
+
+    // same plan as above, but lower case pattern and list of patterns
+    public void testReplaceLowerStringCasingWithInsensitiveRLikeList() {
+        var plan = localPlan("FROM test | WHERE TO_LOWER(TO_UPPER(first_name)) RLIKE (\"valü*\", \"test*\")");
+        var limit = as(plan, Limit.class);
+        var filter = as(limit.child(), Filter.class);
+        var rLikeList = as(filter.condition(), RLikeList.class);
+        var field = as(rLikeList.field(), FieldAttribute.class);
+        assertThat(field.fieldName().string(), is("first_name"));
+        assertEquals(2, rLikeList.pattern().patternList().size());
+        assertThat(rLikeList.pattern().patternList().get(0).pattern(), is("valü*"));
+        assertThat(rLikeList.pattern().patternList().get(1).pattern(), is("test*"));
+        assertThat(rLikeList.caseInsensitive(), is(true));
+        var source = as(filter.child(), EsRelation.class);
+    }
+
+    // same plan as above, but lower case pattern and list of patterns, one of which is upper case
+    public void testReplaceLowerStringCasingWithMixedCaseRLikeList() {
+        var plan = localPlan("FROM test | WHERE TO_LOWER(TO_UPPER(first_name)) RLIKE (\"valü*\", \"TEST*\")");
+        var limit = as(plan, Limit.class);
+        var filter = as(limit.child(), Filter.class);
+        var rLikeList = as(filter.condition(), RLikeList.class);
+        var field = as(rLikeList.field(), FieldAttribute.class);
+        assertThat(field.fieldName().string(), is("first_name"));
+        assertEquals(1, rLikeList.pattern().patternList().size());
+        assertThat(rLikeList.pattern().patternList().get(0).pattern(), is("valü*"));
+        assertThat(rLikeList.caseInsensitive(), is(true));
         var source = as(filter.child(), EsRelation.class);
     }
 
@@ -704,6 +767,37 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
         var source = as(filter.child(), EsRelation.class);
     }
 
+    // same plan as in testReplaceUpperStringCasingWithInsensitiveRLikeList, but with LIKE instead of RLIKE
+    public void testReplaceUpperStringCasingWithInsensitiveLikeList() {
+        var plan = localPlan("FROM test | WHERE TO_UPPER(TO_LOWER(TO_UPPER(first_name))) LIKE (\"VALÜ*\", \"TEST*\")");
+
+        var limit = as(plan, Limit.class);
+        var filter = as(limit.child(), Filter.class);
+        var likeList = as(filter.condition(), WildcardLikeList.class);
+        var field = as(likeList.field(), FieldAttribute.class);
+        assertThat(field.fieldName().string(), is("first_name"));
+        assertEquals(2, likeList.pattern().patternList().size());
+        assertThat(likeList.pattern().patternList().get(0).pattern(), is("VALÜ*"));
+        assertThat(likeList.pattern().patternList().get(1).pattern(), is("TEST*"));
+        assertThat(likeList.caseInsensitive(), is(true));
+        var source = as(filter.child(), EsRelation.class);
+    }
+
+    // same plan as above, but mixed case pattern and list of patterns
+    public void testReplaceLowerStringCasingWithMixedCaseLikeList() {
+        var plan = localPlan("FROM test | WHERE TO_LOWER(TO_UPPER(first_name)) LIKE (\"TEST*\", \"valü*\", \"vaLü*\")");
+        var limit = as(plan, Limit.class);
+        var filter = as(limit.child(), Filter.class);
+        var likeList = as(filter.condition(), WildcardLikeList.class);
+        var field = as(likeList.field(), FieldAttribute.class);
+        assertThat(field.fieldName().string(), is("first_name"));
+        // only the all lowercase pattern is kept, the mixed case and all uppercase patterns are ignored
+        assertEquals(1, likeList.pattern().patternList().size());
+        assertThat(likeList.pattern().patternList().get(0).pattern(), is("valü*"));
+        assertThat(likeList.caseInsensitive(), is(true));
+        var source = as(filter.child(), EsRelation.class);
+    }
+
     // same plan as above, but lower case pattern
     public void testReplaceLowerStringCasingWithInsensitiveLike() {
         var plan = localPlan("FROM test | WHERE TO_LOWER(TO_UPPER(first_name)) LIKE \"valü*\"");
@@ -724,6 +818,28 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
      */
     public void testReplaceStringCasingAndLikeWithLocalRelation() {
         var plan = localPlan("FROM test | WHERE TO_LOWER(TO_UPPER(first_name)) LIKE \"VALÜ*\"");
+
+        var local = as(plan, LocalRelation.class);
+        assertThat(local.supplier(), equalTo(EmptyLocalSupplier.EMPTY));
+    }
+
+    /**
+     * LocalRelation[[_meta_field{f}#9, emp_no{f}#3, first_name{f}#4, gender{f}#5, hire_date{f}#10, job{f}#11, job.raw{f}#12, langu
+     *   ages{f}#6, last_name{f}#7, long_noidx{f}#13, salary{f}#8],EMPTY]
+     */
+    public void testReplaceStringCasingAndLikeListWithLocalRelation() {
+        var plan = localPlan("FROM test | WHERE TO_LOWER(TO_UPPER(first_name)) LIKE (\"VALÜ*\", \"TEST*\")");
+
+        var local = as(plan, LocalRelation.class);
+        assertThat(local.supplier(), equalTo(EmptyLocalSupplier.EMPTY));
+    }
+
+    /**
+     * LocalRelation[[_meta_field{f}#9, emp_no{f}#3, first_name{f}#4, gender{f}#5, hire_date{f}#10, job{f}#11, job.raw{f}#12, langu
+     *   ages{f}#6, last_name{f}#7, long_noidx{f}#13, salary{f}#8],EMPTY]
+     */
+    public void testReplaceStringCasingAndRLikeListWithLocalRelation() {
+        var plan = localPlan("FROM test | WHERE TO_LOWER(TO_UPPER(first_name)) RLIKE (\"VALÜ*\", \"TEST*\")");
 
         var local = as(plan, LocalRelation.class);
         assertThat(local.supplier(), equalTo(EmptyLocalSupplier.EMPTY));
@@ -780,7 +896,7 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
         as(eval.child(), EsRelation.class);
     }
 
-    public void testPlanSanityCheck() throws Exception {
+    public void testVerifierOnMissingReferences() throws Exception {
         var plan = localPlan("""
             from test
             | stats a = min(salary) by emp_no
@@ -806,6 +922,103 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
         assertThat(e.getMessage(), containsString(" optimized incorrectly due to missing references [salary"));
     }
 
+    private LocalLogicalPlanOptimizer getCustomRulesLocalLogicalPlanOptimizer(List<RuleExecutor.Batch<LogicalPlan>> batches) {
+        LocalLogicalOptimizerContext context = new LocalLogicalOptimizerContext(
+            EsqlTestUtils.TEST_CFG,
+            FoldContext.small(),
+            TEST_SEARCH_STATS
+        );
+        LocalLogicalPlanOptimizer customOptimizer = new LocalLogicalPlanOptimizer(context) {
+            @Override
+            protected List<Batch<LogicalPlan>> batches() {
+                return batches;
+            }
+        };
+        return customOptimizer;
+    }
+
+    public void testVerifierOnAdditionalAttributeAdded() throws Exception {
+        var plan = localPlan("""
+            from test
+            | stats a = min(salary) by emp_no
+            """);
+
+        var limit = as(plan, Limit.class);
+        var aggregate = as(limit.child(), Aggregate.class);
+        var min = as(Alias.unwrap(aggregate.aggregates().get(0)), Min.class);
+        var salary = as(min.field(), NamedExpression.class);
+        assertThat(salary.name(), is("salary"));
+        Holder<Integer> appliedCount = new Holder<>(0);
+        // use a custom rule that adds another output attribute
+        var customRuleBatch = new RuleExecutor.Batch<>(
+            "CustomRuleBatch",
+            RuleExecutor.Limiter.ONCE,
+            new OptimizerRules.ParameterizedOptimizerRule<Aggregate, LocalLogicalOptimizerContext>(UP) {
+
+                @Override
+                protected LogicalPlan rule(Aggregate plan, LocalLogicalOptimizerContext context) {
+                    // This rule adds a missing attribute to the plan output
+                    // We only want to apply it once, so we use a static counter
+                    if (appliedCount.get() == 0) {
+                        appliedCount.set(appliedCount.get() + 1);
+                        Literal additionalLiteral = new Literal(Source.EMPTY, "additional literal", INTEGER);
+                        return new Eval(plan.source(), plan, List.of(new Alias(Source.EMPTY, "additionalAttribute", additionalLiteral)));
+                    }
+                    return plan;
+                }
+
+            }
+        );
+        LocalLogicalPlanOptimizer customRulesLocalLogicalPlanOptimizer = getCustomRulesLocalLogicalPlanOptimizer(List.of(customRuleBatch));
+        Exception e = expectThrows(VerificationException.class, () -> customRulesLocalLogicalPlanOptimizer.localOptimize(plan));
+        assertThat(e.getMessage(), containsString("Output has changed from"));
+        assertThat(e.getMessage(), containsString("additionalAttribute"));
+    }
+
+    public void testVerifierOnAttributeDatatypeChanged() {
+        var plan = localPlan("""
+            from test
+            | stats a = min(salary) by emp_no
+            """);
+
+        var limit = as(plan, Limit.class);
+        var aggregate = as(limit.child(), Aggregate.class);
+        var min = as(Alias.unwrap(aggregate.aggregates().get(0)), Min.class);
+        var salary = as(min.field(), NamedExpression.class);
+        assertThat(salary.name(), is("salary"));
+        Holder<Integer> appliedCount = new Holder<>(0);
+        // use a custom rule that changes the datatype of an output attribute
+        var customRuleBatch = new RuleExecutor.Batch<>(
+            "CustomRuleBatch",
+            RuleExecutor.Limiter.ONCE,
+            new OptimizerRules.ParameterizedOptimizerRule<LogicalPlan, LocalLogicalOptimizerContext>(DOWN) {
+                @Override
+                protected LogicalPlan rule(LogicalPlan plan, LocalLogicalOptimizerContext context) {
+                    // We only want to apply it once, so we use a static counter
+                    if (appliedCount.get() == 0) {
+                        appliedCount.set(appliedCount.get() + 1);
+                        Limit limit = as(plan, Limit.class);
+                        Limit newLimit = new Limit(plan.source(), limit.limit(), limit.child()) {
+                            @Override
+                            public List<Attribute> output() {
+                                List<Attribute> oldOutput = super.output();
+                                List<Attribute> newOutput = new ArrayList<>(oldOutput);
+                                newOutput.set(0, oldOutput.get(0).withDataType(DataType.DATETIME));
+                                return newOutput;
+                            }
+                        };
+                        return newLimit;
+                    }
+                    return plan;
+                }
+
+            }
+        );
+        LocalLogicalPlanOptimizer customRulesLocalLogicalPlanOptimizer = getCustomRulesLocalLogicalPlanOptimizer(List.of(customRuleBatch));
+        Exception e = expectThrows(VerificationException.class, () -> customRulesLocalLogicalPlanOptimizer.localOptimize(plan));
+        assertThat(e.getMessage(), containsString("Output has changed from"));
+    }
+
     private IsNotNull isNotNull(Expression field) {
         return new IsNotNull(EMPTY, field);
     }
@@ -818,22 +1031,16 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
 
     private LogicalPlan plan(String query, Analyzer analyzer) {
         var analyzed = analyzer.analyze(parser.createStatement(query, EsqlTestUtils.TEST_CFG));
-        // System.out.println(analyzed);
-        var optimized = logicalOptimizer.optimize(analyzed);
-        // System.out.println(optimized);
-        return optimized;
+        return logicalOptimizer.optimize(analyzed);
     }
 
-    private LogicalPlan plan(String query) {
+    protected LogicalPlan plan(String query) {
         return plan(query, analyzer);
     }
 
-    private LogicalPlan localPlan(LogicalPlan plan, SearchStats searchStats) {
+    protected LogicalPlan localPlan(LogicalPlan plan, SearchStats searchStats) {
         var localContext = new LocalLogicalOptimizerContext(EsqlTestUtils.TEST_CFG, FoldContext.small(), searchStats);
-        // System.out.println(plan);
-        var localPlan = new LocalLogicalPlanOptimizer(localContext).localOptimize(plan);
-        // System.out.println(localPlan);
-        return localPlan;
+        return new LocalLogicalPlanOptimizer(localContext).localOptimize(plan);
     }
 
     private LogicalPlan localPlan(String query) {

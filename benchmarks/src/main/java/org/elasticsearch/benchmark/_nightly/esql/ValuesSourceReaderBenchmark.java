@@ -24,8 +24,10 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
+import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BytesRefBlock;
@@ -85,6 +87,10 @@ import java.util.stream.IntStream;
 @State(Scope.Thread)
 @Fork(1)
 public class ValuesSourceReaderBenchmark {
+    static {
+        LogConfigurator.configureESLogging();
+    }
+
     private static final String[] SUPPORTED_LAYOUTS = new String[] { "in_order", "shuffled", "shuffled_singles" };
     private static final String[] SUPPORTED_NAMES = new String[] {
         "long",
@@ -92,7 +98,8 @@ public class ValuesSourceReaderBenchmark {
         "double",
         "keyword",
         "stored_keyword",
-        "3_stored_keywords" };
+        "3_stored_keywords",
+        "keyword_mv" };
 
     private static final int BLOCK_LENGTH = 16 * 1024;
     private static final int INDEX_SIZE = 10 * BLOCK_LENGTH;
@@ -332,7 +339,7 @@ public class ValuesSourceReaderBenchmark {
     @Param({ "in_order", "shuffled" })
     public String layout;
 
-    @Param({ "long", "keyword", "stored_keyword" })
+    @Param({ "long", "keyword", "stored_keyword", "keyword_mv" })
     public String name;
 
     private Directory directory;
@@ -344,6 +351,7 @@ public class ValuesSourceReaderBenchmark {
     public void benchmark() {
         ValuesSourceReaderOperator op = new ValuesSourceReaderOperator(
             blockFactory,
+            ByteSizeValue.ofMb(1).getBytes(),
             fields(name),
             List.of(new ValuesSourceReaderOperator.ShardContext(reader, () -> {
                 throw new UnsupportedOperationException("can't load _source here");
@@ -398,6 +406,22 @@ public class ValuesSourceReaderBenchmark {
                         }
                     }
                 }
+                case "keyword_mv" -> {
+                    BytesRef scratch = new BytesRef();
+                    BytesRefBlock values = op.getOutput().<BytesRefBlock>getBlock(1);
+                    for (int p = 0; p < values.getPositionCount(); p++) {
+                        int count = values.getValueCount(p);
+                        if (count > 0) {
+                            int first = values.getFirstValueIndex(p);
+                            for (int i = 0; i < count; i++) {
+                                BytesRef r = values.getBytesRef(first + i, scratch);
+                                r.offset++;
+                                r.length--;
+                                sum += Integer.parseInt(r.utf8ToString());
+                            }
+                        }
+                    }
+                }
             }
         }
         long expected = 0;
@@ -405,6 +429,16 @@ public class ValuesSourceReaderBenchmark {
             case "keyword", "stored_keyword":
                 for (int i = 0; i < INDEX_SIZE; i++) {
                     expected += i % 1000;
+                }
+                break;
+            case "keyword_mv":
+                for (int i = 0; i < INDEX_SIZE; i++) {
+                    int v1 = i % 1000;
+                    expected += v1;
+                    int v2 = i % 500;
+                    if (v1 != v2) {
+                        expected += v2;
+                    }
                 }
                 break;
             case "3_stored_keywords":
@@ -461,7 +495,9 @@ public class ValuesSourceReaderBenchmark {
                         new StoredField("double", (double) i),
                         new KeywordFieldMapper.KeywordField("keyword_1", new BytesRef(c + i % 1000), keywordFieldType),
                         new KeywordFieldMapper.KeywordField("keyword_2", new BytesRef(c + i % 1000), keywordFieldType),
-                        new KeywordFieldMapper.KeywordField("keyword_3", new BytesRef(c + i % 1000), keywordFieldType)
+                        new KeywordFieldMapper.KeywordField("keyword_3", new BytesRef(c + i % 1000), keywordFieldType),
+                        new KeywordFieldMapper.KeywordField("keyword_mv", new BytesRef(c + i % 1000), keywordFieldType),
+                        new KeywordFieldMapper.KeywordField("keyword_mv", new BytesRef(c + i % 500), keywordFieldType)
                     )
                 );
                 if (i % COMMIT_INTERVAL == 0) {
@@ -543,7 +579,6 @@ public class ValuesSourceReaderBenchmark {
                     pages.add(
                         new Page(
                             new DocVector(
-
                                 ShardRefCounted.ALWAYS_REFERENCED,
                                 blockFactory.newConstantIntBlockWith(0, size).asVector(),
                                 leafs.build().asBlock().asVector(),

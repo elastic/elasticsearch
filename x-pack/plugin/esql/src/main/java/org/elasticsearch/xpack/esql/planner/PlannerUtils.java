@@ -120,6 +120,8 @@ public class PlannerUtils {
         }
         final FragmentExec fragment = (FragmentExec) fragments.getFirst();
 
+        // Though FORK is technically a pipeline breaker, it should never show up here.
+        // See also: https://github.com/elastic/elasticsearch/pull/131945/files#r2235572935
         final var pipelineBreakers = fragment.fragment().collectFirstChildren(p -> p instanceof PipelineBreaker);
         if (pipelineBreakers.isEmpty()) {
             return null;

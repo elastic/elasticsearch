@@ -20,5 +20,6 @@
 | keyword | keyword |
 | long | long |
 | text | keyword |
+| unsigned_long | unsigned_long |
 | version | version |
 

@@ -11,6 +11,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.metadata.ComponentTemplate;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -19,10 +20,10 @@ import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.metadata.Template;
-import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.NotMultiProjectCapable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.license.XPackLicenseState;
@@ -178,8 +179,7 @@ public final class MetadataMigrateToDataTiersRoutingService {
      * ILM routing allocations. It also returns a summary of the affected abstractions encapsulated in {@link MigratedEntities}
      */
     public static Tuple<ClusterState, MigratedEntities> migrateToDataTiersRouting(
-        ClusterState currentState,
-        ProjectResolver projectResolver,
+        ProjectState currentState,
         @Nullable String nodeAttrName,
         @Nullable String indexTemplateToDelete,
         NamedXContentRegistry xContentRegistry,
@@ -187,7 +187,7 @@ public final class MetadataMigrateToDataTiersRoutingService {
         XPackLicenseState licenseState,
         boolean dryRun
     ) {
-        ProjectMetadata currentProjectMetadata = projectResolver.getProjectMetadata(currentState);
+        ProjectMetadata currentProjectMetadata = currentState.metadata();
         if (dryRun == false) {
             IndexLifecycleMetadata currentMetadata = currentProjectMetadata.custom(IndexLifecycleMetadata.TYPE);
             if (currentMetadata != null && currentILMMode(currentProjectMetadata) != STOPPED) {
@@ -197,7 +197,9 @@ public final class MetadataMigrateToDataTiersRoutingService {
             }
         }
 
-        Metadata.Builder mb = Metadata.builder(currentState.metadata());
+        @NotMultiProjectCapable // We're doing something fishy here by updating the Metadata even though we're inside the scope of a single
+        // project. This is generally not correct, but since ILM is not properly project-aware, we're making an exception here.
+        Metadata.Builder mb = Metadata.builder(currentState.cluster().metadata());
         ProjectMetadata.Builder newProjectMetadataBuilder = ProjectMetadata.builder(currentProjectMetadata);
 
         // remove ENFORCE_DEFAULT_TIER_PREFERENCE from the persistent settings
@@ -245,7 +247,7 @@ public final class MetadataMigrateToDataTiersRoutingService {
             attribute
         );
         return Tuple.tuple(
-            ClusterState.builder(currentState).metadata(mb).putProjectMetadata(newProjectMetadataBuilder).build(),
+            ClusterState.builder(currentState.cluster()).metadata(mb).putProjectMetadata(newProjectMetadataBuilder).build(),
             new MigratedEntities(removedIndexTemplateName, migratedIndices, migratedPolicies, migratedTemplates)
         );
     }
@@ -758,6 +760,8 @@ public final class MetadataMigrateToDataTiersRoutingService {
                     migratedComposableTemplateBuilder.ignoreMissingComponentTemplates(
                         composableTemplate.getIgnoreMissingComponentTemplates()
                     );
+                    migratedComposableTemplateBuilder.createdDate(composableTemplate.createdDateMillis().orElse(null));
+                    migratedComposableTemplateBuilder.modifiedDate(composableTemplate.modifiedDateMillis().orElse(null));
 
                     projectMetadataBuilder.put(templateEntry.getKey(), migratedComposableTemplateBuilder.build());
                     migratedComposableTemplates.add(templateEntry.getKey());
@@ -796,7 +800,9 @@ public final class MetadataMigrateToDataTiersRoutingService {
                         migratedInnerTemplate,
                         componentTemplate.version(),
                         componentTemplate.metadata(),
-                        componentTemplate.deprecated()
+                        componentTemplate.deprecated(),
+                        componentTemplate.createdDateMillis().orElse(null),
+                        componentTemplate.modifiedDateMillis().orElse(null)
                     );
 
                     projectMetadataBuilder.put(componentEntry.getKey(), migratedComponentTemplate);

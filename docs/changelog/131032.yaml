@@ -1,5 +1,0 @@
-pr: 131032
-summary: "Fix: `GET _synonyms` returns synonyms with empty rules"
-area: Relevance
-type: bug
-issues: []

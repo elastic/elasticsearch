@@ -12,7 +12,7 @@ import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.sandbox.document.HalfFloatPoint;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.RemoteException;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.project.ProjectResolver;
@@ -82,7 +82,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Les
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.NotEquals;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.inference.InferenceResolution;
-import org.elasticsearch.xpack.esql.inference.InferenceRunner;
+import org.elasticsearch.xpack.esql.inference.InferenceService;
 import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
 import org.elasticsearch.xpack.esql.parser.QueryParam;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
@@ -167,8 +167,6 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 
 public final class EsqlTestUtils {
@@ -213,7 +211,7 @@ public final class EsqlTestUtils {
     }
 
     public static FieldAttribute getFieldAttribute(String name, DataType dataType) {
-        return new FieldAttribute(EMPTY, name, new EsField(name + "f", dataType, emptyMap(), true));
+        return new FieldAttribute(EMPTY, name, new EsField(name + "f", dataType, emptyMap(), true, EsField.TimeSeriesFieldType.NONE));
     }
 
     public static FieldAttribute fieldAttribute() {
@@ -221,7 +219,7 @@ public final class EsqlTestUtils {
     }
 
     public static FieldAttribute fieldAttribute(String name, DataType type) {
-        return new FieldAttribute(EMPTY, name, new EsField(name, type, emptyMap(), randomBoolean()));
+        return new FieldAttribute(EMPTY, name, new EsField(name, type, emptyMap(), randomBoolean(), EsField.TimeSeriesFieldType.NONE));
     }
 
     public static Literal of(Object value) {
@@ -296,12 +294,12 @@ public final class EsqlTestUtils {
         }
 
         @Override
-        public byte[] min(FieldName field, DataType dataType) {
+        public Object min(FieldName field) {
             return null;
         }
 
         @Override
-        public byte[] max(FieldName field, DataType dataType) {
+        public Object max(FieldName field) {
             return null;
         }
 
@@ -387,6 +385,27 @@ public final class EsqlTestUtils {
         }
     }
 
+    public static class TestSearchStatsWithMinMax extends TestSearchStats {
+
+        private final Map<String, Object> minValues;
+        private final Map<String, Object> maxValues;
+
+        public TestSearchStatsWithMinMax(Map<String, Object> minValues, Map<String, Object> maxValues) {
+            this.minValues = minValues;
+            this.maxValues = maxValues;
+        }
+
+        @Override
+        public Object min(FieldName field) {
+            return minValues.get(field.string());
+        }
+
+        @Override
+        public Object max(FieldName field) {
+            return maxValues.get(field.string());
+        }
+    }
+
     public static final TestSearchStats TEST_SEARCH_STATS = new TestSearchStats();
 
     private static final Map<String, Map<String, Column>> TABLES = tables();
@@ -407,19 +426,8 @@ public final class EsqlTestUtils {
         mock(ProjectResolver.class),
         mock(IndexNameExpressionResolver.class),
         null,
-        mockInferenceRunner()
+        new InferenceService(mock(Client.class))
     );
-
-    @SuppressWarnings("unchecked")
-    private static InferenceRunner mockInferenceRunner() {
-        InferenceRunner inferenceRunner = mock(InferenceRunner.class);
-        doAnswer(i -> {
-            i.getArgument(1, ActionListener.class).onResponse(emptyInferenceResolution());
-            return null;
-        }).when(inferenceRunner).resolveInferenceIds(any(), any());
-
-        return inferenceRunner;
-    }
 
     private EsqlTestUtils() {}
 

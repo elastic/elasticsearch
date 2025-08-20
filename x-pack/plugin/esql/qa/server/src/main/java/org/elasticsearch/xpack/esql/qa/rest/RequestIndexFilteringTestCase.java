@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.hamcrest.Matcher;
 import org.junit.After;
 import org.junit.Assert;
+import org.junit.Rule;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -39,6 +40,9 @@ import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.oneOf;
 
 public abstract class RequestIndexFilteringTestCase extends ESRestTestCase {
+
+    @Rule(order = Integer.MIN_VALUE)
+    public ProfileLogger profileLogger = new ProfileLogger();
 
     @After
     public void wipeTestData() throws IOException {
@@ -238,12 +242,18 @@ public abstract class RequestIndexFilteringTestCase extends ESRestTestCase {
     }
 
     public Map<String, Object> runEsql(RestEsqlTestCase.RequestObjectBuilder requestObject) throws IOException {
-        return RestEsqlTestCase.runEsql(requestObject, new AssertWarnings.NoWarnings(), RestEsqlTestCase.Mode.SYNC);
+        return RestEsqlTestCase.runEsql(requestObject, new AssertWarnings.NoWarnings(), profileLogger, RestEsqlTestCase.Mode.SYNC);
     }
 
     public Map<String, Object> runEsql(RestEsqlTestCase.RequestObjectBuilder requestObject, boolean checkPartialResults)
         throws IOException {
-        return RestEsqlTestCase.runEsql(requestObject, new AssertWarnings.NoWarnings(), RestEsqlTestCase.Mode.SYNC, checkPartialResults);
+        return RestEsqlTestCase.runEsql(
+            requestObject,
+            new AssertWarnings.NoWarnings(),
+            profileLogger,
+            RestEsqlTestCase.Mode.SYNC,
+            checkPartialResults
+        );
     }
 
     protected void indexTimestampData(int docs, String indexName, String date, String differentiatorFieldName) throws IOException {

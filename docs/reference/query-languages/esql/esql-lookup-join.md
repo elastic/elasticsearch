@@ -6,7 +6,7 @@ mapped_pages:
 
 # Join data from multiple indices with `LOOKUP JOIN` [esql-lookup-join-reference]
 
-The {{esql}} [`LOOKUP JOIN`](/reference/query-languages/esql/commands/processing-commands.md#esql-lookup-join) processing command combines data from your {{esql}} query results table with matching records from a specified lookup index. It adds fields from the lookup index as new columns to your results table based on matching values in the join field.
+The {{esql}} [`LOOKUP JOIN`](/reference/query-languages/esql/commands/lookup-join.md) processing command combines data from your {{esql}} query results table with matching records from a specified lookup index. It adds fields from the lookup index as new columns to your results table based on matching values in the join field.
 
 Teams often have data scattered across multiple indices – like logs, IPs, user IDs, hosts, employees etc. Without a direct way to enrich or correlate each event with reference data, root-cause analysis, security checks, and operational insights become time-consuming.
 
@@ -18,7 +18,7 @@ For example, you can use `LOOKUP JOIN` to:
 
 ## Compare with `ENRICH`
 
-[`LOOKUP JOIN`](/reference/query-languages/esql/commands/processing-commands.md#esql-lookup-join) is similar to [`ENRICH`](/reference/query-languages/esql/commands/processing-commands.md#esql-enrich) in the fact that they both help you join data together. You should use `LOOKUP JOIN` when:
+[`LOOKUP JOIN`](/reference/query-languages/esql/commands/lookup-join.md) is similar to [`ENRICH`](/reference/query-languages/esql/commands/enrich.md) in the fact that they both help you join data together. You should use `LOOKUP JOIN` when:
 
 * Your enrichment data changes frequently
 * You want to avoid index-time processing
@@ -33,11 +33,14 @@ For example, you can use `LOOKUP JOIN` to:
 The `LOOKUP JOIN` command adds fields from the lookup index as new columns to your results table based on matching values in the join field.
 
 The command requires two parameters:
-- The name of the lookup index (which must have the `lookup` [`index.mode setting`](/reference/elasticsearch/index-settings/index-modules.md#index-mode-setting))
-- The name of the field to join on
-
+* The name of the lookup index (which must have the `lookup` [`index.mode setting`](/reference/elasticsearch/index-settings/index-modules.md#index-mode-setting))
+* The field(s) to join on. Can be either:
+  * A single field name
+  * A comma-separated list of field names {applies_to}`stack: ga 9.2`
+  
 ```esql
-LOOKUP JOIN <lookup_index> ON <field_name>
+LOOKUP JOIN <lookup_index> ON <field_name>  # Join on a single field
+LOOKUP JOIN <lookup_index> ON <field_name1>, <field_name2>, <field_name3>  # Join on multiple fields
 ```
 
 :::{image} ../images/esql-lookup-join.png
@@ -138,7 +141,7 @@ A successful query will output a table. In this example, you can see that the `s
 
 ### Additional examples
 
-Refer to the examples section of the [`LOOKUP JOIN`](/reference/query-languages/esql/commands/processing-commands.md#esql-lookup-join) command reference for more examples.
+Refer to the examples section of the [`LOOKUP JOIN`](/reference/query-languages/esql/commands/lookup-join.md) command reference for more examples.
 
 ## Prerequisites [esql-lookup-join-prereqs]
 
@@ -172,7 +175,7 @@ In addition to the [{{esql}} unsupported field types](/reference/query-languages
 * Temporal intervals like `DURATION`, `PERIOD`
 
 ```{note}
-For a complete list of all types supported in `LOOKUP JOIN`, refer to the [`LOOKUP JOIN` supported types table](/reference/query-languages/esql/commands/processing-commands.md#esql-lookup-join).
+For a complete list of all types supported in `LOOKUP JOIN`, refer to the [`LOOKUP JOIN` supported types table](/reference/query-languages/esql/commands/lookup-join.md).
 ```
 
 ## Usage notes
@@ -200,7 +203,7 @@ The following are the current limitations with `LOOKUP JOIN`:
 * Indices in [`lookup` mode](/reference/elasticsearch/index-settings/index-modules.md#index-mode-setting) are always single-sharded.
 * Cross cluster search is unsupported initially. Both source and lookup indices must be local.
 * Currently, only matching on equality is supported.
-* `LOOKUP JOIN` can only use a single match field and a single index. Wildcards are not supported.
+* In Stack versions `9.0-9.1`,`LOOKUP JOIN` can only use a single match field and a single index. Wildcards are not supported.
   * Aliases, datemath, and datastreams are supported, as long as the index pattern matches a single concrete index {applies_to}`stack: ga 9.1.0`.
 * The name of the match field in `LOOKUP JOIN lu_idx ON match_field` must match an existing field in the query. This may require `RENAME`s or `EVAL`s to achieve.
 * The query will circuit break if there are too many matching documents in the lookup index, or if the documents are too large. More precisely, `LOOKUP JOIN` works in batches of, normally, about 10,000 rows; a large amount of heap space is needed if the matching documents from the lookup index for a batch are multiple megabytes or larger. This is roughly the same as for `ENRICH`.

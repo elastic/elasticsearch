@@ -21,6 +21,7 @@ import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -35,6 +36,7 @@ import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.core.NotMultiProjectCapable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.UpdateForV10;
 import org.elasticsearch.env.Environment;
@@ -823,10 +825,11 @@ public class Watcher extends Plugin implements SystemIndexPlugin, ScriptPlugin, 
     }
 
     @Override
+    @NotMultiProjectCapable(description = "Watcher is not available in serverless")
     public void prepareForIndicesMigration(ClusterService clusterService, Client client, ActionListener<Map<String, Object>> listener) {
         Client originClient = new OriginSettingClient(client, WATCHER_ORIGIN);
         boolean manuallyStopped = Optional.ofNullable(
-            clusterService.state().metadata().getProject().<WatcherMetadata>custom(WatcherMetadata.TYPE)
+            clusterService.state().metadata().getProject(ProjectId.DEFAULT).<WatcherMetadata>custom(WatcherMetadata.TYPE)
         ).map(WatcherMetadata::manuallyStopped).orElse(false);
 
         if (manuallyStopped == false) {

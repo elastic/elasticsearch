@@ -7,6 +7,7 @@
 
 package org.elasticsearch.compute.aggregation;
 
+// begin generated imports
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.breaker.CircuitBreaker;
@@ -18,21 +19,20 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.DoubleVector;
+import org.elasticsearch.compute.data.FloatBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
-
-import java.util.Arrays;
+// end generated imports
 
 /**
  * A rate grouping aggregation definition for int.
  * This class is generated. Edit `X-RateAggregator.java.st` instead.
  */
 @GroupingAggregator(
-    timeseries = true,
     value = {
         @IntermediateState(name = "timestamps", type = "LONG_BLOCK"),
         @IntermediateState(name = "values", type = "INT_BLOCK"),
@@ -45,7 +45,7 @@ public class RateIntAggregator {
         return new IntRateGroupingState(driverContext.bigArrays(), driverContext.breaker());
     }
 
-    public static void combine(IntRateGroupingState current, int groupId, long timestamp, int value) {
+    public static void combine(IntRateGroupingState current, int groupId, int value, long timestamp) {
         current.append(groupId, timestamp, value);
     }
 
@@ -59,15 +59,6 @@ public class RateIntAggregator {
         int otherPosition
     ) {
         current.combine(groupId, timestamps, values, sampleCount, reset, otherPosition);
-    }
-
-    public static void combineStates(
-        IntRateGroupingState current,
-        int currentGroupId, // make the stylecheck happy
-        IntRateGroupingState otherState,
-        int otherGroupId
-    ) {
-        current.combineState(currentGroupId, otherState, otherGroupId);
     }
 
     public static Block evaluateFinal(IntRateGroupingState state, IntVector selected, GroupingAggregatorEvaluationContext evalContext) {
@@ -215,25 +206,6 @@ public class RateIntAggregator {
                 dst.values[k] = values.getInt(firstIndex + j);
                 ++k;
                 ++j;
-            }
-        }
-
-        void combineState(int groupId, IntRateGroupingState otherState, int otherGroupId) {
-            var other = otherGroupId < otherState.states.size() ? otherState.states.get(otherGroupId) : null;
-            if (other == null) {
-                return;
-            }
-            ensureCapacity(groupId);
-            var curr = states.get(groupId);
-            if (curr == null) {
-                var len = other.entries();
-                adjustBreaker(IntRateState.bytesUsed(len));
-                curr = new IntRateState(Arrays.copyOf(other.timestamps, len), Arrays.copyOf(other.values, len));
-                curr.reset = other.reset;
-                curr.sampleCount = other.sampleCount;
-                states.set(groupId, curr);
-            } else {
-                states.set(groupId, mergeState(curr, other));
             }
         }
 

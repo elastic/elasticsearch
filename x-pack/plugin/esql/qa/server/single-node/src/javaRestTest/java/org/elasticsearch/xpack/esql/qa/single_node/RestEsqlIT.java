@@ -71,7 +71,6 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
-import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.oneOf;
@@ -464,34 +463,6 @@ public class RestEsqlIT extends RestEsqlTestCase {
         assertNotNull(driverSliceArgs.get("iterations"));
         assertNotNull(driverSliceArgs.get("sleeps"));
         assertThat(((List<String>) driverSliceArgs.get("operators")), not(empty()));
-    }
-
-    public void testProfileOrdinalsGroupingOperator() throws IOException {
-        assumeTrue("requires pragmas", Build.current().isSnapshot());
-        indexTimestampData(1);
-
-        RequestObjectBuilder builder = requestObjectBuilder().query(fromIndex() + " | STATS AVG(value) BY test.keyword");
-        builder.profile(true);
-        // Lock to shard level partitioning, so we get consistent profile output
-        builder.pragmas(Settings.builder().put("data_partitioning", "shard").build());
-        Map<String, Object> result = runEsql(builder);
-
-        List<List<String>> signatures = new ArrayList<>();
-        @SuppressWarnings("unchecked")
-        List<Map<String, Object>> profiles = (List<Map<String, Object>>) ((Map<String, Object>) result.get("profile")).get("drivers");
-        for (Map<String, Object> p : profiles) {
-            fixTypesOnProfile(p);
-            assertThat(p, commonProfile());
-            List<String> sig = new ArrayList<>();
-            @SuppressWarnings("unchecked")
-            List<Map<String, Object>> operators = (List<Map<String, Object>>) p.get("operators");
-            for (Map<String, Object> o : operators) {
-                sig.add((String) o.get("operator"));
-            }
-            signatures.add(sig);
-        }
-
-        assertThat(signatures, hasItem(hasItem("OrdinalsGroupingOperator[aggregators=[\"sum of longs\", \"count\"]]")));
     }
 
     @AwaitsFix(bugUrl = "disabled until JOIN infrastructrure properly lands")

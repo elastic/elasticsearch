@@ -42,6 +42,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThrottledIterator;
+import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
@@ -76,7 +77,6 @@ import java.util.Random;
 import java.util.Set;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.LongSupplier;
@@ -379,7 +379,6 @@ public class RepositoryAnalyzeAction extends HandledTransportAction<RepositoryAn
         // choose the blob path nondeterministically to avoid clashes, assuming that the actual path doesn't matter for reproduction
         private final String blobPath = "temp-analysis-" + UUIDs.randomBase64UUID();
 
-        private final AtomicLong expectedRegisterValue = new AtomicLong();
         private final Queue<Consumer<Releasable>> queue = ConcurrentCollections.newQueue();
         private final AtomicReference<Exception> failure = new AtomicReference<>();
         private final Semaphore innerFailures = new Semaphore(5); // limit the number of suppressed failures
@@ -485,16 +484,17 @@ public class RepositoryAnalyzeAction extends HandledTransportAction<RepositoryAn
             if (minClusterTransportVersion.onOrAfter(TransportVersions.V_8_8_0)) {
                 final String contendedRegisterName = CONTENDED_REGISTER_NAME_PREFIX + UUIDs.randomBase64UUID(random);
                 final AtomicBoolean contendedRegisterAnalysisComplete = new AtomicBoolean();
+                final int registerOperations = Math.max(nodes.size(), request.getRegisterOperationCount());
                 try (
                     var registerRefs = new RefCountingRunnable(
                         finalRegisterValueVerifier(
                             contendedRegisterName,
+                            registerOperations,
                             random,
                             Releasables.wrap(requestRefs.acquire(), () -> contendedRegisterAnalysisComplete.set(true))
                         )
                     )
                 ) {
-                    final int registerOperations = Math.max(nodes.size(), request.getRegisterOperationCount());
                     for (int i = 0; i < registerOperations; i++) {
                         final ContendedRegisterAnalyzeAction.Request registerAnalyzeRequest = new ContendedRegisterAnalyzeAction.Request(
                             request.getRepositoryName(),
@@ -630,9 +630,7 @@ public class RepositoryAnalyzeAction extends HandledTransportAction<RepositoryAn
                     TransportRequestOptions.EMPTY,
                     new ActionListenerResponseHandler<>(ActionListener.releaseAfter(new ActionListener<>() {
                         @Override
-                        public void onResponse(ActionResponse.Empty response) {
-                            expectedRegisterValue.incrementAndGet();
-                        }
+                        public void onResponse(ActionResponse.Empty response) {}
 
                         @Override
                         public void onFailure(Exception exp) {
@@ -646,68 +644,109 @@ public class RepositoryAnalyzeAction extends HandledTransportAction<RepositoryAn
             }
         }
 
-        private Runnable finalRegisterValueVerifier(String registerName, Random random, Releasable ref) {
-            return () -> {
-                if (isRunning()) {
-                    final var expectedFinalRegisterValue = expectedRegisterValue.get();
-                    transportService.getThreadPool()
-                        .executor(ThreadPool.Names.SNAPSHOT)
-                        .execute(ActionRunnable.wrap(ActionListener.releaseAfter(new ActionListener<OptionalBytesReference>() {
-                            @Override
-                            public void onResponse(OptionalBytesReference actualFinalRegisterValue) {
-                                if (actualFinalRegisterValue.isPresent() == false
-                                    || longFromBytes(actualFinalRegisterValue.bytesReference()) != expectedFinalRegisterValue) {
-                                    fail(
-                                        new RepositoryVerificationException(
-                                            request.getRepositoryName(),
-                                            Strings.format(
-                                                "register [%s] should have value [%d] but instead had value [%s]",
-                                                registerName,
-                                                expectedFinalRegisterValue,
-                                                actualFinalRegisterValue
-                                            )
-                                        )
-                                    );
-                                }
-                            }
+        private Runnable finalRegisterValueVerifier(String registerName, int expectedFinalRegisterValue, Random random, Releasable ref) {
+            return new Runnable() {
 
-                            @Override
-                            public void onFailure(Exception exp) {
-                                // Registers are not supported on all repository types, and that's ok.
-                                if (exp instanceof UnsupportedOperationException == false) {
-                                    fail(exp);
+                final CheckedConsumer<ActionListener<OptionalBytesReference>, Exception> finalValueReader = switch (random.nextInt(3)) {
+                    case 0 -> new CheckedConsumer<ActionListener<OptionalBytesReference>, Exception>() {
+                        @Override
+                        public void accept(ActionListener<OptionalBytesReference> listener) {
+                            // All register operations have completed by this point so getRegister is safe
+                            getBlobContainer().getRegister(OperationPurpose.REPOSITORY_ANALYSIS, registerName, listener);
+                        }
+
+                        @Override
+                        public String toString() {
+                            return "getRegister";
+                        }
+                    };
+                    case 1 -> new CheckedConsumer<ActionListener<OptionalBytesReference>, Exception>() {
+                        @Override
+                        public void accept(ActionListener<OptionalBytesReference> listener) {
+                            getBlobContainer().compareAndExchangeRegister(
+                                OperationPurpose.REPOSITORY_ANALYSIS,
+                                registerName,
+                                bytesFromLong(expectedFinalRegisterValue),
+                                new BytesArray(new byte[] { (byte) 0xff }),
+                                listener
+                            );
+                        }
+
+                        @Override
+                        public String toString() {
+                            return "compareAndExchangeRegister";
+                        }
+                    };
+                    case 2 -> new CheckedConsumer<ActionListener<OptionalBytesReference>, Exception>() {
+                        @Override
+                        public void accept(ActionListener<OptionalBytesReference> listener) {
+                            getBlobContainer().compareAndSetRegister(
+                                OperationPurpose.REPOSITORY_ANALYSIS,
+                                registerName,
+                                bytesFromLong(expectedFinalRegisterValue),
+                                new BytesArray(new byte[] { (byte) 0xff }),
+                                listener.map(
+                                    b -> b
+                                        ? OptionalBytesReference.of(bytesFromLong(expectedFinalRegisterValue))
+                                        : OptionalBytesReference.MISSING
+                                )
+                            );
+                        }
+
+                        @Override
+                        public String toString() {
+                            return "compareAndSetRegister";
+                        }
+                    };
+                    default -> {
+                        assert false;
+                        throw new IllegalStateException();
+                    }
+                };
+
+                @Override
+                public void run() {
+                    if (isRunning()) {
+                        transportService.getThreadPool()
+                            .executor(ThreadPool.Names.SNAPSHOT)
+                            .execute(ActionRunnable.wrap(ActionListener.releaseAfter(new ActionListener<>() {
+                                @Override
+                                public void onResponse(OptionalBytesReference actualFinalRegisterValue) {
+                                    if (actualFinalRegisterValue.isPresent() == false
+                                        || longFromBytes(actualFinalRegisterValue.bytesReference()) != expectedFinalRegisterValue) {
+                                        fail(
+                                            new RepositoryVerificationException(
+                                                request.getRepositoryName(),
+                                                Strings.format(
+                                                    """
+                                                        Successfully completed all [%d] atomic increments of register [%s] so its expected \
+                                                        value is [%s], but reading its value with [%s] unexpectedly yielded [%s]. This \
+                                                        anomaly may indicate an atomicity failure amongst concurrent compare-and-exchange \
+                                                        operations on registers in this repository.""",
+                                                    expectedFinalRegisterValue,
+                                                    registerName,
+                                                    OptionalBytesReference.of(bytesFromLong(expectedFinalRegisterValue)),
+                                                    finalValueReader.toString(),
+                                                    actualFinalRegisterValue
+                                                )
+                                            )
+                                        );
+                                    }
                                 }
-                            }
-                        }, ref), listener -> {
-                            switch (random.nextInt(3)) {
-                                case 0 -> getBlobContainer().getRegister(OperationPurpose.REPOSITORY_ANALYSIS, registerName, listener);
-                                case 1 -> getBlobContainer().compareAndExchangeRegister(
-                                    OperationPurpose.REPOSITORY_ANALYSIS,
-                                    registerName,
-                                    bytesFromLong(expectedFinalRegisterValue),
-                                    new BytesArray(new byte[] { (byte) 0xff }),
-                                    listener
-                                );
-                                case 2 -> getBlobContainer().compareAndSetRegister(
-                                    OperationPurpose.REPOSITORY_ANALYSIS,
-                                    registerName,
-                                    bytesFromLong(expectedFinalRegisterValue),
-                                    new BytesArray(new byte[] { (byte) 0xff }),
-                                    listener.map(
-                                        b -> b
-                                            ? OptionalBytesReference.of(bytesFromLong(expectedFinalRegisterValue))
-                                            : OptionalBytesReference.MISSING
-                                    )
-                                );
-                                default -> {
-                                    assert false;
-                                    throw new IllegalStateException();
+
+                                @Override
+                                public void onFailure(Exception exp) {
+                                    // Registers are not supported on all repository types, and that's ok.
+                                    if (exp instanceof UnsupportedOperationException == false) {
+                                        fail(exp);
+                                    }
                                 }
-                            }
-                        }));
-                } else {
-                    ref.close();
+                            }, ref), finalValueReader));
+                    } else {
+                        ref.close();
+                    }
                 }
+
             };
         }
 

@@ -52,7 +52,6 @@ import java.util.List;
 import java.util.Set;
 
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
-import static org.elasticsearch.xpack.esql.core.expression.Foldables.valueOf;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.BOOLEAN;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATETIME;
@@ -68,6 +67,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.UNSIGNED_LONG;
 import static org.elasticsearch.xpack.esql.core.type.DataType.UNSUPPORTED;
 import static org.elasticsearch.xpack.esql.core.type.DataType.VERSION;
 import static org.elasticsearch.xpack.esql.core.util.StringUtils.ordinal;
+import static org.elasticsearch.xpack.esql.expression.Foldables.literalValueOf;
 
 /**
  * The {@code IN} operator.
@@ -495,7 +495,7 @@ public class In extends EsqlScalarFunction implements TranslationAware.SingleVal
                         queries.add(query);
                     }
                 } else {
-                    terms.add(valueOf(FoldContext.small() /* TODO remove me */, rhs));
+                    terms.add(literalValueOf(rhs));
                 }
             }
         }

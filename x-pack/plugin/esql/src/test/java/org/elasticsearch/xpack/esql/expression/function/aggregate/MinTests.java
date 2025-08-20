@@ -17,10 +17,13 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.AbstractAggregationTestCase;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
 import org.elasticsearch.xpack.esql.expression.function.MultiRowTestCaseSupplier;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.elasticsearch.xpack.versionfield.Version;
 
+import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
@@ -28,6 +31,7 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier.appliesTo;
 import static org.hamcrest.Matchers.equalTo;
 
 public class MinTests extends AbstractAggregationTestCase {
@@ -51,6 +55,17 @@ public class MinTests extends AbstractAggregationTestCase {
             MultiRowTestCaseSupplier.stringCases(1, 1000, DataType.TEXT)
         ).flatMap(List::stream).map(MinTests::makeSupplier).collect(Collectors.toCollection(() -> suppliers));
 
+        FunctionAppliesTo unsignedLongAppliesTo = appliesTo(FunctionAppliesToLifecycle.GA, "9.2.0", "", true);
+        for (TestCaseSupplier.TypedDataSupplier supplier : MultiRowTestCaseSupplier.ulongCases(
+            1,
+            1000,
+            BigInteger.ZERO,
+            UNSIGNED_LONG_MAX,
+            true
+        )) {
+            suppliers.add(makeSupplier(supplier.withAppliesTo(unsignedLongAppliesTo)));
+        }
+
         suppliers.addAll(
             List.of(
                 // Folding
@@ -70,6 +85,18 @@ public class MinTests extends AbstractAggregationTestCase {
                         "Min[field=Attribute[channel=0]]",
                         DataType.LONG,
                         equalTo(200L)
+                    )
+                ),
+                new TestCaseSupplier(
+                    List.of(DataType.UNSIGNED_LONG),
+                    () -> new TestCaseSupplier.TestCase(
+                        List.of(
+                            TestCaseSupplier.TypedData.multiRow(List.of(new BigInteger("200")), DataType.UNSIGNED_LONG, "field")
+                                .withAppliesTo(unsignedLongAppliesTo)
+                        ),
+                        "Max[field=Attribute[channel=0]]",
+                        DataType.UNSIGNED_LONG,
+                        equalTo(new BigInteger("200"))
                     )
                 ),
                 new TestCaseSupplier(

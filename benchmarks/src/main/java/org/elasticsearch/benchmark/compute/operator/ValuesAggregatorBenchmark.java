@@ -95,8 +95,7 @@ public class ValuesAggregatorBenchmark {
         try {
             for (String groups : ValuesAggregatorBenchmark.class.getField("groups").getAnnotationsByType(Param.class)[0].value()) {
                 for (String dataType : ValuesAggregatorBenchmark.class.getField("dataType").getAnnotationsByType(Param.class)[0].value()) {
-                    run(Integer.parseInt(groups), dataType, 10, 0);
-                    run(Integer.parseInt(groups), dataType, 10, 1);
+                    run(Integer.parseInt(groups), dataType, 10);
                 }
             }
         } catch (NoSuchFieldException e) {
@@ -114,37 +113,22 @@ public class ValuesAggregatorBenchmark {
     @Param({ BYTES_REF, INT, LONG })
     public String dataType;
 
-    @Param({ "0", "1" })
-    public int numOrdinalMerges;
-
-    private static Operator operator(DriverContext driverContext, int groups, String dataType, int numOrdinalMerges) {
+    private static Operator operator(DriverContext driverContext, int groups, String dataType, AggregatorMode mode) {
         if (groups == 1) {
             return new AggregationOperator(
-                List.of(supplier(dataType).aggregatorFactory(AggregatorMode.SINGLE, List.of(0)).apply(driverContext)),
+                List.of(supplier(dataType).aggregatorFactory(mode, List.of(0)).apply(driverContext)),
                 driverContext
             );
         }
         List<BlockHash.GroupSpec> groupSpec = List.of(new BlockHash.GroupSpec(0, ElementType.LONG));
         return new HashAggregationOperator(
-            List.of(supplier(dataType).groupingAggregatorFactory(AggregatorMode.SINGLE, List.of(1))),
+            List.of(supplier(dataType).groupingAggregatorFactory(mode, List.of(1))),
             () -> BlockHash.build(groupSpec, driverContext.blockFactory(), 16 * 1024, false),
             driverContext
         ) {
             @Override
             public Page getOutput() {
-                mergeOrdinal();
                 return super.getOutput();
-            }
-
-            // simulate OrdinalsGroupingOperator
-            void mergeOrdinal() {
-                var merged = supplier(dataType).groupingAggregatorFactory(AggregatorMode.SINGLE, List.of(1)).apply(driverContext);
-                for (int i = 0; i < numOrdinalMerges; i++) {
-                    for (int p = 0; p < groups; p++) {
-                        merged.addIntermediateRow(p, aggregators.getFirst(), p);
-                    }
-                }
-                aggregators.set(0, merged);
             }
         };
     }
@@ -193,6 +177,9 @@ public class ValuesAggregatorBenchmark {
 
                 // Check them
                 BytesRefBlock values = page.getBlock(1);
+                if (values.asOrdinals() == null) {
+                    throw new AssertionError(" expected ordinals; but got " + values);
+                }
                 for (int p = 0; p < groups; p++) {
                     checkExpectedBytesRef(prefix, values, p, expected.get(p));
                 }
@@ -352,18 +339,26 @@ public class ValuesAggregatorBenchmark {
 
     @Benchmark
     public void run() {
-        run(groups, dataType, OP_COUNT, numOrdinalMerges);
+        run(groups, dataType, OP_COUNT);
     }
 
-    private static void run(int groups, String dataType, int opCount, int numOrdinalMerges) {
+    private static void run(int groups, String dataType, int opCount) {
         DriverContext driverContext = driverContext();
-        try (Operator operator = operator(driverContext, groups, dataType, numOrdinalMerges)) {
-            Page page = page(groups, dataType);
-            for (int i = 0; i < opCount; i++) {
-                operator.addInput(page.shallowCopy());
+        try (Operator finalAggregator = operator(driverContext, groups, dataType, AggregatorMode.FINAL)) {
+            try (Operator initialAggregator = operator(driverContext, groups, dataType, AggregatorMode.INITIAL)) {
+                Page rawPage = page(groups, dataType);
+                for (int i = 0; i < opCount; i++) {
+                    initialAggregator.addInput(rawPage.shallowCopy());
+                }
+                initialAggregator.finish();
+                Page intermediatePage = initialAggregator.getOutput();
+                for (int i = 0; i < opCount; i++) {
+                    finalAggregator.addInput(intermediatePage.shallowCopy());
+                }
             }
-            operator.finish();
-            checkExpected(groups, dataType, operator.getOutput());
+            finalAggregator.finish();
+            Page outputPage = finalAggregator.getOutput();
+            checkExpected(groups, dataType, outputPage);
         }
     }
 

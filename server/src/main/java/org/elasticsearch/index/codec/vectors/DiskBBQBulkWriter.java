@@ -9,96 +9,131 @@
 
 package org.elasticsearch.index.codec.vectors;
 
-import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.store.IndexOutput;
-import org.apache.lucene.util.hnsw.IntToIntFunction;
 
 import java.io.IOException;
-
-import static org.elasticsearch.index.codec.vectors.BQVectorUtils.discretize;
-import static org.elasticsearch.index.codec.vectors.BQVectorUtils.packAsBinary;
 
 /**
  * Base class for bulk writers that write vectors to disk using the BBQ encoding.
  * This class provides the structure for writing vectors in bulk, with specific
  * implementations for different bit sizes strategies.
  */
-public abstract class DiskBBQBulkWriter {
+abstract class DiskBBQBulkWriter {
     protected final int bulkSize;
-    protected final OptimizedScalarQuantizer quantizer;
     protected final IndexOutput out;
-    protected final FloatVectorValues fvv;
 
-    protected DiskBBQBulkWriter(int bulkSize, OptimizedScalarQuantizer quantizer, FloatVectorValues fvv, IndexOutput out) {
+    protected DiskBBQBulkWriter(int bulkSize, IndexOutput out) {
         this.bulkSize = bulkSize;
-        this.quantizer = quantizer;
         this.out = out;
-        this.fvv = fvv;
     }
 
-    public abstract void writeOrds(IntToIntFunction ords, int count, float[] centroid) throws IOException;
+    abstract void writeVectors(DefaultIVFVectorsWriter.QuantizedVectorValues qvv) throws IOException;
 
-    private static void writeCorrections(OptimizedScalarQuantizer.QuantizationResult[] corrections, IndexOutput out) throws IOException {
-        for (OptimizedScalarQuantizer.QuantizationResult correction : corrections) {
-            out.writeInt(Float.floatToIntBits(correction.lowerInterval()));
-        }
-        for (OptimizedScalarQuantizer.QuantizationResult correction : corrections) {
-            out.writeInt(Float.floatToIntBits(correction.upperInterval()));
-        }
-        for (OptimizedScalarQuantizer.QuantizationResult correction : corrections) {
-            int targetComponentSum = correction.quantizedComponentSum();
-            assert targetComponentSum >= 0 && targetComponentSum <= 0xffff;
-            out.writeShort((short) targetComponentSum);
-        }
-        for (OptimizedScalarQuantizer.QuantizationResult correction : corrections) {
-            out.writeInt(Float.floatToIntBits(correction.additionalCorrection()));
-        }
-    }
-
-    private static void writeCorrection(OptimizedScalarQuantizer.QuantizationResult correction, IndexOutput out) throws IOException {
-        out.writeInt(Float.floatToIntBits(correction.lowerInterval()));
-        out.writeInt(Float.floatToIntBits(correction.upperInterval()));
-        out.writeInt(Float.floatToIntBits(correction.additionalCorrection()));
-        int targetComponentSum = correction.quantizedComponentSum();
-        assert targetComponentSum >= 0 && targetComponentSum <= 0xffff;
-        out.writeShort((short) targetComponentSum);
-    }
-
-    public static class OneBitDiskBBQBulkWriter extends DiskBBQBulkWriter {
-        private final byte[] binarized;
-        private final int[] initQuantized;
+    static class OneBitDiskBBQBulkWriter extends DiskBBQBulkWriter {
         private final OptimizedScalarQuantizer.QuantizationResult[] corrections;
 
-        public OneBitDiskBBQBulkWriter(int bulkSize, OptimizedScalarQuantizer quantizer, FloatVectorValues fvv, IndexOutput out) {
-            super(bulkSize, quantizer, fvv, out);
-            this.binarized = new byte[discretize(fvv.dimension(), 64) / 8];
-            this.initQuantized = new int[fvv.dimension()];
+        OneBitDiskBBQBulkWriter(int bulkSize, IndexOutput out) {
+            super(bulkSize, out);
             this.corrections = new OptimizedScalarQuantizer.QuantizationResult[bulkSize];
         }
 
         @Override
-        public void writeOrds(IntToIntFunction ords, int count, float[] centroid) throws IOException {
-            int limit = count - bulkSize + 1;
+        void writeVectors(DefaultIVFVectorsWriter.QuantizedVectorValues qvv) throws IOException {
+            int limit = qvv.count() - bulkSize + 1;
             int i = 0;
             for (; i < limit; i += bulkSize) {
                 for (int j = 0; j < bulkSize; j++) {
-                    int ord = ords.apply(i + j);
-                    float[] fv = fvv.vectorValue(ord);
-                    corrections[j] = quantizer.scalarQuantize(fv, initQuantized, (byte) 1, centroid);
-                    packAsBinary(initQuantized, binarized);
-                    out.writeBytes(binarized, binarized.length);
+                    byte[] qv = qvv.next();
+                    corrections[j] = qvv.getCorrections();
+                    out.writeBytes(qv, qv.length);
                 }
-                writeCorrections(corrections, out);
+                writeCorrections(corrections);
             }
             // write tail
-            for (; i < count; ++i) {
-                int ord = ords.apply(i);
-                float[] fv = fvv.vectorValue(ord);
-                OptimizedScalarQuantizer.QuantizationResult correction = quantizer.scalarQuantize(fv, initQuantized, (byte) 1, centroid);
-                packAsBinary(initQuantized, binarized);
-                out.writeBytes(binarized, binarized.length);
-                writeCorrection(correction, out);
+            for (; i < qvv.count(); ++i) {
+                byte[] qv = qvv.next();
+                OptimizedScalarQuantizer.QuantizationResult correction = qvv.getCorrections();
+                out.writeBytes(qv, qv.length);
+                writeCorrection(correction);
             }
+        }
+
+        private void writeCorrections(OptimizedScalarQuantizer.QuantizationResult[] corrections) throws IOException {
+            for (OptimizedScalarQuantizer.QuantizationResult correction : corrections) {
+                out.writeInt(Float.floatToIntBits(correction.lowerInterval()));
+            }
+            for (OptimizedScalarQuantizer.QuantizationResult correction : corrections) {
+                out.writeInt(Float.floatToIntBits(correction.upperInterval()));
+            }
+            for (OptimizedScalarQuantizer.QuantizationResult correction : corrections) {
+                int targetComponentSum = correction.quantizedComponentSum();
+                assert targetComponentSum >= 0 && targetComponentSum <= 0xffff;
+                out.writeShort((short) targetComponentSum);
+            }
+            for (OptimizedScalarQuantizer.QuantizationResult correction : corrections) {
+                out.writeInt(Float.floatToIntBits(correction.additionalCorrection()));
+            }
+        }
+
+        private void writeCorrection(OptimizedScalarQuantizer.QuantizationResult correction) throws IOException {
+            out.writeInt(Float.floatToIntBits(correction.lowerInterval()));
+            out.writeInt(Float.floatToIntBits(correction.upperInterval()));
+            out.writeInt(Float.floatToIntBits(correction.additionalCorrection()));
+            int targetComponentSum = correction.quantizedComponentSum();
+            assert targetComponentSum >= 0 && targetComponentSum <= 0xffff;
+            out.writeShort((short) targetComponentSum);
+        }
+    }
+
+    static class SevenBitDiskBBQBulkWriter extends DiskBBQBulkWriter {
+        private final OptimizedScalarQuantizer.QuantizationResult[] corrections;
+
+        SevenBitDiskBBQBulkWriter(int bulkSize, IndexOutput out) {
+            super(bulkSize, out);
+            this.corrections = new OptimizedScalarQuantizer.QuantizationResult[bulkSize];
+        }
+
+        @Override
+        void writeVectors(DefaultIVFVectorsWriter.QuantizedVectorValues qvv) throws IOException {
+            int limit = qvv.count() - bulkSize + 1;
+            int i = 0;
+            for (; i < limit; i += bulkSize) {
+                for (int j = 0; j < bulkSize; j++) {
+                    byte[] qv = qvv.next();
+                    corrections[j] = qvv.getCorrections();
+                    out.writeBytes(qv, qv.length);
+                }
+                writeCorrections(corrections);
+            }
+            // write tail
+            for (; i < qvv.count(); ++i) {
+                byte[] qv = qvv.next();
+                OptimizedScalarQuantizer.QuantizationResult correction = qvv.getCorrections();
+                out.writeBytes(qv, qv.length);
+                writeCorrection(correction);
+            }
+        }
+
+        private void writeCorrections(OptimizedScalarQuantizer.QuantizationResult[] corrections) throws IOException {
+            for (OptimizedScalarQuantizer.QuantizationResult correction : corrections) {
+                out.writeInt(Float.floatToIntBits(correction.lowerInterval()));
+            }
+            for (OptimizedScalarQuantizer.QuantizationResult correction : corrections) {
+                out.writeInt(Float.floatToIntBits(correction.upperInterval()));
+            }
+            for (OptimizedScalarQuantizer.QuantizationResult correction : corrections) {
+                out.writeInt(correction.quantizedComponentSum());
+            }
+            for (OptimizedScalarQuantizer.QuantizationResult correction : corrections) {
+                out.writeInt(Float.floatToIntBits(correction.additionalCorrection()));
+            }
+        }
+
+        private void writeCorrection(OptimizedScalarQuantizer.QuantizationResult correction) throws IOException {
+            out.writeInt(Float.floatToIntBits(correction.lowerInterval()));
+            out.writeInt(Float.floatToIntBits(correction.upperInterval()));
+            out.writeInt(Float.floatToIntBits(correction.additionalCorrection()));
+            out.writeInt(correction.quantizedComponentSum());
         }
     }
 }

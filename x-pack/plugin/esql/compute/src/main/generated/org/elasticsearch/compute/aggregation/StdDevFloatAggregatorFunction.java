@@ -62,69 +62,77 @@ public final class StdDevFloatAggregatorFunction implements AggregatorFunction {
   public void addRawInput(Page page, BooleanVector mask) {
     if (mask.allFalse()) {
       // Entire page masked away
-      return;
-    }
-    if (mask.allTrue()) {
-      // No masking
-      FloatBlock block = page.getBlock(channels.get(0));
-      FloatVector vector = block.asVector();
-      if (vector != null) {
-        addRawVector(vector);
-      } else {
-        addRawBlock(block);
-      }
-      return;
-    }
-    // Some positions masked away, others kept
-    FloatBlock block = page.getBlock(channels.get(0));
-    FloatVector vector = block.asVector();
-    if (vector != null) {
-      addRawVector(vector, mask);
+    } else if (mask.allTrue()) {
+      addRawInputNotMasked(page);
     } else {
-      addRawBlock(block, mask);
+      addRawInputMasked(page, mask);
     }
   }
 
-  private void addRawVector(FloatVector vector) {
-    for (int i = 0; i < vector.getPositionCount(); i++) {
-      StdDevFloatAggregator.combine(state, vector.getFloat(i));
+  private void addRawInputMasked(Page page, BooleanVector mask) {
+    FloatBlock valueBlock = page.getBlock(channels.get(0));
+    FloatVector valueVector = valueBlock.asVector();
+    if (valueVector == null) {
+      addRawBlock(valueBlock, mask);
+      return;
+    }
+    addRawVector(valueVector, mask);
+  }
+
+  private void addRawInputNotMasked(Page page) {
+    FloatBlock valueBlock = page.getBlock(channels.get(0));
+    FloatVector valueVector = valueBlock.asVector();
+    if (valueVector == null) {
+      addRawBlock(valueBlock);
+      return;
+    }
+    addRawVector(valueVector);
+  }
+
+  private void addRawVector(FloatVector valueVector) {
+    for (int valuesPosition = 0; valuesPosition < valueVector.getPositionCount(); valuesPosition++) {
+      float valueValue = valueVector.getFloat(valuesPosition);
+      StdDevFloatAggregator.combine(state, valueValue);
     }
   }
 
-  private void addRawVector(FloatVector vector, BooleanVector mask) {
-    for (int i = 0; i < vector.getPositionCount(); i++) {
-      if (mask.getBoolean(i) == false) {
+  private void addRawVector(FloatVector valueVector, BooleanVector mask) {
+    for (int valuesPosition = 0; valuesPosition < valueVector.getPositionCount(); valuesPosition++) {
+      if (mask.getBoolean(valuesPosition) == false) {
         continue;
       }
-      StdDevFloatAggregator.combine(state, vector.getFloat(i));
+      float valueValue = valueVector.getFloat(valuesPosition);
+      StdDevFloatAggregator.combine(state, valueValue);
     }
   }
 
-  private void addRawBlock(FloatBlock block) {
-    for (int p = 0; p < block.getPositionCount(); p++) {
-      if (block.isNull(p)) {
+  private void addRawBlock(FloatBlock valueBlock) {
+    for (int p = 0; p < valueBlock.getPositionCount(); p++) {
+      if (valueBlock.isNull(p)) {
         continue;
       }
-      int start = block.getFirstValueIndex(p);
-      int end = start + block.getValueCount(p);
-      for (int i = start; i < end; i++) {
-        StdDevFloatAggregator.combine(state, block.getFloat(i));
+      int valueStart = valueBlock.getFirstValueIndex(p);
+      int valueEnd = valueStart + valueBlock.getValueCount(p);
+      for (int valueOffset = valueStart; valueOffset < valueEnd; valueOffset++) {
+        float valueValue = valueBlock.getFloat(valueOffset);
+        StdDevFloatAggregator.combine(state, valueValue);
       }
     }
   }
 
-  private void addRawBlock(FloatBlock block, BooleanVector mask) {
-    for (int p = 0; p < block.getPositionCount(); p++) {
+  private void addRawBlock(FloatBlock valueBlock, BooleanVector mask) {
+    for (int p = 0; p < valueBlock.getPositionCount(); p++) {
       if (mask.getBoolean(p) == false) {
         continue;
       }
-      if (block.isNull(p)) {
+      if (valueBlock.isNull(p)) {
         continue;
       }
-      int start = block.getFirstValueIndex(p);
-      int end = start + block.getValueCount(p);
-      for (int i = start; i < end; i++) {
-        StdDevFloatAggregator.combine(state, block.getFloat(i));
+      int valueStart = valueBlock.getFirstValueIndex(p);
+      int valueEnd = valueStart + valueBlock.getValueCount(p);
+      for (int valueOffset = valueStart; valueOffset < valueEnd; valueOffset++) {
+        float valueValue = valueBlock.getFloat(valueOffset);
+        StdDevFloatAggregator.combine(state, valueValue);
       }
     }
   }

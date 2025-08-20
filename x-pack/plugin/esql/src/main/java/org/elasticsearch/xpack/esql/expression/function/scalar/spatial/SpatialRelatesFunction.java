@@ -29,7 +29,6 @@ import org.elasticsearch.xpack.esql.capabilities.TranslationAware;
 import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
-import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.TypedAttribute;
 import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -316,7 +315,7 @@ public abstract class SpatialRelatesFunction extends BinarySpatialFunction
 
         try {
             // TODO: Support geo-grid query pushdown
-            Geometry shape = SpatialRelatesUtils.makeGeometryFromLiteral(FoldContext.small() /* TODO remove me */, constantExpression);
+            Geometry shape = SpatialRelatesUtils.makeGeometryFromLiteral(constantExpression);
             return new SpatialRelatesQuery(source(), name, queryRelation(), shape, attribute.dataType());
         } catch (IllegalArgumentException e) {
             throw new QlIllegalArgumentException(e.getMessage(), e);

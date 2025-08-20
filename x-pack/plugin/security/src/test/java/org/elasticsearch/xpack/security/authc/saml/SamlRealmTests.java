@@ -679,7 +679,11 @@ public class SamlRealmTests extends SamlTestCase {
                 : secureAttributes.entrySet()
                     .stream()
                     .map(
-                        a -> new SamlAttributes.SamlPrivateAttribute(a.getKey(), null, a.getValue().stream().map(SecureString::new).toList())
+                        a -> new SamlAttributes.SamlPrivateAttribute(
+                            a.getKey(),
+                            null,
+                            a.getValue().stream().map(SecureString::new).toList()
+                        )
                     )
                     .toList()
         );

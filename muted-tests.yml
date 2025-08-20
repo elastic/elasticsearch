@@ -636,6 +636,9 @@ tests:
 - class: org.elasticsearch.gradle.internal.transport.TransportVersionValidationFuncTest
   method: named and unreferenced definitions cannot have the same name
   issue: https://github.com/elastic/elasticsearch/issues/133255
+- class: org.elasticsearch.gradle.internal.transport.TransportVersionValidationFuncTest
+  method: unreferenced definitions can have primary ids that are patches
+  issue: https://github.com/elastic/elasticsearch/issues/133256
 
 # Examples:
 #

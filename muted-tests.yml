@@ -633,6 +633,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.action.RandomizedTimeSeriesIT
   method: testGroupByNothing
   issue: https://github.com/elastic/elasticsearch/issues/133225
+- class: org.elasticsearch.gradle.internal.transport.TransportVersionValidationFuncTest
+  method: named and unreferenced definitions cannot have the same name
+  issue: https://github.com/elastic/elasticsearch/issues/133255
 
 # Examples:
 #

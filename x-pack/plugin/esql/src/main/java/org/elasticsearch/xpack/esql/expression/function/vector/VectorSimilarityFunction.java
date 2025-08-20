@@ -116,7 +116,7 @@ public abstract class VectorSimilarityFunction extends BinaryScalarFunction impl
                             }
                         }
                         if (dimensions == 0) {
-                            return context.blockFactory().newConstantFloatBlockWith(0F, 0);
+                            return context.blockFactory().newConstantNullBlock(positionCount);
                         }
 
                         float[] leftScratch = new float[dimensions];

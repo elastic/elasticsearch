@@ -543,9 +543,6 @@ tests:
 - class: org.elasticsearch.xpack.search.AsyncSearchErrorTraceIT
   method: testAsyncSearchFailingQueryErrorTraceDefault
   issue: https://github.com/elastic/elasticsearch/issues/133010
-- class: org.elasticsearch.xpack.esql.plugin.IndexResolutionIT
-  method: testDoesNotResolveClosedIndex
-  issue: https://github.com/elastic/elasticsearch/issues/133011
 - class: org.elasticsearch.test.rest.yaml.CcsCommonYamlTestSuiteIT
   method: test {p0=search/510_range_query_out_of_bounds/Test range query for float field with out of bounds lower limit}
   issue: https://github.com/elastic/elasticsearch/issues/133012
@@ -612,6 +609,18 @@ tests:
 - class: org.elasticsearch.gradle.internal.transport.TransportVersionValidationFuncTest
   method: definitions have primary ids which cannot change
   issue: https://github.com/elastic/elasticsearch/issues/133131
+- class: org.elasticsearch.index.mapper.blockloader.IpFieldBlockLoaderTests
+  method: testBlockLoader {preference=Params[syntheticSource=true, preference=NONE]}
+  issue: https://github.com/elastic/elasticsearch/issues/133216
+- class: org.elasticsearch.index.mapper.blockloader.IpFieldBlockLoaderTests
+  method: testBlockLoader {preference=Params[syntheticSource=true, preference=DOC_VALUES]}
+  issue: https://github.com/elastic/elasticsearch/issues/133217
+- class: org.elasticsearch.index.mapper.blockloader.IpFieldBlockLoaderTests
+  method: testBlockLoader {preference=Params[syntheticSource=true, preference=STORED]}
+  issue: https://github.com/elastic/elasticsearch/issues/133218
+- class: org.elasticsearch.xpack.esql.action.RandomizedTimeSeriesIT
+  method: testGroupBySubset
+  issue: https://github.com/elastic/elasticsearch/issues/133220
 
 # Examples:
 #

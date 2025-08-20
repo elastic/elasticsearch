@@ -506,12 +506,19 @@ public final class MultiRowTestCaseSupplier {
         Supplier<T> valueSupplier
     ) {
         if (minRows <= 1 && maxRows >= 1) {
-            cases.add(new TypedDataSupplier("<single " + name + ">", () -> randomList(1, 1, valueSupplier), type, false, true));
+            cases.add(new TypedDataSupplier("<single " + name + ">", () -> randomList(1, 1, valueSupplier), type, false, true, List.of()));
         }
 
         if (maxRows > 1) {
             cases.add(
-                new TypedDataSupplier("<" + name + "s>", () -> randomList(Math.max(2, minRows), maxRows, valueSupplier), type, false, true)
+                new TypedDataSupplier(
+                    "<" + name + "s>",
+                    () -> randomList(Math.max(2, minRows), maxRows, valueSupplier),
+                    type,
+                    false,
+                    true,
+                    List.of()
+                )
             );
         }
     }

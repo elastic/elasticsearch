@@ -588,6 +588,7 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
         assertThat(response.getField("field3"), aMapWithSize(2));
         assertThat(response.getField("field3"), hasKey("long"));
         assertThat(response.getField("field3"), hasKey("keyword"));
+        // mapping conflict, therefore indices is always present for `field3`
         assertThat(response.getField("field3").get("long").indices(), arrayContaining("index-2"));
         assertThat(response.getField("field3").get("keyword").indices(), arrayContaining("index-1"));
 

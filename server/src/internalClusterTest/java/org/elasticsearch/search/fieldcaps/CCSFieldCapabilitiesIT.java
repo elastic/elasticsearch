@@ -173,6 +173,7 @@ public class CCSFieldCapabilitiesIT extends AbstractMultiClustersTestCase {
         assertThat(response.getField("field3"), aMapWithSize(2));
         assertThat(response.getField("field3"), hasKey("long"));
         assertThat(response.getField("field3"), hasKey("keyword"));
+        // mapping conflict, therefore indices is always present for `field3`
         assertThat(response.getField("field3").get("long").indices(), arrayContaining(remoteIndex));
         assertThat(response.getField("field3").get("keyword").indices(), arrayContaining(localIndex));
 
@@ -205,6 +206,7 @@ public class CCSFieldCapabilitiesIT extends AbstractMultiClustersTestCase {
         assertThat(response.getField("field3"), aMapWithSize(2));
         assertThat(response.getField("field3"), hasKey("long"));
         assertThat(response.getField("field3"), hasKey("keyword"));
+        // mapping conflict, therefore indices is always present for `field3`
         assertThat(response.getField("field3").get("long").indices(), arrayContaining(remoteIndex));
         assertThat(response.getField("field3").get("keyword").indices(), arrayContaining(localIndex));
     }

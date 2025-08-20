@@ -354,7 +354,7 @@ public class Join extends BinaryPlan implements PostAnalysisVerificationAware, S
 
     @Override
     public ExecuteLocation executesOn() {
-        return isRemote ? ExecuteLocation.REMOTE : ExecuteLocation.COORDINATOR;
+        return isRemote ? ExecuteLocation.REMOTE : ExecuteLocation.ANY;
     }
 
     private void checkRemoteJoin(Failures failures) {

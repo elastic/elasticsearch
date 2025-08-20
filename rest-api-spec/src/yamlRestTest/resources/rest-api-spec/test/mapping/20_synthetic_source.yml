@@ -164,14 +164,14 @@ synthetic_source text with ignored multi-field and multiple values in the same d
   - match: { hits.hits.0._source.foo.0: "This value is too long and will be ignored" }
   - match: { hits.hits.0._source.foo.1: "This value is short" }
 
-  # flip around the two values, now short first followed by a long one
+  # flip around the two values
   - do:
       index:
         index: synthetic_source_test
         id:    "1"
         refresh: true
         body:
-          foo: [ "a short potato", "a very looooooooooooooong potato" ]
+          foo: [ "This value is short",  "This value is too long and will be ignored" ]
 
   - do:
       search:
@@ -182,6 +182,50 @@ synthetic_source text with ignored multi-field and multiple values in the same d
               foo: potato
 
   - match: { hits.total.value: 1 }
-  # the order is flipped because the keyword field loader is added after the parent field loader
-  - match: { hits.hits.0._source.foo.0: "a very looooooooooooooong potato" }
-  - match: { hits.hits.0._source.foo.1: "a short potato" }
+  # the order will be the same since text fields currently don't take offsets into account
+  - match: { hits.hits.0._source.foo.0: "This value is too long and will be ignored" }
+  - match: { hits.hits.0._source.foo.1: "This value is short" }
+
+---
+synthetic_source text with ignored multi-field and multiple values in the same doc and respect order:
+  - requires:
+      cluster_features: [ "mapper.source.mode_from_index_setting" ]
+      reason: "Source mode configured through index setting"
+
+  - do:
+      indices.create:
+        index: synthetic_source_test
+        body:
+          settings:
+            index:
+              mapping.source.mode: synthetic
+          mappings:
+            properties:
+              foo:
+                type: text
+                # this will force the order to be preserved
+                synthetic_source_keep: arrays
+                fields:
+                  raw:
+                    type: keyword
+                    ignore_above: 20
+
+  - do:
+      index:
+        index: synthetic_source_test
+        id:    "1"
+        refresh: true
+        body:
+          foo: [ "This value is short",  "This value is too long and will be ignored" ]
+
+  - do:
+      search:
+        index: synthetic_source_test
+        body:
+          query:
+            match_phrase:
+              foo: potato
+
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._source.foo.0: "This value is short" }
+  - match: { hits.hits.0._source.foo.1: "This value is too long and will be ignored" }

@@ -68,6 +68,7 @@ public class AuthenticatorChainTests extends ESTestCase {
     private OAuth2TokenAuthenticator oAuth2TokenAuthenticator;
     private ApiKeyAuthenticator apiKeyAuthenticator;
     private PluggableApiKeyAuthenticator pluggableApiKeyAuthenticator;
+    private PluggableOAuth2TokenAuthenticator pluggableOAuth2TokenAuthenticator;
     private RealmsAuthenticator realmsAuthenticator;
     private Authentication authentication;
     private User fallbackUser;
@@ -104,6 +105,7 @@ public class AuthenticatorChainTests extends ESTestCase {
             anonymousUser,
             authenticationContextSerializer,
             serviceAccountAuthenticator,
+            pluggableOAuth2TokenAuthenticator,
             oAuth2TokenAuthenticator,
             pluggableApiKeyAuthenticator,
             apiKeyAuthenticator,

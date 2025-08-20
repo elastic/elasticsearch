@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
+import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
@@ -86,6 +87,18 @@ public class IgnoreNullMetricsTests extends ESTestCase {
         assertEquals("metric_1", attribute.fieldName().string());
     }
 
+    public void testRuleDoesNotApplyInNonTSMode() {
+        LogicalPlan actual = analyze("""
+            FROM test
+            | STATS max(metric_1)
+            | LIMIT 10
+            """);
+        Limit limit_10000 = as(actual, Limit.class);
+        Limit limit_10 = as(limit_10000.child(), Limit.class);
+        Aggregate agg = as(limit_10.child(), Aggregate.class);
+        EsRelation relation = as(agg.child(), EsRelation.class);
+    }
+
     public void testDimensionsAreNotFiltered() {
 
         LogicalPlan actual = analyze("""
@@ -133,7 +146,6 @@ public class IgnoreNullMetricsTests extends ESTestCase {
             // something weird happened
             assert false;
         }
-
     }
 
     public void testSkipCoalescedMetrics() {

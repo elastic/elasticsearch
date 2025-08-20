@@ -27,10 +27,10 @@ import java.util.HashSet;
 import java.util.Set;
 
 /**
- * Some {@link FullTextFunction} implementations such as {@link org.elasticsearch.xpack.esql.expression.function.fulltext.Match}
+ * Some {@link RewriteableAware} implementations such as {@link org.elasticsearch.xpack.esql.expression.function.fulltext.Match}
  * will be translated to a {@link QueryBuilder} that require a rewrite phase on the coordinator.
  * {@link QueryBuilderResolver#resolveQueryBuilders(LogicalPlan, TransportActionServices, ActionListener)} will rewrite the plan by
- * replacing {@link FullTextFunction} expression with new ones that hold rewritten {@link QueryBuilder}s.
+ * replacing {@link RewriteableAware} expression with new ones that hold rewritten {@link QueryBuilder}s.
  */
 public final class QueryBuilderResolver {
 
@@ -48,7 +48,7 @@ public final class QueryBuilderResolver {
         });
         if (hasRewriteableAwareFunctions) {
             Rewriteable.rewriteAndFetch(
-                new FunctionsRewritable(plan),
+                new FunctionsRewriteable(plan),
                 queryRewriteContext(services, indexNames(plan)),
                 listener.delegateFailureAndWrap((l, r) -> l.onResponse(r.plan))
             );
@@ -76,9 +76,9 @@ public final class QueryBuilderResolver {
         return indexNames;
     }
 
-    private record FunctionsRewritable(LogicalPlan plan) implements Rewriteable<QueryBuilderResolver.FunctionsRewritable> {
+    private record FunctionsRewriteable(LogicalPlan plan) implements Rewriteable<FunctionsRewriteable> {
         @Override
-        public FunctionsRewritable rewrite(QueryRewriteContext ctx) throws IOException {
+        public FunctionsRewriteable rewrite(QueryRewriteContext ctx) throws IOException {
             Holder<IOException> exceptionHolder = new Holder<>();
             Holder<Boolean> updated = new Holder<>(false);
             LogicalPlan newPlan = plan.transformExpressionsDown(Expression.class, expr -> {
@@ -89,8 +89,7 @@ public final class QueryBuilderResolver {
                         ? rewriteableAware.asQuery(LucenePushdownPredicates.DEFAULT, TranslatorHandler.TRANSLATOR_HANDLER).toQueryBuilder()
                         : builder;
                     try {
-                        // TODO: Even when changing this to Rewriteable#rewrite, this still doesn't execute the full rewrite phase. Bug?
-                        builder = Rewriteable.rewrite(builder, ctx);
+                        builder = builder.rewrite(ctx);
                     } catch (IOException e) {
                         exceptionHolder.setIfAbsent(e);
                     }
@@ -103,7 +102,7 @@ public final class QueryBuilderResolver {
             if (exceptionHolder.get() != null) {
                 throw exceptionHolder.get();
             }
-            return updated.get() ? new FunctionsRewritable(newPlan) : this;
+            return updated.get() ? new FunctionsRewriteable(newPlan) : this;
         }
     }
 }

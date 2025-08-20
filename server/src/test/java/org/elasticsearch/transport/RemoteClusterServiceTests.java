@@ -1375,15 +1375,15 @@ public class RemoteClusterServiceTests extends ESTestCase {
                 service.start();
                 service.acceptIncomingRequests();
 
-                assertTrue(service.getRemoteClusterService().isSkipUnavailable("cluster1"));
+                assertTrue(service.getRemoteClusterService().isSkipUnavailable("cluster1").orElse(true));
 
                 if (randomBoolean()) {
                     updateSkipUnavailable(service.getRemoteClusterService(), "cluster1", false);
-                    assertFalse(service.getRemoteClusterService().isSkipUnavailable("cluster1"));
+                    assertFalse(service.getRemoteClusterService().isSkipUnavailable("cluster1").orElse(true));
                 }
 
                 updateSkipUnavailable(service.getRemoteClusterService(), "cluster1", true);
-                assertTrue(service.getRemoteClusterService().isSkipUnavailable("cluster1"));
+                assertTrue(service.getRemoteClusterService().isSkipUnavailable("cluster1").orElse(true));
             }
         }
     }

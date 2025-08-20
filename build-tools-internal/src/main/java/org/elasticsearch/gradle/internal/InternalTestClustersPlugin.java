@@ -34,11 +34,15 @@ public class InternalTestClustersPlugin implements Plugin<Project> {
                 || buildParams.getBwcVersions().unreleasedInfo(version) == null
         );
 
+        NamedDomainObjectContainer<ElasticsearchCluster> testClusters = (NamedDomainObjectContainer<ElasticsearchCluster>) project
+            .getExtensions()
+            .getByName(TestClustersPlugin.EXTENSION_NAME);
         if (shouldConfigureTestClustersWithOneProcessor()) {
-            NamedDomainObjectContainer<ElasticsearchCluster> testClusters = (NamedDomainObjectContainer<ElasticsearchCluster>) project
-                .getExtensions()
-                .getByName(TestClustersPlugin.EXTENSION_NAME);
             testClusters.configureEach(elasticsearchCluster -> elasticsearchCluster.setting("node.processors", "1"));
+        } else {
+            // Limit the number of allocated processors for all nodes in the cluster by default.
+            // This is to ensure that the tests run consistently across different environments.
+            testClusters.configureEach(elasticsearchCluster -> elasticsearchCluster.setting("node.processors", "2"));
         }
     }
 

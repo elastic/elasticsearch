@@ -965,6 +965,48 @@ public class SamlRealmTests extends SamlTestCase {
         );
     }
 
+    public void testPrivateAttributesSettingValidation() {
+        String attributeName = randomAlphaOfLength(10);
+        String attributeSetting = RealmSettings.getFullSettingKey(
+            REALM_NAME,
+            randomFrom(
+                SamlRealmSettings.PRINCIPAL_ATTRIBUTE.apply(SingleSpSamlRealmSettings.TYPE).getAttribute(),
+                SamlRealmSettings.GROUPS_ATTRIBUTE.apply(SingleSpSamlRealmSettings.TYPE).getAttributeSetting().getAttribute(),
+                SamlRealmSettings.DN_ATTRIBUTE.apply(SingleSpSamlRealmSettings.TYPE).getAttribute(),
+                SamlRealmSettings.NAME_ATTRIBUTE.apply(SingleSpSamlRealmSettings.TYPE).getAttribute(),
+                SamlRealmSettings.MAIL_ATTRIBUTE.apply(SingleSpSamlRealmSettings.TYPE).getAttribute()
+            )
+        );
+
+        final UserRoleMapper roleMapper = mock(UserRoleMapper.class);
+        final ResourceWatcherService watcherService = mock(ResourceWatcherService.class);
+        final SpConfiguration sp = new SingleSamlSpConfiguration("<sp>", "https://saml/", null, null, null, Collections.emptyList());
+        final Path path = getDataPath("idp1.xml");
+        Tuple<RealmConfig, SSLService> tuple = buildConfig(
+            "https://example.com",
+            builder -> builder.put(
+                SingleSpSamlRealmSettings.getFullSettingKey(REALM_NAME, SamlRealmSettings.PRIVATE_ATTRIBUTES),
+                attributeName
+            ).put(attributeSetting, attributeName)
+        );
+        final RealmConfig config = tuple.v1();
+        final SSLService sslService = tuple.v2();
+
+        var e = expectThrows(IllegalArgumentException.class, () -> SamlRealm.create(config, sslService, watcherService, roleMapper, sp));
+        assertThat(
+            e.getCause().getMessage(),
+            containsString(
+                "SAML Attribute ["
+                    + attributeName
+                    + "] cannot be both configured for ["
+                    + REALM_SETTINGS_PREFIX
+                    + ".private_attributes] and ["
+                    + attributeSetting
+                    + "] settings."
+            )
+        );
+    }
+
     public void testMissingPrincipalSettingThrowsSettingsException() throws Exception {
         final Settings realmSettings = Settings.EMPTY;
         final RealmConfig config = buildConfig(realmSettings);

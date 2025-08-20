@@ -609,6 +609,30 @@ tests:
 - class: org.elasticsearch.gradle.internal.transport.TransportVersionValidationFuncTest
   method: definitions have primary ids which cannot change
   issue: https://github.com/elastic/elasticsearch/issues/133131
+- class: org.elasticsearch.index.mapper.blockloader.IpFieldBlockLoaderTests
+  method: testBlockLoader {preference=Params[syntheticSource=true, preference=NONE]}
+  issue: https://github.com/elastic/elasticsearch/issues/133216
+- class: org.elasticsearch.index.mapper.blockloader.IpFieldBlockLoaderTests
+  method: testBlockLoader {preference=Params[syntheticSource=true, preference=DOC_VALUES]}
+  issue: https://github.com/elastic/elasticsearch/issues/133217
+- class: org.elasticsearch.index.mapper.blockloader.IpFieldBlockLoaderTests
+  method: testBlockLoader {preference=Params[syntheticSource=true, preference=STORED]}
+  issue: https://github.com/elastic/elasticsearch/issues/133218
+- class: org.elasticsearch.xpack.esql.action.RandomizedTimeSeriesIT
+  method: testGroupBySubset
+  issue: https://github.com/elastic/elasticsearch/issues/133220
+- class: org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormatTests
+  method: testSortedDocValuesSingleUniqueValue
+  issue: https://github.com/elastic/elasticsearch/issues/133221
+- class: org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormatTests
+  method: testSortedNumberMergeAwayAllValuesWithSkipper
+  issue: https://github.com/elastic/elasticsearch/issues/133223
+- class: org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormatTests
+  method: testSortedSetDocValuesWithSkipperSmall
+  issue: https://github.com/elastic/elasticsearch/issues/133224
+- class: org.elasticsearch.xpack.esql.action.RandomizedTimeSeriesIT
+  method: testGroupByNothing
+  issue: https://github.com/elastic/elasticsearch/issues/133225
 
 # Examples:
 #

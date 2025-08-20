@@ -43,6 +43,7 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executor;
@@ -82,6 +83,7 @@ public final class RemoteClusterService extends RemoteClusterAware
     private final Map<ProjectId, Map<String, RemoteClusterConnection>> remoteClusters;
     private final RemoteClusterCredentialsManager remoteClusterCredentialsManager;
     private final ProjectResolver projectResolver;
+    private final boolean canUseSkipUnavailable;
 
     @FixForMultiProject(description = "Inject the ProjectResolver instance.")
     RemoteClusterService(Settings settings, TransportService transportService) {
@@ -99,6 +101,11 @@ public final class RemoteClusterService extends RemoteClusterAware
         if (remoteClusterServerEnabled) {
             registerRemoteClusterHandshakeRequestHandler(transportService);
         }
+        /*
+         * TODO: This is not the right way to check if we're in CPS context and is more of a temporary measure since
+         *  the functionality to do it the right way is not yet ready -- replace this code when it's ready.
+         */
+        this.canUseSkipUnavailable = settings.getAsBoolean("serverless.cross_project.enabled", false) == false;
     }
 
     /**
@@ -209,10 +216,28 @@ public final class RemoteClusterService extends RemoteClusterAware
     }
 
     /**
-     * Returns whether the cluster identified by the provided alias is configured to be skipped when unavailable
+     * Returns whether the cluster identified by the provided alias is configured to be skipped when unavailable.
+     * @param clusterAlias Name of the cluster
+     * @return A boolean optional that denotes if the cluster is configured to be skipped. In CPS-like environment,
+     * it returns an empty value where we default/fall back to true.
      */
-    public boolean isSkipUnavailable(String clusterAlias) {
-        return getRemoteClusterConnection(clusterAlias).isSkipUnavailable();
+    public Optional<Boolean> isSkipUnavailable(String clusterAlias) {
+        if (canUseSkipUnavailable == false) {
+            return Optional.empty();
+        } else {
+            return Optional.of(getRemoteClusterConnection(clusterAlias).isSkipUnavailable());
+        }
+    }
+
+    /**
+     * Signifies if an error can be skipped for the specified cluster based on skip_unavailable, or,
+     * allow_partial_search_results if in CPS-like environment.
+     * @param clusterAlias Name of the cluster
+     * @param allowPartialSearchResults If partial results can be served for the search request.
+     * @return boolean
+     */
+    public boolean shouldSkipOnFailure(String clusterAlias, Boolean allowPartialSearchResults) {
+        return isSkipUnavailable(clusterAlias).orElseGet(() -> allowPartialSearchResults != null && allowPartialSearchResults);
     }
 
     public Transport.Connection getConnection(String cluster) {
@@ -583,7 +608,9 @@ public final class RemoteClusterService extends RemoteClusterAware
         return new RemoteClusterAwareClient(transportService, clusterAlias, responseExecutor, switch (disconnectedStrategy) {
             case RECONNECT_IF_DISCONNECTED -> true;
             case FAIL_IF_DISCONNECTED -> false;
-            case RECONNECT_UNLESS_SKIP_UNAVAILABLE -> transportService.getRemoteClusterService().isSkipUnavailable(clusterAlias) == false;
+            case RECONNECT_UNLESS_SKIP_UNAVAILABLE -> transportService.getRemoteClusterService()
+                .isSkipUnavailable(clusterAlias)
+                .orElse(true) == false;
         });
     }
 

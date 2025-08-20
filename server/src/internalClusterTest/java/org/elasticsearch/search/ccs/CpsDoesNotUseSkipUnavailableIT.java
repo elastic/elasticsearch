@@ -30,6 +30,7 @@ import java.util.concurrent.ExecutionException;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 
+// TODO: Move this test to the Serverless repo once the IT framework is ready there.
 public class CpsDoesNotUseSkipUnavailableIT extends AbstractMultiClustersTestCase {
     private static final String LINKED_CLUSTER_1 = "cluster-a";
 

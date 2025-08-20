@@ -39,6 +39,12 @@ import org.elasticsearch.xcontent.Text;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.nio.ByteBuffer;
+import java.nio.CharBuffer;
+import java.nio.charset.CharacterCodingException;
+import java.nio.charset.CharsetDecoder;
+import java.nio.charset.CodingErrorAction;
+import java.nio.charset.StandardCharsets;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
@@ -51,8 +57,8 @@ public class HighlighterExpressionEvaluator extends LuceneQueryEvaluator<BytesRe
         EvalOperator.ExpressionEvaluator {
 
     private final String fieldName;
-    private final Integer numFragments;
-    private final Integer fragmentLength;
+    private final int numFragments;
+    private final int fragmentLength;
     private final Map<String, Highlighter> highlighters;
     private final FetchContext fetchContext;
     private final MappedFieldType fieldType;
@@ -68,8 +74,8 @@ public class HighlighterExpressionEvaluator extends LuceneQueryEvaluator<BytesRe
     ) {
         super(blockFactory, shardConfigs);
         this.fieldName = fieldName;
-        this.numFragments = numFragments;
-        this.fragmentLength = fragmentLength;
+        this.numFragments = numFragments != null ? numFragments : HighlightBuilder.DEFAULT_NUMBER_OF_FRAGMENTS;
+        this.fragmentLength = fragmentLength != null ? fragmentLength : HighlightBuilder.DEFAULT_FRAGMENT_CHAR_SIZE;
         this.highlighters = highlighters;
 
         // Create a source loader for highlighter use
@@ -110,8 +116,8 @@ public class HighlighterExpressionEvaluator extends LuceneQueryEvaluator<BytesRe
         SearchHighlightContext.Field field = HighlightSnippetUtils.buildFieldHighlightContextForSnippets(
             fetchContext.getSearchExecutionContext(),
             fieldName,
-            numFragments != null ? numFragments : HighlightBuilder.DEFAULT_NUMBER_OF_FRAGMENTS,
-            fragmentLength != null ? fragmentLength : HighlightBuilder.DEFAULT_FRAGMENT_CHAR_SIZE,
+            numFragments,
+            fragmentLength,
             query
         );
         FetchSubPhase.HitContext hitContext = new FetchSubPhase.HitContext(searchHit, leafReaderContext, docId, Map.of(), source, null);
@@ -132,12 +138,36 @@ public class HighlighterExpressionEvaluator extends LuceneQueryEvaluator<BytesRe
                 builder.beginPositionEntry();
             }
             for (Text highlightText : highlight.fragments()) {
-                builder.appendBytesRef(new BytesRef(highlightText.bytes().bytes()));
+                byte[] highlightBytes = highlightText.bytes().bytes();
+                if (highlightBytes.length > fragmentLength) {
+                    // TODO - This isn't a great solution, but in order to resolve character encoding issues in the
+                    // returned BytesRef we need to ensure that the fragment size we return is equal to what was requested.
+                    // Since the highlighter's default sentence boundary scanner can return longer fragments, we're truncating for now.
+                    byte[] truncatedBytes = truncateUtf8(highlightBytes, fragmentLength);
+                    builder.appendBytesRef(new BytesRef(truncatedBytes));
+                } else {
+                    builder.appendBytesRef(new BytesRef(highlightBytes));
+                }
             }
             if (multivalued) {
                 builder.endPositionEntry();
             }
         }
+    }
+
+    private static byte[] truncateUtf8(byte[] bytes, int maxLength) throws CharacterCodingException {
+        if (bytes.length <= maxLength) return bytes;
+
+        CharsetDecoder dec = StandardCharsets.UTF_8.newDecoder()
+            .onMalformedInput(CodingErrorAction.IGNORE)
+            .onUnmappableCharacter(CodingErrorAction.IGNORE);
+
+        CharBuffer chars = dec.decode(ByteBuffer.wrap(bytes, 0, maxLength));
+        ByteBuffer out = StandardCharsets.UTF_8.encode(chars);
+
+        byte[] result = new byte[out.remaining()];
+        out.get(result);
+        return result;
     }
 
     private static Supplier<Source> lazyStoredSourceLoader(LeafReaderContext ctx, int doc) {

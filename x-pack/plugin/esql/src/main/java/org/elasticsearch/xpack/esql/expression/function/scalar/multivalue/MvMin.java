@@ -27,7 +27,6 @@ import java.util.List;
 
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isRepresentableExceptCountersAndSpatial;
-import static org.elasticsearch.xpack.esql.core.type.DataType.isSpatialOrGrid;
 
 /**
  * Reduce a multivalued field to a single valued field containing the minimum value.

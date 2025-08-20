@@ -27,7 +27,6 @@ import java.util.List;
 
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isRepresentableExceptCountersAndSpatial;
-import static org.elasticsearch.xpack.esql.core.type.DataType.isSpatialOrGrid;
 
 /**
  * Reduce a multivalued field to a single valued field containing the maximum value.
@@ -69,7 +68,7 @@ public class MvMax extends AbstractMultivalueFunction {
 
     @Override
     protected TypeResolution resolveFieldType() {
-        return isType(field(), t -> isSpatial(t) == false && isRepresentableExceptCountersAndSpatial(t), sourceText(), null, "representableNonSpatial");
+        return isRepresentableExceptCountersAndSpatial(field(), sourceText(), DEFAULT);
     }
 
     @Override

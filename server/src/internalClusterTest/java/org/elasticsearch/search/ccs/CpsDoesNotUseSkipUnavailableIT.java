@@ -28,6 +28,7 @@ import java.util.Map;
 import java.util.concurrent.ExecutionException;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 
 public class CpsDoesNotUseSkipUnavailableIT extends AbstractMultiClustersTestCase {
     private static final String LINKED_CLUSTER_1 = "cluster-a";
@@ -65,7 +66,7 @@ public class CpsDoesNotUseSkipUnavailableIT extends AbstractMultiClustersTestCas
         return Map.of(LINKED_CLUSTER_1, false);
     }
 
-    public void testCpsShouldNotUseSkipUnavailable() {
+    public void testCpsShouldNotUseSkipUnavailable() throws Exception {
         // Add some dummy data to prove we are communicating fine with the remote.
         assertAcked(client(LINKED_CLUSTER_1).admin().indices().prepareCreate("test-index"));
         client(LINKED_CLUSTER_1).prepareIndex("test-index").setSource("sample-field", "sample-value").get();
@@ -86,23 +87,24 @@ public class CpsDoesNotUseSkipUnavailableIT extends AbstractMultiClustersTestCas
         {
             var searchRequest = getSearchRequest(true);
             searchRequest.setCcsMinimizeRoundtrips(randomBoolean());
-            var result = safeGet(client().execute(TransportSearchAction.TYPE, searchRequest));
+            assertResponse(client().execute(TransportSearchAction.TYPE, searchRequest), result -> {
+                var originCluster = result.getClusters().getCluster(LOCAL_CLUSTER);
+                assertThat(originCluster.getStatus(), Matchers.is(SearchResponse.Cluster.Status.SUCCESSFUL));
 
-            var originCluster = result.getClusters().getCluster(LOCAL_CLUSTER);
-            assertThat(originCluster.getStatus(), Matchers.is(SearchResponse.Cluster.Status.SUCCESSFUL));
+                var linkedCluster = result.getClusters().getCluster(LINKED_CLUSTER_1);
+                assertThat(linkedCluster.getStatus(), Matchers.is(SearchResponse.Cluster.Status.SKIPPED));
 
-            var linkedCluster = result.getClusters().getCluster(LINKED_CLUSTER_1);
-            assertThat(linkedCluster.getStatus(), Matchers.is(SearchResponse.Cluster.Status.SKIPPED));
-
-            var linkedClusterFailures = result.getClusters().getCluster(LINKED_CLUSTER_1).getFailures();
-            assertThat(linkedClusterFailures.size(), Matchers.is(1));
-            // Failure is something along the lines of shard failure and is caused by a connection error.
-            assertThat(
-                linkedClusterFailures.getFirst().getCause(),
-                Matchers.anyOf(Matchers.instanceOf(RemoteTransportException.class), Matchers.instanceOf(ConnectTransportException.class))
-            );
-
-            result.decRef();
+                var linkedClusterFailures = result.getClusters().getCluster(LINKED_CLUSTER_1).getFailures();
+                assertThat(linkedClusterFailures.size(), Matchers.is(1));
+                // Failure is something along the lines of shard failure and is caused by a connection error.
+                assertThat(
+                    linkedClusterFailures.getFirst().getCause(),
+                    Matchers.anyOf(
+                        Matchers.instanceOf(RemoteTransportException.class),
+                        Matchers.instanceOf(ConnectTransportException.class)
+                    )
+                );
+            });
         }
 
         /*

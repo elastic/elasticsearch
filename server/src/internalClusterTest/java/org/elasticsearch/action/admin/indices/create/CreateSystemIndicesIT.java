@@ -157,7 +157,7 @@ public class CreateSystemIndicesIT extends ESIntegTestCase {
     }
 
     public void testSystemIndexIsAutoCreatedWithDynamicDefault() {
-        doCreateTest(() -> indexDoc(PRIMARY_INDEX_NAME, "1", "vector", new int[] {1, 2,3}), PRIMARY_INDEX_NAME, true);
+        doCreateTest(() -> indexDoc(PRIMARY_INDEX_NAME, "1", "vector", new int[] { 1, 2, 3 }), PRIMARY_INDEX_NAME, true);
     }
 
     private void createSystemAliasViaV1Template(String indexName, String primaryIndexName) throws Exception {

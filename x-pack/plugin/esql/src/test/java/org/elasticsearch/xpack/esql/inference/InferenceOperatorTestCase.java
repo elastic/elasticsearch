@@ -25,8 +25,6 @@ import org.elasticsearch.compute.data.FloatBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.compute.operator.AsyncOperator;
-import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.compute.test.AbstractBlockSourceOperator;
@@ -43,12 +41,14 @@ import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.junit.After;
 import org.junit.Before;
 
+import java.util.Map;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
 
+import static org.elasticsearch.test.MapMatcher.assertMap;
+import static org.elasticsearch.test.MapMatcher.matchesMap;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
-import static org.hamcrest.Matchers.notNullValue;
 
 public abstract class InferenceOperatorTestCase<InferenceResultsType extends InferenceServiceResults> extends OperatorTestCase {
     protected ThreadPool threadPool;
@@ -121,16 +121,8 @@ public abstract class InferenceOperatorTestCase<InferenceResultsType extends Inf
     }
 
     @Override
-    public void testOperatorStatus() {
-        DriverContext driverContext = driverContext();
-        try (var operator = simple().get(driverContext)) {
-            AsyncOperator.Status status = asInstanceOf(AsyncOperator.Status.class, operator.status());
-
-            assertThat(status, notNullValue());
-            assertThat(status.receivedPages(), equalTo(0L));
-            assertThat(status.completedPages(), equalTo(0L));
-            assertThat(status.procesNanos(), greaterThanOrEqualTo(0L));
-        }
+    protected void assertEmptyStatus(Map<String, Object> map) {
+        assertMap(map, matchesMap().entry("received_pages", 0).entry("completed_pages", 0).entry("process_nanos", greaterThanOrEqualTo(0)));
     }
 
     @SuppressWarnings("unchecked")
@@ -228,5 +220,28 @@ public abstract class InferenceOperatorTestCase<InferenceResultsType extends Inf
         } else {
             threadPool.schedule(runnable, TimeValue.timeValueNanos(between(1, 1_000)), threadPool.generic());
         }
+    }
+
+    public static class BlockStringReader {
+
+        private final StringBuilder sb = new StringBuilder();
+        private BytesRef scratch = new BytesRef();
+
+        public String readString(BytesRefBlock block, int pos) {
+            sb.setLength(0);
+            int valueIndex = block.getFirstValueIndex(pos);
+            while (valueIndex < block.getFirstValueIndex(pos) + block.getValueCount(pos)) {
+                scratch = block.getBytesRef(valueIndex, scratch);
+                sb.append(scratch.utf8ToString());
+                if (valueIndex < block.getValueCount(pos) - 1) {
+                    sb.append("\n");
+                }
+                valueIndex++;
+            }
+            scratch = block.getBytesRef(block.getFirstValueIndex(pos), scratch);
+
+            return sb.toString();
+        }
+
     }
 }

@@ -29,32 +29,6 @@ abstract class DiskBBQBulkWriter {
 
     abstract void writeVectors(DefaultIVFVectorsWriter.QuantizedVectorValues qvv) throws IOException;
 
-    private static void writeCorrections(OptimizedScalarQuantizer.QuantizationResult[] corrections, IndexOutput out) throws IOException {
-        for (OptimizedScalarQuantizer.QuantizationResult correction : corrections) {
-            out.writeInt(Float.floatToIntBits(correction.lowerInterval()));
-        }
-        for (OptimizedScalarQuantizer.QuantizationResult correction : corrections) {
-            out.writeInt(Float.floatToIntBits(correction.upperInterval()));
-        }
-        for (OptimizedScalarQuantizer.QuantizationResult correction : corrections) {
-            int targetComponentSum = correction.quantizedComponentSum();
-            assert targetComponentSum >= 0 && targetComponentSum <= 0xffff;
-            out.writeShort((short) targetComponentSum);
-        }
-        for (OptimizedScalarQuantizer.QuantizationResult correction : corrections) {
-            out.writeInt(Float.floatToIntBits(correction.additionalCorrection()));
-        }
-    }
-
-    private static void writeCorrection(OptimizedScalarQuantizer.QuantizationResult correction, IndexOutput out) throws IOException {
-        out.writeInt(Float.floatToIntBits(correction.lowerInterval()));
-        out.writeInt(Float.floatToIntBits(correction.upperInterval()));
-        out.writeInt(Float.floatToIntBits(correction.additionalCorrection()));
-        int targetComponentSum = correction.quantizedComponentSum();
-        assert targetComponentSum >= 0 && targetComponentSum <= 0xffff;
-        out.writeShort((short) targetComponentSum);
-    }
-
     static class OneBitDiskBBQBulkWriter extends DiskBBQBulkWriter {
         private final OptimizedScalarQuantizer.QuantizationResult[] corrections;
 
@@ -73,22 +47,48 @@ abstract class DiskBBQBulkWriter {
                     corrections[j] = qvv.getCorrections();
                     out.writeBytes(qv, qv.length);
                 }
-                writeCorrections(corrections, out);
+                writeCorrections(corrections);
             }
             // write tail
             for (; i < qvv.count(); ++i) {
                 byte[] qv = qvv.next();
                 OptimizedScalarQuantizer.QuantizationResult correction = qvv.getCorrections();
                 out.writeBytes(qv, qv.length);
-                writeCorrection(correction, out);
+                writeCorrection(correction);
             }
+        }
+
+        private void writeCorrections(OptimizedScalarQuantizer.QuantizationResult[] corrections) throws IOException {
+            for (OptimizedScalarQuantizer.QuantizationResult correction : corrections) {
+                out.writeInt(Float.floatToIntBits(correction.lowerInterval()));
+            }
+            for (OptimizedScalarQuantizer.QuantizationResult correction : corrections) {
+                out.writeInt(Float.floatToIntBits(correction.upperInterval()));
+            }
+            for (OptimizedScalarQuantizer.QuantizationResult correction : corrections) {
+                int targetComponentSum = correction.quantizedComponentSum();
+                assert targetComponentSum >= 0 && targetComponentSum <= 0xffff;
+                out.writeShort((short) targetComponentSum);
+            }
+            for (OptimizedScalarQuantizer.QuantizationResult correction : corrections) {
+                out.writeInt(Float.floatToIntBits(correction.additionalCorrection()));
+            }
+        }
+
+        private void writeCorrection(OptimizedScalarQuantizer.QuantizationResult correction) throws IOException {
+            out.writeInt(Float.floatToIntBits(correction.lowerInterval()));
+            out.writeInt(Float.floatToIntBits(correction.upperInterval()));
+            out.writeInt(Float.floatToIntBits(correction.additionalCorrection()));
+            int targetComponentSum = correction.quantizedComponentSum();
+            assert targetComponentSum >= 0 && targetComponentSum <= 0xffff;
+            out.writeShort((short) targetComponentSum);
         }
     }
 
-    static class FourBitDiskBBQBulkWriter extends DiskBBQBulkWriter {
+    static class SevenBitDiskBBQBulkWriter extends DiskBBQBulkWriter {
         private final OptimizedScalarQuantizer.QuantizationResult[] corrections;
 
-        FourBitDiskBBQBulkWriter(int bulkSize, IndexOutput out) {
+        SevenBitDiskBBQBulkWriter(int bulkSize, IndexOutput out) {
             super(bulkSize, out);
             this.corrections = new OptimizedScalarQuantizer.QuantizationResult[bulkSize];
         }
@@ -103,15 +103,37 @@ abstract class DiskBBQBulkWriter {
                     corrections[j] = qvv.getCorrections();
                     out.writeBytes(qv, qv.length);
                 }
-                writeCorrections(corrections, out);
+                writeCorrections(corrections);
             }
             // write tail
             for (; i < qvv.count(); ++i) {
                 byte[] qv = qvv.next();
                 OptimizedScalarQuantizer.QuantizationResult correction = qvv.getCorrections();
                 out.writeBytes(qv, qv.length);
-                writeCorrection(correction, out);
+                writeCorrection(correction);
             }
+        }
+
+        private void writeCorrections(OptimizedScalarQuantizer.QuantizationResult[] corrections) throws IOException {
+            for (OptimizedScalarQuantizer.QuantizationResult correction : corrections) {
+                out.writeInt(Float.floatToIntBits(correction.lowerInterval()));
+            }
+            for (OptimizedScalarQuantizer.QuantizationResult correction : corrections) {
+                out.writeInt(Float.floatToIntBits(correction.upperInterval()));
+            }
+            for (OptimizedScalarQuantizer.QuantizationResult correction : corrections) {
+                out.writeInt(correction.quantizedComponentSum());
+            }
+            for (OptimizedScalarQuantizer.QuantizationResult correction : corrections) {
+                out.writeInt(Float.floatToIntBits(correction.additionalCorrection()));
+            }
+        }
+
+        private void writeCorrection(OptimizedScalarQuantizer.QuantizationResult correction) throws IOException {
+            out.writeInt(Float.floatToIntBits(correction.lowerInterval()));
+            out.writeInt(Float.floatToIntBits(correction.upperInterval()));
+            out.writeInt(Float.floatToIntBits(correction.additionalCorrection()));
+            out.writeInt(correction.quantizedComponentSum());
         }
     }
 }

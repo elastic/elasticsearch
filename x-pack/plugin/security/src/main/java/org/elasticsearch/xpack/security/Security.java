@@ -107,7 +107,7 @@ import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.RemoteClusterService;
+import org.elasticsearch.transport.RemoteClusterSettings;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportInterceptor;
 import org.elasticsearch.transport.TransportRequest;
@@ -659,7 +659,7 @@ public class Security extends Plugin
 
     private void ensureNoRemoteClusterCredentialsOnDisabledSecurity(Settings settings) {
         assert false == enabled;
-        final List<String> remoteClusterCredentialsSettingKeys = RemoteClusterService.REMOTE_CLUSTER_CREDENTIALS.getAllConcreteSettings(
+        final List<String> remoteClusterCredentialsSettingKeys = RemoteClusterSettings.REMOTE_CLUSTER_CREDENTIALS.getAllConcreteSettings(
             settings
         ).map(Setting::getKey).sorted().toList();
         if (false == remoteClusterCredentialsSettingKeys.isEmpty()) {

@@ -44,10 +44,12 @@ public class DefaultMappingParametersHandler implements DataSourceHandler {
             case BOOLEAN -> booleanMapping();
             case DATE -> dateMapping();
             case GEO_POINT -> geoPointMapping();
-            case TEXT -> textMapping(request);
+            case TEXT -> textMapping();
             case IP -> ipMapping();
             case CONSTANT_KEYWORD -> constantKeywordMapping();
             case WILDCARD -> wildcardMapping();
+            case MATCH_ONLY_TEXT -> matchOnlyTextMapping();
+            case PASSTHROUGH -> throw new IllegalArgumentException("Unsupported field type: " + fieldType);
         });
     }
 
@@ -96,8 +98,8 @@ public class DefaultMappingParametersHandler implements DataSourceHandler {
                 }
             }
 
-            if (ESTestCase.randomDouble() <= 0.2) {
-                mapping.put("ignore_above", ESTestCase.randomIntBetween(1, 100));
+            if (ESTestCase.randomDouble() <= 0.3) {
+                mapping.put("ignore_above", ESTestCase.randomIntBetween(1, 50));
             }
             if (ESTestCase.randomDouble() <= 0.2) {
                 mapping.put("null_value", ESTestCase.randomAlphaOfLengthBetween(0, 10));
@@ -196,20 +198,12 @@ public class DefaultMappingParametersHandler implements DataSourceHandler {
         };
     }
 
-    private Supplier<Map<String, Object>> textMapping(DataSourceRequest.LeafMappingParametersGenerator request) {
+    private Supplier<Map<String, Object>> textMapping() {
         return () -> {
             var mapping = new HashMap<String, Object>();
 
             mapping.put("store", ESTestCase.randomBoolean());
             mapping.put("index", ESTestCase.randomBoolean());
-
-            if (ESTestCase.randomDouble() <= 0.1) {
-                var keywordMultiFieldMapping = keywordMapping(request).get();
-                keywordMultiFieldMapping.put("type", "keyword");
-                keywordMultiFieldMapping.remove("copy_to");
-
-                mapping.put("fields", Map.of("kwd", keywordMultiFieldMapping));
-            }
 
             return mapping;
         };
@@ -247,8 +241,8 @@ public class DefaultMappingParametersHandler implements DataSourceHandler {
         return () -> {
             var mapping = new HashMap<String, Object>();
 
-            if (ESTestCase.randomDouble() <= 0.2) {
-                mapping.put("ignore_above", ESTestCase.randomIntBetween(1, 100));
+            if (ESTestCase.randomDouble() <= 0.3) {
+                mapping.put("ignore_above", ESTestCase.randomIntBetween(1, 50));
             }
             if (ESTestCase.randomDouble() <= 0.2) {
                 mapping.put("null_value", ESTestCase.randomAlphaOfLengthBetween(0, 10));
@@ -256,6 +250,10 @@ public class DefaultMappingParametersHandler implements DataSourceHandler {
 
             return mapping;
         };
+    }
+
+    private Supplier<Map<String, Object>> matchOnlyTextMapping() {
+        return HashMap::new;
     }
 
     public static HashMap<String, Object> commonMappingParameters() {

@@ -12,9 +12,9 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.inference.InferenceResults;
 
 import java.io.IOException;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.ConcurrentHashMap;
 
 public class MapEmbeddingsProvider implements EmbeddingsProvider {
     public static final String NAME = "map_embeddings_provider";
@@ -22,7 +22,7 @@ public class MapEmbeddingsProvider implements EmbeddingsProvider {
     private final Map<String, InferenceResults> embeddings;
 
     public MapEmbeddingsProvider() {
-        this.embeddings = new HashMap<>();
+        this.embeddings = new ConcurrentHashMap<>();
     }
 
     public MapEmbeddingsProvider(StreamInput in) throws IOException {

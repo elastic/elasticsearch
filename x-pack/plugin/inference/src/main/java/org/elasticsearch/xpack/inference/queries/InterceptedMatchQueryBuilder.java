@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.inference.queries;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.index.query.MatchQueryBuilder;
+import org.elasticsearch.index.query.QueryBuilder;
 
 import java.io.IOException;
 
@@ -23,6 +24,10 @@ public class InterceptedMatchQueryBuilder extends InterceptedQueryBuilder<MatchQ
         super(in);
     }
 
+    private InterceptedMatchQueryBuilder(InterceptedMatchQueryBuilder other, EmbeddingsProvider embeddingsProvider) {
+        super(other, embeddingsProvider);
+    }
+
     @Override
     public String getWriteableName() {
         return NAME;
@@ -31,5 +36,20 @@ public class InterceptedMatchQueryBuilder extends InterceptedQueryBuilder<MatchQ
     @Override
     protected Class<MatchQueryBuilder> originalQueryClass() {
         return MatchQueryBuilder.class;
+    }
+
+    @Override
+    protected String getFieldName() {
+        return originalQuery.fieldName();
+    }
+
+    @Override
+    protected String getQuery() {
+        return (String) originalQuery.value();
+    }
+
+    @Override
+    protected QueryBuilder copy(EmbeddingsProvider embeddingsProvider) {
+        return new InterceptedMatchQueryBuilder(this, embeddingsProvider);
     }
 }

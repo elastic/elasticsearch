@@ -14,6 +14,8 @@ import org.elasticsearch.plugins.internal.rewriter.QueryRewriteInterceptor;
 public abstract class NewSemanticQueryRewriteInterceptor implements QueryRewriteInterceptor {
     @Override
     public QueryBuilder interceptAndRewrite(QueryRewriteContext context, QueryBuilder queryBuilder) {
+        // Don't do any rewriting except wrapping the original query in a InterceptedQueryBuilder
+        // This way, any follow-up transformations will be handled by the InterceptedQueryBuilder rewrite cycle
         return null;
     }
 }

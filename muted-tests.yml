@@ -639,6 +639,9 @@ tests:
 - class: org.elasticsearch.gradle.internal.transport.TransportVersionValidationFuncTest
   method: unreferenced definitions can have primary ids that are patches
   issue: https://github.com/elastic/elasticsearch/issues/133256
+- class: org.elasticsearch.gradle.internal.transport.TransportVersionValidationFuncTest
+  method: latest can refer to an unreferenced definition
+  issue: https://github.com/elastic/elasticsearch/issues/133257
 
 # Examples:
 #

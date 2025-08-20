@@ -49,6 +49,7 @@ public class DefaultMappingParametersHandler implements DataSourceHandler {
             case CONSTANT_KEYWORD -> constantKeywordMapping();
             case WILDCARD -> wildcardMapping();
             case MATCH_ONLY_TEXT -> matchOnlyTextMapping();
+            case PASSTHROUGH -> throw new IllegalArgumentException("Unsupported field type: " + fieldType);
         });
     }
 

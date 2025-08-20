@@ -18,6 +18,7 @@ import java.util.ArrayDeque;
 import java.util.Collection;
 import java.util.Deque;
 import java.util.HashMap;
+import java.util.Locale;
 import java.util.Map;
 
 public class LinearScoreEvalOperator implements Operator {
@@ -136,7 +137,7 @@ public class LinearScoreEvalOperator implements Operator {
     }
 
     private Normalizer createNormalizer(String normalizer) {
-        return switch (normalizer.toLowerCase()) {
+        return switch (normalizer.toLowerCase(Locale.ROOT)) {
             case "minmax" -> new MinMaxNormalizer();
             case "l2_norm" -> new L2NormNormalizer();
             case "none" -> new NoneNormalizer();

@@ -174,9 +174,7 @@ public abstract class AggregateFunction extends Function implements PostAnalysis
     @Override
     public BiConsumer<LogicalPlan, Failures> postAnalysisPlanVerification() {
         return (p, failures) -> {
-            // `dedup` for now is not exposed as a command,
-            // so allowing aggregate functions for dedup explicitly is just an internal implementation detail
-            if ((p instanceof Aggregate) == false && (p instanceof Fuse) == false) {
+            if ((p instanceof Aggregate) == false) {
                 p.expressions().forEach(x -> x.forEachDown(AggregateFunction.class, af -> {
                     failures.add(fail(af, "aggregate function [{}] not allowed outside STATS command", af.sourceText()));
                 }));

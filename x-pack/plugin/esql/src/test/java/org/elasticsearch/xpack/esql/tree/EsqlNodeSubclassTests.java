@@ -47,6 +47,8 @@ import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.Grok;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.fuse.Fuse;
+import org.elasticsearch.xpack.esql.plan.logical.fuse.FuseConfig;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinConfig;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinType;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes;
@@ -516,6 +518,10 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
                 List.of(UnresolvedAttributeTests.randomUnresolvedAttribute()),
                 List.of(UnresolvedAttributeTests.randomUnresolvedAttribute())
             );
+        }
+
+        if (argClass == FuseConfig.class) {
+            return new FuseConfig(randomFrom(Fuse.FuseType.RRF, Fuse.FuseType.LINEAR), null);
         }
 
         try {

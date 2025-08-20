@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.esql.optimizer;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.lucene.search.IndexSearcher;
-import org.elasticsearch.Build;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.Fuzziness;
@@ -224,8 +223,8 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
                 List.of("a", "b"),
                 Map.of("", "idx"),
                 Map.ofEntries(
-                    Map.entry("a", new EsField("a", DataType.INTEGER, Map.of(), true)),
-                    Map.entry("b", new EsField("b", DataType.LONG, Map.of(), true))
+                    Map.entry("a", new EsField("a", DataType.INTEGER, Map.of(), true, EsField.TimeSeriesFieldType.NONE)),
+                    Map.entry("b", new EsField("b", DataType.LONG, Map.of(), true, EsField.TimeSeriesFieldType.NONE))
                 )
             )
         );
@@ -2145,7 +2144,7 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
     }
 
     public void testParallelizeTimeSeriesPlan() {
-        assumeTrue("requires snapshot builds", Build.current().isSnapshot());
+        assumeTrue("requires metrics command", EsqlCapabilities.Cap.METRICS_COMMAND.isEnabled());
         var query = "TS k8s | STATS max(rate(network.total_bytes_in)) BY bucket(@timestamp, 1h)";
         var optimizer = new TestPlannerOptimizer(config, timeSeriesAnalyzer);
         PhysicalPlan plan = optimizer.plan(query);

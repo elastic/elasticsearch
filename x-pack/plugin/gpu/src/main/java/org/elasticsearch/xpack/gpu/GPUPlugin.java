@@ -14,7 +14,7 @@ import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.mapper.vectors.VectorsFormatProvider;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.xpack.gpu.codec.GPUVectorsFormat;
+import org.elasticsearch.xpack.gpu.codec.ESGpuHnswVectorsFormat;
 
 public class GPUPlugin extends Plugin implements MapperPlugin {
 
@@ -60,9 +60,9 @@ public class GPUPlugin extends Plugin implements MapperPlugin {
             DenseVectorFieldMapper.HnswIndexOptions hnswIndexOptions = (DenseVectorFieldMapper.HnswIndexOptions) indexOptions;
             int efConstruction = hnswIndexOptions.efConstruction();
             if (efConstruction == HnswGraphBuilder.DEFAULT_BEAM_WIDTH) {
-                efConstruction = GPUVectorsFormat.DEFAULT_BEAM_WIDTH; // default value for GPU graph construction is 128
+                efConstruction = ESGpuHnswVectorsFormat.DEFAULT_BEAM_WIDTH; // default value for GPU graph construction is 128
             }
-            return new GPUVectorsFormat(hnswIndexOptions.m(), efConstruction);
+            return new ESGpuHnswVectorsFormat(hnswIndexOptions.m(), efConstruction);
         } else {
             throw new IllegalArgumentException(
                 "GPU vector indexing is not supported on this vector type: [" + indexOptions.getType() + "]"

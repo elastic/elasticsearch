@@ -17,7 +17,7 @@ import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.xpack.gpu.GPUSupport;
 import org.junit.BeforeClass;
 
-public class GPUVectorsFormatTests extends BaseKnnVectorsFormatTestCase {
+public class ESGpuHnswVectorsFormatTests extends BaseKnnVectorsFormatTestCase {
 
     static {
         LogConfigurator.loadLog4jPlugins();
@@ -29,7 +29,7 @@ public class GPUVectorsFormatTests extends BaseKnnVectorsFormatTestCase {
         assumeTrue("cuvs not supported", GPUSupport.isSupported(false));
     }
 
-    static final Codec codec = TestUtil.alwaysKnnVectorsFormat(new GPUVectorsFormat());
+    static final Codec codec = TestUtil.alwaysKnnVectorsFormat(new ESGpuHnswVectorsFormat());
 
     @Override
     protected Codec getCodec() {
@@ -80,10 +80,10 @@ public class GPUVectorsFormatTests extends BaseKnnVectorsFormatTestCase {
         FilterCodec customCodec = new FilterCodec("foo", Codec.getDefault()) {
             @Override
             public KnnVectorsFormat knnVectorsFormat() {
-                return new GPUVectorsFormat();
+                return new ESGpuHnswVectorsFormat();
             }
         };
-        String expectedPattern = "GPUVectorsFormat(maxConn=16, beamWidth=128, flatVectorFormat=Lucene99FlatVectorsFormat)";
+        String expectedPattern = "ESGpuHnswVectorsFormat(maxConn=16, beamWidth=128, flatVectorFormat=Lucene99FlatVectorsFormat)";
         assertEquals(expectedPattern, customCodec.knnVectorsFormat().toString());
     }
 

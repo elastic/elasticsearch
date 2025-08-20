@@ -31,7 +31,7 @@ import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xpack.gpu.codec.GPUVectorsFormat;
+import org.elasticsearch.xpack.gpu.codec.ESGpuHnswVectorsFormat;
 
 import java.io.InputStream;
 import java.lang.management.ThreadInfo;
@@ -95,7 +95,7 @@ public class KnnIndexTester {
         if (args.indexType() == IndexType.IVF) {
             format = new IVFVectorsFormat(args.ivfClusterSize());
         } else if (args.indexType() == IndexType.GPU) {
-            format = new GPUVectorsFormat();
+            format = new ESGpuHnswVectorsFormat();
         } else {
             if (args.quantizeBits() == 1) {
                 if (args.indexType() == IndexType.FLAT) {

@@ -1,2 +1,2 @@
 
-org.elasticsearch.xpack.gpu.codec.GPUVectorsFormat
+org.elasticsearch.xpack.gpu.codec.ESGpuHnswVectorsFormat

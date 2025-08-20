@@ -50,20 +50,20 @@ import java.util.Objects;
 
 import static org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsReader.SIMILARITY_FUNCTIONS;
 import static org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS;
-import static org.elasticsearch.xpack.gpu.codec.GPUVectorsFormat.LUCENE99_HNSW_META_CODEC_NAME;
-import static org.elasticsearch.xpack.gpu.codec.GPUVectorsFormat.LUCENE99_HNSW_META_EXTENSION;
-import static org.elasticsearch.xpack.gpu.codec.GPUVectorsFormat.LUCENE99_HNSW_VECTOR_INDEX_CODEC_NAME;
-import static org.elasticsearch.xpack.gpu.codec.GPUVectorsFormat.LUCENE99_HNSW_VECTOR_INDEX_EXTENSION;
-import static org.elasticsearch.xpack.gpu.codec.GPUVectorsFormat.LUCENE99_VERSION_CURRENT;
-import static org.elasticsearch.xpack.gpu.codec.GPUVectorsFormat.MIN_NUM_VECTORS_FOR_GPU_BUILD;
+import static org.elasticsearch.xpack.gpu.codec.ESGpuHnswVectorsFormat.LUCENE99_HNSW_META_CODEC_NAME;
+import static org.elasticsearch.xpack.gpu.codec.ESGpuHnswVectorsFormat.LUCENE99_HNSW_META_EXTENSION;
+import static org.elasticsearch.xpack.gpu.codec.ESGpuHnswVectorsFormat.LUCENE99_HNSW_VECTOR_INDEX_CODEC_NAME;
+import static org.elasticsearch.xpack.gpu.codec.ESGpuHnswVectorsFormat.LUCENE99_HNSW_VECTOR_INDEX_EXTENSION;
+import static org.elasticsearch.xpack.gpu.codec.ESGpuHnswVectorsFormat.LUCENE99_VERSION_CURRENT;
+import static org.elasticsearch.xpack.gpu.codec.ESGpuHnswVectorsFormat.MIN_NUM_VECTORS_FOR_GPU_BUILD;
 
 /**
  * Writer that builds a Nvidia Carga Graph on GPU and than writes it into the Lucene99 HNSW format,
  * so that it can be searched on CPU with Lucene99HNSWVectorReader.
  */
-final class GPUToHNSWVectorsWriter extends KnnVectorsWriter {
-    private static final Logger logger = LogManager.getLogger(GPUToHNSWVectorsWriter.class);
-    private static final long SHALLOW_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(GPUToHNSWVectorsWriter.class);
+final class ESGpuHnswVectorsWriter extends KnnVectorsWriter {
+    private static final Logger logger = LogManager.getLogger(ESGpuHnswVectorsWriter.class);
+    private static final long SHALLOW_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(ESGpuHnswVectorsWriter.class);
     private static final int LUCENE99_HNSW_DIRECT_MONOTONIC_BLOCK_SHIFT = 16;
 
     private final CuVSResourceManager cuVSResourceManager;
@@ -76,7 +76,7 @@ final class GPUToHNSWVectorsWriter extends KnnVectorsWriter {
     private final List<FieldWriter> fields = new ArrayList<>();
     private boolean finished;
 
-    GPUToHNSWVectorsWriter(
+    ESGpuHnswVectorsWriter(
         CuVSResourceManager cuVSResourceManager,
         SegmentWriteState state,
         int M,

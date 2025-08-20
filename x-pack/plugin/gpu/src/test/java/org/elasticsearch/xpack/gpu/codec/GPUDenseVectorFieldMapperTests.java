@@ -39,7 +39,7 @@ public class GPUDenseVectorFieldMapperTests extends AbstractDenseVectorFieldMapp
         return Collections.singletonList(plugin);
     }
 
-    public void testKnnGPUVectorsFormat() throws IOException {
+    public void testKnnESGPUHnswVectorsFormat() throws IOException {
         final int dims = randomIntBetween(128, 4096);
         MapperService mapperService = createMapperService(fieldMapping(b -> {
             b.field("type", "dense_vector");
@@ -63,7 +63,7 @@ public class GPUDenseVectorFieldMapperTests extends AbstractDenseVectorFieldMapp
             assertThat(codec, instanceOf(LegacyPerFieldMapperCodec.class));
             knnVectorsFormat = ((LegacyPerFieldMapperCodec) codec).getKnnVectorsFormatForField("field");
         }
-        String expectedString = "GPUVectorsFormat()";
+        String expectedString = "ESGpuHnswVectorsFormat(maxConn=16, beamWidth=128, flatVectorFormat=Lucene99FlatVectorsFormat)";
         assertEquals(expectedString, knnVectorsFormat.toString());
     }
 }

@@ -66,7 +66,7 @@ public class ShardMovementWriteLoadSimulatorTests extends ESTestCase {
         );
     }
 
-    public void testMovementOfAShardWillMoveThreadPoolUtilisation() {
+    public void testMovementOfAShardWillMoveThreadPoolStats() {
         final var originalNode0ThreadPoolStats = randomThreadPoolUsageStats();
         final var originalNode1ThreadPoolStats = randomThreadPoolUsageStats();
         final var allocation = createRoutingAllocationWithRandomisedWriteLoads(
@@ -109,6 +109,19 @@ public class ShardMovementWriteLoadSimulatorTests extends ESTestCase {
             closeTo(expectedUtilisationIncreaseAtDestination, 0.001f)
         );
 
+        if (shardWriteLoad > 0.0) {
+            assertThat(getMaxThreadPoolQueueLatency(shardMovementWriteLoadSimulator, "node_0"), equalTo(0L));
+        } else {
+            assertThat(
+                getMaxThreadPoolQueueLatency(shardMovementWriteLoadSimulator, "node_0"),
+                equalTo(originalNode0ThreadPoolStats.maxThreadPoolQueueLatencyMillis())
+            );
+        }
+        assertThat(
+            getMaxThreadPoolQueueLatency(shardMovementWriteLoadSimulator, "node_1"),
+            equalTo(originalNode1ThreadPoolStats.maxThreadPoolQueueLatencyMillis())
+        );
+
         // Then move it back
         final var moveBackTuple = allocation.routingNodes()
             .relocateShard(movedAndStartedShard, "node_0", expectedShardSize, "testing", NOOP);
@@ -122,6 +135,15 @@ public class ShardMovementWriteLoadSimulatorTests extends ESTestCase {
         assertThat(
             getAverageWritePoolUtilization(shardMovementWriteLoadSimulator, "node_1"),
             equalTo(originalNode1ThreadPoolStats.averageThreadPoolUtilization())
+        );
+
+        assertThat(
+            getMaxThreadPoolQueueLatency(shardMovementWriteLoadSimulator, "node_0"),
+            equalTo(originalNode0ThreadPoolStats.maxThreadPoolQueueLatencyMillis())
+        );
+        assertThat(
+            getMaxThreadPoolQueueLatency(shardMovementWriteLoadSimulator, "node_1"),
+            equalTo(originalNode1ThreadPoolStats.maxThreadPoolQueueLatencyMillis())
         );
     }
 
@@ -147,10 +169,36 @@ public class ShardMovementWriteLoadSimulatorTests extends ESTestCase {
         assertThat(simulated.containsKey("node_1"), equalTo(originalNode1ThreadPoolStats != null));
     }
 
+    public void testUpdateThreadPoolQueueLatencyWithShardMovements() {
+        final long originalLatency = randomNonNegativeLong();
+
+        assertThat(
+            ShardMovementWriteLoadSimulator.updateThreadPoolQueueLatencyWithShardMovements(
+                originalLatency,
+                randomFloatBetween(0.0f, 99.0f, true)
+            ),
+            equalTo(originalLatency)
+        );
+
+        assertThat(
+            ShardMovementWriteLoadSimulator.updateThreadPoolQueueLatencyWithShardMovements(
+                originalLatency,
+                -randomFloatBetween(0.0f, 99.0f, false)
+            ),
+            equalTo(0L)
+        );
+    }
+
     private float getAverageWritePoolUtilization(ShardMovementWriteLoadSimulator shardMovementWriteLoadSimulator, String nodeId) {
         final var generatedNodeUsageStates = shardMovementWriteLoadSimulator.simulatedNodeUsageStatsForThreadPools();
         final var node0WritePoolStats = generatedNodeUsageStates.get(nodeId).threadPoolUsageStatsMap().get("write");
         return node0WritePoolStats.averageThreadPoolUtilization();
+    }
+
+    private long getMaxThreadPoolQueueLatency(ShardMovementWriteLoadSimulator shardMovementWriteLoadSimulator, String nodeId) {
+        final var generatedNodeUsageStates = shardMovementWriteLoadSimulator.simulatedNodeUsageStatsForThreadPools();
+        final var writePoolStats = generatedNodeUsageStates.get(nodeId).threadPoolUsageStatsMap().get("write");
+        return writePoolStats.maxThreadPoolQueueLatencyMillis();
     }
 
     private NodeUsageStatsForThreadPools.ThreadPoolUsageStats randomThreadPoolUsageStats() {

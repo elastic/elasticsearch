@@ -93,7 +93,7 @@ public class ShardMovementWriteLoadSimulator {
                 (float) writeLoadDelta,
                 writeThreadPoolStats.totalThreadPoolThreads()
             ),
-            writeThreadPoolStats.maxThreadPoolQueueLatencyMillis()
+            updateThreadPoolQueueLatencyWithShardMovements(writeThreadPoolStats.maxThreadPoolQueueLatencyMillis(), (float) writeLoadDelta)
         );
     }
 
@@ -115,5 +115,24 @@ public class ShardMovementWriteLoadSimulator {
     ) {
         float newNodeUtilization = nodeUtilization + (shardWriteLoadDelta / numberOfWriteThreads);
         return (float) Math.max(newNodeUtilization, 0.0);
+    }
+
+    /**
+     * Update the max thread pool queue latency by accounting for the write load change due to shard movements
+     * @param maxThreadPoolQueueLatencyMillis The current max thread pool queue latency.
+     * @param shardWriteLoadDelta The write load change due to shard movements. Negative values indicate shards moving away.
+     *                            Positive values indicate shards moving onto the node.
+     * @return The new adjusted max thread pool queue latency.
+     */
+    public static long updateThreadPoolQueueLatencyWithShardMovements(long maxThreadPoolQueueLatencyMillis, float shardWriteLoadDelta) {
+        // Intentionally keep it simple by reducing queue latency to zero if we move any shard off the node.
+        // This means the node is no longer hot-spotting (with respect to queue latency) once a shard moves away.
+        // The next ClusterInfo will come in up-to 30 seconds later, and we will see the actual impact of the
+        // shard movement and repeat the process. We keep the queue latency unchanged if shard moves onto the node.
+        if (shardWriteLoadDelta < 0) {
+            return 0L;
+        } else {
+            return maxThreadPoolQueueLatencyMillis;
+        }
     }
 }

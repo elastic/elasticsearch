@@ -1,0 +1,6 @@
+---
+type: enhancement
+area: "Ingest"
+issues: []
+release_note: >
+  Added `doc` field wrapper in `update_by_query` scripts to match the `update` API behavior.

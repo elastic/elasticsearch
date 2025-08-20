@@ -16,7 +16,7 @@ import org.elasticsearch.gradle.internal.precommit.CheckForbiddenApisTask
 apply plugin: 'elasticsearch.build'
 apply plugin: 'elasticsearch.publish'
 
-var arrowVersion = "18.2.0"
+var arrowVersion = "18.3.0"
 
 dependencies {
   //implementation(project(":libs:x-content"))
@@ -38,7 +38,7 @@ dependencies {
   api("com.fasterxml.jackson.core:jackson-databind:${versions.jackson}")
   api("com.fasterxml.jackson.datatype:jackson-datatype-jsr310:${versions.jackson}")
 
-  api("com.google.flatbuffers:flatbuffers-java:24.3.25")
+  api("com.google.flatbuffers:flatbuffers-java:25.2.10")
   api("commons-codec:commons-codec:${versions.commonscodec}") // Arrow 18 -> commons-codec 1.17.1
   api("org.slf4j:slf4j-api:${versions.slf4j}")
   api("org.immutables:value-annotations:2.10.1") // provided dependency

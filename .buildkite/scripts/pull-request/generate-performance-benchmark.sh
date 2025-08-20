@@ -7,11 +7,11 @@ env_id_contender=$(python3 -c 'import uuid; print(uuid.uuid4())')
 merge_base=$(git merge-base "${GITHUB_PR_TARGET_BRANCH}" HEAD)
 
 buildkite-agent meta-data set pr_comment:custom-body:body \
-  "This build runs two ${GITHUB_PR_COMMENT_VAR_BENCHMARK} benchmarks to evaluate performance impact of this PR."
+  "This build attempted two ${GITHUB_PR_COMMENT_VAR_BENCHMARK} benchmarks to evaluate performance impact of this PR."
 buildkite-agent meta-data set pr_comment:custom-baseline:head \
-  "* Baseline: ${GITHUB_PR_TARGET_BRANCH}@${merge_base} (env ID ${env_id_baseline})"
+  "* Baseline: ${merge_base} (env ID ${env_id_baseline})"
 buildkite-agent meta-data set pr_comment:custom-contender:head \
-  "* Contender: ${GITHUB_PR_OWNER}:${GITHUB_PR_BRANCH}@${GITHUB_PR_TRIGGERED_SHA} (env ID ${env_id_contender})"
+  "* Contender: ${GITHUB_PR_TRIGGERED_SHA} (env ID ${env_id_contender})"
 
 echo "steps:"
 echo "  - label: Trigger baseline benchmark"

@@ -332,7 +332,7 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
                 );
 
                 boolean ensureConnected = forceConnectTimeoutSecs != null
-                    || transportService.getRemoteClusterService().isSkipUnavailable(clusterAlias) == false;
+                    || transportService.getRemoteClusterService().isSkipUnavailable(clusterAlias).orElse(true) == false;
                 transportService.getRemoteClusterService()
                     .maybeEnsureConnectedAndGetConnection(clusterAlias, ensureConnected, connectionListener);
             }

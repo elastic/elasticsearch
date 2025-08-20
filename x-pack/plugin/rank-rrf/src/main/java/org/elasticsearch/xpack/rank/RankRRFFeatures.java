@@ -26,7 +26,7 @@ public class RankRRFFeatures implements FeatureSpecification {
 
     @Override
     public Set<NodeFeature> getFeatures() {
-        return Set.of(LINEAR_RETRIEVER_SUPPORTED, LINEAR_RETRIEVER_TOP_LEVEL_NORMALIZER);
+        return Set.of(LINEAR_RETRIEVER_SUPPORTED);
     }
 
     @Override
@@ -38,7 +38,8 @@ public class RankRRFFeatures implements FeatureSpecification {
             LINEAR_RETRIEVER_MINSCORE_FIX,
             LinearRetrieverBuilder.MULTI_FIELDS_QUERY_FORMAT_SUPPORT,
             RRFRetrieverBuilder.MULTI_FIELDS_QUERY_FORMAT_SUPPORT,
-            RRFRetrieverBuilder.WEIGHTED_SUPPORT
+            RRFRetrieverBuilder.WEIGHTED_SUPPORT,
+            LINEAR_RETRIEVER_TOP_LEVEL_NORMALIZER
         );
     }
 }

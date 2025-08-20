@@ -1386,7 +1386,7 @@ setup:
 ---
 "linear retriever with top-level normalizer - l2_norm":
   - requires:
-      cluster_features: [ "linear_retriever.l2_norm", "linear_retriever.top_level_normalizer" ]
+      cluster_features: [ "linear_retriever.top_level_normalizer" ]
       reason: "Support for L2 normalization and top-level normalizer in linear retriever"
   - do:
       search:
@@ -1435,7 +1435,7 @@ setup:
 ---
 "linear retriever with top-level normalizer and per-retriever override":
   - requires:
-      cluster_features: [ "linear_retriever.l2_norm", "linear_retriever.top_level_normalizer" ]
+      cluster_features: [ "linear_retriever.top_level_normalizer" ]
       reason: "Support for L2 normalization and top-level normalizer in linear retriever"
   - do:
       search:
@@ -1517,7 +1517,7 @@ setup:
 ---
 "Linear retriever with per-retriever normalizer override":
   - requires:
-      cluster_features: [ "linear_retriever.l2_norm", "linear_retriever.top_level_normalizer" ]
+      cluster_features: [ "linear_retriever.top_level_normalizer" ]
       reason: "Support for L2 normalization and top-level normalizer in linear retriever"
   - do:
       search:
@@ -1577,7 +1577,7 @@ setup:
 ---
 "Linear retriever with mixed normalizers - inheritance test":
   - requires:
-      cluster_features: [ "linear_retriever.l2_norm" ]
+      cluster_features: [ "linear_retriever.top_level_normalizer" ]
       reason: "Support for L2 normalization"
 
   - do:
@@ -1880,7 +1880,7 @@ setup:
 ---
 "Linear retriever with large score differences and L2 normalization":
   - requires:
-      cluster_features: [ "linear_retriever.l2_norm", "linear_retriever.top_level_normalizer" ]
+      cluster_features: [ "linear_retriever.top_level_normalizer" ]
       reason: "Support for L2 normalization and top-level normalizer in linear retriever"
   - do:
       search:

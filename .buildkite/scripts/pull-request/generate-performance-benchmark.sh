@@ -2,8 +2,8 @@
 
 set -euo pipefail
 
-env_id_baseline=$(uuidgen | awk '{print tolower($0)}')
-env_id_contender=$(uuidgen | awk '{print tolower($0)}')
+env_id_baseline=$(python3 -c 'import uuid; print(uuid.uuid4())')
+env_id_contender=$(python3 -c 'import uuid; print(uuid.uuid4())')
 merge_base=$(git merge-base "${GITHUB_PR_TARGET_BRANCH}" HEAD)
 
 buildkite-agent meta-data set pr_comment:custom-body:body \

@@ -122,14 +122,14 @@ public abstract class ValidateTransportVersionResourcesTask extends DefaultTask 
         if (definition.ids().isEmpty()) {
             throwDefinitionFailure(definition, "does not contain any ids");
         }
-        if (Comparators.isInOrder(definition.ids(), Comparator.reverseOrder()) == false) {
+        if (Comparators.isInOrder(definition.ids(), Comparator.naturalOrder()) == false) {
             throwDefinitionFailure(definition, "does not have ordered ids");
         }
         for (int ndx = 0; ndx < definition.ids().size(); ++ndx) {
             TransportVersionId id = definition.ids().get(ndx);
 
             if (ndx == 0) {
-                // TODO: initial versions will only be applicable to a release branch, so they won't have an associated
+                // TODO: initial versions will only be applicable to a release releaseBranch, so they won't have an associated
                 // main version. They will also be loaded differently in the future, but until they are separate, we ignore them here.
                 if (id.patch() != 0 && definition.name().startsWith("initial_") == false) {
                     throwDefinitionFailure(definition, "has patch version " + id.complete() + " as primary id");
@@ -140,7 +140,7 @@ public abstract class ValidateTransportVersionResourcesTask extends DefaultTask 
                 }
             }
 
-            // check modifications of ids on same branch, ie sharing same base
+            // check modifications of ids on same releaseBranch, ie sharing same base
             TransportVersionId maybeModifiedId = existingIdsByBase.get(id.base());
             if (maybeModifiedId != null && maybeModifiedId.complete() != id.complete()) {
                 throwDefinitionFailure(definition, "modifies existing patch id from " + maybeModifiedId + " to " + id);
@@ -181,7 +181,7 @@ public abstract class ValidateTransportVersionResourcesTask extends DefaultTask 
             );
         }
 
-        TransportVersionLatest existingLatest = getResources().get().getLatestFromMain(latest.branch());
+        TransportVersionLatest existingLatest = getResources().get().getLatestFromMain(latest.releaseBranch());
         if (existingLatest != null) {
             if (latest.id().patch() != 0 && latest.id().base() != existingLatest.id().base()) {
                 throwLatestFailure(latest, "modifies base id from " + existingLatest.id().base() + " to " + latest.id().base());

@@ -26,7 +26,7 @@ class TransportVersionValidationFuncTest extends AbstractTransportVersionFuncTes
     def "definitions must be referenced"() {
         given:
         javaSource("myplugin", "org.elasticsearch.plugin", "MyPlugin",
-            "import org.elasticsearch.TransportVersion;", """
+                "import org.elasticsearch.TransportVersion;", """
             static final TransportVersion dne = TransportVersion.fromName("dne");
         """)
         when:
@@ -43,7 +43,7 @@ class TransportVersionValidationFuncTest extends AbstractTransportVersionFuncTes
         def result = validateDefinitionsFails()
         then:
         assertDefinitionsFailure(result, "Transport version definition file " +
-            "[myserver/src/main/resources/transport/definitions/named/not_used.csv] is not referenced")
+                "[myserver/src/main/resources/transport/definitions/named/not_used.csv] is not referenced")
     }
 
     def "names must be lowercase alphanum or underscore"() {
@@ -53,8 +53,8 @@ class TransportVersionValidationFuncTest extends AbstractTransportVersionFuncTes
         def result = validateDefinitionsFails()
         then:
         assertDefinitionsFailure(result, "Transport version definition file " +
-            "[myserver/src/main/resources/transport/definitions/named/${name}.csv] does not have a valid name, " +
-            "must be lowercase alphanumeric and underscore")
+                "[myserver/src/main/resources/transport/definitions/named/${name}.csv] does not have a valid name, " +
+                "must be lowercase alphanumeric and underscore")
 
         where:
         name << ["CapitalTV", "spaces tv", "trailing_spaces_tv ", "hyphen-tv", "period.tv"]
@@ -67,7 +67,7 @@ class TransportVersionValidationFuncTest extends AbstractTransportVersionFuncTes
         def result = validateDefinitionsFails()
         then:
         assertDefinitionsFailure(result, "Transport version definition file " +
-            "[myserver/src/main/resources/transport/definitions/named/empty.csv] does not contain any ids")
+                "[myserver/src/main/resources/transport/definitions/named/empty.csv] does not contain any ids")
     }
 
     def "definitions have ids in descending order"() {
@@ -77,7 +77,7 @@ class TransportVersionValidationFuncTest extends AbstractTransportVersionFuncTes
         def result = validateDefinitionsFails()
         then:
         assertDefinitionsFailure(result, "Transport version definition file " +
-            "[myserver/src/main/resources/transport/definitions/named/out_of_order.csv] does not have ordered ids")
+                "[myserver/src/main/resources/transport/definitions/named/out_of_order.csv] does not have ordered ids")
     }
 
     def "definition ids are unique"() {
@@ -87,8 +87,8 @@ class TransportVersionValidationFuncTest extends AbstractTransportVersionFuncTes
         def result = validateDefinitionsFails()
         then:
         assertDefinitionsFailure(result, "Transport version definition file " +
-            "[myserver/src/main/resources/transport/definitions/named/existing_92.csv] contains id 8123000 already defined in " +
-            "[myserver/src/main/resources/transport/definitions/named/duplicate.csv]")
+                "[myserver/src/main/resources/transport/definitions/named/existing_92.csv] contains id 8123000 already defined in " +
+                "[myserver/src/main/resources/transport/definitions/named/duplicate.csv]")
     }
 
     def "definitions have bwc ids with non-zero patch part"() {
@@ -98,7 +98,7 @@ class TransportVersionValidationFuncTest extends AbstractTransportVersionFuncTes
         def result = validateDefinitionsFails()
         then:
         assertDefinitionsFailure(result, "Transport version definition file " +
-            "[myserver/src/main/resources/transport/definitions/named/patched.csv] contains bwc id [8100000] with a patch part of 0")
+                "[myserver/src/main/resources/transport/definitions/named/patched.csv] contains bwc id [8100000] with a patch part of 0")
     }
 
     def "definitions have primary ids which cannot change"() {
@@ -108,7 +108,7 @@ class TransportVersionValidationFuncTest extends AbstractTransportVersionFuncTes
         def result = validateDefinitionsFails()
         then:
         assertDefinitionsFailure(result, "Transport version definition file " +
-            "[myserver/src/main/resources/transport/definitions/named/existing_92.csv] has modified primary id from 8123000 to 8500000")
+                "[myserver/src/main/resources/transport/definitions/named/existing_92.csv] has modified primary id from 8123000 to 8500000")
     }
 
     def "cannot change committed ids to a branch"() {
@@ -118,7 +118,7 @@ class TransportVersionValidationFuncTest extends AbstractTransportVersionFuncTes
         def result = validateDefinitionsFails()
         then:
         assertDefinitionsFailure(result, "Transport version definition file " +
-            "[myserver/src/main/resources/transport/definitions/named/existing_92.csv] modifies existing patch id from 8012001 to 8012002")
+                "[myserver/src/main/resources/transport/definitions/named/existing_92.csv] modifies existing patch id from 8012001 to 8012002")
     }
 
     def "latest files must reference defined name"() {
@@ -128,7 +128,7 @@ class TransportVersionValidationFuncTest extends AbstractTransportVersionFuncTes
         def result = validateDefinitionsFails()
         then:
         assertDefinitionsFailure(result, "Latest transport version file " +
-            "[myserver/src/main/resources/transport/latest/9.2.csv] contains transport version name [dne] which is not defined")
+                "[myserver/src/main/resources/transport/latest/9.2.csv] contains transport version name [dne] which is not defined")
     }
 
     def "latest files id must exist in definition"() {
@@ -138,8 +138,8 @@ class TransportVersionValidationFuncTest extends AbstractTransportVersionFuncTes
         def result = validateDefinitionsFails()
         then:
         assertDefinitionsFailure(result, "Latest transport version file " +
-            "[myserver/src/main/resources/transport/latest/9.2.csv] has id 8124000 which is not in definition " +
-            "[myserver/src/main/resources/transport/definitions/named/existing_92.csv]")
+                "[myserver/src/main/resources/transport/latest/9.2.csv] has id 8124000 which is not in definition " +
+                "[myserver/src/main/resources/transport/definitions/named/existing_92.csv]")
     }
 
     def "latest files have latest id within base"() {
@@ -152,8 +152,8 @@ class TransportVersionValidationFuncTest extends AbstractTransportVersionFuncTes
         def result = validateDefinitionsFails()
         then:
         assertDefinitionsFailure(result, "Latest transport version file " +
-            "[myserver/src/main/resources/transport/latest/9.0.csv] has id 8110001 from [seemingly_latest] with base 8110000 " +
-            "but another id 8110002 from [actual_latest] is later for that base")
+                "[myserver/src/main/resources/transport/latest/9.0.csv] has id 8110001 from [seemingly_latest] with base 8110000 " +
+                "but another id 8110002 from [actual_latest] is later for that base")
     }
 
     def "latest files cannot change base id"() {
@@ -165,7 +165,7 @@ class TransportVersionValidationFuncTest extends AbstractTransportVersionFuncTes
         def result = validateDefinitionsFails()
         then:
         assertDefinitionsFailure(result, "Latest transport version file " +
-            "[myserver/src/main/resources/transport/latest/9.1.csv] modifies base id from 8012000 to 8013000")
+                "[myserver/src/main/resources/transport/latest/9.1.csv] modifies base id from 8012000 to 8013000")
     }
 
     def "ids must be dense"() {
@@ -186,7 +186,7 @@ class TransportVersionValidationFuncTest extends AbstractTransportVersionFuncTes
         def result = validateDefinitionsFails()
         then:
         assertDefinitionsFailure(result, "Transport version definition file " +
-            "[myserver/src/main/resources/transport/definitions/named/patch.csv] has patch version 8015001 as primary id")
+                "[myserver/src/main/resources/transport/definitions/named/patch.csv] has patch version 8015001 as primary id")
     }
 
     def "unreferenced directory is optional"() {

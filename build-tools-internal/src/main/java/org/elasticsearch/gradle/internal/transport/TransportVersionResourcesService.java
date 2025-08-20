@@ -29,6 +29,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiFunction;
+import java.util.stream.Collectors;
 
 import javax.inject.Inject;
 
@@ -122,6 +123,19 @@ public abstract class TransportVersionResourcesService implements BuildService<T
         return getMainFile(resourcePath, TransportVersionDefinition::fromString);
     }
 
+    List<TransportVersionDefinition> getChangedNamedDefinitions() throws IOException {
+        List<TransportVersionDefinition> changedDefinitions = new ArrayList<>();
+        String namedPrefix = NAMED_DIR.toString();
+        for (String changedPath : getChangedResources()) {
+            if (changedPath.startsWith(namedPrefix) == false) {
+                continue;
+            }
+            TransportVersionDefinition definition = getMainFile(changedPath, TransportVersionDefinition::fromString);
+            changedDefinitions.add(definition);
+        }
+        return changedDefinitions;
+    }
+
     /** Test whether the given named definition exists */
     boolean namedDefinitionExists(String name) {
         return Files.exists(transportResourcesDir.resolve(getNamedDefinitionRelativePath(name)));
@@ -130,6 +144,20 @@ public abstract class TransportVersionResourcesService implements BuildService<T
     /** Return the path within the repository of the given named definition */
     Path getRepositoryPath(TransportVersionDefinition definition) {
         return rootDir.relativize(transportResourcesDir.resolve(getNamedDefinitionRelativePath(definition.name())));
+    }
+
+    void writeNamedDefinition(TransportVersionDefinition definition) throws IOException {
+        Path path = transportResourcesDir.resolve(getNamedDefinitionRelativePath(definition.name()));
+        Files.writeString(
+            path,
+            definition.ids().stream().map(Object::toString).collect(Collectors.joining(",")) + "\n",
+            StandardCharsets.UTF_8
+        );
+    }
+
+    void deleteNamedDefinition(String name) throws IOException {
+        Path path = transportResourcesDir.resolve(getNamedDefinitionRelativePath(name));
+        Files.deleteIfExists(path);
     }
 
     /** Read all latest files and return them mapped by their release branch */
@@ -151,9 +179,27 @@ public abstract class TransportVersionResourcesService implements BuildService<T
         return getMainFile(resourcePath, TransportVersionLatest::fromString);
     }
 
+    List<TransportVersionLatest> getMainLatests() throws IOException {
+        List<TransportVersionLatest> latestFiles = new ArrayList<>();
+        String latestPrefix = LATEST_DIR.toString();
+        for (String mainPath : getMainResources()) {
+            if (mainPath.startsWith(latestPrefix) == false) {
+                continue;
+            }
+            TransportVersionLatest latest = getMainFile(mainPath, TransportVersionLatest::fromString);
+            latestFiles.add(latest);
+        }
+        return latestFiles;
+    }
+
     /** Return the path within the repository of the given latest */
     Path getRepositoryPath(TransportVersionLatest latest) {
-        return rootDir.relativize(transportResourcesDir.resolve(getLatestRelativePath(latest.branch())));
+        return rootDir.relativize(transportResourcesDir.resolve(getLatestRelativePath(latest.releaseBranch())));
+    }
+
+    void writeLatestFile(TransportVersionLatest latest) throws IOException {
+        Path path = transportResourcesDir.resolve(getLatestRelativePath(latest.releaseBranch()));
+        Files.writeString(path, latest.name() + "," + latest.id().complete() + "\n", StandardCharsets.UTF_8);
     }
 
     private Path getLatestRelativePath(String releaseBranch) {

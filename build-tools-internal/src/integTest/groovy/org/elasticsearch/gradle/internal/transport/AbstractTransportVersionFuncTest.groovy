@@ -14,6 +14,7 @@ import org.gradle.testkit.runner.BuildResult
 import org.gradle.testkit.runner.TaskOutcome
 
 class AbstractTransportVersionFuncTest extends AbstractGradleFuncTest {
+
     def javaResource(String project, String path, String content) {
         file("${project}/src/main/resources/${path}").withWriter { writer ->
             writer << content
@@ -46,10 +47,18 @@ class AbstractTransportVersionFuncTest extends AbstractGradleFuncTest {
     }
 
     def definedAndUsedTransportVersion(String name, String ids, String classname) {
+        referencedTransportVersion(name, classname);
+        namedTransportVersion(name, ids)
+    }
+
+    def referencedTransportVersion(String name, String classname) {
         javaSource("myserver", "org.elasticsearch", classname, "", """
             static final TransportVersion usage = TransportVersion.fromName("${name}");
         """)
-        namedTransportVersion(name, ids)
+    }
+
+    def referencedTransportVersion(String name) {
+        return referencedTransportVersion(name, "Test${name.capitalize()}")
     }
 
     def latestTransportVersion(String branch, String name, String id) {

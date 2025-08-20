@@ -9,6 +9,8 @@
 
 package org.elasticsearch.gradle.internal.transport;
 
+import org.elasticsearch.gradle.Version;
+import org.elasticsearch.gradle.VersionProperties;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
 import org.gradle.api.artifacts.Configuration;
@@ -66,6 +68,20 @@ public class TransportVersionResourcesPlugin implements Plugin<Project> {
         project.getTasks().named(JavaPlugin.PROCESS_RESOURCES_TASK_NAME, Copy.class).configure(t -> {
             t.into(resourceRoot + "/definitions", c -> c.from(generateManifestTask));
         });
+
+        var generateDefinitionsTask = project.getTasks()
+            .register("generateTransportVersionDefinition", GenerateTransportVersionDefinitionTask.class, t -> {
+                t.setGroup("Transport Versions");
+                t.setDescription("(Re)generates a transport version definition file");
+                t.getReferencesFiles().setFrom(tvReferencesConfig);
+                t.getPrimaryIncrement().convention(1000);
+                Version esVersion = VersionProperties.getElasticsearchVersion();
+                t.getMainReleaseBranch().set(esVersion.getMajor() + "." + esVersion.getMinor());
+                t.getResourcesProjectDir()
+                    .set(project.getRootProject().getProjectDir().toPath().relativize(project.getProjectDir().toPath()).toString());
+            });
+
+        validateTask.configure(t -> t.mustRunAfter(generateDefinitionsTask));
     }
 
     private static String getResourceRoot(Project project) {

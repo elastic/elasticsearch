@@ -9,14 +9,9 @@
 
 package org.elasticsearch.cluster.routing;
 
-import com.dynatrace.hash4j.hashing.HashStream128;
-import com.dynatrace.hash4j.hashing.HashStream32;
-import com.dynatrace.hash4j.hashing.HashValue128;
-import com.dynatrace.hash4j.hashing.Hasher128;
-import com.dynatrace.hash4j.hashing.Hasher32;
-import com.dynatrace.hash4j.hashing.Hashing;
-
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.hash.BufferedMurmur3Hasher;
+import org.elasticsearch.common.hash.MurmurHash3;
 import org.elasticsearch.common.util.ByteUtils;
 import org.elasticsearch.index.mapper.RoutingPathFields;
 import org.elasticsearch.xcontent.XContentString;
@@ -37,9 +32,15 @@ import java.util.List;
 public class TsidBuilder {
 
     private static final int MAX_TSID_VALUE_FIELDS = 16;
-    private static final Hasher128 HASHER_128 = Hashing.murmur3_128();
-    private static final Hasher32 HASHER_32 = Hashing.murmur3_32();
-    private final HashStream128 hashStream = HASHER_128.hashStream();
+    /**
+     * The size of the buffer used for holding the UTF-8 encoded strings before passing them to the hasher.
+     * This is primarily used for paths/keys as string dimension values are passed in as UTF-8 encoded bytes for the most part.
+     * Should be sized so that it can hold the longest UTF-8 encoded string that is expected to be used as a dimension key,
+     * to avoid re-sizing the buffer.
+     * But should also be small enough to not waste memory in case the keys are short.
+     */
+    private static final int HASH_BUFFER_SIZE = 32 * 4; // 32 characters, each character can take up to 4 bytes in UTF-8
+    private final BufferedMurmur3Hasher murmur3Hasher = new BufferedMurmur3Hasher(0L, HASH_BUFFER_SIZE);
 
     private final List<Dimension> dimensions = new ArrayList<>();
 
@@ -50,7 +51,7 @@ public class TsidBuilder {
      * @param value the integer value of the dimension
      */
     public void addIntDimension(String path, int value) {
-        addDimension(path, new HashValue128(1, value));
+        addDimension(path, new MurmurHash3.Hash128(1, value));
     }
 
     /**
@@ -60,7 +61,7 @@ public class TsidBuilder {
      * @param value the long value of the dimension
      */
     public void addLongDimension(String path, long value) {
-        addDimension(path, new HashValue128(1, value));
+        addDimension(path, new MurmurHash3.Hash128(1, value));
     }
 
     /**
@@ -70,7 +71,7 @@ public class TsidBuilder {
      * @param value the double value of the dimension
      */
     public void addDoubleDimension(String path, double value) {
-        addDimension(path, new HashValue128(2, Double.doubleToLongBits(value)));
+        addDimension(path, new MurmurHash3.Hash128(2, Double.doubleToLongBits(value)));
     }
 
     /**
@@ -80,7 +81,7 @@ public class TsidBuilder {
      * @param value the boolean value of the dimension
      */
     public void addBooleanDimension(String path, boolean value) {
-        addDimension(path, new HashValue128(3, value ? 1 : 0));
+        addDimension(path, new MurmurHash3.Hash128(3, value ? 1 : 0));
     }
 
     /**
@@ -117,10 +118,10 @@ public class TsidBuilder {
      * @param length the length of the string in bytes
      */
     public void addStringDimension(String path, byte[] utf8Bytes, int offset, int length) {
-        hashStream.reset();
-        hashStream.putBytes(utf8Bytes, offset, length);
-        HashValue128 valueHash = hashStream.get();
-        addDimension(path, valueHash);
+        murmur3Hasher.reset();
+        murmur3Hasher.update(utf8Bytes, offset, length);
+        MurmurHash3.Hash128 hash128 = murmur3Hasher.digestHash();
+        addDimension(path, hash128);
     }
 
     /**
@@ -149,10 +150,10 @@ public class TsidBuilder {
         funnel.add(value, this);
     }
 
-    private void addDimension(String path, HashValue128 valueHash) {
-        hashStream.reset();
-        hashStream.putString(path);
-        HashValue128 pathHash = hashStream.get();
+    private void addDimension(String path, MurmurHash3.Hash128 valueHash) {
+        murmur3Hasher.reset();
+        murmur3Hasher.addString(path);
+        MurmurHash3.Hash128 pathHash = murmur3Hasher.digestHash();
         dimensions.add(new Dimension(path, pathHash, valueHash, dimensions.size()));
     }
 
@@ -176,19 +177,16 @@ public class TsidBuilder {
      * @return a HashValue128 representing the hash of the dimensions
      * @throws IllegalArgumentException if no dimensions have been added
      */
-    public HashValue128 hash() {
+    public MurmurHash3.Hash128 hash() {
         if (dimensions.isEmpty()) {
             throw new IllegalArgumentException("Error extracting dimensions: no dimension fields found");
         }
         Collections.sort(dimensions);
-        HashStream128 hashStream = HASHER_128.hashStream();
+        murmur3Hasher.reset();
         for (Dimension dim : dimensions) {
-            hashStream.putLong(dim.pathHash.getMostSignificantBits());
-            hashStream.putLong(dim.pathHash.getLeastSignificantBits());
-            hashStream.putLong(dim.valueHash.getMostSignificantBits());
-            hashStream.putLong(dim.valueHash.getLeastSignificantBits());
+            murmur3Hasher.addLongs(dim.pathHash.h1, dim.pathHash.h2, dim.valueHash.h1, dim.valueHash.h2);
         }
-        return hashStream.get();
+        return murmur3Hasher.digestHash();
     }
 
     /**
@@ -223,18 +221,14 @@ public class TsidBuilder {
         int index = 0;
 
         Collections.sort(dimensions);
-        HashStream32 fieldNameHash = HASHER_32.hashStream();
-        HashStream128 dimensionsHash = HASHER_128.hashStream();
+
+        MurmurHash3.Hash128 hashBuffer = new MurmurHash3.Hash128();
+        murmur3Hasher.reset();
         for (int i = 0; i < dimensions.size(); i++) {
             Dimension dim = dimensions.get(i);
-            fieldNameHash.putLong(dim.pathHash.getMostSignificantBits());
-            fieldNameHash.putLong(dim.pathHash.getLeastSignificantBits());
-            dimensionsHash.putLong(dim.pathHash.getMostSignificantBits());
-            dimensionsHash.putLong(dim.pathHash.getLeastSignificantBits());
-            dimensionsHash.putLong(dim.valueHash.getMostSignificantBits());
-            dimensionsHash.putLong(dim.valueHash.getLeastSignificantBits());
+            murmur3Hasher.addLongs(dim.pathHash.h1, dim.pathHash.h2);
         }
-        ByteUtils.writeIntLE(fieldNameHash.getAsInt(), hash, index);
+        ByteUtils.writeIntLE((int) murmur3Hasher.digestHash(hashBuffer).h1, hash, index);
         index += 4;
 
         // similarity hash for values
@@ -242,22 +236,30 @@ public class TsidBuilder {
         for (int i = 0; i < numberOfValues; i++) {
             Dimension dim = dimensions.get(i);
             String path = dim.path();
-            if (path == previousPath) {
+            if (path.equals(previousPath)) {
                 // only add the first value for array fields
                 continue;
             }
-            hash[index++] = (byte) dim.valueHash().getAsInt();
+            MurmurHash3.Hash128 valueHash = dim.valueHash();
+            murmur3Hasher.reset();
+            murmur3Hasher.addLongs(valueHash.h1, valueHash.h2);
+            hash[index++] = (byte) murmur3Hasher.digestHash(hashBuffer).h1;
             previousPath = path;
         }
 
-        index = writeHash128(dimensionsHash.get(), hash, index);
+        murmur3Hasher.reset();
+        for (int i = 0; i < dimensions.size(); i++) {
+            Dimension dim = dimensions.get(i);
+            murmur3Hasher.addLongs(dim.pathHash.h1, dim.pathHash.h2, dim.valueHash.h1, dim.valueHash.h2);
+        }
+        index = writeHash128(murmur3Hasher.digestHash(hashBuffer), hash, index);
         return new BytesRef(hash, 0, index);
     }
 
-    private static int writeHash128(HashValue128 hash128, byte[] buffer, int index) {
-        ByteUtils.writeLongLE(hash128.getLeastSignificantBits(), buffer, index);
+    private static int writeHash128(MurmurHash3.Hash128 hash128, byte[] buffer, int index) {
+        ByteUtils.writeLongLE(hash128.h2, buffer, index);
         index += 8;
-        ByteUtils.writeLongLE(hash128.getMostSignificantBits(), buffer, index);
+        ByteUtils.writeLongLE(hash128.h1, buffer, index);
         index += 8;
         return index;
     }
@@ -284,7 +286,7 @@ public class TsidBuilder {
         void add(T value, TsidBuilder tsidBuilder) throws E;
     }
 
-    private record Dimension(String path, HashValue128 pathHash, HashValue128 valueHash, int insertionOrder)
+    private record Dimension(String path, MurmurHash3.Hash128 pathHash, MurmurHash3.Hash128 valueHash, int insertionOrder)
         implements
             Comparable<Dimension> {
         @Override

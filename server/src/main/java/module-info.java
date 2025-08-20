@@ -54,7 +54,6 @@ module org.elasticsearch.server {
     requires org.apache.lucene.queryparser;
     requires org.apache.lucene.sandbox;
     requires org.apache.lucene.suggest;
-    requires hash4j;
 
     exports org.elasticsearch;
     exports org.elasticsearch.action;

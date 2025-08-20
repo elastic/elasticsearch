@@ -653,17 +653,17 @@ public class IndexRoutingTests extends ESTestCase {
          * versions of Elasticsearch must continue to route based on the
          * version on the index.
          */
-        assertIndexShard(routing, Map.of("dim", Map.of("a", "a")), 6);
-        assertIndexShard(routing, Map.of("dim", Map.of("a", "b")), 0);
-        assertIndexShard(routing, Map.of("dim", Map.of("c", "d")), 5);
-        assertIndexShard(routing, Map.of("other", Map.of("a", "a")), 2);
-        assertIndexShard(routing, Map.of("top", "a"), 0);
-        assertIndexShard(routing, Map.of("dim", Map.of("c", "d"), "top", "b"), 3);
-        assertIndexShard(routing, Map.of("dim.a", "a"), 6);
-        assertIndexShard(routing, Map.of("dim.a", 1), 7);
-        assertIndexShard(routing, Map.of("dim.a", "1"), 5);
-        assertIndexShard(routing, Map.of("dim.a", true), 1);
-        assertIndexShard(routing, Map.of("dim.a", "true"), 6);
+        assertIndexShard(routing, Map.of("dim", Map.of("a", "a")), 5);
+        assertIndexShard(routing, Map.of("dim", Map.of("a", "b")), 4);
+        assertIndexShard(routing, Map.of("dim", Map.of("c", "d")), 0);
+        assertIndexShard(routing, Map.of("other", Map.of("a", "a")), 7);
+        assertIndexShard(routing, Map.of("top", "a"), 6);
+        assertIndexShard(routing, Map.of("dim", Map.of("c", "d"), "top", "b"), 0);
+        assertIndexShard(routing, Map.of("dim.a", "a"), 5);
+        assertIndexShard(routing, Map.of("dim.a", 1), 2);
+        assertIndexShard(routing, Map.of("dim.a", "1"), 3);
+        assertIndexShard(routing, Map.of("dim.a", false), 5);
+        assertIndexShard(routing, Map.of("dim.a", "false"), 1);
     }
 
     public void testRoutingPathReadWithInvalidString() throws IOException {

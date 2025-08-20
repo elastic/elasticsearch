@@ -27,7 +27,7 @@ Specifying `auto` will attempt to convert a string-valued `field` into the close
 lose precision, and will give positive or negative infinity if out of range for a 32-bit floating point value).
  - A string representing a floating point number in decimal, scientific, or hex format (e.g. `"123.0"`, `"123.45"`, `"1.23e2"`, or `"0x1.ecp6"`) will be converted to a `Float` (and may lose precision, and will give positive or negative infinity if out of range for a 32-bit floating point value).
 
-Using `auto` with to convert a `field` which is either not a `String` or a `String` which cannot be will leave the field
+Using `auto` to convert a `field` which is either not a `String` or a `String` which cannot be will leave the field
 value as-is. In such a case, `target_field` will be updated with the unconverted field value.
 
 :::{tip}

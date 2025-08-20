@@ -701,13 +701,16 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
                                             Releasables.close(response);
                                             // Remove this listener to avoid memory leaks
                                             clusterService.removeListener(this);
+                                            joinListener.onResponse(null);
                                         }
                                     }
                                 };
 
                                 clusterService.addListener(clusterStateListener);
+                            } else {
+                                Releasables.close(response);
+                                joinListener.onFailure(e);
                             }
-                            joinListener.onFailure(e);
                         })))
                 );
             }

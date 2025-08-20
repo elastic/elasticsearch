@@ -15,7 +15,7 @@ import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.xpack.gpu.GPUSupport;
 import org.junit.BeforeClass;
 
-public class ESGpuHnswVectorsFormatTests extends BaseKnnVectorsFormatTestCase {
+public class ESGpuHnswSQVectorsFormatTests extends BaseKnnVectorsFormatTestCase {
 
     static {
         LogConfigurator.loadLog4jPlugins();
@@ -27,7 +27,7 @@ public class ESGpuHnswVectorsFormatTests extends BaseKnnVectorsFormatTestCase {
         assumeTrue("cuvs not supported", GPUSupport.isSupported(false));
     }
 
-    static final Codec codec = TestUtil.alwaysKnnVectorsFormat(new ESGpuHnswVectorsFormat());
+    static final Codec codec = TestUtil.alwaysKnnVectorsFormat(new ESGpuHnswSQVectorsFormat());
 
     @Override
     protected Codec getCodec() {
@@ -45,33 +45,32 @@ public class ESGpuHnswVectorsFormatTests extends BaseKnnVectorsFormatTestCase {
     }
 
     @Override
-    public void testRandomBytes() throws Exception {
+    public void testRandomBytes() {
         // No bytes support
     }
 
     @Override
-    public void testSortedIndexBytes() throws Exception {
+    public void testSortedIndexBytes() {
         // No bytes support
     }
 
     @Override
-    public void testByteVectorScorerIteration() throws Exception {
+    public void testByteVectorScorerIteration() {
         // No bytes support
     }
 
     @Override
-    public void testEmptyByteVectorData() throws Exception {
+    public void testEmptyByteVectorData() {
         // No bytes support
     }
 
     @Override
-    public void testMergingWithDifferentByteKnnFields() throws Exception {
+    public void testMergingWithDifferentByteKnnFields() {
         // No bytes support
     }
 
     @Override
-    public void testMismatchedFields() throws Exception {
+    public void testMismatchedFields() {
         // No bytes support
     }
-
 }

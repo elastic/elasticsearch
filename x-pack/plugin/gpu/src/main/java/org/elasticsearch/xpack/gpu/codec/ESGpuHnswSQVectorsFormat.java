@@ -10,58 +10,53 @@ package org.elasticsearch.xpack.gpu.codec;
 import org.apache.lucene.codecs.KnnVectorsFormat;
 import org.apache.lucene.codecs.KnnVectorsReader;
 import org.apache.lucene.codecs.KnnVectorsWriter;
-import org.apache.lucene.codecs.hnsw.FlatVectorScorerUtil;
 import org.apache.lucene.codecs.hnsw.FlatVectorsFormat;
-import org.apache.lucene.codecs.lucene99.Lucene99FlatVectorsFormat;
 import org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsReader;
 import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.index.SegmentWriteState;
+import org.elasticsearch.index.codec.vectors.ES814ScalarQuantizedVectorsFormat;
 
 import java.io.IOException;
 
 import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.MAX_DIMS_COUNT;
+import static org.elasticsearch.xpack.gpu.codec.ESGpuHnswVectorsFormat.DEFAULT_BEAM_WIDTH;
+import static org.elasticsearch.xpack.gpu.codec.ESGpuHnswVectorsFormat.DEFAULT_MAX_CONN;
 
 /**
- * Codec format for GPU-accelerated vector indexes. This format is designed to
- * leverage GPU processing capabilities for vector search operations.
+ * Codec format for GPU-accelerated scalar quantized HNSW vector indexes.
+ * HNSW graph is built on GPU, while scalar quantization and search is performed on CPU.
  */
-public class ESGpuHnswVectorsFormat extends KnnVectorsFormat {
-    public static final String NAME = "ESGpuHnswVectorsFormat";
-    public static final int VERSION_START = 0;
-
-    static final String LUCENE99_HNSW_META_CODEC_NAME = "Lucene99HnswVectorsFormatMeta";
-    static final String LUCENE99_HNSW_VECTOR_INDEX_CODEC_NAME = "Lucene99HnswVectorsFormatIndex";
-    static final String LUCENE99_HNSW_META_EXTENSION = "vem";
-    static final String LUCENE99_HNSW_VECTOR_INDEX_EXTENSION = "vex";
-    static final int LUCENE99_VERSION_CURRENT = VERSION_START;
-
-    static final int DEFAULT_MAX_CONN = 16; // graph degree
-    public static final int DEFAULT_BEAM_WIDTH = 128; // intermediate graph degree
-    static final int MIN_NUM_VECTORS_FOR_GPU_BUILD = 2;
-
-    private static final FlatVectorsFormat flatVectorsFormat = new Lucene99FlatVectorsFormat(
-        FlatVectorScorerUtil.getLucene99FlatVectorsScorer()
-    );
-
-    // How many nodes each node in the graph is connected to in the final graph
+public class ESGpuHnswSQVectorsFormat extends KnnVectorsFormat {
+    public static final String NAME = "ESGPUHnswScalarQuantizedVectorsFormat";
+    static final int MAXIMUM_MAX_CONN = 512;
+    static final int MAXIMUM_BEAM_WIDTH = 3200;
     private final int maxConn;
-    // Intermediate graph degree, the number of connections for each node before pruning
     private final int beamWidth;
+
+    /** The format for storing, reading, merging vectors on disk */
+    private final FlatVectorsFormat flatVectorsFormat;
     final CuVSResourceManager cuVSResourceManager;
 
-    public ESGpuHnswVectorsFormat() {
-        this(CuVSResourceManager.pooling(), DEFAULT_MAX_CONN, DEFAULT_BEAM_WIDTH);
+    public ESGpuHnswSQVectorsFormat() {
+        this(DEFAULT_MAX_CONN, DEFAULT_BEAM_WIDTH, null, 7, false);
     }
 
-    public ESGpuHnswVectorsFormat(int maxConn, int beamWidth) {
-        this(CuVSResourceManager.pooling(), maxConn, beamWidth);
-    };
-
-    public ESGpuHnswVectorsFormat(CuVSResourceManager cuVSResourceManager, int maxConn, int beamWidth) {
+    public ESGpuHnswSQVectorsFormat(int maxConn, int beamWidth, Float confidenceInterval, int bits, boolean compress) {
         super(NAME);
-        this.cuVSResourceManager = cuVSResourceManager;
+        this.cuVSResourceManager = CuVSResourceManager.pooling();
+        if (maxConn <= 0 || maxConn > MAXIMUM_MAX_CONN) {
+            throw new IllegalArgumentException(
+                "maxConn must be positive and less than or equal to " + MAXIMUM_MAX_CONN + "; maxConn=" + maxConn
+            );
+        }
+        if (beamWidth <= 0 || beamWidth > MAXIMUM_BEAM_WIDTH) {
+            throw new IllegalArgumentException(
+                "beamWidth must be positive and less than or equal to " + MAXIMUM_BEAM_WIDTH + "; beamWidth=" + beamWidth
+            );
+        }
         this.maxConn = maxConn;
         this.beamWidth = beamWidth;
+        this.flatVectorsFormat = new ES814ScalarQuantizedVectorsFormat(confidenceInterval, bits, compress);
     }
 
     @Override
@@ -89,7 +84,7 @@ public class ESGpuHnswVectorsFormat extends KnnVectorsFormat {
             + ", beamWidth="
             + beamWidth
             + ", flatVectorFormat="
-            + flatVectorsFormat.getName()
+            + flatVectorsFormat
             + ")";
     }
 }

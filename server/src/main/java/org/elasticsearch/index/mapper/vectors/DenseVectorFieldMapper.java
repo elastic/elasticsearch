@@ -2082,6 +2082,18 @@ public class DenseVectorFieldMapper extends FieldMapper {
             return false;
         }
 
+        public int m() {
+            return m;
+        }
+
+        public int efConstruction() {
+            return efConstruction;
+        }
+
+        public Float confidenceInterval() {
+            return confidenceInterval;
+        }
+
         @Override
         public String toString() {
             return "{type="

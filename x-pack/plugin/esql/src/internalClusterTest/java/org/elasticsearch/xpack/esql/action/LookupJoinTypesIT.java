@@ -21,7 +21,6 @@ import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.DocsV3Support;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
-import org.elasticsearch.xpack.esql.expression.function.TestClassSignatureTypes;
 import org.elasticsearch.xpack.esql.plan.logical.join.Join;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.elasticsearch.xpack.spatial.SpatialPlugin;
@@ -34,7 +33,6 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -272,14 +270,17 @@ public class LookupJoinTypesIT extends ESIntegTestCase {
 
     /** This test generates documentation for the supported output types of the lookup join. */
     public void testOutputSupportedTypes() throws Exception {
-        Set<TestClassSignatureTypes> signatures = new LinkedHashSet<>();
+        Map<List<DocsV3Support.Param>, DataType> signatures = new LinkedHashMap<>();
         for (TestConfigs configs : testConfigurations.values()) {
             if (configs.group.equals("unsupported") || configs.group.equals("union-types")) {
                 continue;
             }
             for (TestConfig config : configs.configs.values()) {
                 if (config instanceof TestConfigPasses) {
-                    signatures.add(new TestClassSignatureTypes(List.of(config.mainType(), config.lookupType()), null));
+                    signatures.put(
+                        List.of(new DocsV3Support.Param(config.mainType(), List.of()), new DocsV3Support.Param(config.lookupType(), null)),
+                        null
+                    );
                 }
             }
         }
@@ -769,7 +770,7 @@ public class LookupJoinTypesIT extends ESIntegTestCase {
         return UNDER_CONSTRUCTION.get(dataType) == null || UNDER_CONSTRUCTION.get(dataType).isEnabled();
     }
 
-    private static void saveJoinTypes(Supplier<Set<TestClassSignatureTypes>> signatures) throws Exception {
+    private static void saveJoinTypes(Supplier<Map<List<DocsV3Support.Param>, DataType>> signatures) throws Exception {
         if (System.getProperty("generateDocs") == null) {
             return;
         }

@@ -9,14 +9,15 @@ package org.elasticsearch.xpack.esql.expression.predicate.operator;
 
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.DocsV3Support;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
-import org.elasticsearch.xpack.esql.expression.function.TestClassSignatureTypes;
 import org.junit.AfterClass;
 
-import java.util.Set;
+import java.util.List;
+import java.util.Map;
 
 public class CastOperatorTests extends ESTestCase {
     public void testDummy() {
@@ -45,9 +46,9 @@ public class CastOperatorTests extends ESTestCase {
         docs.renderDocs();
     }
 
-    public static Set<TestClassSignatureTypes> signatures() {
+    public static Map<List<DocsV3Support.Param>, DataType> signatures() {
         // The cast operator cannot produce sensible signatures unless we consider the type as an extra parameter
-        return Set.of();
+        return Map.of();
     }
 
     /**

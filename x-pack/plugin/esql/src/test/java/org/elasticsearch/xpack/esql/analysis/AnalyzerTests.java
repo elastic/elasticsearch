@@ -2391,6 +2391,13 @@ public class AnalyzerTests extends ESTestCase {
             );
             checkDenseVectorImplicitCastingSimilarityFunction("v_l2_norm(float_vector, [1, 2, 3])", List.of(1f, 2f, 3f));
         }
+        if (EsqlCapabilities.Cap.HAMMING_VECTOR_SIMILARITY_FUNCTION.isEnabled()) {
+            checkDenseVectorImplicitCastingSimilarityFunction(
+                "v_hamming(byte_vector, [0.342, 0.164, 0.234])",
+                List.of(0.342f, 0.164f, 0.234f)
+            );
+            checkDenseVectorImplicitCastingSimilarityFunction("v_hamming(byte_vector, [1, 2, 3])", List.of(1f, 2f, 3f));
+        }
     }
 
     private void checkDenseVectorImplicitCastingSimilarityFunction(String similarityFunction, List<Number> expectedElems) {
@@ -2423,6 +2430,9 @@ public class AnalyzerTests extends ESTestCase {
         if (EsqlCapabilities.Cap.L2_NORM_VECTOR_SIMILARITY_FUNCTION.isEnabled()) {
             checkNoDenseVectorFailsSimilarityFunction("v_l2_norm([0, 1, 2], 0.342)");
         }
+        if (EsqlCapabilities.Cap.HAMMING_VECTOR_SIMILARITY_FUNCTION.isEnabled()) {
+            checkNoDenseVectorFailsSimilarityFunction("v_hamming([0, 1, 2], 0.342)");
+        }
     }
 
     private void checkNoDenseVectorFailsSimilarityFunction(String similarityFunction) {
@@ -2435,6 +2445,8 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testMagnitudePlanWithDenseVectorImplicitCasting() {
+        assumeTrue("v_magnitude not available", EsqlCapabilities.Cap.MAGNITUDE_SCALAR_VECTOR_FUNCTION.isEnabled());
+
         var plan = analyze(String.format(Locale.ROOT, """
             from test | eval scalar = v_magnitude([1, 2, 3])
             """), "mapping-dense_vector.json");
@@ -2450,6 +2462,8 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testNoDenseVectorFailsForMagnitude() {
+        assumeTrue("v_magnitude not available", EsqlCapabilities.Cap.MAGNITUDE_SCALAR_VECTOR_FUNCTION.isEnabled());
+
         var query = String.format(Locale.ROOT, "row a = 1 |  eval scalar = v_magnitude(0.342)");
         VerificationException error = expectThrows(VerificationException.class, () -> analyze(query));
         assertThat(
@@ -2459,7 +2473,7 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testRateRequiresCounterTypes() {
-        assumeTrue("rate requires snapshot builds", Build.current().isSnapshot());
+        assumeTrue("rate requires snapshot builds", EsqlCapabilities.Cap.METRICS_COMMAND.isEnabled());
         Analyzer analyzer = analyzer(tsdbIndexResolution());
         var query = "TS test | STATS avg(rate(network.connections))";
         VerificationException error = expectThrows(VerificationException.class, () -> analyze(query, analyzer));

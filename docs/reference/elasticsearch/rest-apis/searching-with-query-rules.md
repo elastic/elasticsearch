@@ -15,7 +15,7 @@ $$$query-rules$$$
 * A user-entered query string
 * Personalized metadata about users (e.g. country, language, etc)
 * A particular topic
-* A referring site and so on
+* A referring site
 
 
 Query rules define a metadata key that will be used to match the metadata provided in the [rule retriever](/reference/elasticsearch/rest-apis/retrievers/rule-retriever.md) with the criteria specified in the rule.

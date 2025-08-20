@@ -173,18 +173,17 @@ public final class PushDownAndCombineFilters extends OptimizerRules.OptimizerRul
                 // So we end up applying the right filters twice, once on the right side and once on top of the join
                 // This will result in major performance optimization when the lookup join is expanding
                 // and applying the right filters reduces the expansion significantly.
-                // For example, consider a lookup join where the right side is a 1Bln rows index with the value join value of 1.
-                // We have 10 rows on the left side with the value join value of 1.
-                // and there is a filter on the right side that filters out all rows on another column
-                // If we push the filter down to the right side, we will have 10 rows after the join (there were no matches)
-                // If we do not push the filter down to the right side, we will have 10 * 1Bln rows after the join (all rows matched)
-                // as the join is expanding.
-                // They would be filtered out in the next operator, but it is too late, as we already expanded the join
-                // In other cases, we might not get any performance benefit of this optimization,
-                // especially when the selectivity of the filter pushed down is very high or the join is not expanding.
+                // For example, consider an expanding lookup join of 100,000 rows table with 10,000 lookup table
+                // with filter of selectivity 0.1% on the right side(keeps 10 out of 10,000 rows of the lookup table).
+                // In the non-optimized version the filter is not pushed to the right, and we get an explosion of records.
+                // We have 100,000 x10,000 = 1,000,000,000 rows after the join without the optimization.
+                // Then we filter then out to only 1,000,000 rows.
+                // With the optimization we apply the filter early so after the expanding join we only have 1,000,000 rows.
+                // This reduced max number of rows used by a factor of 1,000
 
                 // In the future, once we have inner join support, it is usually possible to convert the lookup join into an inner join
-                // and then we don't need to reapply the filters on top of the join.
+                // This would allow us to not reapply the filters pushed to the right side again above the join,
+                // as the inner join would only return rows that match on both sides.
             }
             if (optimizationApplied) {
                 // if we pushed down some filters, we need to update the filters to reapply above the join

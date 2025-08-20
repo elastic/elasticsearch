@@ -23,7 +23,6 @@ import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.LongBlock;
-import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.lucene.DataPartitioning;
 import org.elasticsearch.compute.lucene.LuceneSliceQueue;
 import org.elasticsearch.compute.lucene.LuceneSourceOperator;
@@ -54,12 +53,15 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.async.AsyncExecutionId;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.enrich.LookupFromIndexOperator;
 import org.elasticsearch.xpack.esql.enrich.MatchConfig;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
 import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders;
 import org.elasticsearch.xpack.esql.planner.PhysicalSettings;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
@@ -75,6 +77,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.function.Predicate;
 
 import static org.elasticsearch.test.ListMatcher.matchesList;
 import static org.elasticsearch.test.MapMatcher.assertMap;
@@ -83,13 +86,14 @@ import static org.hamcrest.Matchers.hasSize;
 
 public class LookupFromIndexIT extends AbstractEsqlIntegTestCase {
     public void testKeywordKey() throws IOException {
-        runLookup(List.of(DataType.KEYWORD), new UsingSingleLookupTable(new Object[][] { new String[] { "aa", "bb", "cc", "dd" } }));
+        runLookup(List.of(DataType.KEYWORD), new UsingSingleLookupTable(new Object[][] { new String[] { "aa", "bb", "cc", "dd" } }), null);
     }
 
     public void testJoinOnTwoKeys() throws IOException {
         runLookup(
             List.of(DataType.KEYWORD, DataType.LONG),
-            new UsingSingleLookupTable(new Object[][] { new String[] { "aa", "bb", "cc", "dd" }, new Long[] { 12L, 33L, 1L, 42L } })
+            new UsingSingleLookupTable(new Object[][] { new String[] { "aa", "bb", "cc", "dd" }, new Long[] { 12L, 33L, 1L, 42L } }),
+            null
         );
     }
 
@@ -101,7 +105,8 @@ public class LookupFromIndexIT extends AbstractEsqlIntegTestCase {
                     new String[] { "aa", "bb", "cc", "dd" },
                     new Long[] { 12L, 33L, 1L, 42L },
                     new String[] { "one", "two", "three", "four" }, }
-            )
+            ),
+            null
         );
     }
 
@@ -114,25 +119,35 @@ public class LookupFromIndexIT extends AbstractEsqlIntegTestCase {
                     new Long[] { 12L, 33L, 1L, 42L },
                     new String[] { "one", "two", "three", "four" },
                     new Integer[] { 1, 2, 3, 4 }, }
-            )
+            ),
+            buildGreaterThanFilter(1L)
         );
     }
 
     public void testLongKey() throws IOException {
-        runLookup(List.of(DataType.LONG), new UsingSingleLookupTable(new Object[][] { new Long[] { 12L, 33L, 1L } }));
+        runLookup(
+            List.of(DataType.LONG),
+            new UsingSingleLookupTable(new Object[][] { new Long[] { 12L, 33L, 1L } }),
+            buildGreaterThanFilter(0L)
+        );
     }
 
     /**
      * LOOKUP multiple results match.
      */
     public void testLookupIndexMultiResults() throws IOException {
-        runLookup(List.of(DataType.KEYWORD), new UsingSingleLookupTable(new Object[][] { new String[] { "aa", "bb", "bb", "dd" } }));
+        runLookup(
+            List.of(DataType.KEYWORD),
+            new UsingSingleLookupTable(new Object[][] { new String[] { "aa", "bb", "bb", "dd" } }),
+            buildGreaterThanFilter(-1L)
+        );
     }
 
     public void testJoinOnTwoKeysMultiResults() throws IOException {
         runLookup(
             List.of(DataType.KEYWORD, DataType.LONG),
-            new UsingSingleLookupTable(new Object[][] { new String[] { "aa", "bb", "bb", "dd" }, new Long[] { 12L, 1L, 1L, 42L } })
+            new UsingSingleLookupTable(new Object[][] { new String[] { "aa", "bb", "bb", "dd" }, new Long[] { 12L, 1L, 1L, 42L } }),
+            null
         );
     }
 
@@ -144,12 +159,13 @@ public class LookupFromIndexIT extends AbstractEsqlIntegTestCase {
                     new String[] { "aa", "bb", "bb", "dd" },
                     new Long[] { 12L, 1L, 1L, 42L },
                     new String[] { "one", "two", "two", "four" } }
-            )
+            ),
+            null
         );
     }
 
     interface PopulateIndices {
-        void populate(int docCount, List<String> expected) throws IOException;
+        void populate(int docCount, List<String> expected, Predicate<Integer> filter) throws IOException;
     }
 
     class UsingSingleLookupTable implements PopulateIndices {
@@ -171,7 +187,7 @@ public class LookupFromIndexIT extends AbstractEsqlIntegTestCase {
         }
 
         @Override
-        public void populate(int docCount, List<String> expected) {
+        public void populate(int docCount, List<String> expected, Predicate<Integer> filter) {
             List<IndexRequestBuilder> docs = new ArrayList<>();
             int numFields = lookupData.length;
             int numRows = lookupData[0].length;
@@ -190,8 +206,13 @@ public class LookupFromIndexIT extends AbstractEsqlIntegTestCase {
                 } else {
                     keyString = String.join(",", key.stream().map(String::valueOf).toArray(String[]::new));
                 }
-                for (Integer match : matches.get(key)) {
-                    expected.add(keyString + ":" + match);
+                List<Integer> filteredMatches = matches.get(key).stream().filter(filter).toList();
+                if (filteredMatches.isEmpty()) {
+                    expected.add(keyString + ":null");
+                } else {
+                    for (Integer match : filteredMatches) {
+                        expected.add(keyString + ":" + match);
+                    }
                 }
             }
             for (int i = 0; i < numRows; i++) {
@@ -207,7 +228,21 @@ public class LookupFromIndexIT extends AbstractEsqlIntegTestCase {
         }
     }
 
-    private void runLookup(List<DataType> keyTypes, PopulateIndices populateIndices) throws IOException {
+    Expression buildGreaterThanFilter(long value) {
+        FieldAttribute filterAttribute = new FieldAttribute(
+            Source.EMPTY,
+            "l",
+            new org.elasticsearch.xpack.esql.core.type.EsField(
+                "l",
+                org.elasticsearch.xpack.esql.core.type.DataType.LONG,
+                java.util.Collections.emptyMap(),
+                true
+            )
+        );
+        return new GreaterThan(Source.EMPTY, filterAttribute, new Literal(Source.EMPTY, value, DataType.LONG));
+    }
+
+    private void runLookup(List<DataType> keyTypes, PopulateIndices populateIndices, Expression filter) throws IOException {
         String[] fieldMappers = new String[keyTypes.size() * 2];
         for (int i = 0; i < keyTypes.size(); i++) {
             fieldMappers[2 * i] = "key" + i;
@@ -236,9 +271,22 @@ public class LookupFromIndexIT extends AbstractEsqlIntegTestCase {
 
         client().admin().cluster().prepareHealth(TEST_REQUEST_TIMEOUT).setWaitForGreenStatus().get();
 
+        Predicate<Integer> filterPredicate = l -> true;
+        if (filter != null) {
+            if (filter instanceof GreaterThan gt
+                && gt.left() instanceof FieldAttribute fa
+                && fa.name().equals("l")
+                && gt.right() instanceof Literal lit) {
+                long value = ((Number) lit.value()).longValue();
+                filterPredicate = l -> l > value;
+            } else {
+                fail("Unsupported filter type in test baseline generation: " + filter);
+            }
+        }
+
         int docCount = between(10, 1000);
         List<String> expected = new ArrayList<>(docCount);
-        populateIndices.populate(docCount, expected);
+        populateIndices.populate(docCount, expected, filterPredicate);
 
         /*
          * Find the data node hosting the only shard of the source index.
@@ -330,7 +378,7 @@ public class LookupFromIndexIT extends AbstractEsqlIntegTestCase {
                 "lookup",
                 List.of(new Alias(Source.EMPTY, "l", new ReferenceAttribute(Source.EMPTY, "l", DataType.LONG))),
                 Source.EMPTY,
-                null
+                filter
             );
             DriverContext driverContext = driverContext();
             try (
@@ -344,7 +392,7 @@ public class LookupFromIndexIT extends AbstractEsqlIntegTestCase {
                             for (int i = 0; i < keyTypes.size(); i++) {
                                 keyBlocks.add(page.getBlock(i + 1));
                             }
-                            LongVector loadedBlock = page.<LongBlock>getBlock(keyTypes.size() + 1).asVector();
+                            LongBlock loadedBlock = page.<LongBlock>getBlock(keyTypes.size() + 1);
                             for (int p = 0; p < page.getPositionCount(); p++) {
                                 StringBuilder result = new StringBuilder();
                                 for (int j = 0; j < keyBlocks.size(); j++) {
@@ -360,7 +408,11 @@ public class LookupFromIndexIT extends AbstractEsqlIntegTestCase {
                                     }
 
                                 }
-                                result.append(":" + loadedBlock.getLong(p));
+                                if (loadedBlock.isNull(p)) {
+                                    result.append(":null");
+                                } else {
+                                    result.append(":" + loadedBlock.getLong(loadedBlock.getFirstValueIndex(p)));
+                                }
                                 results.add(result.toString());
                             }
                         } finally {

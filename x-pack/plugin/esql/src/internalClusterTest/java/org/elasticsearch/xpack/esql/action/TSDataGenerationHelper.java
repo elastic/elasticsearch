@@ -25,6 +25,7 @@ import org.elasticsearch.xcontent.XContentFactory;
 import java.io.IOException;
 import java.time.Instant;
 import java.util.HashSet;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -112,7 +113,19 @@ class TSDataGenerationHelper {
                         "metrics",
                         FieldType.PASSTHROUGH,
                         Map.of("type", "passthrough", "dynamic", true, "priority", 10),
-                        (ignored) -> Map.of("gauge_hdd.bytes.used", Randomness.get().nextLong(0, 1000000000L))
+
+                        (ignored) -> {
+                            var res = new HashMap<String, Object>();
+                            // Counter metrics
+                            res.put("gauge_hdd.bytes.used", Randomness.get().nextLong(0, 1000000000L));
+                            switch (ESTestCase.randomIntBetween(0, 2)) {
+                                case 0 -> res.put("counter_hdd.bytes.read", Randomness.get().nextLong(0, 1000000000L));
+                                case 1 -> res.put("counter_kwh.consumed", Randomness.get().nextDouble(0, 1000000));
+                                // case 2 -> res.put("gauge_hdd.bytes.used", Randomness.get().nextLong(0, 1000000000L));
+                                case 2 -> res.put("gauge_cpu.percent", Randomness.get().nextDouble(0, 100));
+                            }
+                            return res;
+                        }
                     )
                 )
             )
@@ -133,10 +146,17 @@ class TSDataGenerationHelper {
                     Map.of("path_match", "metrics.counter_*", "mapping", Map.of("type", "long", "time_series_metric", "counter"))
                 ),
                 Map.of(
+                    "counter_double",
+                    Map.of("path_match", "metrics.counter_*", "mapping", Map.of("type", "double", "time_series_metric", "counter"))
+                ),
+                Map.of(
                     "gauge_long",
                     Map.of("path_match", "metrics.gauge_*", "mapping", Map.of("type", "long", "time_series_metric", "gauge"))
+                ),
+                Map.of(
+                    "gauge_double",
+                    Map.of("path_match", "metrics.gauge_*", "mapping", Map.of("type", "double", "time_series_metric", "gauge"))
                 )
-                // TODO: Add double and other metric types
             )
         );
     }

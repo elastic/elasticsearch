@@ -1409,6 +1409,11 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         // TODO add specific tests to SearchExecutionTests similar to the ones in FieldTypeLookupTests
         MappingParserContext parserContext = mapperService.parserContext();
         Map<String, RuntimeField> runtimeFields = RuntimeField.parseRuntimeFields(new HashMap<>(runtimeMappings), parserContext, false);
+        if (parserContext.getNamespaceValidator() != null) {
+            for (String runtimeFieldName : runtimeFields.keySet()) {
+                parserContext.getNamespaceValidator().validateNamespace(null, runtimeFieldName);
+            }
+        }
         Map<String, MappedFieldType> runtimeFieldTypes = RuntimeField.collectFieldTypes(runtimeFields.values());
         if (false == indexSettings.getIndexMetadata().getRoutingPaths().isEmpty()) {
             for (String r : runtimeMappings.keySet()) {

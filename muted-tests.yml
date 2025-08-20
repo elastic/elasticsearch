@@ -630,6 +630,9 @@ tests:
 - class: org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormatTests
   method: testSortedSetDocValuesWithSkipperSmall
   issue: https://github.com/elastic/elasticsearch/issues/133224
+- class: org.elasticsearch.xpack.esql.action.RandomizedTimeSeriesIT
+  method: testGroupByNothing
+  issue: https://github.com/elastic/elasticsearch/issues/133225
 
 # Examples:
 #

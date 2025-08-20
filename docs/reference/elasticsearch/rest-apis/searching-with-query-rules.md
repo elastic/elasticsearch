@@ -24,9 +24,13 @@ When a query rule matches the rule metadata according to its defined criteria, t
 
 For example, a query rule could be defined to match a user-entered query string of `pugs` and a country `us` and promote adoptable shelter dogs if the rule query met both criteria.
 
-Rules are defined using the [query rules API](https://www.elastic.co/docs/api/doc/elasticsearch/group/endpoint-query_rules) and searched using the [rule retriever](/reference/elasticsearch/rest-apis/retrievers/rule-retriever.md) or the [rule query](/reference/query-languages/query-dsl/query-dsl-rule-query.md).
+You can create and manage query rules using either:
+- [Query rules API]({{es-apis}}v9/group/endpoint-query_rules)
+- [Query Rules UI](docs-content://solutions/search/query-rules-ui)
 
-Alternatively, rules can be managed through the [Query Rules UI](https://www.elastic.co/docs/solutions/search/query-rules-ui).
+You can search with query rules using either:
+- [Retrievers syntax](/reference/elasticsearch/rest-apis/retrievers/rule-retriever.md)
+- [Query DSL syntax](/reference/query-languages/query-dsl/query-dsl-rule-query.md)
 
 ## Rule definition [query-rule-definition]
 

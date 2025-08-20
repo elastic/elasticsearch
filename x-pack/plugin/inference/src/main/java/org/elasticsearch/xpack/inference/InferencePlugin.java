@@ -94,6 +94,8 @@ import org.elasticsearch.xpack.inference.mapper.OffsetSourceFieldMapper;
 import org.elasticsearch.xpack.inference.mapper.SemanticInferenceMetadataFieldsMapper;
 import org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper;
 import org.elasticsearch.xpack.inference.queries.EmbeddingsProvider;
+import org.elasticsearch.xpack.inference.queries.InterceptedMatchQueryBuilder;
+import org.elasticsearch.xpack.inference.queries.InterceptedQueryBuilder;
 import org.elasticsearch.xpack.inference.queries.MapEmbeddingsProvider;
 import org.elasticsearch.xpack.inference.queries.SemanticKnnVectorQueryRewriteInterceptor;
 import org.elasticsearch.xpack.inference.queries.SemanticMatchQueryRewriteInterceptor;
@@ -434,6 +436,13 @@ public class InferencePlugin extends Plugin
         entries.add(new NamedWriteableRegistry.Entry(EmbeddingsProvider.class, MapEmbeddingsProvider.NAME, MapEmbeddingsProvider::new));
         entries.add(
             new NamedWriteableRegistry.Entry(EmbeddingsProvider.class, SingleEmbeddingsProvider.NAME, SingleEmbeddingsProvider::new)
+        );
+        entries.add(
+            new NamedWriteableRegistry.Entry(
+                InterceptedQueryBuilder.class,
+                InterceptedMatchQueryBuilder.NAME,
+                InterceptedMatchQueryBuilder::new
+            )
         );
         return entries;
     }

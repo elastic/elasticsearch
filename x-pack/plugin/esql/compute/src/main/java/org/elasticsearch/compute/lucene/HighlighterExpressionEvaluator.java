@@ -140,7 +140,8 @@ public class HighlighterExpressionEvaluator extends LuceneQueryEvaluator<BytesRe
             for (Text highlightText : highlight.fragments()) {
                 byte[] highlightBytes = highlightText.bytes().bytes();
                 if (highlightBytes.length > fragmentLength) {
-                    // TODO - This isn't a great solution, but in order to resolve character encoding issues in the
+                    // TODO - Figure out a better way to construct BytesRef
+                    // This isn't a great solution, but in order to resolve character encoding issues in the
                     // returned BytesRef we need to ensure that the fragment size we return is equal to what was requested.
                     // Since the highlighter's default sentence boundary scanner can return longer fragments, we're truncating for now.
                     byte[] truncatedBytes = truncateUtf8(highlightBytes, fragmentLength);
@@ -163,7 +164,8 @@ public class HighlighterExpressionEvaluator extends LuceneQueryEvaluator<BytesRe
             .onUnmappableCharacter(CodingErrorAction.IGNORE);
 
         CharBuffer chars = dec.decode(ByteBuffer.wrap(bytes, 0, maxLength));
-        ByteBuffer out = StandardCharsets.UTF_8.encode(chars);
+        String trimmed = chars.toString().trim();
+        ByteBuffer out = StandardCharsets.UTF_8.encode(trimmed);
 
         byte[] result = new byte[out.remaining()];
         out.get(result);

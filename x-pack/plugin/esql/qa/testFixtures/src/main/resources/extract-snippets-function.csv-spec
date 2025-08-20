@@ -16,7 +16,7 @@ FROM books
 
 // tag::extract-snippets-with-field-result[]
 book_no:keyword | author:text       | title:text             | snippets:keyword
-1211            | Fyodor Dostoevsky | The brothers Karamazov | achievement of perhaps the
+1211            | Fyodor Dostoevsky | The brothers Karamazov | achievement of perhaps th
 // end::extract-snippets-with-field-result[]
 ;
 
@@ -25,18 +25,18 @@ required_capability: extract_snippets_function
 
 FROM books
 | WHERE MATCH(description, "hobbit")
-| EVAL snippets = extract_snippets(description, "hobbit", 1, 25)
+| EVAL snippets = extract_snippets(description, "hobbit", 1, 50)
 | KEEP book_no, author, title, snippets
 | SORT book_no
 | LIMIT 5
 ;
 
 book_no:keyword | author:text               | title:text                                                       | snippets:keyword
-1463            | J. R. R. Tolkien          | Realms of Tolkien: Images of Middle-earth                        | appropriate passage from The Hobbit
-2301            | John Ronald Reuel Tolkien | Smith of Wootton Major & Farmer Giles of Ham                     | beloved author of THE HOBBIT
-2675            | J.R.R. Tolkien            | The Lord of the Rings - Boxed Set                                | Bilbo Baggins is a hobbit
-2714            | J. R. R. Tolkien          | Return of the King Being the Third Part of The Lord of the Rings | the story begun in The Hobbit
-2936            | John Ronald Reuel Tolkien | Fellowship of the Ring 2ND Edition                               | into the hands of the hobbit
+1463            | J. R. R. Tolkien          | Realms of Tolkien: Images of Middle-earth                        | is accompanied by appropriate passage from The Hob
+2301            | John Ronald Reuel Tolkien | Smith of Wootton Major & Farmer Giles of Ham                     | Tolkien, beloved author of THE HOBBIT.
+2675            | J.R.R. Tolkien            | The Lord of the Rings - Boxed Set                                | This beautiful gift edition of The Hobbit, J.R.R.
+2714            | J. R. R. Tolkien          | Return of the King Being the Third Part of The Lord of the Rings | Concluding the story begun in The Hobbit, this is 
+2936            | John Ronald Reuel Tolkien | Fellowship of the Ring 2ND Edition                               | them all - which has fallen into the hands of the 
 ;
 
 extractMultipleSnippetsWithMatch
@@ -51,11 +51,11 @@ FROM books
 ;
 
 book_no:keyword | author:text               | title:text                                                       | snippets:keyword
-1463            | J. R. R. Tolkien          | Realms of Tolkien: Images of Middle-earth                        | appropriate passage from The Hobbit
-2301            | John Ronald Reuel Tolkien | Smith of Wootton Major & Farmer Giles of Ham                     | beloved author of THE HOBBIT
-2675            | J.R.R. Tolkien            | The Lord of the Rings - Boxed Set                                | [Bilbo Baggins is a hobbit, beautiful gift edition of The Hobbit, Tolkien's own children, The Hobbit]
-2714            | J. R. R. Tolkien          | Return of the King Being the Third Part of The Lord of the Rings | [the story begun in The Hobbit, , THE HOBBIT: AN UNEXPECTED, film adaptation of The Hobbit]
-2936            | John Ronald Reuel Tolkien | Fellowship of the Ring 2ND Edition                               | into the hands of the hobbit
+1463            | J. R. R. Tolkien          | Realms of Tolkien: Images of Middle-earth                        | appropriate passage from 
+2301            | John Ronald Reuel Tolkien | Smith of Wootton Major & Farmer Giles of Ham                     | beloved author of THE HOB
+2675            | J.R.R. Tolkien            | The Lord of the Rings - Boxed Set                                | [Bilbo Baggins is a hobbit, beautiful gift edition of, Tolkien's own children, T]
+2714            | J. R. R. Tolkien          | Return of the King Being the Third Part of The Lord of the Rings | [the story begun in The Ho, , THE HOBBIT: AN UNEXPECT, film adaptation of The Ho]
+2936            | John Ronald Reuel Tolkien | Fellowship of the Ring 2ND Edition                               | into the hands of the hob
 ;
 
 
@@ -67,16 +67,20 @@ FROM books
 | EVAL snippets = extract_snippets(description, "hobbit", 3, 25)
 | MV_EXPAND snippets
 | KEEP book_no, author, title, snippets
-| SORT book_no
-| LIMIT 5
+| SORT snippets
+| LIMIT 9
 ;
 
-book_no:keyword | author:text               | title:text                                   | snippets:keyword
-1463            | J. R. R. Tolkien          | Realms of Tolkien: Images of Middle-earth    | appropriate passage from The Hobbit
-2301            | John Ronald Reuel Tolkien | Smith of Wootton Major & Farmer Giles of Ham | beloved author of THE HOBBIT
-2675            | J.R.R. Tolkien            | The Lord of the Rings - Boxed Set            | beautiful gift edition of The Hobbit
-2675            | J.R.R. Tolkien            | The Lord of the Rings - Boxed Set            | Tolkien's own children, The Hobbit
-2675            | J.R.R. Tolkien            | The Lord of the Rings - Boxed Set            | Bilbo Baggins is a hobbit
+book_no:keyword | author:text                                        | title:text                                                                                      | snippets:keyword
+2714            | J. R. R. Tolkien                                 | Return of the King Being the Third Part of The Lord of the Rings | , THE HOBBIT: AN UNEXPECT
+2675            | J.R.R. Tolkien                                   | The Lord of the Rings - Boxed Set                                | Bilbo Baggins is a hobbit
+6760            | J. R. R. Tolkien                                 | Roverandom                                                       | By the author of The Hobb
+7350            | [Christopher Tolkien, John Ronald Reuel Tolkien] | Return of the Shadow                                             | The character of the hobb
+4289            | J R R Tolkien                                    | Poems from the Hobbit                                            | Tolkien's Hobbit poems in
+4289            | J R R Tolkien                                    | Poems from the Hobbit                                            | Tolkien's acclaimed The H
+2675            | J.R.R. Tolkien                                   | The Lord of the Rings - Boxed Set                                | Tolkien's own children, T
+1463            | J. R. R. Tolkien                                 | Realms of Tolkien: Images of Middle-earth                        | appropriate passage from
+2675            | J.R.R. Tolkien                                   | The Lord of the Rings - Boxed Set                                | beautiful gift edition of
 ;
 
 extractMultipleSnippetsWithSomeNoMatches
@@ -84,16 +88,52 @@ required_capability: extract_snippets_function
 
 FROM books
 | WHERE MATCH(author, "Faulkner")
-| EVAL snippets = extract_snippets(description, "slavery", 1, 10)
+| EVAL snippets = extract_snippets(description, "slavery", 1, 25)
 | KEEP book_no, author, title, snippets
 | SORT book_no
 | LIMIT 5
 ;
 
 book_no:keyword | author:text                                        | title:text                                                                                      | snippets:keyword
-2378            | [Carol Faulkner, Holly Byers Ochoa, Lucretia Mott] | Selected Letters of Lucretia Coffin Mott (Women in American History)                            | abolition of slavery
+2378            | [Carol Faulkner, Holly Byers Ochoa, Lucretia Mott] | Selected Letters of Lucretia Coffin Mott (Women in American History)                            | , and the abolition of sl
 2713            | William Faulkner                                   | Collected Stories of William Faulkner                                                           | null
 2847            | Colleen Faulkner                                   | To Love A Dark Stranger (Lovegram Historical Romance)                                           | null
 2883            | William Faulkner                                   | A Summer of Faulkner: As I Lay Dying/The Sound and the Fury/Light in August (Oprah's Book Club) | null
 3293            | Danny Faulkner                                     | Universe by Design                                                                              | null
+;
+
+extractSnippetsWithDefaultNumSnippetsAndLength
+
+FROM books
+| WHERE MATCH(description, "hobbit")
+| EVAL snippets = extract_snippets(description, "hobbit")
+| KEEP book_no, author, title, snippets
+| SORT book_no
+| LIMIT 5
+;
+
+book_no:keyword | author:text               | title:text                                                       | snippets:keyword
+1463            | J. R. R. Tolkien          | Realms of Tolkien: Images of Middle-earth                        | from The H
+2301            | John Ronald Reuel Tolkien | Smith of Wootton Major & Farmer Giles of Ham                     | of THE HOB
+2675            | J.R.R. Tolkien            | The Lord of the Rings - Boxed Set                                | of The Hob
+2714            | J. R. R. Tolkien          | Return of the King Being the Third Part of The Lord of the Rings | in The Hob
+2936            | John Ronald Reuel Tolkien | Fellowship of the Ring 2ND Edition                               | of the hob
+;
+
+extractSnippetsWithDefaultLength
+
+FROM books
+| WHERE MATCH(description, "hobbit")
+| EVAL snippets = extract_snippets(description, "hobbit", 3)
+| KEEP book_no, author, title, snippets
+| SORT book_no
+| LIMIT 5
+;
+
+book_no:keyword | author:text               | title:text                                                       | snippets:keyword
+1463            | J. R. R. Tolkien          | Realms of Tolkien: Images of Middle-earth                        | from The H
+2301            | John Ronald Reuel Tolkien | Smith of Wootton Major & Farmer Giles of Ham                     | of THE HOB
+2675            | J.R.R. Tolkien            | The Lord of the Rings - Boxed Set                                | [of The Hob, Baggins is, children,]
+2714            | J. R. R. Tolkien          | Return of the King Being the Third Part of The Lord of the Rings | [in The Hob, , THE HOBB, of The Hob]
+2936            | John Ronald Reuel Tolkien | Fellowship of the Ring 2ND Edition                               | of the hob
 ;

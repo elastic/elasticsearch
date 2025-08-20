@@ -28,7 +28,7 @@
       "build_on_commit": false,
       "build_on_comment": true,
       "target_branch": "main",
-      "trigger_comment_regex": "^(buildkite|@elastic(search)?machine) benchmark this with (?<benchmark>\\w+)( please)?$"
+      "trigger_comment_regex": "^(buildkite|@elastic(search)?machine) benchmark this with (?<benchmark>\\S+)( please)?$"
     }
   ]
 }

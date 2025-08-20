@@ -45,9 +45,12 @@ of range for a 32-bit floating point value). If a provided field is either not a
 converted, the processor will still process successfully and leave the field value as-is. In such a case, `target_field`
 will be updated with the unconverted field value.
 
-N.B. If conversions other than those provided by this processor are required, the
+:::{tip}
+ If conversions other than those provided by this processor are required, the
 [`script`](/reference/enrich-processor/script-processor.md) processor may be used to implement the desired behavior.
-(The performance of the `script` processor should be as good or better than the `convert` processor.)
+
+The performance of the `script` processor should be as good or better than the `convert` processor.
+:::
 
 $$$convert-options$$$
 

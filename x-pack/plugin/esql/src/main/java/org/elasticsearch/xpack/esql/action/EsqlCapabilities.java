@@ -241,6 +241,11 @@ public class EsqlCapabilities {
         FN_DAY_NAME,
 
         /**
+         * Support for function MONTH_NAME
+         */
+        FN_MONTH_NAME,
+
+        /**
          * Fixes for multiple functions not serializing their source, and emitting warnings with wrong line number and text.
          */
         FUNCTIONS_SOURCE_SERIALIZATION_WARNINGS,
@@ -1369,7 +1374,12 @@ public class EsqlCapabilities {
         /**
          * Support null elements on vector similarity functions
          */
-        VECTOR_SIMILARITY_FUNCTIONS_SUPPORT_NULL;
+        VECTOR_SIMILARITY_FUNCTIONS_SUPPORT_NULL,
+
+        /**
+         * Support for vector Hamming distance.
+         */
+        HAMMING_VECTOR_SIMILARITY_FUNCTION(Build.current().isSnapshot());
 
         private final boolean enabled;
 

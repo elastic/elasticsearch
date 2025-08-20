@@ -117,7 +117,7 @@ import java.util.stream.Stream;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_INDEX_VERSION_CREATED;
 import static org.elasticsearch.common.Strings.format;
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
-import static org.elasticsearch.index.IndexSettings.INDEX_MAPPING_SOURCE_SYNTHETIC_VECTORS_SETTING;
+import static org.elasticsearch.index.IndexSettings.INDEX_MAPPING_EXCLUDE_SOURCE_VECTORS_SETTING;
 import static org.elasticsearch.index.codec.vectors.IVFVectorsFormat.MAX_VECTORS_PER_CLUSTER;
 import static org.elasticsearch.index.codec.vectors.IVFVectorsFormat.MIN_VECTORS_PER_CLUSTER;
 
@@ -255,9 +255,9 @@ public class DenseVectorFieldMapper extends FieldMapper {
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
 
         final IndexVersion indexVersionCreated;
-        final boolean isSyntheticVector;
+        final boolean isExcludeSourceVectors;
 
-        public Builder(String name, IndexVersion indexVersionCreated, boolean isSyntheticVector) {
+        public Builder(String name, IndexVersion indexVersionCreated, boolean isExcludeSourceVectors) {
             super(name);
             this.indexVersionCreated = indexVersionCreated;
             // This is defined as updatable because it can be updated once, from [null] to a valid dim size,
@@ -289,7 +289,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                         }
                     }
                 });
-            this.isSyntheticVector = isSyntheticVector;
+            this.isExcludeSourceVectors = isExcludeSourceVectors;
             final boolean indexedByDefault = indexVersionCreated.onOrAfter(INDEXED_BY_DEFAULT_INDEX_VERSION);
             final boolean defaultInt8Hnsw = indexVersionCreated.onOrAfter(IndexVersions.DEFAULT_DENSE_VECTOR_TO_INT8_HNSW);
             final boolean defaultBBQ8Hnsw = indexVersionCreated.onOrAfter(IndexVersions.DEFAULT_DENSE_VECTOR_TO_BBQ_HNSW);
@@ -431,7 +431,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             // Validate again here because the dimensions or element type could have been set programmatically,
             // which affects index option validity
             validate();
-            boolean isSyntheticVectorFinal = (context.isSourceSynthetic() == false) && indexed.getValue() && isSyntheticVector;
+            boolean isExcludeSourceVectorsFinal = context.isSourceSynthetic() == false && indexed.getValue() && isExcludeSourceVectors;
             return new DenseVectorFieldMapper(
                 leafName(),
                 new DenseVectorFieldType(
@@ -448,7 +448,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 builderParams(this, context),
                 indexOptions.getValue(),
                 indexVersionCreated,
-                isSyntheticVectorFinal
+                isExcludeSourceVectorsFinal
             );
         }
     }
@@ -2391,7 +2391,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
         (n, c) -> new Builder(
             n,
             c.getIndexSettings().getIndexVersionCreated(),
-            INDEX_MAPPING_SOURCE_SYNTHETIC_VECTORS_SETTING.get(c.getIndexSettings().getSettings())
+            INDEX_MAPPING_EXCLUDE_SOURCE_VECTORS_SETTING.get(c.getIndexSettings().getSettings())
         ),
         notInMultiFields(CONTENT_TYPE)
     );
@@ -2850,7 +2850,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
     private final DenseVectorIndexOptions indexOptions;
     private final IndexVersion indexCreatedVersion;
-    private final boolean isSyntheticVector;
+    private final boolean isExcludeSourceVectors;
 
     private DenseVectorFieldMapper(
         String simpleName,
@@ -2858,12 +2858,12 @@ public class DenseVectorFieldMapper extends FieldMapper {
         BuilderParams params,
         DenseVectorIndexOptions indexOptions,
         IndexVersion indexCreatedVersion,
-        boolean isSyntheticVector
+        boolean isExcludeSourceVectorsFinal
     ) {
         super(simpleName, mappedFieldType, params);
         this.indexOptions = indexOptions;
         this.indexCreatedVersion = indexCreatedVersion;
-        this.isSyntheticVector = isSyntheticVector;
+        this.isExcludeSourceVectors = isExcludeSourceVectorsFinal;
     }
 
     @Override
@@ -2985,7 +2985,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
     @Override
     public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(leafName(), indexCreatedVersion, isSyntheticVector).init(this);
+        return new Builder(leafName(), indexCreatedVersion, isExcludeSourceVectors).init(this);
     }
 
     private static DenseVectorIndexOptions parseIndexOptions(String fieldName, Object propNode, IndexVersion indexVersion) {
@@ -3041,7 +3041,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
     @Override
     public SourceLoader.SyntheticVectorsLoader syntheticVectorsLoader() {
-        if (isSyntheticVector) {
+        if (isExcludeSourceVectors) {
             var syntheticField = new IndexedSyntheticFieldLoader(indexCreatedVersion, fieldType().similarity);
             return new SyntheticVectorsPatchFieldLoader(syntheticField, syntheticField::copyVectorAsList);
         }

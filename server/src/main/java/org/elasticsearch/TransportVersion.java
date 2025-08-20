@@ -24,7 +24,6 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -113,6 +112,7 @@ public record TransportVersion(String name, int id, TransportVersion nextPatchVe
         String component,
         String path,
         boolean nameInFile,
+        boolean isNamed,
         BufferedReader bufferedReader,
         Integer latest
     ) {
@@ -128,7 +128,14 @@ public record TransportVersion(String name, int id, TransportVersion nextPatchVe
             if (parts.length < (nameInFile ? 2 : 1)) {
                 throw new IllegalStateException("invalid transport version file format [" + toComponentPath(component, path) + "]");
             }
-            String name = nameInFile ? parts[0] : path.substring(path.lastIndexOf('/') + 1, path.length() - 4);
+            String name = null;
+            if (isNamed) {
+                if (nameInFile) {
+                    name = parts[0];
+                } else {
+                    name = path.substring(path.lastIndexOf('/') + 1, path.length() - 4);
+                }
+            }
             List<Integer> ids = new ArrayList<>();
             for (int i = nameInFile ? 1 : 0; i < parts.length; ++i) {
                 try {
@@ -156,41 +163,42 @@ public record TransportVersion(String name, int id, TransportVersion nextPatchVe
         }
     }
 
-    public static Map<String, TransportVersion> collectFromInputStreams(
+    public static List<TransportVersion> collectFromResources(
         String component,
-        Function<String, InputStream> nameToStream,
+        String resourceRoot,
+        Function<String, InputStream> resourceLoader,
         String latestFileName
     ) {
         TransportVersion latest = parseFromBufferedReader(
             component,
-            "/transport/latest/" + latestFileName,
-            nameToStream,
-            (c, p, br) -> fromBufferedReader(c, p, true, br, Integer.MAX_VALUE)
+            resourceRoot + "/latest/" + latestFileName,
+            resourceLoader,
+            (c, p, br) -> fromBufferedReader(c, p, true, false, br, Integer.MAX_VALUE)
         );
         if (latest != null) {
-            List<String> versionFilesNames = parseFromBufferedReader(
+            List<String> versionRelativePaths = parseFromBufferedReader(
                 component,
-                "/transport/defined/manifest.txt",
-                nameToStream,
+                resourceRoot + "/definitions/manifest.txt",
+                resourceLoader,
                 (c, p, br) -> br.lines().filter(line -> line.isBlank() == false).toList()
             );
-            if (versionFilesNames != null) {
-                Map<String, TransportVersion> transportVersions = new HashMap<>();
-                for (String versionFileName : versionFilesNames) {
+            if (versionRelativePaths != null) {
+                List<TransportVersion> transportVersions = new ArrayList<>();
+                for (String versionRelativePath : versionRelativePaths) {
                     TransportVersion transportVersion = parseFromBufferedReader(
                         component,
-                        "/transport/defined/" + versionFileName,
-                        nameToStream,
-                        (c, p, br) -> fromBufferedReader(c, p, false, br, latest.id())
+                        resourceRoot + "/definitions/" + versionRelativePath,
+                        resourceLoader,
+                        (c, p, br) -> fromBufferedReader(c, p, false, versionRelativePath.startsWith("named/"), br, latest.id())
                     );
                     if (transportVersion != null) {
-                        transportVersions.put(versionFileName.substring(0, versionFileName.length() - 4), transportVersion);
+                        transportVersions.add(transportVersion);
                     }
                 }
                 return transportVersions;
             }
         }
-        return Map.of();
+        return List.of();
     }
 
     private static String toComponentPath(String component, String path) {
@@ -419,12 +427,16 @@ public record TransportVersion(String name, int id, TransportVersion nextPatchVe
         static {
             // collect all the transport versions from server and es modules/plugins (defined in server)
             List<TransportVersion> allVersions = new ArrayList<>(TransportVersions.DEFINED_VERSIONS);
-            Map<String, TransportVersion> allVersionsByName = collectFromInputStreams(
+            List<TransportVersion> streamVersions = collectFromResources(
                 "<server>",
+                "/transport",
                 TransportVersion.class::getResourceAsStream,
                 Version.CURRENT.major + "." + Version.CURRENT.minor + ".csv"
             );
-            addTransportVersions(allVersionsByName.values(), allVersions).sort(TransportVersion::compareTo);
+            Map<String, TransportVersion> allVersionsByName = streamVersions.stream()
+                .filter(tv -> tv.name() != null)
+                .collect(Collectors.toMap(TransportVersion::name, v -> v));
+            addTransportVersions(streamVersions, allVersions).sort(TransportVersion::compareTo);
 
             // set version lookup by release before adding serverless versions
             // serverless versions should not affect release version

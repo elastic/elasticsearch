@@ -618,6 +618,9 @@ tests:
 - class: org.elasticsearch.index.mapper.blockloader.IpFieldBlockLoaderTests
   method: testBlockLoader {preference=Params[syntheticSource=true, preference=STORED]}
   issue: https://github.com/elastic/elasticsearch/issues/133218
+- class: org.elasticsearch.xpack.esql.action.RandomizedTimeSeriesIT
+  method: testGroupBySubset
+  issue: https://github.com/elastic/elasticsearch/issues/133220
 
 # Examples:
 #

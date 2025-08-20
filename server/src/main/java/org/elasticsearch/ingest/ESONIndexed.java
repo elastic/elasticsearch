@@ -51,7 +51,7 @@ public class ESONIndexed {
         public ESONObject(int keyArrayIndex, ESONFlat esonFlat) {
             this.keyArrayIndex = keyArrayIndex;
             this.esonFlat = esonFlat;
-            this.objEntry = (ESONEntry.ObjectEntry) esonFlat.keys().get(keyArrayIndex);
+            this.objEntry = (ESONEntry.ObjectEntry) esonFlat.getKeys().get(keyArrayIndex);
         }
 
         public ESONFlat esonFlat() {
@@ -64,7 +64,7 @@ public class ESONIndexed {
 
                 int currentIndex = keyArrayIndex + 1;
                 for (int i = 0; i < objEntry.offsetOrCount(); i++) {
-                    ESONEntry entry = esonFlat.keys().get(currentIndex);
+                    ESONEntry entry = esonFlat.getKeys().get(currentIndex);
                     if (entry instanceof ESONEntry.FieldEntry fieldEntry) {
                         materializedMap.put(fieldEntry.key(), fieldEntry.value());
                         currentIndex++;
@@ -74,7 +74,7 @@ public class ESONIndexed {
                         } else {
                             materializedMap.put(entry.key(), new ESONArray(currentIndex, esonFlat));
                         }
-                        currentIndex = skipContainer(esonFlat.keys(), entry, currentIndex);
+                        currentIndex = skipContainer(esonFlat.getKeys(), entry, currentIndex);
                     }
                 }
             }
@@ -379,7 +379,7 @@ public class ESONIndexed {
         public ESONArray(int keyArrayIndex, ESONFlat esonFlat) {
             this.keyArrayIndex = keyArrayIndex;
             this.esonFlat = esonFlat;
-            this.arrEntry = (ESONEntry.ArrayEntry) esonFlat.keys().get(keyArrayIndex);
+            this.arrEntry = (ESONEntry.ArrayEntry) esonFlat.getKeys().get(keyArrayIndex);
         }
 
         private void ensureMaterializedList() {
@@ -388,7 +388,7 @@ public class ESONIndexed {
 
                 int currentIndex = keyArrayIndex + 1;
                 for (int i = 0; i < arrEntry.offsetOrCount(); i++) {
-                    ESONEntry entry = esonFlat.keys().get(currentIndex);
+                    ESONEntry entry = esonFlat.getKeys().get(currentIndex);
                     if (entry instanceof ESONEntry.FieldEntry fieldEntry) {
                         materializedList.add(fieldEntry.value());
                         currentIndex++;
@@ -398,7 +398,7 @@ public class ESONIndexed {
                         } else {
                             materializedList.add(new ESONArray(currentIndex, esonFlat));
                         }
-                        currentIndex = skipContainer(esonFlat.keys(), entry, currentIndex);
+                        currentIndex = skipContainer(esonFlat.getKeys(), entry, currentIndex);
                     }
                 }
             }
@@ -555,7 +555,7 @@ public class ESONIndexed {
     public static ESONFlat flatten(ESONIndexed.ESONObject original) {
         // TODO: Add a better estimate of the size to be added
         BytesStreamOutput newValuesOut = new BytesStreamOutput(128);
-        List<ESONEntry> flatKeyArray = new ArrayList<>(original.esonFlat.keys().size());
+        List<ESONEntry> flatKeyArray = new ArrayList<>(original.esonFlat.getKeys().size());
         BytesReference originalData = original.esonFlat.values().data();
 
         try {
@@ -593,7 +593,7 @@ public class ESONIndexed {
             int fieldCount = 0;
 
             for (int i = 0; i < obj.objEntry.offsetOrCount(); i++) {
-                ESONEntry entry = obj.esonFlat.keys().get(currentIndex);
+                ESONEntry entry = obj.esonFlat.getKeys().get(currentIndex);
 
                 if (entry instanceof ESONEntry.FieldEntry fieldEntry) {
                     // Copy field entry as-is
@@ -605,14 +605,14 @@ public class ESONIndexed {
                     ESONObject nestedObj = new ESONObject(currentIndex, obj.esonFlat);
                     flattenObject(nestedObj, entry.key(), flatKeyArray, newOffset, newValuesOut);
                     // TODO: Remove Need to skip container
-                    currentIndex = skipContainer(obj.esonFlat.keys(), entry, currentIndex);
+                    currentIndex = skipContainer(obj.esonFlat.getKeys(), entry, currentIndex);
                     fieldCount++;
                 } else if (entry instanceof ESONEntry.ArrayEntry) {
                     // Nested array - create new ESONArray and flatten recursively
                     ESONArray nestedArr = new ESONArray(currentIndex, obj.esonFlat);
                     flattenArray(nestedArr, entry.key(), flatKeyArray, newOffset, newValuesOut);
                     // TODO: Remove Need to skip container
-                    currentIndex = skipContainer(obj.esonFlat.keys(), entry, currentIndex);
+                    currentIndex = skipContainer(obj.esonFlat.getKeys(), entry, currentIndex);
                     fieldCount++;
                 }
             }
@@ -700,7 +700,7 @@ public class ESONIndexed {
             int elementCount = 0;
 
             for (int i = 0; i < arr.arrEntry.offsetOrCount(); i++) {
-                ESONEntry entry = arr.esonFlat.keys().get(currentIndex);
+                ESONEntry entry = arr.esonFlat.getKeys().get(currentIndex);
 
                 if (entry instanceof ESONEntry.FieldEntry fieldEntry) {
                     // Copy field entry as-is (array element)
@@ -711,13 +711,13 @@ public class ESONIndexed {
                     // Nested object - create new ESONObject and flatten recursively
                     ESONObject nestedObj = new ESONObject(currentIndex, arr.esonFlat);
                     flattenObject(nestedObj, null, flatKeyArray, newOffset, newValuesOut);
-                    currentIndex = skipContainer(arr.esonFlat.keys(), entry, currentIndex);
+                    currentIndex = skipContainer(arr.esonFlat.getKeys(), entry, currentIndex);
                     elementCount++;
                 } else if (entry instanceof ESONEntry.ArrayEntry) {
                     // Nested array - create new ESONArray and flatten recursively
                     ESONArray nestedArr = new ESONArray(currentIndex, arr.esonFlat);
                     flattenArray(nestedArr, null, flatKeyArray, newOffset, newValuesOut);
-                    currentIndex = skipContainer(arr.esonFlat.keys(), entry, currentIndex);
+                    currentIndex = skipContainer(arr.esonFlat.getKeys(), entry, currentIndex);
                     elementCount++;
                 }
             }

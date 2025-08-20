@@ -65,7 +65,7 @@ public class ESONXContentParser extends AbstractXContentParser {
         this.values = esonFlat.values();
         this.xContentType = xContentType;
 
-        this.keyArray = esonFlat.keys();
+        this.keyArray = esonFlat.getKeys();
     }
 
     @Override

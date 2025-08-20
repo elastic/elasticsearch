@@ -46,7 +46,7 @@ public class ESONXContentSerializer {
      */
     public static XContentBuilder flattenToXContent(ESONFlat esonFlat, XContentBuilder builder, ToXContent.Params params)
         throws IOException {
-        List<ESONEntry> keyArray = esonFlat.keys();
+        List<ESONEntry> keyArray = esonFlat.getKeys();
         ESONSource.Values values = esonFlat.values();
         ESONEntry.ObjectEntry rootObjEntry = (ESONEntry.ObjectEntry) keyArray.get(0);
 

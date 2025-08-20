@@ -24,22 +24,38 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
 
-public record ESONFlat(List<ESONEntry> keys, ESONSource.Values values, AtomicReference<BytesReference> serializedKeyBytes) {
+public record ESONFlat(
+    AtomicReference<List<ESONEntry>> keys,
+    ESONSource.Values values,
+    AtomicReference<BytesReference> serializedKeyBytes
+) {
 
     private static final byte[] EMPTY_KEY = new byte[0];
 
     public ESONFlat(List<ESONEntry> keys, ESONSource.Values values) {
-        this(keys, values, new AtomicReference<>());
+        this(new AtomicReference<>(keys), values, new AtomicReference<>());
     }
 
     public static ESONFlat readFrom(StreamInput in) throws IOException {
         BytesReference keys = in.readBytesReference();
-        return new ESONFlat(readKeys(keys.streamInput()), new ESONSource.Values(in.readBytesReference()), new AtomicReference<>(keys));
+        return new ESONFlat(new AtomicReference<>(), new ESONSource.Values(in.readBytesReference()), new AtomicReference<>(keys));
     }
 
     public void writeTo(StreamOutput out) throws IOException {
         out.writeBytesReference(getSerializedKeyBytes());
         out.writeBytesReference(values.data());
+    }
+
+    public List<ESONEntry> getKeys() {
+        List<ESONEntry> esonEntries = keys.get();
+        if (esonEntries == null) {
+            try {
+                keys.set(readKeys(serializedKeyBytes.get().streamInput()));
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
+            }
+        }
+        return keys.get();
     }
 
     private static List<ESONEntry> readKeys(StreamInput in) throws IOException {
@@ -65,14 +81,16 @@ public record ESONFlat(List<ESONEntry> keys, ESONSource.Values values, AtomicRef
 
     public BytesReference getSerializedKeyBytes() {
         if (serializedKeyBytes.get() == null) {
+            assert keys.get() != null;
             // TODO: Better estimate
             // for (ESONEntry entry : keys) {
             // String key = entry.key();
             // estimate += key == null ? 0 : key.length() + 5;
             // }
             try (RecyclerBytesStreamOutput streamOutput = new RecyclerBytesStreamOutput(getBytesRefRecycler())) {
-                streamOutput.writeVInt(keys.size());
-                for (ESONEntry entry : keys) {
+                List<ESONEntry> esonEntries = keys.get();
+                streamOutput.writeVInt(esonEntries.size());
+                for (ESONEntry entry : esonEntries) {
                     String key = entry.key() == null ? "" : entry.key();
                     byte[] bytes = key == null ? EMPTY_KEY : key.getBytes(StandardCharsets.UTF_8);
                     streamOutput.writeVInt(bytes.length);
@@ -93,6 +111,8 @@ public record ESONFlat(List<ESONEntry> keys, ESONSource.Values values, AtomicRef
                 throw new UncheckedIOException(e);
             }
         }
+        // Only called on translog or writing out. Either case, we no longer need the list.
+        keys.set(null);
         return serializedKeyBytes.get();
     }
 

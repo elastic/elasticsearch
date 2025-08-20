@@ -15,7 +15,9 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.InferenceFieldMetadata;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
+import org.elasticsearch.index.query.MatchNoneQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -91,6 +93,21 @@ public abstract class InterceptedQueryBuilder<T extends AbstractQueryBuilder<T>>
 
     @Override
     protected QueryBuilder doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
+        QueryRewriteContext indexMetadataContext = queryRewriteContext.convertToIndexMetadataContext();
+        if (indexMetadataContext != null) {
+            // We are performing an index metadata rewrite on the data node
+            MappedFieldType fieldType = indexMetadataContext.getFieldType(getFieldName());
+            if (fieldType == null) {
+                return new MatchNoneQueryBuilder();
+            } else if (fieldType instanceof SemanticTextFieldMapper.SemanticTextFieldType) {
+                return new SemanticQueryBuilder(getFieldName(), getQuery(), null, embeddingsProvider);
+            } else {
+                // TODO: Sometimes need to modify the original query before returning it
+                // For example, need to add embeddings to knn query
+                return originalQuery;
+            }
+        }
+
         ResolvedIndices resolvedIndices = queryRewriteContext.getResolvedIndices();
         if (resolvedIndices != null) {
             // We are preforming a coordinator node rewrite
@@ -98,6 +115,7 @@ public abstract class InterceptedQueryBuilder<T extends AbstractQueryBuilder<T>>
                 return this;
             }
 
+            // TODO: Need to get query-time inference ID from knn & sparse_vector queries
             Set<String> inferenceIds = getInferenceIdsForForField(
                 resolvedIndices.getConcreteLocalIndicesMetadata().values(),
                 getFieldName()

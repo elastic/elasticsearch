@@ -88,7 +88,8 @@ public final class ProfileConfigurations {
                 // The single TRANSPORT_SSL_ENABLED setting determines whether SSL is enabled for both
                 // the default transport profile and any custom transport profiles. That is, SSL is
                 // always either enabled or disabled together for default and custom transport profiles.
-                profileConfigurations.put(REMOTE_CLUSTER_PROFILE, sslService.profile(XPackSettings.REMOTE_CLUSTER_SERVER_SSL_PREFIX));
+                final SslProfile profile = getSslProfile(sslService, XPackSettings.REMOTE_CLUSTER_SERVER_SSL_PREFIX);
+                profileConfigurations.put(REMOTE_CLUSTER_PROFILE, profile);
                 return profileConfigurations;
             } else if (remoteClusterServerSslEnabled == false) {
                 populateFromTransportProfiles(settings, sslService, profileConfigurations);
@@ -101,7 +102,7 @@ public final class ProfileConfigurations {
         populateFromTransportProfiles(settings, sslService, profileConfigurations);
         if (remoteClusterPortEnabled) {
             assert profileConfigurations.containsKey(REMOTE_CLUSTER_PROFILE) == false;
-            profileConfigurations.put(REMOTE_CLUSTER_PROFILE, sslService.profile(XPackSettings.REMOTE_CLUSTER_SERVER_SSL_PREFIX));
+            profileConfigurations.put(REMOTE_CLUSTER_PROFILE, getSslProfile(sslService, XPackSettings.REMOTE_CLUSTER_SERVER_SSL_PREFIX));
         }
 
         return profileConfigurations;
@@ -112,7 +113,7 @@ public final class ProfileConfigurations {
         SSLService sslService,
         Map<String, SslProfile> profileConfigurations
     ) {
-        final SslProfile defaultProfile = sslService.profile(setting("transport.ssl."));
+        final SslProfile defaultProfile = getSslProfile(sslService, setting("transport.ssl."));
 
         Set<String> profileNames = settings.getGroups("transport.profiles.", true).keySet();
         for (String profileName : profileNames) {
@@ -131,11 +132,18 @@ public final class ProfileConfigurations {
                 }
             }
 
-            final SslProfile profile = sslService.profile("transport.profiles." + profileName + "." + setting("ssl"));
+            final SslProfile profile = getSslProfile(sslService, "transport.profiles." + profileName + "." + setting("ssl"));
             profileConfigurations.put(profileName, profile);
         }
 
         assert profileConfigurations.containsKey(TransportSettings.DEFAULT_PROFILE) == false;
         profileConfigurations.put(TransportSettings.DEFAULT_PROFILE, defaultProfile);
     }
+
+    private static SslProfile getSslProfile(final SSLService sslService, final String profileName) {
+        final SslProfile profile = sslService.profile(profileName);
+        assert profile != null : "Null Ssl profile for [" + profileName + "] (is [" + sslService + "] a mock?)";
+        return profile;
+    }
+
 }

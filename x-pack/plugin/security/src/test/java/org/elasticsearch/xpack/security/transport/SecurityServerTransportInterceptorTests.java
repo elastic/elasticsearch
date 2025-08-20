@@ -1126,7 +1126,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
             )
         );
         final SslProfile remoteProfile = mock(SslProfile.class);
-        when(defaultProfile.configuration()).thenReturn(
+        when(remoteProfile.configuration()).thenReturn(
             new SslConfiguration(
                 "xpack.security.remote_cluster_server.ssl",
                 randomBoolean(),
@@ -1235,12 +1235,13 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
             SslClientAuthenticationMode.NONE,
             List.of("TLS_AES_256_GCM_SHA384"),
             List.of("TLSv1.3"),
-            -1
+            randomLongBetween(1, 100000)
         );
         final SslProfile defaultProfile = mock(SslProfile.class);
         when(defaultProfile.configuration()).thenReturn(defaultConfiguration);
         final SSLService sslService = mock(SSLService.class);
         when(sslService.profile("xpack.security.transport.ssl")).thenReturn(defaultProfile);
+        when(sslService.profile("xpack.security.transport.ssl.")).thenReturn(defaultProfile);
         return sslService;
     }
 

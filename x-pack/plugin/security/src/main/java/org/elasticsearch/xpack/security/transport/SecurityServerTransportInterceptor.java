@@ -492,8 +492,10 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
         final boolean remoteClusterServerSSLEnabled = XPackSettings.REMOTE_CLUSTER_SERVER_SSL_ENABLED.get(settings);
 
         for (Map.Entry<String, SslProfile> entry : profileConfigurations.entrySet()) {
-            final SslConfiguration profileConfiguration = entry.getValue().configuration();
             final String profileName = entry.getKey();
+            final SslProfile sslProfile = entry.getValue();
+            final SslConfiguration profileConfiguration = sslProfile.configuration();
+            assert profileConfiguration != null : "Ssl Profile [" + sslProfile + "] for [" + profileName + "] has a null configuration";
             final boolean useRemoteClusterProfile = remoteClusterPortEnabled && profileName.equals(REMOTE_CLUSTER_PROFILE);
             if (useRemoteClusterProfile) {
                 profileFilters.put(

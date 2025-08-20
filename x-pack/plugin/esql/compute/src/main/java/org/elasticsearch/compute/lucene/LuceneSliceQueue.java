@@ -202,7 +202,6 @@ public final class LuceneSliceQueue {
         Map<String, PartitioningStrategy> partitioningStrategies = new HashMap<>(contexts.size());
 
         int nextSliceId = 0;
-        final List<Integer> queryHeads = new ArrayList<>();
         for (ShardContext ctx : contexts) {
             for (QueryAndTags queryAndExtra : queryFunction.apply(ctx)) {
                 var scoreMode = scoreModeFunction.apply(ctx);
@@ -229,7 +228,6 @@ public final class LuceneSliceQueue {
                     if (group.isEmpty() == false) {
                         final int slicePosition = nextSliceId++;
                         slices.add(new LuceneSlice(slicePosition, queryHead, ctx, group, weight, queryAndExtra.tags));
-                        queryHeads.add(slicePosition);
                         queryHead = false;
                     }
                 }

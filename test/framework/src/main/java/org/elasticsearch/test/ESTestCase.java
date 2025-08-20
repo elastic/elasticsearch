@@ -102,6 +102,7 @@ import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.entitlement.bootstrap.TestEntitlementsRule;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.TestEnvironment;
@@ -149,12 +150,18 @@ import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
+import org.junit.ClassRule;
 import org.junit.Rule;
 import org.junit.internal.AssumptionViolatedException;
 import org.junit.rules.RuleChain;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.lang.annotation.ElementType;
+import java.lang.annotation.Inherited;
+import java.lang.annotation.Retention;
+import java.lang.annotation.RetentionPolicy;
+import java.lang.annotation.Target;
 import java.lang.invoke.MethodHandles;
 import java.math.BigInteger;
 import java.net.InetAddress;
@@ -487,6 +494,35 @@ public abstract class ESTestCase extends LuceneTestCase {
 
     /** called after a test is finished, but only if successful */
     protected void afterIfSuccessful() throws Exception {}
+
+    /**
+     * Marks a test suite or a test method that should run without checking for entitlements.
+     */
+    @Retention(RetentionPolicy.RUNTIME)
+    @Target(ElementType.TYPE)
+    @Inherited
+    public @interface WithoutEntitlements {
+    }
+
+    /**
+     * Marks a test suite or a test method that enforce entitlements on the test code itself.
+     * Useful for testing the enforcement of entitlements; for any other test cases, this probably isn't what you want.
+     */
+    @Retention(RetentionPolicy.RUNTIME)
+    @Target(ElementType.TYPE)
+    @Inherited
+    public @interface WithEntitlementsOnTestCode {
+    }
+
+    @Retention(RetentionPolicy.RUNTIME)
+    @Target(ElementType.TYPE)
+    @Inherited
+    public @interface EntitledTestPackages {
+        String[] value();
+    }
+
+    @ClassRule
+    public static final TestEntitlementsRule TEST_ENTITLEMENTS = new TestEntitlementsRule();
 
     // setup mock filesystems for this test run. we change PathUtils
     // so that all accesses are plumbed thru any mock wrappers

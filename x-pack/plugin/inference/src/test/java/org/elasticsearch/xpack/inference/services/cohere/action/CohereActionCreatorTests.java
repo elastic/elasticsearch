@@ -209,7 +209,10 @@ public class CohereActionCreatorTests extends ESTestCase {
             assertThat(webServer.requests().get(0).getHeader(HttpHeaders.AUTHORIZATION), is("Bearer secret"));
 
             var requestMap = entityAsMap(webServer.requests().get(0).getBody());
-            assertThat(requestMap, is(Map.of("message", "abc", "model", "model", "stream", false)));
+            assertThat(
+                requestMap,
+                is(Map.of("messages", List.of(Map.of("role", "user", "content", "abc")), "model", "model", "stream", false))
+            );
         }
     }
 }

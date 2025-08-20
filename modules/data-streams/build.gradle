@@ -81,3 +81,7 @@ tasks.named("yamlRestTestV7CompatTransform").configure({ task ->
   task.skipTest("data_stream/210_rollover_failure_store/Roll over a data stream's failure store without conditions", "Rolling over a data stream using target_failure_store is no longer supported.")
   task.skipTest("data_stream/240_failure_store_info/Get failure store info from explicitly enabled failure store and disabled lifecycle", "failure store lifecycle is not using anymore the data stream lifecycle")
 })
+
+artifacts {
+  restTests(new File(projectDir, "src/yamlRestTest/resources/rest-api-spec/test"))
+}

@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.session;
 
 import org.elasticsearch.Build;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
@@ -1467,7 +1468,7 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
     public void testMetrics() {
         var query = "METRICS k8s bytes=sum(rate(network.total_bytes_in)), sum(rate(network.total_cost)) BY cluster";
         if (Build.current().isSnapshot() == false) {
-            var e = expectThrows(ParsingException.class, () -> parser.createStatement(query));
+            var e = expectThrows(ParsingException.class, () -> parser.createStatement(query, EsqlTestUtils.TEST_CFG));
             assertThat(e.getMessage(), containsString("line 1:1: mismatched input 'METRICS' expecting {"));
             return;
         }
@@ -1758,7 +1759,7 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
             """, Set.of("emp_no", "emp_no.*", "*name", "*name.*"));
     }
 
-    public void testDropWildcardedFields_AfterRename() {
+    public void testDropWildcardFieldsAfterRename() {
         assertFieldNames(
             """
                 from employees
@@ -1771,7 +1772,30 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
         );
     }
 
-    public void testDropWildcardFields_WithLookupJoin() {
+    public void testDropWildcardFieldsAfterLookupJoins() {
+        assumeTrue("LOOKUP JOIN available as snapshot only", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
+        assertFieldNames("""
+            FROM sample_data
+            | EVAL client_ip = client_ip::keyword
+            | LOOKUP JOIN clientips_lookup ON client_ip
+            | LOOKUP JOIN message_types_lookup ON message
+            | SORT @timestamp
+            | DROP *e""", Set.of("*"), Set.of());
+    }
+
+    public void testDropWildcardFieldsAfterLookupJoins2() {
+        assumeTrue("LOOKUP JOIN available as snapshot only", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
+        assertFieldNames("""
+            FROM sample_data
+            | EVAL client_ip = client_ip::keyword
+            | LOOKUP JOIN clientips_lookup ON client_ip
+            | DROP *e, client_ip
+            | LOOKUP JOIN message_types_lookup ON message
+            | SORT @timestamp
+            | DROP *e""", Set.of("*"), Set.of());
+    }
+
+    public void testDropWildcardFieldsAfterLookupJoinsAndKeep() {
         assumeTrue("LOOKUP JOIN available as snapshot only", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
         assertFieldNames(
             """
@@ -1787,9 +1811,59 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
         );
     }
 
+    public void testDropWildcardFieldsAfterLookupJoinKeepLookupJoin() {
+        assumeTrue("LOOKUP JOIN available as snapshot only", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
+        assertFieldNames(
+            """
+                FROM sample_data
+                | EVAL client_ip = client_ip::keyword
+                | LOOKUP JOIN clientips_lookup ON client_ip
+                | KEEP @timestamp, *e*, client_ip
+                | LOOKUP JOIN message_types_lookup ON message
+                | SORT @timestamp
+                | DROP *e""",
+            Set.of("client_ip", "client_ip.*", "message", "message.*", "@timestamp", "@timestamp.*", "*e*", "*e", "*e.*"),
+            Set.of("message_types_lookup")
+        );
+    }
+
+    public void testDropWildcardFieldsAfterKeepAndLookupJoins() {
+        assumeTrue("LOOKUP JOIN available as snapshot only", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
+        assertFieldNames(
+            """
+                FROM sample_data
+                | EVAL client_ip = client_ip::keyword
+                | KEEP @timestamp, *e*, client_ip
+                | LOOKUP JOIN clientips_lookup ON client_ip
+                | LOOKUP JOIN message_types_lookup ON message
+                | SORT @timestamp
+                | DROP *e""",
+            Set.of("client_ip", "client_ip.*", "message", "message.*", "@timestamp", "@timestamp.*", "*e*", "*e", "*e.*"),
+            Set.of("clientips_lookup", "message_types_lookup")
+        );
+    }
+
+    public void testDropWildcardFieldsAfterKeepAndLookupJoins2() {
+        assumeTrue("LOOKUP JOIN available as snapshot only", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
+        assertFieldNames(
+            """
+                FROM sample_data
+                | EVAL client_ip = client_ip::keyword
+                | KEEP @timestamp, *e*, client_ip
+                | LOOKUP JOIN clientips_lookup ON client_ip
+                | DROP *e
+                | LOOKUP JOIN message_types_lookup ON message
+                | SORT @timestamp
+                | DROP *e, client_ip""",
+            Set.of("client_ip", "client_ip.*", "message", "message.*", "@timestamp", "@timestamp.*", "*e*", "*e", "*e.*"),
+            Set.of("clientips_lookup", "message_types_lookup")
+        );
+    }
+
     private Set<String> fieldNames(String query, Set<String> enrichPolicyMatchFields) {
         var preAnalysisResult = new EsqlSession.PreAnalysisResult(null);
-        return EsqlSession.fieldNames(parser.createStatement(query), enrichPolicyMatchFields, preAnalysisResult).fieldNames();
+        return EsqlSession.fieldNames(parser.createStatement(query, EsqlTestUtils.TEST_CFG), enrichPolicyMatchFields, preAnalysisResult)
+            .fieldNames();
     }
 
     private void assertFieldNames(String query, Set<String> expected) {
@@ -1798,7 +1872,11 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
     }
 
     private void assertFieldNames(String query, Set<String> expected, Set<String> wildCardIndices) {
-        var preAnalysisResult = EsqlSession.fieldNames(parser.createStatement(query), Set.of(), new EsqlSession.PreAnalysisResult(null));
+        var preAnalysisResult = EsqlSession.fieldNames(
+            parser.createStatement(query, EsqlTestUtils.TEST_CFG),
+            Set.of(),
+            new EsqlSession.PreAnalysisResult(null)
+        );
         assertThat("Query-wide field names", preAnalysisResult.fieldNames(), equalTo(expected));
         assertThat("Lookup Indices that expect wildcard lookups", preAnalysisResult.wildcardJoinIndices(), equalTo(wildCardIndices));
     }

@@ -23,6 +23,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.common.util.PageCacheRecycler;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.indices.ExecutorSelector;
@@ -53,10 +54,12 @@ import org.elasticsearch.transport.TransportInterceptor;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.TransportSettings;
 
+import java.io.Closeable;
 import java.nio.file.Path;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
 
@@ -234,40 +237,37 @@ public class MockNode extends Node {
 
     private final Collection<Class<? extends Plugin>> classpathPlugins;
 
+    // handle for temporarily entitled node paths for this node; these will be removed on close.
+    private final Closeable entitledNodePaths;
+
     public MockNode(final Settings settings, final Collection<Class<? extends Plugin>> classpathPlugins) {
-        this(settings, classpathPlugins, true);
+        this(settings, classpathPlugins, true, () -> {});
     }
 
     public MockNode(
         final Settings settings,
         final Collection<Class<? extends Plugin>> classpathPlugins,
-        final boolean forbidPrivateIndexSettings
+        final boolean forbidPrivateIndexSettings,
+        final Closeable entitledNodePaths
     ) {
-        this(settings, classpathPlugins, null, forbidPrivateIndexSettings);
+        this(settings, classpathPlugins, null, forbidPrivateIndexSettings, entitledNodePaths);
     }
 
     public MockNode(
         final Settings settings,
         final Collection<Class<? extends Plugin>> classpathPlugins,
         final Path configPath,
-        final boolean forbidPrivateIndexSettings
+        final boolean forbidPrivateIndexSettings,
+        final Closeable entitledNodePaths
     ) {
-        this(
-            InternalSettingsPreparer.prepareEnvironment(
-                Settings.builder().put(TransportSettings.PORT.getKey(), ESTestCase.getPortRange()).put(settings).build(),
-                Collections.emptyMap(),
-                configPath,
-                () -> "mock_ node"
-            ),
-            classpathPlugins,
-            forbidPrivateIndexSettings
-        );
+        this(prepareEnvironment(settings, configPath), classpathPlugins, forbidPrivateIndexSettings, entitledNodePaths);
     }
 
     private MockNode(
         final Environment environment,
         final Collection<Class<? extends Plugin>> classpathPlugins,
-        final boolean forbidPrivateIndexSettings
+        final boolean forbidPrivateIndexSettings,
+        final Closeable entitledNodePaths
     ) {
         super(NodeConstruction.prepareConstruction(environment, null, new MockServiceProvider() {
 
@@ -278,6 +278,25 @@ public class MockNode extends Node {
         }, forbidPrivateIndexSettings));
 
         this.classpathPlugins = classpathPlugins;
+        this.entitledNodePaths = entitledNodePaths;
+    }
+
+    private static Environment prepareEnvironment(final Settings settings, final Path configPath) {
+        return InternalSettingsPreparer.prepareEnvironment(
+            Settings.builder().put(TransportSettings.PORT.getKey(), ESTestCase.getPortRange()).put(settings).build(),
+            Collections.emptyMap(),
+            configPath,
+            () -> "mock_ node"
+        );
+    }
+
+    @Override
+    public synchronized boolean awaitClose(long timeout, TimeUnit timeUnit) throws InterruptedException {
+        try {
+            return super.awaitClose(timeout, timeUnit);
+        } finally {
+            IOUtils.closeWhileHandlingException(entitledNodePaths);
+        }
     }
 
     /**

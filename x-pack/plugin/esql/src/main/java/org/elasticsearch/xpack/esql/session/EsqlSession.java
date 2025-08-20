@@ -7,8 +7,12 @@
 
 package org.elasticsearch.xpack.esql.session;
 
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.OriginalIndices;
+import org.elasticsearch.action.fieldcaps.FieldCapabilitiesFailure;
+import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.common.Strings;
@@ -18,12 +22,16 @@ import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverCompletionInfo;
+import org.elasticsearch.compute.operator.FailureCollector;
+import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesExpressionGrouper;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.elasticsearch.xpack.esql.action.EsqlQueryRequest;
@@ -96,7 +104,6 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
@@ -295,9 +302,56 @@ public class EsqlSession {
     }
 
     private LogicalPlan parse(String query, QueryParams params) {
-        var parsed = new EsqlParser().createStatement(query, params, planTelemetry);
+        var parsed = new EsqlParser().createStatement(query, params, planTelemetry, configuration);
         LOGGER.debug("Parsed logical plan:\n{}", parsed);
         return parsed;
+    }
+
+    /**
+     * Associates errors that occurred during field-caps with the cluster info in the execution info.
+     * - Skips clusters that are no longer running, as they have already been marked as successful, skipped, or failed.
+     * - If allow_partial_results or skip_unavailable is enabled, stores the failures in the cluster info but allows execution to continue.
+     * - Otherwise, aborts execution with the failures.
+     */
+    static void handleFieldCapsFailures(
+        boolean allowPartialResults,
+        EsqlExecutionInfo executionInfo,
+        Map<String, List<FieldCapabilitiesFailure>> failures
+    ) throws Exception {
+        FailureCollector failureCollector = new FailureCollector();
+        for (var e : failures.entrySet()) {
+            String clusterAlias = e.getKey();
+            EsqlExecutionInfo.Cluster cluster = executionInfo.getCluster(clusterAlias);
+            if (cluster.getStatus() != EsqlExecutionInfo.Cluster.Status.RUNNING) {
+                assert cluster.getStatus() != EsqlExecutionInfo.Cluster.Status.SUCCESSFUL : "can't mark a cluster success with failures";
+                continue;
+            }
+            if (allowPartialResults == false && executionInfo.isSkipUnavailable(clusterAlias) == false) {
+                for (FieldCapabilitiesFailure failure : e.getValue()) {
+                    failureCollector.unwrapAndCollect(failure.getException());
+                }
+            } else if (cluster.getFailures().isEmpty()) {
+                var shardFailures = e.getValue().stream().map(f -> {
+                    ShardId shardId = null;
+                    if (ExceptionsHelper.unwrapCause(f.getException()) instanceof ElasticsearchException es) {
+                        shardId = es.getShardId();
+                    }
+                    if (shardId != null) {
+                        return new ShardSearchFailure(f.getException(), new SearchShardTarget(null, shardId, clusterAlias));
+                    } else {
+                        return new ShardSearchFailure(f.getException());
+                    }
+                }).toList();
+                executionInfo.swapCluster(
+                    clusterAlias,
+                    (k, curr) -> new EsqlExecutionInfo.Cluster.Builder(cluster).addFailures(shardFailures).build()
+                );
+            }
+        }
+        Exception failure = failureCollector.getFailure();
+        if (failure != null) {
+            throw failure;
+        }
     }
 
     public void analyzedPlan(
@@ -311,7 +365,8 @@ public class EsqlSession {
             return;
         }
 
-        Function<PreAnalysisResult, LogicalPlan> analyzeAction = (l) -> {
+        CheckedFunction<PreAnalysisResult, LogicalPlan, Exception> analyzeAction = (l) -> {
+            handleFieldCapsFailures(configuration.allowPartialResults(), executionInfo, l.indices.failures());
             Analyzer analyzer = new Analyzer(
                 new AnalyzerContext(configuration, functionRegistry, l.indices, l.lookupIndices, l.enrichResolution, l.inferenceResolution),
                 verifier
@@ -371,8 +426,8 @@ public class EsqlSession {
             try {
                 // the order here is tricky - if the cluster has been filtered and later became unavailable,
                 // do we want to declare it successful or skipped? For now, unavailability takes precedence.
-                EsqlCCSUtils.updateExecutionInfoWithUnavailableClusters(executionInfo, result.indices.unavailableClusters());
-                EsqlCCSUtils.updateExecutionInfoWithClustersWithNoMatchingIndices(executionInfo, result.indices, null);
+                EsqlCCSUtils.updateExecutionInfoWithUnavailableClusters(executionInfo, result.indices.failures());
+                EsqlCCSUtils.updateExecutionInfoWithClustersWithNoMatchingIndices(executionInfo, result.indices, false);
                 plan = analyzeAction.apply(result);
             } catch (Exception e) {
                 l.onFailure(e);
@@ -446,11 +501,7 @@ public class EsqlSession {
                     result.fieldNames,
                     requestFilter,
                     listener.delegateFailure((l, indexResolution) -> {
-                        if (configuration.allowPartialResults() == false && indexResolution.getUnavailableShards().isEmpty() == false) {
-                            l.onFailure(indexResolution.getUnavailableShards().iterator().next());
-                        } else {
-                            l.onResponse(result.withIndexResolution(indexResolution));
-                        }
+                        l.onResponse(result.withIndexResolution(indexResolution));
                     })
                 );
             }
@@ -475,8 +526,9 @@ public class EsqlSession {
         ActionListener<LogicalPlan> logicalPlanListener
     ) {
         IndexResolution indexResolution = result.indices;
-        EsqlCCSUtils.updateExecutionInfoWithUnavailableClusters(executionInfo, indexResolution.unavailableClusters());
-        if (executionInfo.isCrossClusterSearch() && executionInfo.getClusterStateCount(EsqlExecutionInfo.Cluster.Status.RUNNING) == 0) {
+        EsqlCCSUtils.updateExecutionInfoWithUnavailableClusters(executionInfo, indexResolution.failures());
+        if (executionInfo.isCrossClusterSearch()
+            && executionInfo.getClusterStates(EsqlExecutionInfo.Cluster.Status.RUNNING).findAny().isEmpty()) {
             // for a CCS, if all clusters have been marked as SKIPPED, nothing to search so send a sentinel Exception
             // to let the LogicalPlanActionListener decide how to proceed
             LOGGER.debug("No more clusters to search, ending analysis stage");
@@ -488,7 +540,7 @@ public class EsqlSession {
     }
 
     private static void analyzeAndMaybeRetry(
-        Function<PreAnalysisResult, LogicalPlan> analyzeAction,
+        CheckedFunction<PreAnalysisResult, LogicalPlan, Exception> analyzeAction,
         QueryBuilder requestFilter,
         PreAnalysisResult result,
         EsqlExecutionInfo executionInfo,
@@ -504,7 +556,7 @@ public class EsqlSession {
             if (result.indices.isValid() || requestFilter != null) {
                 // We won't run this check with no filter and no valid indices since this may lead to false positive - missing index report
                 // when the resolution result is not valid for a different reason.
-                EsqlCCSUtils.updateExecutionInfoWithClustersWithNoMatchingIndices(executionInfo, result.indices, requestFilter);
+                EsqlCCSUtils.updateExecutionInfoWithClustersWithNoMatchingIndices(executionInfo, result.indices, requestFilter != null);
             }
             plan = analyzeAction.apply(result);
         } catch (Exception e) {
@@ -574,16 +626,20 @@ public class EsqlSession {
         }
 
         var referencesBuilder = AttributeSet.builder();
-        // "keep" and "drop" attributes are special whenever a wildcard is used in their name, as the wildcard can shadow some
-        // attributes ("lookup join" generated columns among others) and steps like removal of Aliases should ignore the fields
-        // to remove if their name matches one of these wildcards.
+        // "keep" and "drop" attributes are special whenever a wildcard is used in their name, as the wildcard can cover some
+        // attributes ("lookup join" generated columns among others); steps like removal of Aliases should ignore fields matching the
+        // wildcards.
         //
-        // ie "from test | eval lang = languages + 1 | keep *l" should consider both "languages" and "*l" as valid fields to ask for
-        // "from test | eval first_name = 1 | drop first_name | drop *name should also consider "*name" as valid field to ask for
+        // E.g. "from test | eval lang = languages + 1 | keep *l" should consider both "languages" and "*l" as valid fields to ask for
+        // "from test | eval first_name = 1 | drop first_name | drop *name" should also consider "*name" as valid field to ask for
         //
         // NOTE: the grammar allows wildcards to be used in other commands as well, but these are forbidden in the LogicalPlanBuilder
-        var shadowingRefsBuilder = AttributeSet.builder();
-        var keepJoinRefsBuilder = AttributeSet.builder();
+        // Except in KEEP and DROP.
+        var keepRefs = AttributeSet.builder();
+        var dropWildcardRefs = AttributeSet.builder();
+        // fields required to request for lookup joins to work
+        var joinRefs = AttributeSet.builder();
+        // lookup indices where we request "*" because we may require all their fields
         Set<String> wildcardJoinIndices = new java.util.HashSet<>();
 
         boolean[] canRemoveAliases = new boolean[] { true };
@@ -601,14 +657,14 @@ public class EsqlSession {
                 referencesBuilder.addAll(enrichRefs);
             } else if (p instanceof LookupJoin join) {
                 if (join.config().type() instanceof JoinTypes.UsingJoinType usingJoinType) {
-                    keepJoinRefsBuilder.addAll(usingJoinType.columns());
+                    joinRefs.addAll(usingJoinType.columns());
                 }
-                if (shadowingRefsBuilder.isEmpty()) {
+                if (keepRefs.isEmpty()) {
                     // No KEEP commands after the JOIN, so we need to mark this index for "*" field resolution
                     wildcardJoinIndices.add(((UnresolvedRelation) join.right()).indexPattern().indexPattern());
                 } else {
                     // Keep commands can reference the join columns with names that shadow aliases, so we block their removal
-                    keepJoinRefsBuilder.addAll(shadowingRefsBuilder);
+                    joinRefs.addAll(keepRefs);
                 }
             } else {
                 referencesBuilder.addAll(p.references());
@@ -620,10 +676,16 @@ public class EsqlSession {
                 p.forEachExpression(UnresolvedNamePattern.class, up -> {
                     var ua = new UnresolvedAttribute(up.source(), up.name());
                     referencesBuilder.add(ua);
-                    shadowingRefsBuilder.add(ua);
+                    if (p instanceof Keep) {
+                        keepRefs.add(ua);
+                    } else if (p instanceof Drop) {
+                        dropWildcardRefs.add(ua);
+                    } else {
+                        throw new IllegalStateException("Only KEEP and DROP should allow wildcards");
+                    }
                 });
                 if (p instanceof Keep) {
-                    shadowingRefsBuilder.addAll(p.references());
+                    keepRefs.addAll(p.references());
                 }
             }
 
@@ -657,13 +719,15 @@ public class EsqlSession {
                     if (fieldNames.contains(ne.name())) {
                         return;
                     }
-                    referencesBuilder.removeIf(attr -> matchByName(attr, ne.name(), shadowingRefsBuilder.contains(attr)));
+                    referencesBuilder.removeIf(
+                        attr -> matchByName(attr, ne.name(), keepRefs.contains(attr) || dropWildcardRefs.contains(attr))
+                    );
                 });
             }
         });
 
         // Add JOIN ON column references afterward to avoid Alias removal
-        referencesBuilder.addAll(keepJoinRefsBuilder);
+        referencesBuilder.addAll(joinRefs);
         // If any JOIN commands need wildcard field-caps calls, persist the index names
         if (wildcardJoinIndices.isEmpty() == false) {
             result = result.withWildcardJoinIndices(wildcardJoinIndices);

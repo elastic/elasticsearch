@@ -121,11 +121,14 @@ public class WildcardLike extends RegexMatch<WildcardPattern> {
     public Query asQuery(LucenePushdownPredicates pushdownPredicates, TranslatorHandler handler) {
         var field = field();
         LucenePushdownPredicates.checkIsPushableAttribute(field);
-        return translateField(handler.nameOf(field instanceof FieldAttribute fa ? fa.exactAttribute() : field));
+        return translateField(
+            handler.nameOf(field instanceof FieldAttribute fa ? fa.exactAttribute() : field),
+            pushdownPredicates.flags().stringLikeOnIndex()
+        );
     }
 
     // TODO: see whether escaping is needed
-    private Query translateField(String targetFieldName) {
-        return new WildcardQuery(source(), targetFieldName, pattern().asLuceneWildcard(), caseInsensitive());
+    private Query translateField(String targetFieldName, boolean forceStringMatch) {
+        return new WildcardQuery(source(), targetFieldName, pattern().asLuceneWildcard(), caseInsensitive(), forceStringMatch);
     }
 }

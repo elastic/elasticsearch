@@ -28,13 +28,16 @@ public class CohereUtils {
     public static final String DOCUMENTS_FIELD = "documents";
     public static final String EMBEDDING_TYPES_FIELD = "embedding_types";
     public static final String INPUT_TYPE_FIELD = "input_type";
-    public static final String MESSAGE_FIELD = "message";
+    public static final String V1_MESSAGE_FIELD = "message";
+    public static final String V2_MESSAGES_FIELD = "messages";
     public static final String MODEL_FIELD = "model";
     public static final String QUERY_FIELD = "query";
+    public static final String V2_ROLE_FIELD = "role";
     public static final String SEARCH_DOCUMENT = "search_document";
     public static final String SEARCH_QUERY = "search_query";
-    public static final String TEXTS_FIELD = "texts";
     public static final String STREAM_FIELD = "stream";
+    public static final String TEXTS_FIELD = "texts";
+    public static final String USER_FIELD = "user";
 
     public static Header createRequestSourceHeader() {
         return new BasicHeader(REQUEST_SOURCE_HEADER, ELASTIC_REQUEST_SOURCE);

@@ -18,6 +18,7 @@ set LAUNCHER_CLASSPATH=%ES_HOME%/lib/*;%ES_HOME%/lib/cli-launcher/*
   -Des.path.home="%ES_HOME%" ^
   -Des.path.conf="%ES_PATH_CONF%" ^
   -Des.distribution.type="%ES_DISTRIBUTION_TYPE%" ^
+  -Des.java.type="%JAVA_TYPE%" ^
   -cp "%LAUNCHER_CLASSPATH%" ^
   org.elasticsearch.launcher.CliToolLauncher ^
   %*

@@ -1222,7 +1222,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
         return indexVersion.onOrAfter(SEMANTIC_TEXT_DEFAULTS_TO_BBQ_BACKPORT_8_X);
     }
 
-    static DenseVectorFieldMapper.DenseVectorIndexOptions defaultBbqHnswDenseVectorIndexOptions() {
+    public static DenseVectorFieldMapper.DenseVectorIndexOptions defaultBbqHnswDenseVectorIndexOptions() {
         int m = Lucene99HnswVectorsFormat.DEFAULT_MAX_CONN;
         int efConstruction = Lucene99HnswVectorsFormat.DEFAULT_BEAM_WIDTH;
         DenseVectorFieldMapper.RescoreVector rescoreVector = new DenseVectorFieldMapper.RescoreVector(DEFAULT_RESCORE_OVERSAMPLE);

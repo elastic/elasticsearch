@@ -1,6 +1,0 @@
-pr: 124662
-summary: Let MLTQuery throw IAE when no analyzer is set
-area: Search
-type: bug
-issues:
- - 124562

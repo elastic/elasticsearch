@@ -127,7 +127,7 @@ public abstract class AbstractPageMappingOperator implements Operator {
             this.rowsEmitted = rowsEmitted;
         }
 
-        protected Status(StreamInput in) throws IOException {
+        public Status(StreamInput in) throws IOException {
             processNanos = in.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0) ? in.readVLong() : 0;
             pagesProcessed = in.readVInt();
             if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_PROFILE_ROWS_PROCESSED)) {

@@ -11,6 +11,8 @@ import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.xpack.esql.EsqlTestUtils;
+import org.elasticsearch.xpack.esql.capabilities.TranslationAware;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
@@ -22,12 +24,15 @@ import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTe
 import org.elasticsearch.xpack.esql.expression.function.FunctionName;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.WildcardLikeList;
+import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdownPredicates;
+import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.TransportVersions.V_8_16_0;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.startsWith;
 
@@ -95,5 +100,21 @@ public class WildcardLikeListTests extends AbstractScalarFunctionTestCase {
             : (randomBoolean()
                 ? new WildcardLikeList(source, expression, wildcardPatternList)
                 : new WildcardLikeList(source, expression, wildcardPatternList, false));
+    }
+
+    public void testNotPushableOverCanMatch() {
+        TranslationAware translatable = (TranslationAware) buildFieldExpression(testCase);
+        assertThat(
+            translatable.translatable(LucenePushdownPredicates.forCanMatch(V_8_16_0, new EsqlFlags(true))).finish(),
+            equalTo(TranslationAware.FinishedTranslatable.NO)
+        );
+    }
+
+    public void testPushable() {
+        TranslationAware translatable = (TranslationAware) buildFieldExpression(testCase);
+        assertThat(
+            translatable.translatable(LucenePushdownPredicates.from(new EsqlTestUtils.TestSearchStats(), new EsqlFlags(true))).finish(),
+            equalTo(TranslationAware.FinishedTranslatable.YES)
+        );
     }
 }

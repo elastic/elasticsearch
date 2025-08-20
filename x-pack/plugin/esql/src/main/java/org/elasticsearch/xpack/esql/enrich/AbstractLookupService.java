@@ -34,7 +34,7 @@ import org.elasticsearch.compute.data.LocalCircuitBreaker;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.OrdinalBytesRefBlock;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.compute.lucene.ValuesSourceReaderOperator;
+import org.elasticsearch.compute.lucene.read.ValuesSourceReaderOperator;
 import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Operator;
@@ -342,8 +342,14 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
                 warnings
             );
             releasables.add(queryOperator);
-            var extractFieldsOperator = extractFieldsOperator(shardContext.context, driverContext, request.extractFields);
-            releasables.add(extractFieldsOperator);
+
+            List<Operator> operators = new ArrayList<>();
+            if (request.extractFields.isEmpty() == false) {
+                var extractFieldsOperator = extractFieldsOperator(shardContext.context, driverContext, request.extractFields);
+                releasables.add(extractFieldsOperator);
+                operators.add(extractFieldsOperator);
+            }
+            operators.add(finishPages);
 
             /*
              * Collect all result Pages in a synchronizedList mostly out of paranoia. We'll
@@ -363,7 +369,7 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
                 driverContext,
                 request::toString,
                 queryOperator,
-                List.of(extractFieldsOperator, finishPages),
+                operators,
                 outputOperator,
                 Driver.DEFAULT_STATUS_INTERVAL,
                 Releasables.wrap(shardContext.release, localBreaker)
@@ -434,6 +440,7 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
         }
         return new ValuesSourceReaderOperator(
             driverContext.blockFactory(),
+            Long.MAX_VALUE,
             fields,
             List.of(
                 new ValuesSourceReaderOperator.ShardContext(

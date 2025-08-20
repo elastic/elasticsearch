@@ -836,6 +836,17 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             }
             if (request.numberOfShards() == 1 && (request.source() == null || request.source().rankBuilder() == null)) {
                 // we already have query results, but we can run fetch at the same time
+                // in this case we reuse the search context across search and fetch phase, hence we need to clear the cancellation
+                // checks that were applied by the query phase before running fetch. Note that the timeout checks are not applied
+                // to the fetch phase, while the cancellation checks are.
+                context.searcher().clearQueryCancellations();
+                if (context.lowLevelCancellation()) {
+                    context.searcher().addQueryCancellation(() -> {
+                        if (task != null) {
+                            task.ensureNotCancelled();
+                        }
+                    });
+                }
                 context.addFetchResult();
                 return executeFetchPhase(readerContext, context, afterQueryTime);
             } else {

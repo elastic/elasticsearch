@@ -31,7 +31,7 @@ import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.compute.lucene.ValuesSourceReaderOperator;
+import org.elasticsearch.compute.lucene.read.ValuesSourceReaderOperator;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.mapper.BlockLoader;
@@ -498,6 +498,7 @@ public class OrdinalsGroupingOperator implements Operator {
         ) {
             this.extractor = new ValuesSourceReaderOperator(
                 driverContext.blockFactory(),
+                Long.MAX_VALUE,
                 List.of(new ValuesSourceReaderOperator.FieldInfo(groupingField, groupingElementType, blockLoaders)),
                 shardContexts,
                 docChannel

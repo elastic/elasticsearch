@@ -23,11 +23,14 @@ import java.util.List;
 import java.util.Locale;
 
 import static org.elasticsearch.common.Strings.capitalize;
+import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.emptyIterable;
+import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.startsWith;
 
 /**
  * JWT realm settings unit tests. These are low-level tests against ES settings parsers.
@@ -587,5 +590,60 @@ public class JwtRealmSettingsTests extends JwtTestCase {
         );
 
         assertThat(e.getMessage(), containsString("required claim [" + fullSettingKey + "] cannot be empty"));
+    }
+
+    public void testInvalidProxySchemeThrowsError() {
+        final String scheme = randomBoolean() ? "https" : randomAlphaOfLengthBetween(3, 8);
+        final String realmName = randomAlphaOfLengthBetween(3, 8);
+        final String proxySchemeSettingKey = RealmSettings.getFullSettingKey(realmName, JwtRealmSettings.HTTP_PROXY_SCHEME);
+        final Settings settings = Settings.builder().put(proxySchemeSettingKey, scheme).build();
+
+        final RealmConfig realmConfig = buildRealmConfig(JwtRealmSettings.TYPE, realmName, settings, randomInt());
+        final IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> realmConfig.getSetting(JwtRealmSettings.HTTP_PROXY_SCHEME)
+        );
+
+        assertThat(
+            e.getMessage(),
+            equalTo(Strings.format("Invalid value [%s] for [%s]. Allowed values are [http].", scheme, proxySchemeSettingKey))
+        );
+    }
+
+    public void testInvalidProxyHostThrowsError() {
+        final int proxyPort = randomIntBetween(1, 65535);
+        final String realmName = randomAlphaOfLengthBetween(3, 8);
+        final String proxyPortSettingKey = RealmSettings.getFullSettingKey(realmName, JwtRealmSettings.HTTP_PROXY_PORT);
+        final String proxyHostSettingKey = RealmSettings.getFullSettingKey(realmName, JwtRealmSettings.HTTP_PROXY_HOST);
+        final Settings settings = Settings.builder().put(proxyHostSettingKey, "not a url").put(proxyPortSettingKey, proxyPort).build();
+
+        final RealmConfig realmConfig = buildRealmConfig(JwtRealmSettings.TYPE, realmName, settings, randomInt());
+        final IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> realmConfig.getSetting(JwtRealmSettings.HTTP_PROXY_HOST)
+        );
+
+        assertThat(
+            e.getMessage(),
+            allOf(startsWith(Strings.format("HTTP host for hostname [not a url] (from [%s])", proxyHostSettingKey)), endsWith("is invalid"))
+        );
+    }
+
+    public void testInvalidProxyPortThrowsError() {
+        final int proxyPort = randomFrom(randomIntBetween(Integer.MIN_VALUE, -1), randomIntBetween(65536, Integer.MAX_VALUE));
+        final String realmName = randomAlphaOfLengthBetween(3, 8);
+        final String proxyPortSettingKey = RealmSettings.getFullSettingKey(realmName, JwtRealmSettings.HTTP_PROXY_PORT);
+        final Settings settings = Settings.builder().put(proxyPortSettingKey, proxyPort).build();
+
+        final RealmConfig realmConfig = buildRealmConfig(JwtRealmSettings.TYPE, realmName, settings, randomInt());
+        final IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> realmConfig.getSetting(JwtRealmSettings.HTTP_PROXY_PORT)
+        );
+
+        assertThat(
+            e.getMessage(),
+            startsWith(Strings.format("Failed to parse value [%d] for setting [%s]", proxyPort, proxyPortSettingKey))
+        );
     }
 }

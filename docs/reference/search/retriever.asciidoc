@@ -43,6 +43,9 @@ A <<text-similarity-reranker-retriever, retriever>> that enhances search results
 `rule`::
 A <<rule-retriever, retriever>> that applies contextual <<query-rules>> to pin or exclude documents for specific queries.
 
+`pinned`::
+A <<pinned-retriever, retriever>> that always places specified documents at the top of the results, with the remaining hits provided by a secondary retriever.
+
 [[standard-retriever]]
 ==== Standard Retriever
 
@@ -121,6 +124,28 @@ POST /restaurants/_bulk?refresh
 
 PUT /movies
 
+PUT /books
+{
+  "mappings": {
+    "properties": {
+      "title": {
+        "type": "text",
+        "copy_to": "title_semantic"
+      },
+      "description": {
+        "type": "text",
+        "copy_to": "description_semantic"
+      },
+      "title_semantic": {
+        "type": "semantic_text"
+      },
+      "description_semantic": {
+        "type": "semantic_text"
+      }
+    }
+  }
+}
+
 PUT _query_rules/my-ruleset
 {
     "rules": [
@@ -151,6 +176,8 @@ PUT _query_rules/my-ruleset
 DELETE /restaurants
 
 DELETE /movies
+
+DELETE /books
 --------------------------------------------------
 // TEARDOWN
 ////
@@ -282,9 +309,19 @@ A retriever that normalizes and linearly combines the scores of other retrievers
 
 include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=linear-retriever-components]
 
-include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=compound-retriever-rank-window-size]
+[[linear-retriever-normalizers]]
+===== Normalizers
 
-include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=compound-retriever-filter]
+The `linear` retriever supports the following normalizers:
+
+* `none`: No normalization
+* `minmax`: Normalizes scores based on the following formula:
++
+....
+score = (score - min) / (max - min)
+....
+
+* `l2_norm`: Normalizes scores using the L2 norm of the score values
 
 [[rrf-retriever]]
 ==== RRF Retriever
@@ -911,6 +948,256 @@ GET movies/_search
 
 <1> The `rule` retriever is the outermost retriever, applying rules to the search results that were previously reranked using the `rrf` retriever.
 <2> The `rrf` retriever returns results from all of its sub-retrievers, and the output of the `rrf` retriever is used as input to the `rule` retriever.
+
+[[pinned-retriever]]
+==== Pinned retriever
+
+A `pinned` retriever returns top documents by always placing specific documents at the top of the results, with the remaining hits provided by a secondary retriever. This retriever offers similar functionality to the <<query-dsl-pinned-query,pinned query>>, but works seamlessly with other retrievers. This is useful for promoting certain documents for particular queries, regardless of their relevance score.
+
+[discrete]
+[[retrievers-overview-pinned-retriever-parameters]]
+===== Parameters
+
+`ids`::
+(Optional, array of strings)
++
+A list of document IDs to pin at the top of the results, in the order provided.
+
+`docs`::
+(Optional, array of objects)
++
+List of objects specifying documents to pin. Each object must contain at least an `_id` field, and may also specify `_index` if pinning documents across multiple indices.
+
+`retriever`::
+(Optional, retriever object)
++
+A retriever (for example a `standard` retriever or a specialized retriever such as `rrf` retriever) used to retrieve the remaining documents after the pinned ones.
+
+Either `ids` or `docs` must be specified.
+
+[discrete]
+[[pinned-retriever-example]]
+==== Example: Pinned retriever using `docs
+
+[source,console]
+----
+GET /restaurants/_search
+{
+  "retriever": {
+    "pinned": {
+      "docs": [
+        { "_id": "doc1", "_index": "my-index" },
+        { "_id": "doc2" }
+      ],
+      "retriever": {
+        "standard": {
+          "query": {
+            "match": {
+              "title": "elasticsearch"
+            }
+          }
+        }
+      }
+    }
+  }
+}
+----
+
+[discrete]
+[[multi-field-query-format]]
+=== Multi-field query format
+
+The `linear` and `rrf` retrievers support a multi-field query format that provides a simplified way to define searches across multiple fields without explicitly specifying inner retrievers.
+This format automatically generates appropriate inner retrievers based on the field types and query parameters.
+This is a great way to search an index, knowing little to nothing about its schema, while also handling normalization across lexical and semantic matches.
+
+[discrete]
+[[multi-field-field-grouping]]
+==== Field grouping
+
+The multi-field query format groups queried fields into two categories:
+
+- **Lexical fields**: fields that support term queries, such as `keyword` and `text` fields.
+- **Semantic fields**: <<semantic-text, `semantic_text` fields>>.
+
+Each field group is queried separately and the scores/ranks are normalized such that each contributes 50% to the final score/rank.
+This balances the importance of lexical and semantic fields.
+Most indices contain more lexical than semantic fields, and without this grouping the results would often bias towards lexical field matches.
+
+[WARNING]
+====
+In the `linear` retriever, this grouping relies on using a normalizer other than `none` (i.e., `minmax` or `l2_norm`).
+If you use the `none` normalizer, the scores across field groups will not be normalized and the results may be biased towards lexical field matches.
+====
+
+[discrete]
+[[multi-field-field-boosting]]
+==== Linear retriever field boosting
+
+When using the `linear` retriever, fields can be boosted using the `^` notation:
+
+[source,console]
+----
+GET books/_search
+{
+  "retriever": {
+    "linear": {
+      "query": "elasticsearch",
+      "fields": [
+        "title^3",                <1>
+        "description^2",          <2>
+        "title_semantic",         <3>
+        "description_semantic^2"
+      ],
+      "normalizer": "minmax"
+    }
+  }
+}
+----
+// TEST[continued]
+
+<1> 3x weight
+<2> 2x weight
+<3> 1x weight (default)
+
+Due to how the <<multi-field-field-grouping, field group scores>> are normalized, per-field boosts have no effect on the range of the final score.
+Instead, they affect the importance of the field's score within its group.
+
+For example, if the schema looks like:
+
+[source,console]
+----
+PUT /books
+{
+  "mappings": {
+    "properties": {
+      "title": {
+        "type": "text",
+        "copy_to": "title_semantic"
+      },
+      "description": {
+        "type": "text",
+        "copy_to": "description_semantic"
+      },
+      "title_semantic": {
+        "type": "semantic_text"
+      },
+      "description_semantic": {
+        "type": "semantic_text"
+      }
+    }
+  }
+}
+----
+// TEST[skip:index created in test setup]
+
+And we run this query:
+
+[source,console]
+----
+GET books/_search
+{
+  "retriever": {
+    "linear": {
+      "query": "elasticsearch",
+      "fields": [
+        "title",
+        "description",
+        "title_semantic",
+        "description_semantic"
+      ],
+      "normalizer": "minmax"
+    }
+  }
+}
+----
+// TEST[continued]
+
+The score breakdown would be:
+
+* Lexical fields (50% of score):
+  ** `title`: 50% of lexical fields group score, 25% of final score
+  ** `description`: 50% of lexical fields group score, 25% of final score
+* Semantic fields (50% of score):
+  ** `title_semantic`: 50% of semantic fields group score, 25% of final score
+  ** `description_semantic`: 50% of semantic fields group score, 25% of final score
+
+If we apply per-field boosts like so:
+
+[source,console]
+----
+GET books/_search
+{
+  "retriever": {
+    "linear": {
+      "query": "elasticsearch",
+      "fields": [
+        "title^3",
+        "description^2",
+        "title_semantic",
+        "description_semantic^2"
+      ],
+      "normalizer": "minmax"
+    }
+  }
+}
+----
+// TEST[continued]
+
+The score breakdown would change to:
+
+* Lexical fields (50% of score):
+  ** `title`: 60% of lexical fields group score, 30% of final score
+  ** `description`: 40% of lexical fields group score, 20% of final score
+* Semantic fields (50% of score):
+  ** `title_semantic`: 33% of semantic fields group score, 16.5% of final score
+  ** `description_semantic`: 66% of semantic fields group score, 33% of final score
+
+[discrete]
+[[multi-field-wildcard-field-patterns]]
+==== Wildcard field patterns
+
+Field names support the `*` wildcard character to match multiple fields:
+
+[source,console]
+----
+GET books/_search
+{
+  "retriever": {
+    "rrf": {
+      "query": "machine learning",
+      "fields": [
+        "title*",    <1>
+        "*_text"     <2>
+      ]
+    }
+  }
+}
+----
+// TEST[continued]
+
+<1> Match fields that start with `title`
+<2> Match fields that end with `_text`
+
+Note, however, that wildcard field patterns will only resolve to fields that either:
+
+- Support term queries, such as `keyword` and `text` fields
+- Are `semantic_text` fields
+
+[discrete]
+[[multi-field-limitations]]
+==== Limitations
+
+- **Single index**: Multi-field queries currently work with single index searches only
+- **CCS (Cross Cluster Search)**: Multi-field queries do not support remote cluster searches
+
+[discrete]
+[[multi-field-examples]]
+==== Examples
+
+- <<retrievers-examples-rrf-multi-field-query-format, RRF with the multi-field query format>>
+- <<retrievers-examples-linear-multi-field-query-format, Linear retriever with the multi-field query format>>
+
 
 [discrete]
 [[retriever-common-parameters]]

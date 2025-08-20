@@ -861,7 +861,7 @@ public final class EsqlTestUtils {
     }
 
     public static WildcardLike wildcardLike(Expression left, String exp) {
-        return new WildcardLike(EMPTY, left, new WildcardPattern(exp));
+        return new WildcardLike(EMPTY, left, new WildcardPattern(exp), false);
     }
 
     public static RLike rlike(Expression left, String exp) {

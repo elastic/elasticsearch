@@ -81,7 +81,7 @@ public class Mapper {
         PhysicalPlan mappedChild = map(unary.child());
 
         //
-        // TODO - this is hard to follow and needs reworking
+        // TODO - this is hard to follow, causes bugs and needs reworking
         // https://github.com/elastic/elasticsearch/issues/115897
         //
         if (unary instanceof Enrich enrich && enrich.mode() == Enrich.Mode.REMOTE) {

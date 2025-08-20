@@ -566,11 +566,12 @@ public class ThreadPoolMergeSchedulerTests extends ESTestCase {
                         fail(e);
                     }
                 });
+                // test expects that there definitely is a running merge before closing the merge scheduler
+                mergeRunningLatch.await();
+                // closes the merge scheduler
                 t.start();
                 try {
                     assertTrue(t.isAlive());
-                    // wait for the merge to actually run
-                    mergeRunningLatch.await();
                     // ensure the merge scheduler is effectively "closed"
                     assertBusy(() -> {
                         MergeSource mergeSource2 = mock(MergeSource.class);

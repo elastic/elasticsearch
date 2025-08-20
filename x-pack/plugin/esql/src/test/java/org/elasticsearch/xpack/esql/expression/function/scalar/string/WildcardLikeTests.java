@@ -89,7 +89,7 @@ public class WildcardLikeTests extends AbstractScalarFunctionTestCase {
         return buildWildcardLike(source, args);
     }
 
-    static Expression buildWildcardLike(Source source, List<Expression> args) {
+    Expression buildWildcardLike(Source source, List<Expression> args) {
         Expression expression = args.get(0);
         Literal pattern = (Literal) args.get(1);
         Literal caseInsensitive = args.size() > 2 ? (Literal) args.get(2) : null;

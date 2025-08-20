@@ -627,6 +627,9 @@ tests:
 - class: org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormatTests
   method: testSortedNumberMergeAwayAllValuesWithSkipper
   issue: https://github.com/elastic/elasticsearch/issues/133223
+- class: org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormatTests
+  method: testSortedSetDocValuesWithSkipperSmall
+  issue: https://github.com/elastic/elasticsearch/issues/133224
 
 # Examples:
 #

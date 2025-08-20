@@ -21,16 +21,14 @@ The supported types are: `integer`, `long`, `float`, `double`, `string`, `boolea
 | `ip`          | `String` values containing a valid IPv4 or IPv6 address that can be indexed into an [IP field type](/reference/elasticsearch/mapping-reference/ip.md)                                                                                                                                                                                                                                                                                                                                                                       |
 | `auto`        | All values (see below)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
 
-Specifying `auto` will attempt to convert a string-valued `field` into the closest non-string, non-IP type. For example,
-a field whose value is `"true"` will be converted to its respective boolean type: `true`. A string representing an
-integer in decimal or hex format (e.g. `"123"` or `"0x7b"`) will be converted to an `Integer` if the number fits in a
-32-bit signed integer, else to a `Long` if it fits in a 64-bit signed integer, else to a `Float` (in which case it may
-lose precision, and will give positive or negative infinity if out of range for a 32-bit floating point value). A string
-representing a floating point number in decimal, scientific, or hex format (e.g. `"123.0"`, `"123.45"`, `"1.23e2"`, or
-`"0x1.ecp6"`) will be converted to a `Float` (and may lose precision, and will give positive or negative infinity if out
-of range for a 32-bit floating point value). If a provided field is either not a `String` or a `String` which cannot be
-converted, the processor will still process successfully and leave the field value as-is. In such a case, `target_field`
-will be updated with the unconverted field value.
+Specifying `auto` will attempt to convert a string-valued `field` into the closest non-string, non-IP type:
+ - A whose value is `"true"` or `"false"` (case insensitive) will be converted to a `Boolean`.
+ - A string representing an integer in decimal or hex format (e.g. `"123"` or `"0x7b"`) will be converted to an `Integer` if the number fits in a 32-bit signed integer, else to a `Long` if it fits in a 64-bit signed integer, else to a `Float` (in which case it may
+lose precision, and will give positive or negative infinity if out of range for a 32-bit floating point value).
+ - A string representing a floating point number in decimal, scientific, or hex format (e.g. `"123.0"`, `"123.45"`, `"1.23e2"`, or `"0x1.ecp6"`) will be converted to a `Float` (and may lose precision, and will give positive or negative infinity if out of range for a 32-bit floating point value).
+
+Using `auto` with to convert a `field` which is either not a `String` or a `String` which cannot be will leave the field
+value as-is. In such a case, `target_field` will be updated with the unconverted field value.
 
 :::{tip}
  If conversions other than those provided by this processor are required, the

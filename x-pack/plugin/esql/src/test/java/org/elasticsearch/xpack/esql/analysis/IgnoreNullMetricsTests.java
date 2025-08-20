@@ -18,6 +18,8 @@ import org.elasticsearch.xpack.esql.expression.predicate.logical.Or;
 import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
+import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
+import org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
@@ -31,6 +33,7 @@ import java.util.Map;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_VERIFIER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.emptyInferenceResolution;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.unboundLogicalOptimizerContext;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.defaultLookupResolution;
 
 /**
@@ -44,6 +47,8 @@ public class IgnoreNullMetricsTests extends ESTestCase {
         EsqlParser parser = new EsqlParser();
         EnrichResolution enrichResolution = new EnrichResolution();
         AnalyzerTestUtils.loadEnrichPolicyResolution(enrichResolution, "languages_idx", "id", "languages_idx", "mapping-languages.json");
+        LogicalOptimizerContext logicalOptimizerCtx = unboundLogicalOptimizerContext();
+        LogicalPlanOptimizer logicalOptimizer = new LogicalPlanOptimizer(logicalOptimizerCtx);
 
         Map<String, EsField> mapping = Map.of(
             "dimension_1",
@@ -53,7 +58,11 @@ public class IgnoreNullMetricsTests extends ESTestCase {
             "metric_1",
             new EsField("metric_1", DataType.LONG, Map.of(), true, EsField.TimeSeriesFieldType.METRIC),
             "metric_2",
-            new EsField("metric_2", DataType.LONG, Map.of(), true, EsField.TimeSeriesFieldType.METRIC)
+            new EsField("metric_2", DataType.LONG, Map.of(), true, EsField.TimeSeriesFieldType.METRIC),
+            "@timestamp",
+            new EsField("@timestamp", DataType.DATETIME, Map.of(), true, EsField.TimeSeriesFieldType.NONE),
+            "_tsid",
+            new EsField("_tsid", DataType.TSID_DATA_TYPE, Map.of(), true, EsField.TimeSeriesFieldType.NONE)
         );
         EsIndex test = new EsIndex("test", mapping, Map.of("test", IndexMode.TIME_SERIES));
         IndexResolution getIndexResult = IndexResolution.valid(test);
@@ -69,7 +78,7 @@ public class IgnoreNullMetricsTests extends ESTestCase {
             TEST_VERIFIER
         );
 
-        return analyzer.analyze(parser.createStatement(query, EsqlTestUtils.TEST_CFG));
+        return logicalOptimizer.optimize(analyzer.analyze(parser.createStatement(query, EsqlTestUtils.TEST_CFG)));
     }
 
     public void testSimple() {
@@ -78,10 +87,11 @@ public class IgnoreNullMetricsTests extends ESTestCase {
             | STATS max(max_over_time(metric_1))
             | LIMIT 10
             """);
-        Limit limit_10000 = as(actual, Limit.class);
-        Limit limit_10 = as(limit_10000.child(), Limit.class);
-        Aggregate agg = as(limit_10.child(), Aggregate.class);
-        Filter filter = as(agg.child(), Filter.class);
+        Limit limit = as(actual, Limit.class);
+        Aggregate agg = as(limit.child(), Aggregate.class);
+        // The optimizer expands the STATS out into two STATS steps
+        Aggregate tsAgg = as(agg.child(), Aggregate.class);
+        Filter filter = as(tsAgg.child(), Filter.class);
         IsNotNull condition = as(filter.condition(), IsNotNull.class);
         FieldAttribute attribute = as(condition.field(), FieldAttribute.class);
         assertEquals("metric_1", attribute.fieldName().string());
@@ -93,9 +103,8 @@ public class IgnoreNullMetricsTests extends ESTestCase {
             | STATS max(metric_1)
             | LIMIT 10
             """);
-        Limit limit_10000 = as(actual, Limit.class);
-        Limit limit_10 = as(limit_10000.child(), Limit.class);
-        Aggregate agg = as(limit_10.child(), Aggregate.class);
+        Limit limit = as(actual, Limit.class);
+        Aggregate agg = as(limit.child(), Aggregate.class);
         EsRelation relation = as(agg.child(), EsRelation.class);
     }
 
@@ -106,10 +115,11 @@ public class IgnoreNullMetricsTests extends ESTestCase {
             | STATS max(max_over_time(metric_1)) BY dimension_1
             | LIMIT 10
             """);
-        Limit limit_10000 = as(actual, Limit.class);
-        Limit limit_10 = as(limit_10000.child(), Limit.class);
-        Aggregate agg = as(limit_10.child(), Aggregate.class);
-        Filter filter = as(agg.child(), Filter.class);
+        Limit limit = as(actual, Limit.class);
+        Aggregate agg = as(limit.child(), Aggregate.class);
+        // The optimizer expands the STATS out into two STATS steps
+        Aggregate tsAgg = as(agg.child(), Aggregate.class);
+        Filter filter = as(tsAgg.child(), Filter.class);
         IsNotNull condition = as(filter.condition(), IsNotNull.class);
         FieldAttribute attribute = as(condition.field(), FieldAttribute.class);
         assertEquals("metric_1", attribute.fieldName().string());
@@ -122,10 +132,11 @@ public class IgnoreNullMetricsTests extends ESTestCase {
             | STATS max(max_over_time(metric_1)), min(min_over_time(metric_2))
             | LIMIT 10
             """);
-        Limit limit_10000 = as(actual, Limit.class);
-        Limit limit_10 = as(limit_10000.child(), Limit.class);
-        Aggregate agg = as(limit_10.child(), Aggregate.class);
-        Filter filter = as(agg.child(), Filter.class);
+        Limit limit = as(actual, Limit.class);
+        Aggregate agg = as(limit.child(), Aggregate.class);
+        // The optimizer expands the STATS out into two STATS steps
+        Aggregate tsAgg = as(agg.child(), Aggregate.class);
+        Filter filter = as(tsAgg.child(), Filter.class);
         Or or = as(filter.expressions().getFirst(), Or.class);
 
         // For reasons beyond my comprehension, the ordering of the conditionals inside the OR is nondeterministic.
@@ -157,10 +168,11 @@ public class IgnoreNullMetricsTests extends ESTestCase {
             | STATS max(max_over_time(metric_1)), min(min_over_time(metric_2))
             | LIMIT 10
             """);
-        Limit limit_10000 = as(actual, Limit.class);
-        Limit limit_10 = as(limit_10000.child(), Limit.class);
-        Aggregate agg = as(limit_10.child(), Aggregate.class);
-        Eval eval = as(agg.child(), Eval.class);
+        Limit limit = as(actual, Limit.class);
+        Aggregate agg = as(limit.child(), Aggregate.class);
+        // The optimizer expands the STATS out into two STATS steps
+        Aggregate tsAgg = as(agg.child(), Aggregate.class);
+        Eval eval = as(tsAgg.child(), Eval.class);
         Filter filter = as(eval.child(), Filter.class);
         IsNotNull condition = as(filter.condition(), IsNotNull.class);
         FieldAttribute attribute = as(condition.field(), FieldAttribute.class);

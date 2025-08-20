@@ -100,17 +100,17 @@ public class RemoteConnectionStrategyTests extends ESTestCase {
         String change = randomFrom(ping, compress, compressionScheme);
         if (change.equals(ping)) {
             newBuilder.put(
-                RemoteClusterService.REMOTE_CLUSTER_PING_SCHEDULE.getConcreteSettingForNamespace("cluster-alias").getKey(),
+                RemoteClusterSettings.REMOTE_CLUSTER_PING_SCHEDULE.getConcreteSettingForNamespace("cluster-alias").getKey(),
                 TimeValue.timeValueSeconds(5)
             );
         } else if (change.equals(compress)) {
             newBuilder.put(
-                RemoteClusterService.REMOTE_CLUSTER_COMPRESS.getConcreteSettingForNamespace("cluster-alias").getKey(),
+                RemoteClusterSettings.REMOTE_CLUSTER_COMPRESS.getConcreteSettingForNamespace("cluster-alias").getKey(),
                 randomFrom(Compression.Enabled.FALSE, Compression.Enabled.TRUE)
             );
         } else if (change.equals(compressionScheme)) {
             newBuilder.put(
-                RemoteClusterService.REMOTE_CLUSTER_COMPRESSION_SCHEME.getConcreteSettingForNamespace("cluster-alias").getKey(),
+                RemoteClusterSettings.REMOTE_CLUSTER_COMPRESSION_SCHEME.getConcreteSettingForNamespace("cluster-alias").getKey(),
                 Compression.Scheme.DEFLATE
             );
         } else {

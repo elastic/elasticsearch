@@ -48,7 +48,8 @@ public class IndexAbstractionResolver {
         BiPredicate<String, IndexComponentSelector> isAuthorized,
         boolean includeDataStreams
     ) {
-        // TODO handle exclusions and consolidate with `resolveIndexAbstractions` somehow, maybe?
+        // TODO handle exclusions
+        // TODO consolidate with `resolveIndexAbstractions` somehow, maybe?
         List<CrossProjectResolvableRequest.RewrittenExpression> finalRewrittenExpressions = new ArrayList<>();
         for (CrossProjectResolvableRequest.RewrittenExpression rewrittenExpression : rewrittenExpressions) {
             // qualified original expression, nothing to rewrite (TODO handle origin)

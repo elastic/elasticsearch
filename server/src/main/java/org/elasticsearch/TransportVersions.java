@@ -366,8 +366,8 @@ public class TransportVersions {
     public static final TransportVersion SIMULATE_INGEST_EFFECTIVE_MAPPING = def(9_140_0_00);
     public static final TransportVersion RESOLVE_INDEX_MODE_ADDED = def(9_141_0_00);
     public static final TransportVersion DATA_STREAM_WRITE_INDEX_ONLY_SETTINGS = def(9_142_0_00);
-    public static final TransportVersion SCRIPT_RESCORER = def(9_142_0_00);
-    
+    public static final TransportVersion SCRIPT_RESCORER = def(9_143_0_00);
+
     /*
      * STOP! READ THIS FIRST! No, really,
      *        ____ _____ ___  ____  _        ____  _____    _    ____    _____ _   _ ___ ____    _____ ___ ____  ____ _____ _

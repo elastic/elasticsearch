@@ -8,31 +8,18 @@ mapped_pages:
 
 Converts a field in the currently ingested document to a different type, such as converting a string to an integer. If the field value is an array, all members will be converted.
 
-The supported types include: `integer`, `long`, `float`, `double`, `string`, `boolean`, `ip`, and `auto`.
+The supported types are: `integer`, `long`, `float`, `double`, `string`, `boolean`, `ip`, and `auto`.
 
-Specifying a target `type` of `integer` supports inputs which are `Integer` values, `Long` values in 32-bit signed
-integer range, or `String` values representing an integer in 32-bit signed integer range in either decimal format
-(without a decimal point) or hex format (e.g. `"123"` or `"0x7b"`).
-
-Specifying `long` supports inputs which are `Integer` values, `Long` values, or `String` values representing an integer
-in 64-bit signed integer range in either decimal format (without a decimal point) or hex format (e.g. `"123"` or
-`"0x7b"`).
-
-Specifying `float` supports inputs which are `Integer` values, `Long` values (conversions from either `Integer` or
-`Long` may lose precision for absolute values greater than 2^24), `Float` values, `Double` values (may lose precision),
-`String` values representing a floating point number in decimal, scientific, or hex format (e.g. `"123.0"`, `"123.45"`,
-`"1.23e2"`, or `"0x1.ecp6"`) or an integer (conversions from `String` may lose precision, and will give positive or
-negative infinity if out of range for a 32-bit floating point value).
-
-Specifying `double` supports inputs which are `Integer` values, `Long` values (may lose precision for absolute values
-greater than 2^53), `Float` values, `Double` values, `String` values representing a floating point number in decimal,
-scientific, or hex format (e.g. `"123.0"`, `"123.45"`, `"1.23e2"`, or `"0x1.ecp6"`) or an integer (conversions from
-`String` may lose precision, and will give positive or negative infinity if out of range for a 64-bit floating point
-value).
-
-Specifying `boolean` will set the field to true if its string value is equal to `true` (ignore case), to false if its string value is equal to `false` (ignore case), or it will throw an exception otherwise.
-
-Specifying `ip` will set the target field to the value of `field` if it contains a valid IPv4 or IPv6 address that can be indexed into an [IP field type](/reference/elasticsearch/mapping-reference/ip.md).
+| Target `type` | Supported input values                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+|---------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `integer`     | `Integer` values, `Long` values in 32-bit signed integer range, or `String` values representing an integer in 32-bit signed integer range in either decimal format (without a decimal point) or hex format (e.g. `"123"` or `"0x7b"`)                                                                                                                                                                                                                                                                          |
+| `long`        | `Integer` values, `Long` values, or `String` values representing an integer in 64-bit signed integer range in either decimal format (without a decimal point) or hex format (e.g. `"123"` or `"0x7b"`)                                                                                                                                                                                                                                                                                                         |
+| `float`       | `Integer` values, `Long` values (conversions from either `Integer` or `Long` may lose precision for absolute values greater than 2^24), `Float` values, `Double` values (may lose precision), `String` values representing a floating point number in decimal, scientific, or hex format (e.g. `"123.0"`, `"123.45"`, `"1.23e2"`, or `"0x1.ecp6"`) or an integer (conversions from `String` may lose precision, and will give positive or negative infinity if out of range for a 32-bit floating point value) |
+| `double`      | `Integer` values, `Long` values (may lose precision for absolute values greater than 2^53), `Float` values, `Double` values, `String` values representing a floating point number in decimal, scientific, or hex format (e.g. `"123.0"`, `"123.45"`, `"1.23e2"`, or `"0x1.ecp6"`) or an integer (conversions from `String` may lose precision, and will give positive or negative infinity if out of range for a 64-bit floating point value)                                                                  |
+| `string`      | All values                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| `boolean`     | `Boolean` values, or `String` values matching `"true"` or `"false"` (case insensitive)                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| `ip`          | `String` values containing a valid IPv4 or IPv6 address that can be indexed into an [IP field type](/reference/elasticsearch/mapping-reference/ip.md)                                                                                                                                                                                                                                                                                                                                                          |
+| `auto`        | All values (see below)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
 
 Specifying `auto` will attempt to convert a string-valued `field` into the closest non-string, non-IP type. For example,
 a field whose value is `"true"` will be converted to its respective boolean type: `true`. A string representing an

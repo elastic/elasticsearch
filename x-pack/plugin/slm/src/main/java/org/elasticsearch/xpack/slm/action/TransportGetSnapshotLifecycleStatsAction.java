@@ -9,52 +9,64 @@ package org.elasticsearch.xpack.slm.action;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.master.AcknowledgedRequest;
-import org.elasticsearch.action.support.master.TransportMasterNodeAction;
-import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.action.support.ChannelActionListener;
+import org.elasticsearch.action.support.local.TransportLocalProjectMetadataAction;
+import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.core.UpdateForV10;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecycleMetadata;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecycleStats;
 import org.elasticsearch.xpack.core.slm.action.GetSnapshotLifecycleStatsAction;
 
-public class TransportGetSnapshotLifecycleStatsAction extends TransportMasterNodeAction<
-    AcknowledgedRequest.Plain,
+public class TransportGetSnapshotLifecycleStatsAction extends TransportLocalProjectMetadataAction<
+    GetSnapshotLifecycleStatsAction.Request,
     GetSnapshotLifecycleStatsAction.Response> {
 
+    /**
+     * This was a TransportMasterNodeAction so for BwC it must be registered with the TransportService until
+     * we no longer need to support calling this action remotely.
+     */
+    @UpdateForV10(owner = UpdateForV10.Owner.DATA_MANAGEMENT)
     @Inject
+    @SuppressWarnings("this-escape")
     public TransportGetSnapshotLifecycleStatsAction(
         TransportService transportService,
         ClusterService clusterService,
-        ThreadPool threadPool,
-        ActionFilters actionFilters
+        ActionFilters actionFilters,
+        ProjectResolver projectResolver
     ) {
         super(
             GetSnapshotLifecycleStatsAction.NAME,
-            transportService,
-            clusterService,
-            threadPool,
             actionFilters,
-            AcknowledgedRequest.Plain::new,
-            GetSnapshotLifecycleStatsAction.Response::new,
-            EsExecutors.DIRECT_EXECUTOR_SERVICE
+            transportService.getTaskManager(),
+            clusterService,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
+            projectResolver
+        );
+
+        transportService.registerRequestHandler(
+            GetSnapshotLifecycleStatsAction.NAME,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
+            GetSnapshotLifecycleStatsAction.Request::read,
+            (request, channel, task) -> executeDirect(task, request, new ChannelActionListener<>(channel))
         );
     }
 
     @Override
-    protected void masterOperation(
+    protected void localClusterStateOperation(
         Task task,
-        AcknowledgedRequest.Plain request,
-        ClusterState state,
+        GetSnapshotLifecycleStatsAction.Request request,
+        ProjectState projectState,
         ActionListener<GetSnapshotLifecycleStatsAction.Response> listener
     ) {
-        SnapshotLifecycleMetadata slmMeta = state.metadata().getProject().custom(SnapshotLifecycleMetadata.TYPE);
+        SnapshotLifecycleMetadata slmMeta = projectState.metadata().custom(SnapshotLifecycleMetadata.TYPE);
         if (slmMeta == null) {
             listener.onResponse(new GetSnapshotLifecycleStatsAction.Response(new SnapshotLifecycleStats()));
         } else {
@@ -63,7 +75,7 @@ public class TransportGetSnapshotLifecycleStatsAction extends TransportMasterNod
     }
 
     @Override
-    protected ClusterBlockException checkBlock(AcknowledgedRequest.Plain request, ClusterState state) {
-        return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_READ);
+    protected ClusterBlockException checkBlock(GetSnapshotLifecycleStatsAction.Request request, ProjectState state) {
+        return state.blocks().globalBlockedException(state.projectId(), ClusterBlockLevel.METADATA_READ);
     }
 }

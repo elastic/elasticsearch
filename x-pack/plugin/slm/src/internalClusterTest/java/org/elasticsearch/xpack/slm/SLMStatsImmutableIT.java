@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.slm;
 
-import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.datastreams.DataStreamsPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.snapshots.AbstractSnapshotIntegTestCase;
@@ -63,7 +62,7 @@ public class SLMStatsImmutableIT extends AbstractSnapshotIntegTestCase {
 
     private GetSnapshotLifecycleStatsAction.Response getPolicyStats() {
         try {
-            final var req = new AcknowledgedRequest.Plain(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT);
+            final var req = new GetSnapshotLifecycleStatsAction.Request(TEST_REQUEST_TIMEOUT);
             return client().execute(GetSnapshotLifecycleStatsAction.INSTANCE, req).get();
         } catch (Exception e) {
             fail("failed to get stats");

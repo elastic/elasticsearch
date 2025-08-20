@@ -543,3 +543,6 @@ tests:
 - class: org.elasticsearch.gradle.internal.transport.TransportVersionManagementPluginFuncTest
   method: definitions have primary ids which cannot change
   issue: https://github.com/elastic/elasticsearch/issues/132788
+- class: org.elasticsearch.core.GlobTests
+  method: testSuffixMatch
+  issue: https://github.com/elastic/elasticsearch/issues/133117

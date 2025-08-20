@@ -122,7 +122,7 @@ public abstract class ValidateTransportVersionResourcesTask extends DefaultTask 
         if (definition.ids().isEmpty()) {
             throwDefinitionFailure(definition, "does not contain any ids");
         }
-        if (Comparators.isInOrder(definition.ids(), Comparator.reverseOrder()) == false) {
+        if (Comparators.isInOrder(definition.ids(), Comparator.naturalOrder()) == false) {
             throwDefinitionFailure(definition, "does not have ordered ids");
         }
         for (int ndx = 0; ndx < definition.ids().size(); ++ndx) {

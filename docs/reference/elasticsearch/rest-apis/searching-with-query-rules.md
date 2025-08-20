@@ -26,7 +26,7 @@ For example, a query rule could be defined to match a user-entered query string 
 
 Rules are defined using the [query rules API](https://www.elastic.co/docs/api/doc/elasticsearch/group/endpoint-query_rules) and searched using the [rule retriever](/reference/elasticsearch/rest-apis/retrievers/rule-retriever.md) or the [rule query](/reference/query-languages/query-dsl/query-dsl-rule-query.md).
 
-Alternatively, you can manage query rules through the [Query Rules UI](https://www.elastic.co/docs/solutions/search/query-rules-ui) instead of the API.
+Alternatively, you can manage query rules through the [Query Rules UI](https://www.elastic.co/docs/solutions/search/query-rules-ui).
 
 ## Rule definition [query-rule-definition]
 
@@ -146,7 +146,7 @@ There is a limit of 100 rules per ruleset. This can be increased up to 1000 usin
 
 You can use the [Get query ruleset](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-query-rules-get-ruleset) call to retrieve the ruleset you just created, the [List query rulesets](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-query-rules-list-rulesets) call to retrieve a summary of all query rulesets, and the [Delete query ruleset](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-query-rules-delete-ruleset) call to delete a query ruleset.
 
-To execute these requests through the Query Rules UI, refer to [Accessing the UI and managing query rules](https://www.elastic.co/docs/solutions/search/query-rules-ui#accessing-the-query-rules-ui).
+To execute these requests through the Query Rules UI, refer to [Manage query rules](https://www.elastic.co/docs/solutions/search/query-rules-ui#manage-existing-rules).
 
 
 ## Search using query rules [rule-query-search]

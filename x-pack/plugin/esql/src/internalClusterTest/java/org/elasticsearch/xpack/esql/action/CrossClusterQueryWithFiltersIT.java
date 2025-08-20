@@ -62,8 +62,10 @@ public class CrossClusterQueryWithFiltersIT extends AbstractCrossClusterTestCase
     protected void assertClusterMetadataSuccess(EsqlExecutionInfo.Cluster clusterMetatata, int shards, long took, String indexExpression) {
         assertClusterMetadata(clusterMetatata, took, indexExpression, Status.SUCCESSFUL);
         assertThat(clusterMetatata.getTotalShards(), equalTo(shards));
-        assertThat(clusterMetatata.getSuccessfulShards(), equalTo(shards));
-        assertThat(clusterMetatata.getSkippedShards(), equalTo(0));
+        // We should have at least one successful shard for data
+        assertThat(clusterMetatata.getSuccessfulShards(), greaterThanOrEqualTo(1));
+        // Some shards may be skipped, but total sum of the shards should match up
+        assertThat(clusterMetatata.getSkippedShards() + clusterMetatata.getSuccessfulShards(), equalTo(shards));
     }
 
     protected void assertClusterMetadataNoShards(EsqlExecutionInfo.Cluster clusterMetatata, long took, String indexExpression) {
@@ -81,7 +83,7 @@ public class CrossClusterQueryWithFiltersIT extends AbstractCrossClusterTestCase
     ) {
         assertClusterMetadata(clusterMetatata, took, indexExpression, Status.SUCCESSFUL);
         assertThat(clusterMetatata.getTotalShards(), equalTo(shards));
-        assertThat(clusterMetatata.getSuccessfulShards(), equalTo(shards));
+        assertThat(clusterMetatata.getSuccessfulShards(), equalTo(0));
         assertThat(clusterMetatata.getSkippedShards(), equalTo(shards));
     }
 

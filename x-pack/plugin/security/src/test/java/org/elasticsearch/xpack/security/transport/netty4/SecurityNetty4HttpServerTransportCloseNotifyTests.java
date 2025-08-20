@@ -38,7 +38,7 @@ import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.telemetry.tracing.Tracer;
+import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.netty4.SharedGroupFactory;
@@ -107,7 +107,7 @@ public class SecurityNetty4HttpServerTransportCloseNotifyTests extends AbstractH
             dispatcher,
             randomClusterSettings(),
             new SharedGroupFactory(settings),
-            Tracer.NOOP,
+            TelemetryProvider.NOOP,
             new TLSConfig(sslService.getHttpTransportSSLConfiguration(), sslService::createSSLEngine),
             null,
             randomFrom((httpPreRequest, channel, listener) -> listener.onResponse(null), null)

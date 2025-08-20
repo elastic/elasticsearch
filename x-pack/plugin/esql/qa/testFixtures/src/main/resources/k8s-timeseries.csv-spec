@@ -360,7 +360,7 @@ count:long | cluster:keyword | time_bucket:datetime
 ;
 count_distinct_over_time
 required_capability: metrics_command
-required_capability: distinct_over_time
+required_capability: count_distinct_over_time
 
 // tag::count_distinct_over_time[]
 TS k8s

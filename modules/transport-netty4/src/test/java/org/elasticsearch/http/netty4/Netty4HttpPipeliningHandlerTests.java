@@ -46,7 +46,7 @@ import org.elasticsearch.http.AggregatingDispatcher;
 import org.elasticsearch.http.HttpResponse;
 import org.elasticsearch.rest.ChunkedRestResponseBodyPart;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.telemetry.tracing.Tracer;
+import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -158,7 +158,7 @@ public class Netty4HttpPipeliningHandlerTests extends ESTestCase {
             new AggregatingDispatcher(),
             ClusterSettings.createBuiltInClusterSettings(),
             new SharedGroupFactory(Settings.EMPTY),
-            Tracer.NOOP,
+            TelemetryProvider.NOOP,
             TLSConfig.noTLS(),
             null,
             null

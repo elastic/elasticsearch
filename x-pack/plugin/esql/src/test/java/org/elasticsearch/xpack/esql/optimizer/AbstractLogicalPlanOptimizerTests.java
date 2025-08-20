@@ -100,6 +100,7 @@ public abstract class AbstractLogicalPlanOptimizerTests extends ESTestCase {
                 EsqlTestUtils.TEST_CFG,
                 new EsqlFunctionRegistry(),
                 getIndexResultAirports,
+                defaultLookupResolution(),
                 enrichResolution,
                 emptyInferenceResolution()
             ),
@@ -150,7 +151,10 @@ public abstract class AbstractLogicalPlanOptimizerTests extends ESTestCase {
         );
 
         var multiIndexMapping = loadMapping("mapping-basic.json");
-        multiIndexMapping.put("partial_type_keyword", new EsField("partial_type_keyword", KEYWORD, emptyMap(), true));
+        multiIndexMapping.put(
+            "partial_type_keyword",
+            new EsField("partial_type_keyword", KEYWORD, emptyMap(), true, EsField.TimeSeriesFieldType.NONE)
+        );
         var multiIndex = IndexResolution.valid(
             new EsIndex(
                 "multi_index",
@@ -180,7 +184,7 @@ public abstract class AbstractLogicalPlanOptimizerTests extends ESTestCase {
     }
 
     protected LogicalPlan plan(String query, LogicalPlanOptimizer optimizer) {
-        var analyzed = analyzer.analyze(parser.createStatement(query));
+        var analyzed = analyzer.analyze(parser.createStatement(query, EsqlTestUtils.TEST_CFG));
         // System.out.println(analyzed);
         var optimized = optimizer.optimize(analyzed);
         // System.out.println(optimized);
@@ -188,7 +192,7 @@ public abstract class AbstractLogicalPlanOptimizerTests extends ESTestCase {
     }
 
     protected LogicalPlan planAirports(String query) {
-        var analyzed = analyzerAirports.analyze(parser.createStatement(query));
+        var analyzed = analyzerAirports.analyze(parser.createStatement(query, EsqlTestUtils.TEST_CFG));
         // System.out.println(analyzed);
         var optimized = logicalOptimizer.optimize(analyzed);
         // System.out.println(optimized);
@@ -196,7 +200,7 @@ public abstract class AbstractLogicalPlanOptimizerTests extends ESTestCase {
     }
 
     protected LogicalPlan planExtra(String query) {
-        var analyzed = analyzerExtra.analyze(parser.createStatement(query));
+        var analyzed = analyzerExtra.analyze(parser.createStatement(query, EsqlTestUtils.TEST_CFG));
         // System.out.println(analyzed);
         var optimized = logicalOptimizer.optimize(analyzed);
         // System.out.println(optimized);
@@ -204,11 +208,11 @@ public abstract class AbstractLogicalPlanOptimizerTests extends ESTestCase {
     }
 
     protected LogicalPlan planTypes(String query) {
-        return logicalOptimizer.optimize(analyzerTypes.analyze(parser.createStatement(query)));
+        return logicalOptimizer.optimize(analyzerTypes.analyze(parser.createStatement(query, EsqlTestUtils.TEST_CFG)));
     }
 
     protected LogicalPlan planMultiIndex(String query) {
-        return logicalOptimizer.optimize(multiIndexAnalyzer.analyze(parser.createStatement(query)));
+        return logicalOptimizer.optimize(multiIndexAnalyzer.analyze(parser.createStatement(query, EsqlTestUtils.TEST_CFG)));
     }
 
     @Override

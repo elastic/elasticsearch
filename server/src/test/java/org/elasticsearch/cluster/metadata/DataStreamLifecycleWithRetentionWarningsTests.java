@@ -9,7 +9,6 @@
 
 package org.elasticsearch.cluster.metadata;
 
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -26,11 +25,14 @@ import org.elasticsearch.indices.EmptySystemIndices;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.test.ESTestCase;
 
+import java.time.Instant;
+import java.time.InstantSource;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.elasticsearch.cluster.metadata.DataStreamLifecycleTests.randomDownsampling;
 import static org.elasticsearch.common.settings.Settings.builder;
@@ -129,10 +131,7 @@ public class DataStreamLifecycleWithRetentionWarningsTests extends ESTestCase {
         HeaderWarning.setThreadContext(threadContext);
         String dataStream = randomAlphaOfLength(5);
         TimeValue defaultRetention = randomTimeValue(2, 100, TimeUnit.DAYS);
-        final var projectId = randomProjectIdOrDefault();
-        ProjectMetadata before = ClusterState.builder(
-            DataStreamTestHelper.getClusterStateWithDataStreams(projectId, List.of(new Tuple<>(dataStream, 2)), List.of())
-        ).build().metadata().getProject(projectId);
+        ProjectMetadata before = DataStreamTestHelper.getProjectWithDataStreams(List.of(new Tuple<>(dataStream, 2)), List.of());
 
         Settings settingsWithDefaultRetention = builder().put(
             DataStreamGlobalRetentionSettings.DATA_STREAMS_DEFAULT_RETENTION_SETTING.getKey(),
@@ -269,6 +268,8 @@ public class DataStreamLifecycleWithRetentionWarningsTests extends ESTestCase {
             .put(DataStreamGlobalRetentionSettings.DATA_STREAMS_DEFAULT_RETENTION_SETTING.getKey(), defaultRetention)
             .build();
         ProjectMetadata project = ProjectMetadata.builder(randomProjectIdOrDefault()).build();
+        AtomicInteger instantSourceInvocationCounter = new AtomicInteger();
+        InstantSource instantSource = () -> Instant.ofEpochMilli(instantSourceInvocationCounter.getAndIncrement());
         MetadataIndexTemplateService metadataIndexTemplateService = new MetadataIndexTemplateService(
             clusterService,
             createIndexService,
@@ -277,7 +278,8 @@ public class DataStreamLifecycleWithRetentionWarningsTests extends ESTestCase {
             xContentRegistry(),
             EmptySystemIndices.INSTANCE,
             new IndexSettingProviders(Set.of()),
-            DataStreamGlobalRetentionSettings.create(ClusterSettings.createBuiltInClusterSettings(settingsWithDefaultRetention))
+            DataStreamGlobalRetentionSettings.create(ClusterSettings.createBuiltInClusterSettings(settingsWithDefaultRetention)),
+            instantSource
         );
 
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
@@ -291,8 +293,10 @@ public class DataStreamLifecycleWithRetentionWarningsTests extends ESTestCase {
         ComponentTemplate componentTemplate = new ComponentTemplate(template, 1L, new HashMap<>());
         project = metadataIndexTemplateService.addComponentTemplate(project, false, "foo", componentTemplate);
 
-        assertNotNull(project.componentTemplates().get("foo"));
-        assertThat(project.componentTemplates().get("foo"), equalTo(componentTemplate));
+        ComponentTemplate foo = project.componentTemplates().get("foo");
+        ComponentTemplate expectedFoo = new ComponentTemplate(template, 1L, Map.of(), null, 0L, 0L);
+        assertThat(foo, equalTo(expectedFoo));
+
         Map<String, List<String>> responseHeaders = threadContext.getResponseHeaders();
         assertThat(responseHeaders.size(), is(1));
         assertThat(

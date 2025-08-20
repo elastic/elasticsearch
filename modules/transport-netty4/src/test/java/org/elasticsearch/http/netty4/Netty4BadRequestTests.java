@@ -24,7 +24,7 @@ import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.telemetry.tracing.Tracer;
+import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -86,7 +86,7 @@ public class Netty4BadRequestTests extends ESTestCase {
                 dispatcher,
                 new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
                 new SharedGroupFactory(Settings.EMPTY),
-                Tracer.NOOP,
+                TelemetryProvider.NOOP,
                 TLSConfig.noTLS(),
                 null,
                 randomFrom((httpPreRequest, channel, listener) -> listener.onResponse(null), null)

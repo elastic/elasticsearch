@@ -19,7 +19,7 @@ import org.elasticsearch.cluster.SimpleBatchedExecutor;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
 import org.elasticsearch.common.Priority;
@@ -139,22 +139,19 @@ public class UpdateIndexMigrationVersionAction extends ActionType<UpdateIndexMig
             }
 
             ClusterState execute(ClusterState currentState) {
-                IndexMetadata.Builder indexMetadataBuilder = IndexMetadata.builder(
-                    currentState.metadata().getProject().indices().get(indexName)
-                );
+                final var project = currentState.metadata().getProject();
+                IndexMetadata.Builder indexMetadataBuilder = IndexMetadata.builder(project.indices().get(indexName));
                 indexMetadataBuilder.putCustom(
                     MIGRATION_VERSION_CUSTOM_KEY,
                     Map.of(MIGRATION_VERSION_CUSTOM_DATA_KEY, Integer.toString(indexMigrationVersion))
                 );
                 indexMetadataBuilder.version(indexMetadataBuilder.version() + 1);
 
-                final ImmutableOpenMap.Builder<String, IndexMetadata> builder = ImmutableOpenMap.builder(
-                    currentState.metadata().getProject().indices()
-                );
+                final ImmutableOpenMap.Builder<String, IndexMetadata> builder = ImmutableOpenMap.builder(project.indices());
                 builder.put(indexName, indexMetadataBuilder.build());
 
                 return ClusterState.builder(currentState)
-                    .metadata(Metadata.builder(currentState.metadata()).indices(builder.build()).build())
+                    .putProjectMetadata(ProjectMetadata.builder(project).indices(builder.build()).build())
                     .build();
             }
 

@@ -111,6 +111,7 @@ public class InferenceGetServicesIT extends BaseMockEISAuthServerTest {
             containsInAnyOrder(
                 List.of(
                     "alibabacloud-ai-search",
+                    "azureaistudio",
                     "cohere",
                     "elasticsearch",
                     "googlevertexai",

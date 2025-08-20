@@ -202,7 +202,7 @@ public abstract class AbstractPageMappingToIteratorOperator implements Operator 
         public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
             Operator.Status.class,
             "page_mapping_to_iterator",
-            AbstractPageMappingOperator.Status::new
+            Status::new
         );
 
         private final long processNanos;
@@ -321,6 +321,7 @@ public abstract class AbstractPageMappingToIteratorOperator implements Operator 
     private static class AppendBlocksIterator implements ReleasableIterator<Page> {
         private final Page page;
         private final ReleasableIterator<Block[]> next;
+        private boolean closed = false;
 
         private int positionOffset;
 
@@ -348,7 +349,15 @@ public abstract class AbstractPageMappingToIteratorOperator implements Operator 
                 for (int b = 0; b < page.getBlockCount(); b++) {
                     page.getBlock(b).incRef();
                 }
-                return page.appendBlocks(read);
+                final Page result = page.appendBlocks(read);
+                // We need to release the blocks of the page in this iteration instead of delaying to the next,
+                // because the blocks of this page are now shared with the output page. The output page can be
+                // passed to a separate driver, which may run concurrently with this driver, leading to data races
+                // of references in AbstractNonThreadSafeRefCounted, which is not thread-safe.
+                // An alternative would be to make RefCounted for Vectors/Blocks thread-safe when they are about
+                // to be shared with other drivers via #allowPassingToDifferentDriver.
+                close();
+                return result;
             }
             Block[] newBlocks = new Block[page.getBlockCount() + read.length];
             System.arraycopy(read, 0, newBlocks, page.getBlockCount(), read.length);
@@ -368,7 +377,10 @@ public abstract class AbstractPageMappingToIteratorOperator implements Operator 
 
         @Override
         public void close() {
-            Releasables.closeExpectNoException(page::releaseBlocks, next);
+            if (closed == false) {
+                closed = true;
+                Releasables.closeExpectNoException(page::releaseBlocks, next);
+            }
         }
     }
 }

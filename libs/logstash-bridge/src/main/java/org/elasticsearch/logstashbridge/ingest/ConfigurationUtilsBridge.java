@@ -14,6 +14,9 @@ import org.elasticsearch.logstashbridge.script.TemplateScriptBridge;
 
 import java.util.Map;
 
+/**
+ * An external bridge for {@link ConfigurationUtils}
+ */
 public class ConfigurationUtilsBridge {
     public static TemplateScriptBridge.Factory compileTemplate(
         final String processorType,
@@ -23,7 +26,7 @@ public class ConfigurationUtilsBridge {
         final ScriptServiceBridge scriptServiceBridge
     ) {
         return new TemplateScriptBridge.Factory(
-            ConfigurationUtils.compileTemplate(processorType, processorTag, propertyName, propertyValue, scriptServiceBridge.unwrap())
+            ConfigurationUtils.compileTemplate(processorType, processorTag, propertyName, propertyValue, scriptServiceBridge.toInternal())
         );
     }
 

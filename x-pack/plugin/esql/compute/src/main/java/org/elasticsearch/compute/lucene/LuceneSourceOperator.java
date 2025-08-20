@@ -68,6 +68,7 @@ public class LuceneSourceOperator extends LuceneOperator {
             List<? extends ShardContext> contexts,
             Function<ShardContext, List<LuceneSliceQueue.QueryAndTags>> queryFunction,
             DataPartitioning dataPartitioning,
+            DataPartitioning.AutoStrategy autoStrategy,
             int taskConcurrency,
             int maxPageSize,
             int limit,
@@ -77,11 +78,11 @@ public class LuceneSourceOperator extends LuceneOperator {
                 contexts,
                 queryFunction,
                 dataPartitioning,
-                autoStrategy(limit),
+                autoStrategy.pickStrategy(limit),
                 taskConcurrency,
                 limit,
                 needsScore,
-                needsScore ? COMPLETE : COMPLETE_NO_SCORES
+                shardContext -> needsScore ? COMPLETE : COMPLETE_NO_SCORES
             );
             this.contexts = contexts;
             this.maxPageSize = maxPageSize;

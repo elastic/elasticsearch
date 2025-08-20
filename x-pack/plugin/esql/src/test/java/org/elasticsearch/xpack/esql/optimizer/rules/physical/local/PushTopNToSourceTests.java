@@ -35,6 +35,7 @@ import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.EvalExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
+import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 import org.elasticsearch.xpack.esql.stats.SearchStats;
 
 import java.io.IOException;
@@ -416,7 +417,7 @@ public class PushTopNToSourceTests extends ESTestCase {
 
     private static PhysicalPlan pushTopNToSource(TopNExec topNExec) {
         var configuration = EsqlTestUtils.configuration("from test");
-        var ctx = new LocalPhysicalOptimizerContext(configuration, FoldContext.small(), SearchStats.EMPTY);
+        var ctx = new LocalPhysicalOptimizerContext(new EsqlFlags(true), configuration, FoldContext.small(), SearchStats.EMPTY);
         var pushTopNToSource = new PushTopNToSource();
         return pushTopNToSource.rule(topNExec, ctx);
     }
@@ -504,7 +505,10 @@ public class PushTopNToSourceTests extends ESTestCase {
         }
 
         private static void addFieldAttribute(Map<String, FieldAttribute> fields, String name, DataType type) {
-            fields.put(name, new FieldAttribute(Source.EMPTY, name, new EsField(name, type, new HashMap<>(), true)));
+            fields.put(
+                name,
+                new FieldAttribute(Source.EMPTY, name, new EsField(name, type, new HashMap<>(), true, EsField.TimeSeriesFieldType.NONE))
+            );
         }
 
         static TestPhysicalPlanBuilder from(String index) {

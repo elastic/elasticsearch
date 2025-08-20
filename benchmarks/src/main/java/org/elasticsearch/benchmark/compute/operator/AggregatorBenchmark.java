@@ -191,7 +191,7 @@ public class AggregatorBenchmark {
                 new BlockHash.GroupSpec(2, ElementType.BYTES_REF)
             );
             case TOP_N_LONGS -> List.of(
-                new BlockHash.GroupSpec(0, ElementType.LONG, false, new BlockHash.TopNDef(0, true, true, TOP_N_LIMIT))
+                new BlockHash.GroupSpec(0, ElementType.LONG, null, new BlockHash.TopNDef(0, true, true, TOP_N_LIMIT))
             );
             default -> throw new IllegalArgumentException("unsupported grouping [" + grouping + "]");
         };

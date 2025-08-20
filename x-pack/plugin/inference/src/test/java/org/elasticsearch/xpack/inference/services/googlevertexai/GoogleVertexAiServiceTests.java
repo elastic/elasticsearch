@@ -1043,7 +1043,7 @@ public class GoogleVertexAiServiceTests extends ESTestCase {
     private GoogleVertexAiService createGoogleVertexAiService() {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
-        return new GoogleVertexAiService(senderFactory, createWithEmptySettings(threadPool));
+        return new GoogleVertexAiService(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty());
     }
 
     private Map<String, Object> getRequestConfigMap(

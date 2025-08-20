@@ -127,7 +127,7 @@ public class ShrinkStepTests extends AbstractStepTestCase<ShrinkStep> {
         performActionAndWait(step, sourceIndexMetadata, state, null);
 
         Mockito.verify(client).projectClient(state.projectId());
-        Mockito.verify(client).admin();
+        Mockito.verify(projectClient).admin();
         Mockito.verifyNoMoreInteractions(client);
         Mockito.verify(adminClient, Mockito.only()).indices();
         Mockito.verify(indicesClient, Mockito.only()).resizeIndex(Mockito.any(), Mockito.any());
@@ -193,7 +193,7 @@ public class ShrinkStepTests extends AbstractStepTestCase<ShrinkStep> {
         performActionAndWait(step, indexMetadata, state, null);
 
         Mockito.verify(client).projectClient(state.projectId());
-        Mockito.verify(client).admin();
+        Mockito.verify(projectClient).admin();
         Mockito.verifyNoMoreInteractions(client);
         Mockito.verify(adminClient, Mockito.only()).indices();
         Mockito.verify(indicesClient, Mockito.only()).resizeIndex(Mockito.any(), Mockito.any());
@@ -222,7 +222,7 @@ public class ShrinkStepTests extends AbstractStepTestCase<ShrinkStep> {
         assertSame(exception, expectThrows(Exception.class, () -> performActionAndWait(step, indexMetadata, state, null)));
 
         Mockito.verify(client).projectClient(state.projectId());
-        Mockito.verify(client).admin();
+        Mockito.verify(projectClient).admin();
         Mockito.verifyNoMoreInteractions(client);
         Mockito.verify(adminClient, Mockito.only()).indices();
         Mockito.verify(indicesClient, Mockito.only()).resizeIndex(Mockito.any(), Mockito.any());

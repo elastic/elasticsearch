@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.esql.plan.physical.EstimatesRowSize;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.planner.mapper.Mapper;
+import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.stats.SearchStats;
 
@@ -66,7 +67,7 @@ public class TestPlannerOptimizer {
             new LocalLogicalOptimizerContext(config, FoldContext.small(), searchStats)
         );
         var physicalTestOptimizer = new TestLocalPhysicalPlanOptimizer(
-            new LocalPhysicalOptimizerContext(config, FoldContext.small(), searchStats),
+            new LocalPhysicalOptimizerContext(new EsqlFlags(true), config, FoldContext.small(), searchStats),
             true
         );
         var l = PlannerUtils.localPlan(physicalPlan, logicalTestOptimizer, physicalTestOptimizer);
@@ -79,7 +80,7 @@ public class TestPlannerOptimizer {
     }
 
     private PhysicalPlan physicalPlan(String query, Analyzer analyzer) {
-        var logical = logicalOptimizer.optimize(analyzer.analyze(parser.createStatement(query)));
+        var logical = logicalOptimizer.optimize(analyzer.analyze(parser.createStatement(query, EsqlTestUtils.TEST_CFG)));
         // System.out.println("Logical\n" + logical);
         var physical = mapper.map(logical);
         return physical;

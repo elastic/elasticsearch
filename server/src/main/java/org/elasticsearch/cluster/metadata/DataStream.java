@@ -46,8 +46,12 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.DateFieldMapper;
+import org.elasticsearch.index.mapper.DocumentMapper;
+import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
@@ -74,6 +78,7 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.cluster.metadata.ComposableIndexTemplate.EMPTY_MAPPINGS;
 import static org.elasticsearch.cluster.metadata.MetadataCreateDataStreamService.lookupTemplateForDataStream;
+import static org.elasticsearch.cluster.metadata.MetadataCreateIndexService.collectV2Mappings;
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 import static org.elasticsearch.index.IndexSettings.LIFECYCLE_ORIGINATION_DATE;
 import static org.elasticsearch.index.IndexSettings.PREFER_ILM_SETTING;
@@ -408,8 +413,61 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         return templateSettings.merge(settings);
     }
 
-    public CompressedXContent getEffectiveMappings(ProjectMetadata projectMetadata) throws IOException {
-        return getMatchingIndexTemplate(projectMetadata).mergeMappings(mappings).template().mappings();
+    /**
+     * Returns the mappings that would be used to create the write index if this data stream were rolled over right now. This includes
+     * the mapping overrides on this data stream, the mapping from the matching composable template, and the mappings from all component
+     * templates in the matching composable template.
+     * @param projectMetadata
+     * @param indicesService  Used in the logic that merges all mappings together into one mapping
+     * @return A JSON CompressedXContent representation of the effective mappings of this data stream
+     * @throws IOException
+     */
+    public CompressedXContent getEffectiveMappings(ProjectMetadata projectMetadata, IndicesService indicesService) throws IOException {
+        return getEffectiveMappings(projectMetadata, getMatchingIndexTemplate(projectMetadata), mappings, getWriteIndex(), indicesService);
+    }
+
+    /**
+     * Returns the mappings that would be used to create the write index if a data stream with composableTemplate and mappingsOverrides were
+     * rolled over right now. This includes the mapping overrides, the mapping from the composable template, and the mappings from all
+     * component templates in the composable template.
+     * @param projectMetadata
+     * @param composableTemplate The composable template that matches the data stream's name
+     * @param mappingsOverrides  The mapping overrides to be applied
+     * @param writeIndex The write index of the data stream whose effective mappings are to be returned. This is used only to determine
+     *                   whether data stream mappings ought to be added when calling collectV2Mappings, and to create an IndexService
+     *                   object. The mappings that will be used come from templateWithMergedMappings and from the component templates, not
+     *                   from this writeIndex.
+     * @param indicesService
+     * @return A JSON CompressedXContent representation of the effective mappings for the composableTemplate plus mappingsOverrides
+     * @throws IOException
+     */
+    @SuppressWarnings("unchecked")
+    public static CompressedXContent getEffectiveMappings(
+        ProjectMetadata projectMetadata,
+        ComposableIndexTemplate composableTemplate,
+        CompressedXContent mappingsOverrides,
+        Index writeIndex,
+        IndicesService indicesService
+    ) throws IOException {
+        ComposableIndexTemplate mergedTemplate = composableTemplate.mergeMappings(mappingsOverrides);
+        final String requestMappings = null; // We are not using any request mappings
+        final NamedXContentRegistry xContentRegistry = null; // This is only used to parse requestMappings if they are not null
+        final List<CompressedXContent> mappings = collectV2Mappings(
+            requestMappings,
+            projectMetadata,
+            mergedTemplate,
+            xContentRegistry,
+            writeIndex.getName()
+        );
+        return indicesService.withTempIndexService(projectMetadata.index(writeIndex), indexService -> {
+            MapperService mapperService = indexService.mapperService();
+            DocumentMapper documentMapper = mapperService.merge(
+                MapperService.SINGLE_MAPPING_NAME,
+                mappings,
+                MapperService.MergeReason.INDEX_TEMPLATE
+            );
+            return documentMapper.mappingSource();
+        });
     }
 
     private ComposableIndexTemplate getMatchingIndexTemplate(ProjectMetadata projectMetadata) {

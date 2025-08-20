@@ -24,6 +24,7 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
+import static org.junit.Assume.assumeTrue;
 import static org.mockito.Mockito.mock;
 
 public class PipelineFactoryTests extends ESTestCase {
@@ -221,12 +222,15 @@ public class PipelineFactoryTests extends ESTestCase {
     }
 
     public void testCreateUnsupportedFieldAccessPattern() throws Exception {
+        assumeTrue("Test is only valid if the logs stream feature flag is enabled", DataStream.LOGS_STREAM_FEATURE_FLAG);
         Map<String, Object> processorConfig = new HashMap<>();
         processorConfig.put(ConfigurationUtils.TAG_KEY, "test-processor");
         Map<String, Object> pipelineConfig = new HashMap<>();
         pipelineConfig.put(Pipeline.DESCRIPTION_KEY, "_description");
         pipelineConfig.put(Pipeline.VERSION_KEY, versionString);
-        pipelineConfig.put(Pipeline.FIELD_ACCESS_PATTERN, "random");
+        if (DataStream.LOGS_STREAM_FEATURE_FLAG) {
+            pipelineConfig.put(Pipeline.FIELD_ACCESS_PATTERN, "random");
+        }
         if (metadata != null) {
             pipelineConfig.put(Pipeline.META_KEY, metadata);
         }

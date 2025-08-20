@@ -9,12 +9,17 @@ package org.elasticsearch.xpack.gpu.codec;
 
 import com.nvidia.cuvs.CuVSResources;
 
+import com.nvidia.cuvs.GPUInfoProvider;
+
+import com.nvidia.cuvs.spi.CuVSProvider;
+
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.xpack.gpu.GPUSupport;
 
 import java.nio.file.Path;
 import java.util.Objects;
-import java.util.concurrent.ArrayBlockingQueue;
-import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.locks.Condition;
+import java.util.concurrent.locks.ReentrantLock;
 
 /**
  * A manager of {@link com.nvidia.cuvs.CuVSResources}. There is one manager per GPU.
@@ -65,35 +70,84 @@ public interface CuVSResourceManager {
      */
     class PoolingCuVSResourceManager implements CuVSResourceManager {
 
+        /** A multiplier on input data to account for intermediate and output data size required while processing it */
+        static final double GPU_COMPUTATION_MEMORY_FACTOR = 2.0;
         static final int MAX_RESOURCES = 2;
-        static final PoolingCuVSResourceManager INSTANCE = new PoolingCuVSResourceManager(MAX_RESOURCES);
+        static final PoolingCuVSResourceManager INSTANCE = new PoolingCuVSResourceManager(
+            MAX_RESOURCES,
+            CuVSProvider.provider().gpuInfoProvider()
+        );
 
-        final BlockingQueue<ManagedCuVSResources> pool;
+        final ManagedCuVSResources[] pool;
         final int capacity;
+        final GPUInfoProvider gpuInfoProvider;
         int createdCount;
 
-        public PoolingCuVSResourceManager(int capacity) {
+        ReentrantLock lock = new ReentrantLock();
+        Condition poolAvailableCondition = lock.newCondition();
+        Condition enoughMemoryCondition = lock.newCondition();
+
+        public PoolingCuVSResourceManager(int capacity, GPUInfoProvider gpuInfoProvider) {
             if (capacity < 1 || capacity > MAX_RESOURCES) {
                 throw new IllegalArgumentException("Resource count must be between 1 and " + MAX_RESOURCES);
             }
             this.capacity = capacity;
-            this.pool = new ArrayBlockingQueue<>(capacity);
+            this.gpuInfoProvider = gpuInfoProvider;
+            this.pool = new ManagedCuVSResources[MAX_RESOURCES];
+        }
+
+        private ManagedCuVSResources getResourceFromPool() {
+            for (int i = 0; i < createdCount; ++i) {
+                var res = pool[i];
+                if (res.locked == false) {
+                    return res;
+                }
+            }
+            if (createdCount < capacity) {
+                var res = new ManagedCuVSResources(Objects.requireNonNull(createNew()));
+                pool[createdCount++] = res;
+                return res;
+            }
+            return null;
         }
 
         @Override
         public ManagedCuVSResources acquire(int numVectors, int dims) throws InterruptedException {
-            ManagedCuVSResources res = pool.poll();
-            if (res != null) {
-                return res;
-            }
-            synchronized (this) {
-                if (createdCount < capacity) {
-                    createdCount++;
-                    return new ManagedCuVSResources(Objects.requireNonNull(createNew()));
+            try {
+                lock.lock();
+                ManagedCuVSResources res;
+                while ((res = getResourceFromPool()) == null) {
+                    poolAvailableCondition.await();
                 }
+
+                // Check resources availability
+                var resourcesInfo = gpuInfoProvider.getCurrentInfo(res);
+
+                // Memory
+                long requiredMemoryInBytes = estimateRequiredMemory(numVectors, dims);
+                if (requiredMemoryInBytes > resourcesInfo.totalDeviceMemoryInBytes()) {
+                    throw new IllegalArgumentException(
+                        Strings.format(
+                            "Requested GPU memory for [%d] vectors, [%d] dims is greater than the GPU total memory [%dMB]",
+                            numVectors,
+                            dims,
+                            resourcesInfo.totalDeviceMemoryInBytes() / 1048576.0f
+                        )
+                    );
+                }
+                while (requiredMemoryInBytes > resourcesInfo.freeDeviceMemoryInBytes()) {
+                    enoughMemoryCondition.await();
+                }
+
+                res.locked = true;
+                return res;
+            } finally {
+                lock.unlock();
             }
-            // Otherwise, wait for one to be released
-            return pool.take();
+        }
+
+        private long estimateRequiredMemory(int numVectors, int dims) {
+            return (long)(GPU_COMPUTATION_MEMORY_FACTOR * numVectors * dims * Float.BYTES);
         }
 
         // visible for testing
@@ -104,20 +158,29 @@ public interface CuVSResourceManager {
         @Override
         public void finishedComputation(ManagedCuVSResources resources) {
             // currently does nothing, but could allow acquire to return possibly blocked resources
+            // something like enoughComputationCondition.signal()?
         }
 
         @Override
         public void release(ManagedCuVSResources resources) {
-            var added = pool.offer(Objects.requireNonNull(resources));
-            assert added : "Failed to release resource back to pool";
+            try {
+                lock.lock();
+                assert resources.locked;
+                resources.locked = false;
+                poolAvailableCondition.signalAll();
+                enoughMemoryCondition.signalAll();
+            } finally {
+                lock.unlock();
+            }
         }
 
         @Override
         public void shutdown() {
-            for (ManagedCuVSResources res : pool) {
+            for (int i = 0; i < createdCount; ++i) {
+                var res = pool[i];
+                assert res != null;
                 res.delegate.close();
             }
-            pool.clear();
         }
     }
 
@@ -125,6 +188,7 @@ public interface CuVSResourceManager {
     final class ManagedCuVSResources implements CuVSResources {
 
         final CuVSResources delegate;
+        boolean locked = false;
 
         ManagedCuVSResources(CuVSResources resources) {
             this.delegate = resources;

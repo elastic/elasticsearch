@@ -9,9 +9,14 @@ package org.elasticsearch.xpack.gpu.codec;
 
 import com.nvidia.cuvs.CuVSResources;
 
+import com.nvidia.cuvs.CuVSResourcesInfo;
+import com.nvidia.cuvs.GPUInfo;
+import com.nvidia.cuvs.GPUInfoProvider;
+
 import org.elasticsearch.test.ESTestCase;
 
 import java.nio.file.Path;
+import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -83,7 +88,7 @@ public class CuVSResourceManagerTests extends ESTestCase {
         final AtomicInteger idGenerator = new AtomicInteger();
 
         MockPoolingCuVSResourceManager(int capacity) {
-            super(capacity);
+            super(capacity, new MockGPUInfoProvider());
         }
 
         @Override
@@ -116,6 +121,23 @@ public class CuVSResourceManagerTests extends ESTestCase {
         @Override
         public String toString() {
             return "MockCuVSResources[id=" + id + "]";
+        }
+    }
+
+    private static class MockGPUInfoProvider implements GPUInfoProvider {
+        @Override
+        public List<GPUInfo> availableGPUs() throws Throwable {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public List<GPUInfo> compatibleGPUs() throws Throwable {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public CuVSResourcesInfo getCurrentInfo(CuVSResources cuVSResources) {
+            return new CuVSResourcesInfo(256L * 1024 * 1024, 2048L * 1024 * 1024);
         }
     }
 }

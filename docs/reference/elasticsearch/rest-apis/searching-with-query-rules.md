@@ -26,7 +26,7 @@ For example, a query rule could be defined to match a user-entered query string 
 
 Rules are defined using the [query rules API](https://www.elastic.co/docs/api/doc/elasticsearch/group/endpoint-query_rules) and searched using the [rule retriever](/reference/elasticsearch/rest-apis/retrievers/rule-retriever.md) or the [rule query](/reference/query-languages/query-dsl/query-dsl-rule-query.md).
 
-Alternatively, you can manage query rules through the [Query Rules UI](https://www.elastic.co/docs/solutions/search/query-rules-ui).
+Alternatively, rules can be managed through the [Query Rules UI](https://www.elastic.co/docs/solutions/search/query-rules-ui).
 
 ## Rule definition [query-rule-definition]
 

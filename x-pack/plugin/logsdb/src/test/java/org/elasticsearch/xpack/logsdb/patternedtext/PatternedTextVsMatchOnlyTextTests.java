@@ -18,6 +18,8 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
+import org.elasticsearch.core.Tuple;
+import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.extras.MapperExtrasPlugin;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -173,7 +175,7 @@ public class PatternedTextVsMatchOnlyTextTests extends ESIntegTestCase {
     private List<String> generateMessages(int numDocs) {
         List<String> logMessages = new ArrayList<>();
         for (int i = 0; i < numDocs; i++) {
-            logMessages.add(randomMessage());
+            logMessages.add(randomMessage().v1());
         }
         return logMessages;
     }
@@ -199,9 +201,12 @@ public class PatternedTextVsMatchOnlyTextTests extends ESIntegTestCase {
         safeGet(indicesAdmin().refresh(new RefreshRequest(INDEX).indicesOptions(IndicesOptions.lenientExpandOpenHidden())));
     }
 
-    public static String randomMessage() {
+    public static Tuple<String, String> randomMessage() {
+
+        String normalizedTimestamp = null;
+        String timestamp = null;
         if (rarely()) {
-            return randomRealisticUnicodeOfCodepointLength(randomIntBetween(1, 100));
+            return Tuple.tuple(randomRealisticUnicodeOfCodepointLength(randomIntBetween(1, 100)), null);
         }
 
         StringBuilder message = new StringBuilder();
@@ -216,15 +221,28 @@ public class PatternedTextVsMatchOnlyTextTests extends ESIntegTestCase {
             if (randomBoolean()) {
                 message.append(randomSentence());
             } else {
-                var token = randomFrom(
-                    random(),
-                    () -> randomRealisticUnicodeOfCodepointLength(randomIntBetween(1, 20)),
-                    () -> UUID.randomUUID().toString(),
-                    () -> randomIp(randomBoolean()),
-                    PatternedTextVsMatchOnlyTextTests::randomTimestamp,
-                    ESTestCase::randomInt,
-                    ESTestCase::randomDouble
-                );
+                var token = switch (between(0, 6)) {
+                    case 0 -> random();
+                    case 1 -> randomRealisticUnicodeOfCodepointLength(randomIntBetween(1, 20));
+                    case 2 -> UUID.randomUUID().toString();
+                    case 3 -> randomIp(randomBoolean());
+                    case 4 -> {
+                        String ts = randomTimestamp();
+                        var res = PatternedTextValueProcessor.parse(ts.split(" "), 0);
+                        if (res != null) {
+                            long millis = res.v1();
+                            if (normalizedTimestamp == null) {
+                                timestamp = ts;
+                                normalizedTimestamp = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.formatMillis(millis);
+                            }
+                        }
+
+                        yield ts;
+                    }
+                    case 5 -> randomInt();
+                    case 6 -> randomDouble();
+                    default -> throw new IllegalStateException("Unexpected value: " + between(0, 6));
+                };
 
                 if (randomBoolean()) {
                     message.append("[").append(token).append("]");
@@ -233,7 +251,15 @@ public class PatternedTextVsMatchOnlyTextTests extends ESIntegTestCase {
                 }
             }
         }
-        return message.toString();
+
+        var input = message.toString();
+        String expected;
+        if (normalizedTimestamp != null) {
+            expected = input.replaceFirst(timestamp, normalizedTimestamp);
+        } else {
+            expected = input;
+        }
+        return Tuple.tuple(input, expected);
     }
 
     private static StringBuilder randomSentence() {

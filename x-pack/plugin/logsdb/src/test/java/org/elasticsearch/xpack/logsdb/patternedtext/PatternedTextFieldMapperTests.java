@@ -251,8 +251,7 @@ public class PatternedTextFieldMapperTests extends MapperTestCase {
         }
 
         private Tuple<String, String> generateValue() {
-            var value = PatternedTextVsMatchOnlyTextTests.randomMessage();
-            return Tuple.tuple(value, value);
+            return PatternedTextVsMatchOnlyTextTests.randomMessage();
         }
 
         private void mapping(XContentBuilder b) throws IOException {

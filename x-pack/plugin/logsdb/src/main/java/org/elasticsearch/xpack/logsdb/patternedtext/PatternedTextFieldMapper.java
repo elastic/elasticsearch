@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.logsdb.patternedtext;
 
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
+import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.util.BytesRef;
@@ -24,6 +25,7 @@ import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.MappingParserContext;
+import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.TextParams;
 import org.elasticsearch.index.mapper.TextSearchInfo;
 
@@ -106,7 +108,28 @@ public class PatternedTextFieldMapper extends FieldMapper {
                 indexCreatedVersion,
                 true
             ).indexed(false).build(context);
-            return new PatternedTextFieldMapper(leafName(), patternedTextFieldType, builderParams, this, templateIdMapper);
+
+            var argsMapper = KeywordFieldMapper.Builder.buildWithDocValuesSkipper(
+                patternedTextFieldType.argsFieldName(),
+                indexSettings.getMode(),
+                indexCreatedVersion,
+                true
+            ).indexed(false).build(context);
+
+            var timestampMapper = NumberFieldMapper.Builder.docValuesOnly(
+                patternedTextFieldType.timestampFieldName(),
+                NumberFieldMapper.NumberType.LONG,
+                indexCreatedVersion
+            ).build(context);
+            return new PatternedTextFieldMapper(
+                leafName(),
+                patternedTextFieldType,
+                builderParams,
+                this,
+                templateIdMapper,
+                timestampMapper,
+                argsMapper
+            );
         }
     }
 
@@ -119,13 +142,17 @@ public class PatternedTextFieldMapper extends FieldMapper {
     private final int positionIncrementGap;
     private final FieldType fieldType;
     private final KeywordFieldMapper templateIdMapper;
+    private final NumberFieldMapper timestampFieldMapper;
+    private final KeywordFieldMapper argsMapper;
 
     private PatternedTextFieldMapper(
         String simpleName,
         PatternedTextFieldType mappedFieldPatternedTextFieldType,
         BuilderParams builderParams,
         Builder builder,
-        KeywordFieldMapper templateIdMapper
+        KeywordFieldMapper templateIdMapper,
+        NumberFieldMapper timestampFieldMapper,
+        KeywordFieldMapper argsMapper
     ) {
         super(simpleName, mappedFieldPatternedTextFieldType, builderParams);
         assert mappedFieldPatternedTextFieldType.getTextSearchInfo().isTokenized();
@@ -137,6 +164,8 @@ public class PatternedTextFieldMapper extends FieldMapper {
         this.indexSettings = builder.indexSettings;
         this.positionIncrementGap = builder.analyzers.positionIncrementGap.getValue();
         this.templateIdMapper = templateIdMapper;
+        this.timestampFieldMapper = timestampFieldMapper;
+        this.argsMapper = argsMapper;
     }
 
     @Override
@@ -157,6 +186,8 @@ public class PatternedTextFieldMapper extends FieldMapper {
             mappers.add(m.next());
         }
         mappers.add(templateIdMapper);
+        mappers.add(timestampFieldMapper);
+        mappers.add(argsMapper);
         return mappers.iterator();
     }
 
@@ -184,6 +215,11 @@ public class PatternedTextFieldMapper extends FieldMapper {
         // Add template_id doc_values
         context.doc().add(templateIdMapper.buildKeywordField(new BytesRef(parts.templateId())));
 
+        // Timestamp
+        if (parts.timestamp() != null) {
+            context.doc().add(new SortedNumericDocValuesField(fieldType().timestampFieldName(), parts.timestamp()));
+        }
+
         // Add args doc_values
         if (parts.args().isEmpty() == false) {
             String remainingArgs = PatternedTextValueProcessor.encodeRemainingArgs(parts);
@@ -207,7 +243,12 @@ public class PatternedTextFieldMapper extends FieldMapper {
             () -> new CompositeSyntheticFieldLoader(
                 leafName(),
                 fullPath(),
-                new PatternedTextSyntheticFieldLoaderLayer(fieldType().name(), fieldType().templateFieldName(), fieldType().argsFieldName())
+                new PatternedTextSyntheticFieldLoaderLayer(
+                    fieldType().name(),
+                    fieldType().templateFieldName(),
+                    fieldType().argsFieldName(),
+                    fieldType().timestampFieldName()
+                )
             )
         );
     }

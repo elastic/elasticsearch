@@ -19,12 +19,14 @@ class PatternedTextSyntheticFieldLoaderLayer implements CompositeSyntheticFieldL
     private final String name;
     private final String templateFieldName;
     private final String argsFieldName;
+    private final String timestampFieldName;
     private PatternedTextSyntheticFieldLoader loader;
 
-    PatternedTextSyntheticFieldLoaderLayer(String name, String templateFieldName, String argsFieldName) {
+    PatternedTextSyntheticFieldLoaderLayer(String name, String templateFieldName, String argsFieldName, String timestampFieldName) {
         this.name = name;
         this.templateFieldName = templateFieldName;
         this.argsFieldName = argsFieldName;
+        this.timestampFieldName = timestampFieldName;
     }
 
     @Override
@@ -34,7 +36,7 @@ class PatternedTextSyntheticFieldLoaderLayer implements CompositeSyntheticFieldL
 
     @Override
     public DocValuesLoader docValuesLoader(LeafReader leafReader, int[] docIdsInLeaf) throws IOException {
-        var docValues = PatternedTextDocValues.from(leafReader, templateFieldName, argsFieldName);
+        var docValues = PatternedTextDocValues.from(leafReader, templateFieldName, argsFieldName, timestampFieldName);
         if (docValues == null) {
             return null;
         }

@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
+import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
@@ -113,12 +114,44 @@ public class IgnoreNullMetricsTests extends ESTestCase {
         Aggregate agg = as(limit_10.child(), Aggregate.class);
         Filter filter = as(agg.child(), Filter.class);
         Or or = as(filter.expressions().getFirst(), Or.class);
-        IsNotNull condition = as(or.left(), IsNotNull.class);
-        FieldAttribute attribute = as(condition.field(), FieldAttribute.class);
-        assertEquals("metric_2", attribute.fieldName().string());
 
-        condition = as(or.right(), IsNotNull.class);
+        // For reasons beyond my comprehension, the ordering of the conditionals inside the OR is nondeterministic.
+        IsNotNull condition;
+        FieldAttribute attribute;
+
+        condition = as(or.left(), IsNotNull.class);
         attribute = as(condition.field(), FieldAttribute.class);
+        if (attribute.fieldName().string().equals("metric_1")) {
+            condition = as(or.right(), IsNotNull.class);
+            attribute = as(condition.field(), FieldAttribute.class);
+            assertEquals("metric_2", attribute.fieldName().string());
+        } else if (attribute.fieldName().string().equals("metric_2")) {
+            condition = as(or.right(), IsNotNull.class);
+            attribute = as(condition.field(), FieldAttribute.class);
+            assertEquals("metric_1", attribute.fieldName().string());
+        } else {
+            // something weird happened
+            assert false;
+        }
+
+    }
+
+    public void testSkipCoalescedMetrics() {
+        // Note: this test is passing because the reference attribute metric_2 in the stats block does not inherit the
+        // metric property from the original field.
+        LogicalPlan actual = analyze("""
+            TS test
+            | EVAL metric_2 = coalesce(metric_2, 0)
+            | STATS max(max_over_time(metric_1)), min(min_over_time(metric_2))
+            | LIMIT 10
+            """);
+        Limit limit_10000 = as(actual, Limit.class);
+        Limit limit_10 = as(limit_10000.child(), Limit.class);
+        Aggregate agg = as(limit_10.child(), Aggregate.class);
+        Eval eval = as(agg.child(), Eval.class);
+        Filter filter = as(eval.child(), Filter.class);
+        IsNotNull condition = as(filter.condition(), IsNotNull.class);
+        FieldAttribute attribute = as(condition.field(), FieldAttribute.class);
         assertEquals("metric_1", attribute.fieldName().string());
     }
 }

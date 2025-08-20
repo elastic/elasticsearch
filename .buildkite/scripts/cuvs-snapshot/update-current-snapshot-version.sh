@@ -2,7 +2,6 @@
 
 set -euo pipefail
 
-WORKSPACE="${WORKSPACE:-$(pwd)}"
 SNAPSHOT_VERSION_FILE=.buildkite/scripts/cuvs-snapshot/current-snapshot-version
 PLUGIN_GRADLE_FILE=x-pack/plugin/gpu/build.gradle
 BRANCH_TO_UPDATE="${BRANCH_TO_UPDATE:-${BUILDKITE_BRANCH:-cuvs-snapshot}}"
@@ -20,9 +19,6 @@ fi
 echo "--- Configuring libcuvs/cuvs-java"
 source .buildkite/scripts/cuvs-snapshot/configure.sh
 
-echo JAVA_HOME=$JAVA_HOME;
-echo LD_LIBRARY_PATH=$LD_LIBRARY_PATH;
-
 if [[ "${SKIP_TESTING:-}" != "true" ]]; then
   echo "--- Testing snapshot before updating"
   ./gradlew -Druntime.java=24 :x-pack:plugin:gpu:yamlRestTest -S
@@ -34,7 +30,7 @@ echo "$CUVS_SNAPSHOT_VERSION" > "$SNAPSHOT_VERSION_FILE"
 
 CURRENT_SHA="$(gh api "/repos/elastic/elasticsearch/contents/$SNAPSHOT_VERSION_FILE?ref=$BRANCH_TO_UPDATE" | jq -r .sha)" || true
 
-gh api -X PUT "/repos/elastic/elasticsearch/contents/$SNAPSHOT_VERSION_FILE" \
+echo gh api -X PUT "/repos/elastic/elasticsearch/contents/$SNAPSHOT_VERSION_FILE" \
   -f branch="$BRANCH_TO_UPDATE" \
   -f message="Update cuvs snapshot version to $CUVS_VERSION" \
   -f content="$(base64 -w 0 "$WORKSPACE/$SNAPSHOT_VERSION_FILE")" \

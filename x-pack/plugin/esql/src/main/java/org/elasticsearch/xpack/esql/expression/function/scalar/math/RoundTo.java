@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.DataTypeConverter;
 import org.elasticsearch.xpack.esql.expression.Foldables;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
@@ -40,7 +41,6 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
 import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
 import static org.elasticsearch.xpack.esql.core.type.DataType.UNSIGNED_LONG;
-import static org.elasticsearch.xpack.esql.core.type.DataTypeConverter.safeToLong;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.commonType;
 
 /**
@@ -200,17 +200,25 @@ public class RoundTo extends EsqlScalarFunction {
     );
 
     public static List<Object> sortedRoundingPoints(List<Object> points, DataType dataType) {
-        return points.stream().filter(Objects::nonNull).map(p -> switch (dataType) { // the types are in sync with SIGNATURES
-            case INTEGER -> ((Number) p).intValue();
-            case DOUBLE -> ((Number) p).doubleValue();
-            case LONG, DATETIME, DATE_NANOS -> safeToLong((Number) p);
+        List<Number> pointsTobeSorted = points.stream().filter(Objects::nonNull).map(p -> (Number) p).toList();
+
+        return switch (dataType) {
+            case INTEGER -> pointsTobeSorted.stream()
+                .mapToInt(Number::intValue)
+                .sorted()
+                .boxed()
+                .collect(java.util.stream.Collectors.toList());
+            case DOUBLE -> pointsTobeSorted.stream()
+                .mapToDouble(Number::doubleValue)
+                .sorted()
+                .boxed()
+                .collect(java.util.stream.Collectors.toList());
+            case LONG, DATETIME, DATE_NANOS -> pointsTobeSorted.stream()
+                .mapToLong(DataTypeConverter::safeToLong)
+                .sorted()
+                .boxed()
+                .collect(java.util.stream.Collectors.toList());
             default -> throw new IllegalArgumentException("Unsupported data type: " + dataType);
-        }).sorted((a, b) -> {
-            if (a instanceof Double || b instanceof Double) {
-                return Double.compare(a.doubleValue(), b.doubleValue());
-            } else {
-                return Long.compare(a.longValue(), b.longValue());
-            }
-        }).collect(java.util.stream.Collectors.toList());
+        };
     }
 }

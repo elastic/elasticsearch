@@ -8792,6 +8792,8 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
 
     public void testTranslateMetricsGroupedByTBucketInTSMode() {
         assumeTrue("requires METRICS_COMMAND capability enabled", EsqlCapabilities.Cap.METRICS_COMMAND.isEnabled());
+        assumeTrue("requires TBUCKET capability enabled", EsqlCapabilities.Cap.TBUCKET.isEnabled());
+
         var query = "TS k8s | STATS sum(rate(network.total_bytes_in)) BY tbucket(1h)";
         var plan = logicalOptimizer.optimize(metricsAnalyzer.analyze(parser.createStatement(query, EsqlTestUtils.TEST_CFG)));
         Limit limit = as(plan, Limit.class);

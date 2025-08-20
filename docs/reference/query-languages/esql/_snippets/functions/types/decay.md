@@ -4,7 +4,7 @@
 
 | value | origin | scale | offset | decay | type | result |
 | --- | --- | --- | --- | --- | --- | --- |
-| cartesian_point | cartesian_point | text | text | double | keyword | double |
+| cartesian_point | cartesian_point | double | double | double | keyword | double |
 | date | date | text | date_period | double | keyword | double |
 | date | date | text | text | double | keyword | double |
 | date | date | text | time_duration | double | keyword | double |

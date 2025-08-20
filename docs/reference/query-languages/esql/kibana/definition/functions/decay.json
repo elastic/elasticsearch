@@ -20,13 +20,13 @@
         },
         {
           "name" : "scale",
-          "type" : "text",
+          "type" : "double",
           "optional" : false,
           "description" : "Distance from the origin where the function returns the decay value."
         },
         {
           "name" : "offset",
-          "type" : "text",
+          "type" : "double",
           "optional" : true,
           "description" : "Distance from the origin where no decay occurs."
         },

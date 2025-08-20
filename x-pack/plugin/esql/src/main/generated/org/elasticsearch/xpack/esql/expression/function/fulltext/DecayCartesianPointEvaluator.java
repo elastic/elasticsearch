@@ -61,8 +61,8 @@ public final class DecayCartesianPointEvaluator implements EvalOperator.Expressi
   public Block eval(Page page) {
     try (BytesRefBlock valueBlock = (BytesRefBlock) value.eval(page)) {
       try (BytesRefBlock originBlock = (BytesRefBlock) origin.eval(page)) {
-        try (BytesRefBlock scaleBlock = (BytesRefBlock) scale.eval(page)) {
-          try (BytesRefBlock offsetBlock = (BytesRefBlock) offset.eval(page)) {
+        try (DoubleBlock scaleBlock = (DoubleBlock) scale.eval(page)) {
+          try (DoubleBlock offsetBlock = (DoubleBlock) offset.eval(page)) {
             try (DoubleBlock decayBlock = (DoubleBlock) decay.eval(page)) {
               try (BytesRefBlock functionTypeBlock = (BytesRefBlock) functionType.eval(page)) {
                 BytesRefVector valueVector = valueBlock.asVector();
@@ -73,11 +73,11 @@ public final class DecayCartesianPointEvaluator implements EvalOperator.Expressi
                 if (originVector == null) {
                   return eval(page.getPositionCount(), valueBlock, originBlock, scaleBlock, offsetBlock, decayBlock, functionTypeBlock);
                 }
-                BytesRefVector scaleVector = scaleBlock.asVector();
+                DoubleVector scaleVector = scaleBlock.asVector();
                 if (scaleVector == null) {
                   return eval(page.getPositionCount(), valueBlock, originBlock, scaleBlock, offsetBlock, decayBlock, functionTypeBlock);
                 }
-                BytesRefVector offsetVector = offsetBlock.asVector();
+                DoubleVector offsetVector = offsetBlock.asVector();
                 if (offsetVector == null) {
                   return eval(page.getPositionCount(), valueBlock, originBlock, scaleBlock, offsetBlock, decayBlock, functionTypeBlock);
                 }
@@ -99,13 +99,11 @@ public final class DecayCartesianPointEvaluator implements EvalOperator.Expressi
   }
 
   public DoubleBlock eval(int positionCount, BytesRefBlock valueBlock, BytesRefBlock originBlock,
-      BytesRefBlock scaleBlock, BytesRefBlock offsetBlock, DoubleBlock decayBlock,
+      DoubleBlock scaleBlock, DoubleBlock offsetBlock, DoubleBlock decayBlock,
       BytesRefBlock functionTypeBlock) {
     try(DoubleBlock.Builder result = driverContext.blockFactory().newDoubleBlockBuilder(positionCount)) {
       BytesRef valueScratch = new BytesRef();
       BytesRef originScratch = new BytesRef();
-      BytesRef scaleScratch = new BytesRef();
-      BytesRef offsetScratch = new BytesRef();
       BytesRef functionTypeScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
         if (valueBlock.isNull(p)) {
@@ -174,23 +172,21 @@ public final class DecayCartesianPointEvaluator implements EvalOperator.Expressi
           result.appendNull();
           continue position;
         }
-        result.appendDouble(Decay.processCartesianPoint(valueBlock.getBytesRef(valueBlock.getFirstValueIndex(p), valueScratch), originBlock.getBytesRef(originBlock.getFirstValueIndex(p), originScratch), scaleBlock.getBytesRef(scaleBlock.getFirstValueIndex(p), scaleScratch), offsetBlock.getBytesRef(offsetBlock.getFirstValueIndex(p), offsetScratch), decayBlock.getDouble(decayBlock.getFirstValueIndex(p)), functionTypeBlock.getBytesRef(functionTypeBlock.getFirstValueIndex(p), functionTypeScratch)));
+        result.appendDouble(Decay.processCartesianPoint(valueBlock.getBytesRef(valueBlock.getFirstValueIndex(p), valueScratch), originBlock.getBytesRef(originBlock.getFirstValueIndex(p), originScratch), scaleBlock.getDouble(scaleBlock.getFirstValueIndex(p)), offsetBlock.getDouble(offsetBlock.getFirstValueIndex(p)), decayBlock.getDouble(decayBlock.getFirstValueIndex(p)), functionTypeBlock.getBytesRef(functionTypeBlock.getFirstValueIndex(p), functionTypeScratch)));
       }
       return result.build();
     }
   }
 
   public DoubleVector eval(int positionCount, BytesRefVector valueVector,
-      BytesRefVector originVector, BytesRefVector scaleVector, BytesRefVector offsetVector,
+      BytesRefVector originVector, DoubleVector scaleVector, DoubleVector offsetVector,
       DoubleVector decayVector, BytesRefVector functionTypeVector) {
     try(DoubleVector.FixedBuilder result = driverContext.blockFactory().newDoubleVectorFixedBuilder(positionCount)) {
       BytesRef valueScratch = new BytesRef();
       BytesRef originScratch = new BytesRef();
-      BytesRef scaleScratch = new BytesRef();
-      BytesRef offsetScratch = new BytesRef();
       BytesRef functionTypeScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
-        result.appendDouble(p, Decay.processCartesianPoint(valueVector.getBytesRef(p, valueScratch), originVector.getBytesRef(p, originScratch), scaleVector.getBytesRef(p, scaleScratch), offsetVector.getBytesRef(p, offsetScratch), decayVector.getDouble(p), functionTypeVector.getBytesRef(p, functionTypeScratch)));
+        result.appendDouble(p, Decay.processCartesianPoint(valueVector.getBytesRef(p, valueScratch), originVector.getBytesRef(p, originScratch), scaleVector.getDouble(p), offsetVector.getDouble(p), decayVector.getDouble(p), functionTypeVector.getBytesRef(p, functionTypeScratch)));
       }
       return result.build();
     }

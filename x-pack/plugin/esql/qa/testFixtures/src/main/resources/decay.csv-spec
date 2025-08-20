@@ -104,8 +104,8 @@ decay_result:double
 
 cartesianPointLinear1
 
-ROW value = TO_CARTESIANPOINT("POINT(5 5)"), origin = TO_CARTESIANPOINT("POINT(0 0)"), scale = "10m"
-| EVAL decay_result = decay(value, origin, scale, "0m", 0.25, "linear") 
+ROW value = TO_CARTESIANPOINT("POINT(5 5)"), origin = TO_CARTESIANPOINT("POINT(0 0)"), scale = 10.0
+| EVAL decay_result = decay(value, origin, scale, 0.0, 0.25, "linear") 
 | KEEP decay_result;
 
 decay_result:double
@@ -114,8 +114,8 @@ decay_result:double
 
 cartesianPointLinear2
 
-ROW value = TO_CARTESIANPOINT("POINT(10 0)"), origin = TO_CARTESIANPOINT("POINT(0 0)"), scale = "10m"
-| EVAL decay_result = ROUND(decay(value, origin, scale, "0m", 0.25, "linear"), 10) 
+ROW value = TO_CARTESIANPOINT("POINT(10 0)"), origin = TO_CARTESIANPOINT("POINT(0 0)"), scale = 10.0
+| EVAL decay_result = ROUND(decay(value, origin, scale, 0.0, 0.25, "linear"), 10) 
 | KEEP decay_result;
 
 decay_result:double
@@ -124,8 +124,8 @@ decay_result:double
 
 cartesianPointLinearWithOffset
 
-ROW value = TO_CARTESIANPOINT("POINT(10 0)"), origin = TO_CARTESIANPOINT("POINT(0 0)"), scale = "10m"
-| EVAL decay_result = ROUND(decay(value, origin, scale, "5m", 0.25, "linear"), 10) 
+ROW value = TO_CARTESIANPOINT("POINT(10 0)"), origin = TO_CARTESIANPOINT("POINT(0 0)"), scale = 10.0
+| EVAL decay_result = ROUND(decay(value, origin, scale, 5.0, 0.25, "linear"), 10) 
 | KEEP decay_result;
 
 decay_result:double

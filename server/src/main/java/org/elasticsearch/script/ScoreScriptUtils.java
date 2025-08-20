@@ -97,10 +97,7 @@ public final class ScoreScriptUtils {
         double scaling;
 
         public DecayGeoLinear(String originStr, String scaleStr, String offsetStr, double decay) {
-            this(GeoUtils.parseGeoPoint(originStr, false), scaleStr, offsetStr, decay);
-        }
-
-        public DecayGeoLinear(GeoPoint origin, String scaleStr, String offsetStr, double decay) {
+            GeoPoint origin = GeoUtils.parseGeoPoint(originStr, false);
             double scale = DistanceUnit.DEFAULT.parse(scaleStr, DistanceUnit.DEFAULT);
             this.originLat = origin.lat();
             this.originLon = origin.lon();
@@ -122,10 +119,7 @@ public final class ScoreScriptUtils {
         double scaling;
 
         public DecayGeoExp(String originStr, String scaleStr, String offsetStr, double decay) {
-            this(GeoUtils.parseGeoPoint(originStr, false), scaleStr, offsetStr, decay);
-        }
-
-        public DecayGeoExp(GeoPoint origin, String scaleStr, String offsetStr, double decay) {
+            GeoPoint origin = GeoUtils.parseGeoPoint(originStr, false);
             double scale = DistanceUnit.DEFAULT.parse(scaleStr, DistanceUnit.DEFAULT);
             this.originLat = origin.lat();
             this.originLon = origin.lon();
@@ -147,10 +141,7 @@ public final class ScoreScriptUtils {
         double scaling;
 
         public DecayGeoGauss(String originStr, String scaleStr, String offsetStr, double decay) {
-            this(GeoUtils.parseGeoPoint(originStr, false), scaleStr, offsetStr, decay);
-        }
-
-        public DecayGeoGauss(GeoPoint origin, String scaleStr, String offsetStr, double decay) {
+            GeoPoint origin = GeoUtils.parseGeoPoint(originStr, false);
             double scale = DistanceUnit.DEFAULT.parse(scaleStr, DistanceUnit.DEFAULT);
             this.originLat = origin.lat();
             this.originLon = origin.lon();
@@ -243,13 +234,6 @@ public final class ScoreScriptUtils {
             this.scaling = scale / (1.0 - decay);
         }
 
-        public DecayDateLinear(long origin, TemporalAmount scale, TemporalAmount offset, double decay) {
-            this.origin = origin;
-            long scaleMillis = temporalAmountToMillis(scale);
-            this.offset = temporalAmountToMillis(offset);
-            this.scaling = scaleMillis / (1.0 - decay);
-        }
-
         public double decayDateLinear(ZonedDateTime docValueDate) {
             long docValue = docValueDate.toInstant().toEpochMilli();
             // as java.lang.Math#abs(long) is a forbidden API, have to use this comparison instead
@@ -273,13 +257,6 @@ public final class ScoreScriptUtils {
             this.scaling = Math.log(decay) / scale;
         }
 
-        public DecayDateExp(long origin, TemporalAmount scale, TemporalAmount offset, double decay) {
-            this.origin = origin;
-            long scaleMillis = temporalAmountToMillis(scale);
-            this.offset = temporalAmountToMillis(offset);
-            this.scaling = Math.log(decay) / scaleMillis;
-        }
-
         public double decayDateExp(ZonedDateTime docValueDate) {
             long docValue = docValueDate.toInstant().toEpochMilli();
             long diff = (docValue >= origin) ? (docValue - origin) : (origin - docValue);
@@ -300,13 +277,6 @@ public final class ScoreScriptUtils {
             this.offset = TimeValue.parseTimeValue(offsetStr, TimeValue.timeValueHours(24), getClass().getSimpleName() + ".offset")
                 .getMillis();
             this.scaling = 0.5 * Math.pow(scale, 2.0) / Math.log(decay);
-        }
-
-        public DecayDateGauss(long origin, TemporalAmount scale, TemporalAmount offset, double decay) {
-            this.origin = origin;
-            long scaleMillis = temporalAmountToMillis(scale);
-            this.offset = temporalAmountToMillis(offset);
-            this.scaling = 0.5 * Math.pow(scaleMillis, 2.0) / Math.log(decay);
         }
 
         public double decayDateGauss(ZonedDateTime docValueDate) {

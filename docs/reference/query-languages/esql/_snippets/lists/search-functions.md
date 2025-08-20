@@ -2,4 +2,5 @@
 * [`MATCH`](../../functions-operators/search-functions.md#esql-match)
 * [`MATCH_PHRASE`](../../functions-operators/search-functions.md#esql-match_phrase)
 * [`QSTR`](../../functions-operators/search-functions.md#esql-qstr)
+* [`SCORE`](../../functions-operators/search-functions.md#esql-score)
 % * [preview] [`TERM`](../../functions-operators/search-functions.md#esql-term)

@@ -13,12 +13,8 @@ import org.elasticsearch.gradle.util.GradleUtils;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
 import org.gradle.api.artifacts.Configuration;
-import org.gradle.api.file.Directory;
 import org.gradle.api.tasks.SourceSet;
 import org.gradle.language.base.plugins.LifecycleBasePlugin;
-
-import static org.elasticsearch.gradle.internal.transport.TransportVersionUtils.getDefinitionsDirectory;
-import static org.elasticsearch.gradle.internal.transport.TransportVersionUtils.getResourcesDirectory;
 
 public class TransportVersionReferencesPlugin implements Plugin<Project> {
 
@@ -46,10 +42,6 @@ public class TransportVersionReferencesPlugin implements Plugin<Project> {
             .register("validateTransportVersionReferences", ValidateTransportVersionReferencesTask.class, t -> {
                 t.setGroup("Transport Versions");
                 t.setDescription("Validates that all TransportVersion references used in the project have an associated definition file");
-                Directory definitionsDir = getDefinitionsDirectory(getResourcesDirectory(project));
-                if (definitionsDir.getAsFile().exists()) {
-                    t.getDefinitionsDirectory().set(definitionsDir);
-                }
                 t.getReferencesFile().set(collectTask.get().getOutputFile());
             });
         project.getTasks().named(LifecycleBasePlugin.CHECK_TASK_NAME).configure(t -> t.dependsOn(validateTask));

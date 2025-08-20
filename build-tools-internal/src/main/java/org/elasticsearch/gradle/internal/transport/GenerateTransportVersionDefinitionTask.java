@@ -10,10 +10,9 @@
 package org.elasticsearch.gradle.internal.transport;
 
 import org.gradle.api.DefaultTask;
-import org.gradle.api.Project;
 import org.gradle.api.file.ConfigurableFileCollection;
-import org.gradle.api.file.DirectoryProperty;
 import org.gradle.api.provider.Property;
+import org.gradle.api.services.ServiceReference;
 import org.gradle.api.tasks.Input;
 import org.gradle.api.tasks.InputDirectory;
 import org.gradle.api.tasks.InputFiles;
@@ -26,27 +25,17 @@ import org.gradle.process.ExecOperations;
 import org.gradle.process.ExecResult;
 
 import java.io.ByteArrayOutputStream;
-import java.io.File;
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Objects;
 import java.util.Set;
-import java.util.function.BiFunction;
-import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import javax.inject.Inject;
-
-import static org.elasticsearch.gradle.internal.transport.TransportVersionReference.listFromFile;
-import static org.elasticsearch.gradle.internal.transport.TransportVersionUtils.writeDefinitionFile;
-import static org.elasticsearch.gradle.internal.transport.TransportVersionUtils.writeLatestFile;
 
 /**
  * This task generates transport version definition files. These files
@@ -56,18 +45,19 @@ import static org.elasticsearch.gradle.internal.transport.TransportVersionUtils.
  */
 public abstract class GenerateTransportVersionDefinitionTask extends DefaultTask {
 
-    /**
-     * Specifies the directory in which contains all TransportVersionSet data files.
-     *
-     * @return
-     */
     @InputDirectory
+    @Optional
     @PathSensitive(PathSensitivity.RELATIVE)
-    public abstract DirectoryProperty getResourcesDirectory();// The plugin should always set this, not optional
+    public Path getResourcesDir() {
+        return getResources().get().getTransportResourcesDir();
+    }
 
     @InputFiles
     @PathSensitive(PathSensitivity.RELATIVE)
     public abstract ConfigurableFileCollection getReferencesFiles();
+
+    @ServiceReference("transportVersionResources")
+    abstract Property<TransportVersionResourcesService> getResources();
 
     // assumption: this task is always run on main, so we can determine the name by diffing with main and looking for new files added in the
     // definition directory. (not true: once we generate the file, this will no longer hold true if we then need to update it)
@@ -99,64 +89,54 @@ public abstract class GenerateTransportVersionDefinitionTask extends DefaultTask
     @Input
     public abstract Property<String> getResourcesProjectDir();
 
-    private final Path rootPath;
     private final ExecOperations execOperations;
 
     @Inject
-    public GenerateTransportVersionDefinitionTask(Project project, ExecOperations execOperations) {
+    public GenerateTransportVersionDefinitionTask(ExecOperations execOperations) {
         this.execOperations = execOperations;
-        this.rootPath = getProject().getRootProject().getLayout().getProjectDirectory().getAsFile().toPath();
     }
 
     @TaskAction
     public void run() throws IOException {
-        Path resourcesDir = Objects.requireNonNull(getResourcesDirectory().getAsFile().get()).toPath();
-        Set<String> referencedNames = getReferencedNames();
-        List<String> changedDefinitionNames = getChangedDefinitionNames();
+        TransportVersionResourcesService resources = getResources().get();
+        Set<String> referencedNames = TransportVersionReference.collectNames(getReferencesFiles());
+        List<TransportVersionDefinition> changedDefinitions = resources.getChangedNamedDefinitions();
         String name = getTransportVersionName().isPresent()
             ? getTransportVersionName().get()
-            : findAddedTransportVersionName(referencedNames, changedDefinitionNames);
+            : findAddedTransportVersionName(resources, referencedNames, changedDefinitions);
 
         if (name.isEmpty()) {
-            resetAllLatestFiles(resourcesDir);
+            resetAllLatestFiles(resources);
         } else {
-            List<TransportVersionId> ids = updateLatestFiles(resourcesDir, name);
+            List<TransportVersionId> ids = updateLatestFiles(resources, name);
             // (Re)write the definition file.
-            writeDefinitionFile(resourcesDir, new TransportVersionDefinition(name, ids));
+            resources.writeNamedDefinition(new TransportVersionDefinition(name, ids));
         }
 
-        removeUnusedNamedDefinitions(referencedNames, changedDefinitionNames);
+        removeUnusedNamedDefinitions(resources, referencedNames, changedDefinitions);
     }
 
-    private Set<String> getReferencedNames() throws IOException {
-        Set<String> referencedNames = new HashSet<>();
-        for (var referencesFile : getReferencesFiles()) {
-            listFromFile(referencesFile.toPath()).stream().map(TransportVersionReference::name).forEach(referencedNames::add);
-        }
-        return referencedNames;
-    }
-
-    private List<TransportVersionId> updateLatestFiles(Path resourcesDir, String name) throws IOException {
+    private List<TransportVersionId> updateLatestFiles(TransportVersionResourcesService resources, String name) throws IOException {
         Set<String> targetReleaseBranches = getTargetReleaseBranches();
         String mainReleaseBranch = getMainReleaseBranch().get();
         int primaryIncrement = getPrimaryIncrement().get();
         List<TransportVersionId> ids = new ArrayList<>();
 
-        for (TransportVersionLatest mainLatest : getMainLatestFiles()) {
+        for (TransportVersionLatest mainLatest : resources.getMainLatests()) {
 
             if (name.equals(mainLatest.name())) {
                 if (targetReleaseBranches.contains(mainLatest.releaseBranch()) == false) {
                     // we don't want to target this latest file but we already changed it
                     // Regenerate to make this operation idempotent. Need to undo prior updates to the latest files if the list of minor
                     // versions has changed.
-                    writeLatestFile(resourcesDir, mainLatest);
+                    resources.writeLatestFile(mainLatest);
                 }
             } else {
                 if (targetReleaseBranches.contains(mainLatest.releaseBranch())) {
                     int increment = mainLatest.releaseBranch().equals(mainReleaseBranch) ? primaryIncrement : 1;
                     TransportVersionId id = TransportVersionId.fromInt(mainLatest.id().complete() + increment);
                     ids.add(id);
-                    writeLatestFile(resourcesDir, new TransportVersionLatest(mainLatest.releaseBranch(), name, id));
+                    resources.writeLatestFile(new TransportVersionLatest(mainLatest.releaseBranch(), name, id));
                 }
             }
         }
@@ -205,116 +185,39 @@ public abstract class GenerateTransportVersionDefinitionTask extends DefaultTask
         }
     }
 
-    private void resetAllLatestFiles(Path resourcesDir) throws IOException {
-        for (TransportVersionLatest latest : getMainLatestFiles()) {
-            writeLatestFile(resourcesDir, latest);
+    private void resetAllLatestFiles(TransportVersionResourcesService resources) throws IOException {
+        // TODO: this should also _delete_ extraneous files from latest?
+        for (TransportVersionLatest latest : resources.getMainLatests()) {
+            resources.writeLatestFile(latest);
         }
     }
 
-    private List<String> getChangedDefinitionNames() throws IOException {
-        List<String> changedDefinitionNames = new ArrayList<>();
-        String namedDefinitionsBasePath = TransportVersionUtils.getResourcePath(getResourcesProjectDir().get(), "definitions/named/");
-        for (String changedResource : getChangedResources(namedDefinitionsBasePath)) {
-            String definitionName = changedResource.substring(
-                changedResource.lastIndexOf(File.separator) + 1,
-                changedResource.length() - 4 /* .csv */
-            );
-            changedDefinitionNames.add(definitionName);
-        }
-        return changedDefinitionNames;
-    }
-
-    private void removeUnusedNamedDefinitions(Set<String> referencedNames, List<String> changedDefinitionNames) throws IOException {
-        for (String definitionName : changedDefinitionNames) {
-            if (referencedNames.contains(definitionName) == false) {
+    private void removeUnusedNamedDefinitions(TransportVersionResourcesService resources, Set<String> referencedNames, List<TransportVersionDefinition> changedDefinitions) throws IOException {
+        for (TransportVersionDefinition definition : changedDefinitions) {
+            if (referencedNames.contains(definition.name()) == false) {
                 // we added this definition file, but it's now unreferenced, so delete it
-                getLogger().lifecycle("Deleting unreferenced named transport version definition [" + definitionName + "]");
-                Path definitionPath = TransportVersionUtils.definitionFilePath(getResourcesDirectory().get(), definitionName);
-                Files.delete(definitionPath);
+                getLogger().lifecycle("Deleting unreferenced named transport version definition [" + definition.name() + "]");
+                resources.deleteNamedDefinition(definition.name());
             }
         }
     }
 
-    private List<TransportVersionLatest> getMainLatestFiles() throws IOException {
-        List<TransportVersionLatest> latestFiles = new ArrayList<>();
-        String latestBasePath = TransportVersionUtils.getResourcePath(getResourcesProjectDir().get(), "latest/");
-        for (String latestPath : getMainResources(latestBasePath)) {
-            TransportVersionLatest latest = readExistingFile(latestPath, Function.identity(), TransportVersionLatest::fromString);
-            latestFiles.add(latest);
-        }
-        return latestFiles;
-    }
-
-    private String findAddedTransportVersionName(Set<String> referencedNames, List<String> changedDefinitionNames) throws IOException {
+    private String findAddedTransportVersionName(TransportVersionResourcesService resources, Set<String> referencedNames, List<TransportVersionDefinition> changedDefinitions) throws IOException {
         // First check for unreferenced names. We only care about the first one. If there is more than one
         // validation will fail later and the developer will have to remove one. When that happens, generation
         // will re-run and we will fixup the state to use whatever new name remains.
         for (String referencedName : referencedNames) {
-            Path definitionFile = TransportVersionUtils.definitionFilePath(getResourcesDirectory().get(), referencedName);
-            if (Files.exists(definitionFile) == false) {
+            if (resources.namedDefinitionExists(referencedName) == false) {
                 return referencedName;
             }
         }
 
         // Since we didn't find any missing names, we use the first changed name. If there is more than
         // one changed name, validation will fail later, just as above.
-        if (changedDefinitionNames.isEmpty()) {
+        if (changedDefinitions.isEmpty()) {
             return "";
         } else {
-            return changedDefinitionNames.getFirst();
+            return changedDefinitions.getFirst().name();
         }
-    }
-
-    // TODO duplicated
-    private Set<String> getMainResources(String subPath) {
-        String output = gitCommand("ls-tree", "--name-only", "-r", "main", subPath);
-        return Set.of(output.split(System.lineSeparator()));
-    }
-
-    private Set<String> getChangedResources(String subPath) {
-        String output = gitCommand("diff", "--name-only", "main", subPath).strip();
-        if (output.isEmpty()) {
-            return Set.of();
-        }
-        return Set.of(output.split(System.lineSeparator()));
-    }
-
-    // TODO duplicated
-    private <T> T readExistingFile(String name, Function<String, String> pathFunction, BiFunction<String, String, T> parser) {
-        String relativePath = pathFunction.apply(name);
-        String content = gitCommand("show", "main:" + relativePath).strip();
-        return parser.apply(relativePath, content);
-    }
-
-    // TODO duplicated
-    public String gitCommand(String... args) {
-        final ByteArrayOutputStream stdout = new ByteArrayOutputStream();
-
-        List<String> command = new ArrayList<>();
-        Collections.addAll(command, "git", "-C", rootPath.toAbsolutePath().toString());
-        Collections.addAll(command, args);
-
-        ExecResult result = execOperations.exec(spec -> {
-            spec.setCommandLine(command);
-            spec.setStandardOutput(stdout);
-            spec.setErrorOutput(stdout);
-            spec.setIgnoreExitValue(true);
-        });
-
-        if (result.getExitValue() != 0) {
-            throw new RuntimeException(
-                "git command failed with exit code "
-                    + result.getExitValue()
-                    + System.lineSeparator()
-                    + "command: "
-                    + String.join(" ", command)
-                    + System.lineSeparator()
-                    + "output:"
-                    + System.lineSeparator()
-                    + stdout.toString(StandardCharsets.UTF_8)
-            );
-        }
-
-        return stdout.toString(StandardCharsets.UTF_8);
     }
 }

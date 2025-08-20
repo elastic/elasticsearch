@@ -9,20 +9,12 @@
 
 package org.elasticsearch.gradle.internal.transport
 
-
 import org.elasticsearch.gradle.fixtures.AbstractGradleFuncTest
 import org.gradle.testkit.runner.BuildResult
 import org.gradle.testkit.runner.TaskOutcome
 
 class AbstractTransportVersionFuncTest extends AbstractGradleFuncTest {
 
-    /**
-     *
-     * @param project
-     * @param path
-     * @param content
-     * @return
-     */
     def javaResource(String project, String path, String content) {
         file("${project}/src/main/resources/${path}").withWriter { writer ->
             writer << content
@@ -46,8 +38,8 @@ class AbstractTransportVersionFuncTest extends AbstractGradleFuncTest {
         javaResource("myserver", "transport/definitions/named/" + name + ".csv", ids)
     }
 
-    def initialTransportVersion(String name, String id) {
-        javaResource("myserver", "transport/definitions/initial/" + name + ".csv", id)
+    def unreferencedTransportVersion(String name, String id) {
+        javaResource("myserver", "transport/definitions/unreferenced/" + name + ".csv", id)
     }
 
     def definedAndUsedTransportVersion(String name, String ids) {
@@ -109,7 +101,7 @@ class AbstractTransportVersionFuncTest extends AbstractGradleFuncTest {
         """
         namedTransportVersion("existing_91", "8012000")
         namedTransportVersion("existing_92", "8123000,8012001")
-        initialTransportVersion("initial_9_0_0", "8000000")
+        unreferencedTransportVersion("initial_9_0_0", "8000000")
         latestTransportVersion("9.2", "existing_92", "8123000")
         latestTransportVersion("9.1", "existing_92", "8012001")
         // a mock version of TransportVersion, just here so we can compile Dummy.java et al

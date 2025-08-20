@@ -16,6 +16,7 @@ import org.gradle.process.ExecOperations;
 import org.gradle.process.ExecResult;
 
 import java.io.ByteArrayOutputStream;
+import java.io.File;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -193,7 +194,8 @@ public abstract class TransportVersionResourcesService implements BuildService<T
         if (getMainResources().contains(resourcePath) == false) {
             return null;
         }
-        String content = gitCommand("show", "main:./" + resourcePath).strip();
+
+        String content = gitCommand("show", "main:." + File.separator + resourcePath).strip();
         return parser.apply(resourcePath, content);
     }
 
